@@ -14,13 +14,17 @@ hyp-obj-$(CONFIG_DEBUG_LIST) += list_debug.o
 hyp-obj-$(CONFIG_MODULES) += modules.o
 hyp-obj-y += $(lib-objs)
 
-ifdef CONFIG_PKVM_S2MPU
+ifneq ($(or $(CONFIG_PKVM_S2MPU),$(CONFIG_PKVM_S2MPU_V9)),)
 SRC_ROOT := ../../../../..
 GS_CMN := google-modules/soc/gs/drivers/soc/google/pkvm-s2mpu/common
 GS_HYP := $(SRC_ROOT)/$(GS_CMN)/hyp
 hyp-obj-y += $(GS_HYP)/s2mpu.o $(GS_HYP)/io-mpt-s2mpu.o
 
+ifdef CONFIG_PKVM_S2MPU
 GS_HYP_CFLAGS := -I$(srctree)/$(GS_CMN) -DS2MPU_V1
+else
+GS_HYP_CFLAGS := -I$(srctree)/$(GS_CMN) -DS2MPU_V9
+endif
 CFLAGS_$(GS_HYP)/s2mpu.nvhe.o := $(GS_HYP_CFLAGS)
 CFLAGS_$(GS_HYP)/io-mpt-s2mpu.nvhe.o := $(GS_HYP_CFLAGS)
 endif
