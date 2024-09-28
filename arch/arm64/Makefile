@@ -109,7 +109,9 @@ ifeq ($(CONFIG_AS_HAS_ARMV8_5), y)
 asm-arch := armv8.5-a
 endif
 
-ifdef CONFIG_SOC_ZUMA
+ifdef CONFIG_SOC_ZUMAPRO
+KBUILD_CFLAGS	+= $(call cc-option,-mcpu=cortex-a720)
+else ifdef CONFIG_SOC_ZUMA
 KBUILD_CFLAGS	+= $(call cc-option,-mcpu=cortex-a510)
 KBUILD_CFLAGS	+= $(call cc-option,-mtune=neoverse-n1)
 else ifdef CONFIG_SOC_GS201
