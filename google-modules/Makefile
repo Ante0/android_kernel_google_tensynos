@@ -10,6 +10,7 @@ export ROOT_DIR := $(srctree)
 
 obj-y += amplifiers/cs35l41/
 obj-y += amplifiers/cs40l26/
+obj-y += amplifiers/tas25xx/
 obj-y += amplifiers/snd_soc_wm_adsp/
 obj-y += aoc/
 obj-y += aoc/alsa/
@@ -19,6 +20,7 @@ obj-y += bms/
 obj-y += bms/misc/
 obj-y += display/common/gs_drm/
 obj-y += display/common/gs_panel/
+obj-y += display/panels/tegu/
 obj-y += display/samsung/
 obj-y += gps/broadcom/bcm47765/
 obj-y += gpu/mali_kbase/
@@ -27,11 +29,14 @@ obj-y += lwis/
 obj-y += nfc/
 obj-y += power/mitigation/
 obj-y += power/reset/
+obj-y += radio/samsung/s5300/
+obj-y += sensors/hall_sensor/
 obj-y += soc/gs/
 obj-y += touch/common/
 obj-y += touch/goodix/
 obj-y += trusty/
 obj-y += video/gchips/
+obj-y += wlan/bcm4383/
 
 ifdef CONFIG_SOC_ZUMA
 # zuma and zumapro
