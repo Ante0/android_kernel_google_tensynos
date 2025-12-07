@@ -31,5 +31,32 @@ source "lib/Kconfig.debug"
 
 source "Documentation/Kconfig"
 
-# ANDROID: Set KCONFIG_EXT_PREFIX to decend into an external project.
-source "$(KCONFIG_EXT_PREFIX)Kconfig.ext"
+choice
+	prompt "Google SoC Kconfig.ext to use"
+	default KCONFIG_EXT_NONE
+
+config KCONFIG_EXT_NONE
+	bool "None"
+
+config KCONFIG_EXT_GS201
+	bool "Tensor G2 (gs201)"
+
+config KCONFIG_EXT_ZUMA
+	bool "Tensor G3 (zuma)"
+
+config KCONFIG_EXT_ZUMAPRO
+	bool "Tensor G4 (zumapro)"
+
+endchoice
+
+if KCONFIG_EXT_GS201
+source "google-devices/gs201/Kconfig.ext.gs201"
+endif
+
+if KCONFIG_EXT_ZUMA
+source "google-devices/zuma/Kconfig.ext.zuma"
+endif
+
+if KCONFIG_EXT_ZUMAPRO
+source "google-devices/zumapro/Kconfig.ext.zumapro"
+endif
