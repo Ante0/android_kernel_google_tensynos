@@ -1527,6 +1527,16 @@ ifneq ($(wildcard $(srctree)/arch/$(SRCARCH)/boot/dts/),)
 dtstree ?= arch/$(SRCARCH)/boot/dts
 endif
 
+ifdef CONFIG_SOC_ZUMAPRO
+dtstree := google-devices/zumapro/dts
+else ifdef CONFIG_SOC_ZUMA
+dtstree := google-devices/zuma/dts
+else ifdef CONFIG_SOC_GS201
+dtstree := google-devices/gs201/dts
+endif
+DTC_INCLUDE := $(srctree)/google-modules/soc/gs/include/dtc
+export DTC_INCLUDE
+
 ifneq ($(dtstree),)
 
 %.dtb: dtbs_prepare
