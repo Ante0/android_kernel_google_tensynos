@@ -111,7 +111,7 @@ ifeq ($(CONFIG_BCMDHD),)
   # wondertap - activate only if wonder folder is present in SDK
   WONDER_DIR=$(ROOT_DIR)/private/google-modules/wlan/wonder
   ifneq ($(wildcard $(WONDER_DIR)),)
-  CONFIG_WONDERTAP=y
+  CONFIG_WONDERTAP=n
     ifeq ($(CONFIG_WONDERTAP),y)
       DHDCFLAGS += -I$(WONDER_DIR)/include
       DHDCFLAGS += -DWONDERTAP
