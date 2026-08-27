@@ -138,7 +138,6 @@ exit:
 static int goog_fts_ts_suspend(struct device *dev)
 {
     int ret = 0;
-    int retry_count = 0;
     struct fts_ts_data *ts_data = fts_data;
 
     FTS_FUNC_ENTER();
@@ -152,42 +151,31 @@ static int goog_fts_ts_suspend(struct device *dev)
     /* Disable irq */
     fts_irq_disable();
 
-    for (retry_count = 1; retry_count <= 3; retry_count++) {
-        FTS_INFO("Do reset on suspend, attempt: %d", retry_count);
-        fts_reset_proc(FTS_RESET_INTERVAL);
+    FTS_INFO("Do reset on suspend");
+    fts_reset_proc(FTS_RESET_INTERVAL);
 
-        ret = fts_wait_tp_to_valid();
-        if (ret != 0) {
-            FTS_ERROR("Suspend has been cancelled by wake up timeout, ret=%d", ret);
-            continue;
-        }
-
-        // Clear reset flag
-        fts_write_reg(FTS_REG_CLR_RESET, 0x01);
-
-        FTS_INFO("Device has been reset");
-
-        fts_set_irq_report_onoff(ENABLE);
-
-        FTS_DEBUG("make TP enter into sleep mode");
-        ret = goog_enter_deep_sleep_mode(ts_data);
-        ts_data->is_deepsleep = !ret;
-        if (ret < 0) {
-            FTS_ERROR("set TP to sleep mode fail, ret=%d", ret);
-            continue;
-        }
-
-        ret = fts_pinctrl_select_suspend(ts_data);
-        if (ret < 0)
-            FTS_ERROR("set pinctrl suspend fail, ret=%d", ret);
-
-        break;
-    }
-
-    if (retry_count > 3) {
-        FTS_ERROR("Failed to suspend after trying 3 times, %d", ret);
+    ret = fts_wait_tp_to_valid();
+    if (ret != 0) {
+        FTS_ERROR("Suspend has been cancelled by wake up timeout");
         return ret;
     }
+
+    // Clear reset flag
+    fts_write_reg(FTS_REG_CLR_RESET, 0x01);
+
+    FTS_INFO("Device has been reset");
+
+    fts_set_irq_report_onoff(ENABLE);
+
+    FTS_DEBUG("make TP enter into sleep mode");
+    ret = goog_enter_deep_sleep_mode(ts_data);
+    ts_data->is_deepsleep = !ret;
+    if (ret < 0)
+      FTS_ERROR("set TP to sleep mode fail, ret=%d", ret);
+
+    ret = fts_pinctrl_select_suspend(ts_data);
+    if (ret < 0)
+      FTS_ERROR("set pinctrl suspend fail, ret=%d", ret);
 
     FTS_FUNC_EXIT();
     return 0;

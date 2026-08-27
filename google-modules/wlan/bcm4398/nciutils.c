@@ -3,7 +3,7 @@
  * of the BOOKER NCI (non coherent interconnect) based Broadcom chips.
  * Note: this file is used for both dongle and DHD builds.
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -2312,7 +2312,7 @@ BCMPOSTTRAPFN(nci_get_axi_addr)(const si_t *sih, uint32 *size, uint32 baidx)
 	}
 	if (iface_idx < core_info->iface_cnt) {
 		if ((core_info->desc[iface_idx].num_addr_reg > baidx) &&
-			(core_info->desc[iface_idx].sp != NULL)) {
+			(&core_info->desc[iface_idx].sp[baidx] != NULL)) {
 			addr = core_info->desc[iface_idx].sp[baidx].addrl;
 			if (size) {
 				uint32 adesc = core_info->desc[iface_idx].sp[baidx].adesc;
@@ -2353,7 +2353,7 @@ BCMPOSTTRAPFN(nci_get_core_baaddr)(const si_t *sih, uint32 *size, int32 baidx)
 	}
 	if (iface_idx < core_info->iface_cnt) {
 		if ((core_info->desc[iface_idx].num_addr_reg > baidx) &&
-			(core_info->desc[iface_idx].sp != NULL)) {
+			(&core_info->desc[iface_idx].sp[baidx] != NULL)) {
 			addr = core_info->desc[iface_idx].sp[baidx].addrl;
 			if (size) {
 				uint32 adesc = core_info->desc[iface_idx].sp[baidx].adesc;

@@ -204,6 +204,7 @@ static enum hrtimer_restart aoc_pcm_irq_process(struct aoc_alsa_stream *alsa_str
 	struct aoc_service_dev *dev;
 	unsigned long consumed;
 	unsigned long avail;
+	struct snd_pcm_runtime *runtime;
 
 	/* The number of bytes read/writtien should be the bytes in the buffer
 	 * already played out in the case of playback. But this may not be true
@@ -211,8 +212,12 @@ static enum hrtimer_restart aoc_pcm_irq_process(struct aoc_alsa_stream *alsa_str
 	 * the playback case represents what has been read from the buffer,
 	 * not what already played out .
 	*/
+	runtime = alsa_stream->substream->runtime;
+	if (!runtime)
+		return HRTIMER_RESTART;
+
 	if (alsa_stream->dev == NULL ||
-		 alsa_stream->substream->runtime->status->state != SNDRV_PCM_STATE_RUNNING)
+		 runtime->status->state != SNDRV_PCM_STATE_RUNNING)
 		return HRTIMER_RESTART;
 
 	dev = alsa_stream->dev;
@@ -268,16 +273,21 @@ static enum hrtimer_restart aoc_pcm_irq_process(struct aoc_alsa_stream *alsa_str
 static enum hrtimer_restart aoc_pcm_hrtimer_irq_handler(struct hrtimer *timer)
 {
 	struct aoc_alsa_stream *alsa_stream;
+	struct snd_pcm_runtime *runtime;
 
 	WARN_ON(!timer);
 	alsa_stream = container_of(timer, struct aoc_alsa_stream, hr_timer);
 
 	WARN_ON(!alsa_stream || !alsa_stream->substream);
 
-	if(alsa_stream->substream->runtime->status->state == SNDRV_PCM_STATE_PREPARED) {
+	runtime = alsa_stream->substream->runtime;
+	if (!runtime)
+		return HRTIMER_NORESTART;
+
+	if (runtime->status->state == SNDRV_PCM_STATE_PREPARED) {
 		aoc_timer_restart(alsa_stream);
 		return HRTIMER_RESTART;
-	} else if(alsa_stream->substream->runtime->status->state != SNDRV_PCM_STATE_RUNNING)
+	} else if (runtime->status->state != SNDRV_PCM_STATE_RUNNING)
 		return HRTIMER_NORESTART;
 
 	/* Start the timer immediately for next period */

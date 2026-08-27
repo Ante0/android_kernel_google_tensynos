@@ -80,15 +80,6 @@
 #define BOOTUP_DELAY_US_MAX 150
 #define SHUTDOWN_MAX_DELAY_COUNT 20
 
-/* Rio values */
-#define EDGETPU_PSM0_CFG 0x1c1700
-#define EDGETPU_PSM0_START 0x1c1704
-#define EDGETPU_PSM0_STATUS 0x1c1708
-#define EDGETPU_LPM_CONTROL_CSR 0x1d0020
-#define EDGETPU_LPM_CORE_CSR 0x1d0028
-#define EDGETPU_LPM_CLUSTER_CSR0 0x1d0030
-#define EDGETPU_LPM_CLUSTER_CSR1 0x1d0038
-#define EDGETPU_TOP_CLOCK_GATE_CONTROL_CSR 0x1d0068
 #define EDGETPU_LPM_CHANGE_TIMEOUT 30000
 
 #define EDGETPU_LPM_IMEM_OPS_SIZE 0x4
@@ -507,7 +498,7 @@ long edgetpu_soc_pm_get_rate(struct edgetpu_dev *etdev, int flags)
 
 static int edgetpu_core_rate_get(void *data, u64 *val)
 {
-	struct edgetpu_dev *etdev = (typeof(etdev))data;
+	struct edgetpu_dev *etdev = data;
 
 	if (edgetpu_pm_get_if_powered(etdev, true)) {
 		*val = 0;
@@ -521,7 +512,7 @@ static int edgetpu_core_rate_get(void *data, u64 *val)
 
 static int edgetpu_ctl_rate_get(void *data, u64 *val)
 {
-	struct edgetpu_dev *etdev = (typeof(etdev))data;
+	struct edgetpu_dev *etdev = data;
 
 	if (edgetpu_pm_get_if_powered(etdev, true)) {
 		*val = 0;
@@ -535,7 +526,7 @@ static int edgetpu_ctl_rate_get(void *data, u64 *val)
 
 static int edgetpu_axi_rate_get(void *data, u64 *val)
 {
-	struct edgetpu_dev *etdev = (typeof(etdev))data;
+	struct edgetpu_dev *etdev = data;
 
 	if (edgetpu_pm_get_if_powered(etdev, true)) {
 		*val = 0;
@@ -549,7 +540,7 @@ static int edgetpu_axi_rate_get(void *data, u64 *val)
 
 static int edgetpu_apb_rate_get(void *data, u64 *val)
 {
-	struct edgetpu_dev *etdev = (typeof(etdev))data;
+	struct edgetpu_dev *etdev = data;
 
 	if (edgetpu_pm_get_if_powered(etdev, true)) {
 		*val = 0;
@@ -563,7 +554,7 @@ static int edgetpu_apb_rate_get(void *data, u64 *val)
 
 static int edgetpu_uart_rate_get(void *data, u64 *val)
 {
-	struct edgetpu_dev *etdev = (typeof(etdev))data;
+	struct edgetpu_dev *etdev = data;
 
 	if (edgetpu_pm_get_if_powered(etdev, true)) {
 		*val = 0;
@@ -577,7 +568,7 @@ static int edgetpu_uart_rate_get(void *data, u64 *val)
 
 static int edgetpu_vdd_int_m_get(void *data, u64 *val)
 {
-	struct edgetpu_dev *etdev = (typeof(etdev))data;
+	struct edgetpu_dev *etdev = data;
 
 	if (edgetpu_pm_get_if_powered(etdev, true)) {
 		*val = 0;
@@ -591,7 +582,7 @@ static int edgetpu_vdd_int_m_get(void *data, u64 *val)
 
 static int edgetpu_vdd_tpu_get(void *data, u64 *val)
 {
-	struct edgetpu_dev *etdev = (typeof(etdev))data;
+	struct edgetpu_dev *etdev = data;
 
 	if (edgetpu_pm_get_if_powered(etdev, true)) {
 		*val = 0;
@@ -605,7 +596,7 @@ static int edgetpu_vdd_tpu_get(void *data, u64 *val)
 
 static int edgetpu_vdd_tpu_m_get(void *data, u64 *val)
 {
-	struct edgetpu_dev *etdev = (typeof(etdev))data;
+	struct edgetpu_dev *etdev = data;
 
 	if (edgetpu_pm_get_if_powered(etdev, true)) {
 		*val = 0;
@@ -726,9 +717,9 @@ int edgetpu_soc_pm_lpm_up(struct edgetpu_dev *etdev)
 	edgetpu_dev_write_32_sync(etdev, EDGETPU_LPM_CLUSTER_CSR1, 1 << 1);
 
 	/* If lpmCtlOffState is set, clear tpuPowerOff and leave */
-	val = edgetpu_dev_read_32_sync(etdev, EDGETPU_LPM_CONTROL_CSR);
+	val = edgetpu_dev_read_32_sync(etdev, EDGETPU_REG_LPM_CONTROL);
 	if (val & (1 << 8)) {
-		edgetpu_dev_write_32_sync(etdev, EDGETPU_LPM_CONTROL_CSR, val & ~(1 << 5));
+		edgetpu_dev_write_32_sync(etdev, EDGETPU_REG_LPM_CONTROL, val & ~(1 << 5));
 		return 0;
 	}
 	for (i = 0; i < 4; i++) {
@@ -748,7 +739,7 @@ int edgetpu_soc_pm_lpm_up(struct edgetpu_dev *etdev)
 	for (i = 0; i < 4; i++)
 		edgetpu_dev_write_32_sync(etdev, EDGETPU_PSM0_CFG + i * 0x1000, 0);
 	/* set clockGateAllowed = 0x1 */
-	edgetpu_dev_write_32_sync(etdev, EDGETPU_LPM_CONTROL_CSR, 1 << 3);
+	edgetpu_dev_write_32_sync(etdev, EDGETPU_REG_LPM_CONTROL, 1 << 3);
 	/* set axiReorderClockGateEn = 0x1, tpuTopClockGateEn = 0x1 */
 	edgetpu_dev_write_32_sync(etdev, EDGETPU_TOP_CLOCK_GATE_CONTROL_CSR, 3);
 

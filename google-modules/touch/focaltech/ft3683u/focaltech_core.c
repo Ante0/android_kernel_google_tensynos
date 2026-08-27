@@ -858,6 +858,12 @@ static void fts_update_abnormal_reset(struct fts_ts_data *data,
           return;
     }
 
+    /* Used for debugging HW reset failure issue. Need to cleanup if not used in the future */
+    if (new_status->B0_b0_abnormal_reset != 0) {
+      FTS_INFO("0xB2: %02X, %02X, %02X, %02X, %02X", new_status->data[0], new_status->data[1],
+               new_status->data[2], new_status->data[3], new_status->data[4]);
+    }
+
     // Clear reset flag
     fts_write_reg(FTS_REG_CLR_RESET, 0x01);
 }
@@ -2005,6 +2011,9 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
     int ret = 0;
     int pdata_size = sizeof(struct fts_ts_platform_data);
 
+    int reset_retry_count = 0;
+    int max_reset_retry_count = 3;
+
     FTS_FUNC_ENTER();
     ts_data->driver_probed = false;
     FTS_INFO("%s", FTS_DRIVER_VERSION);
@@ -2087,14 +2096,25 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 #endif
 
 #if (!FTS_CHIP_IDC)
-    fts_reset_proc(FTS_RESET_INTERVAL);
-#endif
-
+    for (reset_retry_count = 0; reset_retry_count < max_reset_retry_count; reset_retry_count++) {
+	    fts_reset_proc(FTS_RESET_INTERVAL);
+	    ret = fts_get_ic_information(ts_data);
+	    if (!ret)
+		    break;
+	    FTS_WARN("Failed to get IC information after reset, ret: %d, retry_count: %d", ret,
+		     reset_retry_count);
+    }
+    if (ret) {
+	    FTS_ERROR("not focal IC, unregister driver");
+	    goto err_power_init;
+    }
+#else
     ret = fts_get_ic_information(ts_data);
     if (ret) {
         FTS_ERROR("not focal IC, unregister driver");
         goto err_power_init;
     }
+#endif
 
     ret = fts_create_apk_debug_channel(ts_data);
     if (ret) {

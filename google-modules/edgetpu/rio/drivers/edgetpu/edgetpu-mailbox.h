@@ -347,6 +347,9 @@ void edgetpu_mailbox_deactivate_external_mailbox(struct edgetpu_device_group *gr
  */
 void edgetpu_mailbox_disable_external_mailbox(struct edgetpu_device_group *group);
 
+/* Dump mailbox state info to kernel log for diagnosing timeouts. */
+void edgetpu_mailbox_dump(struct edgetpu_mailbox *mailbox);
+
 /* Macros for accessing mailbox CSRs. */
 
 /* Read mailbox register with no memory barrier / access ordering guarantee. */

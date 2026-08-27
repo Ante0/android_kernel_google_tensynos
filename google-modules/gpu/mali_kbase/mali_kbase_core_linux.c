@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -946,24 +946,6 @@ static int kbase_api_mem_alloc_ex(struct kbase_context *kctx,
 		flags &= ~BASE_MEM_DONT_NEED;
 
 	if (flags & ~BASE_MEM_FLAGS_ALLOC_INPUT_MASK)
-		return -EINVAL;
-
-	/* The driver counts the number of FIXABLE and FIXED allocations because
-	 * they're not supposed to happen at the same time. However, that is not
-	 * a security concern: nothing bad happens if the two types of allocations
-	 * are made at the same time. The only reason why the driver is guarding
-	 * against them is because there's no client use case that is supposed
-	 * to need both of them at the same time, and the driver wants to help
-	 * the user space catch some obvious mistake.
-	 *
-	 * The driver is able to switch from FIXABLE allocations to FIXED and
-	 * vice versa, if all the allocations of one kind are freed before trying
-	 * to create allocations of a different kind.
-	 */
-	if ((flags & BASE_MEM_FIXED) && (atomic64_read(&kctx->num_fixable_allocs) > 0))
-		return -EINVAL;
-
-	if ((flags & BASE_MEM_FIXABLE) && (atomic64_read(&kctx->num_fixed_allocs) > 0))
 		return -EINVAL;
 
 	if (flags & BASE_MEM_FLAGS_KERNEL_ONLY)
@@ -4796,24 +4778,34 @@ static int kbase_device_runtime_suspend(struct device *dev)
 	dev_dbg(dev, "Callback %s\n", __func__);
 	KBASE_KTRACE_ADD(kbdev, PM_RUNTIME_SUSPEND_CALLBACK, NULL, 0);
 
-	if (kbase_pm_is_active(kbdev)) {
-		dev_dbg(kbdev->dev, "Ignoring RT suspend callback as the device is still active");
-		return -EBUSY;
-	}
-
 	if (likely(kbdev->csf.scheduler.kthread_running)) {
 		atomic_set(&kbdev->csf.scheduler.pending_runtime_suspend_work, true);
+		/* The PM active condition is assessed after the pending runtime
+		 * suspend work had been flagged. This is to plug a potential race
+		 * window, where another requesting PM run thread, after having set
+		 * PM active state, but unable to cancel the to be flagged suspend
+		 * work from this thread. The arrangement here is to ensure the work
+		 * item is cancelled on PM active, either by this thread itself, or
+		 * by the other PM active request thread.
+		 */
+		if (kbase_pm_is_active(kbdev)) {
+			atomic_set(&kbdev->csf.scheduler.pending_runtime_suspend_work, false);
+			dev_dbg(kbdev->dev,
+				"Ignoring RT suspend callback as the device is still active");
+			return -EBUSY;
+		}
 		kbase_csf_scheduler_wait_for_kthread_pending_work(
 			kbdev, &kbdev->csf.scheduler.pending_runtime_suspend_work);
 
 		if (kbdev->pm.runtime_suspend_result)
 			return kbdev->pm.runtime_suspend_result;
-	} else {
+	} else if (!kbase_pm_is_active(kbdev)) {
 		int const ret = kbase_pm_handle_runtime_suspend(kbdev);
 
 		if (ret)
 			return ret;
-	}
+	} else
+		return -EBUSY;
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
 	kbase_pm_metrics_stop(kbdev);

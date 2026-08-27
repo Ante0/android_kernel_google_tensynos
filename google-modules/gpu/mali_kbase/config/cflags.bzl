@@ -68,7 +68,7 @@ CFLAGS_CORESIGHT = [
 COPTS_KBASE = [
     "-DMALI_COVERAGE=0",
     "-DMALI_JIT_PRESSURE_LIMIT_BASE=0",
-    "-DMALI_RELEASE_NAME=\"r54p2-00eac0\"",
+    "-DMALI_RELEASE_NAME=\"r54p3-00eac0\"",
 ] + select({
     "//config:mali_debug": ["-DMALI_UNIT_TEST=1"],
     "//conditions:default": ["-DMALI_UNIT_TEST=0"],

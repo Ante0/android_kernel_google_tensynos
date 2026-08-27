@@ -20,6 +20,7 @@
 #include <linux/string.h>
 #include <linux/types.h>
 #include <linux/vmalloc.h>
+#include <trace/events/edgetpu.h>
 
 #include <gcip/gcip-alloc-helper.h>
 #include <gcip/gcip-common-image-header.h>
@@ -47,6 +48,9 @@
 #include "edgetpu-sw-watchdog.h"
 #include "edgetpu-telemetry.h"
 #include "edgetpu-usage-stats.h"
+
+#define TEST_FAKE_FIRMWARE_START_CONSUMING(...)
+#define TEST_FAKE_FIRMWARE_STOP_CONSUMING(...)
 
 /*
  * Log and trace buffers at the beginning of the remapped region, pool memory afterwards.
@@ -403,6 +407,7 @@ static int edgetpu_firmware_gsa_authenticate(struct edgetpu_dev *etdev, const st
 	dma_addr_t header_dma_addr;
 	int tpu_state;
 	size_t fw_header_size;
+	size_t fw_body_size;
 	int ret = 0;
 
 	tpu_state = gsa_send_tpu_cmd(et_fw->gsa_dev, GSA_TPU_GET_STATE);
@@ -424,7 +429,8 @@ static int edgetpu_firmware_gsa_authenticate(struct edgetpu_dev *etdev, const st
 
 	/* Copy the firmware image to the carveout, skipping the header */
 	fw_header_size = gcip_common_get_fw_header_size(fw->data, EDGETPU_FW_MAGIC);
-	memcpy(image_vaddr, fw->data + fw_header_size, fw->size - fw_header_size);
+	fw_body_size = fw->size - fw_header_size;
+	memcpy(image_vaddr, fw->data + fw_header_size, fw_body_size);
 
 	/* Allocate coherent memory for the image header */
 	header_vaddr = dma_alloc_coherent(et_fw->gsa_dev, fw_header_size, &header_dma_addr,
@@ -435,9 +441,22 @@ static int edgetpu_firmware_gsa_authenticate(struct edgetpu_dev *etdev, const st
 	}
 
 	memcpy(header_vaddr, fw->data, fw_header_size);
-	etdev_dbg(etdev, "Requesting GSA image load. meta = %pad payload = %pap", &header_dma_addr,
-		  &et_fw->fw_region_paddr);
-	ret = gsa_load_tpu_fw_image(et_fw->gsa_dev, header_dma_addr, et_fw->fw_region_paddr);
+	if (fw_header_size == GCIP_FW_PQ_ENABLED_HEADER_SIZE) {
+#if EDGETPU_HAS_PQ_FW_AUTH
+		etdev_dbg(etdev, "Requesting GSA authentication for PQ image. meta = %pad payload = %pap",
+			  &header_dma_addr, &et_fw->fw_region_paddr);
+		ret = gsa_load_tpu_fw_image_pq(et_fw->gsa_dev, header_dma_addr,
+					       et_fw->fw_region_paddr, fw_body_size);
+#else
+		etdev_err(etdev, "PQ firmware image found, but platform does not support it");
+		ret = -EINVAL;
+#endif
+	} else {
+		etdev_dbg(etdev, "Requesting GSA authentication. meta = %pad payload = %pap",
+			  &header_dma_addr, &et_fw->fw_region_paddr);
+		ret = gsa_load_tpu_fw_image(et_fw->gsa_dev, header_dma_addr,
+					    et_fw->fw_region_paddr);
+	}
 	if (ret)
 		etdev_err(etdev, "GSA authentication failed: %d\n", ret);
 
@@ -494,6 +513,8 @@ static int edgetpu_firmware_update_remapped_data_region(struct edgetpu_dev *etde
 
 	etdev_dbg(etdev, "Moving remapped data from %pad to %pad\n",
 		  &et_fw->shared_data_daddr, &shared_data_daddr);
+
+	TEST_FAKE_FIRMWARE_STOP_CONSUMING(etdev);
 
 	if (et_fw->shared_data_vaddr) {
 		/*
@@ -567,6 +588,8 @@ static int edgetpu_firmware_update_remapped_data_region(struct edgetpu_dev *etde
 	ret = edgetpu_iif_init_mailbox(etdev, etdev->etiif);
 	if (ret)
 		goto out_ikv_release;
+
+	TEST_FAKE_FIRMWARE_START_CONSUMING(etdev);
 
 	return 0;
 
@@ -674,17 +697,21 @@ static int edgetpu_firmware_prepare_run(struct edgetpu_firmware *et_fw)
 static int edgetpu_firmware_restart(struct edgetpu_firmware *et_fw, bool force_reset)
 {
 	struct edgetpu_dev *etdev = et_fw->etdev;
+	int ret;
 
 	/*
 	 * We are in a bad state, reset the CPU and hope the device recovers.
 	 * Ignore failures in the reset assert request and proceed to reset release.
 	 */
+	trace_edgetpu_firmware_restart_start(etdev, force_reset);
 	if (force_reset)
 		edgetpu_firmware_reset_cpu(etdev, true);
 
 	edgetpu_soc_prepare_firmware(etdev);
 
-	return edgetpu_firmware_reset_cpu(etdev, false);
+	ret = edgetpu_firmware_reset_cpu(etdev, false);
+	trace_edgetpu_firmware_restart_end(etdev, ret);
+	return ret;
 }
 
 /*
@@ -888,6 +915,7 @@ static int edgetpu_firmware_handshake(struct edgetpu_firmware *et_fw)
 	enum gcip_fw_flavor fw_flavor;
 	int ret;
 
+	trace_edgetpu_firmware_handshake_start(etdev);
 	etdev_dbg(etdev, "Detecting firmware info...");
 	et_fw->fw_info.fw_build_time = 0;
 	et_fw->fw_info.fw_flavor = GCIP_FW_FLAVOR_UNKNOWN;
@@ -902,7 +930,8 @@ static int edgetpu_firmware_handshake(struct edgetpu_firmware *et_fw)
 		et_fw->fw_info.fw_build_time = 0;
 		/* Dump telemetry buffer in case there is any log. */
 		edgetpu_telemetry_irq_handler(etdev);
-		return fw_flavor;
+		ret = fw_flavor;
+		goto error_trace_end;
 	}
 
 	etdev_info(etdev, "loaded %s firmware (%u.%u %u)",
@@ -931,7 +960,11 @@ static int edgetpu_firmware_handshake(struct edgetpu_firmware *et_fw)
 	}
 	/* If fw debug service is already activated, tell fw about it. */
 	edgetpu_fw_debug_resetup(etdev);
-	return 0;
+	ret = 0;
+
+error_trace_end:
+	trace_edgetpu_firmware_handshake_end(etdev, ret);
+	return ret;
 }
 
 /*
@@ -999,8 +1032,6 @@ enum gcip_fw_flavor edgetpu_firmware_get_flavor(struct edgetpu_dev *etdev)
 {
 	struct edgetpu_firmware *et_fw = etdev->firmware;
 
-	if (!et_fw)
-		return GCIP_FW_FLAVOR_UNKNOWN;
 	return et_fw->fw_info.fw_flavor;
 }
 
@@ -1013,8 +1044,6 @@ int edgetpu_firmware_trylock(struct edgetpu_dev *etdev)
 {
 	struct edgetpu_firmware *et_fw = etdev->firmware;
 
-	if (!et_fw)
-		return 1;
 	return mutex_trylock(&et_fw->fw_state_lock);
 }
 
@@ -1024,12 +1053,10 @@ int edgetpu_firmware_trylock(struct edgetpu_dev *etdev)
  * incompatible with a change in firmware status.  Does not care whether or not
  * any client has created a group for the device.
  */
-int edgetpu_firmware_lock(struct edgetpu_dev *etdev)
+static int edgetpu_firmware_lock(struct edgetpu_dev *etdev)
 {
 	struct edgetpu_firmware *et_fw = etdev->firmware;
 
-	if (!et_fw)
-		return -EINVAL;
 	mutex_lock(&et_fw->fw_state_lock);
 	return 0;
 }
@@ -1039,8 +1066,6 @@ void edgetpu_firmware_unlock(struct edgetpu_dev *etdev)
 {
 	struct edgetpu_firmware *et_fw = etdev->firmware;
 
-	if (!et_fw)
-		return;
 	mutex_unlock(&et_fw->fw_state_lock);
 }
 
@@ -1053,12 +1078,6 @@ static int edgetpu_firmware_load_lock(struct edgetpu_dev *etdev)
 {
 	struct edgetpu_firmware *et_fw = etdev->firmware;
 
-	if (!et_fw) {
-		etdev_err(
-			etdev,
-			"Cannot load firmware when no loader is available\n");
-		return -EINVAL;
-	}
 	mutex_lock(&et_fw->fw_state_lock);
 
 	/* Disallow group creation while loading, fail if a group is already created */
@@ -1077,11 +1096,6 @@ static void edgetpu_firmware_load_unlock(struct edgetpu_dev *etdev)
 {
 	struct edgetpu_firmware *et_fw = etdev->firmware;
 
-	if (!et_fw) {
-		etdev_dbg(etdev,
-			  "Unlock firmware when no loader available\n");
-		return;
-	}
 	edgetpu_set_group_create_lockout(etdev, false);
 	mutex_unlock(&et_fw->fw_state_lock);
 }
@@ -1161,8 +1175,6 @@ int edgetpu_firmware_run(struct edgetpu_dev *etdev, const char *name)
 	struct edgetpu_firmware *et_fw = etdev->firmware;
 	int ret;
 
-	if (!et_fw)
-		return -ENODEV;
 	ret = edgetpu_firmware_pm_get(et_fw);
 	if (ret)
 		return ret;
@@ -1212,8 +1224,6 @@ enum gcip_fw_status edgetpu_firmware_status_locked(struct edgetpu_dev *etdev)
 {
 	struct edgetpu_firmware *et_fw = etdev->firmware;
 
-	if (!et_fw)
-		return GCIP_FW_INVALID;
 	return et_fw->status;
 }
 
@@ -1262,9 +1272,6 @@ ssize_t edgetpu_firmware_get_name(struct edgetpu_dev *etdev, char *buf,
 	struct edgetpu_firmware *et_fw = etdev->firmware;
 	int ret;
 
-	if (!et_fw)
-		goto fw_none;
-
 	mutex_lock(&et_fw->fw_state_lock);
 	if (edgetpu_firmware_status_locked(etdev) != GCIP_FW_VALID)
 		goto unlock_fw_none;
@@ -1276,7 +1283,6 @@ ssize_t edgetpu_firmware_get_name(struct edgetpu_dev *etdev, char *buf,
 
 unlock_fw_none:
 	mutex_unlock(&et_fw->fw_state_lock);
-fw_none:
 	return scnprintf(buf, buflen, "[none]\n");
 }
 
@@ -1294,12 +1300,8 @@ static ssize_t load_firmware_store(
 		const char *buf, size_t count)
 {
 	struct edgetpu_dev *etdev = dev_get_drvdata(dev);
-	struct edgetpu_firmware *et_fw = etdev->firmware;
 	int ret;
 	char *name;
-
-	if (!et_fw)
-		return -ENODEV;
 
 	name = edgetpu_fwutil_name_from_attr_buf(buf);
 	if (IS_ERR(name))
@@ -1325,8 +1327,6 @@ static ssize_t firmware_type_show(
 	struct edgetpu_firmware *et_fw = etdev->firmware;
 	int ret;
 
-	if (!et_fw)
-		return -ENODEV;
 	ret = scnprintf(buf, PAGE_SIZE, "%s\n",
 			gcip_fw_flavor_str(et_fw->fw_info.fw_flavor));
 	return ret;
@@ -1340,9 +1340,6 @@ static ssize_t firmware_version_show(
 	struct edgetpu_dev *etdev = dev_get_drvdata(dev);
 	struct edgetpu_firmware *et_fw = etdev->firmware;
 	int ret;
-
-	if (!et_fw)
-		return -ENODEV;
 
 	if (etdev->fw_version.kci_version == EDGETPU_INVALID_KCI_VERSION)
 		ret = -ENODATA;
@@ -1392,24 +1389,23 @@ void edgetpu_firmware_watchdog_restart(struct edgetpu_dev *etdev, bool in_powerd
 			return;
 	}
 
-	/* edgetpu_firmware_lock() here never fails */
-	edgetpu_firmware_lock(etdev);
-
 	if (!in_powerdown) {
 		ret = edgetpu_firmware_pm_get(et_fw);
 		if (ret)
-			goto out;
+			return;
 	}
+
+	/* edgetpu_firmware_lock() here never fails */
+	edgetpu_firmware_lock(etdev);
 
 	ret = edgetpu_firmware_restart_locked(etdev, true);
 	if (ret)
 		etdev_warn(etdev, "restart returns %d\n", ret);
 
+	edgetpu_firmware_unlock(etdev);
+
 	if (!in_powerdown)
 		edgetpu_pm_put(etdev);
-
-out:
-	edgetpu_firmware_unlock(etdev);
 }
 
 static int edgetpu_firmware_fault_inject_init(struct edgetpu_firmware *et_fw)
@@ -1475,8 +1471,6 @@ void edgetpu_firmware_destroy(struct edgetpu_dev *etdev)
 {
 	struct edgetpu_firmware *et_fw = etdev->firmware;
 
-	if (!et_fw)
-		return;
 	edgetpu_sw_wdt_destroy(etdev);
 
 	edgetpu_firmware_fault_inject_exit(et_fw);
@@ -1645,8 +1639,6 @@ void edgetpu_firmware_mappings_show(struct edgetpu_dev *etdev,
 	struct edgetpu_firmware *et_fw = etdev->firmware;
 	dma_addr_t fw_carveout_daddr = EDGETPU_INSTRUCTION_REMAP_BASE;
 
-	if (!et_fw)
-		return;
 	if (!et_fw->name)
 		return;
 	seq_printf(s, "  %pad %lu fw\n", &fw_carveout_daddr,

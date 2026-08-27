@@ -515,7 +515,7 @@
 				/* Thread priority */
 				transaction-thread-priority = <99>;
 
-				i2c-lock-group-id = <3>;
+				i2c-lock-group-id = <1>;
 			};
 
 			/* REAR ULTRA WIDE CAMERA */
@@ -570,7 +570,7 @@
 				resume-seqs = "reset";
 				resume-seq-types = "gpio";
 				/* from XCLR to first i2c */
-				resume-seq-delays-us = <5000>;
+				resume-seq-delays-us = <6000>;
 
 				/* suspend sequence */
 				suspend-seqs = "reset";
@@ -693,6 +693,8 @@
 
 				/* Power sequence */
 				power-seq = <&front_camera_power_seq>;
+
+				i2c-lock-group-id = <1>;
 			};
 
 			/* Actuator for REAR CAMERA */
@@ -776,6 +778,8 @@
 
 				/* Thread priority */
 				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <1>;
 			};
 
 			/* Actuator for REAR ULTRAWIDE CAMERA */

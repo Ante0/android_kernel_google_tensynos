@@ -312,7 +312,7 @@ static inline int gxp_kci_send_cmd(struct gxp_mailbox *mailbox,
 	int ret;
 
 	gxp_pm_busy(mailbox->gxp);
-	ret = gxp_mailbox_send_cmd(mailbox, cmd, NULL, 0);
+	ret = gxp_mailbox_send_cmd(mailbox, cmd, NULL);
 	gxp_pm_idle(mailbox->gxp);
 
 	return ret;

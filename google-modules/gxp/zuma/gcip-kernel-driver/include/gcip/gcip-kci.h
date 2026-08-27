@@ -233,10 +233,10 @@ struct gcip_kci_ops {
 	 */
 	bool (*is_block_off)(struct gcip_kci *kci);
 	/*
-	 * Called when a command fails to be sent.
+	 * Called when command @cmd fails to be sent, or the response times out.
 	 * Context: normal.
 	 */
-	void (*on_error)(struct gcip_kci *kci, int err);
+	void (*on_error)(struct gcip_kci *kci, void *cmd, int err);
 };
 
 struct gcip_kci {

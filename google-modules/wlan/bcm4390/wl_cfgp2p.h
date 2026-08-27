@@ -1,7 +1,7 @@
 /*
  * Linux cfgp2p driver
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -26,13 +26,8 @@
 #include <p2p.h>
 
 struct bcm_cfg80211;
-#ifdef DHD_DEBUG
 extern u32 wl_dbg_level;
 extern u32 wl_log_level;
-#else
-#define wl_dbg_level (0)
-#define wl_log_level (0)
-#endif /* DHD_DEBUG */
 
 typedef struct wifi_p2p_ie wifi_wfd_ie_t;
 /* Enumeration of the usages of the BSSCFGs used by the P2P Library.  Do not

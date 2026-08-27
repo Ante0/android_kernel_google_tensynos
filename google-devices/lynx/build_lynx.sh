@@ -1,10 +1,4 @@
 #!/bin/bash
-# SPDX-License-Identifier: GPL-2.0
+# SPDX-License-Identifier: GPL-2.0-only
 
-source private/devices/google/common/shell_utils.sh
-setup_cog_env_if_needed
-
-exec tools/bazel run \
-    --config=stamp \
-    --config=lynx \
-    //private/devices/google/lynx:gs201_lynx_dist "$@"
+exec tools/build_dist.sh lynx "$@"

@@ -95,13 +95,15 @@ enum gbms_property {
 	GBMS_PROP_BATT_ID,			/* GBMS battery id */
 	GBMS_PROP_RECAL_FG,			/* GBMS FG reset */
 	GBMS_PROP_LOGBUFFER_BD,			/* GBMS pass logbuffer_bd address */
+	GBMS_PROP_AACV_OFFSET,			/* GBMS pass aacv offset to FG */
 	GBMS_PROP_AAFV_OFFSET,			/* GBMS pass aafv offset to FG */
 	GBMS_PROP_CURRENT_NOW,			/* GBMS get pps current without multiplication */
 	GBMS_PROP_NEED_CHARGE_TO_FULL,		/* GBMS FG requests to bypass 80% limit */
 	GBMS_PROP_BD_TIME_SUM,			/* GBMS get temp-defend time sum */
 	GBMS_PROP_FG_EVENT_LOGGING,		/* GBMS FG event logging */
 	GBMS_PROP_CAPACITY_TO_CHARGER,		/* GBMS SOC for charge in boundary with spoof UI */
-	GBMS_PROP_DUAL_BATTERY_DC_STATE		/* GBMS dual battery disconnect state */
+	GBMS_PROP_DUAL_BATTERY_DC_STATE,	/* GBMS dual battery disconnect state */
+	GBMS_PROP_CAPACITY_RAW_GDF,		/* GBMS used for ssoc_gdf (soc_raw) */
 };
 
 union gbms_propval {

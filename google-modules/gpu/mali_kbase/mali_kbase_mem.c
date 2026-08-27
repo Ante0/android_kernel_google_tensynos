@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1020,14 +1020,6 @@ int kbase_mem_free_region(struct kbase_context *kctx, struct kbase_va_region *re
 		goto out;
 	}
 
-	if (((kbase_bits_to_zone(reg->flags)) == FIXED_VA_ZONE) ||
-	    ((kbase_bits_to_zone(reg->flags)) == EXEC_FIXED_VA_ZONE)) {
-		if (reg->flags & KBASE_REG_FIXED_ADDRESS)
-			atomic64_dec(&kctx->num_fixed_allocs);
-		else
-			atomic64_dec(&kctx->num_fixable_allocs);
-	}
-
 	KBASE_TLSTREAM_REGION_FREE(kctx->kbdev, kctx->id, reg->start_pfn << PAGE_SHIFT,
 				   reg->nr_pages * PAGE_SIZE, kbase_reg_current_backed_size(reg));
 	/* This will also free the physical pages */
@@ -1707,9 +1699,7 @@ static size_t free_partial(struct kbase_context *kctx, struct tagged_addr tp, bo
 		struct kbase_mem_pool *pool = &kctx->mem_pools.large[sa->group_id];
 
 		list_del(&sa->link);
-		kbase_mem_pool_lock(pool);
-		kbase_mem_pool_free_locked(pool, head_page, false);
-		kbase_mem_pool_unlock(pool);
+		kbase_mem_pool_free_lite_defer(pool, head_page, false);
 		kfree(sa);
 		nr_pages_to_account = NUM_PAGES_IN_2MB_LARGE_PAGE;
 	} else if (bitmap_weight(sa->sub_pages, NUM_PAGES_IN_2MB_LARGE_PAGE) ==

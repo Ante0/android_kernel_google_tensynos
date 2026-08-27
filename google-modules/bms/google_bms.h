@@ -42,6 +42,7 @@ struct device_node;
 #define GBMS_AACT_PROFILE_MAX 100
 #define GBMS_AACC_TEMP_NB_MAX 10
 #define GBMS_AACC_SOC_SIZE 100
+#define GBMS_AACV_DATA_MAX 10
 
 struct aacc_weight_profile {
 	/* the profile of aacc_chg/aacc_dsg */
@@ -56,6 +57,7 @@ struct aacc_profile {
 	int start_soc;			/* the start soc in each session */
 	int end_soc;			/* the end soc in each session */
 	int aawc;			/* wrights cycles */
+	u8 lotr;			/* determine the storage layout version */
 
 	/* to calculate the average temperature */
 	long long temp_sum;
@@ -130,6 +132,12 @@ struct gbms_chg_profile {
 	/* AACC feature */
 	struct aacc_profile aacc_cycles;
 
+	/* AACV feature */
+	u32 aacv_cycles[GBMS_AACV_DATA_MAX];
+	u32 aacv_offsets[GBMS_AACV_DATA_MAX];
+	u32 aacv_nb_limits;
+	u32 aacv_offset;
+
 	bool debug_chg_profile;
 	bool enable_switch_chg_profile;
 };
@@ -139,6 +147,31 @@ typedef struct {
     char *cv_limits[GBMS_AACT_NB_LIMITS_MAX];
     char *cc_limits[GBMS_AACT_NB_LIMITS_MAX];
 } aact_limits_profiles_t;
+
+/* the number should be the same as GBMS_AACT_NB_LIMITS_MAX */
+static aact_limits_profiles_t aact_all_limits = {
+    .temp_limits = {
+        "google,aact-temp-limits",
+        "google,aact-temp-limits-1",
+        "google,aact-temp-limits-2",
+        "google,aact-temp-limits-3",
+        "google,aact-temp-limits-4"
+    },
+    .cv_limits = {
+        "google,aact-cv-limits",
+        "google,aact-cv-limits-1",
+        "google,aact-cv-limits-2",
+        "google,aact-cv-limits-3",
+        "google,aact-cv-limits-4"
+    },
+    .cc_limits = {
+        "google,aact-cc-limits",
+        "google,aact-cc-limits-1",
+        "google,aact-cc-limits-2",
+        "google,aact-cc-limits-3",
+        "google,aact-cc-limits-4"
+    }
+};
 
 #define WLC_BPP_THRESHOLD_UV	7000000
 #define WLC_EPP_THRESHOLD_UV	11000000
@@ -714,6 +747,9 @@ int gbms_read_aacc_chg_weights(struct gbms_chg_profile *profile,
 int gbms_read_aacc_dsg_weights(struct gbms_chg_profile *profile,
 			       struct device_node *node);
 int gbms_aacc_temp_idx(const struct gbms_chg_profile *profile, int temp, bool is_charge);
+int gbms_read_aacv_limits(struct gbms_chg_profile *profile,
+			  struct device_node *node);
+int gbms_aacv_get_offset(const struct gbms_chg_profile *profile, const int cycles);
 
 bool chg_state_is_disconnected(const union gbms_charger_state *chg_state);
 

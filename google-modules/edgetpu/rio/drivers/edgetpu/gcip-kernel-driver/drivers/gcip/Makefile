@@ -22,6 +22,7 @@ gcip-objs		:= gcip-alloc-helper.o \
 			   gcip-iommu.o \
 			   gcip-kci.o \
 			   gcip-mailbox.o \
+			   gcip-mapping.o \
 			   gcip-mem-pool.o \
 			   gcip-pm.o \
 			   gcip-resource-accessor.o \
@@ -47,6 +48,7 @@ ccflags-y	+= -I$(CURRENT_DIR)/../../include
 ccflags-y	+= -I$(CURRENT_DIR)/iif/include
 
 # Set the path of google-modules sources if not defined.
+ROOT_DIR ?= $(KERNEL_SRC)/..
 GMODULE_SRC_PATH ?= $(ROOT_DIR)/private/google-modules
 
 ifneq ($(wildcard $(GMODULE_SRC_PATH)/iif/include),)

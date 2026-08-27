@@ -20,11 +20,12 @@
 
 #include <gcip/gcip-iommu-reserve.h>
 #include <gcip/gcip-iommu.h>
+#include <gcip/gcip-mapping.h>
 
 /* Wrapping mapping structure to be managed by the `struct gcip_iommu_reserve_region`. */
 struct gcip_iommu_reserve_mapping {
 	struct gcip_iommu_reserve_region *region;
-	struct gcip_iommu_mapping *mapping;
+	struct gcip_mapping *mapping;
 	struct list_head node;
 	struct kref kref;
 	void *data;
@@ -159,7 +160,7 @@ static void gcip_iommu_reserve_mapping_after_unmap(void *data)
 	gcip_iommu_reserve_mapping_put(reserve_mapping);
 }
 
-static const struct gcip_iommu_mapping_ops reserve_mapping_ops = {
+static const struct gcip_mapping_ops reserve_mapping_ops = {
 	.after_unmap = gcip_iommu_reserve_mapping_after_unmap,
 };
 
@@ -171,7 +172,7 @@ static const struct gcip_iommu_mapping_ops reserve_mapping_ops = {
  */
 static struct gcip_iommu_reserve_mapping *
 gcip_iommu_reserve_mapping_alloc_locked(struct gcip_iommu_reserve_region *region,
-					struct gcip_iommu_mapping *mapping, void *data)
+					struct gcip_mapping *mapping, void *data)
 {
 	struct gcip_iommu_reserve_mapping *reserve_mapping;
 
@@ -189,8 +190,8 @@ gcip_iommu_reserve_mapping_alloc_locked(struct gcip_iommu_reserve_region *region
 	reserve_mapping->data = data;
 	kref_init(&reserve_mapping->kref);
 
-	gcip_iommu_mapping_set_ops(mapping, &reserve_mapping_ops);
-	gcip_iommu_mapping_set_data(mapping, reserve_mapping);
+	gcip_mapping_set_ops(mapping, &reserve_mapping_ops);
+	gcip_mapping_set_data(mapping, reserve_mapping);
 
 	return reserve_mapping;
 }
@@ -366,11 +367,11 @@ static void gcip_iommu_reserve_region_try_retire(struct gcip_iommu_reserve_regio
 	list_for_each_entry_safe(cur, tmp, &region->mappings, node) {
 		list_del_init(&cur->node);
 		/*
-		 * Calls @unmap callback instead of calling the `gcip_iommu_mapping_unmap` function
+		 * Calls @unmap callback instead of calling the `gcip_mapping_unmap` function
 		 * directly because IP driver may access @cur->mapping even after this callback
 		 * returns by the race condition. The IP driver will prepare their resources for
 		 * unmapping the mapping immediately whenever they can guarantee that no one will
-		 * access it anymore. The IP driver must call the `gcip_iommu_mapping_unmap`
+		 * access it anymore. The IP driver must call the `gcip_mapping_unmap`
 		 * function by itself at that moment.
 		 */
 		region->mgr->ops->unmap(region->mgr, cur->mapping, cur->data);
@@ -524,15 +525,15 @@ int gcip_iommu_reserve_region_retire(struct gcip_iommu_reserve_manager *mgr, dma
 	return 0;
 }
 
-struct gcip_iommu_mapping *gcip_iommu_reserve_map_buffer(struct gcip_iommu_reserve_manager *mgr,
-							 u64 host_address, size_t size,
-							 u64 gcip_map_flags,
-							 struct mutex *pin_user_pages_lock,
-							 dma_addr_t iova, void *data)
+struct gcip_mapping *gcip_iommu_reserve_map_buffer(struct gcip_iommu_reserve_manager *mgr,
+						   u64 host_address, size_t size,
+						   u64 gcip_map_flags,
+						   struct mutex *pin_user_pages_lock,
+						   dma_addr_t iova, void *data)
 {
 	struct gcip_iommu_reserve_region *region;
 	struct gcip_iommu_reserve_mapping *reserve_mapping;
-	struct gcip_iommu_mapping *mapping;
+	struct gcip_mapping *mapping;
 	u64 offset = host_address & (PAGE_SIZE - 1);
 	int ret;
 
@@ -579,8 +580,8 @@ struct gcip_iommu_mapping *gcip_iommu_reserve_map_buffer(struct gcip_iommu_reser
 	 * considering the page alignment. (i.e., the region actually reserves [0x1000, 0x2000))
 	 * Therefore, we allow this case since the buffer actually fits into the region.
 	 */
-	mapping = gcip_iommu_domain_map_buffer_to_iova(region->domain, host_address, size, iova,
-						       gcip_map_flags, pin_user_pages_lock);
+	mapping = gcip_mapping_buffer_map_to_iova(region->domain, host_address, size, iova,
+						  gcip_map_flags, pin_user_pages_lock);
 	if (IS_ERR(mapping)) {
 		ret = PTR_ERR(mapping);
 		goto err_out;
@@ -600,21 +601,20 @@ struct gcip_iommu_mapping *gcip_iommu_reserve_map_buffer(struct gcip_iommu_reser
 	return mapping;
 
 err_unmap:
-	gcip_iommu_mapping_unmap(mapping);
+	gcip_mapping_unmap(mapping);
 err_out:
 	mutex_unlock(&region->lock);
 	gcip_iommu_reserve_region_put(region);
 	return ERR_PTR(ret);
 }
 
-struct gcip_iommu_mapping *gcip_iommu_reserve_map_dma_buf(struct gcip_iommu_reserve_manager *mgr,
-							  struct dma_buf *dmabuf,
-							  u64 gcip_map_flags, dma_addr_t iova,
-							  void *data)
+struct gcip_mapping *gcip_iommu_reserve_map_dma_buf(struct gcip_iommu_reserve_manager *mgr,
+						    struct dma_buf *dmabuf, u64 gcip_map_flags,
+						    dma_addr_t iova, void *data)
 {
 	struct gcip_iommu_reserve_region *region;
 	struct gcip_iommu_reserve_mapping *reserve_mapping;
-	struct gcip_iommu_mapping *mapping;
+	struct gcip_mapping *mapping;
 	int ret;
 
 	if (!dmabuf || !dmabuf->size || !PAGE_ALIGNED(iova))
@@ -640,8 +640,7 @@ struct gcip_iommu_mapping *gcip_iommu_reserve_map_dma_buf(struct gcip_iommu_rese
 		goto err_out;
 	}
 
-	mapping =
-		gcip_iommu_domain_map_dma_buf_to_iova(region->domain, dmabuf, iova, gcip_map_flags);
+	mapping = gcip_mapping_dmabuf_map_to_iova(region->domain, dmabuf, iova, gcip_map_flags);
 	if (IS_ERR(mapping)) {
 		ret = PTR_ERR(mapping);
 		goto err_out;
@@ -661,7 +660,7 @@ struct gcip_iommu_mapping *gcip_iommu_reserve_map_dma_buf(struct gcip_iommu_rese
 	return mapping;
 
 err_unmap:
-	gcip_iommu_mapping_unmap(mapping);
+	gcip_mapping_unmap(mapping);
 err_out:
 	mutex_unlock(&region->lock);
 	gcip_iommu_reserve_region_put(region);

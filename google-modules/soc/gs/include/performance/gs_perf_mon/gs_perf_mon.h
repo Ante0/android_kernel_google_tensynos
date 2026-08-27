@@ -28,11 +28,7 @@ enum gs_perf_event_idx {
  *
  * Used to supply clients cpu idle information.
 */
-enum gs_perf_cpu_idle_state {
-	PERF_CPU_ACTIVE,
-	PERF_CPU_IDLE_C1,
-	PERF_CPU_IDLE_C2
-};
+enum gs_perf_cpu_idle_state { PERF_CPU_ACTIVE, PERF_CPU_IDLE_C1, PERF_CPU_IDLE_C2 };
 
 /**
  * gs_counter_type - AMU or PMU or UNUSED
@@ -43,8 +39,8 @@ enum gs_perf_cpu_idle_state {
 */
 enum gs_counter_type {
 	UNUSED, /* Unused Performance Counter. */
-	PMU,	/* Performance Monitoring Unit. */
-	AMU	/* Activity Monitoring Unit. */
+	PMU, /* Performance Monitoring Unit. */
+	AMU /* Activity Monitoring Unit. */
 };
 
 /**
@@ -60,9 +56,12 @@ enum gs_counter_type {
  *			event *should* be. Useful for AMU reading.
  * @counter_type:	Is this event from the PMU or AMU?
  * @raw_event_id:	The hardware event id associated with this event.
- * @curr_count:		Total event count.
+ * @curr_count:		Total event count, as read by the register, might
+ *			be reset when the cpu is power gated.
  * @prev_count:		The last total event count.
  * @last_delta:		The difference between curr_count and prev_count.
+ * @total:			Total event count since boot, taking into account
+ *			possible PMU/AMU register reset.
  */
 struct gs_event_data {
 	struct perf_event *pevent;
@@ -72,6 +71,7 @@ struct gs_event_data {
 	unsigned long prev_count;
 	unsigned long curr_count;
 	unsigned long last_delta;
+	unsigned long total;
 };
 
 /**
@@ -101,8 +101,8 @@ struct gs_cpu_perf_data {
  * @gs_cpu_perf_data_arr:	We supply a copy of all CPU cores
  * @private_data:		Private data for the client metadata.
  */
-typedef void (*gs_perf_mon_callback_func_t)(struct gs_cpu_perf_data* gs_cpu_perf_data_arr,
-						void *private_data);
+typedef void (*gs_perf_mon_callback_func_t)(struct gs_cpu_perf_data *gs_cpu_perf_data_arr,
+					    void *private_data);
 
 /**
  * struct gs_perf_mon_client - Callback data for a client.
@@ -117,7 +117,7 @@ typedef void (*gs_perf_mon_callback_func_t)(struct gs_cpu_perf_data* gs_cpu_perf
 struct gs_perf_mon_client {
 	struct list_head node;
 	const char *name;
-	void* private_data;
+	void *private_data;
 	gs_perf_mon_callback_func_t client_callback;
 };
 

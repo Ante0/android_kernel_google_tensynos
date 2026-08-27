@@ -39,7 +39,7 @@
 	batoilo_otg_bat_open_to = <0x8>;    /* 36ms */
 	batoilo_bat_open_to = <0x8>;    /* 36ms */
 	batoilo2_bat_open_to = <0x3>;   /* 12ms */
-	batoilo_rel = <0x3>;   /* 10ms */
+	batoilo_rel = <0x2>;   /* 1ms */
 	batoilo2_rel = <0x2>;   /* 1ms */
 	batoilo_det = <0x1A>;   /* 34ms DEBOUNCE to VDROOP */
 	batoilo2_det = <0x1>;   /* 30us DEBOUNCE to VDROOP */

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 #include <linux/sched/clock.h>
 #include "../../include/sched.h"
+#include "sched_events.h"
 #include "binder_internal.h"
 #include <asm/atomic.h>
 
@@ -87,6 +88,9 @@ extern char boost_at_fork_task_name[LIB_PATH_LENGTH];
 extern raw_spinlock_t boost_at_fork_task_name_lock;
 extern unsigned long vendor_sched_boost_at_fork_value;
 extern unsigned long vendor_sched_boost_at_fork_duration;
+
+extern const char *GRP_NAME[VG_MAX];
+extern unsigned int sched_group_tracker_rate_limit;
 
 DECLARE_STATIC_KEY_FALSE(auto_migration_margins_enable);
 DECLARE_STATIC_KEY_FALSE(auto_dvfs_headroom_enable);
@@ -610,6 +614,16 @@ static inline struct vendor_rq_struct *get_vendor_rq_struct(struct rq *rq)
 	return (struct vendor_rq_struct *)rq->android_vendor_data1;
 }
 
+static inline bool get_vendor_boost(struct task_struct *p)
+{
+	return get_vendor_task_struct(p)->vendor_boost;
+}
+
+static inline void set_vendor_boost(struct task_struct *p, bool boost)
+{
+	get_vendor_task_struct(p)->vendor_boost = boost;
+}
+
 static inline bool get_adpf(struct task_struct *p, bool inherited)
 {
 	struct vendor_task_struct *vp = get_vendor_task_struct(p);
@@ -813,6 +827,8 @@ static inline void init_vendor_task_struct(struct vendor_task_struct *v_tsk)
 	raw_spin_lock_init(&v_tsk->lock);
 	v_tsk->group = VG_SYSTEM;
 	v_tsk->direct_reclaim_ts = 0;
+	v_tsk->group_tracked = VG_INVALID;
+	v_tsk->group_tracked_ctx_count = 0;
 	INIT_LIST_HEAD(&v_tsk->node);
 	v_tsk->queued_to_list = LIST_NOT_QUEUED;
 	v_tsk->prefer_high_cap = false;
@@ -1122,10 +1138,10 @@ static inline void inc_adpf_counter(struct task_struct *p, struct rq *rq)
 	set_next_buddy(&p->se);
 
 	if (trace_clock_set_rate_enabled()) {
-		char trace_name[32] = {0};
+		char trace_name[] = { 'a', 'd', 'p', 'f', '_', 'c', 'p', 'u', '0', '\0' };
 		struct vendor_rq_struct *vrq = get_vendor_rq_struct(task_rq(p));
 
-		scnprintf(trace_name, sizeof(trace_name), "adpf_cpu%d", task_rq(p)->cpu);
+		trace_name[8] = '0' + task_rq(p)->cpu;
 		trace_clock_set_rate(trace_name, atomic_read(&vrq->num_adpf_tasks),
 			raw_smp_processor_id());
 	}
@@ -1149,10 +1165,10 @@ static inline void dec_adpf_counter(struct task_struct *p, struct rq *rq)
 	atomic_dec_if_positive(&vrq->num_adpf_tasks);
 
 	if (trace_clock_set_rate_enabled()) {
-		char trace_name[32] = {0};
+		char trace_name[] = { 'a', 'd', 'p', 'f', '_', 'c', 'p', 'u', '0', '\0' };
 		struct vendor_rq_struct *vrq = get_vendor_rq_struct(task_rq(p));
 
-		scnprintf(trace_name, sizeof(trace_name), "adpf_cpu%d", task_rq(p)->cpu);
+		trace_name[8] = '0' + task_rq(p)->cpu;
 		trace_clock_set_rate(trace_name, atomic_read(&vrq->num_adpf_tasks),
 			raw_smp_processor_id());
 	}
@@ -1281,4 +1297,28 @@ static inline void __update_util_est_invariance(struct rq *rq,
 		raw_spin_unlock_irqrestore(&vendor_cfs_util[group][rq->cpu].lock, irqflags);
 #endif
 	}
+}
+
+static inline void send_trace_sched_group_tracker(struct task_struct *p, bool is_ctx)
+{
+	struct vendor_task_struct *vp = get_vendor_task_struct(p);
+	int rate_limit = 0;
+
+	if (!trace_sched_group_tracker_enabled()) {
+		vp->group_tracked = VG_INVALID;
+		vp->group_tracked_ctx_count = 0;
+		return;
+	}
+
+	if (is_ctx) {
+		vp->group_tracked_ctx_count++;
+		rate_limit = vp->group_tracked_ctx_count % sched_group_tracker_rate_limit;
+	}
+
+	if (vp->group_tracked == vp->group && rate_limit)
+		return;
+
+	vp->group_tracked = vp->group;
+	vp->group_tracked_ctx_count = 0;
+	trace_sched_group_tracker(p, GRP_NAME[vp->group], vp->group);
 }

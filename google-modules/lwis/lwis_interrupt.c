@@ -10,6 +10,8 @@
 #include "lwis_interrupt.h"
 
 #include <linux/kernel.h>
+#include <linux/rculist.h>
+#include <linux/rcupdate.h>
 #include <linux/slab.h>
 
 #include "lwis_device.h"
@@ -328,7 +330,7 @@ static void interrupt_emit_events(struct lwis_interrupt *irq, uint64_t source_va
 	uint64_t mask_value;
 #endif
 	unsigned long flags;
-	unsigned long dev_flags;
+	unsigned long client_flags;
 	bool disable_mask = false;
 
 	spin_lock_irqsave(&irq->lock, flags);
@@ -355,8 +357,9 @@ static void interrupt_emit_events(struct lwis_interrupt *irq, uint64_t source_va
 						    irq->name, event->event_id);
 			}
 
-			spin_lock_irqsave(&irq->lwis_dev->lock, dev_flags);
-			list_for_each_entry(lwis_client, &irq->lwis_dev->clients, node) {
+			rcu_read_lock();
+			list_for_each_entry_rcu(lwis_client, &irq->lwis_dev->clients, node) {
+				spin_lock_irqsave(&lwis_client->event_lock, client_flags);
 				hash_for_each_possible(lwis_client->event_states, event_state, node,
 						       event->event_id) {
 					if (event_state->event_control.event_id ==
@@ -367,10 +370,11 @@ static void interrupt_emit_events(struct lwis_interrupt *irq, uint64_t source_va
 						break;
 					}
 				}
+				spin_unlock_irqrestore(&lwis_client->event_lock, client_flags);
 				if (disable_mask)
 					break;
 			}
-			spin_unlock_irqrestore(&irq->lwis_dev->lock, dev_flags);
+			rcu_read_unlock();
 
 			if (disable_mask) {
 				dev_info_ratelimited(irq->lwis_dev->dev,

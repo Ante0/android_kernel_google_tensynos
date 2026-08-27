@@ -670,6 +670,26 @@ static ssize_t manual_disable_vbus_show(struct device *dev, struct device_attrib
 };
 static DEVICE_ATTR_RO(manual_disable_vbus);
 
+static ssize_t manual_bc12_detect_store(struct device *dev, struct device_attribute *attr,
+					     const char *buf, size_t count)
+{
+	struct max77759_plat *chip = i2c_get_clientdata(to_i2c_client(dev));
+	bool enable;
+	int ret;
+
+	if (kstrtobool(buf, &enable) < 0)
+		return -EINVAL;
+
+	/* chgDetMan auto-clears, so there's no need to do anything if the write value is false */
+	if (!enable)
+		return count;
+
+	ret = bc12_manual_detect_enable(chip->bc12);
+
+	return ret ? ret : count;
+}
+static DEVICE_ATTR_WO(manual_bc12_detect);
+
 static struct device_attribute *max77759_device_attrs[] = {
 	&dev_attr_frs,
 	&dev_attr_bc12_enabled,
@@ -687,6 +707,7 @@ static struct device_attribute *max77759_device_attrs[] = {
 	&dev_attr_usb_limit_source_enable,
 	&dev_attr_irq_hpd_count,
 	&dev_attr_manual_disable_vbus,
+	&dev_attr_manual_bc12_detect,
 	NULL
 };
 
@@ -879,7 +900,7 @@ static void max77759_init_regs(struct max77759_plat *chip, bool setup)
 
 static int post_process_pd_message(struct max77759_plat *chip, struct pd_message msg)
 {
-	enum pd_data_msg_type pd_type = pd_header_type_le(msg.header);
+	enum pd_ctrl_msg_type pd_type = pd_header_type_le(msg.header);
 
 	if (pd_type == PD_DATA_VENDOR_DEF) {
 		u32 payload[2];
@@ -2366,6 +2387,19 @@ static irqreturn_t max77759_irq(int irq, void *dev_id)
 	return irq_return;
 }
 
+static irqreturn_t max77759_isr(int irq, void *dev_id)
+{
+	struct max77759_plat *chip = dev_id;
+
+	LOG(LOG_LVL_DEBUG, chip->log, "TCPC_ALERT triggered ");
+	pm_wakeup_event(chip->dev, PD_ACTIVITY_TIMEOUT_MS);
+
+	if (!chip->tcpci)
+		return IRQ_HANDLED;
+
+	return IRQ_WAKE_THREAD;
+}
+
 static void max77759_io_error_work(struct kthread_work *work)
 {
 	struct max77759_plat *chip =
@@ -2388,7 +2422,7 @@ static int max77759_init_alert(struct max77759_plat *chip,
 	if (!client->irq)
 		return -ENODEV;
 
-	ret = devm_request_threaded_irq(chip->dev, client->irq, NULL,
+	ret = devm_request_threaded_irq(chip->dev, client->irq, max77759_isr,
 					max77759_irq,
 					(IRQF_TRIGGER_LOW | IRQF_ONESHOT),
 					dev_name(chip->dev), chip);
@@ -4031,7 +4065,7 @@ static int __init max77759_i2c_driver_init(void)
 {
 	tcpm_log = logbuffer_register("tcpm");
 	if (IS_ERR_OR_NULL(tcpm_log))
-		pr_err("%s: logbuffer get failed, not fatal", __func__);
+		return -EAGAIN;
 
 	return i2c_add_driver(&max77759_i2c_driver);
 }

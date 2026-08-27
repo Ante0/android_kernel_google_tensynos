@@ -1013,7 +1013,7 @@ static int pm_handle_mcu_sleep_on_runtime_suspend(struct kbase_device *kbdev, bo
 	 * became active (or active then idle) meanwhile.
 	 */
 	if (atomic_read(&kbdev->pm.active_count) || kbdev->pm.backend.poweroff_wait_in_progress ||
-	    ret) {
+	    ret || atomic_read(&kbdev->faults_pending)) {
 		dev_dbg(kbdev->dev,
 			"Device became active on runtime suspend after suspending Scheduler");
 		suspension_aborted = true;

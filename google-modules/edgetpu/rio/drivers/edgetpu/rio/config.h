@@ -21,9 +21,6 @@
 /* Max number of virtual context IDs that can be allocated for one device. */
 #define EDGETPU_NUM_VCIDS 16
 
-/* Pre-allocate 1 IOMMU domain per VCID */
-#define EDGETPU_NUM_PREALLOCATED_DOMAINS EDGETPU_NUM_VCIDS
-
 /* Number of TPU clusters for metrics handling. */
 #define EDGETPU_TPU_CLUSTER_COUNT 3
 
@@ -43,9 +40,8 @@
 
 #define EDGETPU_MMU_GRANULARITY_IS_PAGE 0
 
+#include "config-csrs.h"
 #include "config-mailbox.h"
 #include "config-pwr-state.h"
-#include "config-tpu-cpu.h"
-#include "csrs.h"
 
 #endif /* __RIO_CONFIG_H__ */

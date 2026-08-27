@@ -78,7 +78,7 @@ _Static_assert(GPU_POWER_LEVEL_NUM < ((uint8_t)(~0U)), "gpu_power_state must fit
  * @_reserved:        Bytes reserved for future use
  **/
 struct pixel_rail_state_metadata {
-	char magic[4];
+	char magic[4] __nonstring;
 	uint8_t version;
 	uint64_t log_address;
 	uint32_t log_offset;

@@ -32,7 +32,7 @@ extern bool gxp_log_iova;
 #define GXP_IOVA_LOG_DMABUF (1u << 1)
 
 struct gxp_mapping {
-	struct gcip_iommu_mapping *gcip_mapping;
+	struct gcip_mapping *gcip_mapping;
 	struct rb_node node;
 	refcount_t refcount;
 	void (*destructor)(struct gxp_mapping *mapping);

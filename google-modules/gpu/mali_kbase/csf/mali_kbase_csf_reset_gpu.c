@@ -413,16 +413,17 @@ kbase_csf_reset_gpu_once(struct kbase_device *kbdev, bool firmware_inited, bool 
 	kbase_pm_reset_complete(kbdev);
 	/* Synchronously wait for the reload of firmware to complete */
 	err = kbase_pm_wait_for_desired_state(kbdev);
-	rt_mutex_unlock(&kbdev->pm.lock);
 
 	if (err) {
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-		if (!kbase_pm_l2_is_in_desired_state(kbdev))
+		if (!kbase_pm_l2_is_in_desired_state_locked(kbdev))
 			ret = L2_ON_FAILED;
-		else if (!kbase_pm_mcu_is_in_desired_state(kbdev))
+		else if (!kbase_pm_mcu_is_in_desired_state_locked(kbdev))
 			ret = MCU_REINIT_FAILED;
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	}
+
+	rt_mutex_unlock(&kbdev->pm.lock);
 
 	return ret;
 }

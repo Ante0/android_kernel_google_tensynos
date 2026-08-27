@@ -11,7 +11,6 @@
 #include <kernel/sched/sched.h>
 
 #include "sched_priv.h"
-#include "sched_events.h"
 #include <performance/gs_perf_mon/gs_perf_mon.h>
 
 struct vendor_group_list vendor_group_list[VG_MAX];
@@ -194,6 +193,8 @@ void vh_sched_switch_pixel_mod(void *data, bool preempt, struct task_struct *pre
 
 	if (task_is_running(prev))
 		__update_util_est_invariance(rq, prev, rq->nr_running > 1);
+
+	send_trace_sched_group_tracker(next, true);
 }
 
 void rvh_after_enqueue_task_pixel_mod(void *data, struct rq *rq, struct task_struct *p, int flags)

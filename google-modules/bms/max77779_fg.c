@@ -102,16 +102,6 @@ static inline int reg_to_seconds(s16 val)
 	return DIV_ROUND_CLOSEST((int) val * 5625, 1000);
 }
 
-static inline int reg_to_vempty(u16 val)
-{
-	return ((val >> 7) & 0x1FF) * 10;
-}
-
-static inline int reg_to_vrecovery(u16 val)
-{
-	return (val & 0x7F) * 40;
-}
-
 static inline int reg_to_capacity_uah(u16 val, struct max77779_fg_chip *chip)
 {
 	return reg_to_micro_amp_h(val, chip->RSense, MAX77779_LSB);
@@ -1311,6 +1301,7 @@ static int max77779_fg_monitor_log_data(struct max77779_fg_chip *chip, bool forc
 {
 	int ret, charge_counter = -1;
 	u16 repsoc, data;
+	char buf[256] = { 0 };
 
 	ret = REGMAP_READ(&chip->regmap, MAX77779_FG_RepSOC, &data);
 	if (ret < 0)
@@ -1320,9 +1311,17 @@ static int max77779_fg_monitor_log_data(struct max77779_fg_chip *chip, bool forc
 	if (repsoc == chip->pre_repsoc && !force_log)
 		return ret;
 
+	ret = maxfg_reg_log_data(&chip->regmap, &chip->regmap_debug, buf);
+	if (ret < 0)
+		return ret;
+
 	ret = max77779_fg_update_battery_qh_based_capacity(chip);
 	if (ret == 0)
 		charge_counter = reg_to_capacity_uah(chip->current_capacity, chip);
+
+	gbms_logbuffer_devlog(chip->monitor_log, chip->dev, LOGLEVEL_INFO, 0, LOGLEVEL_INFO,
+			      "0x%04X %02X:%04X %s CC:%d", MONITOR_TAG_RM, MAX77779_FG_RepSOC, data,
+			      buf, charge_counter);
 
 	/* Log learning entry when reaching 100% and each % drop for SoC < 10% */
 	if (chip->pre_repsoc > 0 && chip->pre_repsoc < 100 && repsoc == 100)
@@ -1781,6 +1780,31 @@ done:
 	return ret;
 }
 
+/* chip->model_lock is acquired by caller */
+static int max77779_fg_aacv_update(struct max77779_fg_chip *chip)
+{
+	struct logbuffer *mon = chip->ce_log;
+	int ret;
+
+	ret = max77779_fg_usr_lock_section(&chip->regmap, MAX77779_FG_ALL_SECTION, false);
+	if (ret) {
+		dev_err(chip->dev, "failed to unlock ret=%d\n", ret);
+		return ret;
+	}
+
+	ret = maxfg_aacv_apply(mon, chip->dev, &chip->regmap, chip->aacv, chip->aacv_vempty);
+	if (ret < 0) {
+		dev_err(chip->dev, "failed to update cutoff voltage (%d)\n", ret);
+		return ret;
+	}
+
+	ret = max77779_fg_usr_lock_section(&chip->regmap, MAX77779_FG_ALL_SECTION, true);
+	if (ret)
+		dev_err(chip->dev, "failed to lock ret=%d\n", ret);
+
+	return ret;
+}
+
 static int max77779_gbms_fg_get_property(struct power_supply *psy,
 					 enum gbms_property psp,
 					 union gbms_propval *val)
@@ -1837,6 +1861,9 @@ static int max77779_gbms_fg_get_property(struct power_supply *psy,
 		break;
 	case GBMS_PROP_AAFV_OFFSET:
 		val->prop.intval = chip->aafv;
+		break;
+	case GBMS_PROP_AACV_OFFSET:
+		val->prop.intval = chip->aacv;
 		break;
 	case GBMS_PROP_NEED_CHARGE_TO_FULL:
 		val->prop.intval = maxfg_need_force_fullcharge(chip->ce_log, chip->dev,
@@ -1923,6 +1950,12 @@ static int max77779_gbms_fg_set_property(struct power_supply *psy,
 		rc = max77779_fg_aafv_update(chip);
 		mutex_unlock(&chip->model_lock);
 		break;
+	case GBMS_PROP_AACV_OFFSET:
+		mutex_lock(&chip->model_lock);
+		chip->aacv = val->prop.intval;
+		rc = max77779_fg_aacv_update(chip);
+		mutex_unlock(&chip->model_lock);
+		break;
 	case GBMS_PROP_NEED_CHARGE_TO_FULL:
 		rc = maxfg_update_bypass_charge_limit(chip->ce_log, chip->dev, &chip->regmap,
 						      &chip->bypass_chargelimit, val->prop.intval);
@@ -1954,6 +1987,7 @@ static int max77779_gbms_fg_property_is_writeable(struct power_supply *psy,
 	case GBMS_PROP_AAFV_OFFSET:
 	case GBMS_PROP_NEED_CHARGE_TO_FULL:
 	case GBMS_PROP_FG_EVENT_LOGGING:
+	case GBMS_PROP_AACV_OFFSET:
 		return 1;
 	default:
 		break;
@@ -2297,6 +2331,15 @@ static void max77779_fg_stuck_monitor_work(struct work_struct *work)
 	int monitor_period = MAX77779_FG_STUCK_PULL_MS;
 	u16 data;
 	int ret;
+
+	/* Bypass monitor if model hasn't been loaded */
+	mutex_lock(&chip->model_lock);
+	if (!chip->model_ok) {
+		mutex_unlock(&chip->model_lock);
+		dev_info(chip->dev, "model not ok, bypassing stuck monitor\n");
+		goto done;
+	}
+	mutex_unlock(&chip->model_lock);
 
 	/* check timer changed */
 	ret = REGMAP_READ(&chip->regmap, MAX77779_FG_Timer, &data);
@@ -3653,6 +3696,9 @@ static int max77779_fg_init_chip(struct max77779_fg_chip *chip)
 			      &chip->aafv_config_limits);
 	if (ret < 0)
 		dev_warn(chip->dev, "Cannot load aafv config(%d)\n", ret);
+
+	/* loading vempty from model_data */
+	chip->aacv_vempty = max77779_get_v_empty(chip->model_data);
 
 	ret = REGMAP_READ(&chip->regmap, MAX77779_FG_FG_INT_STS, &data);
 	if (!ret && data & MAX77779_FG_FG_INT_STS_Br_MASK) {

@@ -21,7 +21,6 @@
 #include <trace/events/power.h>
 
 #include "sched_priv.h"
-#include "sched_events.h"
 
 #if IS_ENABLED(CONFIG_UCLAMP_STATS)
 extern void reset_uclamp_stats(void);
@@ -89,8 +88,9 @@ extern spinlock_t prefer_idle_task_name_lock;
 
 #define MAX_PROC_SIZE 128
 
-static const char *GRP_NAME[VG_MAX] = {"sys", "ta", "fg", "cam", "cam_power", "bg", "sys_bg",
-				       "nnapi", "rt", "dex2oat", "ota", "sf", "fg_wi"};
+const char *GRP_NAME[VG_MAX] = {"sys", "ta", "fg", "cam", "cam_power", "bg", "sys_bg",
+				"nnapi", "rt", "dex2oat", "ota", "sf", "fg_wi"};
+unsigned int sched_group_tracker_rate_limit = 10;
 
 static const unsigned int SCHED_QOS_PROFILES[SCHED_QOS_MAX] = {
 	/* SCHED_QOS_NONE */
@@ -1447,6 +1447,8 @@ static inline void update_vendor_group_attribute(struct task_struct *p, int new)
 
 	for (clamp_id = 0; clamp_id < UCLAMP_CNT; clamp_id++)
 		uclamp_update_active(p, clamp_id);
+
+	send_trace_sched_group_tracker(p, false);
 }
 
 static int update_vendor_group(const char *buf, enum vendor_group_attribute vta,
@@ -3354,56 +3356,6 @@ ssize_t prefer_idle_task_name_store(struct file *filp, const char __user *ubuf, 
 PROC_OPS_RW(prefer_idle_task_name);
 
 /*
- * TODO(guibing): remove "is_tgid_system_ui" procfs node once the powerhal
- * switch to use the new "check_tgid_type" procfs node.
- */
-static ssize_t is_tgid_system_ui_store(struct file *filp,
-						const char __user *ubuf,
-						size_t count, loff_t *pos)
-{
-	unsigned int val;
-	char buf[MAX_PROC_SIZE];
-	struct task_struct *p;
-	char tgid_comm[TASK_COMM_LEN] = {0};
-
-	if (count >= sizeof(buf))
-		return -EINVAL;
-
-	if (copy_from_user(buf, ubuf, count))
-		return -EFAULT;
-
-	buf[count] = '\0';
-
-	if (kstrtouint(buf, 0, &val) || val > PID_MAX_LIMIT)
-		return -EINVAL;
-
-	rcu_read_lock();
-	p = find_task_by_vpid(val);
-	if (!p) {
-		rcu_read_unlock();
-		return -ESRCH;
-	}
-
-	get_task_struct(p);
-	if (!check_cred(p)) {
-		put_task_struct(p);
-		rcu_read_unlock();
-		return -EACCES;
-	}
-
-	strlcpy(tgid_comm, p->comm, TASK_COMM_LEN);
-	put_task_struct(p);
-	rcu_read_unlock();
-
-	if (strstr(tgid_comm, "systemui") || strstr(tgid_comm, "nexuslauncher")) {
-		return count;
-	}  else {
-		return -ENOMSG;
-	}
-}
-PROC_OPS_WO(is_tgid_system_ui);
-
-/*
  * Check the type of applications to which the tgid belongs.
  * normal return values:
  *   1 : systemui or nexuslauncher related
@@ -3576,6 +3528,38 @@ static ssize_t adpf_adjustment_store(struct file *filp,
 }
 PROC_OPS_WO(adpf_adjustment);
 
+static int sched_group_tracker_rate_limit_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "%u\n", sched_group_tracker_rate_limit);
+	return 0;
+}
+static ssize_t sched_group_tracker_rate_limit_store(struct file *filp,
+						    const char __user *ubuf,
+						    size_t count, loff_t *pos)
+{
+	unsigned int val;
+	char buf[MAX_PROC_SIZE];
+
+	if (count >= sizeof(buf))
+		return -EINVAL;
+
+	if (copy_from_user(buf, ubuf, count))
+		return -EFAULT;
+
+	buf[count] = '\0';
+
+	if (kstrtouint(buf, 0, &val))
+		return -EINVAL;
+
+	if (!val)
+		return -EINVAL;
+
+	sched_group_tracker_rate_limit = val;
+
+	return count;
+}
+PROC_OPS_RW(sched_group_tracker_rate_limit);
+
 struct pentry {
 	const char *name;
 	enum vendor_procfs_type type;
@@ -3714,14 +3698,14 @@ static struct pentry entries[] = {
 	PROC_ENTRY(priority_task_boost_value),
 	// names for the prefer_idle task
 	PROC_ENTRY(prefer_idle_task_name),
-	// check whether tgid belongs to systemui/nexuslauncher
-	PROC_ENTRY(is_tgid_system_ui),
 	/* boost at fork */
 	PROC_ENTRY(boost_at_fork_task_name),
 	PROC_ENTRY(boost_at_fork_value),
 	PROC_ENTRY(boost_at_fork_duration),
 	// check the type of application to which the tgid belongs
 	PROC_ENTRY(check_tgid_type),
+	// sched group tracker
+	PROC_ENTRY(sched_group_tracker_rate_limit),
 };
 
 

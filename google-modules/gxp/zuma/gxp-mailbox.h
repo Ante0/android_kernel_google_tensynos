@@ -282,8 +282,7 @@ void gxp_mailbox_reinit(struct gxp_mailbox *mailbox);
  * See the `gcip_mailbox_send_cmd` of `gcip-mailbox.h` or `gcip_kci_send_cmd` of `gcip-kci.h`
  * for detail.
  */
-int gxp_mailbox_send_cmd(struct gxp_mailbox *mailbox, void *cmd, void *resp,
-			 u32 gcip_mailbox_cmd_flags);
+int gxp_mailbox_send_cmd(struct gxp_mailbox *mailbox, void *cmd, void *resp);
 
 /*
  * Executes command asynchronously. The response will be written to @resp.
@@ -291,8 +290,7 @@ int gxp_mailbox_send_cmd(struct gxp_mailbox *mailbox, void *cmd, void *resp,
  *
  * Note: KCI doesn't support asynchronous requests.
  */
-struct gcip_mailbox_resp_awaiter *gxp_mailbox_put_cmd(struct gxp_mailbox *mailbox, void *cmd,
-						      void *resp, void *data,
-						      u32 gcip_mailbox_cmd_flags);
+int gxp_mailbox_put_cmd(struct gxp_mailbox *mailbox, void *cmd,
+			struct gcip_mailbox_awaiter *awaiter);
 
 #endif /* __GXP_MAILBOX_H__ */

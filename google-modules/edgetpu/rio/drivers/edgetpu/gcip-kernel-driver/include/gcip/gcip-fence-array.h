@@ -34,7 +34,7 @@ struct gcip_fence_array {
 
 /*
  * Gets the fence objects from fence FD array, @fences. If @check_same_type is true, it will check
- * whether the fence type is all the same or not. If not, it will return -EINVAL error pointer.
+ * whether the fence type is all the same or not. If not, it will return -EPERM error pointer.
  *
  * Returns `struct gcip_fence_array` instance which contains the fence objects. Otherwise, returns
  * an errno pointer.

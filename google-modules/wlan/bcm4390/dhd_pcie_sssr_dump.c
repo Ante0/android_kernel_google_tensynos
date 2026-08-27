@@ -2,7 +2,7 @@
 * DHD Silicon Save Simulation Restore (SSSR)
 * dump module for PCIE
 *
-* Copyright (C) 2025, Broadcom.
+* Copyright (C) 2026, Broadcom.
 *
 *      Unless you and Broadcom execute a separate written software license
 * agreement governing use of this software, this software is licensed to you
@@ -3190,8 +3190,8 @@ dhd_get_sssr_reg_info(dhd_pub_t *dhd)
 	}
 
 	if (ret < 0) {
-		DHD_ERROR(("%s: SSSR REG INFO [%s] Failed to write into"
-		" File: %s\n", __FUNCTION__, (char *)(&dhd->sssr_reg_info->rev0), filepath_sssr));
+		DHD_ERROR(("%s: SSSR REG INFO [%d] Failed to write into"
+		" File: %s\n", __FUNCTION__, dhd->sssr_reg_info->rev2.version, filepath_sssr));
 	}
 
 done:

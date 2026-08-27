@@ -84,6 +84,8 @@ static const struct maxfg_reg max77779_fg[] = {
 	[MAXFG_TAG_fullsocthr] = { ATOM_INIT_REG16(MAX77779_FG_FullSocThr)},
 	[MAXFG_TAG_misccfg] = { ATOM_INIT_REG16(MAX77779_FG_MiscCfg)},
 	[MAXFG_TAG_ichgterm] = { ATOM_INIT_REG16(MAX77779_FG_IChgTerm)},
+	[MAXFG_TAG_vempty] = { ATOM_INIT_REG16(MAX77779_FG_VEmpty)},
+	[MAXFG_TAG_sochold] = { ATOM_INIT_REG16(MAX77779_FG_SOCHold)},
 };
 
 static const struct maxfg_reg max77779_debug_fg[] = {
@@ -205,6 +207,10 @@ struct max77779_fg_chip {
 	bool aafv_modified_fus;
 	struct aafv_fg_config aafv_cfgs[GBMS_AAFV_DATA_MAX];
 
+	/* AACV: Aged Adjusted Cutoff Voltage */
+	int aacv;
+	u16 aacv_vempty;
+
 	/* index of battery EEPROM history */
 	int history_idx;
 
@@ -291,6 +297,7 @@ int max77779_reset_state_data(struct max77779_model_data *model_data);
 int max77779_needs_reset_model_data(const struct max77779_model_data *model_data);
 u16 max77779_get_designcap(const struct max77779_model_data *model_data);
 u16 max77779_get_relaxcfg(const struct max77779_model_data *model_data);
+u16 max77779_get_v_empty(const struct max77779_model_data *model_data);
 void max77779_model_apply_aafv_fullsoc(struct max77779_model_data *model_data,
 				      const struct aafv_fg_config *cfg);
 

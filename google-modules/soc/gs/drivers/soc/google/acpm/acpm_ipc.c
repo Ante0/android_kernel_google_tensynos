@@ -169,6 +169,13 @@ static int plugins_init(struct device_node *node)
 	return ret;
 }
 
+static bool is_rt_dl_task_policy(void)
+{
+	return (current->policy == SCHED_FIFO ||
+		current->policy == SCHED_RR ||
+		current->policy == SCHED_DEADLINE);
+}
+
 int acpm_ipc_get_buffer(const char *name, char **addr, u32 *size)
 {
 	if (!acpm_srambase)
@@ -184,9 +191,6 @@ void acpm_ipc_set_waiting_mode(bool mode)
 
 void acpm_fw_set_log_level(unsigned int level)
 {
-	if (!IS_ENABLED(CONFIG_ACPM_ENABLE_LOGGING))
-		return;
-
 	acpm_debug->debug_log_level = level;
 
 	if (!level)
@@ -255,7 +259,7 @@ static void acpm_log_print_helper(unsigned int head, unsigned int arg0,
 	}
 }
 
-static void acpm_log_print_buff(struct acpm_log_buff *buffer)
+void acpm_log_print_buff(struct acpm_log_buff *buffer)
 {
 	unsigned int front, rear;
 	unsigned int head, arg0, arg1, arg2;
@@ -291,9 +295,6 @@ static void acpm_log_print_buff(struct acpm_log_buff *buffer)
 
 static void acpm_log_print(void)
 {
-	if (!IS_ENABLED(CONFIG_ACPM_ENABLE_LOGGING))
-		return;
-
 	mutex_lock(&print_log_mutex);
 	if (acpm_debug->debug_log_level >= 2)
 		acpm_log_print_buff(&acpm_debug->normal);
@@ -675,7 +676,7 @@ static void acpm_ktop_release(void)
 	}
 }
 
-static int __acpm_ipc_send_data(unsigned int channel_id, struct ipc_config *cfg)
+int __acpm_ipc_send_data(unsigned int channel_id, struct ipc_config *cfg, bool w_mode)
 {
 	volatile unsigned int tx_front, tx_rear, rx_front;
 	unsigned int tmp_index;
@@ -825,7 +826,7 @@ retry:
 				}
 				cnt_10us = 0;
 			} else {
-				if (preemptible()) {
+				if (w_mode) {
 					/*assume at least 50us delay here*/
 					usleep_range(50, 100);
 					cnt_10us += 5;
@@ -859,7 +860,7 @@ int acpm_ipc_send_data(unsigned int channel_id, struct ipc_config *cfg)
 {
 	int ret;
 	ATRACE_BEGIN(__func__);
-	ret = __acpm_ipc_send_data(channel_id, cfg);
+	ret = __acpm_ipc_send_data(channel_id, cfg, false);
 	ATRACE_END();
 	return ret;
 }
@@ -869,7 +870,10 @@ int acpm_ipc_send_data_lazy(unsigned int channel_id, struct ipc_config *cfg)
 {
 	int ret;
 	ATRACE_BEGIN(__func__);
-	ret = __acpm_ipc_send_data(channel_id, cfg);
+	if (is_rt_dl_task_policy())
+		ret = __acpm_ipc_send_data(channel_id, cfg, true);
+	else
+		ret = __acpm_ipc_send_data(channel_id, cfg, false);
 	ATRACE_END();
 	return ret;
 }

@@ -12,7 +12,6 @@
 #include <kernel/sched/pelt.h>
 
 #include "sched_priv.h"
-#include "sched_events.h"
 
 extern unsigned long cpu_util(int cpu);
 extern unsigned long task_util(struct task_struct *p);

@@ -25,6 +25,7 @@ enum utilization_group {
 #endif
 
 enum vendor_group {
+	VG_INVALID = -1,
 	VG_SYSTEM = 0,
 	VG_TOPAPP,
 	VG_FOREGROUND,
@@ -83,6 +84,8 @@ struct thermal_cap {
 struct vendor_task_struct {
 	raw_spinlock_t lock;
 	enum vendor_group group;
+	enum vendor_group group_tracked;	/* cache of last sent sched_group event value */
+	short group_tracked_ctx_count;		/* count of ctx switches for rate limiting the trace event  */
 	unsigned long direct_reclaim_ts;
 	struct list_head node;
 	int queued_to_list;
@@ -93,6 +96,7 @@ struct vendor_task_struct {
 	int orig_policy;		/* Protected by task_rq_lock() */
 	unsigned long iowait_boost;
 	bool is_binder_task;
+	bool vendor_boost;
 
 	/* parameters for inheritance */
 	struct vendor_inheritance_struct vi;

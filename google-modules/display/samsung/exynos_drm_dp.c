@@ -168,7 +168,7 @@ static void dp_connection_result_update(struct dp_device *dp, bool success)
 #define DP_LINK_RATE_HBR2 2
 #define DP_LINK_RATE_HBR3 3
 
-static unsigned long dp_rate = DP_LINK_RATE_RBR;    /* RBR is the default */
+static unsigned long dp_rate = DP_LINK_RATE_HBR;    /* HBR is the default */
 module_param(dp_rate, ulong, 0664);
 MODULE_PARM_DESC(dp_rate, "use specific DP link rate by setting dp_rate=x");
 
@@ -2713,6 +2713,24 @@ static int dp_get_modes(struct drm_connector *connector)
 	return dp->num_modes;
 }
 
+static bool dp_allow_30hz_120hz = false;
+module_param(dp_allow_30hz_120hz, bool, 0664);
+MODULE_PARM_DESC(dp_allow_30hz_120hz, "Enable/disable support for 30 Hz and 120 Hz modes");
+
+static bool dp_mode_allowed(struct drm_display_mode *mode)
+{
+	if (drm_mode_vrefresh(mode) == 60)
+		return true;
+
+	if (drm_mode_vrefresh(mode) == 30 && dp_allow_30hz_120hz)
+		return true;
+
+	if (drm_mode_vrefresh(mode) == 120 && dp_allow_30hz_120hz)
+		return true;
+
+	return false;
+}
+
 static enum drm_mode_status dp_conn_mode_valid(struct drm_connector *connector, struct drm_display_mode *mode)
 {
 	struct dp_device *dp = connector_to_dp(connector);
@@ -2743,7 +2761,7 @@ static enum drm_mode_status dp_conn_mode_valid(struct drm_connector *connector, 
 		return MODE_CLOCK_HIGH;
 	}
 
-	if (drm_mode_vrefresh(mode) != 60) {
+	if (!dp_mode_allowed(mode)) {
 		dp_info(dp, "DROP: " DRM_MODE_FMT "\n", DRM_MODE_ARG(mode));
 		return MODE_VSYNC;
 	}

@@ -48,6 +48,7 @@ static enum hrtimer_restart aoc_incall_hifi_irq_process(struct aoc_alsa_stream *
 {
 	struct aoc_service_dev *dev;
 	unsigned long consumed; /* TODO: uint64_t? */
+	struct snd_pcm_runtime *runtime;
 
 	/* The number of bytes read/writtien should be the bytes in the buffer
 	 * already played out in the case of playback. But this may not be true
@@ -55,8 +56,12 @@ static enum hrtimer_restart aoc_incall_hifi_irq_process(struct aoc_alsa_stream *
 	 * the playback case represents what has been read from the buffer,
 	 * not what already played out .
 	*/
+	runtime = alsa_stream->substream->runtime;
+	if (!runtime)
+		return HRTIMER_RESTART;
+
 	if (alsa_stream->dev == NULL ||
-		 alsa_stream->substream->runtime->status->state != SNDRV_PCM_STATE_RUNNING)
+		 runtime->status->state != SNDRV_PCM_STATE_RUNNING)
 		return HRTIMER_RESTART;
 
 	dev = alsa_stream->dev;

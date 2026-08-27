@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver - Android related functions
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -13740,7 +13740,10 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 #if defined(DHD_BLOB_EXISTENCE_CHECK)
 		dhd_pub_t *dhdp = wl_cfg80211_get_dhdp(net);
 #endif /* DHD_BLOB_EXISTENCE_CHECK */
-		if (*rev_info_delim == *CMD_COUNTRY_DELIMITER) {
+		if ((rev_info_delim) &&
+			(strnicmp(rev_info_delim, CMD_COUNTRY_DELIMITER,
+			strlen(CMD_COUNTRY_DELIMITER)) == 0) &&
+			(rev_info_delim + 1)) {
 			revinfo  = bcm_atoi(rev_info_delim + 1);
 		} else {
 			revinfo = 0;

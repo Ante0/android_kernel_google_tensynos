@@ -902,6 +902,9 @@ static int gdbatt_gbms_get_property(struct power_supply *psy,
 	case GBMS_PROP_NEED_CHARGE_TO_FULL:
 		val->prop.intval = fg_1.prop.intval;
 		break;
+	case GBMS_PROP_AACV_OFFSET:
+		/* TODO: under porting */
+		break;
 	case GBMS_PROP_CAPACITY_FADE_RATE:
 		data = gdbatt_get_weighted_value_by_cap(get_fade_rate(fg_1.prop.intval),
 							fg_2.prop.intval,
@@ -989,6 +992,9 @@ static int gdbatt_gbms_set_property(struct power_supply *psy,
 			if (ret < 0)
 				pr_err("Cannot set aafv to the second FG, ret=%d\n", ret);
 		}
+		break;
+	case GBMS_PROP_AACV_OFFSET:
+		/* TODO: under porting */
 		break;
 	case GBMS_PROP_NEED_CHARGE_TO_FULL:
 		if (!dual_fg_drv->first_fg_psy)

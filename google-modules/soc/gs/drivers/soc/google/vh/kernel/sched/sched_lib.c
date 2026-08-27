@@ -72,14 +72,15 @@ void rvh_sched_setaffinity_mod(void *data, struct task_struct *task,
  */
 static inline void boost_priority_task(struct task_struct *p)
 {
-	struct rq *rq = task_rq(p);
+	struct rq *rq;
 	struct rq_flags rf;
 
-	rq_lock_irqsave(rq, &rf);
-	uclamp_rq_dec_id(task_rq(p), p, UCLAMP_MIN);
+	rq = task_rq_lock(p, &rf);
+	uclamp_rq_dec_id(rq, p, UCLAMP_MIN);
 	uclamp_se_set(&p->uclamp_req[UCLAMP_MIN], vendor_sched_priority_task_boost_value, true);
-	uclamp_rq_inc_id(task_rq(p), p, UCLAMP_MIN);
-	rq_unlock_irqrestore(rq, &rf);
+	set_vendor_boost(p, true);
+	uclamp_rq_inc_id(rq, p, UCLAMP_MIN);
+	task_rq_unlock(rq, p, &rf);
 }
 
 void vh_set_task_comm_pixel_mod(void *data, struct task_struct *p)

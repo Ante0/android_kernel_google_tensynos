@@ -9,6 +9,8 @@
 
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include <linux/rculist.h>
+#include <linux/rcupdate.h>
 
 #include "lwis_device.h"
 #include "lwis_device_top.h"
@@ -867,7 +869,6 @@ static int device_event_emit_impl(struct lwis_device *lwis_dev, int64_t event_id
 	struct lwis_event_entry *event;
 	/* Our iterators */
 	struct lwis_client *lwis_client;
-	struct list_head *p, *n;
 	struct lwis_top_device *top_dev;
 	int64_t timestamp;
 	int64_t event_counter;
@@ -914,13 +915,12 @@ static int device_event_emit_impl(struct lwis_device *lwis_dev, int64_t event_id
 			dev_warn(lwis_dev->dev, "Warning: vops.event_emitted returned %d\n", ret);
 	}
 
-	spin_lock_irqsave(&lwis_dev->lock, flags);
+	rcu_read_lock();
 	/* Notify clients */
-	list_for_each_safe(p, n, &lwis_dev->clients) {
+	list_for_each_entry_rcu(lwis_client, &lwis_dev->clients, node) {
 		bool emit = false;
 		unsigned long event_flags;
 
-		lwis_client = list_entry(p, struct lwis_client, node);
 		/* Lock the event lock instead */
 		spin_lock_irqsave(&lwis_client->event_lock, event_flags);
 		client_event_state = client_event_state_find_locked(lwis_client, event_id);
@@ -937,7 +937,7 @@ static int device_event_emit_impl(struct lwis_device *lwis_dev, int64_t event_id
 		if (emit) {
 			event = kmalloc(sizeof(struct lwis_event_entry) + payload_size, GFP_ATOMIC);
 			if (!event) {
-				spin_unlock_irqrestore(&lwis_dev->lock, flags);
+				rcu_read_unlock();
 				return -ENOMEM;
 			}
 
@@ -953,16 +953,14 @@ static int device_event_emit_impl(struct lwis_device *lwis_dev, int64_t event_id
 			} else {
 				event->event_info.payload_buffer = NULL;
 			}
-			spin_unlock_irqrestore(&lwis_dev->lock, flags);
 			ret = client_event_push_back(lwis_client, event);
-			spin_lock_irqsave(&lwis_dev->lock, flags);
 			if (ret) {
 				lwis_dev_err_ratelimited(
 					lwis_dev->dev,
 					"Failed to push event to queue: ID 0x%llx Counter %lld\n",
 					event_id, event_counter);
 				kfree(event);
-				spin_unlock_irqrestore(&lwis_dev->lock, flags);
+				rcu_read_unlock();
 				return ret;
 			}
 		}
@@ -970,16 +968,14 @@ static int device_event_emit_impl(struct lwis_device *lwis_dev, int64_t event_id
 		/* Trigger transactions, if there's any that matches this event
 		 * ID and counter
 		 */
-		spin_unlock_irqrestore(&lwis_dev->lock, flags);
 		if (lwis_transaction_event_trigger(lwis_client, event_id, event_counter, timestamp,
 						   pending_events)) {
 			dev_warn(lwis_dev->dev,
 				 "Failed to process transactions: Event ID: 0x%llx Counter: %lld\n",
 				 event_id, event_counter);
 		}
-		spin_lock_irqsave(&lwis_dev->lock, flags);
 	}
-	spin_unlock_irqrestore(&lwis_dev->lock, flags);
+	rcu_read_unlock();
 
 	return 0;
 }
@@ -1085,7 +1081,6 @@ void lwis_device_external_event_emit(struct lwis_device *lwis_dev, int64_t event
 	struct lwis_event_entry *event;
 	/* Our iterators */
 	struct lwis_client *lwis_client;
-	struct list_head *p, *n;
 	struct list_head pending_events;
 	/* Flags for IRQ disable */
 	unsigned long flags;
@@ -1106,11 +1101,11 @@ void lwis_device_external_event_emit(struct lwis_device *lwis_dev, int64_t event
 	/* Unlock and restore device lock */
 	spin_unlock_irqrestore(&lwis_dev->lock, flags);
 
+	rcu_read_lock();
 	/* Notify clients */
-	list_for_each_safe(p, n, &lwis_dev->clients) {
+	list_for_each_entry_rcu(lwis_client, &lwis_dev->clients, node) {
 		bool emit = false;
 		unsigned long event_flags;
-		lwis_client = list_entry(p, struct lwis_client, node);
 
 		/* Lock the event lock instead */
 		spin_lock_irqsave(&lwis_client->event_lock, event_flags);
@@ -1127,8 +1122,10 @@ void lwis_device_external_event_emit(struct lwis_device *lwis_dev, int64_t event
 
 		if (emit) {
 			event = kmalloc(sizeof(struct lwis_event_entry), GFP_ATOMIC);
-			if (!event)
+			if (!event) {
+				rcu_read_unlock();
 				return;
+			}
 
 			event->event_info.event_id = event_id;
 			event->event_info.event_counter = event_counter;
@@ -1141,6 +1138,7 @@ void lwis_device_external_event_emit(struct lwis_device *lwis_dev, int64_t event
 					"Failed to push event to queue: ID 0x%llx Counter %lld\n",
 					event_id, event_counter);
 				kfree(event);
+				rcu_read_unlock();
 				return;
 			}
 		}
@@ -1152,6 +1150,7 @@ void lwis_device_external_event_emit(struct lwis_device *lwis_dev, int64_t event
 				"Failed to process transactions: external event ID: 0x%llx counter: %lld\n",
 				event_id, event_counter);
 	}
+	rcu_read_unlock();
 	lwis_pending_events_emit(lwis_dev, &pending_events);
 }
 
@@ -1161,9 +1160,7 @@ void lwis_device_error_event_emit(struct lwis_device *lwis_dev, int64_t event_id
 	struct lwis_event_entry *event;
 	/* Our iterators */
 	struct lwis_client *lwis_client;
-	struct list_head *p, *n;
 	int64_t timestamp;
-	unsigned long flags;
 
 	if (event_id < LWIS_EVENT_ID_START_OF_ERROR_RANGE ||
 	    event_id >= LWIS_EVENT_ID_START_OF_SPECIALIZED_RANGE) {
@@ -1174,14 +1171,12 @@ void lwis_device_error_event_emit(struct lwis_device *lwis_dev, int64_t event_id
 	/* Latch timestamp */
 	timestamp = ktime_to_ns(lwis_get_time());
 
-	spin_lock_irqsave(&lwis_dev->lock, flags);
+	rcu_read_lock();
 	/* Notify clients */
-	list_for_each_safe(p, n, &lwis_dev->clients) {
-		lwis_client = list_entry(p, struct lwis_client, node);
-
+	list_for_each_entry_rcu(lwis_client, &lwis_dev->clients, node) {
 		event = kmalloc(sizeof(struct lwis_event_entry) + payload_size, GFP_ATOMIC);
 		if (!event) {
-			spin_unlock_irqrestore(&lwis_dev->lock, flags);
+			rcu_read_unlock();
 			return;
 		}
 
@@ -1201,9 +1196,9 @@ void lwis_device_error_event_emit(struct lwis_device *lwis_dev, int64_t event_id
 						 "Failed to push error event to queue: ID 0x%llx\n",
 						 event_id);
 			kfree(event);
-			spin_unlock_irqrestore(&lwis_dev->lock, flags);
+			rcu_read_unlock();
 			return;
 		}
 	}
-	spin_unlock_irqrestore(&lwis_dev->lock, flags);
+	rcu_read_unlock();
 }

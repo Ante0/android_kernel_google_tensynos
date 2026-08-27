@@ -722,6 +722,7 @@ static void tpmon_set_exynos_pm_qos(struct tpmon_data *data)
 #if IS_ENABLED(CONFIG_CPU_FREQ)
 static void tpmon_set_cpu_freq(struct tpmon_data *data)
 {
+	struct freq_qos_request *req;
 	u32 val;
 
 	if (!data->enable)
@@ -730,11 +731,23 @@ static void tpmon_set_cpu_freq(struct tpmon_data *data)
 	if (!data->extra_data)
 		return;
 
+	req = data->extra_data;
+
+	/*
+	 * Prevent updating the QoS request before it is registered by the
+	 * notifier
+	 */
+	if (!freq_qos_request_active(req)) {
+		mif_info("Skip %s update: QoS request not active yet\n",
+			 data->name);
+		return;
+	}
+
 	val = tpmon_get_curr_level(data);
 
 	mif_info("%s (freq:%d)\n", data->name, val);
 
-	freq_qos_update_request((struct freq_qos_request *)data->extra_data, val);
+	freq_qos_update_request(req, val);
 }
 
 static int tpmon_cpufreq_nb(struct notifier_block *nb,
@@ -1606,30 +1619,6 @@ static int tpmon_parse_dt(struct device_node *np, struct cpif_tpmon *tpmon)
 		mif_dt_count_u32_array(child_np, "level",
 			child_data.level, child_data.num_level);
 
-		/*
-		 * Block specific tpmon features without modifying DTBO. Add a
-		 * build-time assertion to catch when a new tpmon target is
-		 * added, so we'll know about it and block it too if needed.
-		 */
-		BUILD_BUG_ON(MAX_TPMON_TARGET != 17);
-		switch (child_data.target) {
-		case TPMON_TARGET_RPS:
-		case TPMON_TARGET_MIF:
-		case TPMON_TARGET_IRQ_MBOX:
-		case TPMON_TARGET_IRQ_PCIE:
-		case TPMON_TARGET_IRQ_DIT:
-		case TPMON_TARGET_INT_FREQ:
-		case TPMON_TARGET_CPU_CL0:
-		case TPMON_TARGET_CPU_CL1:
-		case TPMON_TARGET_CPU_CL2:
-		case TPMON_TARGET_MIF_MAX:
-		case TPMON_TARGET_INT_FREQ_MAX:
-		case TPMON_TARGET_CPU_CL0_MAX:
-		case TPMON_TARGET_CPU_CL1_MAX:
-		case TPMON_TARGET_CPU_CL2_MAX:
-			continue;
-		}
-
 		/* boost */
 		for_each_child_of_node(child_np, boost_np) {
 			if (count >= MAX_TPMON_DATA) {
@@ -1703,7 +1692,7 @@ int tpmon_create(struct platform_device *pdev, struct link_device *ld)
 	struct mem_link_device *mld = ld_to_mem_link_device(ld);
 	int ret = 0;
 #if IS_ENABLED(CONFIG_CPU_FREQ)
-	struct cpufreq_policy pol;
+	struct cpufreq_policy *policy;
 #endif
 
 	if (!np) {
@@ -1731,10 +1720,13 @@ int tpmon_create(struct platform_device *pdev, struct link_device *ld)
 	INIT_LIST_HEAD(&tpmon->net_node_list);
 
 #if IS_ENABLED(CONFIG_CPU_FREQ)
-	if (cpufreq_get_policy(&pol, 0) != 0) {
+	policy = cpufreq_cpu_get(0);
+	if (!policy) {
 		mif_info("register cpufreq notifier\n");
 		tpmon->cpufreq_nb.notifier_call = tpmon_cpufreq_nb;
 		cpufreq_register_notifier(&tpmon->cpufreq_nb, CPUFREQ_POLICY_NOTIFIER);
+	} else {
+		cpufreq_cpu_put(policy);
 	}
 #endif
 

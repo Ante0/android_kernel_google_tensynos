@@ -226,12 +226,12 @@ static inline bool gcip_kci_is_block_off(struct gcip_mailbox *mailbox)
 	return kci->ops->is_block_off ? kci->ops->is_block_off(kci) : false;
 }
 
-static void gcip_kci_on_error(struct gcip_mailbox *mailbox, int err)
+static void gcip_kci_on_error(struct gcip_mailbox *mailbox, void *cmd, int err)
 {
 	struct gcip_kci *kci = gcip_mailbox_get_data(mailbox);
 
 	if (kci->ops->on_error)
-		kci->ops->on_error(kci, err);
+		kci->ops->on_error(kci, cmd, err);
 }
 
 static const struct gcip_mailbox_ops gcip_mailbox_ops = {
@@ -262,6 +262,8 @@ static const struct gcip_mailbox_ops gcip_mailbox_ops = {
  * Pushes an element to cmd queue and waits for the response.
  * Returns -ETIMEDOUT if no response is received within kci->mailbox.timeout msecs.
  *
+ * This function should not be used for reverse KCI commands because they don't expect responses.
+ *
  * Returns the code of response, or a negative errno on error.
  * @resp is updated with the response, as to retrieve returned retval field.
  */
@@ -270,16 +272,15 @@ int gcip_kci_send_cmd_return_resp(struct gcip_kci *kci, struct gcip_kci_command_
 {
 	int ret;
 
-	if (!(cmd->seq & GCIP_KCI_REVERSE_FLAG))
-		cmd->seq = atomic64_add_return(1, &kci->cur_seq);
+	cmd->seq = atomic64_add_return(1, &kci->cur_seq);
 
-	ret = gcip_mailbox_send_cmd(&kci->mailbox, cmd, resp, 0);
+	ret = gcip_mailbox_send_cmd(&kci->mailbox, cmd, resp);
 	if (ret) {
 		dev_err(kci->dev, "Sending KCI command %d returned error: %d", cmd->code, ret);
 		return ret;
 	}
 
-	return resp ? resp->code : 0;
+	return resp->code;
 }
 
 int gcip_kci_send_cmd(struct gcip_kci *kci, struct gcip_kci_command_element *cmd)
@@ -288,7 +289,7 @@ int gcip_kci_send_cmd(struct gcip_kci *kci, struct gcip_kci_command_element *cmd
 
 	/* Don't wait on a response for reverse KCI response. */
 	if (cmd->seq & GCIP_KCI_REVERSE_FLAG)
-		return gcip_kci_send_cmd_return_resp(kci, cmd, NULL);
+		return gcip_mailbox_send_cmd_no_rsp(&kci->mailbox, cmd);
 	else
 		return gcip_kci_send_cmd_return_resp(kci, cmd, &resp);
 }

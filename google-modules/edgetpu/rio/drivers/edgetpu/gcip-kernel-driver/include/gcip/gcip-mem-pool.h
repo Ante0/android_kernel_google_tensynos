@@ -101,4 +101,12 @@ unsigned long gcip_mem_pool_find(struct gcip_mem_pool *pool, unsigned long addr,
 unsigned long gcip_mem_pool_find_or_alloc(struct gcip_mem_pool *pool, unsigned long addr,
 					  size_t size, size_t *offset, bool *allocated);
 
+/**
+ * gcip_mem_pool_size() - Returns the total size of the memory pool.
+ * @pool: The memory pool object.
+ *
+ * Returns the total size of the memory pool.
+ */
+size_t gcip_mem_pool_size(struct gcip_mem_pool *pool);
+
 #endif /* __GCIP_MEM_POOL_H__ */

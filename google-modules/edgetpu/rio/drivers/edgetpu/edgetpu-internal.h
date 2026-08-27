@@ -21,6 +21,7 @@
 #include <linux/mutex.h>
 #include <linux/refcount.h>
 #include <linux/scatterlist.h>
+#include <linux/sched.h>
 #include <linux/time64.h>
 #include <linux/types.h>
 #include <linux/workqueue.h>
@@ -69,7 +70,7 @@ struct edgetpu_soc_data;
 /* Internal eventlog event codes. */
 enum edgetpu_eventlog_eventcode {
 	EVENTLOG_EMPTY_SLOT,
-	EVENTLOG_EVENT_CLIENT_GROUP,
+	EVENTLOG_EVENT_CLIENT_CREATE,
 	EVENTLOG_EVENT_CLIENT_REMOVE,
 	EVENTLOG_EVENT_WAKELOCK_ACQUIRE_START,
 	EVENTLOG_EVENT_WAKELOCK_ACQUIRE_END,
@@ -97,11 +98,14 @@ struct edgetpu_eventlog {
 };
 
 struct edgetpu_client {
+	/* Unique ID number of this client. */
+	uint client_id;
 	pid_t pid;
 	pid_t tgid;
 	/* PID and TGID for a limited interface to this client. -1 if no such interface. */
 	pid_t limited_pid;
 	pid_t limited_tgid;
+	char name[40];
 	/* Reference count */
 	refcount_t count;
 	/* protects group. */
@@ -123,6 +127,8 @@ struct edgetpu_client {
 	struct mutex limited_interface_lock;
 	/* Pointer to the limited interface to this client, if any. */
 	struct file *limited_interface;
+	/* Pixel trim currently enabled/disabled for this client. */
+	bool trim_enabled;
 };
 
 /*
@@ -288,6 +294,10 @@ struct edgetpu_dev {
 
 	/* The kernel driver commit hash string, for debugging purpose only. */
 	const char *commit_hash;
+
+	/* List of current and preserved former client wakeup sources for power analysis. */
+	struct mutex wakeup_sources_lock;
+	struct list_head wakeup_sources;
 };
 
 struct edgetpu_dev_iface {
@@ -397,6 +407,9 @@ edgetpu_client_add(struct edgetpu_dev_iface *etiface);
 /* Remove TPU client */
 void edgetpu_client_remove(struct edgetpu_client *client);
 
+/* Set client name based on comm field of the supplied process task_id. */
+void edgetpu_client_update_name(struct edgetpu_client *client, pid_t task_id);
+
 /* mmap() device/queue memory */
 int edgetpu_mmap(struct edgetpu_client *client, struct vm_area_struct *vma);
 
@@ -405,6 +418,9 @@ struct edgetpu_client *edgetpu_client_get(struct edgetpu_client *client);
 
 /* Decrease reference count and free @client if count reaches zero */
 void edgetpu_client_put(struct edgetpu_client *client);
+
+/* Enable/disable Pixel trim for @client. @enable = non-zero enables, zero disables. */
+void edgetpu_client_trim_enable(struct edgetpu_client *client, u32 enable);
 
 /*
  * Get error code corresponding to @etdev state. Caller holds

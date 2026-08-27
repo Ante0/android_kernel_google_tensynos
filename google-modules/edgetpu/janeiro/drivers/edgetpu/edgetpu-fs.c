@@ -294,7 +294,7 @@ static int edgetpu_ioctl_map_buffer(struct edgetpu_client *client,
 	/*
 	 * Don't hold @client->group_lock on purpose since
 	 * 1. We don't care whether @client still belongs to @group.
-	 * 2. get_user_pages_fast called by edgetpu_device_group_map() will hold
+	 * 2. get_user_pages called by edgetpu_device_group_map() will hold
 	 *    mm->mmap_sem, we need to prevent our locks being held around it.
 	 */
 	UNLOCK(client);

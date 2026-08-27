@@ -11,6 +11,7 @@
 #include <linux/seq_file.h>
 
 #include <gcip/gcip-iommu.h>
+#include <gcip/gcip-mapping.h>
 
 #include "edgetpu.h"
 #include "edgetpu-internal.h"
@@ -201,9 +202,9 @@ size_t edgetpu_mappings_hiorder_size(struct edgetpu_dev *etdev,
 		struct edgetpu_mapping *map =
 			container_of(node, struct edgetpu_mapping, node);
 
-		if (map->gcip_mapping->type != GCIP_IOMMU_MAPPING_DMA_BUF)
+		if (map->gcip_mapping->type != GCIP_MAPPING_TYPE_DMABUF)
 			continue;
-		ret += gcip_iommu_dmabuf_hiorder_size(map->gcip_mapping);
+		ret += gcip_mapping_dmabuf_hiorder_size(map->gcip_mapping);
 	}
 
 	edgetpu_mapping_unlock(mappings);

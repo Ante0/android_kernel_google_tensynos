@@ -17,7 +17,6 @@
 #include <uapi/linux/sched/types.h>
 
 #include "sched_priv.h"
-#include "sched_events.h"
 
 #if IS_ENABLED(CONFIG_PIXEL_EM)
 #include "../../include/pixel_em.h"
@@ -2245,11 +2244,11 @@ uclamp_tg_restrict_pixel_mod(struct task_struct *p, enum uclamp_id clamp_id)
 	if (clamp_id == UCLAMP_MIN && in_suspend_resume)
 		value = max(value, SCHED_CAPACITY_SCALE/4);
 
-	// For uclamp min, if task has a valid per-task setting that is lower than or equal to its
-	// group value, increase the final uclamp value by 1. This would have effect only on
+	// For non-zero uclamp min, if task has a valid per-task setting that is lower than or equal
+	// to its group value, increase the final uclamp value by 1. This would have effect only on
 	// importance metrics which is used in task placement, and little effect on cpufreq.
 	if (clamp_id == UCLAMP_MIN && uc_req.value <= max(tg_min, vnd_min) && uc_req.user_defined
-		&& value < SCHED_CAPACITY_SCALE)
+		&& value < SCHED_CAPACITY_SCALE && uc_req.value != 0)
 		value = value + 1;
 
 	// adding 1 to ensure we can detect tasks that has
@@ -2598,7 +2597,8 @@ static inline void uclamp_fork_pixel_mod(struct task_struct *p, struct task_stru
 {
 	enum uclamp_id clamp_id;
 
-	if (likely(!get_adpf(orig, false) && !get_power_efficiency(p)))
+	if (likely(!get_adpf(orig, false) && !get_power_efficiency(p) &&
+	    !get_vendor_boost(orig)))
 		return;
 
 	for_each_clamp_id(clamp_id) {
@@ -2855,13 +2855,6 @@ void sched_newidle_balance_pixel_mod(void *data, struct rq *this_rq, struct rq_f
 		src_rq = cpu_rq(cpu);
 		src_vrq = get_vendor_rq_struct(src_rq);
 
-		if (trace_clock_set_rate_enabled()) {
-			char trace_name[32] = {0};
-
-			scnprintf(trace_name, sizeof(trace_name), "lb_adpf_cpu%d", src_rq->cpu);
-			trace_clock_set_rate(trace_name, atomic_read(&src_vrq->num_adpf_tasks),
-				raw_smp_processor_id());
-		}
 		/*
 		 * Don't bother if no latency sensitive tasks on src_rq or if
 		 * there's only one.

@@ -48,10 +48,10 @@
 
 #elif IS_ENABLED(CONFIG_EDGETPU_TEST) && !IS_ENABLED(CONFIG_DEBUG_KMEMLEAK)
 /* fake-firmware could respond in a short time */
-#define KCI_TIMEOUT	(200)
+#define KCI_TIMEOUT	(500)
 #else
-/* Wait for up to 1 second for FW to respond. */
-#define KCI_TIMEOUT	(1000)
+/* Wait for up to 2 seconds for FW to respond. */
+#define KCI_TIMEOUT	(2000)
 #endif
 
 static inline int check_etdev_state(struct edgetpu_kci *etkci, char *opstring)
@@ -215,13 +215,16 @@ static inline bool edgetpu_kci_is_block_off(struct gcip_kci *kci)
 }
 
 /* PM lock may be held.  Any PM calls must be non-blocking. */
-static void edgetpu_kci_on_error(struct gcip_kci *kci, int err)
+static void edgetpu_kci_on_error(struct gcip_kci *kci, void *cmd, int err)
 {
 	struct edgetpu_mailbox *mailbox = gcip_kci_get_data(kci);
+	struct gcip_kci_command_element *kcmd = cmd;
 
 	if (err == -ETIMEDOUT) {
+		etdev_err(mailbox->etdev, "KCI cmd %u seq %llu timed out", kcmd->code, kcmd->seq);
 		edgetpu_soc_pm_dump_block_state(mailbox->etdev);
 		edgetpu_debug_dump_cpu_regs(mailbox->etdev);
+		edgetpu_mailbox_dump(mailbox);
 	}
 }
 
@@ -516,32 +519,31 @@ int edgetpu_kci_update_usage(struct edgetpu_dev *etdev)
 		return -EAGAIN;
 
 	/*
-	 * Lockout change in f/w load/unload status during usage update.
-	 * Skip usage update if the firmware is being updated now or is not
-	 * valid.
-	 */
-	if (!edgetpu_firmware_trylock(etdev))
-		return -EAGAIN;
-
-	if (edgetpu_firmware_status_locked(etdev) != GCIP_FW_VALID)
-		goto fw_unlock;
-
-	/*
 	 * This function may run in a worker that is being canceled when the device is powering
 	 * down, and the power down code holds the PM lock.
 	 * Using trylock to prevent cancel_work_sync() waiting forever.
 	 */
 	if (!edgetpu_pm_trylock(etdev))
-		goto fw_unlock;
+		goto out;
 
-	if (edgetpu_pm_is_powered(etdev))
-		ret = edgetpu_kci_update_usage_locked(etdev);
+	/*
+	 * Lockout change in f/w load/unload status during usage update.
+	 * Skip usage update if the firmware is being updated now or is not
+	 * valid.
+	 */
+	if (!edgetpu_firmware_trylock(etdev))
+		goto pm_unlock;
 
-	edgetpu_pm_unlock(etdev);
+	if (edgetpu_firmware_status_locked(etdev) == GCIP_FW_VALID)
+		if (edgetpu_pm_is_powered(etdev))
+			ret = edgetpu_kci_update_usage_locked(etdev);
 
-fw_unlock:
 	edgetpu_firmware_unlock(etdev);
 
+pm_unlock:
+	edgetpu_pm_unlock(etdev);
+
+out:
 	if (ret)
 		etdev_warn_once(etdev, "get firmware usage stats failed: %d", ret);
 	return ret;

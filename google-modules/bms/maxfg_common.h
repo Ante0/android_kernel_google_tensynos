@@ -99,6 +99,8 @@ enum maxfg_reg_tags {
 	MAXFG_TAG_fullsocthr,
 	MAXFG_TAG_misccfg,
 	MAXFG_TAG_ichgterm,
+	MAXFG_TAG_vempty,
+	MAXFG_TAG_sochold,
 };
 
 enum max17x0x_reg_types {
@@ -281,6 +283,31 @@ static inline u8 s8_to_u4_boundary(s8 val)
 {
 	/* Convert s8 to u4 with boundary, range 0 to 15 */
 	return val < 0 ? 0 : val > 15 ? 15 : val;
+}
+
+static inline int reg_to_vempty(u16 val)
+{
+	return ((val >> 7) & 0x1FF) * 10;
+}
+
+static inline int reg_to_vrecovery(u16 val)
+{
+	return (val & 0x7F) * 40;
+}
+
+static inline int vempty_to_reg(int val)
+{
+	return (val / 10) << 7;
+}
+
+static inline int vrecovery_to_reg(int val)
+{
+	return val / 40;
+}
+
+static inline int reg_to_empty_volt_hold(u16 val)
+{
+	return ((val >> 5) & 0x7F) * 10;
 }
 
 #define NB_REGMAP_MAX 256
@@ -518,7 +545,7 @@ void maxfg_dynrel_log_rel(struct logbuffer *mon, struct device *dev, u16 fstat,
 			     const struct maxfg_dynrel_state *dr_state);
 
 int maxfg_aafv_scan_inputs(const char *inputs, const int input_sz,
-			   struct aafv_fg_config* cfg, const int cfg_max);
+			   struct aafv_fg_config *cfg, const int cfg_max);
 int maxfg_aafv_apply(struct logbuffer *mon, struct device *dev, struct maxfg_regmap *regmap,
 		     int aafv, const struct aafv_fg_config *cfgs, const int cfg_max,
 		     int fus_clear, int fus_shift, bool *fus_set, int *aafv_cur_index);
@@ -530,6 +557,8 @@ ssize_t maxfg_aafv_config_store(struct device *dev, const int batt_id,
 				struct aafv_fg_config *aafv_cfgs, int *aafv_config_limits);
 ssize_t maxfg_aafv_config_show(struct aafv_fg_config *cfgs, const int config_limits,
 			       const int batt_id, char *buf);
+int maxfg_aacv_apply(struct logbuffer *mon, struct device *dev, struct maxfg_regmap *regmap,
+		     int offset, u16 aacv_vempty);
 int maxfg_reset_max_min(struct maxfg_regmap *regmap);
 
 int maxfg_init_bypass_charge_limit(struct maxfg_regmap *regmap, struct device_node *node,

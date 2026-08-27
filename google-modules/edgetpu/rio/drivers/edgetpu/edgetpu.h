@@ -25,7 +25,14 @@
  * This number must be incremented when new features or fields are added, or when existing features
  * are marked deprecated.
  */
-#define _EDGETPU_INTERFACE_VERSION_MINOR 0
+#define _EDGETPU_INTERFACE_VERSION_MINOR 2
+
+/*
+ * Interface version history:
+ *
+ * 1.1: Initial support for interface versioning.
+ * 1.2: Add EDGETPU_TRIM_ENABLE; earlier versions to be considered not supporting trim.
+ */
 
 /*
  * Legacy Platforms Only: mmap offsets for mailbox CSRs, command queue, and response queue.
@@ -60,7 +67,6 @@ typedef __u32 edgetpu_map_flag_t;
 #define EDGETPU_MAP_DMA_BIDIRECTIONAL   0
 #define EDGETPU_MAP_DMA_TO_DEVICE       1
 #define EDGETPU_MAP_DMA_FROM_DEVICE     2
-#define EDGETPU_MAP_DMA_NONE            3
 /* The address is mapped to all dies in a device group */
 #define EDGETPU_MAP_MIRRORED		(0u << 2)
 /* The address is mapped on the specific die */
@@ -75,7 +81,7 @@ typedef __u32 edgetpu_map_flag_t;
 #define EDGETPU_MAP_ATTR_PBHA_MASK	0xf
 /* Create coherent mapping of the buffer */
 #define EDGETPU_MAP_COHERENT		(1u << 9)
-/* Map buffer "trimmable" on request from Pixel trim subsystem */
+/* Map buffer "trimmable" on request from Pixel trim subsystem when client enables trimming */
 #define EDGETPU_MAP_TRIMMABLE		(1u << 10)
 
 /* External mailbox types */
@@ -96,7 +102,6 @@ struct edgetpu_map_ioctl {
 	 *               00 = DMA_BIDIRECTIONAL
 	 *               01 = DMA_TO_DEVICE
 	 *               10 = DMA_FROM_DEVICE
-	 *               11 = DMA_NONE
 	 *   [2:2]   - Mirroredness. Mirrored across device group or local to a
 	 *             specific die:
 	 *               0 = map to all dies in a device group
@@ -306,7 +311,6 @@ struct edgetpu_sync_ioctl {
 	 *               00 = DMA_BIDIRECTIONAL
 	 *               01 = DMA_TO_DEVICE
 	 *               10 = DMA_FROM_DEVICE
-	 *               11 = DMA_NONE
 	 *   [2:2]   - Sync direction. Sync for device or CPU.
 	 *               0 = sync for device
 	 *               1 = sync for CPU
@@ -924,12 +928,15 @@ struct edgetpu_vii_litebuf_response_ioctl {
 #define EDGETPU_NUM_VII_CREDITS 8
 
 /*
- * Remap all buffers previously trimmed for this client.
+ * Remap all buffers previously trimmed for this client, and disable trimming until re-enabled
+ * via EDGETPU_TRIM_ENABLE.
  *
  * If a non-zero error code is returned then remapping failed unexpectedly, and the client still
  * cannot run the associated models until another call to remap buffers returns successfully.
+ * Trim will be disabled for the client upon return, even if an error occurs remapping buffers.
  */
-#define EDGETPU_REMAP_BUFFERS	_IO(EDGETPU_IOCTL_BASE, 41)
+#define EDGETPU_TRIM_REMAP	_IO(EDGETPU_IOCTL_BASE, 41)
+#define EDGETPU_REMAP_BUFFERS	EDGETPU_TRIM_REMAP
 
 #define EDGETPU_INTERFACE_VERSION_BUFFER_SIZE 64
 
@@ -963,5 +970,17 @@ struct edgetpu_interface_version_ioctl {
  */
 #define EDGETPU_GET_INTERFACE_VERSION _IOR(EDGETPU_IOCTL_BASE, 42, \
 					   struct edgetpu_interface_version_ioctl)
+
+/* Convenience symbols for argument to EDGETPU_TRIM_ENABLE */
+#define EDGETPU_TRIM_ENABLED	1
+#define EDGETPU_TRIM_DISABLED	0
+
+/*
+ * Enable or disable trimming for all buffers marked as trimmable for this client. If enabled, the
+ * edgetpu driver will trim any such buffers in response to a request from the Pixel Trim subsystem,
+ * until the client disables trim via this ioctl. Parameter is non-zero to enable trim, or zero to
+ * disable trim.
+ */
+#define EDGETPU_TRIM_ENABLE	_IOW(EDGETPU_IOCTL_BASE, 43, __u32)
 
 #endif /* __EDGETPU_H__ */

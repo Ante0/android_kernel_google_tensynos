@@ -19,6 +19,7 @@
 #include <linux/types.h>
 
 #include <gcip/gcip-iommu.h>
+#include <gcip/gcip-mapping.h>
 
 #include "edgetpu-internal.h"
 #include "edgetpu-mmu.h"
@@ -32,8 +33,8 @@ struct edgetpu_mapping_root {
 };
 
 struct edgetpu_mapping {
-	struct gcip_iommu_mapping *gcip_mapping;
-	u64 host_addr; /* For edgetpu_host_map_show only. gcip_iommu_mapping has its own record. */
+	struct gcip_mapping *gcip_mapping;
+	u64 host_addr; /* For edgetpu_host_map_show only. gcip_mapping has its own record. */
 	struct rb_node node;
 	edgetpu_map_flag_t flags; /* the flag passed by the runtime */
 	u32 mmu_flags;

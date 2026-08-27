@@ -42,6 +42,10 @@
 #define EDGETPU_ALLOW_NONSECURE_FW 0
 #endif
 
+#ifndef EDGETPU_HAS_PQ_FW_AUTH
+#define EDGETPU_HAS_PQ_FW_AUTH 0
+#endif
+
 /*
  * "Always on" can be enabled in a chip config.h file using this define; see comments for
  * field @always_on in edgetpu-pm.h. * The default is to not force "always on".

@@ -691,6 +691,7 @@ static void __mfc_core_nal_q_get_dec_metadata_sei_nal(struct mfc_core *core, str
 	struct mfc_dec *dec = ctx->dec_priv;
 	dma_addr_t buf_addr;
 	dma_addr_t offset;
+	dma_addr_t top_addr;
 	unsigned int *sei_addr = NULL;
 	unsigned int *addr;
 	int buf_size, sei_size;
@@ -704,12 +705,15 @@ static void __mfc_core_nal_q_get_dec_metadata_sei_nal(struct mfc_core *core, str
 		return;
 	}
 
-	offset = buf_addr - ctx->metadata_buf.daddr;
-	if (offset < 0) {
-		mfc_ctx_err("[NALQ][HDR+][META] The metadata offset %#llx is wrong\n", offset);
+	top_addr = ctx->metadata_buf.daddr + ctx->metadata_buf.size - HDR10_PLUS_DATA_SIZE;
+	if ((buf_addr < ctx->metadata_buf.daddr) ||
+		(buf_addr > top_addr)) {
+		mfc_ctx_err("[NALQ][HDR+][META] The meta daddr %#llx is less than base %#llx or larger than top address(%#llx)\n",
+			buf_addr, ctx->metadata_buf.daddr, top_addr);
 		return;
 	}
 
+	offset = buf_addr - ctx->metadata_buf.daddr;
 	/* SEI data - 0x0: payload type, 0x4: payload size, 0x8: payload data */
 	sei_addr = ctx->metadata_buf.vaddr + offset + MFC_META_SEI_NAL_SIZE_OFFSET;
 	sei_size = *sei_addr;
@@ -720,9 +724,14 @@ static void __mfc_core_nal_q_get_dec_metadata_sei_nal(struct mfc_core *core, str
 				sei_size, buf_size);
 
 	/* HAL needs SEI data size info "size(4 bytes) + SEI data" */
-	sei_size += MFC_META_SEI_NAL_SIZE_OFFSET;
+	sei_size += MFC_META_SEI_NAL_SIZE_OF_FIELD;
 	mfc_debug(2, "[NALQ][HDR+][META] copy metadata offset %pad size: %d / %d\n",
 			&offset, sei_size, buf_size);
+	if (HDR10_PLUS_DATA_SIZE < sei_size + MFC_META_SEI_NAL_SIZE_OFFSET) {
+		mfc_ctx_err("[NALQ][HDR+][META] sei_size(%d) is too large to support\n",
+			sei_size);
+		return;
+	}
 
 	memcpy(addr, sei_addr, sei_size);
 
@@ -1878,10 +1887,10 @@ static void __mfc_core_nal_q_get_img_size(struct mfc_core *core, struct mfc_ctx 
 	if (img_size == MFC_GET_RESOL_SIZE) {
 		dec->disp_drc.width[dec->disp_drc.push_idx] = ctx->img_width;
 		dec->disp_drc.height[dec->disp_drc.push_idx] = ctx->img_height;
-		dec->disp_drc.disp_res_change = (dec->disp_drc.disp_res_change + 1) % MFC_MAX_DRC_FRAME;
+		dec->disp_drc.disp_res_change = ++dec->disp_drc.disp_res_change % MFC_MAX_DRC_FRAME;
 		mfc_debug(3, "[NALQ][DRC] disp_res_change[%d] count %d\n",
 				dec->disp_drc.push_idx, dec->disp_drc.disp_res_change);
-		dec->disp_drc.push_idx = (dec->disp_drc.push_idx + 1) % MFC_MAX_DRC_FRAME;
+		dec->disp_drc.push_idx = ++dec->disp_drc.push_idx % MFC_MAX_DRC_FRAME;
 	} else if (img_size == MFC_GET_RESOL_DPB_SIZE) {
 		ctx->scratch_buf_size = mfc_core_get_scratch_size();
 		for (i = 0; i < ctx->dst_fmt->num_planes; i++) {

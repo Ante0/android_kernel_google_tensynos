@@ -271,4 +271,12 @@ u64 gxp_dma_encode_gcip_map_flags(uint gxp_dma_flags, unsigned long dma_attrs);
  */
 int gxp_iommu_get_max_vd_activation(struct gxp_dev *gxp);
 
+/**
+ * gxp_iommu_fault_handler() - iommu fault handler.
+ *
+ * Return 0.
+ */
+int gxp_iommu_fault_handler(struct iommu_domain *domain, struct device *dev, unsigned long iova,
+			    int flags, void *token);
+
 #endif /* __GXP_DMA_H__ */

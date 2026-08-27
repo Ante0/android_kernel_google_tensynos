@@ -10,6 +10,8 @@
 #include <linux/dma-buf.h>
 #include <linux/fs.h>
 #include <linux/slab.h>
+#include <linux/rculist.h>
+#include <linux/rcupdate.h>
 #include <soc/google/pt.h>
 
 #include "lwis_buffer.h"
@@ -63,10 +65,13 @@ static void dump_total_enrolled_buffer_size(struct lwis_device *lwis_dev)
 	size_t total_enrolled_size = 0;
 	int num_enrolled_buffers = 0;
 
-	spin_lock_irqsave(&lwis_dev->lock, flags);
-	list_for_each_entry(client, &lwis_dev->clients, node) {
-		if (hash_empty(client->enrolled_buffers))
+	rcu_read_lock();
+	list_for_each_entry_rcu(client, &lwis_dev->clients, node) {
+		spin_lock_irqsave(&lwis_dev->lock, flags);
+		if (hash_empty(client->enrolled_buffers)) {
+			spin_unlock_irqrestore(&lwis_dev->lock, flags);
 			continue;
+		}
 
 		hash_for_each(client->enrolled_buffers, i, enrollment_list, node) {
 			buffer = list_first_entry(&enrollment_list->list,
@@ -74,8 +79,9 @@ static void dump_total_enrolled_buffer_size(struct lwis_device *lwis_dev)
 			total_enrolled_size += buffer->dma_buf->size;
 			num_enrolled_buffers++;
 		}
+		spin_unlock_irqrestore(&lwis_dev->lock, flags);
 	}
-	spin_unlock_irqrestore(&lwis_dev->lock, flags);
+	rcu_read_unlock();
 
 	if (total_enrolled_size > 0) {
 		pr_info("%-16s: %16d %16lu kB\n", lwis_dev->name, num_enrolled_buffers,
@@ -395,15 +401,11 @@ int lwis_client_enrolled_buffers_clear(struct lwis_client *lwis_client)
 	/* Iterate over the entire hash table */
 	hash_for_each_safe(lwis_client->enrolled_buffers, i, n, enrollment_list, node) {
 		list_for_each_safe(it_enrollment, it_enrollment_tmp, &enrollment_list->list) {
-			bool done = list_is_singular(&enrollment_list->list);
 			buffer = list_entry(it_enrollment, struct lwis_enrolled_buffer, list_node);
 			/* Disenroll the buffer */
 			lwis_buffer_disenroll(lwis_client, buffer);
 			/* Free the object */
 			kfree(buffer);
-			/* Stop now if enrollment_list->list was freed */
-			if (done)
-				break;
 		}
 	}
 

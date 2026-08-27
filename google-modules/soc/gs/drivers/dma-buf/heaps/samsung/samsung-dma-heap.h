@@ -61,6 +61,7 @@ struct samsung_dma_heap {
 	void (*release)(struct samsung_dma_buffer *buffer);
 	void *priv;
 	const char *name;
+	struct device_dma_parameters dma_parms;
 	unsigned long flags;
 	unsigned int alignment;
 	unsigned int protection_id;

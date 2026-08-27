@@ -180,6 +180,13 @@
 	pinctrl-1 = <&hsi2c15_bus>;
 	pinctrl-2 = <&hsi2c15_bus>;
 };
+
+/* Swap to use a regulator type for tof sensor's power source */
+&stmvl53l1 {
+	/delete-property/ pwren-gpio;
+	pwren-supply = <&pp2800_ldaf>;
+};
+
 / {
 	fragment@lwiscamera {
 		target-path = "/";
@@ -204,6 +211,8 @@
 				reset-gpios = <&gpp2 2 GPIO_ACTIVE_HIGH>;
 
 				/* Power supplies */
+				pp3200_bb-supply = <&pp3200_bb_cam>;
+				pp1300-supply = <&pp1300_cam>;
 				s2mpg13_ldo12-supply = <&s_ldo12_reg>;
 				ldo1-supply = <&slg51002_ldo1>;
 				ldo4-supply = <&slg51002_ldo4>;
@@ -227,6 +236,8 @@
 
 				/* Power up sequence */
 				power-up-seqs =
+					"pp3200_bb",
+					"pp1300",
 					"s2mpg13_ldo12",
 					"ldo4",
 					"gpio3",
@@ -240,10 +251,14 @@
 					"regulator",
 					"regulator",
 					"regulator",
+					"regulator",
+					"regulator",
 					"gpio",
 					"pinctrl";
 				power-up-seq-delays-us =
 					<0
+					 0
+					 0
 					 1000
 					 0
 					 0
@@ -259,10 +274,14 @@
 					"ldo8",
 					"gpio3",
 					"ldo4",
-					"s2mpg13_ldo12";
+					"s2mpg13_ldo12",
+					"pp1300",
+					"pp3200_bb";
 				power-down-seq-types =
 					"pinctrl",
 					"gpio",
+					"regulator",
+					"regulator",
 					"regulator",
 					"regulator",
 					"regulator",
@@ -274,6 +293,8 @@
 					 0
 					 0
 					 6000
+					 0
+					 0
 					 0
 					 0>;
 
@@ -302,6 +323,8 @@
 				reset-gpios = <&gpp4 2 GPIO_ACTIVE_HIGH>;
 
 				/* Power supplies */
+				pp3200_bb-supply = <&pp3200_bb_cam>;
+				pp1300-supply = <&pp1300_cam>;
 				s2mpg13_ldo12-supply = <&s_ldo12_reg>;
 				ldo8-supply = <&slg51002_ldo8>;
 				gpio4-supply = <&slg51002_gpio4>;
@@ -323,6 +346,8 @@
 
 				/* Power up sequence */
 				power-up-seqs =
+					"pp3200_bb",
+					"pp1300",
 					"s2mpg13_ldo12",
 					"ldo8",
 					"gpio4",
@@ -332,10 +357,14 @@
 					"regulator",
 					"regulator",
 					"regulator",
+					"regulator",
+					"regulator",
 					"pinctrl",
 					"gpio";
 				power-up-seq-delays-us =
 					<0
+					 0
+					 0
 					 0
 					 1000
 					 1000
@@ -347,10 +376,14 @@
 					"mclk_off",
 					"gpio4",
 					"ldo8",
-					"s2mpg13_ldo12";
+					"s2mpg13_ldo12",
+					"pp1300",
+					"pp3200_bb";
 				power-down-seq-types =
 					"gpio",
 					"pinctrl",
+					"regulator",
+					"regulator",
 					"regulator",
 					"regulator",
 					"regulator";
@@ -359,7 +392,9 @@
 					 1000
 					 0
 					 0
-					 1000>;
+					 1000
+					 0
+					 0>;
 
 				/* Thread priority */
 				transaction-thread-priority = <99>;
@@ -386,6 +421,8 @@
 				reset-gpios = <&gpp6 3 GPIO_ACTIVE_HIGH>;
 
 				/* Power supplies */
+				pp3200_bb-supply = <&pp3200_bb_cam>;
+				pp1300-supply = <&pp1300_cam>;
 				s2mpg13_ldo12-supply = <&s_ldo12_reg>;
 				ldo2-supply = <&slg51002_ldo2>;
 				ldo6-supply = <&slg51002_ldo6>;
@@ -407,6 +444,8 @@
 
 				/* Power up sequence */
 				power-up-seqs =
+					"pp3200_bb",
+					"pp1300",
 					"s2mpg13_ldo12",
 					"ldo6",
 					"ldo2",
@@ -416,10 +455,14 @@
 					"regulator",
 					"regulator",
 					"regulator",
+					"regulator",
+					"regulator",
 					"pinctrl",
 					"gpio";
 				power-up-seq-delays-us =
 					<0
+					 0
+					 0
 					 0
 					 1000
 					 1000
@@ -431,10 +474,14 @@
 					"mclk_off",
 					"ldo2",
 					"ldo6",
-					"s2mpg13_ldo12";
+					"s2mpg13_ldo12",
+					"pp1300",
+					"pp3200_bb";
 				power-down-seq-types =
 					"gpio",
 					"pinctrl",
+					"regulator",
+					"regulator",
 					"regulator",
 					"regulator",
 					"regulator";
@@ -443,7 +490,9 @@
 					 1000
 					 0
 					 0
-					 1000>;
+					 1000
+					 0
+					 0 >;
 
 				/* Thread priority */
 				transaction-thread-priority = <99>;
@@ -471,6 +520,8 @@
 				reset-gpios = <&gpp6 2 GPIO_ACTIVE_HIGH>;
 
 				/* Power supplies */
+				pp3200_bb-supply = <&pp3200_bb_cam>;
+				pp1300-supply = <&pp1300_cam>;
 				s2mpg13_ldo12-supply = <&s_ldo12_reg>;
 				ldo3-supply = <&slg51002_ldo3>;
 				ldo7-supply = <&slg51002_ldo7>;
@@ -492,6 +543,8 @@
 
 				/* Power up sequence */
 				power-up-seqs =
+					"pp3200_bb",
+					"pp1300",
 					"s2mpg13_ldo12",
 					"ldo7",
 					"ldo3",
@@ -501,10 +554,14 @@
 					"regulator",
 					"regulator",
 					"regulator",
+					"regulator",
+					"regulator",
 					"pinctrl",
 					"gpio";
 				power-up-seq-delays-us =
-					<300
+					<0
+					 0
+					 300
 					 0
 					 0
 					 1000
@@ -516,10 +573,14 @@
 					"mclk_off",
 					"ldo7",
 					"s2mpg13_ldo12",
-					"ldo3";
+					"ldo3",
+					"pp1300",
+					"pp3200_bb";
 				power-down-seq-types =
 					"gpio",
 					"pinctrl",
+					"regulator",
+					"regulator",
 					"regulator",
 					"regulator",
 					"regulator";
@@ -527,6 +588,8 @@
 					<0
 					 0
 					 1000
+					 0
+					 0
 					 0
 					 0>;
 
@@ -553,30 +616,37 @@
 				reg-value-bitwidth = <32>;
 
 				/* Power supplies */
+				pp3200_bb-supply = <&pp3200_bb_cam>;
 				s2mpg13_ldo12-supply = <&s_ldo12_reg>;
 				gpio1-supply = <&slg51002_gpio1>;
 
 				/* Power up sequence */
 				power-up-seqs =
+					"pp3200_bb",
 					"s2mpg13_ldo12",
 					"gpio1";
 				power-up-seq-types =
 					"regulator",
+					"regulator",
 					"regulator";
 				power-up-seq-delays-us =
-					<1000
+					<0
+					 1000
 					 1000>;
 
 				/* Power down sequence */
 				power-down-seqs =
 					"gpio1",
-					"s2mpg13_ldo12";
+					"s2mpg13_ldo12",
+					"pp3200_bb";
 				power-down-seq-types =
+					"regulator",
 					"regulator",
 					"regulator";
 				power-down-seq-delays-us =
 					<1000
-					 1000>;
+					 1000
+					 0>;
 
 				i2c-lock-group-id = <0>;
 			};
@@ -671,21 +741,25 @@
 				reg-value-bitwidth = <8>;
 
 				/* Power supplies */
+				pp3200_bb-supply = <&pp3200_bb_cam>;
 				s2mpg13_ldo12-supply = <&s_ldo12_reg>;
 				ldo5-supply = <&slg51002_ldo5>;
 				gpio1-supply = <&slg51002_gpio1>;
 
 				/* Power up sequence */
 				power-up-seqs =
+					"pp3200_bb",
 					"s2mpg13_ldo12",
 					"ldo5",
 					"gpio1";
 				power-up-seq-types =
 					"regulator",
 					"regulator",
+					"regulator",
 					"regulator";
 				power-up-seq-delays-us =
-					<1000
+					<0
+					 1000
 					 0
 					 0>;
 
@@ -693,13 +767,16 @@
 				power-down-seqs =
 					"gpio1",
 					"ldo5",
-					"s2mpg13_ldo12";
+					"s2mpg13_ldo12",
+					"pp3200_bb";
 				power-down-seq-types =
+					"regulator",
 					"regulator",
 					"regulator",
 					"regulator";
 				power-down-seq-delays-us =
 					<0
+					 0
 					 0
 					 0>;
 
@@ -722,29 +799,36 @@
 				reg-value-bitwidth = <8>;
 
 				/* Power supplies */
+				pp3200_bb-supply = <&pp3200_bb_cam>;
 				s2mpg13_ldo12-supply = <&s_ldo12_reg>;
 				ldo4-supply = <&slg51002_ldo4>;
 
 				/* Power up sequence */
 				power-up-seqs =
+					"pp3200_bb",
 					"s2mpg13_ldo12",
 					"ldo4";
 				power-up-seq-types =
 					"regulator",
+					"regulator",
 					"regulator";
 				power-up-seq-delays-us =
 					<0
+					 0
 					 0>;
 
 				/* Power down sequence */
 				power-down-seqs =
 					"ldo4",
-					"s2mpg13_ldo12";
+					"s2mpg13_ldo12",
+					"pp3200_bb";
 				power-down-seq-types =
+					"regulator",
 					"regulator",
 					"regulator";
 				power-down-seq-delays-us =
 					<0
+					 0
 					 0>;
 
 				/* Thread priority */
@@ -769,21 +853,25 @@
 				reg-value-bitwidth = <8>;
 
 				/* Power supplies */
+				pp3200_bb-supply = <&pp3200_bb_cam>;
 				s2mpg13_ldo12-supply = <&s_ldo12_reg>;
 				ldo5-supply = <&slg51002_ldo5>;
 				gpio1-supply = <&slg51002_gpio1>;
 
 				/* Power up sequence */
 				power-up-seqs =
+					"pp3200_bb",
 					"s2mpg13_ldo12",
 					"ldo5",
 					"gpio1";
 				power-up-seq-types =
 					"regulator",
 					"regulator",
+					"regulator",
 					"regulator";
 				power-up-seq-delays-us =
-					<1000
+					<0
+					 1000
 					 0
 					 0>;
 
@@ -791,13 +879,16 @@
 				power-down-seqs =
 					"gpio1",
 					"ldo5",
-					"s2mpg13_ldo12";
+					"s2mpg13_ldo12",
+					"pp3200_bb";
 				power-down-seq-types =
+					"regulator",
 					"regulator",
 					"regulator",
 					"regulator";
 				power-down-seq-delays-us =
 					<0
+					 0
 					 0
 					 0>;
 
@@ -823,29 +914,36 @@
 				reg-value-bitwidth = <8>;
 
 				/* Power supplies */
+				pp3200_bb-supply = <&pp3200_bb_cam>;
 				s2mpg13_ldo12-supply = <&s_ldo12_reg>;
 				ldo4-supply = <&slg51002_ldo4>;
 
 				/* Power up sequence */
 				power-up-seqs =
+					"pp3200_bb",
 					"s2mpg13_ldo12",
 					"ldo4";
 				power-up-seq-types =
 					"regulator",
+					"regulator",
 					"regulator";
 				power-up-seq-delays-us =
 					<0
+					 0
 					 0>;
 
 				/* Power down sequence */
 				power-down-seqs =
 					"ldo4",
-					"s2mpg13_ldo12";
+					"s2mpg13_ldo12",
+					"pp3200_bb";
 				power-down-seq-types =
+					"regulator",
 					"regulator",
 					"regulator";
 				power-down-seq-delays-us =
 					<0
+					 0
 					 0>;
 
 				/* Thread priority */
@@ -870,21 +968,25 @@
 				reg-value-bitwidth = <32>;
 
 				/* Power supplies */
+				pp3200_bb-supply = <&pp3200_bb_cam>;
 				s2mpg13_ldo12-supply = <&s_ldo12_reg>;
 				gpio1-supply = <&slg51002_gpio1>;
 				gpio2-supply = <&slg51002_gpio2>;
 
 				/* Power up sequence */
 				power-up-seqs =
+					"pp3200_bb",
 					"s2mpg13_ldo12",
 					"gpio1",
 					"gpio2";
 				power-up-seq-types =
 					"regulator",
 					"regulator",
+					"regulator",
 					"regulator";
 				power-up-seq-delays-us =
-					<1000
+					<0
+					 1000
 					 1000
 					 1000>;
 
@@ -892,14 +994,17 @@
 				power-down-seqs =
 					"gpio2",
 					"gpio1",
-					"s2mpg13_ldo12";
+					"s2mpg13_ldo12",
+					"pp3200_bb";
 				power-down-seq-types =
+					"regulator",
 					"regulator",
 					"regulator",
 					"regulator";
 				power-down-seq-delays-us =
 					<5000
 					 4000
+					 0
 					 0>;
 
 				/* Thread priority */
@@ -924,21 +1029,25 @@
 				reg-value-bitwidth = <8>;
 
 				/* Power supplies */
+				pp3200_bb-supply = <&pp3200_bb_cam>;
 				s2mpg13_ldo12-supply = <&s_ldo12_reg>;
 				ldo5-supply = <&slg51002_ldo5>;
 				gpio1-supply = <&slg51002_gpio1>;
 
 				/* Power up sequence */
 				power-up-seqs =
+					"pp3200_bb",
 					"s2mpg13_ldo12",
 					"ldo5",
 					"gpio1";
 				power-up-seq-types =
 					"regulator",
 					"regulator",
+					"regulator",
 					"regulator";
 				power-up-seq-delays-us =
-					<1000
+					<0
+					 1000
 					 0
 					 0>;
 
@@ -946,13 +1055,16 @@
 				power-down-seqs =
 					"gpio1",
 					"ldo5",
-					"s2mpg13_ldo12";
+					"s2mpg13_ldo12",
+					"pp3200_bb";
 				power-down-seq-types =
+					"regulator",
 					"regulator",
 					"regulator",
 					"regulator";
 				power-down-seq-delays-us =
 					<0
+					 0
 					 0
 					 0>;
 

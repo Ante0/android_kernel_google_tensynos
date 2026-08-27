@@ -25,6 +25,12 @@ static inline int gsa_load_tpu_fw_image(struct device *gsa, dma_addr_t img_meta,
 	return -ENODEV;
 }
 
+static inline int gsa_load_tpu_fw_image_pq(struct device *gsa, dma_addr_t img_meta,
+					   phys_addr_t img_body, size_t body_len)
+{
+	return -ENODEV;
+}
+
 static inline int gsa_unload_tpu_fw_image(struct device *gsa)
 {
 	return -ENODEV;

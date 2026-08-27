@@ -24,6 +24,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(sched_select_task_rq_rt);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_setscheduler_uclamp);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_compute_energy);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_wakeup_task_attr);
+EXPORT_TRACEPOINT_SYMBOL_GPL(sched_group_tracker);
 
 static inline struct sched_avg *sched_trace_cfs_rq_avg(struct cfs_rq *cfs_rq)
 {

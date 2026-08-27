@@ -599,7 +599,6 @@ void athdiag_procfs_remove(void)
 	}
 }
 #else
-#include "hif_main.h"
 int athdiag_procfs_init(void *scn)
 {
 	return 0;

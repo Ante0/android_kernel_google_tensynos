@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -91,9 +91,14 @@ static ssize_t kbase_csf_ne_control_set_field_value(struct file *file, const cha
 	unsigned int latency_limit;
 	unsigned int val;
 	unsigned long flags;
-	int ret = 0;
+	int ret;
 
 	CSTD_UNUSED(ppos);
+
+	/* Parse/convert the input value */
+	ret = kstrtouint_from_user(buf, count, 10, &latency_limit);
+	if (ret)
+		return ret;
 
 	rt_mutex_lock(&kbdev->pm.lock);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
@@ -102,11 +107,9 @@ static ssize_t kbase_csf_ne_control_set_field_value(struct file *file, const cha
 		dev_err(kbdev->dev, "The GPU is not powered on\n");
 		ret = -EAGAIN;
 	} else {
-		ret = kstrtouint_from_user(buf, count, 10, &latency_limit);
-		if (!ret) {
-			if (latency_limit > ne_control_field_data[field].max_value)
-				ret = -EINVAL;
-
+		if (latency_limit > ne_control_field_data[field].max_value)
+			ret = -EINVAL;
+		else {
 			val = (kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(NEURAL_CONTROL)) &
 			       ~ne_control_field_data[field].mask) |
 			      (latency_limit << ne_control_field_data[field].shift);

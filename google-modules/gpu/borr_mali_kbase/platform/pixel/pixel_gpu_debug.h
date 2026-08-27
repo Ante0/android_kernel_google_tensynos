@@ -94,7 +94,7 @@ _Static_assert(sizeof(struct pixel_gpu_pdc_status_bits) == sizeof(uint32_t),
  * @_reserved:      Bytes reserved for future use
  **/
 struct pixel_gpu_pdc_status_metadata {
-	char magic[4];
+	char magic[4] __nonstring;
 	uint8_t version;
 	char _reserved[11];
 } __attribute__((packed));

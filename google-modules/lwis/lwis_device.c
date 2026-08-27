@@ -16,6 +16,7 @@
 #include <linux/kthread.h>
 #include <linux/module.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/rculist.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/workqueue.h>
@@ -155,7 +156,7 @@ static int lwis_open(struct inode *node, struct file *fp)
 	memset(&lwis_client->debug_info, 0, sizeof(lwis_client->debug_info));
 
 	spin_lock_irqsave(&lwis_dev->lock, flags);
-	list_add(&lwis_client->node, &lwis_dev->clients);
+	list_add_rcu(&lwis_client->node, &lwis_dev->clients);
 	spin_unlock_irqrestore(&lwis_dev->lock, flags);
 
 	/* Storing the client handle in fp private_data for easy access */
@@ -204,9 +205,15 @@ static void cleanup_client(struct lwis_client *lwis_client)
 static inline bool check_client_exists(const struct lwis_device *lwis_dev,
 				       const struct lwis_client *lwis_client)
 {
-	struct lwis_client *p, *n;
+	struct lwis_client *p;
 
-	list_for_each_entry_safe(p, n, &lwis_dev->clients, node) {
+	/*
+	 * This function is called with lwis_dev->lock held. Since we hold the
+	 * writer lock, the list cannot change under us, so it is safe to use
+	 * the standard list_for_each_entry() iterator even though the list is
+	 * RCU-protected.
+	 */
+	list_for_each_entry(p, &lwis_dev->clients, node) {
 		if (lwis_client == p)
 			return true;
 	}
@@ -221,16 +228,19 @@ static inline bool check_client_exists(const struct lwis_device *lwis_dev,
 static void release_client(struct lwis_client *lwis_client)
 {
 	struct lwis_device *lwis_dev = lwis_client->lwis_dev;
+	unsigned long flags;
 
 	cleanup_client(lwis_client);
 
 	/* Take this lwis_client off the list of active clients */
+	spin_lock_irqsave(&lwis_dev->lock, flags);
 	if (check_client_exists(lwis_dev, lwis_client)) {
-		list_del(&lwis_client->node);
+		list_del_rcu(&lwis_client->node);
 	} else {
 		dev_err(lwis_dev->dev,
 			"Trying to release a client tied to this device, but the entry was not found on the clients list.");
 	}
+	spin_unlock_irqrestore(&lwis_dev->lock, flags);
 
 	lwis_bus_manager_disconnect_client(lwis_client);
 
@@ -242,7 +252,7 @@ static void release_client(struct lwis_client *lwis_client)
 	if (lwis_client->lwis_dev->type == DEVICE_TYPE_TOP)
 		lwis_stop_top_device_worker(lwis_client);
 
-	kfree(lwis_client);
+	kfree_rcu(lwis_client, rcu);
 }
 
 /*

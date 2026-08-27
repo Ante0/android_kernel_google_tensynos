@@ -78,6 +78,8 @@
 /* TODO: move to configuration */
 #define DC_VBATT_HEADROOM_MV	500000
 
+#define GCPM_VOTER		"GCPM"
+
 static const int GCPM_FCC_RETRIES = 200;
 static const int GCPM_FCC_RETRY_INTERVAL = 1000;
 
@@ -295,7 +297,7 @@ struct gcpm_drv  {
 
 /* Logging ----------------------------------------------------------------- */
 
-static int debug_printk_prlog = LOGLEVEL_INFO;
+int debug_printk_prlog = LOGLEVEL_INFO;
 
 /* ------------------------------------------------------------------------- */
 
@@ -1372,7 +1374,7 @@ static bool gcpm_taper_step(const struct gcpm_drv *gcpm,
 /* needs mutex_lock(&gcpm->chg_psy_lock); */
 static int gcpm_chg_select_logic(struct gcpm_drv *gcpm)
 {
-	int index, schedule_pps_interval = -1;
+	int index, schedule_pps_interval = -1, ret;
 	bool dc_done = false, dc_ena;
 
 	dev_dbg(gcpm->device, "%s: init_ok=%d dc_state=%d dc_index=%d\n", __func__,
@@ -1413,6 +1415,10 @@ static int gcpm_chg_select_logic(struct gcpm_drv *gcpm)
 		else
 			pr_debug("%s: taper_step=%d done=%d\n", __func__,
 				 gcpm->taper_step, dc_done);
+		pr_info("%s: disable DC due to taper", __func__);
+		ret = gvotable_cast_int_vote(gcpm->dc_chg_avail_votable, GCPM_VOTER, 0, 1);
+		if (ret)
+			pr_info("%s: fail to disable DC, ret=%d\n", __func__, ret);
 	} else if (gcpm->taper_step_used && gcpm->taper_step != 0) {
 		const int vbatt_high = gcpm->dc_limit_vbatt_high;
 
@@ -1606,7 +1612,7 @@ static int gcpm_pps_wlc_dc_restart_default(struct gcpm_drv *gcpm)
 	ret = gcpm_enable_default(gcpm);
 	if (ret < 0) {
 		pr_err("%s: fail 2 restart default, dc_state=%d pps_done=%d (%d)\n",
-		       __func__, gcpm->dc_state, pps_done >= 0 ? 1 : pps_done, ret);
+		       __func__, gcpm->dc_state, pps_done >= 0 ? : pps_done, ret);
 		return -EAGAIN;
 	}
 
@@ -2304,6 +2310,7 @@ static int gcpm_gbms_psy_set_property(struct power_supply *psy,
 			gcpm_taper_ctl(gcpm, 0);
 			gcpm->taper_step_used = false;
 
+			gvotable_cast_int_vote(gcpm->dc_chg_avail_votable, GCPM_VOTER, 0, 0);
 			/*
 			 * no-op if dc was NOT running, set online the charger
 			 * but do not start it otherwise.
@@ -3111,6 +3118,8 @@ static const struct thermal_cooling_device_ops chg_mdis_tcd_ops = {
 	.set_cur_state = gcpm_set_mdis_charge_cntl_limit,
 };
 
+#ifdef CONFIG_DEBUG_FS
+
 static ssize_t mdis_tm_store(struct file *filp, const char __user *user_buf,
 			     size_t count, loff_t *ppos)
 {
@@ -3351,6 +3360,8 @@ static int dc_cc_lim_store(void *data, u64 val)
 DEFINE_SIMPLE_ATTRIBUTE(dc_cc_lim_fops, dc_cc_lim_show,
 			dc_cc_lim_store, "%lld\n");
 
+
+#endif // CONFIG_DEBUG_FS
 
 /* ------------------------------------------------------------------------- */
 

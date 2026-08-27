@@ -552,7 +552,7 @@ void gxp_iif_send_unblock_notification(struct gxp_iif *giif, int iif_id)
 	cmd.type = IIF_UNBLOCK_COMMAND;
 	cmd.iif_id = iif_id;
 
-	ret = gxp_mailbox_send_cmd(giif->mbx, &cmd, NULL, 0);
+	ret = gxp_mailbox_send_cmd(giif->mbx, &cmd, NULL);
 	if (ret)
 		dev_warn(giif->mcu->gxp->dev, "Failed to notify the IIF unblock: id=%d, ret=%d",
 			 iif_id, ret);

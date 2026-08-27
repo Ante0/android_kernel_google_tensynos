@@ -158,20 +158,15 @@ struct edgetpu_mailbox *edgetpu_mailbox_iif(struct edgetpu_dev *etdev)
 
 void __iomem *edgetpu_mailbox_get_ext_csr_base(struct edgetpu_dev *etdev, uint idx)
 {
-	struct device_node *node;
-
 	if (idx < EDGETPU_EXT_MAILBOX_START ||
 	    idx >= (EDGETPU_EXT_MAILBOX_START + EDGETPU_NUM_EXT_MAILBOXES))
 		return ERR_PTR(-EINVAL);
 
 	/*
 	 * If dedicated mailboxes are in the device-tree, then etdev->regs starts at the external
-	 * mailboxes, rather than the KCI mailbox.
+	 * mailboxes, rather than the KCI mailbox, and etdev->regs_offset_from_top is set to that
+	 * offset.
 	 */
-	node = of_parse_phandle(etdev->dev->of_node, dt_phandle, 0);
-	if (node)
-		idx = idx - EDGETPU_EXT_MAILBOX_START;
-	of_node_put(node);
-
-	return etdev->regs.mem + edgetpu_mailbox_get_context_csr_base(idx);
+	return etdev->regs.mem - etdev->regs_offset_from_top +
+		edgetpu_mailbox_get_context_csr_base(idx);
 }

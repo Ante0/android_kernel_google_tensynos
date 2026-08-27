@@ -130,7 +130,7 @@ DEFINE_DEBUGFS_ATTRIBUTE(fops_tpu_pwr_state, edgetpu_pm_debugfs_state_get, NULL,
 
 static int mobile_pwr_policy_set(void *data, u64 val)
 {
-	struct edgetpu_dev *etdev = (typeof(etdev))data;
+	struct edgetpu_dev *etdev = data;
 	int ret = -EAGAIN;
 
 	mutex_lock(&etdev->pm->policy_lock);
@@ -153,7 +153,7 @@ static int mobile_pwr_policy_set(void *data, u64 val)
 
 static int mobile_pwr_policy_get(void *data, u64 *val)
 {
-	struct edgetpu_dev *etdev = (typeof(etdev))data;
+	struct edgetpu_dev *etdev = data;
 
 	mutex_lock(&etdev->pm->policy_lock);
 	*val = etdev->pm->curr_policy;
@@ -183,7 +183,9 @@ static int edgetpu_pm_runtime_get_irqs_disabled(struct edgetpu_dev *etdev)
 	int ret;
 
 	edgetpu_pm_enable_mailbox_irqs(etdev, false);
+	trace_edgetpu_pm_runtime_get_sync_start(etdev);
 	ret = pm_runtime_get_sync(etdev->dev);
+	trace_edgetpu_pm_runtime_get_sync_end(etdev, ret);
 	edgetpu_eventlog_event(etdev, EVENTLOG_EVENT_POWER_RPMDONE,
 			       (void *)edgetpu_soc_pm_is_block_off(etdev));
 	/* Re-enable mailbox IRQs. */
@@ -374,11 +376,9 @@ static int mobile_power_up(void *data)
 
 static void mobile_firmware_down(struct edgetpu_dev *etdev)
 {
-	int ret = 0;
+	int ret;
 
-	if (!edgetpu_pm_always_on(etdev))
-		ret = edgetpu_kci_shutdown(etdev->etkci);
-
+	ret = edgetpu_kci_shutdown(etdev->etkci);
 	if (!ret)
 		return;
 
@@ -617,9 +617,10 @@ static int __maybe_unused edgetpu_pm_suspend(struct device *dev)
 		else
 			etdev_warn_ratelimited(
 				etdev,
-				"client pid %d tgid %d limited_pid %d limited_tgid %d count %d\n",
-				lc->client->pid, lc->client->tgid, lc->client->limited_pid,
-				lc->client->limited_tgid, lc->client->wakelock.req_count);
+				"client %s pid %d tgid %d limited_pid %d limited_tgid %d count %d\n",
+				lc->client->name, lc->client->pid, lc->client->tgid,
+				lc->client->limited_pid, lc->client->limited_tgid,
+				lc->client->wakelock.req_count);
 	}
 	mutex_unlock(&etdev->clients_lock);
 	return -EAGAIN;

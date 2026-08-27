@@ -32,6 +32,7 @@ void rvh_meminfo_proc_show(void *data, struct seq_file *m)
 	unsigned long sreclaimable, sunreclaim;
 	unsigned long known_pages = 0;
 	unsigned long others_kb = 0;
+	unsigned long stack_kb = 0;
 	char name[16];
 
 	si_meminfo(&i);
@@ -57,9 +58,17 @@ void rvh_meminfo_proc_show(void *data, struct seq_file *m)
 		      global_node_page_state(NR_PAGETABLE) +
 		      vmalloc_nr_pages() + pcpu_nr_pages();
 
+	/*
+	 * When CONFIG_VMAP_STACK is enabled, the kernel allocates thread stacks via calls to
+	 * vmalloc(). So, the kernel thread stacks are already accounted for as part of the
+	 * call to vmalloc_nr_pages() above. Therefore, they should not be considered again
+	 * to avoid double counting.
+	 */
+	if (!IS_ENABLED(CONFIG_VMAP_STACK))
+		stack_kb = global_node_page_state(NR_KERNEL_STACK_KB);
+
 	misc_kb = (i.totalram << (PAGE_SHIFT - 10)) - ((known_pages << (PAGE_SHIFT - 10)) +
-			        global_node_page_state(NR_KERNEL_STACK_KB) +
-			        others_kb);
+			        stack_kb + others_kb);
 
 	seq_printf(m, "Misc:           %8lld kB\n", misc_kb < 0 ? 0 : misc_kb);
 }

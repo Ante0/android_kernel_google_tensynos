@@ -20,6 +20,7 @@
 #include <linux/scatterlist.h>
 #include <linux/sched/mm.h>
 #include <linux/seq_file.h>
+#include <linux/swap.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
@@ -1179,10 +1180,9 @@ static struct page **edgetpu_pin_user_pages(struct edgetpu_device_group *group,
 	int i;
 	int ret;
 	struct vm_area_struct *vma;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0)
 	struct vm_area_struct **vmas;
-#endif
 	unsigned int foll_flags = FOLL_LONGTERM | FOLL_WRITE;
+	int tried;
 
 	if (size == 0)
 		return ERR_PTR(-EINVAL);
@@ -1211,11 +1211,7 @@ static struct page **edgetpu_pin_user_pages(struct edgetpu_device_group *group,
 	 * default to read/write if find_extend_vma returns NULL
 	 */
 	mmap_read_lock(current->mm);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 1)
-	vma = find_extend_vma(current->mm, host_addr & PAGE_MASK);
-#else
 	vma = vma_lookup(current->mm, host_addr & PAGE_MASK);
-#endif
 	if (vma && !(vma->vm_flags & VM_WRITE)) {
 		foll_flags &= ~FOLL_WRITE;
 		*preadonly = true;
@@ -1224,42 +1220,6 @@ static struct page **edgetpu_pin_user_pages(struct edgetpu_device_group *group,
 	}
 	mmap_read_unlock(current->mm);
 
-	/* Try fast call first, in case it's actually faster. */
-	ret = pin_user_pages_fast(host_addr & PAGE_MASK, num_pages, foll_flags,
-				  pages);
-	if (ret == num_pages) {
-		*pnum_pages = num_pages;
-		atomic64_add(num_pages, &current->mm->pinned_vm);
-		return pages;
-	}
-	if (ret == -EFAULT && !*preadonly) {
-		foll_flags &= ~FOLL_WRITE;
-		*preadonly = true;
-		ret = pin_user_pages_fast(host_addr & PAGE_MASK, num_pages,
-					  foll_flags, pages);
-	}
-	if (ret < 0) {
-		etdev_dbg(etdev, "pin_user_pages failed %u:%pK-%u: %d",
-			  group->workload_id, (void *)host_addr, num_pages,
-			  ret);
-		if (ret == -EFAULT)
-			etdev_err(etdev,
-				  "bad address locking %u pages for %s",
-				  num_pages, *preadonly ? "read" : "write");
-		if (ret != -ENOMEM) {
-			num_pages = 0;
-			goto error;
-		}
-	}
-	etdev_dbg(etdev,
-		  "pin_user_pages_fast error %u:%pK npages=%u ret=%d",
-		  group->workload_id, (void *)host_addr, num_pages,
-		  ret);
-	/* Unpin any partial mapping and start over again. */
-	for (i = 0; i < ret; i++)
-		unpin_user_page(pages[i]);
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0)
 	/* Allocate our own vmas array non-contiguous. */
 	vmas = kvmalloc((num_pages * sizeof(*vmas)), GFP_KERNEL | __GFP_NOWARN);
 	if (!vmas) {
@@ -1268,17 +1228,38 @@ static struct page **edgetpu_pin_user_pages(struct edgetpu_device_group *group,
 		kvfree(pages);
 		return ERR_PTR(-ENOMEM);
 	}
-#endif
-	mmap_read_lock(current->mm);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0)
-	ret = pin_user_pages(host_addr & PAGE_MASK, num_pages, foll_flags, pages, vmas);
-#else
-	ret = pin_user_pages(host_addr & PAGE_MASK, num_pages, foll_flags, pages);
-#endif
-	mmap_read_unlock(current->mm);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0)
+
+	/*
+	 * pin_user_pages may fail due to temporary page reference counts held
+	 * in various areas. Retry under lru_cache_disable to release additional
+	 * reference counts from the LRU cache.
+	 */
+	for (tried = 0; tried < 5; tried++) {
+		if (tried > 0)
+			lru_cache_disable();
+
+		mmap_read_lock(current->mm);
+		ret = pin_user_pages(host_addr & PAGE_MASK, num_pages, foll_flags, pages, vmas);
+
+		if (ret == -EFAULT && !*preadonly) {
+			foll_flags &= ~FOLL_WRITE;
+			*preadonly = true;
+			ret = pin_user_pages(host_addr & PAGE_MASK, num_pages, foll_flags, pages,
+					     vmas);
+		}
+		mmap_read_unlock(current->mm);
+
+		if (tried > 0)
+			lru_cache_enable();
+
+		if (ret == num_pages)
+			break;
+	}
+
 	kvfree(vmas);
-#endif
+
+	if (tried > 0)
+		etdev_info(etdev, "mapping required %d retries with LRU cache disabled", tried);
 	if (ret < 0) {
 		etdev_dbg(etdev, "pin_user_pages failed %u:%pK-%u: %d",
 			  group->workload_id, (void *)host_addr, num_pages,

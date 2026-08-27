@@ -310,8 +310,8 @@ static void st21nfc_power_stats_switch(
 	if (new_state == old_state) {
 		if ((st21nfc_dev->pw_states[ST21NFC_IDLE].last_entry != 0) ||
 		    (old_state != ST21NFC_IDLE)) {
-			dev_err(&st21nfc_dev->client->dev,
-				"Error: Switched from %s to %s!: %llx, ntf=%d\n",
+			dev_dbg(&st21nfc_dev->client->dev,
+				"Warning: Switched from %s to %s!: %llx, ntf=%d\n",
 				st21nfc_power_state_name[old_state],
 				st21nfc_power_state_name[new_state],
 				current_time_ms, is_ntf);

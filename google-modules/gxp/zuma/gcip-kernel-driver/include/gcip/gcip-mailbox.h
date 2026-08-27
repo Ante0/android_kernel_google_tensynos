@@ -12,6 +12,7 @@
 #include <linux/compiler.h>
 #include <linux/completion.h>
 #include <linux/kref.h>
+#include <linux/limits.h>
 #include <linux/mutex.h>
 #include <linux/spinlock.h>
 #include <linux/types.h>
@@ -34,12 +35,7 @@
 
 #define CIRC_QUEUE_MAX_SIZE(wrap_bit) (wrap_bit - 1)
 
-/*
- * With this flag, no timemout handler will be scheduled for the command.
- * If this flag is used, the calling driver must rely on the receiving firmware to timeout any
- * excessively long-running commands.
- */
-#define GCIP_MAILBOX_CMD_FLAGS_NO_TIMEOUT BIT(1)
+#define GCIP_MAILBOX_AWAITER_TIMEOUT_NONE U32_MAX
 
 /* To specify the operation is toward cmd or resp queue. */
 enum gcip_mailbox_queue_type { GCIP_MAILBOX_CMD_QUEUE, GCIP_MAILBOX_RESP_QUEUE };
@@ -89,22 +85,20 @@ static inline bool gcip_valid_circ_queue_size(u32 size, u32 wrap_bit)
 }
 
 struct gcip_mailbox;
+struct gcip_mailbox_awaiter_ops;
 
-/*
- * A struct wraps the IP-defined response to manage additional information such as status needed by
- * the logic of GCIP.
- */
-struct gcip_mailbox_async_resp {
-	/* True if the mailbox still waiting on the response. */
-	bool waiting;
-	/* IP-defined response. */
-	void *resp;
+enum gcip_mailbox_awaiter_status {
+	GCIP_MAILBOX_AWAITER_STATUS_INIT,
+	GCIP_MAILBOX_AWAITER_STATUS_WAITING,
+	GCIP_MAILBOX_AWAITER_STATUS_ARRIVED,
+	GCIP_MAILBOX_AWAITER_STATUS_TIMEDOUT,
+	GCIP_MAILBOX_AWAITER_STATUS_CANCELED,
 };
 
 /* Wrapper struct for responses consumed by a thread other than the one which sent the command. */
-struct gcip_mailbox_resp_awaiter {
-	/* Response. */
-	struct gcip_mailbox_async_resp async_resp;
+struct gcip_mailbox_awaiter {
+	/* IP-defined response. */
+	void *rsp;
 	/* The work which will be executed when the timeout occurs. */
 	struct delayed_work timeout_work;
 	/*
@@ -112,17 +106,95 @@ struct gcip_mailbox_resp_awaiter {
 	 * needed to delete this response from the list of pending responses.
 	 */
 	struct gcip_mailbox *mailbox;
-	/* User-defined data. */
-	void *data;
 	/* Reference count. */
 	struct kref kref;
-	/*
-	 * The callback for releasing the @data.
-	 * It will be set as @release_awaiter_data of struct gcip_mailbox_ops.
-	 */
-	void (*release_data)(void *data);
+	/* The operations for the awaiter. */
+	const struct gcip_mailbox_awaiter_ops *ops;
 	/* Completion for the arrival or timeout handler. */
 	struct completion handled;
+	/* The list node to enqueue to the wait list. */
+	struct list_head list;
+	/* The status of the awaiter. */
+	enum gcip_mailbox_awaiter_status status;
+};
+
+/**
+ * struct gcip_mailbox_awaiter_ops - Operations for the awaiter.
+ *
+ * If the awaiter is not canceled, it is guaranteed that only one of the following callbacks will be
+ * called:
+ * 1. handle_arrived()
+ * 2. handle_timedout()
+ *
+ * TODO(468197241): Use a single callback to handle both scenarios.
+ * The awaiter can be canceled for two scenarios:
+ * 1. The mailbox is releasing. In this case, handle_flushed() will be called.
+ * 2. The command is canceled by the user.
+ */
+struct gcip_mailbox_awaiter_ops {
+	/**
+	 * release() - The callback to release the awaiter.
+	 * @awaiter: The pointer to the awaiter to be released.
+	 *
+	 * This operator is mandatory.
+	 *
+	 * Context: Any context
+	 */
+	void (*release)(struct gcip_mailbox_awaiter *awaiter);
+	/**
+	 * handle_arrived() - The callback to handle the arrived awaiter.
+	 * @awaiter: The pointer to the awaiter that arrived.
+	 *
+	 * Context: Any context
+	 */
+	void (*handle_arrived)(struct gcip_mailbox_awaiter *awaiter);
+	/**
+	 * handle_timedout() - The callback to handle the timed out awaiter.
+	 * @awaiter: The pointer to the awaiter that timed out.
+	 *
+	 * Context: Any context
+	 */
+	void (*handle_timedout)(struct gcip_mailbox_awaiter *awaiter);
+	/**
+	 * handle_flushed() - The callback to handle the flushed awaiter.
+	 * @awaiter: The pointer to the awaiter that is flushed.
+	 *
+	 * This is used when the mailbox is released.
+	 * The response has not yet arrived, nor has it timed out.
+	 *
+	 * Context: Any context
+	 */
+	void (*handle_flushed)(struct gcip_mailbox_awaiter *awaiter);
+	/**
+	 * get_timeout() - The operator to get the timeout value in milliseconds.
+	 * @awaiter: The pointer to the awaiter that needs to get the timeout value.
+	 *
+	 * This operator is optional.
+	 *
+	 * If this operator is not provided, the mailbox timeout value will be used by default.
+	 *
+	 * Context: Any context.
+	 * Return: The timeout value in milliseconds.
+	 *
+	 * If the returned value is 0, the default value will be used.
+	 *
+	 * If the returned value is GCIP_MAILBOX_AWAITER_TIMEOUT_NONE, the timeout will be disabled,
+	 * in this case, the calling driver must rely on the firmware to timeout this command.
+	 */
+	u32 (*get_timeout)(struct gcip_mailbox_awaiter *awaiter);
+	/**
+	 * match_response() - The operator to match the response packet.
+	 * @incoming_resp: The pointer to the incoming response packet from the response queue.
+	 * @waiter_resp: The pointer to the waiter response packet passed by the user.
+	 *
+	 * If this operator is not provided, `get_resp_elem_seq` will be used to retrieve the
+	 * sequence number of the response packets; a match is confirmed if the sequence numbers are
+	 * equal.
+	 *
+	 * Context: Interrupt context.
+	 * Return: whether or not the incoming response matches the waiter response.
+	 */
+	bool (*match_response)(void *incoming_resp, void *waiter_resp);
 };
 
 /*
@@ -286,7 +358,7 @@ struct gcip_mailbox_ops {
 	 * Context: cmd_queue_lock.
 	 */
 	int (*before_enqueue_wait_list)(struct gcip_mailbox *mailbox, void *resp,
-					struct gcip_mailbox_resp_awaiter *awaiter);
+					struct gcip_mailbox_awaiter *awaiter);
 	/*
 	 * This callback will be called after putting the @cmd to the command queue. It can be used
 	 * for triggering the doorbell. Returns 0 on success, or returns error code otherwise.
@@ -304,82 +376,22 @@ struct gcip_mailbox_ops {
 	 */
 	void (*after_fetch_resps)(struct gcip_mailbox *mailbox, u32 num_resps);
 	/*
-	 * Handles the asynchronous response which arrives well. How to handle it depends on the
-	 * chip implementation. However, @awaiter should be released by calling the
-	 * `gcip_mailbox_awaiter_put` function when the kernel driver doesn't need
-	 * @awaiter anymore.
-	 *
-	 * Context: normal and in_interrupt().
-	 */
-	void (*handle_awaiter_arrived)(struct gcip_mailbox *mailbox,
-				       struct gcip_mailbox_resp_awaiter *awaiter);
-	/*
-	 * Handles the timed out asynchronous response. How to handle it depends on the chip
-	 * implementation. However, @awaiter should be released by calling the
-	 * `gcip_mailbox_awaiter_put` function when the kernel driver doesn't need
-	 * @awaiter anymore. This is called without holding any locks.
-	 *
-	 * Context: normal and in_interrupt().
-	 */
-	void (*handle_awaiter_timedout)(struct gcip_mailbox *mailbox,
-					struct gcip_mailbox_resp_awaiter *awaiter);
-	/*
-	 * Cleans up asynchronous response which is not arrived yet, but also not timed out.
-	 * @awaiter should be released by calling the `gcip_mailbox_awaiter_put` function when
-	 * the kernel driver doesn't need it anymore. This is called without holding any locks.
-	 *
-	 * Context: normal and in_interrupt().
-	 */
-	void (*handle_awaiter_flushed)(struct gcip_mailbox *mailbox,
-				       struct gcip_mailbox_resp_awaiter *awaiter);
-	/*
-	 * Releases the @data which was passed to the `gcip_mailbox_put_cmd` function. This is
-	 * called without holding any locks.
-	 *
-	 * Context: normal and in_interrupt().
-	 */
-	void (*release_awaiter_data)(void *data);
-	/*
 	 * Checks if the block is off.
 	 *
 	 * Context: in_interrupt()
 	 */
 	bool (*is_block_off)(struct gcip_mailbox *mailbox);
 	/*
-	 * Retrieves the per command timeout value in milliseconds set by the user for the given
-	 * mailbox command @cmd. According to the implementation detail of IP side, the timeout can
-	 * be fetched from @cmd, @resp or @data passed to the `gcip_mailbox_put_cmd` function.
-	 * Therefore, this callback passes all of them not only @cmd. This can be called without
-	 * holding any locks.
+	 * Called when command @cmd fails to be sent, or the response times out.
 	 *
 	 * Context: normal.
 	 */
-	u32 (*get_cmd_timeout)(struct gcip_mailbox *mailbox, void *cmd, void *resp, void *data);
-	/*
-	 * Called when a command fails to be sent.
-	 *
-	 * Context: normal.
-	 */
-	void (*on_error)(struct gcip_mailbox *mailbox, int err);
-	/*
-	 * Called when processing responses arrived in the response queue to find if it matches an
-	 * outstanding command. @incoming_resp is the response packet as it was present in the
-	 * response queue. @waiter_resp is the response packet passed to gcip_mailbox_send_cmd()
-	 * or gcip_mailbox_put_cmd()/gcip_mailbox_put_cmd_flags() as "resp".
-	 *
-	 * If no op is provided, The `get_resp_elem_seq` op will be called on both packets and
-	 * be considered a match if the results are equal.
-	 *
-	 * Context: in_interrupt()
-	 */
-	bool (*does_response_match_waiter)(struct gcip_mailbox *mailbox, void *incoming_resp,
-						 void *waiter_resp);
+	void (*on_error)(struct gcip_mailbox *mailbox, void *cmd, int err);
 };
 
 struct gcip_mailbox_wait_list {
 	spinlock_t list_lock;
 	struct list_head list;
-	wait_queue_head_t waitq;
 };
 
 /**
@@ -387,7 +399,7 @@ struct gcip_mailbox_wait_list {
  * @dev: The device used for logging and memory allocation.
  * @mode: The operating mode of the mailbox.
  * @queue_wrap_bit: The wrap bit for both Tx and Tx queues.
- * @cur_seq: The current sequence number to be used for the commands, start from 0.
+ * @cur_seq: The sequence number of the last attempted command, the assignment starts from 1.
  * @tx_queue: The pointer to the Tx queue.
  * @tx_elem_size: The size of element of Tx queue.
  * @rx_queue: The pointer to the Rx queue.
@@ -479,6 +491,17 @@ void gcip_mailbox_consume_responses_work(struct gcip_mailbox *mailbox);
  */
 void gcip_mailbox_consume_responses(struct gcip_mailbox *mailbox);
 
+/**
+ * gcip_mailbox_send_cmd_no_rsp() - Pushes an element to cmd queue, does not wait for a response.
+ * @mailbox: The pointer to the gcip_mailbox object to interact with mailbox interfaces.
+ * @cmd: The pointer to the command to be pushed to the command queue.
+ *
+ * If a response is sent it will be logged and discarded, no awaiter is pushed to the wait list.
+ *
+ * Return: 0 on success, or a negative errno otherwise.
+ */
+int gcip_mailbox_send_cmd_no_rsp(struct gcip_mailbox *mailbox, void *cmd);
+
 /*
  * Pushes an element to cmd queue and waits for the response (synchronous).
  * Returns -ETIMEDOUT if no response is received within mailbox->timeout msecs.
@@ -486,52 +509,32 @@ void gcip_mailbox_consume_responses(struct gcip_mailbox *mailbox);
  * Returns the code of response, or a negative errno on error.
  * @resp is updated with the response, as to retrieve returned retval field.
  */
-int gcip_mailbox_send_cmd(struct gcip_mailbox *mailbox, void *cmd, void *resp,
-			  u32 gcip_mailbox_cmd_flags);
+int gcip_mailbox_send_cmd(struct gcip_mailbox *mailbox, void *cmd, void *resp);
 
-/*
- * Executes @cmd command asynchronously. This function returns an instance of
- * `struct gcip_mailbox_resp_awaiter` which handles the arrival and time-out of the response.
- * The implementation side can cancel the asynchronous response by calling the
- * `gcip_mailbox_cancel_awaiter` or `gcip_mailbox_cancel_timeout_work` function with it.
+/**
+ * gcip_mailbox_send_cmd_async() - Sends an asynchronous command.
+ * @mailbox: The pointer to the gcip_mailbox object to interact with mailbox interfaces.
+ * @cmd: The pointer to the command to be pushed to the command queue.
+ * @awaiter: The pointer to the awaiter to be registered to the wait list.
+ *
+ * This function accepts an instance of `struct gcip_mailbox_awaiter` which handles the arrival and
+ * time-out of the response. The implementation side can cancel the asynchronous response by calling
+ * the `gcip_mailbox_cancel_awaiter` or `gcip_mailbox_cancel_timeout_work` function with it.
  *
  * Arrived asynchronous response will be handled by `handle_awaiter_arrived` callback and timed out
  * asynchronous response will be handled by `handle_awaiter_timedout` callback. Those callbacks
- * will pass the @awaiter as a parameter which is the same with the return of this function.
- * The response can be accessed from `resp` member of it. Also, the @data passed to this function
- * can be accessed from `data` member variable of it. The @awaiter must be released by calling
- * the `gcip_mailbox_awaiter_put` function when it is not needed anymore.
+ * will pass the @awaiter as a parameter. The response can be accessed from `resp` member of it.
  *
  * If the mailbox is released before the response arrives, all the waiting asynchronous responses
  * will be flushed. In this case, the `handle_awaiter_flushed` callback will be called for that
  * response and @awaiter don't have to be released by the implementation side.
  * (i.e, the `gcip_mailbox_awaiter_put` function will be called internally.)
  *
- * The caller defines the way of cleaning up the @data to the `release_awaiter_data` callback.
- * This callback will be called when the `gcip_mailbox_awaiter_put` function is called or
- * the response is flushed.
- *
- * If this function fails to request the command, it will return the error pointer. In this case,
- * the caller should free @data explicitly. (i.e, the callback `release_awaiter_data` will not
- * be.)
- *
- * Note: the asynchronous responses fetched from @resp_queue should be released by calling the
- * `gcip_mailbox_awaiter_put` function.
- *
  * Note: if the life cycle of the mailbox is longer than the caller part, you should make sure
  * that the callbacks don't access the variables of caller part after the release of it.
- *
- * Note: if you don't need the result of the response (e.g., if you pass @resp as NULL), you
- * can release the returned awaiter right away by calling the `gcip_mailbox_awaiter_put`
- * function.
  */
-struct gcip_mailbox_resp_awaiter *gcip_mailbox_put_cmd_flags(struct gcip_mailbox *mailbox,
-							     void *cmd, void *resp, void *data,
-							     u32 gcip_mailbox_cmd_flags);
-
-/* Calls gcip_mailbox_put_cmd_flags() with flags = 0. */
-struct gcip_mailbox_resp_awaiter *gcip_mailbox_put_cmd(struct gcip_mailbox *mailbox, void *cmd,
-						       void *resp, void *data);
+int gcip_mailbox_send_cmd_async(struct gcip_mailbox *mailbox, void *cmd,
+				struct gcip_mailbox_awaiter *awaiter);
 
 /**
  * gcip_mailbox_cancel_awaiter() - Cancels awaiting the asynchronous response.
@@ -557,7 +560,7 @@ struct gcip_mailbox_resp_awaiter *gcip_mailbox_put_cmd(struct gcip_mailbox *mail
  * * %true - The @awaiter was pending and is cancelled successfully.
  * * %false - The @awaiter was already processed by arrived or timedout handler.
  */
-bool gcip_mailbox_cancel_awaiter(struct gcip_mailbox_resp_awaiter *awaiter);
+bool gcip_mailbox_cancel_awaiter(struct gcip_mailbox_awaiter *awaiter);
 
 /**
  * gcip_mailbox_cancel_timeout_work() - Cancels the timeout work of the awaiter.
@@ -568,7 +571,7 @@ bool gcip_mailbox_cancel_awaiter(struct gcip_mailbox_resp_awaiter *awaiter);
  * The reference count acquired by the timeout work will be managed carefully according to the
  * result of the work's cancellation.
  */
-void gcip_mailbox_cancel_timeout_work(struct gcip_mailbox_resp_awaiter *awaiter);
+void gcip_mailbox_cancel_timeout_work(struct gcip_mailbox_awaiter *awaiter);
 
 /**
  * gcip_mailbox_cancel_timeout_work_sync() - Cancels the timeout work or waits for its completion.
@@ -577,7 +580,21 @@ void gcip_mailbox_cancel_timeout_work(struct gcip_mailbox_resp_awaiter *awaiter)
  * The synchronous version of the gcip_mailbox_cancel_timeout_work() function. If the timeout work
  * has already started before cancellation, this function will wait until it finishes.
  */
-void gcip_mailbox_cancel_timeout_work_sync(struct gcip_mailbox_resp_awaiter *awaiter);
+void gcip_mailbox_cancel_timeout_work_sync(struct gcip_mailbox_awaiter *awaiter);
+
+/**
+ * gcip_mailbox_awaiter_init() - Initializes the given gcip_mailbox_awaiter.
+ * @awaiter: The pointer to the awaiter to be initialized.
+ * @mailbox: The pointer to the gcip mailbox to interact with its interfaces.
+ * @resp: The pointer to the response to be filled.
+ * @ops: The pointer to the awaiter operators.
+ *
+ * The awaiter is expected to be released with the gcip_mailbox_awaiter_put().
+ *
+ * Return: 0 on success, or a negative errno otherwise.
+ */
+int gcip_mailbox_awaiter_init(struct gcip_mailbox_awaiter *awaiter, struct gcip_mailbox *mailbox,
+			      void *resp, const struct gcip_mailbox_awaiter_ops *ops);
 
 /**
  * gcip_mailbox_awaiter_put() - Puts the reference count of the awaiter.
@@ -586,9 +603,21 @@ void gcip_mailbox_cancel_timeout_work_sync(struct gcip_mailbox_resp_awaiter *awa
  * All the handlers (arrived/timedout/flushed) should call this function to release the reference
  * count acquired by the user.
  *
- * It will call the `release_awaiter_data` callback internally when the awaiter is released.
+ * It will call the `release_awaiter` callback when the reference count reaches 0.
  */
-void gcip_mailbox_awaiter_put(struct gcip_mailbox_resp_awaiter *awaiter);
+void gcip_mailbox_awaiter_put(struct gcip_mailbox_awaiter *awaiter);
+
+/**
+ * gcip_mailbox_awaiter_get_ops() - Gets the pointer to the awaiter operators.
+ * @awaiter: The awaiter to retrieve the operators from.
+ *
+ * Return: The pointer to the awaiter operators.
+ */
+static inline const struct gcip_mailbox_awaiter_ops *
+gcip_mailbox_awaiter_get_ops(struct gcip_mailbox_awaiter *awaiter)
+{
+	return awaiter->ops;
+}
 
 /*
  * Consume one response and handle it. This can be used for consuming one response quickly and then

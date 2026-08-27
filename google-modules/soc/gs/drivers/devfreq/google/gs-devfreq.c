@@ -1508,8 +1508,7 @@ static int exynos_devfreq_parse_dt(struct device_node *np,
 		data->clk = NULL;
 #endif
 
-	if (of_property_read_u32(np, "dfs_id", &data->dfs_id) &&
-	    of_property_match_string(np, "clock-names", buf))
+	if (of_property_read_u32(np, "dfs_id", &data->dfs_id))
 		return -ENODEV;
 
 	data->soft_max_freq = (u32)cal_dfs_get_max_freq(data->dfs_id);

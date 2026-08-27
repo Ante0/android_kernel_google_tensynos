@@ -246,6 +246,31 @@ bool bc12_get_status(struct bc12_status *bc12)
 }
 EXPORT_SYMBOL_GPL(bc12_get_status);
 
+int bc12_manual_detect_enable(struct bc12_status *bc12)
+{
+	int ret;
+	struct max77759_plat *plat = bc12->chip;
+	struct regmap *regmap = plat->data.regmap;
+
+	mutex_lock(&bc12->lock);
+
+	if (!bc12->enable) {
+		logbuffer_log(plat->log, "%s: bc12 disabled, cannot set chgDetMan", __func__);
+		mutex_unlock(&bc12->lock);
+		return -EPERM;
+	}
+
+	ret = max77759_update_bits8(regmap, VENDOR_BC_CTRL1, CHGDETMAN, CHGDETMAN);
+
+	mutex_unlock(&bc12->lock);
+
+	logbuffer_log(plat->log, "%s: %s set chgDetMan", __func__,
+				  ret < 0 ? "failed to" : "successfully");
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bc12_manual_detect_enable);
+
 void bc12_teardown(struct bc12_status *bc12)
 {
 	if (!bc12)

@@ -22,6 +22,7 @@
 #include <linux/platform_device.h>
 #include <linux/rwsem.h>
 #include <linux/spinlock.h>
+#include <linux/types.h>
 
 #include <gcip/gcip-memory.h>
 #include <gcip/gcip-resource-accessor.h>
@@ -61,7 +62,7 @@ struct gxp_tpu_dev {
 };
 
 /* Forward declarations from submodules */
-struct gcip_iommu_domain_pool;
+struct gcip_domain_pool;
 struct gcip_iommu_domain;
 struct gxp_client;
 struct gxp_mailbox_manager;
@@ -131,7 +132,8 @@ struct gxp_dev {
 	 * May be NULL if the chip does not support firmware authentication
 	 */
 	struct device *gsa_dev;
-	struct gcip_iommu_domain_pool *domain_pool;
+	struct gcip_domain_pool *domain_pool;
+	size_t iommu_space_size;
 	struct list_head client_list;
 	struct mutex client_list_lock;
 	/* Pointer and mutex of secure virtual device */

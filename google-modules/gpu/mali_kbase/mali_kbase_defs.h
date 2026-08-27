@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2011-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2011-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1647,10 +1647,6 @@ struct kbase_sub_alloc {
  *                        for the allocations >= 2 MB in size.
  * @reg_lock:             Lock used for GPU virtual address space management operations,
  *                        like adding/freeing a memory region in the address space.
- * @num_fixable_allocs:   A count for the number of memory allocations with the
- *                        BASE_MEM_FIXABLE property.
- * @num_fixed_allocs:     A count for the number of memory allocations with the
- *                        BASE_MEM_FIXED property.
  * @reg_zone:             Zone information for the reg_rbtree_<...> members.
  * @cookies:              Bitmask containing of BITS_PER_LONG bits, used mainly for
  *                        SAME_VA allocations to defer the reservation of memory region
@@ -1861,8 +1857,6 @@ struct kbase_context {
 	struct list_head mem_partials;
 
 	struct mutex reg_lock;
-	atomic64_t num_fixable_allocs;
-	atomic64_t num_fixed_allocs;
 	struct kbase_reg_zone reg_zone[CONTEXT_ZONE_MAX];
 
 	struct kbase_csf_context csf;

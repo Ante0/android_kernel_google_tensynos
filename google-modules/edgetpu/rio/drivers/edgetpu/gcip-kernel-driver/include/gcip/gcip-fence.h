@@ -171,7 +171,7 @@ int gcip_fence_add_all_signaler_submitted_cb(struct gcip_fence *fence,
 bool gcip_fence_remove_all_signaler_submitted_cb(struct gcip_fence *fence,
 						 struct gcip_fence_all_signaler_submitted_cb *cb);
 
-/* Returns the ID of @fence if @fence is IIF. Otherwise, returns -EINVAL. */
+/* Returns the ID of @fence if @fence is IIF. Otherwise, returns -EOPNOTSUPP. */
 int gcip_fence_get_iif_id(struct gcip_fence *fence);
 
 /*

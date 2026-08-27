@@ -215,3 +215,8 @@ unsigned long gcip_mem_pool_find_or_alloc(struct gcip_mem_pool *pool, unsigned l
 
 	return addr;
 }
+
+size_t gcip_mem_pool_size(struct gcip_mem_pool *pool)
+{
+	return gen_pool_size(pool->gen_pool);
+}

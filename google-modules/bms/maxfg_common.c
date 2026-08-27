@@ -1467,6 +1467,63 @@ ssize_t maxfg_aafv_config_show(struct aafv_fg_config *cfgs, const int config_lim
 	return count;
 }
 
+#define MAX_FG_VEMPTY_VR_RESOLUTION 40
+
+static int calculate_vr_threshold(int base_value)
+{
+	int resolution = MAX_FG_VEMPTY_VR_RESOLUTION;
+	int threshold = base_value;
+
+	/*
+	 * Note that VR has to be set larger than VE+EmptyVoltHold level
+	 * to avoid application issue.
+	 */
+	return ((threshold / resolution) + 1) * resolution;
+}
+
+int maxfg_aacv_apply(struct logbuffer *mon, struct device *dev, struct maxfg_regmap *regmap,
+		     int offset, u16 aacv_vempty)
+{
+	int ve = reg_to_vempty(aacv_vempty);
+	int vr = reg_to_vrecovery(aacv_vempty);
+	int empty_volt_hold, base_vr, vr_threshold, ret;
+	u16 data;
+
+	/* read EmptyVoltHold from MAX77779_FG_SOCHold */
+	ret = maxfg_reg_read(regmap, MAXFG_TAG_sochold, &data);
+	if (ret) {
+		pr_err("%s: fail on reading sochold(%d)\n", __func__, ret);
+		return ret;
+	}
+
+	empty_volt_hold = reg_to_empty_volt_hold(data);
+
+	/*
+	 * Note that VR has to be set larger than VE+EmptyVoltHold level
+	 * to avoid application issue.
+	 */
+	base_vr = ve + offset + empty_volt_hold;
+	vr_threshold = calculate_vr_threshold(base_vr);
+	if (vr < vr_threshold)
+		vr = vr_threshold;
+
+	/* update v_empty */
+	data = vempty_to_reg(ve + offset);
+	data |= vrecovery_to_reg(vr);
+	ret = maxfg_reg_write_verify(regmap, MAXFG_TAG_vempty, data);
+	if (ret) {
+		pr_err("%s: fail on writing vempty(%d)\n", __func__, ret);
+		return ret;
+	}
+
+	gbms_logbuffer_devlog(mon, dev, LOGLEVEL_INFO, 0, LOGLEVEL_INFO,
+			      "%s VEmpty: VE=%dmV VR=%dmV, offset=%d, hold=%dmV, reg:%#x",
+			      __func__, reg_to_vempty(data), reg_to_vrecovery(data),
+			      offset, empty_volt_hold, data);
+
+	return ret;
+}
+
 int maxfg_reset_max_min(struct maxfg_regmap *regmap)
 {
 	int ret = 0;

@@ -70,7 +70,7 @@ static void destroy_mapping(struct gxp_mapping *mapping)
 
 	mutex_destroy(&mapping->vlock);
 
-	gcip_iommu_mapping_unmap(mapping->gcip_mapping);
+	gcip_mapping_unmap(mapping->gcip_mapping);
 
 	kfree(mapping);
 
@@ -101,7 +101,7 @@ struct gxp_mapping *gxp_mapping_create(struct gxp_dev *gxp, struct gcip_iommu_re
 	mapping->gxp_dma_flags = flags;
 
 	if (!iova_hint)
-		mapping->gcip_mapping = gcip_iommu_domain_map_buffer(
+		mapping->gcip_mapping = gcip_mapping_buffer_map(
 			domain, user_address, size, gcip_map_flags, &gxp->pin_user_pages_lock);
 	else
 		mapping->gcip_mapping = gcip_iommu_reserve_map_buffer(mgr, user_address, size,
@@ -150,8 +150,8 @@ void gxp_mapping_put(struct gxp_mapping *mapping)
 
 int gxp_mapping_sync(struct gxp_mapping *mapping, u32 offset, u32 size, bool for_cpu)
 {
-	return gcip_iommu_mapping_sync(mapping->gcip_mapping, mapping->gxp->dev, offset, size,
-				       for_cpu);
+	return gcip_mapping_buffer_sync(mapping->gcip_mapping, mapping->gxp->dev, offset, size,
+					for_cpu);
 }
 
 void *gxp_mapping_vmap(struct gxp_mapping *mapping, bool is_dmabuf)

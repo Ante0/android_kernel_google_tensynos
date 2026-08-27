@@ -249,8 +249,11 @@ struct fw_status_ts {
       unsigned char B3_b4_continus_reg:1;
       unsigned char B3_b5_reserved:1;
       unsigned char B3_b6_heatmap_status:2;
+
+      unsigned char B4_b0_int2_register:2;
+      unsigned char B4_b2_reserved:6;
     } __attribute__((packed));
-    unsigned char data[4];
+    unsigned char data[5];
   };
 };
 

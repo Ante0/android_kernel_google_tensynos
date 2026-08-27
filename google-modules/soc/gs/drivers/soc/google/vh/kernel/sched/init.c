@@ -9,6 +9,7 @@
 #include <linux/sched/cputime.h>
 #include <kernel/sched/sched.h>
 #include <linux/cpufreq.h>
+#include <linux/futex.h>
 #include <linux/module.h>
 #include <linux/suspend.h>
 #include <trace/hooks/binder.h>
@@ -17,6 +18,7 @@
 #include <trace/hooks/suspend.h>
 #include <trace/hooks/topology.h>
 #include <trace/hooks/cpufreq.h>
+#include <trace/hooks/futex.h>
 
 #include "sched_priv.h"
 
@@ -123,6 +125,9 @@ extern void set_cluster_enabled_cb(int cluster, int enabled);
 extern void register_set_cluster_enabled_cb(void (*func)(int, int));
 extern void vh_sched_resume_end(void *data, void *unused);
 extern void vh_set_task_comm_pixel_mod(void *data, struct task_struct *p);
+
+extern void vh_alter_futex_plist_add_pixel_mod(void *data, struct plist_node *q_list,
+						struct plist_head *hb_chain, bool *already_on_hb);
 
 extern struct cpufreq_governor sched_pixel_gov;
 extern bool wait_for_init;
@@ -606,6 +611,12 @@ static int vh_sched_init(void)
 		return ret;
 
 	ret = register_trace_android_vh_set_task_comm(vh_set_task_comm_pixel_mod, NULL);
+	if (ret)
+		return ret;
+
+
+	ret = register_trace_android_vh_alter_futex_plist_add(
+			vh_alter_futex_plist_add_pixel_mod, NULL);
 	if (ret)
 		return ret;
 

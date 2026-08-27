@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -159,7 +159,6 @@ module_param(mscs_offload, uint, 0660);
 
 static struct device *cfg80211_parent_dev = NULL;
 static struct bcm_cfg80211 *g_bcmcfg = NULL;
-#ifdef DHD_DEBUG
 /*
  * wl_dbg_level : a default level to print to dmesg buffer
  * wl_log_level : a default level to log to DLD or Ring
@@ -169,7 +168,6 @@ static struct bcm_cfg80211 *g_bcmcfg = NULL;
  */
 u32 wl_dbg_level = WL_DBG_ERR | WL_DBG_P2P_ACTION | WL_DBG_INFO;
 u32 wl_log_level = WL_DBG_ERR | WL_DBG_P2P_ACTION | WL_DBG_INFO;
-#endif /* DHD_DEBUG */
 
 #define MAX_WAIT_TIME 1500
 #ifdef WLAIBSS_MCHAN
@@ -20427,23 +20425,19 @@ int wl_cfg80211_do_driver_init(struct net_device *net)
 
 void wl_cfg80211_enable_log_trace(bool set, u32 level)
 {
-#ifdef DHD_DEBUG
 	if (set) {
 		wl_log_level = level & WL_DBG_LEVEL;
 	} else {
 		wl_log_level |= (WL_DBG_LEVEL & level);
 	}
-#endif /* DHD_DEBUG */
 }
 
 void wl_cfg80211_enable_trace(bool set, u32 level)
 {
-#ifdef DHD_DEBUG
 	if (set)
 		wl_dbg_level = level & WL_DBG_LEVEL;
 	else
 		wl_dbg_level |= (WL_DBG_LEVEL & level);
-#endif /* DHD_DEBUG */
 }
 
 uint32 wl_cfg80211_get_print_level(void)
@@ -21793,7 +21787,7 @@ wl_cfg80211_recv_nbr_resp(struct net_device *dev, uint8 *body, uint body_len)
 	wl_roam_channel_list_t channel_list;
 	char iobuf[WLC_IOCTL_SMLEN];
 
-	if (body_len < DOT11_RM_ACTION_LEN + BCM_TLV_HDR_SIZE + DOT11_NEIGHBOR_REP_IE_FIXED_LEN) {
+	if (body_len < DOT11_RM_ACTION_LEN) {
 		WL_ERR(("Received Neighbor Report frame with incorrect length %d\n",
 			body_len));
 		return BCME_ERROR;
@@ -22039,7 +22033,6 @@ wl_cfg80211_set_frameburst(struct bcm_cfg80211 *cfg, bool enable)
 s32
 wl_cfg80211_set_dbg_verbose(struct net_device *ndev, u32 level)
 {
-#ifdef DHD_DEBUG
 	/* configure verbose level for debugging */
 	if (level) {
 		/* Enable increased verbose */
@@ -22051,7 +22044,6 @@ wl_cfg80211_set_dbg_verbose(struct net_device *ndev, u32 level)
 		wl_log_level &= ~WL_DBG_DBG;
 	}
 	WL_INFORM(("debug verbose set to %d\n", level));
-#endif /* DHD_DEBUG */
 
 	return BCME_OK;
 }

@@ -14,6 +14,7 @@
 #include <linux/slab.h>
 #include <linux/types.h>
 
+#include <gcip/gcip-domain-pool.h>
 #include <gcip/gcip-iommu.h>
 
 #include "edgetpu-config.h"
@@ -22,10 +23,6 @@
 #include "edgetpu-internal.h"
 #include "edgetpu-mapping.h"
 #include "edgetpu-mmu.h"
-
-#if !defined(EDGETPU_NUM_PREALLOCATED_DOMAINS)
-#define EDGETPU_NUM_PREALLOCATED_DOMAINS 0
-#endif
 
 #define EDGETPU_IOVA_GRANULE (EDGETPU_MMU_GRANULARITY_IS_PAGE ? PAGE_SIZE : SZ_4K)
 
@@ -47,7 +44,7 @@ struct edgetpu_iommu {
 	 * required.
 	 * The implementation will fall back to dynamically allocated domains otherwise.
 	 */
-	struct gcip_iommu_domain_pool domain_pool;
+	struct gcip_domain_pool domain_pool;
 
 };
 
@@ -142,7 +139,9 @@ static int edgetpu_iommu_fault_handler(struct iommu_domain *domain, struct devic
 	uint pasid = etdomain->pasid;
 
 	/* Log debugging info */
-	edgetpu_device_group_handle_fault(etdev, iova, pasid, !!(flags & IOMMU_FAULT_WRITE));
+	if (pasid)
+		edgetpu_device_group_handle_fault(etdev, iova, pasid,
+						  !!(flags & IOMMU_FAULT_WRITE));
 	/* Tell IOMMU driver we handled the fault, no need to dump SMMU event. */
 	return 0;
 }
@@ -155,12 +154,7 @@ static void edgetpu_init_etdomain(struct edgetpu_iommu_domain *etdomain, struct 
 	etdomain->etdev = etdev;
 	etdomain->gdomain = gdomain;
 	etdomain->pasid = pasid;
-	/*
-	 * Only register fault handler used by clients where we need to inform them when an IOMMU
-	 * fault happens.
-	 */
-	if (pasid)
-		iommu_set_fault_handler(domain, edgetpu_iommu_fault_handler, etdomain);
+	iommu_set_fault_handler(domain, edgetpu_iommu_fault_handler, etdomain);
 }
 
 /*
@@ -181,7 +175,7 @@ static int check_default_domain(struct edgetpu_dev *etdev,
 	}
 	etdev_warn(etdev, "device group has no default iommu domain\n");
 
-	gdomain = gcip_iommu_domain_pool_alloc_domain(&etiommu->domain_pool);
+	gdomain = gcip_domain_pool_alloc(&etiommu->domain_pool);
 	if (IS_ERR(gdomain)) {
 		etdev_warn(etdev, "iommu domain alloc failed");
 		return PTR_ERR(gdomain);
@@ -190,7 +184,7 @@ static int check_default_domain(struct edgetpu_dev *etdev,
 	ret = iommu_attach_device(gdomain->domain, etdev->dev);
 	if (ret) {
 		etdev_warn(etdev, "Attach default domain failed: %d", ret);
-		gcip_iommu_domain_pool_free_domain(&etiommu->domain_pool, gdomain);
+		gcip_domain_pool_free(&etiommu->domain_pool, gdomain);
 		return ret;
 	}
 
@@ -203,36 +197,19 @@ out:
 int edgetpu_mmu_attach(struct edgetpu_dev *etdev)
 {
 	struct edgetpu_iommu *etiommu;
-	u32 num_bits, num_pasids;
 	int ret;
 
 	etiommu = kzalloc(sizeof(*etiommu), GFP_KERNEL);
 	if (!etiommu)
 		return -ENOMEM;
-	/*
-	 * Specify `base_addr` and `iova_space_size` as 0 so the gcip_iommu_domain_pool will obtain
-	 * the values from the device tree.
-	 */
-	ret = gcip_iommu_domain_pool_init(&etiommu->domain_pool, etdev->dev, 0, 0,
-					  EDGETPU_IOVA_GRANULE, EDGETPU_NUM_PREALLOCATED_DOMAINS,
-					  GCIP_IOMMU_DOMAIN_TYPE_IOVAD);
+
+	ret = gcip_domain_pool_init(&etiommu->domain_pool, etdev->dev,
+				    EDGETPU_NUM_PREALLOCATED_DOMAINS, GCIP_IOMMU_DOMAIN_TYPE_IOVAD,
+				    EDGETPU_IOVA_GRANULE);
 	if (ret) {
 		etdev_err(etdev, "Unable create domain pool (%d)\n", ret);
 		goto err_free_etiommu;
 	}
-
-	ret = of_property_read_u32(etdev->dev->of_node, "pasid-num-bits", &num_bits);
-	if (ret || num_bits > 31) {
-		/* TODO(b/285949227) remove fallback once device-trees are updated */
-		etdev_warn(etdev, "Failed to fetch pasid-num-bits, defaulting to 8 PASIDs (%d)\n",
-			   ret);
-		num_pasids = 8;
-	} else {
-		num_pasids = BIT(num_bits);
-	}
-
-	/* PASID 0 is reserved for the default domain */
-	gcip_iommu_domain_pool_set_pasid_range(&etiommu->domain_pool, 1, num_pasids - 1);
 
 	etiommu->iommu_group = iommu_group_get(etdev->dev);
 	if (etiommu->iommu_group)
@@ -254,7 +231,7 @@ int edgetpu_mmu_attach(struct edgetpu_dev *etdev)
 	return 0;
 
 err_destroy_pool:
-	gcip_iommu_domain_pool_destroy(&etiommu->domain_pool);
+	gcip_domain_pool_exit(&etiommu->domain_pool);
 err_free_etiommu:
 	kfree(etiommu);
 	return ret;
@@ -277,7 +254,7 @@ void edgetpu_mmu_detach(struct edgetpu_dev *etdev)
 	for (i = 1; i < EDGETPU_NUM_PASIDS; i++) {
 		if (etiommu->attached_etdomains[i]) {
 			gdomain = etiommu->attached_etdomains[i]->gdomain;
-			gcip_iommu_domain_pool_detach_domain(&etiommu->domain_pool, gdomain);
+			gcip_domain_pool_detach(&etiommu->domain_pool, gdomain);
 		}
 	}
 
@@ -291,7 +268,7 @@ void edgetpu_mmu_detach(struct edgetpu_dev *etdev)
 	}
 
 	/* domain_pool will free any remaining domains while being destroyed */
-	gcip_iommu_domain_pool_destroy(&etiommu->domain_pool);
+	gcip_domain_pool_exit(&etiommu->domain_pool);
 	kfree(etiommu);
 	etdev->mmu_cookie = NULL;
 }
@@ -372,7 +349,7 @@ struct edgetpu_iommu_domain *edgetpu_mmu_alloc_domain(struct edgetpu_dev *etdev)
 	struct edgetpu_iommu *etiommu = etdev->mmu_cookie;
 	struct gcip_iommu_domain *gdomain;
 
-	gdomain = gcip_iommu_domain_pool_alloc_domain(&etiommu->domain_pool);
+	gdomain = gcip_domain_pool_alloc(&etiommu->domain_pool);
 	if (IS_ERR(gdomain)) {
 		etdev_warn(etdev, "iommu domain allocation failed");
 		return NULL;
@@ -380,7 +357,7 @@ struct edgetpu_iommu_domain *edgetpu_mmu_alloc_domain(struct edgetpu_dev *etdev)
 
 	etdomain = kzalloc(sizeof(*etdomain), GFP_KERNEL);
 	if (!etdomain) {
-		gcip_iommu_domain_pool_free_domain(&etiommu->domain_pool, gdomain);
+		gcip_domain_pool_free(&etiommu->domain_pool, gdomain);
 		return NULL;
 	}
 
@@ -399,7 +376,7 @@ void edgetpu_mmu_free_domain(struct edgetpu_dev *etdev,
 		etdev_warn(etdev, "Domain should be detached before free");
 		edgetpu_mmu_detach_domain(etdev, etdomain);
 	}
-	gcip_iommu_domain_pool_free_domain(&etiommu->domain_pool, etdomain->gdomain);
+	gcip_domain_pool_free(&etiommu->domain_pool, etdomain->gdomain);
 	kfree(etdomain);
 }
 
@@ -416,7 +393,7 @@ int edgetpu_mmu_attach_domain(struct edgetpu_dev *etdev,
 		return -EINVAL;
 	}
 
-	ret = gcip_iommu_domain_pool_attach_domain(&etiommu->domain_pool, etdomain->gdomain);
+	ret = gcip_domain_pool_attach(&etiommu->domain_pool, etdomain->gdomain);
 	if (ret < 0) {
 		etdev_warn(etdev, "Attach IOMMU domain failed: %d", ret);
 		return ret;
@@ -443,7 +420,7 @@ void edgetpu_mmu_detach_domain(struct edgetpu_dev *etdev,
 	/* Unmap "shared to all contexts" mappings from the firmware image config. */
 	edgetpu_firmware_shared_mappings_context_unmap(etdev, etdomain);
 	etdomain->pasid = IOMMU_PASID_INVALID;
-	gcip_iommu_domain_pool_detach_domain(&etiommu->domain_pool, etdomain->gdomain);
+	gcip_domain_pool_detach(&etiommu->domain_pool, etdomain->gdomain);
 }
 
 struct edgetpu_iommu_domain *edgetpu_mmu_domain_for_pasid(struct edgetpu_dev *etdev, uint pasid)

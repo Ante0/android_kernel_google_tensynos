@@ -18,6 +18,8 @@
 #include <linux/mm.h>
 #include <linux/moduleparam.h>
 #include <linux/mutex.h>
+#include <linux/rcupdate.h>
+#include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/types.h>
@@ -72,6 +74,8 @@ struct edgetpu_vma_private {
 };
 
 static atomic_t dev_count = ATOMIC_INIT(-1);
+
+static atomic_t next_client_id = ATOMIC_INIT(0);
 
 static edgetpu_vma_flags_t mmap_vma_flag(unsigned long pgoff)
 {
@@ -212,6 +216,8 @@ int edgetpu_device_add(struct edgetpu_dev *etdev,
 	etdev->group_create_lockout = false;
 	mutex_init(&etdev->clients_lock);
 	INIT_LIST_HEAD(&etdev->clients);
+	mutex_init(&etdev->wakeup_sources_lock);
+	INIT_LIST_HEAD(&etdev->wakeup_sources);
 	etdev->vcid_pool = (1u << EDGETPU_NUM_VCIDS) - 1;
 	mutex_init(&etdev->state_lock);
 	etdev->state = ETDEV_STATE_NOFW;
@@ -342,7 +348,21 @@ void edgetpu_device_remove(struct edgetpu_dev *etdev)
 	edgetpu_pm_destroy(etdev);
 	edgetpu_mailbox_remove_ext_mailboxes(etdev->mailbox_manager, false);
 	debugfs_remove_recursive(etdev->d_entry);
+	edgetpu_wakeup_source_destroy_all(etdev);
 	edgetpu_soc_exit(etdev);
+}
+
+void edgetpu_client_update_name(struct edgetpu_client *client, pid_t task_id)
+{
+	struct task_struct *tsk;
+
+	rcu_read_lock();
+	tsk = find_task_by_vpid(task_id);
+	if (tsk)
+		snprintf(client->name, sizeof(client->name), "%s.%u", tsk->comm, client->client_id);
+	else
+		snprintf(client->name, sizeof(client->name), "?.%u", client->client_id);
+	rcu_read_unlock();
 }
 
 struct edgetpu_client *edgetpu_client_add(struct edgetpu_dev_iface *etiface)
@@ -358,12 +378,14 @@ struct edgetpu_client *edgetpu_client_add(struct edgetpu_dev_iface *etiface)
 		kfree(l);
 		return ERR_PTR(-ENOMEM);
 	}
-	edgetpu_wakelock_init(etdev, &client->wakelock);
-	client->pid = current->pid;
-	client->tgid = current->tgid;
+	client->client_id = atomic_add_return(1, &next_client_id);
+	client->etdev = etdev;
+	edgetpu_wakelock_init(client);
+	client->pid = task_pid_nr(current);
+	client->tgid = task_tgid_nr(current);
+	edgetpu_client_update_name(client, client->tgid);
 	client->limited_pid = -1;
 	client->limited_tgid = -1;
-	client->etdev = etdev;
 	client->etiface = etiface;
 	mutex_init(&client->group_lock);
 	/* equivalent to edgetpu_client_get() */
@@ -374,6 +396,7 @@ struct edgetpu_client *edgetpu_client_add(struct edgetpu_dev_iface *etiface)
 	l->client = client;
 	list_add_tail(&l->list, &etdev->clients);
 	mutex_unlock(&etdev->clients_lock);
+	edgetpu_eventlog_event(client->etdev, EVENTLOG_EVENT_CLIENT_CREATE, client);
 	return client;
 }
 
@@ -424,16 +447,6 @@ void edgetpu_client_remove(struct edgetpu_client *client)
 		}
 	}
 	mutex_unlock(&etdev->clients_lock);
-	/*
-	 * A quick check without holding client->group_lock.
-	 *
-	 * If client doesn't belong to a group then we are fine to not remove
-	 * from groups.
-	 *
-	 * If there is a race that the client belongs to a group but is removing
-	 * by another process - this will be detected by the check with holding
-	 * client->group_lock later.
-	 */
 	if (client->group)
 		edgetpu_device_group_disband(client);
 	/* Cleanup external mailbox/secure client stuff. */
@@ -450,11 +463,16 @@ void edgetpu_client_remove(struct edgetpu_client *client)
 	    BIT(perdie_event_id_to_num(EDGETPU_PERDIE_EVENT_HWTRACES_AVAILABLE)))
 		edgetpu_telemetry_unset_event(etdev, &etdev->telemetry_hwtrace);
 
-	edgetpu_client_put(client);
-
 	/* Releases each acquired wake lock for this client. */
 	while (wakelock_count--)
 		edgetpu_pm_put(etdev);
+	edgetpu_wakelock_destroy(client);
+	edgetpu_client_put(client);
+}
+
+void edgetpu_client_trim_enable(struct edgetpu_client *client, u32 enable)
+{
+	client->trim_enabled = enable;
 }
 
 void edgetpu_handle_firmware_crash(struct edgetpu_dev *etdev, enum gcip_fw_crash_type crash_type)

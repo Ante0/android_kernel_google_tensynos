@@ -35,8 +35,10 @@
 #include "google_dc_pps.h"
 #include "google_psy.h"
 
+#ifdef CONFIG_DEBUG_FS
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
+#endif
 
 #if IS_ENABLED(CONFIG_GOOGLE_CRASH_DEBUG_DUMP)
 #include <soc/google/google-cdd.h>
@@ -90,6 +92,8 @@
 #define MIN_BD_SOC	0
 #define MAX_BD_TEMP	500
 #define MIN_BD_TEMP	0
+
+#define MAX_BD_PAUSE_SOC (95)
 
 #define FCC_OF_CDEV_NAME "google,charger"
 #define FCC_CDEV_NAME "fcc"
@@ -211,6 +215,7 @@ struct bd_data {
 
 	long long temp_sum;
 	ktime_t time_sum;
+	bool bd_time_sum_paused; /* Pause timer when not charging but not in high soc*/
 
 	int last_voltage;
 	int last_temp;
@@ -325,11 +330,12 @@ struct chg_drv {
 
 	int disable_charging;		/* retail or bd */
 	int disable_pwrsrc;		/* retail or bd  */
-	bool lowerdb_reached;		/* track recharge */
+	bool lowerbd_reached;		/* track recharge */
+	bool first_ramp_done;		/* Track if initial charge to limit is completed */
 
 	int charge_stop_level;		/* retail, userspace bd config */
 	int charge_start_level;		/* retail, userspace bd config */
-	int lowerdb_reached_fcc;	/* recharge fcc */
+	int lowerbd_reached_fcc;	/* recharge fcc */
 
 	/* pps charging */
 	bool pps_enable;
@@ -584,7 +590,8 @@ static inline void chg_init_state(struct chg_drv *chg_drv)
 	/* reset retail state */
 	chg_drv->disable_charging = -1;
 	chg_drv->disable_pwrsrc = -1;
-	chg_drv->lowerdb_reached = true;
+	chg_drv->lowerbd_reached = true;
+	chg_drv->first_ramp_done = false;
 
 	/* reset charging parameters */
 	chg_drv->fv_uv = -1;
@@ -654,7 +661,7 @@ static inline int chg_reset_state(struct chg_drv *chg_drv)
 
 	/* clear vote when disconnect */
 	gvotable_cast_int_vote(chg_drv->msc_fcc_votable, MSC_CHG_BOUND_VOTER,
-			       chg_drv->lowerdb_reached_fcc, false);
+			       chg_drv->lowerbd_reached_fcc, false);
 	/* when/if enabled */
 	GPSY_SET_PROP(chg_drv->chg_psy, GBMS_PROP_TAPER_CONTROL,
 		      GBMS_TAPER_CONTROL_OFF);
@@ -1071,19 +1078,25 @@ static int chg_work_is_charging_disabled(struct chg_drv *chg_drv, int capacity)
 	if (!chg_is_custom_enabled(upperbd, lowerbd))
 		goto done;
 
-	if (chg_drv->lowerdb_reached && upperbd <= capacity) {
-		pr_info("MSC_CHG lowerbd=%d, upperbd=%d, capacity=%d, lowerdb_reached=1->0, charging off\n",
+	/* bypass on disconnection */
+	if (!chg_drv->online && !chg_drv->present)
+		return disable_charging;
+
+	if (chg_drv->lowerbd_reached && upperbd <= capacity) {
+		pr_info("MSC_CHG lowerbd=%d, upperbd=%d, capacity=%d, lowerbd_reached=1->0, charging off\n",
 			lowerbd, upperbd, capacity);
 		disable_charging = 1;
-		chg_drv->lowerdb_reached = false;
-	} else if (!chg_drv->lowerdb_reached && lowerbd < capacity) {
+		chg_drv->lowerbd_reached = false;
+		/* ramp-up completion only matters if we are connected to power */
+		chg_drv->first_ramp_done = true;
+	} else if (!chg_drv->lowerbd_reached && lowerbd < capacity) {
 		pr_info("MSC_CHG lowerbd=%d, upperbd=%d, capacity=%d, charging off\n",
 			lowerbd, upperbd, capacity);
 		disable_charging = 1;
-	} else if (!chg_drv->lowerdb_reached && capacity <= lowerbd) {
-		pr_info("MSC_CHG lowerbd=%d, upperbd=%d, capacity=%d, lowerdb_reached=0->1, charging on\n",
+	} else if (!chg_drv->lowerbd_reached && capacity <= lowerbd) {
+		pr_info("MSC_CHG lowerbd=%d, upperbd=%d, capacity=%d, lowerbd_reached=0->1, charging on\n",
 			lowerbd, upperbd, capacity);
-		chg_drv->lowerdb_reached = true;
+		chg_drv->lowerbd_reached = true;
 	} else {
 		pr_info("MSC_CHG lowerbd=%d, upperbd=%d, capacity=%d, charging on\n",
 			lowerbd, upperbd, capacity);
@@ -1091,12 +1104,13 @@ static int chg_work_is_charging_disabled(struct chg_drv *chg_drv, int capacity)
 
 	/* slow down the charging speed when repeated charging in a certain range */
 	if (disable_charging == 0 && capacity >= lowerbd && capacity < upperbd &&
-	    (chg_drv->charging_policy == CHARGING_POLICY_VOTE_LONGLIFE))
+	    (chg_drv->charging_policy == CHARGING_POLICY_VOTE_LONGLIFE) &&
+	     chg_drv->first_ramp_done)
 		is_limit_fcc = true;
 
 done:
 	gvotable_cast_int_vote(chg_drv->msc_fcc_votable, MSC_CHG_BOUND_VOTER,
-			       chg_drv->lowerdb_reached_fcc, is_limit_fcc);
+			       chg_drv->lowerbd_reached_fcc, is_limit_fcc);
 
 	return disable_charging;
 }
@@ -1829,6 +1843,52 @@ static int chg_bd_can_reset(struct chg_drv *chg_drv, const ktime_t now,
 	return BD_RESET_NONE;
 }
 
+static bool bd_check_timer_pause(struct chg_drv *chg_drv)
+{
+	const int chg_status = chg_drv->chg_state.f.chg_status;
+	const bool is_not_charging = (chg_status == POWER_SUPPLY_STATUS_NOT_CHARGING);
+	/* To cover Dwell, Retail, LotX_on */
+	const int upperbd = chg_drv->charge_stop_level;
+	const int lowerbd = chg_drv->charge_start_level;
+	const bool is_charge_limit = chg_is_custom_enabled(upperbd, lowerbd);
+
+	bool should_pause = false;
+	bool is_soc_safe = false;
+	bool is_ac_pause = false;
+	int csi_type = CSI_TYPE_UNKNOWN;
+	int soc_raw = 100;
+	int ret;
+
+	soc_raw = GPSY_GET_INT_PROP(chg_drv->bat_psy, GBMS_PROP_CAPACITY_RAW_GDF, &ret);
+	if (ret < 0)
+		return false;
+	is_soc_safe = (soc_raw < MAX_BD_PAUSE_SOC);
+
+	if (chg_drv->csi_type_votable) {
+		csi_type = gvotable_get_current_int_vote(chg_drv->csi_type_votable);
+		is_ac_pause = (is_not_charging && (csi_type == CSI_TYPE_Adaptive));
+	}
+
+	if (is_not_charging && is_soc_safe && (is_ac_pause || is_charge_limit))
+		should_pause = true;
+
+	/* Only print log when state changed */
+	if (should_pause != chg_drv->bd_state.bd_time_sum_paused) {
+		if (should_pause) {
+			chg_drv->bd_state.bd_time_sum_paused = true;
+			pr_info("MSC_BD: Elap timer Paused (%lld). Device not_charging & not in high Soc",
+				chg_drv->bd_state.time_sum);
+		} else {
+			chg_drv->bd_state.bd_time_sum_paused = false;
+			pr_info("MSC_BD: Rseume Elap Timer counting. Device %s %s",
+				chg_status != POWER_SUPPLY_STATUS_NOT_CHARGING ? "resume_charging" : " ",
+				soc_raw > MAX_BD_PAUSE_SOC ? "high_Soc" : " ");
+		}
+	}
+
+	return should_pause;
+}
+
 /* bd_state->triggered = 1 when charging needs to be disabled */
 static int bd_update_stats(struct chg_drv *chg_drv, const ktime_t now, bool online,
 			   bool from_bd_work)
@@ -1839,6 +1899,7 @@ static int bd_update_stats(struct chg_drv *chg_drv, const ktime_t now, bool onli
 	const char *log_prefix = (from_bd_work ? "MSC_BD_WORK" : "MSC_BD");
 
 	int ret, vbatt, reset_reason;
+	bool bd_timer_paused;
 	long long temp_avg;
 	unsigned long long elap;
 	struct bd_last_read_val rv;
@@ -1864,17 +1925,19 @@ static int bd_update_stats(struct chg_drv *chg_drv, const ktime_t now, bool onli
 	if (bd_state->last_update == 0)
 		bd_state->last_update = now;
 
-	/*
-	 * b/294978951 time_sum is abnormally large and triggered the TEMP-DEFEND
-	 * add log here if elapse exceed 2 times of schedule time
-	 */
-	elap = now - bd_state->last_update;
-	if (rv.temp >= bd_state->bd_trigger_temp) {
+	bd_timer_paused = bd_check_timer_pause(chg_drv);
+
+	if (rv.temp >= bd_state->bd_trigger_temp && !bd_timer_paused) {
+		elap = now - bd_state->last_update;
+		/*
+		 * b/294978951 time_sum is abnormally large and triggered the TEMP-DEFEND
+		 * add log here if elapse exceed 2 times of schedule time
+		 */
 		if (elap > (CHG_WORK_BD_TRIGGERED_MS / 1000 * 2))
 			gbms_logbuffer_prlog(bd_state->bd_log, LOGLEVEL_INFO, 0, LOGLEVEL_INFO,
 				"%s: longer elap %llu (%llu - %llu), temp=%d, time_sum=%llu, temp_sum=%llu",
-				log_prefix, elap, now, bd_state->last_update, rv.temp, bd_state->time_sum,
-				bd_state->temp_sum);
+				log_prefix, elap, now, bd_state->last_update, rv.temp,
+				bd_state->time_sum, bd_state->temp_sum);
 		bd_state->time_sum += elap;
 		bd_state->temp_sum += rv.temp * elap;
 		/* notify google_battery the time to aware pre-trigger */
@@ -1976,6 +2039,9 @@ recharge_logic:
 			lowerbd, upperbd, val);
 		bd_state->lowerbd_reached = false;
 		disable_charging = 1;
+		/* ramp-up completion only matters if we are connected to power */
+		if (chg_drv->online || chg_drv->present)
+			chg_drv->first_ramp_done = true;
 	} else if (!bd_state->lowerbd_reached && val > lowerbd) {
 		pr_info("MSC_BD lowerbd=%d, upperbd=%d, val=%d, charging off\n",
 			lowerbd, upperbd, val);
@@ -1990,12 +2056,12 @@ recharge_logic:
 	}
 
 	/* slow down the charging speed when repeated charging in a certain range */
-	if (disable_charging == 0 && val >= lowerbd && val < upperbd)
+	if (disable_charging == 0 && val >= lowerbd && val < upperbd && chg_drv->first_ramp_done)
 		is_limit_fcc = true;
 
 done:
 	gvotable_cast_int_vote(chg_drv->msc_fcc_votable, MSC_CHG_BOUND_VOTER,
-			       chg_drv->lowerdb_reached_fcc, is_limit_fcc);
+			       chg_drv->lowerbd_reached_fcc, is_limit_fcc);
 	return disable_charging;
 }
 
@@ -3578,13 +3644,12 @@ bd_state_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct chg_drv *chg_drv = dev_get_drvdata(dev);
 	struct bd_data *bd_state = &chg_drv->bd_state;
-	long long temp_avg = 0;
+	long long temp_avg;
 	ssize_t len;
 
 	mutex_lock(&chg_drv->bd_lock);
 
-	if (bd_state->time_sum)
-		temp_avg = div64_s64(bd_state->temp_sum, bd_state->time_sum);
+	temp_avg = div64_s64(bd_state->temp_sum, bd_state->time_sum);
 	len = scnprintf(buf, PAGE_SIZE,
 		       "t_sum=%lld, time_sum=%lld t_avg=%lld lst_v=%d lst_t=%d lst_u=%lld, dt=%lld, t=%d e=%d\n",
 		       bd_state->temp_sum, bd_state->time_sum, temp_avg,
@@ -3790,6 +3855,8 @@ static int chg_vote_input_suspend(struct chg_drv *chg_drv,
 
 	return 0;
 }
+
+#ifdef CONFIG_DEBUG_FS
 
 static int chg_get_input_suspend(void *data, u64 *val)
 {
@@ -4059,6 +4126,9 @@ static int bd_enabled_set(void *data, u64 val)
 
 DEFINE_SIMPLE_ATTRIBUTE(bd_enabled_fops, bd_enabled_get,
 			bd_enabled_set, "%lld\n");
+
+
+#endif
 
 static int debug_get_pps_cc_tolerance(void *data, u64 *val)
 {
@@ -5397,6 +5467,8 @@ state2power_table_show(struct device *dev, struct device_attribute *attr, char *
 
 static DEVICE_ATTR_RO(state2power_table);
 
+#ifdef CONFIG_DEBUG_FS
+
 static ssize_t tm_store(struct chg_thermal_device *tdev,
 			const char __user *user_buf,
 			size_t count, loff_t *ppos)
@@ -5465,6 +5537,8 @@ static ssize_t dc_tm_store(struct file *filp, const char __user *user_buf,
 }
 
 DEBUG_ATTRIBUTE_WO(dc_tm);
+
+#endif // CONFIG_DEBUG_FS
 
 static int chg_init_mdis_stats_map(struct chg_drv *chg_drv, const char *name) {
 	int rc, byte_len;
@@ -6083,10 +6157,10 @@ static int google_charger_probe(struct platform_device *pdev)
 		pr_info("User can override FCC and FV\n");
 
 	ret = of_property_read_u32(pdev->dev.of_node,
-				   "google,lowerdb-reached-fcc",
-				   &chg_drv->lowerdb_reached_fcc);
+				   "google,lowerbd-reached-fcc",
+				   &chg_drv->lowerbd_reached_fcc);
 	if (ret < 0)
-		chg_drv->lowerdb_reached_fcc = CHG_DEFAULT_BOUND_FCC;
+		chg_drv->lowerbd_reached_fcc = CHG_DEFAULT_BOUND_FCC;
 
 	/* NOTE: newgen charging is configured in google_battery */
 	ret = chg_init_chg_profile(chg_drv);

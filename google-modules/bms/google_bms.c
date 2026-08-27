@@ -48,31 +48,6 @@
 #define GBMS_STORAGE_READ_DELAY_MS	1000
 #define GBMS_STORAGE_READ_RETRIES	20
 
-/* the number should be the same as GBMS_AACT_NB_LIMITS_MAX */
-static aact_limits_profiles_t aact_all_limits = {
-    .temp_limits = {
-        "google,aact-temp-limits",
-        "google,aact-temp-limits-1",
-        "google,aact-temp-limits-2",
-        "google,aact-temp-limits-3",
-        "google,aact-temp-limits-4"
-    },
-    .cv_limits = {
-        "google,aact-cv-limits",
-        "google,aact-cv-limits-1",
-        "google,aact-cv-limits-2",
-        "google,aact-cv-limits-3",
-        "google,aact-cv-limits-4"
-    },
-    .cc_limits = {
-        "google,aact-cc-limits",
-        "google,aact-cc-limits-1",
-        "google,aact-cc-limits-2",
-        "google,aact-cc-limits-3",
-        "google,aact-cc-limits-4"
-    }
-};
-
 /* same as POWER_SUPPLY_CHARGE_TYPE_TEXT */
 static const char *psy_chgt_str[] = {
 	[POWER_SUPPLY_CHARGE_TYPE_UNKNOWN]	= "Unknown",
@@ -602,6 +577,73 @@ int gbms_aacc_temp_idx(const struct gbms_chg_profile *profile, int temp, bool is
 	return temp_idx;
 }
 EXPORT_SYMBOL_GPL(gbms_aacc_temp_idx);
+
+int gbms_read_aacv_limits(struct gbms_chg_profile *profile,
+			  struct device_node *node)
+{
+	int ret = 0, cycle_nb_limits = 0, offset_nb_limits = 0;
+
+	if (!profile || !node)
+		return -ENODEV;
+
+	ret = of_property_count_elems_of_size(node, "google,aacv-ref-cycles", sizeof(u32));
+	if (ret < 0)
+		goto no_data;
+
+	cycle_nb_limits = ret;
+
+	ret = of_property_count_elems_of_size(node, "google,aacv-ref-offset", sizeof(u32));
+	if (ret < 0)
+		goto no_data;
+
+	offset_nb_limits = ret;
+
+	if (cycle_nb_limits != offset_nb_limits ||
+	    cycle_nb_limits > GBMS_AACV_DATA_MAX ||
+	    cycle_nb_limits == 0) {
+		gbms_warn(profile, "aacv not supported, cycle_nb:%d, offset_nb:%d, max:%d",
+			  cycle_nb_limits, offset_nb_limits, GBMS_AACV_DATA_MAX);
+		profile->aacv_nb_limits = 0;
+		return -ERANGE;
+	}
+
+	ret = of_property_read_u32_array(node, "google,aacv-ref-cycles",
+					 (u32 *)profile->aacv_cycles, cycle_nb_limits);
+	if (ret < 0)
+		return ret;
+
+	ret = of_property_read_u32_array(node, "google,aacv-ref-offset",
+					 (u32 *)profile->aacv_offsets, offset_nb_limits);
+	if (ret < 0)
+		return ret;
+
+	profile->aacv_nb_limits = cycle_nb_limits;
+
+	return 0;
+
+no_data:
+	profile->aacv_nb_limits = 0;
+	return ret;
+}
+EXPORT_SYMBOL_GPL(gbms_read_aacv_limits);
+
+int gbms_aacv_get_offset(const struct gbms_chg_profile *profile, const int cycles)
+{
+	int idx, offset = 0;
+
+	if (profile->aacv_nb_limits == 0 || cycles < 0)
+		return 0;
+
+	for (idx = 0; idx < profile->aacv_nb_limits; ++idx) {
+		if (cycles >= profile->aacv_cycles[idx])
+			offset = profile->aacv_offsets[idx];
+		else
+			break;
+	}
+
+	return offset;
+}
+EXPORT_SYMBOL_GPL(gbms_aacv_get_offset);
 
 int gbms_init_chg_profile_internal(struct gbms_chg_profile *profile,
 			  struct device_node *node,

@@ -193,8 +193,7 @@ static inline int gpu_metrics_ctx_init(struct kbase_context *kctx)
  */
 static inline void gpu_metrics_ctx_term(struct kbase_context *kctx)
 {
-	/* Return early if this is not a Userspace created context */
-	if (unlikely(!kctx->filp))
+	if (unlikely(!kctx->gpu_metrics_ctx))
 		return;
 
 	/* Serialize against the other threads trying to create/destroy Kbase contexts. */
@@ -5406,7 +5405,7 @@ static bool scheduler_suspend_on_idle_gls(struct kbase_device *kbdev)
 		pm_ref_dropped = true;
 		kbase_pm_unlock(kbdev);
 
-		if (unlikely(kbase_pm_wait_for_desired_state(kbdev))) {
+		if (unlikely(kbase_pm_wait_for_desired_mcu_state(kbdev))) {
 			dev_warn(kbdev->dev,
 				 "Wait for MCU power down failed on scheduler suspend on idle");
 			goto out_activate_pm;
@@ -6523,6 +6522,10 @@ static void scheduler_inner_reset(struct kbase_device *kbdev)
 				 scheduler->num_active_address_spaces |
 					 (((u64)scheduler->total_runnable_grps) << 32));
 
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	spin_unlock_bh(&scheduler->gpu_metrics_lock);
+#endif
+
 	if (IS_ENABLED(CONFIG_PM) && scheduler->state == SCHED_SLEEPING) {
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 		hrtimer_cancel(&scheduler->gpu_metrics_timer);
@@ -6530,9 +6533,7 @@ static void scheduler_inner_reset(struct kbase_device *kbdev)
 		scheduler->state = SCHED_SUSPENDED;
 		KBASE_KTRACE_ADD(kbdev, SCHED_SUSPENDED, NULL, scheduler->state);
 	}
-#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
-	spin_unlock_bh(&scheduler->gpu_metrics_lock);
-#endif
+
 	rt_mutex_unlock(&scheduler->lock);
 }
 

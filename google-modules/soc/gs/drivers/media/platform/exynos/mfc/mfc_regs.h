@@ -996,6 +996,7 @@
 /* SEI Metadata format */
 #define MFC_META_SEI_NAL_SIZE_OFFSET			0x4
 #define MFC_META_SEI_NAL_PAYLOAD_OFFSET			0x8
+#define MFC_META_SEI_NAL_SIZE_OF_FIELD			4
 
 
 #endif /* __MFC_REGS_H */

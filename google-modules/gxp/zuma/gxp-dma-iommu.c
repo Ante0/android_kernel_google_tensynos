@@ -13,6 +13,7 @@
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
 
+#include <gcip/gcip-domain-pool.h>
 #include <gcip/gcip-iommu.h>
 #include <gcip/gcip-memory.h>
 
@@ -165,7 +166,7 @@ int gxp_dma_domain_attach_device(struct gxp_dev *gxp, struct gcip_iommu_domain *
 	if (gdomain == gxp_iommu_get_domain_for_dev(gxp))
 		return 0;
 
-	pasid = gcip_iommu_domain_pool_attach_domain(gxp->domain_pool, gdomain);
+	pasid = gcip_domain_pool_attach(gxp->domain_pool, gdomain);
 	if (pasid < 0) {
 		dev_err(gxp->dev, "Attach IOMMU domain failed: %d", pasid);
 		return pasid;
@@ -183,7 +184,7 @@ void gxp_dma_domain_detach_device(struct gxp_dev *gxp, struct gcip_iommu_domain 
 		return;
 
 	gxp_soc_deactivate_context(gxp, gdomain, core_list);
-	gcip_iommu_domain_pool_detach_domain(gxp->domain_pool, gdomain);
+	gcip_domain_pool_detach(gxp->domain_pool, gdomain);
 }
 
 int gxp_dma_map_core_resources(struct gxp_dev *gxp, struct gcip_iommu_domain *gdomain,
@@ -515,6 +516,11 @@ void gxp_dma_sync_sg_for_device(struct gxp_dev *gxp, struct scatterlist *sg,
 	dma_sync_sg_for_device(gxp->dev, sg, nents, direction);
 }
 
+int gxp_iommu_get_max_vd_activation(struct gxp_dev *gxp)
+{
+	return gcip_iommu_domain_pool_get_num_pasid(gxp->domain_pool);
+}
+
 u64 gxp_dma_encode_gcip_map_flags(uint gxp_dma_flags, unsigned long dma_attrs)
 {
 	enum dma_data_direction dir = gxp_dma_flags & GXP_MAP_DIR_MASK;
@@ -527,4 +533,12 @@ u64 gxp_dma_encode_gcip_map_flags(uint gxp_dma_flags, unsigned long dma_attrs)
 #endif
 
 	return gcip_iommu_encode_gcip_map_flags(dir, coherent, dma_attrs, restrict_iova, mmio);
+}
+
+int gxp_iommu_fault_handler(struct iommu_domain *domain, struct device *dev, unsigned long iova,
+			    int flags, void *token)
+{
+	dev_dbg(dev, "IOMMU fault on address %08lX. flags = %08X", iova, flags);
+	/* Tell the IOMMU driver we are OK with this fault. */
+	return 0;
 }

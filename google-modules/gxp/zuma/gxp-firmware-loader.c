@@ -55,7 +55,22 @@ static int gxp_firmware_loader_gsa_auth(struct gxp_dev *gxp)
 		return -ENOMEM;
 
 	memcpy(header_vaddr, mgr->mcu_firmware->data, fw_header_size);
-	ret = gsa_load_dsp_fw_image(gxp->gsa_dev, headers_dma_addr, mcu_fw->image_buf.phys_addr);
+	if (fw_header_size == GCIP_FW_PQ_ENABLED_HEADER_SIZE) {
+#if GXP_HAS_PQ_FW_AUTH
+		dev_dbg(gxp->dev,
+			"Requesting GSA authentication for PQ image. meta = %pad payload = %pap",
+			&headers_dma_addr, &mcu_fw->image_buf.phys_addr);
+		ret = gsa_load_dsp_fw_image_pq(gxp->gsa_dev, headers_dma_addr,
+					       mcu_fw->image_buf.phys_addr,
+					       mgr->mcu_firmware->size - fw_header_size);
+#else
+		dev_err(gxp->dev, "PQ firmware image found, but platform does not support it");
+		ret = -EINVAL;
+#endif /* GXP_HAS_PQ_FW_AUTH */
+	} else {
+		ret = gsa_load_dsp_fw_image(gxp->gsa_dev, headers_dma_addr,
+					    mcu_fw->image_buf.phys_addr);
+	}
 	if (ret) {
 		dev_err(gxp->dev, "MCU fw GSA authentication fails");
 		goto err_load_mcu_fw;

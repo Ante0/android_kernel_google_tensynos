@@ -325,10 +325,27 @@ err_external_debug_lock:
 
 void edgetpu_debug_dump_cpu_regs(struct edgetpu_dev *etdev)
 {
+	u32 val;
+
+	if (IS_ENABLED(CONFIG_EDGETPU_TEST))
+		return;
+
 	/* Ensure the TPU block and control cluster are powered. */
 	if (pm_runtime_get_if_active(etdev->dev, false) <= 0) {
-		dev_info(etdev->dev, "pm_runtime not active, skip CPU registers dump.");
+		etdev_info(etdev, "pm_runtime not active, skip CPU registers dump.");
 		return;
+	}
+
+	/*
+	 * If Control Cluster is powered off access hits an SError (and there's
+	 * no need to dump PCs.
+	 */
+
+	val = edgetpu_dev_read_32_sync(etdev, EDGETPU_REG_LPM_CONTROL);
+	if (!(val & LPM_CTRL_LPMCTLPWRSTATE)) {
+		etdev_info(etdev, "control cluster powered off (%#x), skip CPU registers dump.",
+			   val);
+		goto err_rpm_put;
 	}
 
 	mutex_lock(&edgetpu_debug_regs_lock);
@@ -341,6 +358,7 @@ void edgetpu_debug_dump_cpu_regs(struct edgetpu_dev *etdev)
 
 err_unlock:
 	mutex_unlock(&edgetpu_debug_regs_lock);
+err_rpm_put:
 	pm_runtime_put(etdev->dev);
 }
 

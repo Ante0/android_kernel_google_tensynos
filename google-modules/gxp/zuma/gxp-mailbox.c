@@ -503,13 +503,14 @@ int gxp_mailbox_unregister_interrupt_handler(struct gxp_mailbox *mailbox,
 	return 0;
 }
 
-int gxp_mailbox_send_cmd(struct gxp_mailbox *mailbox, void *cmd, void *resp,
-			 u32 gcip_mailbox_cmd_flags)
+int gxp_mailbox_send_cmd(struct gxp_mailbox *mailbox, void *cmd, void *resp)
 {
 	switch (mailbox->type) {
 	case GXP_MBOX_TYPE_GENERAL:
-		return gcip_mailbox_send_cmd(mailbox->mbx_impl.gcip_mbx, cmd, resp,
-					     gcip_mailbox_cmd_flags);
+		if (resp)
+			return gcip_mailbox_send_cmd(mailbox->mbx_impl.gcip_mbx, cmd, resp);
+		else
+			return gcip_mailbox_send_cmd_no_rsp(mailbox->mbx_impl.gcip_mbx, cmd);
 #if GXP_HAS_MCU
 	case GXP_MBOX_TYPE_KCI:
 		return gcip_kci_send_cmd(mailbox->mbx_impl.gcip_kci, cmd);
@@ -519,16 +520,13 @@ int gxp_mailbox_send_cmd(struct gxp_mailbox *mailbox, void *cmd, void *resp,
 	}
 }
 
-struct gcip_mailbox_resp_awaiter *gxp_mailbox_put_cmd(struct gxp_mailbox *mailbox, void *cmd,
-						      void *resp, void *data,
-						      u32 gcip_mailbox_cmd_flags)
+int gxp_mailbox_put_cmd(struct gxp_mailbox *mailbox, void *cmd,
+			struct gcip_mailbox_awaiter *awaiter)
 {
 	switch (mailbox->type) {
 	case GXP_MBOX_TYPE_GENERAL:
-		return gcip_mailbox_put_cmd_flags(mailbox->mbx_impl.gcip_mbx, cmd, resp, data,
-						  gcip_mailbox_cmd_flags);
+		return gcip_mailbox_send_cmd_async(mailbox->mbx_impl.gcip_mbx, cmd, awaiter);
 	default:
-		break;
+		return -EOPNOTSUPP;
 	}
-	return ERR_PTR(-EOPNOTSUPP);
 }

@@ -8,11 +8,13 @@
 #ifndef __EDGETPU_WAKELOCK_H__
 #define __EDGETPU_WAKELOCK_H__
 
+#include <linux/device.h>
 #include <linux/err.h>
 #include <linux/mutex.h>
 #include <linux/time64.h>
 
 struct edgetpu_dev;
+struct edgetpu_client;
 
 /*
  * Events that could block the wakelock from being released.
@@ -31,8 +33,13 @@ enum edgetpu_wakelock_event {
 #undef X
 };
 
+/* Wrapper for a wakeup source in the etdev's list of wakeup sources. */
+struct edgetpu_wakeup_source {
+	struct wakeup_source *ws;
+	struct list_head ws_list;
+};
+
 struct edgetpu_wakelock {
-	struct edgetpu_dev *etdev; /* only for logging */
 	/* Protects every field below */
 	struct mutex lock;
 	/*
@@ -51,103 +58,97 @@ struct edgetpu_wakelock {
 	struct timespec64 current_acquire_timestamp;
 	/* Total time acquired as of last release (not including current; monotonic clock). */
 	struct timespec64 total_acquired_time;
+
+	/* Wakeup source held when non-suspendable wakelock held, created on first acquire. */
+	struct edgetpu_wakeup_source *etws;
 };
 
-/* Initialize a wakelock object.*/
-void edgetpu_wakelock_init(struct edgetpu_dev *etdev, struct edgetpu_wakelock *wakelock);
+/* Initialize the wakelock object for @client. */
+void edgetpu_wakelock_init(struct edgetpu_client *client);
 
 /*
- * Increases the event counter of @evt by one.
+ * Destroy the wakelock object for @client (the associated wakeup source may be preserved for power
+ * analysis later).
+ */
+void edgetpu_wakelock_destroy(struct edgetpu_client *client);
+
+/* Destroy all preserved wakeup sources at device remote time. */
+void edgetpu_wakeup_source_destroy_all(struct edgetpu_dev *etdev);
+
+/*
+ * Increases the event counter of @evt by one for the wakelock of @client.
  *
  * Returns true if the counter is increased successfully.
  * Returns false when one of the following errors happens:
  *   - the wakelock is released
  *   - integer overflow on the counter
- *
- * When the chipset doesn't support wakelock:
- *   Does nothing and returns true.
  */
-bool edgetpu_wakelock_inc_event(struct edgetpu_wakelock *wakelock,
-				enum edgetpu_wakelock_event evt);
+bool edgetpu_wakelock_inc_event(struct edgetpu_client *client, enum edgetpu_wakelock_event evt);
 
 /*
  * A version of the above where the caller holds the wakelock internal lock
  * by calling edgetpu_wakelock_lock.
  */
-bool edgetpu_wakelock_inc_event_locked(struct edgetpu_wakelock *wakelock,
+bool edgetpu_wakelock_inc_event_locked(struct edgetpu_client *client,
 				       enum edgetpu_wakelock_event evt);
 /*
- * Decreases the event counter of @evt by one.
+ * Decreases the event counter of @evt by one for the wakelock of @client.
  *
  * Returns true if the counter is decreased successfully.
  * Returns false when one of the following errors happens:
  *   - the counter is zero
- *
- * When the chipset doesn't support wakelock:
- *   Does nothing and returns true.
  */
-bool edgetpu_wakelock_dec_event(struct edgetpu_wakelock *wakelock,
+bool edgetpu_wakelock_dec_event(struct edgetpu_client *client,
 				enum edgetpu_wakelock_event evt);
 
 /*
  * A version of the above where the caller holds the wakelock internal lock
  * by calling edgetpu_wakelock_lock.
  */
-bool edgetpu_wakelock_dec_event_locked(struct edgetpu_wakelock *wakelock,
+bool edgetpu_wakelock_dec_event_locked(struct edgetpu_client *client,
 				       enum edgetpu_wakelock_event evt);
 
 /*
- * Holds the internal lock of @wakelock. Fields in @wakelock are protected when
- * this lock is holding.
+ * Holds the internal lock of the wakelock for @client.
  *
- * Returns the non-negative request counter of @wakelock.
+ * Returns the non-negative request counter of the wakelock.
  *
  * Example:
- *   if (edgetpu_wakelock_lock(wakelock)) {
- *      <..works that need the state of wakelock unchanged..>
+ *   if (edgetpu_wakelock_lock(client)) {
+ *      <..work that requires exclusive access to protected wakelock fields..>
  *   }
- *   edgetpu_wakelock_unlock(wakelock);
- *
- * When the chipset doesn't support wakelock:
- *   Does nothing and returns 1.
+ *   edgetpu_wakelock_unlock(client);
  */
-uint edgetpu_wakelock_lock(struct edgetpu_wakelock *wakelock);
-void edgetpu_wakelock_unlock(struct edgetpu_wakelock *wakelock);
+uint edgetpu_wakelock_lock(struct edgetpu_client *client);
+void edgetpu_wakelock_unlock(struct edgetpu_client *client);
 
 /*
- * Returns the request counter of @wakelock.
+ * Returns the request counter of the wakelock for @client.
  *
  * Caller calls edgetpu_wakelock_lock() before calling this function.
  */
-static inline uint
-edgetpu_wakelock_count_locked(struct edgetpu_wakelock *wakelock)
-{
-	return wakelock->req_count;
-}
+uint edgetpu_wakelock_count_locked(struct edgetpu_client *client);
 
 /*
- * Acquires the wakelock, increases @wakelock->req_count by one.
+ * Acquires the wakelock for the @client, increasing the req_count by one.
  * @flags: Bitmask of EDGETPU_ACQUIRE_WAKELOCK_FLAG_* flags, such as to allow suspend.
  *
- * This function should be surrounded by edgetpu_wakelock_lock() and
- * edgetpu_wakelock_unlock().
+ * This function must be surrounded by edgetpu_wakelock_lock() and edgetpu_wakelock_unlock().
  *
  * Returns the value of request counter *before* being increased.
  * Returns -EOVERFLOW if the request counter would overflow after increment.
  */
-int edgetpu_wakelock_acquire(struct edgetpu_wakelock *wakelock, u32 flags);
+int edgetpu_wakelock_acquire(struct edgetpu_client *client, u32 flags);
 
 /*
- * Requests to release the wakelock, decreases @wakelock->req_count by one on
- * success.
+ * Requests to release the wakelock for @client, decreasing the req_count by one on success.
  *
- * This function should be surrounded by edgetpu_wakelock_lock() and
- * edgetpu_wakelock_unlock().
+ * This function must be surrounded by edgetpu_wakelock_lock() and edgetpu_wakelock_unlock().
  *
  * Returns the value of request counter *after* being decreased.
  * Returns -EINVAL if the request counter is already zero.
  * Returns -EAGAIN when there are events blocking wakelock from being released.
  */
-int edgetpu_wakelock_release(struct edgetpu_wakelock *wakelock);
+int edgetpu_wakelock_release(struct edgetpu_client *client);
 
 #endif /* __EDGETPU_WAKELOCK_H__ */

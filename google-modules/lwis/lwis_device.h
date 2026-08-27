@@ -17,6 +17,7 @@
 #include <linux/kthread.h>
 #include <linux/list.h>
 #include <linux/mutex.h>
+#include <linux/rcupdate.h>
 #include <linux/platform_device.h>
 #include <linux/poll.h>
 #include <linux/workqueue.h>
@@ -300,6 +301,7 @@ struct lwis_device {
  *  application that calls open() on a /dev/lwis* device.
  */
 struct lwis_client {
+	struct rcu_head rcu;
 	struct mutex lock;
 	struct lwis_device *lwis_dev;
 	/* Hash table of events controlled by userspace in this client */

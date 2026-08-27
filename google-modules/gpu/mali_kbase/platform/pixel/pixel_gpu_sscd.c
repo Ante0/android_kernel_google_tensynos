@@ -81,7 +81,7 @@ static void get_pm_event_log(struct kbase_device *kbdev, struct sscd_segment *se
  * @_reserved:      Bytes reserved for future use
  **/
 struct pixel_fw_trace_metadata {
-	char magic[4];
+	char magic[4] __nonstring;
 	uint64_t trace_address;
 	uint32_t trace_length;
 	uint8_t version;
@@ -148,7 +148,7 @@ static void get_fw_trace(struct kbase_device *kbdev, struct sscd_segment *seg)
  * @_reserved:      Bytes reserved for future use
  **/
 struct pixel_ktrace_metadata {
-	char magic[4];
+	char magic[4] __nonstring;
 	uint64_t trace_address;
 	uint32_t trace_start;
 	uint32_t trace_end;
@@ -221,7 +221,7 @@ enum pixel_context_state {
  * @_reserved: reserved.
  */
 struct pixel_context_metadata {
-	char magic[4];
+	char magic[4] __nonstring;
 	u8 version;
 	u32 platform;
 	char _reserved[27];
@@ -340,7 +340,7 @@ static int get_contexts(struct kbase_device *kbdev,
  * @_reserved: reserved.
  */
 struct pixel_kctx_info_metadata {
-	char magic[4];
+	char magic[4] __nonstring;
 	u8 version;
 	u32 platform;
 	char _reserved[27];
@@ -442,7 +442,7 @@ out:
 }
 
 struct pixel_fw_core_dump {
-	char magic[4];
+	char magic[4] __nonstring;
 	u32 reserved;
 	char git_sha[BUILD_INFO_GIT_SHA_LEN];
 	char core_dump[];

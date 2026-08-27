@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -33,25 +33,25 @@
 
 #define EPI_RC_NUMBER		28u
 
-#define EPI_INCREMENTAL_NUMBER	26u
+#define EPI_INCREMENTAL_NUMBER	27u
 
-#define EPI_VERSION		(101, 102, 28, 26)
+#define EPI_VERSION		(101, 102, 28, 27)
 
-#define EPI_VERSION_NUM		0x65661c1au
+#define EPI_VERSION_NUM		0x65661c1bu
 
-#define EPI_UNIQUE_NUM		0x65661c1au
+#define EPI_UNIQUE_NUM		0x65661c1bu
 
 #define EPI_VERSION_DEV		(101.102.28)
 
 /* Driver Version String, ASCII, 32 chars max */
 #if defined(WLTEST)
-#define EPI_VERSION_STR		"101.102.28.26 (g437fecc WLTEST)"
+#define EPI_VERSION_STR		"101.102.28.27 (g4b5f060 WLTEST)"
 #elif (defined(BCMDBG_ASSERT) && \
 	!defined(BCMDBG_ASSERT_DISABLED) && \
 	!defined(ASSERT_FP_DISABLE))
-#define EPI_VERSION_STR		"101.102.28.26 (g437fecc ASSRT)"
+#define EPI_VERSION_STR		"101.102.28.27 (g4b5f060 ASSRT)"
 #else
-#define EPI_VERSION_STR		"101.102.28.26 (g437fecc)"
+#define EPI_VERSION_STR		"101.102.28.27 (g4b5f060)"
 #endif /* BCMINTERNAL */
 
 #endif /* _epivers_h_ */

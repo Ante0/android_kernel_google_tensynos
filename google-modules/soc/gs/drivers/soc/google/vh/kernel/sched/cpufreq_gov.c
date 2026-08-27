@@ -22,7 +22,6 @@
 
 #include <performance/gs_perf_mon/gs_perf_mon.h>
 #include "../../../../../devfreq/google/governor_memlat.h"
-#include "sched_events.h"
 #include "sched_priv.h"
 
 #if IS_ENABLED(CONFIG_PIXEL_EM)

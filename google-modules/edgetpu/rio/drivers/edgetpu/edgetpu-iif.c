@@ -512,7 +512,7 @@ void edgetpu_iif_send_unblock_notification(struct edgetpu_iif *etiif, int fence_
 	cmd.signal_fence_command.fence_id = fence_id;
 	cmd.type = EDGETPU_VII_LITEBUF_SIGNAL_FENCE_COMMAND;
 
-	ret = gcip_mailbox_send_cmd(etiif->mbx_protocol, &cmd, /*resp=*/NULL, 0);
+	ret = gcip_mailbox_send_cmd_no_rsp(etiif->mbx_protocol, &cmd);
 	if (ret)
 		etdev_warn(etiif->etdev, "Failed to send IIF signal command, id=%d, error=%d",
 			   fence_id, ret);

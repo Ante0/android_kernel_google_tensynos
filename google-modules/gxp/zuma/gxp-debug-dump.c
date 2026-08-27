@@ -592,7 +592,7 @@ static int gxp_map_ns_image_config_section(struct gxp_dev *gxp, struct gxp_virtu
 		 * Sync the SG buffer for CPU access before adding it to the segments.
 		 * This ensures the latest data is visible to the CPU for dumping.
 		 */
-		gxp_dma_sync_sg_for_cpu(gxp, sgt->sgl, sgt->nents, DMA_BIDIRECTIONAL);
+		gxp_dma_sync_sg_for_cpu(gxp, sgt->sgl, sgt->orig_nents, DMA_BIDIRECTIONAL);
 		return gxp_add_seg(
 			mgr, core_id, seg_idx, gcip_noncontiguous_sgt_to_mem(sgt),
 			gcip_ns_config_to_size(

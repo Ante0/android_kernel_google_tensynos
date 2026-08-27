@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -314,15 +314,19 @@ static const struct kbase_ipa_counter ipa_neural_engine_cntrs_def_tdrx[] = {
 
 #define ALIAS_POWER_MODEL(gpu, as_gpu) IPA_POWER_MODEL_OPS(gpu, as_gpu)
 
-/* Reference voltage value is 750 mV. */
+/* Reference voltage value, expressed in mV.
+ *
+ * For each model, the reference voltage value is equal to the actual voltage
+ * used in practice to measure power consumption and generate the weights.
+ * There's no theoretical rule that associates voltage numbers with GPUs.
+ */
 STANDARD_POWER_MODEL(todx, 750);
 STANDARD_POWER_MODEL(tgrx, 750);
 STANDARD_POWER_MODEL(tvax, 750);
 STANDARD_POWER_MODEL(ttux, 750);
-/* Reference voltage value is 550 mV. */
 STANDARD_POWER_MODEL(ttix, 550);
 STANDARD_POWER_MODEL(tkrx, 550);
-STANDARD_POWER_MODEL(tdrx, 550);
+STANDARD_POWER_MODEL(tdrx, 650);
 /* Assuming LKRX is an alias of TKRX for IPA */
 ALIAS_POWER_MODEL(lkrx, tkrx);
 

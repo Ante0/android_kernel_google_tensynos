@@ -53,7 +53,7 @@ struct kbase_pm_event_log_event *kbase_pm_add_log_event(
  *                entry types are supported by the parser
  **/
 struct kbase_pm_event_log_metadata {
-	char magic[4];
+	char magic[4] __nonstring;
 	u8 version;
 	u64 events_address;
 	u32 num_events;

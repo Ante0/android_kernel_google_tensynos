@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2023-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2023-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -416,54 +416,12 @@
 	(((reg_val) & ~GPU_FAULTSTATUS_ADDRESS_VALID_MASK) | \
 	 (((value) << GPU_FAULTSTATUS_ADDRESS_VALID_SHIFT) & GPU_FAULTSTATUS_ADDRESS_VALID_MASK))
 
-/* GPU IRQ flags */
-#define GPU_FAULT (1U << 0) /* A GPU Fault has occurred */
-#define GPU_PROTECTED_FAULT (1U << 1) /* A GPU fault has occurred in protected mode */
-
-
-#define RESET_COMPLETED (1U << 8) /* Set when a reset has completed.  */
-#define POWER_CHANGED_SINGLE \
-	(1U << 9) /* Set when a single core has finished powering up or down. */
-#define POWER_CHANGED_ALL (1U << 10) /* Set when all cores have finished powering up or down. */
-#define CLEAN_CACHES_COMPLETED (1U << 17) /* Set when a cache clean operation has completed. */
-#define DOORBELL_MIRROR (1U << 18) /* Mirrors the doorbell interrupt line to the CPU */
-#define MCU_STATUS_GPU_IRQ (1U << 19) /* MCU requires attention */
-#define FLUSH_PA_RANGE_COMPLETED \
-	(1U << 20) /* Set when a physical range cache clean operation has completed. */
-
-#define PWR_IRQ_POWER_CHANGED_SINGLE_SHIFT 0
-#define PWR_IRQ_POWER_CHANGED_ALL_SHIFT 1
-#define PWR_IRQ_DELEGATION_CHANGED_SHIFT 2
-#define PWR_IRQ_RESET_COMPLETED_SHIFT 3
-#define PWR_IRQ_RETRACT_COMPLETED_SHIFT 4
-#define PWR_IRQ_INSPECT_COMPLETED_SHIFT 5
-/* PWR_IRQ flags */
-#define PWR_IRQ_POWER_CHANGED_SINGLE (1 << PWR_IRQ_POWER_CHANGED_SINGLE_SHIFT)
-#define PWR_IRQ_POWER_CHANGED_ALL (1 << PWR_IRQ_POWER_CHANGED_ALL_SHIFT)
-#define PWR_IRQ_DELEGATION_CHANGED (1 << PWR_IRQ_DELEGATION_CHANGED_SHIFT)
-#define PWR_IRQ_RESET_COMPLETED (1 << PWR_IRQ_RESET_COMPLETED_SHIFT)
-#define PWR_IRQ_RETRACT_COMPLETED (1 << PWR_IRQ_RETRACT_COMPLETED_SHIFT)
-#define PWR_IRQ_INSPECT_COMPLETED (1 << PWR_IRQ_INSPECT_COMPLETED_SHIFT)
-#define PWR_IRQ_COMMAND_NOT_ALLOWED (1 << 6)
-#define PWR_IRQ_COMMAND_INVALID (1 << 7)
-
-#define PWR_IRQ_REG_COMMON                                                                     \
-	(PWR_IRQ_POWER_CHANGED_ALL | PWR_IRQ_DELEGATION_CHANGED | PWR_IRQ_RESET_COMPLETED |    \
-	 PWR_IRQ_RETRACT_COMPLETED | PWR_IRQ_INSPECT_COMPLETED | PWR_IRQ_COMMAND_NOT_ALLOWED | \
-	 PWR_IRQ_COMMAND_INVALID)
-
-#define PWR_IRQ_REG_SINGLE (PWR_IRQ_POWER_CHANGED_SINGLE | PWR_IRQ_REG_COMMON)
-
-#define PWR_IRQ_REG_ALL (IS_ENABLED(CONFIG_MALI_DEBUG) ? PWR_IRQ_REG_SINGLE : PWR_IRQ_REG_COMMON)
-
 /* GPU_FEATURES register */
 #define GPU_FEATURES_RAY_TRACING_SHIFT GPU_U(2)
 #define GPU_FEATURES_RAY_TRACING_MASK (GPU_U(0x1) << GPU_FEATURES_RAY_TRACING_SHIFT)
 #define GPU_FEATURES_RAY_TRACING_GET(reg_val) \
 	(((reg_val)&GPU_FEATURES_RAY_TRACING_MASK) >> GPU_FEATURES_RAY_TRACING_SHIFT)
 /* End of GPU_FEATURES register */
-
-#define GPU_IRQ_REG_COMMON (GPU_FAULT | GPU_PROTECTED_FAULT | MCU_STATUS_GPU_IRQ)
 
 /* GPU_FEATURES register cont*/
 #define GPU_FEATURES_NEURAL_ENGINE_SHIFT GPU_U(4)
@@ -591,6 +549,48 @@
 #define PWR_STATUS_INSPECT_PENDING_MASK (GPU_ULL(0x1) << PWR_STATUS_INSPECT_PENDING_SHIFT)
 #define PWR_STATUS_INSPECT_PENDING_GET(reg_val) \
 	(((reg_val)&PWR_STATUS_INSPECT_PENDING_MASK) >> PWR_STATUS_INSPECT_PENDING_SHIFT)
+
+/* GPU IRQ flags */
+#define GPU_FAULT (1U << 0) /* A GPU Fault has occurred */
+#define GPU_PROTECTED_FAULT (1U << 1) /* A GPU fault has occurred in protected mode */
+
+
+#define RESET_COMPLETED (1U << 8) /* Set when a reset has completed.  */
+#define POWER_CHANGED_SINGLE \
+	(1U << 9) /* Set when a single core has finished powering up or down. */
+#define POWER_CHANGED_ALL (1U << 10) /* Set when all cores have finished powering up or down. */
+#define CLEAN_CACHES_COMPLETED (1U << 17) /* Set when a cache clean operation has completed. */
+#define DOORBELL_MIRROR (1U << 18) /* Mirrors the doorbell interrupt line to the CPU */
+#define MCU_STATUS_GPU_IRQ (1U << 19) /* MCU requires attention */
+#define FLUSH_PA_RANGE_COMPLETED \
+	(1U << 20) /* Set when a physical range cache clean operation has completed. */
+
+#define PWR_IRQ_POWER_CHANGED_SINGLE_SHIFT 0
+#define PWR_IRQ_POWER_CHANGED_ALL_SHIFT 1
+#define PWR_IRQ_DELEGATION_CHANGED_SHIFT 2
+#define PWR_IRQ_RESET_COMPLETED_SHIFT 3
+#define PWR_IRQ_RETRACT_COMPLETED_SHIFT 4
+#define PWR_IRQ_INSPECT_COMPLETED_SHIFT 5
+/* PWR_IRQ flags */
+#define PWR_IRQ_POWER_CHANGED_SINGLE (1 << PWR_IRQ_POWER_CHANGED_SINGLE_SHIFT)
+#define PWR_IRQ_POWER_CHANGED_ALL (1 << PWR_IRQ_POWER_CHANGED_ALL_SHIFT)
+#define PWR_IRQ_DELEGATION_CHANGED (1 << PWR_IRQ_DELEGATION_CHANGED_SHIFT)
+#define PWR_IRQ_RESET_COMPLETED (1 << PWR_IRQ_RESET_COMPLETED_SHIFT)
+#define PWR_IRQ_RETRACT_COMPLETED (1 << PWR_IRQ_RETRACT_COMPLETED_SHIFT)
+#define PWR_IRQ_INSPECT_COMPLETED (1 << PWR_IRQ_INSPECT_COMPLETED_SHIFT)
+#define PWR_IRQ_COMMAND_NOT_ALLOWED (1 << PWR_IRQ_COMMAND_NOT_ALLOWED_SHIFT)
+#define PWR_IRQ_COMMAND_INVALID (1 << PWR_IRQ_COMMAND_INVALID_SHIFT)
+
+#define PWR_IRQ_REG_COMMON                                                                     \
+	(PWR_IRQ_POWER_CHANGED_ALL | PWR_IRQ_DELEGATION_CHANGED | PWR_IRQ_RESET_COMPLETED |    \
+	 PWR_IRQ_RETRACT_COMPLETED | PWR_IRQ_INSPECT_COMPLETED | PWR_IRQ_COMMAND_NOT_ALLOWED | \
+	 PWR_IRQ_COMMAND_INVALID)
+
+#define PWR_IRQ_REG_SINGLE (PWR_IRQ_POWER_CHANGED_SINGLE | PWR_IRQ_REG_COMMON)
+
+#define PWR_IRQ_REG_ALL (IS_ENABLED(CONFIG_MALI_DEBUG) ? PWR_IRQ_REG_SINGLE : PWR_IRQ_REG_COMMON)
+
+#define GPU_IRQ_REG_COMMON (GPU_FAULT | GPU_PROTECTED_FAULT | MCU_STATUS_GPU_IRQ)
 
 /* PWR_COMMAND register */
 #define PWR_COMMAND_COMMAND_SHIFT GPU_U(0)

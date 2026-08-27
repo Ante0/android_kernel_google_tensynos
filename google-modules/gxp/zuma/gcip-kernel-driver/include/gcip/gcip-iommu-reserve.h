@@ -21,6 +21,7 @@
 #include <linux/types.h>
 
 #include <gcip/gcip-iommu.h>
+#include <gcip/gcip-mapping.h>
 
 struct gcip_iommu_reserve_manager;
 
@@ -34,11 +35,11 @@ struct gcip_iommu_reserve_manager_ops {
 	 * It is fine to unmap the mapping later if other threads can access to the mapping by the
 	 * race condition while this callback is executing. Just make sure that after this callback
 	 * is called, the mapping must be eventually unmapped if there are no more threads accessing
-	 * it by calling the `gcip_iommu_mapping_unmap` function.
+	 * it by calling the `gcip_mapping_unmap` function.
 	 *
 	 * This callback is required.
 	 */
-	void (*unmap)(struct gcip_iommu_reserve_manager *mgr, struct gcip_iommu_mapping *mapping,
+	void (*unmap)(struct gcip_iommu_reserve_manager *mgr, struct gcip_mapping *mapping,
 		      void *data);
 };
 
@@ -174,18 +175,18 @@ int gcip_iommu_reserve_region_retire(struct gcip_iommu_reserve_manager *mgr, dma
  * (0x1800 & ~PAGE_MASK = 0x800, 0x2000 + 0x800 = 0x2800). Therefore, @device_address and @size of
  * the returned mapping object will be 0x2800 and 0x2000 which are different from the inputs.
  *
- * To unmap the mapped buffer, use the `gcip_iommu_mapping_unmap` function.
+ * To unmap the mapped buffer, use the `gcip_mapping_unmap` function.
  *
  * @data is the IP driver data which is nullable and will be passed to the operators of the
  * `struct gcip_iommu_reserve_manager_ops`.
  *
  * Returns the mapping instance. Otherwise, returns a negative errno pointer.
  */
-struct gcip_iommu_mapping *gcip_iommu_reserve_map_buffer(struct gcip_iommu_reserve_manager *mgr,
-							 u64 host_address, size_t size,
-							 u64 gcip_map_flags,
-							 struct mutex *pin_user_pages_lock,
-							 dma_addr_t iova, void *data);
+struct gcip_mapping *gcip_iommu_reserve_map_buffer(struct gcip_iommu_reserve_manager *mgr,
+						   u64 host_address, size_t size,
+						   u64 gcip_map_flags,
+						   struct mutex *pin_user_pages_lock,
+						   dma_addr_t iova, void *data);
 
 /*
  * This function basically works the same with the `gcip_iommu_domain_map_dma_buf` function, but
@@ -200,16 +201,15 @@ struct gcip_iommu_mapping *gcip_iommu_reserve_map_buffer(struct gcip_iommu_reser
  * details.) However, it will unlikely happen since @dmabuf is expected to be page-aligned and the
  * mapping itself would fail depending on the implementation of the Linux kernel and dma-buf module.
  *
- * To unmap the mapped dma-buf, use the `gcip_iommu_mapping_unmap` function.
+ * To unmap the mapped dma-buf, use the `gcip_mapping_unmap` function.
  *
  * @data is the IP driver data which is nullable and will be passed to the operators of the
  * `struct gcip_iommu_reserve_manager_ops`.
  *
  * Returns the mapping instance. Otherwise, returns a negative errno pointer.
  */
-struct gcip_iommu_mapping *gcip_iommu_reserve_map_dma_buf(struct gcip_iommu_reserve_manager *mgr,
-							  struct dma_buf *dmabuf,
-							  u64 gcip_map_flags, dma_addr_t iova,
-							  void *data);
+struct gcip_mapping *gcip_iommu_reserve_map_dma_buf(struct gcip_iommu_reserve_manager *mgr,
+						    struct dma_buf *dmabuf, u64 gcip_map_flags,
+						    dma_addr_t iova, void *data);
 
 #endif /* __GCIP_IOMMU_RESERVE_H__ */

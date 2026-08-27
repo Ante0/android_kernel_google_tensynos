@@ -463,7 +463,7 @@ struct pixel_context {
 	} itmon;
 #endif
 #ifndef PIXEL_GPU_SLC_ACPM_SIGNAL
-	atomic_t slc_demand;
+	atomic64_t slc_demand;
 #endif /* PIXEL_GPU_SLC_ACPM_SIGNAL */
 
 	struct gpu_uevent_ctx gpu_uevent_ctx;
@@ -482,7 +482,7 @@ struct pixel_platform_data {
 	struct gpu_dvfs_metrics_uid_stats* stats;
 	int slc_vote;
 #ifndef PIXEL_GPU_SLC_ACPM_SIGNAL
-	atomic_t slc_demand;
+	atomic64_t slc_demand;
 #endif /* PIXEL_GPU_SLC_ACPM_SIGNAL */
 };
 

@@ -69,7 +69,7 @@ struct edgetpu_ikv_response {
 	 * Must be released with `gcip_mailbox_awaiter_put()` after this response has been
 	 * processed. Doing so will also free this response.
 	 */
-	struct gcip_mailbox_resp_awaiter *awaiter;
+	struct gcip_mailbox_awaiter gcip_awaiter;
 	/*
 	 * Saves the client-provided sequence number so it can be used when returning the response
 	 * to the client.

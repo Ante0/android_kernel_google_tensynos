@@ -236,7 +236,7 @@ struct gxp_uci_async_response {
 	/* The request was sent from this virtual device. */
 	struct gxp_virtual_device *vd;
 	/* Handles arrival, timeout of async response. */
-	struct gcip_mailbox_resp_awaiter *awaiter;
+	struct gcip_mailbox_awaiter gcip_awaiter;
 	/* Status of the response. */
 	enum gxp_response_status status;
 	/* Additional info buffer. */

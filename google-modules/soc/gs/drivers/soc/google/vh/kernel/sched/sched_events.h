@@ -681,6 +681,30 @@ TRACE_EVENT(sched_select_task_rq_rt,
 		__entry->new_cpu, __entry->sync_wakeup)
 );
 
+TRACE_EVENT(sched_group_tracker,
+
+	TP_PROTO(struct task_struct *tsk, const char *group, int group_num),
+
+	TP_ARGS(tsk, group, group_num),
+
+	TP_STRUCT__entry(
+		__array(char,		comm, TASK_COMM_LEN)
+		__field(pid_t,		pid)
+		__array(char,		group, TASK_COMM_LEN)
+		__field(int,		group_num)
+		),
+
+	TP_fast_assign(
+		memcpy(__entry->comm, tsk->comm, TASK_COMM_LEN);
+		__entry->pid             = tsk->pid;
+		memcpy(__entry->group, group, TASK_COMM_LEN);
+		__entry->group_num       = group_num;
+		),
+
+	TP_printk("pid=%d comm=%s group=%s group_num=%d",
+		  __entry->pid, __entry->comm, __entry->group, __entry->group_num)
+);
+
 #endif /* _SCHED_EVENTS_H */
 
 /* This part must be outside protection */

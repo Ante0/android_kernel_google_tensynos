@@ -27,7 +27,7 @@ static void destroy_dmabuf_mapping(struct gxp_mapping *mapping)
 
 	trace_gxp_dmabuf_mapping_destroy_start(device_address, size);
 
-	gcip_iommu_mapping_unmap(mapping->gcip_mapping);
+	gcip_mapping_unmap(mapping->gcip_mapping);
 	kfree(mapping);
 
 	trace_gxp_dmabuf_mapping_destroy_end(device_address, size);
@@ -38,7 +38,7 @@ struct gxp_mapping *gxp_dmabuf_map(struct gxp_dev *gxp, struct gcip_iommu_reserv
 				   dma_addr_t iova_hint)
 {
 	struct gxp_mapping *mapping;
-	struct gcip_iommu_mapping *gcip_mapping;
+	struct gcip_mapping *gcip_mapping;
 	struct dma_buf *dmabuf;
 	u64 gcip_map_flags;
 	int ret;
@@ -59,7 +59,7 @@ struct gxp_mapping *gxp_dmabuf_map(struct gxp_dev *gxp, struct gcip_iommu_reserv
 	}
 
 	if (!iova_hint)
-		gcip_mapping = gcip_iommu_domain_map_dma_buf(domain, dmabuf, gcip_map_flags);
+		gcip_mapping = gcip_mapping_dmabuf_map(domain, dmabuf, gcip_map_flags);
 	else
 		gcip_mapping = gcip_iommu_reserve_map_dma_buf(mgr, dmabuf, gcip_map_flags,
 							      iova_hint, mapping);

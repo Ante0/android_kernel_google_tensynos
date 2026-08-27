@@ -4,7 +4,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -2510,7 +2510,7 @@ inline static void MUTEX_UNLOCK_SOFTAP_SET(dhd_pub_t * dhdp)
 #endif /* defined(OEM_ANDROID) */
 
 #ifdef BCMPCIE_OOB_HOST_WAKE
-#define OOB_WAKE_LOCK_TIMEOUT 100
+#define OOB_WAKE_LOCK_TIMEOUT 500
 extern void dhd_os_oob_irq_wake_lock_timeout(dhd_pub_t *pub, int val);
 extern void dhd_os_oob_irq_wake_unlock(dhd_pub_t *pub);
 

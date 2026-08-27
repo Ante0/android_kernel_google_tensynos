@@ -536,12 +536,14 @@ static void kbasep_csf_csg_active_dump_group(struct kbasep_printer *kbpr,
 			kbasep_print(kbpr, "*** The following group-record is likely stale\n");
 		}
 		if (kbdev->gpu_props.gpu_id.product_model >= GPU_ID_MODEL_MAKE(14, 0)) {
+			kbasep_print(kbpr, "GroupID, CSG NR, CSG Prio, Run State, Priority,"
+					   " C_EP(Alloc/Req), F_EP(Alloc/Req), T_EP(Alloc/Req),"
+					   " N_EP(Alloc/Req), C_EP PRI Threshold, C_EP PRI Ratio,"
+					   " F_EP Task Limit, Exclusive, Idle\n");
 			kbasep_print(
 				kbpr,
-				"GroupID, CSG NR, CSG Prio, Run State, Priority, C_EP(Alloc/Req), F_EP(Alloc/Req), T_EP(Alloc/Req), N_EP(Alloc/Req), C_EP PRI Threshold, C_EP PRI Ratio, F_EP Task Limit, Exclusive, Idle\n");
-			kbasep_print(
-				kbpr,
-				"%7d, %6d, %8d, %9d, %8d, %11d/%3d, %11d/%3d, %11d/%3d, %11d/%3d %18d, %14d, %15d, %9c, %4c\n",
+				"%7d, %6d, %8d, %9d, %8d, %11d/%3d, %11d/%3d, %11d/%3d, %11d/%3d,"
+				" %18d, %14d, %15d, %9c, %4c\n",
 				group->handle, group->csg_nr, slot_priority, group->run_state,
 				group->priority, CSG_STATUS_EP_CURRENT_COMPUTE_EP_GET(ep_c),
 				CSG_STATUS_EP_REQ_COMPUTE_EP_GET(ep_r),

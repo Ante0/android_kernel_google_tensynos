@@ -104,7 +104,6 @@ void edgetpu_firmware_mappings_show(struct edgetpu_dev *etdev,
  * firmware state and perform the firmware operations, followed by a firmware unlock and pm_put()
  * should be more common.
  */
-int edgetpu_firmware_lock(struct edgetpu_dev *etdev);
 int edgetpu_firmware_trylock(struct edgetpu_dev *etdev);
 void edgetpu_firmware_unlock(struct edgetpu_dev *etdev);
 

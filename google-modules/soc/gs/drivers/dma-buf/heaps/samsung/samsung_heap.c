@@ -142,6 +142,7 @@ static struct samsung_dma_heap *__samsung_heap_add(struct device *dev, void *pri
 	struct samsung_dma_heap *heap;
 	unsigned int alignment = PAGE_SIZE, order, protid = 0;
 	struct dma_heap_export_info exp_info;
+	struct device *dma_heap_dev;
 	const char *name;
 	char *heap_name;
 
@@ -199,7 +200,16 @@ static struct samsung_dma_heap *__samsung_heap_add(struct device *dev, void *pri
 
 	pr_info("Registered %s dma-heap successfully\n", heap_name);
 
-	dma_coerce_mask_and_coherent(dma_heap_get_dev(heap->dma_heap), DMA_BIT_MASK(36));
+	dma_heap_dev = dma_heap_get_dev(heap->dma_heap);
+
+	dma_coerce_mask_and_coherent(dma_heap_dev, DMA_BIT_MASK(36));
+
+	/*
+	 * Manually assign dma_parms because dma_heap_add() creates a
+	 * raw device where this pointer is NULL.
+	 */
+	dma_heap_dev->dma_parms = &heap->dma_parms;
+	dma_set_max_seg_size(dma_heap_dev, UINT_MAX);
 
 	return heap;
 }

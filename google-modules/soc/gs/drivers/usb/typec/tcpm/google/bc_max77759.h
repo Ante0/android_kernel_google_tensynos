@@ -53,6 +53,7 @@ void bc12_teardown(struct bc12_status *bc12);
 void bc12_enable(struct bc12_status *bc12, bool enable);
 bool bc12_get_status(struct bc12_status *bc12);
 enum power_supply_usb_type get_usb_type(struct bc12_status *bc12);
+int bc12_manual_detect_enable(struct bc12_status *bc12);
 
 struct bc12_status {
 	struct workqueue_struct *wq;

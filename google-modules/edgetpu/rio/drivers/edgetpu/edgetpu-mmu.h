@@ -10,12 +10,16 @@
 #include <linux/dma-direction.h>
 #include <linux/dma-mapping.h>
 #include <linux/iommu.h>
+#include <linux/minmax.h>
 #include <linux/scatterlist.h>
 
 #include <gcip/gcip-iommu.h>
 
 #include "edgetpu-internal.h"
 #include "edgetpu.h"
+
+/* Pre-allocate 1 IOMMU domain per VCID, but no more than the number of PASIDs. */
+#define EDGETPU_NUM_PREALLOCATED_DOMAINS min(EDGETPU_NUM_PASIDS - 1, EDGETPU_NUM_VCIDS)
 
 /* flags for MMU operations */
 

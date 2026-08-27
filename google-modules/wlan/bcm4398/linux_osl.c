@@ -1,7 +1,7 @@
 /*
  * Linux OS Independent Layer
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -2009,7 +2009,9 @@ osl_timer_init(osl_t *osh, const char *name, void (*fn)(void *arg), void *arg)
 	 * from void (*)(void *) to void (*)(ulong)
 	 * void pointer is compatible with ulong.
 	 */
-	init_timer_compat(t->timer, (void *)fn, arg);
+	GCC_DIAGNOSTIC_PUSH_SUPPRESS_FN_TYPE();
+
+	init_timer_compat(t->timer, (linux_timer_fn)fn, arg);
 
 	return (t);
 }

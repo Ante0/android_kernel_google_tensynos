@@ -38,7 +38,7 @@
 #define P9221_ALIGN_VOTER			"WLC_ALIGN_VOTER"
 #define WLC_MFG_GOOGLE				0x72
 #define WLC_MFG_108_FOR_GOOGLE			0x108
-#define P9221_DC_ICL_BPP_UA			900000
+#define P9221_DC_ICL_BPP_UA			700000
 #define P9221_DC_ICL_BPP_RAMP_DEFAULT_UA	900000
 #define P9221_DC_ICL_BPP_RAMP_DELAY_DEFAULT_MS	(7 * 60 * 1000)  /* 7 mins */
 #define P9221_DC_ICL_EPP_UA			1100000
@@ -107,6 +107,11 @@
 #define I2C_LOG_NUM			128
 #define ICL_STABLE_TIME_MS		(30 * 1000)
 
+#define BPP_5W_POWER			5000
+#define EPP_10W_POWER			10000
+#define GPP_10W_POWER			10000
+#define GPP_15W_POWER			15000 // gpp_enhanced
+#define HPP_23W_POWER			23000
 
 /*
  * P9221 common registers
@@ -710,6 +715,32 @@ struct p9221_fod_data {
 	u8 fod[P9221R5_NUM_FOD];
 };
 
+struct wlc_adapter_capabilities_1_fields {
+	u16 ptmc;
+	u16 reserved;
+};
+
+struct wlc_adapter_capabilities_2_fields {
+	u16 nego_power;
+	u16 reserved;
+};
+
+struct wlc_adapter_capabilities_4_fields {
+	uint8_t flag_prop_mode : 1;
+	uint8_t flag_negotiation : 1;
+	uint8_t flag_wlc_dc : 1;
+	uint8_t flag_prop_error : 1;
+	uint8_t flag_reserved : 4;
+	u8 potential_power;
+	int8_t compatibility;
+	u8 reserved;
+};
+
+struct wlc_receiver_state_1_fields {
+	u16 disconnect_total_count;
+	u16 irq_error_count;
+};
+
 struct p9221_charger_platform_data {
 	int				irq_gpio;
 	int				irq_int;
@@ -1018,8 +1049,8 @@ struct p9221_charger_data {
 	struct mutex			renego_lock;
 	bool				send_eop;
 	wait_queue_head_t		ccreset_wq;
-	atomic_t				charger_present_flag;
-	atomic_t				dwell_defend_disabling_flag;
+	atomic_t			charger_present_flag;
+	atomic_t			dwell_defend_disabling_flag;
 	bool				cc_reset_pending;
 	bool				set_auth_icl;
 	int				send_txid_cnt;
@@ -1045,6 +1076,7 @@ struct p9221_charger_data {
 	int				fan_last_level;
 	int				compatibility;
 	int				disconnect_total_count;
+	int				irq_error_count;
 
 #if IS_ENABLED(CONFIG_GPIOLIB)
 	struct gpio_chip gpio;
@@ -1062,6 +1094,8 @@ struct p9221_charger_data {
 	u32				de_hpp_neg_pwr;
 	u32				de_epp_neg_pwr;
 	u32				de_wait_prop_irq_ms;
+	u8				prop_err;
+	u8				txpwr;
 
 	u16				reg_tx_id_addr;
 	u16				reg_tx_mfg_code_addr;
@@ -1080,6 +1114,7 @@ struct p9221_charger_data {
 	u16				reg_epp_tx_guarpwr_addr;
 	u16				reg_freq_limit_addr;
 	u16				reg_ask_mod_fet_addr;
+	u16				reg_nego_power_addr;
 
 	int (*reg_read_n)(struct p9221_charger_data *chgr, u16 reg,
 			  void *buf, size_t n);
@@ -1203,6 +1238,10 @@ enum p9xxx_renego_state {
 
 #define UEVENT_ENVP_LEN 20
 
+static char *uevent_source_str[] = {
+	"WLC", "FAN", "RTX"
+};
+
 enum uevent_source {
 	UEVENT_WLC = 0,
 	UEVENT_FAN,
@@ -1267,6 +1306,8 @@ enum compatibility_type {
       -ENOTSUPP : chgr->reg_write_16(chgr, chgr->reg_freq_limit_addr, data))
 #define p9xxx_chip_set_ask_mod_fet(chgr, data) ((chgr->reg_ask_mod_fet_addr == 0 || data == 0) ? \
       -ENOTSUPP : chgr->reg_write_8(chgr, chgr->reg_ask_mod_fet_addr, data))
+#define p9xxx_chip_get_nego_power(chgr, data) (chgr->reg_nego_power_addr < 0 ? \
+      -ENOTSUPP : chgr->reg_read_8(chgr, chgr->reg_nego_power_addr, data))
 #define logbuffer_prlog(p, fmt, ...)     \
       gbms_logbuffer_prlog(p, LOGLEVEL_INFO, 0, LOGLEVEL_DEBUG, fmt, ##__VA_ARGS__)
 #endif /* __P9221_CHARGER_H__ */

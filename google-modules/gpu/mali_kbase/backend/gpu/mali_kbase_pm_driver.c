@@ -2543,14 +2543,26 @@ static void shader_poweroff_timer_queue_cancel(struct kbase_device *kbdev)
 	}
 }
 
+static bool kbase_pm_mcu_is_in_desired_state(struct kbase_device *kbdev)
+{
+	bool in_desired_state;
+	unsigned long flags;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	in_desired_state = kbase_pm_mcu_is_in_desired_state_locked(kbdev);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	return in_desired_state;
+}
+
 static bool kbase_pm_is_in_desired_state_nolock(struct kbase_device *kbdev)
 {
 	bool in_desired_state = true;
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
-	in_desired_state = kbase_pm_l2_is_in_desired_state(kbdev);
-	in_desired_state &= kbase_pm_mcu_is_in_desired_state(kbdev);
+	in_desired_state = kbase_pm_l2_is_in_desired_state_locked(kbdev);
+	in_desired_state &= kbase_pm_mcu_is_in_desired_state_locked(kbdev);
 
 	return in_desired_state;
 }
@@ -2611,7 +2623,9 @@ void kbase_pm_update_state(struct kbase_device *kbdev)
 		}
 	}
 
-	if (kbase_pm_is_in_desired_state_nolock(kbdev)) {
+	if (kbase_pm_is_in_desired_state_nolock(kbdev) ||
+	    (kbase_pm_mcu_is_in_desired_state_locked(kbdev) &&
+	     atomic_read(&kbdev->faults_pending))) {
 		KBASE_KTRACE_ADD(kbdev, PM_DESIRED_REACHED, NULL, kbdev->pm.backend.shaders_avail);
 
 		KBASE_KTRACE_ADD(kbdev, PM_WAKE_WAITERS, NULL, 0);
@@ -2911,6 +2925,49 @@ int kbase_pm_wait_for_l2_powered(struct kbase_device *kbdev)
 	return err;
 }
 
+static int pm_wait_for_desired_mcu_state(struct kbase_device *kbdev, bool killable_wait)
+{
+	unsigned long flags;
+	long remaining;
+	long timeout = kbase_csf_timeout_in_jiffies(kbase_get_timeout_ms(kbdev, CSF_PM_TIMEOUT));
+	int err = 0;
+
+	/* Let the state machine latch the most recent desired state. */
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	kbase_pm_update_state(kbdev);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	/* Wait for cores */
+#if KERNEL_VERSION(4, 13, 1) <= LINUX_VERSION_CODE
+	if (killable_wait)
+		remaining = kbase_csf_wait_event_killable_timeout(
+			kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
+			kbase_pm_mcu_is_in_desired_state(kbdev) || kbase_io_is_aw_removed(kbdev),
+			timeout);
+#else
+	killable_wait = false;
+#endif
+	if (!killable_wait)
+		remaining = kbase_csf_wait_event_timeout(
+			kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
+			kbase_pm_mcu_is_in_desired_state(kbdev) || kbase_io_is_aw_removed(kbdev),
+			timeout);
+
+	if (!remaining) {
+		kbase_pm_timed_out(kbdev, "Wait for power transition timed out");
+		err = -ETIMEDOUT;
+	} else if (remaining < 0) {
+		WARN_ON_ONCE(!killable_wait);
+		dev_info(kbdev->dev, "Wait for power transition got interrupted");
+		err = (int)remaining;
+	} else if (kbase_io_is_aw_removed(kbdev) && !kbase_pm_is_in_desired_state(kbdev)) {
+		dev_warn(kbdev->dev, "%s(): aborting, AW is no longer connected", __func__);
+		err = -ETIMEDOUT;
+	}
+
+	return err;
+}
+
 static int pm_wait_for_desired_state(struct kbase_device *kbdev, bool killable_wait)
 {
 	unsigned long flags;
@@ -2938,6 +2995,7 @@ static int pm_wait_for_desired_state(struct kbase_device *kbdev, bool killable_w
 			kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
 			kbase_pm_is_in_desired_state(kbdev) || kbase_io_is_aw_removed(kbdev),
 			timeout);
+
 	if (!remaining) {
 		pixel_gpu_uevent_kmd_error_send(kbdev, GPU_UEVENT_INFO_PM_TIMEOUT);
 		kbase_pm_timed_out(kbdev, "Wait for power transition timed out");
@@ -2964,6 +3022,11 @@ int kbase_pm_wait_for_desired_state(struct kbase_device *kbdev)
 	return pm_wait_for_desired_state(kbdev, false);
 }
 KBASE_EXPORT_TEST_API(kbase_pm_wait_for_desired_state);
+
+int kbase_pm_wait_for_desired_mcu_state(struct kbase_device *kbdev)
+{
+	return pm_wait_for_desired_mcu_state(kbdev, false);
+}
 
 /**
  * core_mask_update_done - Check if downscaling of shader cores is done

@@ -116,7 +116,6 @@ static bool set_pool_new_page_metadata(struct kbase_mem_pool *pool, struct page 
 		} else if (!WARN_ON_ONCE(IS_PAGE_ISOLATED(page_md->status))) {
 			page_md->status = PAGE_STATUS_SET(page_md->status, (u8)MEM_POOL);
 			page_md->data.mem_pool.pool = pool;
-			page_md->data.mem_pool.kbdev = pool->kbdev;
 			list_add(&p->lru, page_list);
 			(*list_size)++;
 		}
@@ -1044,6 +1043,32 @@ void kbase_mem_pool_free(struct kbase_mem_pool *pool, struct page *p, bool dirty
 	}
 }
 KBASE_EXPORT_TEST_API(kbase_mem_pool_free);
+
+void kbase_mem_pool_free_lite_defer(struct kbase_mem_pool *pool, struct page *p, bool dirty)
+{
+	bool deferred;
+
+	kbase_mem_pool_lock(pool);
+	/* Requesting defer_lite treatment, i.e. no expedited deferral free action */
+	deferred = kbase_mem_pool_add_deferred_if_required_locked_no_free(pool, p);
+	kbase_mem_pool_unlock(pool);
+
+	if (deferred)
+		return;
+
+	if (!kbase_mem_pool_is_full(pool)) {
+		/* Add to our own pool */
+		if (dirty)
+			kbase_mem_pool_sync_page(pool, p);
+
+		kbase_mem_pool_add(pool, p);
+	} else {
+		/* Free page */
+		kbase_mem_pool_free_page(pool, p);
+		/* Freeing of pages will be deferred when page migration is enabled. */
+		enqueue_free_pool_pages_work(pool);
+	}
+}
 
 void kbase_mem_pool_free_locked(struct kbase_mem_pool *pool, struct page *p, bool dirty)
 {

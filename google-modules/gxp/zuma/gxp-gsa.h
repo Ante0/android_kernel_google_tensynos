@@ -25,6 +25,12 @@ static inline int gsa_load_dsp_fw_image(struct device *gsa, dma_addr_t img_meta,
 	return 0;
 }
 
+static inline int gsa_load_dsp_fw_image_pq(struct device *gsa, dma_addr_t img_meta,
+					   phys_addr_t img_body, size_t body_len)
+{
+	return 0;
+}
+
 static inline int gsa_unload_dsp_fw_image(struct device *gsa)
 {
 	return 0;

@@ -190,11 +190,12 @@ static int map_sys_cfg_resource(struct gxp_virtual_device *vd, struct gcip_memor
 	struct gxp_dev *gxp = vd->gxp;
 	int ret;
 	const size_t ro_size = res->size / 2;
+	size_t granularity = GXP_MMU_GRANULARITY_IS_PAGE ? PAGE_SIZE : SZ_4K;
 	u64 gcip_map_flags;
 
 	if (res->dma_addr == 0)
 		return 0;
-	if (!res->size || !IS_ALIGNED(res->size, gcip_iommu_domain_granule(vd->domain) * 2)) {
+	if (!res->size || !IS_ALIGNED(res->size, granularity * 2)) {
 		dev_err(gxp->dev, "invalid system cfg size: %#lx", res->size);
 		return -EINVAL;
 	}
@@ -687,9 +688,8 @@ static int gxp_detach_mmu_domain(struct gxp_dev *gxp, struct gxp_virtual_device 
 }
 #endif /* GXP_MMU_REQUIRE_ATTACH */
 
-
 static void gxp_vd_iommu_reserve_manager_unmap(struct gcip_iommu_reserve_manager *mgr,
-					       struct gcip_iommu_mapping *mapping, void *data)
+					       struct gcip_mapping *mapping, void *data)
 {
 	gxp_vd_mapping_remove(mgr->data, data);
 }
@@ -1621,53 +1621,6 @@ static void gxp_vd_invalidate_locked(struct gxp_dev *gxp, struct gxp_virtual_dev
 	} else {
 		dev_dbg(gxp->dev, "This VD is already invalidated");
 	}
-}
-
-void gxp_vd_invalidate_with_client_id(struct gxp_dev *gxp, int client_id, bool release_vmbox)
-{
-	struct gxp_client *client = NULL, *c;
-
-	/*
-	 * Prevent @gxp->client_list is being changed while handling the crash.
-	 * The user cannot open or close an FD until this function releases the lock.
-	 */
-	mutex_lock(&gxp->client_list_lock);
-
-	/*
-	 * Find corresponding vd with client_id.
-	 * If it holds a block wakelock, we should discard all pending/unconsumed UCI responses
-	 * and change the state of the vd to GXP_VD_UNAVAILABLE.
-	 */
-	list_for_each_entry(c, &gxp->client_list, list_entry) {
-		down_write(&c->semaphore);
-		down_write(&gxp->vd_semaphore);
-		if (c->vd && c->vd->client_id == client_id) {
-			client = c;
-			break;
-		}
-		up_write(&gxp->vd_semaphore);
-		up_write(&c->semaphore);
-	}
-
-	mutex_unlock(&gxp->client_list_lock);
-
-	if (!client) {
-		dev_err(gxp->dev, "Failed to find a VD, client_id=%d", client_id);
-		return;
-	}
-
-	gxp_vd_invalidate_locked(gxp, client->vd, GXP_INVALIDATED_CLIENT_CRASH);
-
-	/*
-	 * Release @client->semaphore first because we need this lock to block ioctls while
-	 * changing the state of @client->vd to UNAVAILABLE which is already done above.
-	 */
-	up_write(&client->semaphore);
-
-	if (release_vmbox)
-		gxp_vd_release_vmbox(gxp, client->vd);
-
-	up_write(&gxp->vd_semaphore);
 }
 
 void gxp_vd_invalidate(struct gxp_dev *gxp, struct gxp_virtual_device *vd, u32 reason)

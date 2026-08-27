@@ -47,7 +47,7 @@ struct gcip_fence_array *gcip_fence_array_create(int *fences, int num_fences, bo
 		if (i && fence_array->same_type && fence->type != fence_array->fences[0]->type) {
 			/* Check whether all fences are the same type. */
 			if (check_same_type) {
-				ret = -EINVAL;
+				ret = -EPERM;
 				gcip_fence_put(fence);
 				goto err_put_fences;
 			}
@@ -239,7 +239,7 @@ uint16_t *gcip_fence_array_get_iif_id(struct gcip_fence_array *fence_array, int 
 			iif = fence_array->fences[i]->fence.iif;
 			if (out_fences && iif->signaler_ip != signaler_ip) {
 				*num_iif = 0;
-				return ERR_PTR(-EINVAL);
+				return ERR_PTR(-EPERM);
 			}
 			(*num_iif)++;
 		}

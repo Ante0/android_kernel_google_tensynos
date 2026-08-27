@@ -173,7 +173,7 @@ struct gcip_fence *gcip_fence_fdget(int fd)
 	if (!IS_ERR(fence))
 		return fence;
 
-	return ERR_PTR(-EINVAL);
+	return ERR_PTR(-EBADF);
 }
 
 struct gcip_fence *gcip_fence_get(struct gcip_fence *fence)
@@ -301,7 +301,7 @@ int gcip_fence_get_iif_id(struct gcip_fence *fence)
 {
 	if (fence->type == GCIP_INTER_IP_FENCE)
 		return fence->fence.iif->id;
-	return -EINVAL;
+	return -EOPNOTSUPP;
 }
 
 int gcip_fence_wait_signaler_submission(struct gcip_fence **fences, int num_fences,
@@ -316,7 +316,7 @@ int gcip_fence_wait_signaler_submission(struct gcip_fence **fences, int num_fenc
 
 	for (i = 0; i < num_fences; i++) {
 		if (fences[i]->type != GCIP_INTER_IP_FENCE) {
-			ret = -EINVAL;
+			ret = -EOPNOTSUPP;
 			goto out;
 		}
 		iif_fences[i] = fences[i]->fence.iif;

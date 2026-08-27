@@ -69,8 +69,6 @@ struct edgetpu_device_group {
 	 * when ref_count becomes zero.
 	 */
 	refcount_t ref_count;
-	/* Group ID number for info/debugging purposes. */
-	uint group_id;
 	struct edgetpu_dev *etdev;	/* the device opened by the client */
 	/*
 	 * Whether mailbox attaching and detaching have effects on this group.
@@ -243,7 +241,7 @@ static inline uint edgetpu_group_get_fatal_errors_locked(struct edgetpu_device_g
 static inline int edgetpu_group_errno(struct edgetpu_device_group *group)
 {
 	if (edgetpu_device_group_is_errored(group)) {
-		etdev_err(group->etdev, "group %u error status 0x%x\n", group->group_id,
+		etdev_err(group->etdev, "client %s error status 0x%x\n", group->client->name,
 			  edgetpu_group_get_fatal_errors_locked(group));
 		return -ECANCELED;
 	}

@@ -20,17 +20,15 @@
 #define __GCIP_IOMMU_H__
 
 #include <linux/device.h>
-#include <linux/dma-buf.h>
 #include <linux/dma-direction.h>
+#include <linux/dma-mapping.h>
 #include <linux/idr.h>
 #include <linux/iommu.h>
 #include <linux/iova.h>
-#include <linux/mutex.h>
 #include <linux/scatterlist.h>
-#include <linux/seq_file.h>
+#include <linux/types.h>
 
 #include <gcip/gcip-config.h>
-#include <gcip/gcip-domain-pool.h>
 #include <gcip/gcip-mem-pool.h>
 
 /* Helpers to get/set @gcip_map_flags of the `gcip_iommu_domain_{map,unmap}_sg` functions. */
@@ -93,18 +91,6 @@
  * One should use gcip_iommu_encode_gcip_map_flags to generate the gcip_map_flags.
  */
 
-struct gcip_iommu_domain_ops;
-
-/**
- * enum gcip_iommu_mapping_type - Indicates the type of the gcip_iommu_mapping.
- * GCIP_IOMMU_MAPPING_BUFFER: The mapping of a normal buffer that mapped to the domain directly.
- * GCIP_IOMMU_MAPPING_DMA_BUF: The mapping of a DMA buffer that mapped to domain with 2 steps.
- */
-enum gcip_iommu_mapping_type {
-	GCIP_IOMMU_MAPPING_BUFFER,
-	GCIP_IOMMU_MAPPING_DMA_BUF,
-};
-
 /**
  * enum gcip_map_debug_flags - Mapping status flags for debugging, noting various attributes of the
  *                             mapping used for diagnosis of access problems.
@@ -120,92 +106,21 @@ enum gcip_map_debug_flags {
 	GCIP_MAP_DEBUG_ASSUME_RDONLY = 0x8,
 };
 
-/* Operaters for `struct gcip_iommu_mapping`. */
-struct gcip_iommu_mapping_ops {
-	/*
-	 * Called after the corresponding mapping of @data is unmapped and released. Since its
-	 * `struct gcip_iommu_mapping` instance is released, it won't be passed to the callback.
-	 *
-	 * This callback is optional.
-	 */
-	void (*after_unmap)(void *data);
-};
-
 /**
- * struct gcip_iommu_mapping - Contains the information of sgt mapping to the domain.
- * @type: Type of the mapping.
- * @domain: IOMMU domain where the @sgt is mapped.
- * @device_address: Assigned device address.
- * @alloced_iova: Allocated IOVA.
- * @size: Size of mapped buffer.
- * @sgt: This pointer will be set to a new allocated Scatter-gather table which contains the mapping
- *       information to the given domain received from the custom IOVA allocator.
- *       If the given domain is the default domain, the pointer will be set to the sgt received from
- *       default allocator.
- *       If NULL then the mapping has no pages resident due to being trimmed.
- * @dir: The dma data direction may be adjusted due to the system or hardware limit.
- *       This value is the real one that was used for mapping and should be the same as the one
- *       encoded in gcip_map_flags.
- *       This field should be used in revert functions and dma sync functions.
- * @gcip_map_flags: The flags used to create the mapping, which should be encoded with
- *                  gcip_iommu_encode_gcip_map_flags().
- * @map_debug_flags: debug flags for reporting and diagnosis purposes.
- * @user_specified_daddr: If true, its IOVA address was specified by the user from the `*_to_iova`
- *                        mapping functions and it won't free that when it's going to be unmapped.
- *                        It's user's responsibility to manage the IOVA region.
- * @ops: User defined operators.
- * @data: User defined data.
- */
-struct gcip_iommu_mapping {
-	enum gcip_iommu_mapping_type type;
-	struct gcip_iommu_domain *domain;
-	dma_addr_t device_address;
-	dma_addr_t alloced_iova;
-	size_t size;
-	struct sg_table *sgt;
-	enum dma_data_direction dir;
-	u64 gcip_map_flags;
-	enum gcip_map_debug_flags map_debug_flags;
-	bool user_specified_daddr;
-	const struct gcip_iommu_mapping_ops *ops;
-	void *data;
-};
-
-/*
- * Type of IOVA space pool that IOMMU domain will utilize.
- * Regardless of the type, its functionality will be the same. However, its implementation might be
- * different. For example, iova_domain uses red-black tree for the memory management, but gen_pool
- * uses bitmap. Therefore, their performance might be different and the kernel drivers can choose
- * which one to use according to its real use cases and the performance.
+ * enum gcip_iommu_domain_type - Type of IOVA space pool that IOMMU domain will utilize.
+ * @GCIP_IOMMU_DOMAIN_TYPE_IOVAD: Uses iova_domain (red-black tree based).
+ * @GCIP_IOMMU_DOMAIN_TYPE_MEMPOOL_BEST_FIT: Uses gcip_mem_pool with best-fit algorithm.
+ * @GCIP_IOMMU_DOMAIN_TYPE_MEMPOOL_FIRST_FIT: Uses gcip_mem_pool with first-fit algorithm.
+ * @GCIP_IOMMU_DOMAIN_TYPE_UNMANAGED: Disabled the IOVA space management.
+ *
+ * @GCIP_IOMMU_DOMAIN_TYPE_UNMANAGED is typically used for the default domain which we don't need
+ * to manage the IOVA space.
  */
 enum gcip_iommu_domain_type {
-	/* Uses iova_domain. */
 	GCIP_IOMMU_DOMAIN_TYPE_IOVAD,
-	/* Uses gcip_mem_pool which is based on gen_pool. */
-	GCIP_IOMMU_DOMAIN_TYPE_MEM_POOL,
-};
-
-/*
- * IOMMU domain pool.
- *
- * It manages the pool of IOMMU domains. Also, it specifies the base address and the size of IOMMU
- * domains. Also, one can choose the data structure and algorithm of IOVA space management.
- */
-struct gcip_iommu_domain_pool {
-	struct device *dev;
-	struct gcip_domain_pool domain_pool;
-	dma_addr_t base_daddr;
-	/* Will hold (base_daddr + size - 1) to prevent calculating it every IOVAD mappings. */
-	dma_addr_t last_daddr;
-	size_t size;
-	dma_addr_t reserved_base_daddr;
-	size_t reserved_size;
-	size_t granule;
-	bool best_fit;
-	enum gcip_iommu_domain_type domain_type;
-	ioasid_t min_pasid;
-	ioasid_t max_pasid;
-	struct ida pasid_pool;
+	GCIP_IOMMU_DOMAIN_TYPE_MEMPOOL_BEST_FIT,
+	GCIP_IOMMU_DOMAIN_TYPE_MEMPOOL_FIRST_FIT,
+	GCIP_IOMMU_DOMAIN_TYPE_UNMANAGED,
 };
 
 /* For GCIP_IOMMU_DOMAIN_TYPE_MEM_POOL, gen_pools for 32-bit and > 32-bit spaces. */
@@ -216,22 +131,49 @@ struct gcip_iommu_domain_iova_mem_pools {
 	bool pool64_valid;
 };
 
+struct gcip_iommu_domain_space_ops;
+
+/**
+ * struct gcip_iommu_domain_space - IOVA space management a GCIP IOMMU domain.
+ * @space_type: Type of the IOVA space pool.
+ * @base_daddr: Base address of the IOVA space.
+ * @size: Size of the IOVA space.
+ * @reserved_base_daddr: Base address of the reserved IOVA space.
+ * @reserved_size: Size of the reserved IOVA space.
+ * @last_daddr: The last address of the IOVA space, equal to (base_daddr + size - 1).
+ * @last_daddr_restricted: The last address of the IOVA space with 32-bit restriction.
+ * @granule: Alignment of the IOVA space.
+ * @iovad: IOVA space managed by iova_domain.
+ * @mem_pool: IOVA space managed by gcip_mem_pool.
+ * @ops: Operations for the IOVA space management.
+ */
+struct gcip_iommu_domain_space {
+	enum gcip_iommu_domain_type space_type;
+	dma_addr_t base_daddr;
+	size_t size;
+	dma_addr_t reserved_base_daddr;
+	size_t reserved_size;
+	dma_addr_t last_daddr;
+	dma_addr_t last_daddr_restricted;
+	size_t granule;
+	union {
+		struct iova_domain iovad;
+		struct gcip_iommu_domain_iova_mem_pools mem_pool;
+	};
+	const struct gcip_iommu_domain_space_ops *ops;
+};
+
 /*
  * Wrapper of iommu_domain.
  * It has its own IOVA space pool based on iova_domain or gcip_mem_pool. One can choose one of them
- * when calling the `gcip_iommu_domain_pool_init` function. See `enum gcip_iommu_domain_type`
+ * when calling the `gcip_iommu_domain_create` function. See `enum gcip_iommu_domain_type`
  * for details.
  */
 struct gcip_iommu_domain {
 	struct device *dev;
-	struct gcip_iommu_domain_pool *domain_pool;
 	struct iommu_domain *domain;
 	bool default_domain;
-	union {
-		struct iova_domain iovad;
-		struct gcip_iommu_domain_iova_mem_pools mem_pool;
-	} iova_space;
-	const struct gcip_iommu_domain_ops *ops;
+	struct gcip_iommu_domain_space space;
 	ioasid_t pasid; /* Only valid if attached */
 };
 
@@ -239,142 +181,16 @@ struct gcip_iommu_domain {
  * Holds operators which will be set according to the @domain_type.
  * These callbacks will be filled automatically when a `struct gcip_iommu_domain` is allocated.
  */
-struct gcip_iommu_domain_ops {
-	/* Initializes pool of @domain. */
-	int (*initialize_domain)(struct gcip_iommu_domain *domain);
-	/* Destroyes pool of @domain */
-	void (*finalize_domain)(struct gcip_iommu_domain *domain);
-	/*
-	 * Enables best-fit algorithm for the memory management.
-	 * Only domains which are allocated after calling this callback will be affected.
-	 */
-	void (*enable_best_fit_algo)(struct gcip_iommu_domain *domain);
+struct gcip_iommu_domain_space_ops {
+	/* Initializes the IOVA allocator. */
+	int (*allocator_init)(struct gcip_iommu_domain_space *space, struct device *dev);
+	/* Reverts the allocator_init(). */
+	void (*allocator_exit)(struct gcip_iommu_domain_space *space);
 	/* Allocates @size of IOVA space, optionally restricted to 32 bits, returns start IOVA. */
-	dma_addr_t (*alloc_iova_space)(struct gcip_iommu_domain *domain, size_t size,
-				       bool restrict_iova);
+	dma_addr_t (*alloc)(struct gcip_iommu_domain_space *space, size_t size, bool restrict_iova);
 	/* Releases @size of buffer which was allocated to @iova. */
-	void (*free_iova_space)(struct gcip_iommu_domain *domain, dma_addr_t iova, size_t size);
+	void (*free)(struct gcip_iommu_domain_space *space, dma_addr_t iova, size_t size);
 };
-
-/*
- * Initializes an IOMMU domain pool.
- *
- * One can specify the base DMA address and IOVA space size via @base_daddr and @iova_space_size
- * parameters. If any of them is 0, it will try to parse "gcip-dma-window" property from the device
- * tree of @dev.
- *
- * If the base DMA address and IOVA space size are set successfully (i.e., larger than 0), IOMMU
- * domains allocated by this domain pool will have their own IOVA space pool and will map buffers
- * to their own IOMMU domain directly.
- * If either DMA address or IOVA space size are not set correctly, returns -EINVAL.
- *
- * @pool: IOMMU domain pool to be initialized.
- * @dev: Device where to parse "gcip-dma-window" property.
- * @base_addr: The base address of IOVA space. Must be greater than 0 and a multiple of @granule.
- * @iova_space_size: The size of the IOVA space. @size must be a multiple of @granule.
- * @granule: The granule when invoking the IOMMU domain pool. Must be a power of 2.
- * @num_domains: The number of IOMMU domains.
- * @domain_type: Type of the IOMMU domain.
- *
- * Returns 0 on success or negative error value.
- */
-int gcip_iommu_domain_pool_init(struct gcip_iommu_domain_pool *pool, struct device *dev,
-				dma_addr_t base_daddr, size_t iova_space_size, size_t granule,
-				unsigned int num_domains, enum gcip_iommu_domain_type domain_type);
-
-/*
- * Destroys an IOMMU domain pool.
- *
- * @pool: IOMMU domain pool to be destroyed.
- */
-void gcip_iommu_domain_pool_destroy(struct gcip_iommu_domain_pool *pool);
-
-/*
- * Enables the best fit algorithm for allocating an IOVA space.
- * It affects domains which are allocated after calling this function only.
- *
- * @pool: IOMMU domain pool to be enabled.
- */
-void gcip_iommu_domain_pool_enable_best_fit_algo(struct gcip_iommu_domain_pool *pool);
-
-/*
- * Allocates a GCIP IOMMU domain.
- *
- * @pool: IOMMU domain pool.
- *
- * Returns a pointer of allocated domain on success or an error pointer on failure.
- */
-struct gcip_iommu_domain *gcip_iommu_domain_pool_alloc_domain(struct gcip_iommu_domain_pool *pool);
-
-/*
- * Releases a GCIP IOMMU domain.
- *
- * Before calling this function, you must unmap all IOVAs by calling `gcip_iommu_domain_unmap{_sg}`
- * functions.
- *
- * @pool: IOMMU domain pool.
- * @domain: GCIP IOMMU domain to be released.
- */
-void gcip_iommu_domain_pool_free_domain(struct gcip_iommu_domain_pool *pool,
-					struct gcip_iommu_domain *domain);
-
-/*
- * Sets the range of valid PASIDs to be used when attaching a domain
- *
- * @min: The smallest acceptable value to be assigned to an attached domain
- * @max: The largest acceptable value to be assigned to an attached domain
- */
-void gcip_iommu_domain_pool_set_pasid_range(struct gcip_iommu_domain_pool *pool, ioasid_t min,
-					    ioasid_t max);
-
-/*
- * Returns the number of PASIDs can be used previously set by
- * gcip_iommu_domain_pool_set_pasid_range().
- *
- * @pool: IOMMU domain pool.
- */
-static inline int gcip_iommu_domain_pool_get_num_pasid(struct gcip_iommu_domain_pool *pool)
-{
-	return pool->max_pasid - pool->min_pasid + 1;
-}
-
-/*
- * Returns the size of IOVA space of this pool. Does not consider reserved size.
- *
- * @pool: IOMMU domain pool.
- */
-static inline size_t gcip_iommu_domain_pool_get_size(struct gcip_iommu_domain_pool *pool)
-{
-	return pool->size;
-}
-
-/*
- * Attaches a GCIP IOMMU domain and sets the obtained PASID
- *
- * Before calling this function, you must set the valid PASID range by calling
- * `gcip_iommu_domain_pool_set_pasid_range()`.
- *
- * @pool: IOMMU domain pool @domain was allocated from
- * @domain: The GCIP IOMMU domain to attach
- *
- * On success, @domain->pasid will be set to obtained PASID
- *
- * Returns:
- * * 0 - Domain successfully attached with a PASID
- * * -ENOSYS - This device does not support attaching multiple domains
- * * other   - Failed to attach the domain or obtain a PASID for it
- */
-int gcip_iommu_domain_pool_attach_domain(struct gcip_iommu_domain_pool *pool,
-					 struct gcip_iommu_domain *domain);
-
-/*
- * Detaches a GCIP IOMMU domain
- *
- * @pool: IOMMU domain pool @domain was allocated from and attached by
- * @domain: The GCIP IOMMU domain to detach
- */
-void gcip_iommu_domain_pool_detach_domain(struct gcip_iommu_domain_pool *pool,
-					  struct gcip_iommu_domain *domain);
 
 /**
  * gcip_iommu_domain_map_sgt(): Maps the scatter-gather table to the target IOMMU domain.
@@ -435,26 +251,69 @@ unsigned int gcip_iommu_domain_map_sgt_to_iova(struct gcip_iommu_domain *domain,
 void gcip_iommu_domain_unmap_sgt_from_iova(struct gcip_iommu_domain *domain, struct sg_table *sgt,
 					   u64 gcip_map_flags);
 
-/*
- * Returns a default GCIP IOMMU domain.
+/**
+ * gcip_iommu_domain_create() - Creates a GCIP IOMMU domain.
+ * @dev: Device to create the domain for.
+ * @domain: The IOMMU domain to use.
+ * @domain_type: Type of the IOVA space of the IOMMU domain.
+ * @space_daddr: Base address of the IOVA space.
+ * @space_size: Size of the IOVA space.
+ * @reserved_daddr: Base address of the reserved IOVA space.
+ * @reserved_size: Size of the reserved IOVA space.
+ * @granule: Alignment of the IOVA space (Should be power of 2).
  *
- * @dev: Device where to fetch the default IOMMU domain.
+ * If @domain_type is GCIP_IOMMU_DOMAIN_TYPE_UNMANAGED, it'll be created with unmanaged IOVA space.
+ *
+ * Return: The pointer to the created gcip_iommu_domain on success, or a negative errno otherwise.
+ */
+struct gcip_iommu_domain *gcip_iommu_domain_create(struct device *dev, struct iommu_domain *domain,
+						   enum gcip_iommu_domain_type domain_type,
+						   dma_addr_t space_daddr, size_t space_size,
+						   dma_addr_t reserved_daddr, size_t reserved_size,
+						   size_t granule);
+
+/**
+ * gcip_iommu_domain_destroy() - Reverts gcip_iommu_domain_create().
+ * @gdomain: The GCIP IOMMU domain to be destroyed.
+ */
+void gcip_iommu_domain_destroy(struct gcip_iommu_domain *gdomain);
+
+/**
+ * gcip_iommu_get_domain_for_dev() - Gets a default GCIP domain.
+ * @dev: The device to fetch the default IOMMU domain.
+ *
+ * Return: The pointer to the domain on success, or the pointer to a negative errno otherwise.
  */
 struct gcip_iommu_domain *gcip_iommu_get_domain_for_dev(struct device *dev);
 
-/*
- * Returns a default GCIP IOMMU domain associated with the domain pool.
+/**
+ * gcip_iommu_get_domain_for_dev_from_pool() - Gets a default GCIP domain with IOVA management.
+ * @dev: The device to fetch the default IOMMU domain.
+ * @domain_type: Type of the IOVA space of the IOMMU domain.
+ * @granule: Alignment of the IOVA space (Should be power of 2).
  *
- * @dev: Device where to fetch the default IOMMU domain.
- * @pool: IOMMU domain pool.
+ * If the IOVA space management is not needed, pass NULL to @pool to disable it.
+ * With IOVA space management enabled, the domain supports to be passed to map/unmap interfaces.
  *
- * Since this domain is associated with the domain pool, it supports to be called with
- * gcip_iommu_domain_map_buffer() to map a buffer on a iova allocated by the domain pool.
+ * Return: The pointer to the domain on success, or the pointer to a negative errno otherwise.
  */
 struct gcip_iommu_domain *
-gcip_iommu_get_domain_for_dev_from_pool(struct device *dev, struct gcip_iommu_domain_pool *pool);
+gcip_iommu_get_domain_for_dev_from_pool(struct device *dev, enum gcip_iommu_domain_type domain_type,
+					size_t granule);
 
-/*  Encodes the gcip_map_flags from dma_data_direct, coherent, dma_attrs, and restrict_iova info. */
+/**
+ * gcip_iommu_encode_gcip_map_flags() - Encodes the gcip_map_flags from given arguments.
+ * @dir: The DMA_DIRECTION used for mapping.
+ * @coherent: Whether it is a coherent buffer or not.
+ * @dma_attrs: The DMA attributes used for mapping.
+ * @restrict_iova: Whether to restrict the IOVA assignment to 32 bit address window.
+ * @mmio: Whether to use IOMMU_MMIO flag.
+ *
+ * If the direction is DMA_FROM_DEVICE(WO), it will be adjusted to DMA_BIDIRECTIONAL(RW).
+ * If the direction is DMA_NONE, it will be adjusted to DMA_TO_DEVICE(RO).
+ *
+ * Return: The encoded gcip_map_flags.
+ */
 u64 gcip_iommu_encode_gcip_map_flags(enum dma_data_direction dir, bool coherent,
 				     unsigned long dma_attrs, bool restrict_iova, bool mmio);
 
@@ -479,144 +338,6 @@ static inline u64 gcip_iommu_map_flags_dma_ro(void)
 }
 
 /**
- * gcip_iommu_dmabuf_map_show() - Write the dma-buf mapping information to the seq_file.
- * @mapping: The container of the mapping info.
- * @s: The seq_file that the mapping info should be written to.
- *
- * Following information will be written to the seq_file:
- * 1. Device addresses of the related domains.
- * 2. Number of pages.
- * 3. DMA data direction.
- * 4. The name of the dmabuf.
- */
-void gcip_iommu_dmabuf_map_show(struct gcip_iommu_mapping *mapping, struct seq_file *s);
-
-/**
- * gcip_iommu_dmabuf_hiorder_size() - Return the number of bytes mapped by high-order (>=2MB)
- *                                    scatter-gather list segments for a dma-buf mapping.
- * @mapping: The container of the mapping info.
- */
-size_t gcip_iommu_dmabuf_hiorder_size(struct gcip_iommu_mapping *mapping);
-
-/**
- * gcip_iommu_domain_map_dma_buf() - Maps the DMA buffer to the target IOMMU domain.
- * @domain: The desired IOMMU domain where the DMA buffer should be mapped.
- * @dmabuf: The dma_buf to map to @domain.
- * @gcip_map_flags: The flags used to create the mapping, which should be encoded with
- *                  gcip_iommu_encode_gcip_map_flags().
- *
- * The DMA buffer will be mapped to the default domain first to get a scatter-gather table.
- * The received sgt will be copied to a new sgt and the new one will be mapped to the target domain.
- * The IOVAs of those domains may be different and the mappings will be released at once by calling
- * `gcip_iommu_mapping_unmap`.
- *
- * Return: The mapping of the desired DMA buffer with type GCIP_IOMMU_MAPPING_DMA_BUF
- *         or an error pointer on failure.
- */
-struct gcip_iommu_mapping *gcip_iommu_domain_map_dma_buf(struct gcip_iommu_domain *domain,
-							 struct dma_buf *dmabuf,
-							 u64 gcip_map_flags);
-
-/*
- * This function basically works the same as the `gcip_iommu_domain_map_dma_buf` function but
- * receives the target @iova to map the dma-buf. If @iova is 0, there will be no difference.
- *
- * Note that the passed @iova won't be freed if it was non-zero when the returned mapping is going
- * to be unmapped. The life cycle of the given @iova must be managed by the user.
- */
-struct gcip_iommu_mapping *gcip_iommu_domain_map_dma_buf_to_iova(struct gcip_iommu_domain *domain,
-								 struct dma_buf *dmabuf,
-								 dma_addr_t iova,
-								 u64 gcip_map_flags);
-
-/**
- * gcip_iommu_domain_map_buffer() - Maps the buffer to the target IOMMU domain.
- * @domain: The desired IOMMU domain where the buffer should be mapped.
- * @host_address: The starting address of the buffer.
- * @size: The size of the buffer.
- * @gcip_map_flags: The flags used to create the mapping, which should be encoded with
- *                  gcip_iommu_encode_gcip_map_flags().
- * @pin_user_pages_lock: The lock for pinning user pages, or NULL if none.
- *
- * Following things are done in this function:
- * 1. Pin user pages.
- * 2. Allocate corresponding sg_table.
- * 3. Map the sg_table to the target domain.
- * 4. Create the desired mapping.
- *
- * Return: The mapping of the desired buffer with type GCIP_IOMMU_MAPPING_BUFFER or an error pointer
- *         on failure.
- */
-struct gcip_iommu_mapping *gcip_iommu_domain_map_buffer(struct gcip_iommu_domain *domain,
-							u64 host_address, size_t size,
-							u64 gcip_map_flags,
-							struct mutex *pin_user_pages_lock);
-
-/*
- * This function basically works the same as the `gcip_iommu_domain_map_buffer` function but
- * receives the target @iova to map the buffer. If @iova is 0, there will be no difference.
- *
- * Note that the passed @iova won't be freed if it was non-zero when the returned mapping is going
- * to be unmapped. The life cycle of the given @iova must be managed by the user.
- */
-struct gcip_iommu_mapping *gcip_iommu_domain_map_buffer_to_iova(struct gcip_iommu_domain *domain,
-								u64 host_address, size_t size,
-								dma_addr_t iova, u64 gcip_map_flags,
-								struct mutex *pin_user_pages_lock);
-
-/**
- * gcip_iommu_mapping_unmap() - Unmaps the mapping depends on its type.
- * @mapping: The pointer of the mapping instance to be unmapped.
- *
- * Reverting either gcip_iommu_domain_map_dma_buf() or gcip_iommu_domain_map_buffer().
- *
- * The @mapping->gcip_map_flags will be used for unmapping the buffer, it can be modified if
- * necessary such as adding DMA_ATTR_SKIP_CPU_SYNC flag.
- * In most scenarios the we should use the same flag which we used while mapping especially for
- * direction, coherent, and iova_restrict.
- */
-void gcip_iommu_mapping_unmap(struct gcip_iommu_mapping *mapping);
-
-/**
- * gcip_iommu_mapping_sync() - Sync a mapped buffer for either CPU or device.
- * @mapping: The pointer of the mapping instance to be synced.
- * @dev: The device that the mapping belongs to.
- * @offset: The offset, in bytes, into the mapped buffer where the region to be synced begins.
- * @size: The size, in bytes, of the region to be synced.
- * @for_cpu: True to sync for CPU access, false to sync for device access.
- *
- * This function only supports mappings with type GCIP_IOMMU_MAPPING_BUFFER.
- *
- * Return: 0 on success, or a negative errno otherwise.
- */
-int gcip_iommu_mapping_sync(struct gcip_iommu_mapping *mapping, struct device *dev, u64 offset,
-			    u64 size, bool for_cpu);
-
-/**
- * gcip_iommu_mapping_trim() - Trim a buffer mapping, unpinning pages and unmapping from TPU,
- *                             but leaving the IOVA allocation and mapping metadata in place.
- * @mapping: The mapping instance to be trimmed.
- *
- * @mapping->sgt is set to NULL, indicating no pages currently mapped to TPU (or pinned).
- * The full mapping may be restored via gcip_iommu_mapping_remap().
- *
- * Only implemented for buffer, not dma-buf, mappings.
- */
-void gcip_iommu_mapping_trim(struct gcip_iommu_mapping *mapping);
-
-/**
- * gcip_iommu_mapping_remap() - Remap a previously trimmed buffer mapping, re-pinning pages and
- *                              remapping to the TPU at the same IOVA as previous.
- * @mapping: The mapping instance to be remapped.
- * @pin_user_pages_lock: The lock for pinning user pages, or NULL if none.
- *
- * @mapping->sgt is set to the new scatter-gather list.
- *
- * Only implemented for buffer, not dma-buf, mappings.
- */
-int gcip_iommu_mapping_remap(struct gcip_iommu_mapping *mapping, struct mutex *pin_user_pages_lock);
-
-/**
  * gcip_iommu_alloc_iova() - Allocates IOVA with size @size.
  * @domain: The GCIP domain to allocate IOVA.
  * @size: Size in bytes.
@@ -635,24 +356,6 @@ dma_addr_t gcip_iommu_alloc_iova(struct gcip_iommu_domain *domain, size_t size, 
  */
 void gcip_iommu_free_iova(struct gcip_iommu_domain *domain, dma_addr_t iova, size_t size);
 
-static inline void gcip_iommu_mapping_set_ops(struct gcip_iommu_mapping *mapping,
-					      const struct gcip_iommu_mapping_ops *ops)
-{
-	mapping->ops = ops;
-}
-
-static inline void gcip_iommu_mapping_set_data(struct gcip_iommu_mapping *mapping, void *data)
-{
-	mapping->data = data;
-}
-
-static inline size_t gcip_iommu_domain_granule(struct gcip_iommu_domain *domain)
-{
-	if (unlikely(domain->default_domain))
-		return PAGE_SIZE;
-	return domain->domain_pool->granule;
-}
-
 /**
  * gcip_iommu_map() - Maps the desired mappings to the domain.
  * @domain: The GCIP domain to be mapped to.
@@ -668,5 +371,30 @@ int gcip_iommu_map(struct gcip_iommu_domain *domain, dma_addr_t iova, phys_addr_
 		   size_t size, u64 gcip_map_flags);
 /* Reverts gcip_iommu_map(). */
 void gcip_iommu_unmap(struct gcip_iommu_domain *domain, dma_addr_t iova, size_t size);
+
+/**
+ * gcip_iommu_get_space_config() - Gets the IOVA space configuration from the device tree.
+ * @dev: The device to get the IOVA space configuration from.
+ * @space_daddr: The base address of the IOVA space.
+ * @space_size: The size of the IOVA space.
+ * @reserved_daddr: The base address of the reserved IOVA space.
+ * @reserved_size: The size of the reserved IOVA space.
+ *
+ * Return: 0 on success, or a negative errno otherwise.
+ */
+int gcip_iommu_get_space_config(struct device *dev, dma_addr_t *space_daddr, size_t *space_size,
+				dma_addr_t *reserved_daddr, size_t *reserved_size);
+
+/**
+ * gcip_iommu_get_space_size() - Gets the IOVA space size from the device tree.
+ * @dev: The device to get the IOVA space size from.
+ * @space_size_ptr: The pointer to the size of the IOVA space.
+ *
+ * The returned value is the total window size fetched from <gcip-dma-window>
+ * The range may include IOVAs which may be reserved.
+ *
+ * Return: 0 on success, or a negative errno otherwise.
+ */
+int gcip_iommu_get_space_size(struct device *dev, size_t  *space_size_ptr);
 
 #endif /* __GCIP_IOMMU_H__ */

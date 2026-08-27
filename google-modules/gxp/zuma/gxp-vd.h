@@ -447,20 +447,6 @@ gxp_vd_get(struct gxp_virtual_device *vd)
 void gxp_vd_put(struct gxp_virtual_device *vd);
 
 /*
- * Change the status of the vd of @client_id to GXP_VD_UNAVAILABLE.
- * Internally, it will discard all pending/unconsumed user commands and call the
- * `gxp_vd_block_unready` function.
- *
- * This function will be called when the `CLIENT_FATAL_ERROR_NOTIFY` RKCI has been sent from the
- * firmware side.
- *
- * @gxp: The GXP device to obtain the handler for
- * @client_id: client_id of the crashed vd.
- * @release_vmbox: Releases the vmbox of the vd after invalidating it.
- */
-void gxp_vd_invalidate_with_client_id(struct gxp_dev *gxp, int client_id, bool release_vmbox);
-
-/*
  * Changes the status of the @vd to GXP_VD_UNAVAILABLE.
  * Internally, it will discard all pending/unconsumed user commands.
  *

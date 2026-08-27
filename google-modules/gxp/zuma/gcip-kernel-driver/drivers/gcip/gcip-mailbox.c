@@ -53,57 +53,82 @@
 
 #define IS_BLOCK_OFF() (mailbox->ops->is_block_off ? mailbox->ops->is_block_off(mailbox) : false)
 
-struct gcip_mailbox_wait_list_elem {
-	struct list_head list;
-	struct gcip_mailbox_async_resp *async_resp;
-	struct gcip_mailbox_resp_awaiter *awaiter;
-};
+static void gcip_mailbox_async_cmd_timeout_work(struct work_struct *work);
 
 /**
- * gcip_mailbox_awaiter_create() - Creates the awaiter of the response.
+ * __gcip_mailbox_awaiter_init() - Initializes the given gcip_mailbox_awaiter.
+ * @awaiter: The pointer to the awaiter to be initialized.
  * @mailbox: The pointer to the gcip mailbox to interact with its interfaces.
- * @resp: The pointer to the response to be filled.
- * @data: The user-defined data.
+ * @rsp: The pointer to the response to be filled.
+ * @ops: The pointer to the awaiter operators.
+ * @on_stack: Whether or not the awaiter is allocated on the stack memory.
  *
- * The created awaiter is expected to be released with the gcip_mailbox_awaiter_put().
+ * The awaiter is expected to be released with the gcip_mailbox_awaiter_put().
  *
- * Return: The pointer to the awaiter on success, or a negative errno otherwise.
+ * Return: 0 on success, or a negative errno otherwise.
  */
-static struct gcip_mailbox_resp_awaiter *gcip_mailbox_awaiter_create(struct gcip_mailbox *mailbox,
-								     void *resp, void *data)
+static int __gcip_mailbox_awaiter_init(struct gcip_mailbox_awaiter *awaiter,
+				       struct gcip_mailbox *mailbox, void *rsp,
+				       const struct gcip_mailbox_awaiter_ops *ops, bool on_stack)
 {
-	struct gcip_mailbox_resp_awaiter *awaiter;
+	struct delayed_work *timeout_work = &awaiter->timeout_work;
 
-	awaiter = kzalloc(sizeof(*awaiter), GFP_KERNEL);
-	if (!awaiter)
-		return ERR_PTR(-ENOMEM);
-
-	awaiter->async_resp.resp = resp;
+	awaiter->rsp = rsp;
 	awaiter->mailbox = mailbox;
-	awaiter->data = data;
-	awaiter->release_data = mailbox->ops->release_awaiter_data;
+	awaiter->ops = ops;
+	awaiter->status = GCIP_MAILBOX_AWAITER_STATUS_INIT;
+
 	kref_init(&awaiter->kref);
 	init_completion(&awaiter->handled);
+	INIT_LIST_HEAD(&awaiter->list);
 
-	return awaiter;
+	if (on_stack)
+		INIT_DELAYED_WORK_ONSTACK(timeout_work, gcip_mailbox_async_cmd_timeout_work);
+	else
+		INIT_DELAYED_WORK(timeout_work, gcip_mailbox_async_cmd_timeout_work);
+
+	return 0;
+}
+
+int gcip_mailbox_awaiter_init(struct gcip_mailbox_awaiter *awaiter, struct gcip_mailbox *mailbox,
+			      void *rsp, const struct gcip_mailbox_awaiter_ops *ops)
+{
+	return __gcip_mailbox_awaiter_init(awaiter, mailbox, rsp, ops, false);
 }
 
 /**
- * gcip_mailbox_awaiter_destroy() - Destroys the awaiter of the response.
- * @kref: The pointer to the kref of the awaiter to be destroyed.
+ * gcip_mailbox_awaiter_init_onstack() - Initializes the awaiter allocated on the stack memory.
+ * @awaiter: The pointer to the awaiter to be initialized.
+ * @mailbox: The pointer to the gcip mailbox to interact with its interfaces.
+ * @rsp: The pointer to the response to be filled.
+ * @ops: The pointer to the awaiter operators.
  *
- * This function will call the `release_data` callback if the provided.
+ * The same as gcip_mailbox_awaiter_init(), but the awaiter is allocated on the stack memory.
+ *
+ * Return: 0 on success, or a negative errno otherwise.
+ */
+static int gcip_mailbox_awaiter_init_onstack(struct gcip_mailbox_awaiter *awaiter,
+					     struct gcip_mailbox *mailbox, void *rsp,
+					     const struct gcip_mailbox_awaiter_ops *ops)
+{
+	return __gcip_mailbox_awaiter_init(awaiter, mailbox, rsp, ops, true);
+}
+
+/**
+ * gcip_mailbox_awaiter_release() - Destroys the awaiter of the response.
+ * @kref: The pointer to the kref of the awaiter to be released.
+ *
+ * This function will call awaiter->ops->release if provided.
+ *
  * This function should only be called by gcip_mailbox_awaiter_put().
  */
-static void gcip_mailbox_awaiter_destroy(struct kref *kref)
+static void gcip_mailbox_awaiter_release(struct kref *kref)
 {
-	struct gcip_mailbox_resp_awaiter *awaiter =
-		container_of(kref, struct gcip_mailbox_resp_awaiter, kref);
+	struct gcip_mailbox_awaiter *awaiter =
+		container_of(kref, struct gcip_mailbox_awaiter, kref);
 
-	if (awaiter->release_data)
-		awaiter->release_data(awaiter->data);
-
-	kfree(awaiter);
+	if (awaiter->ops->release)
+		awaiter->ops->release(awaiter);
 }
 
 /**
@@ -112,122 +137,79 @@ static void gcip_mailbox_awaiter_destroy(struct kref *kref)
  *
  * Return: The pointer to the awaiter.
  */
-static inline struct gcip_mailbox_resp_awaiter *
-gcip_mailbox_awaiter_get(struct gcip_mailbox_resp_awaiter *awaiter)
+static inline struct gcip_mailbox_awaiter *
+gcip_mailbox_awaiter_get(struct gcip_mailbox_awaiter *awaiter)
 {
 	kref_get(&awaiter->kref);
 
 	return awaiter;
 }
 
-void gcip_mailbox_awaiter_put(struct gcip_mailbox_resp_awaiter *awaiter)
+void gcip_mailbox_awaiter_put(struct gcip_mailbox_awaiter *awaiter)
 {
-	kref_put(&awaiter->kref, gcip_mailbox_awaiter_destroy);
+	kref_put(&awaiter->kref, gcip_mailbox_awaiter_release);
 }
 
 /**
- * does_response_match_waiter() - Checks if the incoming response matches the waiter.
- * @mailbox: The pointer to the gcip mailbox to interact with its interfaces.
- * @incoming_resp: The pointer to the incoming response.
- * @waiting_resp: The pointer to the waiting response.
+ * gcip_mailbox_wait_list_del() - Deletes the awaiter from @mailbox->wait_list.
+ * @mailbox: The pointer to the gcip mailbox containing the wait list.
+ * @awaiter: The pointer to the target awaiter to be deleted.
+ * @status: The status to be set to the deleted awaiter.
  *
- * Return: Whether or not the incoming response matches the waiter.
- */
-static inline bool does_response_match_waiter(struct gcip_mailbox *mailbox, void *incoming_resp,
-					      void *waiting_resp)
-{
-	if (mailbox->ops->does_response_match_waiter)
-		return mailbox->ops->does_response_match_waiter(mailbox, incoming_resp,
-								waiting_resp);
-
-	return GET_RESP_ELEM_SEQ(incoming_resp) == GET_RESP_ELEM_SEQ(waiting_resp);
-}
-
-/**
- * gcip_mailbox_del_wait_resp() - Deletes the response pushed with gcip_mailbox_push_wait_resp().
- * @mailbox: The pointer to the gcip mailbox to interact with its interfaces.
- * @async_resp: The pointer to the async response to be removed.
- *
- * This is used when the kernel want to cancel the awaiter of the response.
- *
- * There are 3 cases that the awaiter can be removed from the wait list:
+ * There are 3 cases that the awaiter can be deleted from the wait list:
  * 1. Response arrived, gcip_mailbox_handle_response() will delete the awaiter form wait list
  * 2. Response timed out, gcip_mailbox_async_cmd_timeout_work() will trigger this function.
  * 3. Response canceled, gcip_mailbox_cancel_awaiter() and gcip_mailbox_cancel_awaiter_all() will
  *    trigger this function.
  *
- * Return: Whether or not the awaiter of @async_resp is deleted from the wait list successfully.
+ * Return: Whether or not the awaiter is deleted from the wait list.
  */
-static bool gcip_mailbox_del_wait_resp(struct gcip_mailbox *mailbox,
-				       struct gcip_mailbox_async_resp *async_resp)
+static bool gcip_mailbox_wait_list_del(struct gcip_mailbox *mailbox,
+				       struct gcip_mailbox_awaiter *awaiter,
+				       enum gcip_mailbox_awaiter_status status)
 {
-	struct gcip_mailbox_wait_list_elem *cur;
 	unsigned long flags;
-	bool removed = false;
+	bool deleted = false;
 
 	spin_lock_irqsave(&mailbox->wait_list->list_lock, flags);
-	list_for_each_entry(cur, &mailbox->wait_list->list, list) {
-		if (!does_response_match_waiter(mailbox, async_resp->resp, cur->async_resp->resp))
-			continue;
-
-		list_del(&cur->list);
-
-		/*
-		 * If the awaiter is not NULL, it means that the response is asynchronous.
-		 * Decrease the reference count of the awaiter acquired by the wait list.
-		 */
-		if (cur->awaiter)
-			gcip_mailbox_awaiter_put(cur->awaiter);
-
-		kfree(cur);
-		removed = true;
-
-		break;
+	if (awaiter->status == GCIP_MAILBOX_AWAITER_STATUS_WAITING) {
+		list_del_init(&awaiter->list);
+		deleted = true;
+		awaiter->status = status;
 	}
 	spin_unlock_irqrestore(&mailbox->wait_list->list_lock, flags);
 
-	return removed;
+	if (deleted)
+		gcip_mailbox_awaiter_put(awaiter);
+
+	return deleted;
 }
 
 /**
- * gcip_mailbox_push_wait_resp() - Adds @resp to @mailbox->wait_list.
- * @mailbox: The pointer to the gcip mailbox to interact with its interfaces.
- * @async_resp: The pointer to the async response to be added.
- * @awaiter: The pointer to the awaiter of the async response.
- * @atomic: Whether or not the function is run under atomic context.
- *
- * If @awaiter is not NULL, the @resp is asynchronous. Otherwise, the @resp is synchronous.
+ * gcip_mailbox_wait_list_add() - Adds @awaiter to @mailbox->wait_list.
+ * @mailbox: The pointer to the gcip mailbox containing the wait list.
+ * @awaiter: The pointer to the awaiter to be added.
  *
  * Context: Depends on @atomic.
  * Return: 0 on success, or a negative errno otherwise.
  */
-static int gcip_mailbox_push_wait_resp(struct gcip_mailbox *mailbox,
-				       struct gcip_mailbox_async_resp *async_resp,
-				       struct gcip_mailbox_resp_awaiter *awaiter, bool atomic)
+static int gcip_mailbox_wait_list_add(struct gcip_mailbox *mailbox,
+				      struct gcip_mailbox_awaiter *awaiter)
 {
-	struct gcip_mailbox_wait_list_elem *entry;
 	unsigned long flags;
 	int ret;
 
-	entry = kzalloc(sizeof(*entry), atomic ? GFP_ATOMIC : GFP_KERNEL);
-	if (!entry)
-		return -ENOMEM;
-
 	if (mailbox->ops->before_enqueue_wait_list) {
-		ret = mailbox->ops->before_enqueue_wait_list(mailbox, async_resp->resp, awaiter);
-		if (ret) {
-			kfree(entry);
+		ret = mailbox->ops->before_enqueue_wait_list(mailbox, awaiter->rsp, awaiter);
+		if (ret)
 			return ret;
-		}
 	}
 
-	/* Increase a reference of the awaiter for the wait list. */
-	if (awaiter)
-		entry->awaiter = gcip_mailbox_awaiter_get(awaiter);
+	gcip_mailbox_awaiter_get(awaiter);
 
-	entry->async_resp = async_resp;
 	spin_lock_irqsave(&mailbox->wait_list->list_lock, flags);
-	list_add_tail(&entry->list, &mailbox->wait_list->list);
+	list_add_tail(&awaiter->list, &mailbox->wait_list->list);
+	awaiter->status = GCIP_MAILBOX_AWAITER_STATUS_WAITING;
 	spin_unlock_irqrestore(&mailbox->wait_list->list_lock, flags);
 
 	return 0;
@@ -247,16 +229,19 @@ static inline bool should_maintain_seq_num(u8 mode)
 	return ((mode & GCIP_MAILBOX_MODE_TX_CMD) && (mode & GCIP_MAILBOX_MODE_RX_RSP));
 }
 
-/*
- * Pushes @cmd to the command queue of mailbox and returns. @resp should be passed if the request
- * is synchronous and want to get the response. If @resp is NULL even though the request is
- * synchronous, the @cmd will be put into the queue, but the caller may not wait the response and
- * ignore it. If the request is async, @awaiter should be passed too.
+/**
+ * gcip_mailbox_enqueue_cmd() - Enqueues a command to the command queue of mailbox.
+ * @mailbox: The pointer to the gcip mailbox to interact with its interfaces.
+ * @cmd: The pointer to the command to be enqueued.
+ * @awaiter: The pointer to the awaiter of the async response.
+ *
+ * Pass NULL to @awaiter if the caller wants to ignore the response, in this case, no awaiter will
+ * be added in the wait list and thus the arrived response will find nothing and return.
+ *
+ * Return: 0 on success, or a negative errno otherwise.
  */
 static int gcip_mailbox_enqueue_cmd(struct gcip_mailbox *mailbox, void *cmd,
-				    struct gcip_mailbox_async_resp *async_resp,
-				    struct gcip_mailbox_resp_awaiter *awaiter,
-				    u32 gcip_mailbox_cmd_flags)
+				    struct gcip_mailbox_awaiter *awaiter)
 {
 	void *cmd_ptr;
 	int idx;
@@ -266,18 +251,17 @@ static int gcip_mailbox_enqueue_cmd(struct gcip_mailbox *mailbox, void *cmd,
 	ACQUIRE_TX_QUEUE_LOCK(false, &atomic);
 
 	if (should_maintain_seq_num(mailbox->mode))
-		SET_CMD_ELEM_SEQ(cmd, atomic64_read(&mailbox->cur_seq));
+		SET_CMD_ELEM_SEQ(cmd, atomic64_inc_return(&mailbox->cur_seq));
 
 	/* Wait until the cmd queue has a space for putting cmd. */
 	ret = mailbox->ops->wait_for_tx_queue_not_full(mailbox);
 	if (ret)
 		goto out;
 
-	if (async_resp->resp) {
+	if (awaiter) {
 		/* Adds @resp to the wait_list only if the cmd can be pushed successfully. */
-		SET_RESP_ELEM_SEQ(async_resp->resp, GET_CMD_ELEM_SEQ(cmd));
-		async_resp->waiting = true;
-		ret = gcip_mailbox_push_wait_resp(mailbox, async_resp, awaiter, atomic);
+		SET_RESP_ELEM_SEQ(awaiter->rsp, GET_CMD_ELEM_SEQ(cmd));
+		ret = gcip_mailbox_wait_list_add(mailbox, awaiter);
 		if (ret)
 			goto out;
 	}
@@ -300,12 +284,14 @@ static int gcip_mailbox_enqueue_cmd(struct gcip_mailbox *mailbox, void *cmd,
 			dev_warn(mailbox->dev,
 				 "after_enqueue_cmd returned an error, but not handled: ret=%d",
 				 ret);
+
+			if (awaiter)
+				gcip_mailbox_wait_list_del(mailbox, awaiter,
+							   GCIP_MAILBOX_AWAITER_STATUS_CANCELED);
+
 			goto out;
 		}
 	}
-
-	if (should_maintain_seq_num(mailbox->mode))
-		atomic64_inc(&mailbox->cur_seq);
 
 out:
 	RELEASE_TX_QUEUE_LOCK();
@@ -322,55 +308,56 @@ out:
  */
 static void gcip_mailbox_handle_response(struct gcip_mailbox *mailbox, void *resp)
 {
-	struct gcip_mailbox_wait_list_elem *cur, *nxt;
-	struct gcip_mailbox_resp_awaiter *awaiter = NULL;
+	struct gcip_mailbox_awaiter *cur;
+	struct gcip_mailbox_awaiter *awaiter = NULL;
 	unsigned long flags;
 
 	spin_lock_irqsave(&mailbox->wait_list->list_lock, flags);
+	list_for_each_entry(cur, &mailbox->wait_list->list, list) {
+		bool match;
 
-	list_for_each_entry_safe(cur, nxt, &mailbox->wait_list->list, list) {
-		if (!does_response_match_waiter(mailbox, resp, cur->async_resp->resp))
+		if (cur->ops->match_response)
+			match = cur->ops->match_response(resp, cur->rsp);
+		else
+			match = GET_RESP_ELEM_SEQ(resp) == GET_RESP_ELEM_SEQ(cur->rsp);
+
+		if (!match)
 			continue;
 
-		memcpy(cur->async_resp->resp, resp, mailbox->rx_elem_size);
+		list_del_init(&cur->list);
+		awaiter = cur;
+		awaiter->status = GCIP_MAILBOX_AWAITER_STATUS_ARRIVED;
 
 		/*
-		 * Paired with smp_rmb() in gcip_mailbox_send_cmd().  Ensure all writes to
-		 * *cur->async_resp->resp are complete before setting cur->async_resp->status,
-		 * which tells waiters the async response is complete.
+		 * The timedout handler will be fired, but pended by waiting for acquiring the
+		 * wait_list->list_lock.
 		 */
-		smp_wmb();
-		cur->async_resp->waiting = false;
-		list_del(&cur->list);
-		awaiter = cur->awaiter;
-		if (awaiter) {
-			/*
-			 * The timedout handler will be fired, but pended by waiting for acquiring
-			 * the wait_list->list_lock.
-			 */
-			TEST_TRIGGER_TIMEOUT_RACE(awaiter, &mailbox->wait_list->list_lock);
-		}
-		kfree(cur);
+		TEST_TRIGGER_TIMEOUT_RACE(awaiter, &mailbox->wait_list->list_lock);
+
 		break;
 	}
-
 	spin_unlock_irqrestore(&mailbox->wait_list->list_lock, flags);
 
-	if (!awaiter)
+	if (!awaiter) {
+		dev_warn_ratelimited(mailbox->dev, "Response seq %llu discarded",
+				     GET_RESP_ELEM_SEQ(resp));
 		return;
+	}
 
 	/* The reference acquired by the timeout work will be released implicitly. */
 	gcip_mailbox_cancel_timeout_work(awaiter);
 
-	if (mailbox->ops->handle_awaiter_arrived)
-		mailbox->ops->handle_awaiter_arrived(mailbox, awaiter);
+	memcpy(awaiter->rsp, resp, mailbox->rx_elem_size);
+
+	if (awaiter->ops->handle_arrived)
+		awaiter->ops->handle_arrived(awaiter);
 
 	complete_all(&awaiter->handled);
 
 	/* Make sure the timedout handler is finished before decreasing the ref count. */
 	TEST_FLUSH_TIMEOUT_RACE(awaiter);
 
-	/* Remove the reference of the arrived handler. */
+	/* Remove the reference acquired by the wait list. */
 	gcip_mailbox_awaiter_put(awaiter);
 }
 
@@ -520,22 +507,23 @@ static int gcip_mailbox_fetch_one_response(struct gcip_mailbox *mailbox, void *r
 /* Handles the timed out asynchronous commands. */
 static void gcip_mailbox_async_cmd_timeout_work(struct work_struct *work)
 {
-	struct gcip_mailbox_resp_awaiter *awaiter =
-		container_of(work, struct gcip_mailbox_resp_awaiter, timeout_work.work);
+	struct gcip_mailbox_awaiter *awaiter =
+		container_of(work, struct gcip_mailbox_awaiter, timeout_work.work);
 	struct gcip_mailbox *mailbox = awaiter->mailbox;
-	bool removed;
+	bool deleted;
 
 	TEST_NOTIFY_TIMEOUT_HANDLER_START();
 
 	/*
-	 * This function returns true if @awaiter has been removed from the wait list successfully.
+	 * This function returns true if @awaiter is deleted from the wait list successfully.
 	 * It means that it is safe to process @awaiter as timeout. (i.e., there won't be any race
 	 * cases that @awaiter has been processed as arrived or canceled at the same time.)
 	 */
-	removed = gcip_mailbox_del_wait_resp(mailbox, &awaiter->async_resp);
-	if (removed) {
-		if (mailbox->ops->handle_awaiter_timedout)
-			mailbox->ops->handle_awaiter_timedout(mailbox, awaiter);
+	deleted =
+		gcip_mailbox_wait_list_del(mailbox, awaiter, GCIP_MAILBOX_AWAITER_STATUS_TIMEDOUT);
+	if (deleted) {
+		if (awaiter->ops->handle_timedout)
+			awaiter->ops->handle_timedout(awaiter);
 
 		complete_all(&awaiter->handled);
 	}
@@ -553,8 +541,7 @@ static void gcip_mailbox_async_cmd_timeout_work(struct work_struct *work)
  */
 static void gcip_mailbox_cancel_awaiter_all(struct gcip_mailbox *mailbox)
 {
-	struct gcip_mailbox_wait_list_elem *cur, *nxt;
-	struct gcip_mailbox_resp_awaiter *awaiter;
+	struct gcip_mailbox_awaiter *awaiter, *nxt;
 	struct list_head cancel_list;
 	unsigned long flags;
 
@@ -568,21 +555,12 @@ static void gcip_mailbox_cancel_awaiter_all(struct gcip_mailbox *mailbox)
 	 */
 	INIT_LIST_HEAD(&cancel_list);
 	spin_lock_irqsave(&mailbox->wait_list->list_lock, flags);
+	list_for_each_entry(awaiter, &mailbox->wait_list->list, list)
+		awaiter->status = GCIP_MAILBOX_AWAITER_STATUS_CANCELED;
 	list_splice_init(&mailbox->wait_list->list, &cancel_list);
 	spin_unlock_irqrestore(&mailbox->wait_list->list_lock, flags);
 
-	list_for_each_entry_safe(cur, nxt, &cancel_list, list) {
-		awaiter = cur->awaiter;
-
-		if (!awaiter) {
-			dev_err(mailbox->dev, "Unexpected synchronous cmd during mailbox release");
-			kfree(cur);
-			continue;
-		}
-
-		/* Remove the reference of the awaiter acquired by the wait list. */
-		gcip_mailbox_awaiter_put(awaiter);
-
+	list_for_each_entry_safe(awaiter, nxt, &cancel_list, list) {
 		/*  This will implicitly decrease the reference acquired by the timeout work. */
 		gcip_mailbox_cancel_timeout_work_sync(awaiter);
 
@@ -590,12 +568,13 @@ static void gcip_mailbox_cancel_awaiter_all(struct gcip_mailbox *mailbox)
 		 * If the operator is defined, @awaiter will be released on the implementation side.
 		 * Otherwise, it should be freed from here.
 		 */
-		if (mailbox->ops->handle_awaiter_flushed)
-			mailbox->ops->handle_awaiter_flushed(mailbox, awaiter);
+		if (awaiter->ops->handle_flushed)
+			awaiter->ops->handle_flushed(awaiter);
 		else
-			gcip_mailbox_awaiter_put(cur->awaiter);
+			gcip_mailbox_awaiter_put(awaiter);
 
-		kfree(cur);
+		/* Remove the reference of the awaiter acquired by the wait list. */
+		gcip_mailbox_awaiter_put(awaiter);
 	}
 }
 
@@ -697,7 +676,6 @@ void gcip_mailbox_wait_list_init(struct gcip_mailbox_wait_list *wait_list)
 {
 	spin_lock_init(&wait_list->list_lock);
 	INIT_LIST_HEAD(&wait_list->list);
-	init_waitqueue_head(&wait_list->waitq);
 }
 
 static void gcip_mailbox_do_consume_responses(struct gcip_mailbox *mailbox, bool trylock)
@@ -719,8 +697,6 @@ static void gcip_mailbox_do_consume_responses(struct gcip_mailbox *mailbox, bool
 	for (i = 0; i < count; i++)
 		gcip_mailbox_handle_rx_elem(mailbox, responses + mailbox->rx_elem_size * i);
 
-	/* Responses handled, wake up threads that are waiting for a response. */
-	wake_up(&mailbox->wait_list->waitq);
 	kfree(responses);
 }
 
@@ -734,124 +710,146 @@ void gcip_mailbox_consume_responses(struct gcip_mailbox *mailbox)
 	gcip_mailbox_do_consume_responses(mailbox, false);
 }
 
-int gcip_mailbox_send_cmd(struct gcip_mailbox *mailbox, void *cmd, void *resp,
-			  u32 gcip_mailbox_cmd_flags)
+int gcip_mailbox_send_cmd_no_rsp(struct gcip_mailbox *mailbox, void *cmd)
 {
-	struct gcip_mailbox_async_resp async_resp = {
-		.resp = resp,
-	};
 	int ret;
 
-	ret = gcip_mailbox_enqueue_cmd(mailbox, cmd, &async_resp, NULL, gcip_mailbox_cmd_flags);
-	if (ret)
-		goto err;
-
-	/*
-	 * If @resp is NULL, it will not enqueue the response into the waiting list. Therefore, it
-	 * is fine to release @async_resp.
-	 */
-	if (!resp)
-		return 0;
-
-	ret = wait_event_timeout(mailbox->wait_list->waitq, !async_resp.waiting,
-				 msecs_to_jiffies(mailbox->timeout));
-	if (!ret) {
-		dev_dbg(mailbox->dev, "event wait timeout");
-		gcip_mailbox_del_wait_resp(mailbox, &async_resp);
-		ret = -ETIMEDOUT;
-		goto err;
-	}
-
-	/*
-	 * Paired with write barrier in gcip_mailbox_handle_response.  Access to other fields in
-	 * async_resp, plus access to *resp (by caller), must occur after observing
-	 * !async_resp.waiting above.
-	 */
-	smp_rmb();
-
-	return 0;
-
-err:
-	if (mailbox->ops->on_error)
-		mailbox->ops->on_error(mailbox, ret);
+	ret = gcip_mailbox_enqueue_cmd(mailbox, cmd, NULL);
+	if (ret && mailbox->ops->on_error)
+		mailbox->ops->on_error(mailbox, cmd, ret);
 
 	return ret;
 }
 
-struct gcip_mailbox_resp_awaiter *gcip_mailbox_put_cmd_flags(struct gcip_mailbox *mailbox,
-							     void *cmd, void *resp, void *data,
-							     u32 gcip_mailbox_cmd_flags)
+/**
+ * struct gcip_mailbox_waiter_sync - The struct to hold the awaiter of the synchronous command.
+ * @awaiter: The embedded awaiter of the synchronous command.
+ * @release_ready: A completion struct to indicate that the awaiter is ready to be released.
+ */
+struct gcip_mailbox_waiter_sync {
+	struct gcip_mailbox_awaiter awaiter;
+	struct completion release_ready;
+};
+
+/**
+ * gcip_mailbox_waiter_sync_release() - The callback to release the synchronous awaiter.
+ * @awaiter: The pointer to the awaiter of the synchronous command.
+ *
+ * The sync_rsp will not be freed here because it will be released automatically when the function
+ * gcip_mailbox_send_cmd() returns. This function will only mark the @release_ready completed and
+ * notify gcip_mailbox_send_cmd() to continue.
+ */
+static void gcip_mailbox_waiter_sync_release(struct gcip_mailbox_awaiter *awaiter)
 {
-	struct gcip_mailbox_resp_awaiter *awaiter;
+	struct gcip_mailbox_waiter_sync *waiter_sync =
+		container_of(awaiter, struct gcip_mailbox_waiter_sync, awaiter);
+
+	complete_all(&waiter_sync->release_ready);
+}
+
+int gcip_mailbox_send_cmd(struct gcip_mailbox *mailbox, void *cmd, void *resp)
+{
+	struct gcip_mailbox_waiter_sync waiter_sync;
+	struct gcip_mailbox_awaiter *awaiter = &waiter_sync.awaiter;
+	static const struct gcip_mailbox_awaiter_ops ops = {
+		.release = gcip_mailbox_waiter_sync_release
+	};
 	int ret;
 
-	/* The ownership of the data will be transferred to the awaiter */
-	awaiter = gcip_mailbox_awaiter_create(mailbox, resp, data);
-	if (IS_ERR(awaiter))
-		return awaiter;
+	init_completion(&waiter_sync.release_ready);
+	ret = gcip_mailbox_awaiter_init_onstack(awaiter, mailbox, resp, &ops);
+	if (ret) {
+		complete_all(&waiter_sync.release_ready);
+		goto out;
+	}
 
-	INIT_DELAYED_WORK(&awaiter->timeout_work, gcip_mailbox_async_cmd_timeout_work);
-	if (!(gcip_mailbox_cmd_flags & GCIP_MAILBOX_CMD_FLAGS_NO_TIMEOUT)) {
-		u32 timeout;
+	ret = gcip_mailbox_send_cmd_async(mailbox, cmd, awaiter);
+	if (ret)
+		goto put_awaiter;
 
-		if (mailbox->ops->get_cmd_timeout)
-			timeout = mailbox->ops->get_cmd_timeout(mailbox, cmd, resp, data);
-		else
-			timeout = mailbox->timeout;
+	wait_for_completion(&awaiter->handled);
 
+	switch (awaiter->status) {
+	case GCIP_MAILBOX_AWAITER_STATUS_ARRIVED:
+		ret = 0;
+		break;
+	case GCIP_MAILBOX_AWAITER_STATUS_TIMEDOUT:
+		ret = -ETIMEDOUT;
+		break;
+	default:
+		WARN_ON_ONCE(true);
+		ret = -EINVAL;
+		break;
+	}
+
+put_awaiter:
+	gcip_mailbox_awaiter_put(awaiter);
+out:
+	if (ret && mailbox->ops->on_error)
+		mailbox->ops->on_error(mailbox, cmd, ret);
+
+	/* Ensure that all threads are done with the sync_rsp before it is released. */
+	wait_for_completion(&waiter_sync.release_ready);
+
+	return ret;
+}
+
+int gcip_mailbox_send_cmd_async(struct gcip_mailbox *mailbox, void *cmd,
+				struct gcip_mailbox_awaiter *awaiter)
+{
+	u32 timeout = 0;
+	int ret;
+
+	if (awaiter->ops->get_timeout)
+		timeout = awaiter->ops->get_timeout(awaiter);
+
+	if (timeout == 0)
+		timeout = mailbox->timeout;
+
+	if (timeout != GCIP_MAILBOX_AWAITER_TIMEOUT_NONE) {
 		/* The pending timeout worker needs a reference as well. */
 		gcip_mailbox_awaiter_get(awaiter);
 
 		schedule_delayed_work(&awaiter->timeout_work, msecs_to_jiffies(timeout));
 	}
 
-	ret = gcip_mailbox_enqueue_cmd(mailbox, cmd, &awaiter->async_resp, awaiter,
-				       gcip_mailbox_cmd_flags);
+	ret = gcip_mailbox_enqueue_cmd(mailbox, cmd, awaiter);
 	if (ret)
 		goto err_free_resp;
 
-	return awaiter;
+	return 0;
 
 err_free_resp:
 	gcip_mailbox_cancel_timeout_work_sync(awaiter);
-	/*
-	 * Use kfree instead of gcip_mailbox_awaiter_put() when error occurred.
-	 * The @data should not be released here as the caller should handle it.
-	 */
-	kfree(awaiter);
-	return ERR_PTR(ret);
+
+	return ret;
 }
 
-struct gcip_mailbox_resp_awaiter *gcip_mailbox_put_cmd(struct gcip_mailbox *mailbox, void *cmd,
-						       void *resp, void *data)
+bool gcip_mailbox_cancel_awaiter(struct gcip_mailbox_awaiter *awaiter)
 {
-	return gcip_mailbox_put_cmd_flags(mailbox, cmd, resp, data, 0);
-}
-
-bool gcip_mailbox_cancel_awaiter(struct gcip_mailbox_resp_awaiter *awaiter)
-{
-	bool removed;
+	bool deleted;
 
 	/* Cancel the timeout work of the awaiter if it is still pending. */
 	gcip_mailbox_cancel_timeout_work(awaiter);
 
 	/*
-	 * If @removed is true, it means that the awaiter is now taken by this cancel handler.
+	 * If @deleted is true, it means that the awaiter is now taken by this cancel handler.
 	 * The arrived handler will skip the awaiter when they are executed.
 	 *
-	 * If @removed is false, it means either the arrived handler or the timeout handler has
+	 * If @deleted is false, it means either the arrived handler or the timeout handler has
 	 * already started, wait until they are completed to ensure that no other threads will
 	 * access the awaiter. The caller is the only owner that can access the awaiter after this
 	 * function returns.
 	 */
-	removed = gcip_mailbox_del_wait_resp(awaiter->mailbox, &awaiter->async_resp);
-	if (!removed)
+	deleted = gcip_mailbox_wait_list_del(awaiter->mailbox, awaiter,
+					     GCIP_MAILBOX_AWAITER_STATUS_CANCELED);
+	if (!deleted)
 		wait_for_completion(&awaiter->handled);
 
-	return removed;
+	return deleted;
 }
 
-void gcip_mailbox_cancel_timeout_work(struct gcip_mailbox_resp_awaiter *awaiter)
+void gcip_mailbox_cancel_timeout_work(struct gcip_mailbox_awaiter *awaiter)
 {
 	/*
 	 * If the timeout work is canceled successfully, we have to decrease the reference count
@@ -861,7 +859,7 @@ void gcip_mailbox_cancel_timeout_work(struct gcip_mailbox_resp_awaiter *awaiter)
 		gcip_mailbox_awaiter_put(awaiter);
 }
 
-void gcip_mailbox_cancel_timeout_work_sync(struct gcip_mailbox_resp_awaiter *awaiter)
+void gcip_mailbox_cancel_timeout_work_sync(struct gcip_mailbox_awaiter *awaiter)
 {
 	/*
 	 * If the timeout work is canceled successfully, we have to decrease the reference count
@@ -881,7 +879,4 @@ void gcip_mailbox_consume_one_response(struct gcip_mailbox *mailbox, void *resp)
 		return;
 
 	gcip_mailbox_handle_rx_elem(mailbox, resp);
-
-	/* Responses handled, wakes up threads that are waiting for a response. */
-	wake_up(&mailbox->wait_list->waitq);
 }

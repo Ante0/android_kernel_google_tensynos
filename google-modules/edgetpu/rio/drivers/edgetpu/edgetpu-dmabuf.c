@@ -22,6 +22,7 @@
 #include <linux/uaccess.h>
 
 #include <gcip/gcip-dma-fence.h>
+#include <gcip/gcip-mapping.h>
 
 #include "edgetpu-device-group.h"
 #include "edgetpu-dmabuf.h"
@@ -56,14 +57,14 @@ static void dmabuf_mapping_destroy(struct edgetpu_mapping *mapping)
 {
 	struct edgetpu_device_group *group = mapping->priv;
 
-	gcip_iommu_mapping_unmap(mapping->gcip_mapping);
+	gcip_mapping_unmap(mapping->gcip_mapping);
 	edgetpu_device_group_put(group);
 	kfree(mapping);
 }
 
 static void dmabuf_map_callback_show(struct edgetpu_mapping *map, struct seq_file *s)
 {
-	gcip_iommu_dmabuf_map_show(map->gcip_mapping, s);
+	gcip_mapping_dmabuf_show(map->gcip_mapping, s);
 }
 
 /**
@@ -105,15 +106,14 @@ static struct edgetpu_mapping *dmabuf_mapping_create(struct edgetpu_device_group
 	mutex_lock(&group->mapping_lock);
 	if (!edgetpu_device_group_is_ready(group)) {
 		ret = edgetpu_group_errno(group);
-		etdev_err(group->etdev, "group %u already errored: %d", group->group_id, ret);
+		etdev_err(group->etdev, "client %s already errored: %d", group->client->name, ret);
 		mutex_unlock(&group->mapping_lock);
 		up_read(&group->lock);
 		goto err_device_group_put;
 	}
 	etdomain = edgetpu_group_domain_locked(group);
 
-	mapping->gcip_mapping =
-		gcip_iommu_domain_map_dma_buf(etdomain->gdomain, dmabuf, gcip_map_flags);
+	mapping->gcip_mapping = gcip_mapping_dmabuf_map(etdomain->gdomain, dmabuf, gcip_map_flags);
 	mutex_unlock(&group->mapping_lock);
 	up_read(&group->lock);
 	if (IS_ERR(mapping->gcip_mapping)) {
@@ -140,6 +140,8 @@ int edgetpu_map_dmabuf(struct edgetpu_device_group *group, struct edgetpu_map_dm
 	struct edgetpu_mapping *mapping;
 	int ret;
 
+	/* Establishing new TPU mappings sets client to "not OK to trim" state. */
+	group->client->trim_enabled = false;
 	mapping = dmabuf_mapping_create(group, arg->dmabuf_fd, arg->flags, limited);
 	if (IS_ERR(mapping))
 		return PTR_ERR(mapping);
@@ -166,8 +168,8 @@ int edgetpu_unmap_dmabuf(struct edgetpu_device_group *group, tpu_addr_t tpu_addr
 	map = edgetpu_mapping_find_locked(mappings, tpu_addr, limited);
 	if (!map) {
 		edgetpu_mapping_unlock(mappings);
-		etdev_err(group->etdev, "unmap group=%u tpu_addr=%pad not found",
-			  group->group_id, &tpu_addr);
+		etdev_err(group->etdev, "unmap client %s iova %pad not found",
+			  group->client->name, &tpu_addr);
 		return -EINVAL;
 	}
 	edgetpu_mapping_unlink(mappings, map);
@@ -199,11 +201,9 @@ static void edgetpu_dma_fence_release(struct dma_fence *fence)
 	struct edgetpu_dma_fence *etfence = to_etfence(gfence);
 	struct edgetpu_device_group *group = etfence->group;
 
-	down_read(&group->lock);
 	mutex_lock(&group->dma_fence_lock);
 	list_del(&etfence->group_list);
 	mutex_unlock(&group->dma_fence_lock);
-	up_read(&group->lock);
 	/* Release this fence's reference on the owning group. */
 	edgetpu_device_group_put(group);
 	gcip_dma_fence_exit(gfence);
@@ -223,12 +223,9 @@ static int edgetpu_dma_fence_after_init(struct gcip_dma_fence *gfence)
 	struct edgetpu_dma_fence *etfence = to_etfence(gfence);
 	struct edgetpu_device_group *group = etfence->group;
 
-	down_read(&group->lock);
 	mutex_lock(&group->dma_fence_lock);
 	list_add_tail(&etfence->group_list, &group->dma_fence_list);
 	mutex_unlock(&group->dma_fence_lock);
-	up_read(&group->lock);
-
 	return 0;
 }
 
@@ -267,29 +264,64 @@ int edgetpu_sync_fence_signal(struct edgetpu_signal_sync_fence_data *datap)
 	return gcip_dma_fence_signal(datap->fence, datap->error, false);
 }
 
-/* Caller holds group lock. */
 void edgetpu_sync_fence_group_shutdown(struct edgetpu_device_group *group)
 {
-	struct list_head *pos;
+	struct list_head *pos, *next;
+	LIST_HEAD(signalled_fences);
 	int ret;
 
-	lockdep_assert_held(&group->lock);
 	mutex_lock(&group->dma_fence_lock);
-	list_for_each(pos, &group->dma_fence_list) {
+	list_for_each_safe(pos, next, &group->dma_fence_list) {
 		struct edgetpu_dma_fence *etfence =
 			container_of(pos, struct edgetpu_dma_fence, group_list);
+		struct dma_fence *fence = &etfence->gfence.fence;
+
+		/* Attempt to acquire a reference. Skip the fence if it's being released. */
+		if (!dma_fence_get_rcu(fence))
+			continue;
 
 		ret = gcip_dma_fenceptr_signal(&etfence->gfence, -EPIPE, true);
 		if (ret) {
-			struct dma_fence *fence = &etfence->gfence.fence;
-
 			etdev_warn(group->etdev, "error %d signaling fence %s-%s %llu-%llu", ret,
 				   fence->ops->get_driver_name(fence),
 				   fence->ops->get_timeline_name(fence), fence->context,
 				   fence->seqno);
 		}
+
+		/*
+		 * Move the entry from the dma_fence_list to our local signalled list.
+		 * Our ref to the fence will be dropped when we shoot the local signalled list
+		 * below, after we drop group->dma_fence_lock (b/478201743).
+		 */
+		list_del(&etfence->group_list);
+		list_add_tail(&etfence->group_list, &signalled_fences);
 	}
 	mutex_unlock(&group->dma_fence_lock);
+
+	/*
+	 * Shoot the local signalled list, dropping our ref to the fences and often releasing
+	 * each fence (without holding group->dma_fence_lock).
+	 */
+	list_for_each_safe(pos, next, &signalled_fences) {
+		struct edgetpu_dma_fence *etfence =
+			container_of(pos, struct edgetpu_dma_fence, group_list);
+		struct dma_fence *fence = &etfence->gfence.fence;
+
+		/*
+		 * Move the entry back to the dma_fence_list. Although we are about to drop our
+		 * reference with dma_fence_put, other references to the fence might still exist.
+		 * The fence must remain in group->dma_fence_list until its final release
+		 * in edgetpu_dma_fence_release.
+		 */
+		list_del(&etfence->group_list);
+		mutex_lock(&group->dma_fence_lock);
+		list_add_tail(&etfence->group_list, &group->dma_fence_list);
+		mutex_unlock(&group->dma_fence_lock);
+		/*
+		 * Now drop the reference from above. This might trigger edgetpu_dma_fence_release.
+		 */
+		dma_fence_put(fence);
+	}
 }
 
 int edgetpu_sync_fence_status(struct edgetpu_sync_fence_status *datap)
@@ -308,7 +340,7 @@ int edgetpu_sync_fence_debugfs_show(struct seq_file *s, void *unused)
 		struct edgetpu_dma_fence *etfence = to_etfence(gfence);
 
 		gcip_dma_fence_show(gfence, s);
-		seq_printf(s, " group=%u\n", etfence->group->group_id);
+		seq_printf(s, " client %s\n", etfence->group->client->name);
 	}
 	GCIP_DMA_FENCE_LIST_UNLOCK(etdev->gfence_mgr, flags);
 

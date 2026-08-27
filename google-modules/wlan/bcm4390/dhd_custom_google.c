@@ -1,7 +1,7 @@
 /*
  * Customer HW 2 dependant file
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -31,7 +31,6 @@
 #include <linux/fcntl.h>
 #include <linux/fs.h>
 #include <linux/of_gpio.h>
-#include <bcmutils.h>
 #ifdef CONFIG_WIFI_CONTROL_FUNC
 #include <linux/wlan_plat.h>
 #else
@@ -163,9 +162,9 @@ extern void exynos_pcie_set_skip_config(int ch_num, bool val);
 extern void google_pcie_dump_debug(int num);
 #endif /* CONFIG_SOC_LGA */
 
+#ifdef DHD_COREDUMP
 #define DEVICE_NAME "wlan"
 
-#ifdef DHD_COREDUMP
 static void sscd_release(struct device *dev);
 static struct sscd_platform_data sscd_pdata;
 static struct platform_device sscd_dev = {
@@ -177,7 +176,6 @@ static struct platform_device sscd_dev = {
 		.release       = sscd_release,
 		},
 };
-#endif /* DHD_COREDUMP */
 
 /* Google PCIe interface */
 static int pcie_ch_num = GOOGLE_PCIE_CH_NUM;
@@ -355,7 +353,6 @@ void _pcie_deregister_event(void *plat_info)
 }
 #endif /* !IS_ENABLED(CONFIG_PCI_EXYNOS_GS) */
 
-#ifdef DHD_COREDUMP
 static void sscd_release(struct device *dev)
 {
 	DHD_INFO(("%s: enter\n", __func__));
@@ -389,7 +386,7 @@ typedef struct {
     char sku[MAX_HW_INFO_LEN];
 } sku_info_t;
 
-static sku_info_t sku_table[] = {
+sku_info_t sku_table[] = {
 	{ {"G9S9B"}, {"MMW"} },
 	{ {"G8V0U"}, {"MMW"} },
 	{ {"GFQM1"}, {"MMW"} },
@@ -530,8 +527,8 @@ enum {
 
 #define DEFAULT_VAL "DEFAULT"
 
-static char val_revision[MAX_HW_INFO_LEN] = DEFAULT_VAL;
-static char val_sku[MAX_HW_INFO_LEN] = DEFAULT_VAL;
+char val_revision[MAX_HW_INFO_LEN] = DEFAULT_VAL;
+char val_sku[MAX_HW_INFO_LEN] = DEFAULT_VAL;
 
 enum hw_stage_attr {
 	DEV = 1,
@@ -546,7 +543,7 @@ typedef struct platform_hw_info {
 	uint8 avail_bmap;
 	char ext_name[MAX_FILE_COUNT][MAX_HW_EXT_LEN];
 } platform_hw_info_t;
-static platform_hw_info_t platform_hw_info;
+platform_hw_info_t platform_hw_info;
 
 static void
 dhd_set_platform_ext_name(char *hw_rev, char *hw_sku)
@@ -1389,9 +1386,6 @@ void dhd_plat_report_bh_sched(void *plat_info, int resched)
 	uint64 curr_time_ns;
 	uint64 time_delta_ns;
 
-	if (IS_ENABLED(CONFIG_IRQ_SBALANCE))
-		return;
-
 	if (dhd_force_max_cpu_freq) {
 		dhd_force_affinity_cpufreq(p->pdev);
 		return;
@@ -2207,6 +2201,7 @@ static int dhd_wonder_remove_wrapper(struct platform_device *pdev)
 	dhd_wonder_remove(pdev);
 	return 0;
 }
+
 #define dhd_wonder_remove dhd_wonder_remove_wrapper
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0) */
 
@@ -2222,6 +2217,6 @@ static struct platform_driver dhd_wonder_driver = {
 	.driver = {
 		.name = "dhd_wonder_dev",
 		.of_match_table = dhd_wonder_dt_ids,
-	},
+		},
 };
 #endif /* WONDERTAP */

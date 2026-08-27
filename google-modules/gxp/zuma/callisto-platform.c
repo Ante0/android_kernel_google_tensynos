@@ -33,11 +33,6 @@ void gxp_iommu_setup_shareability(struct gxp_dev *gxp)
 		       addr + GXP_SYSREG_AUR1_SHAREABILITY);
 }
 
-int gxp_iommu_get_max_vd_activation(struct gxp_dev *gxp)
-{
-	return gcip_iommu_domain_pool_get_num_pasid(gxp->domain_pool);
-}
-
 static int callisto_platform_parse_dt(struct platform_device *pdev,
 				      struct gxp_dev *gxp)
 {

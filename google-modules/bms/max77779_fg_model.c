@@ -657,6 +657,11 @@ u16 max77779_get_designcap(const struct max77779_model_data *model_data)
 	return model_data->parameters.designcap;
 }
 
+u16 max77779_get_v_empty(const struct max77779_model_data *model_data)
+{
+	return model_data->parameters.v_empty;
+}
+
 ssize_t max77779_model_state_cstr(char *buf, int max, struct max77779_model_data *model_data)
 {
 	int len = 0;
