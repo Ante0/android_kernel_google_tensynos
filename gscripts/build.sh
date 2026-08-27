@@ -59,6 +59,16 @@ ensure_directories
 
 msg "Building ${TARGET}"
 
+msg "Debug" 
+toolchains/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux-gcc-nm --version
+echo "exit=$?"
+
+toolchains/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux-gcc-nm --help >/dev/null
+echo "exit=$?"
+
+ls -lh toolchains/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux-gcc-nm
+file toolchains/gcc-14.2.0-nolibc/aarch64-linux/bin/aarch64-linux-gcc-nm
+
 make \
     CROSS_COMPILE="${CROSS_COMPILE}" \
     CC="${CC}" \
