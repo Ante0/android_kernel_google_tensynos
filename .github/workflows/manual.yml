@@ -1,0 +1,106 @@
+name: Manual Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Device target
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - gs201
+          - zuma
+          - zumapro
+
+      variant:
+        description: Kernel variant
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - ksu-susfs
+          - ksu-next-susfs
+          - ksu-susfs-nomount
+          - ksu-next-susfs-nomount
+
+jobs:
+  matrix:
+    name: Generate build matrix
+    runs-on: ubuntu-latest
+
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+
+    steps:
+      - name: Generate matrix
+        id: matrix
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          TARGET="${{ github.event.inputs.target }}"
+          VARIANT="${{ github.event.inputs.variant }}"
+
+          if [[ "$TARGET" == "all" ]]; then
+              TARGETS=(gs201 zuma zumapro)
+          else
+              TARGETS=("$TARGET")
+          fi
+
+          if [[ "$VARIANT" == "all" ]]; then
+              VARIANTS=(
+                  ksu-susfs
+                  ksu-next-susfs
+                  ksu-susfs-nomount
+                  ksu-next-susfs-nomount
+              )
+          else
+              VARIANTS=("$VARIANT")
+          fi
+
+          JSON='{"include":['
+          FIRST=true
+
+          for TARGET in "${TARGETS[@]}"; do
+              for VARIANT in "${VARIANTS[@]}"; do
+
+                  if $FIRST; then
+                      FIRST=false
+                  else
+                      JSON+=","
+                  fi
+
+                  JSON+="{\"target\":\"${TARGET}\",\"variant\":\"${VARIANT}\"}"
+
+              done
+          done
+
+          JSON+="]}"
+
+          echo "$JSON"
+
+          {
+              echo "matrix<<EOF"
+              echo "$JSON"
+              echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build
+
+    needs: matrix
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+
+    uses: ./.github/workflows/build.yml
+
+    with:
+      target: ${{ matrix.target }}
+      variant: ${{ matrix.variant }}
+
+    secrets: inherit

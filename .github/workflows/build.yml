@@ -1,0 +1,84 @@
+name: Build Kernel
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+
+      variant:
+        required: true
+        type: string
+
+jobs:
+  build:
+    name: "${{ inputs.target }} • ${{ inputs.variant }}"
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    env:
+      TARGET: ${{ inputs.target }}
+      VARIANT: ${{ inputs.variant }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            bc \
+            bison \
+            build-essential \
+            ccache \
+            curl \
+            flex \
+            git \
+            gh \
+            jq \
+            libelf-dev \
+            libssl-dev \
+            lz4 \
+            pahole \
+            python3 \
+            rsync \
+            unzip \
+            zip
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ inputs.target }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ inputs.target }}
+            ccache-${{ runner.os }}
+
+      - name: Prepare scripts
+        run: chmod +x scripts/*.sh
+
+      - name: Patch source tree
+        run: |
+          ./gscripts/patch_sultan.sh "$TARGET" "$VARIANT"
+
+      - name: Build kernel
+        run: |
+          ./gscripts/build.sh "$TARGET"
+
+      - name: Package AnyKernel
+        run: |
+          ./gscripts/package.sh "$TARGET" "$VARIANT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SULTAN17_${{ inputs.target }}_${{ inputs.variant }}
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0
