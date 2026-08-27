@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 2026, Broadcom.
+ * Copyright (C) 2025, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -6350,18 +6350,11 @@ wl_cfg80211_get_mlo_link_status(struct bcm_cfg80211 *cfg, struct net_device *dev
 				mst_resp->version, mst_resp->mode, resp_len));
 		WL_INFORM_MEM(("[MLO] num of links:%d mld_addr:" MACDBG "\n",
 				num_links, MAC2STRDBG(mst_resp->mld_addr.octet)));
-	} else {
-		/* Skip memset during roaming as num_links may return as 0. The
-		 * bssidx, cfgidx values are available only during WLC_E_MLO_LINK_INFO
-		 * context. so memset can't be done unconditionally.
-		 */
-		if (!wl_get_drv_status(cfg, ROAMING, dev)) {
-			WL_INFORM_MEM(("[MLO] num_links:0, clear any stale data\n"));
-			(void)memset_s(&netinfo->mlinfo, sizeof(wl_mlo_link_info_t), 0,
-					sizeof(wl_mlo_link_info_t));
-		} else {
-			WL_INFORM_MEM(("[MLO] num_links:0 during ROAMING, skip clearing data\n"));
-		}
+	}
+
+	if (num_links == 0) {
+		(void)memset_s(&netinfo->mlinfo, sizeof(wl_mlo_link_info_t), 0,
+				sizeof(wl_mlo_link_info_t));
 	}
 
 	mst_link = (wl_mlo_link_status_v2_t *)&mst_resp->link_status[0];
@@ -6382,7 +6375,6 @@ wl_cfg80211_get_mlo_link_status(struct bcm_cfg80211 *cfg, struct net_device *dev
 		(void)memcpy_s(&netinfo->mlinfo.links[i].peer_link_addr,
 			ETH_ALEN, &mst_link->pi[0].link_addr.octet, ETH_ALEN);
 
-		netinfo->mlinfo.links[i].link_idx = mst_link->link_idx;
 		if (netinfo->mlinfo.links[i].link_idx == WL_ASSOC_LINK_IDX) {
 			(void)memcpy_s(&netinfo->mlinfo.peer_mld_addr,
 				ETH_ALEN, &mst_link->pi[0].mld_addr.octet, ETH_ALEN);
@@ -27839,11 +27831,9 @@ wl_cfg80211_actframe_fillup_v2(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgd
 {
 	s32 err = 0;
 	wl_action_frame_v2_t *action_frame_v2_p;
-	struct net_info *netinfo = NULL;
 	struct ether_addr rand_mac_mask = {{0}};
 	WL_DBG(("Enter \n"));
 
-	netinfo = wl_get_netinfo_by_netdev(cfg, dev);
 	af_params_v2_p->version = WL_ACTFRAME_VERSION_MAJOR_2;
 	af_params_v2_p->length = wl_af_params_size;
 	af_params_v2_p->channel = af_params->channel;
@@ -27863,10 +27853,11 @@ wl_cfg80211_actframe_fillup_v2(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgd
 		WL_ERR(("actframe :memcpy failed\n"));
 		return -ENOMEM;
 	}
+
 	/* check if local admin bit is set and addr is different from ndev addr */
-	if ((cfgdev->iftype == NL80211_IFTYPE_STATION) &&
-		(((IS_LOCAL_ETHERADDR(sa)) && memcmp(sa, dev->dev_addr, ETH_ALEN)) ||
-		(netinfo && netinfo->mlinfo.num_links))) {
+	if ((IS_LOCAL_ETHERADDR(sa)) &&
+		(cfgdev->iftype == NL80211_IFTYPE_STATION) &&
+		memcmp(sa, dev->dev_addr, ETH_ALEN)) {
 		/* Use mask to avoid randomization, as the address from supplicant
 		 * is already randomized.
 		 */

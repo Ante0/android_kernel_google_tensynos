@@ -1,7 +1,7 @@
 /*
  * DHD Bus Module for PCIE
  *
- * Copyright (C) 2026, Broadcom.
+ * Copyright (C) 2025, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -16689,7 +16689,6 @@ dhd_bus_flow_ring_create_response(dhd_bus_t *bus, uint16 flowid, int32 status)
 		DHD_ERROR(("%s: invalid flowid:%d alloc_max:%d fid_max:%d\n",
 			__FUNCTION__, flowid, bus->dhd->num_h2d_rings,
 			bus->dhd->max_tx_flowid));
-		return;
 	}
 
 	flow_ring_node = DHD_FLOW_RING(bus->dhd, flowid);
@@ -16797,7 +16796,6 @@ dhd_bus_flow_ring_delete_response(dhd_bus_t *bus, uint16 flowid, uint32 status)
 		DHD_ERROR(("%s: invalid flowid:%d alloc_max:%d fid_max:%d\n",
 			__FUNCTION__, flowid, bus->dhd->num_h2d_rings,
 			bus->dhd->max_tx_flowid));
-		return;
 	}
 
 	flow_ring_node = DHD_FLOW_RING(bus->dhd, flowid);
@@ -16881,7 +16879,6 @@ dhd_bus_flow_ring_flush_response(dhd_bus_t *bus, uint16 flowid, uint32 status)
 		DHD_ERROR(("%s: invalid flowid:%d alloc_max:%d fid_max:%d\n",
 			__FUNCTION__, flowid, bus->dhd->num_h2d_rings,
 			bus->dhd->max_tx_flowid));
-		return;
 	}
 
 	flow_ring_node = DHD_FLOW_RING(bus->dhd, flowid);
