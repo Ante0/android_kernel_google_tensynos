@@ -2,7 +2,7 @@
  * Broadcom Dongle Host Driver (DHD), Linux-specific network interface.
  * Basically selected code segments from usb-cdc.c and usb-rndis.c
  *
- * Copyright (C) 2026, Broadcom.
+ * Copyright (C) 2025, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -14086,22 +14086,22 @@ dhd_bus_detach(dhd_pub_t *dhdp)
 	}
 }
 
-void
-dhd_pri_dev_close(dhd_pub_t *dhdp)
+void dhd_detach(dhd_pub_t *dhdp)
 {
 	dhd_info_t *dhd;
-	dhd_if_t *ifp;
+	unsigned long flags;
+	int timer_valid = FALSE;
 	struct net_device *dev = NULL;
+	dhd_if_t *ifp;
+#ifdef WL_CFG80211
+	struct bcm_cfg80211 *cfg = NULL;
+#endif
+	if (!dhdp)
+		return;
 
 	dhd = (dhd_info_t *)dhdp->info;
 	if (!dhd)
 		return;
-
-	DHD_PRINT(("%s\n", __FUNCTION__));
-
-#ifdef DHD_PCIE_RUNTIMEPM
-	dhdpcie_runtime_bus_wake(dhdp, TRUE, dhd_pri_dev_close);
-#endif /* DHD_PCIE_RUNTIMEPM */
 
 	/* primary interface 0 */
 	ifp = dhd->iflist[0];
@@ -14122,26 +14122,6 @@ dhd_pri_dev_close(dhd_pub_t *dhdp)
 		}
 		rtnl_unlock();
 	}
-}
-
-void dhd_detach(dhd_pub_t *dhdp)
-{
-	dhd_info_t *dhd;
-	unsigned long flags;
-	int timer_valid = FALSE;
-	dhd_if_t *ifp;
-#ifdef WL_CFG80211
-	struct bcm_cfg80211 *cfg = NULL;
-#endif
-	if (!dhdp)
-		return;
-
-	dhd = (dhd_info_t *)dhdp->info;
-	if (!dhd)
-		return;
-
-	/* primary interface 0 */
-	ifp = dhd->iflist[0];
 
 	DHD_TRACE(("%s: Enter state 0x%x\n", __FUNCTION__, dhd->dhd_state));
 
@@ -14726,8 +14706,6 @@ dhd_module_cleanup(void)
 #ifdef DHD_COREDUMP
 	dhd_plat_unregister_coredump();
 #endif /* DHD_COREDUMP */
-
-	dhd_pri_dev_close(g_dhd_pub);
 
 #ifdef BCMDBUS
 	dbus_deregister();
