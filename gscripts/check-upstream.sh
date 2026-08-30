@@ -60,8 +60,6 @@ cat >"$NOTES_FILE" <<EOF
 
 This build was triggered by upstream changes.
 
-Note: NoMount maybe fixed.
-
 
 EOF
 
