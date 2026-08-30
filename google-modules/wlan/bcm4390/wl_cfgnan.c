@@ -1,7 +1,7 @@
 /*
  * Neighbor Awareness Networking
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -5273,11 +5273,12 @@ fail:
 		if (err != BCME_OK) {
 			WL_ERR(("failed to de-initialize NAN[%d]\n", err));
 		}
+#ifdef WLTDLS
+		/* Re-enable TDLS if NAN enable fails */
+		wl_cfg80211_tdls_config(cfg, TDLS_STATE_IF_DELETE, false);
+#endif /* WLTDLS */
 	}
 done:
-	/* Enable back TDLS if connected interface is <= 1 */
-	wl_cfg80211_tdls_config(cfg, TDLS_STATE_IF_DELETE, false);
-
 	/* reset conditon variable */
 	nancfg->nan_event_recvd = false;
 

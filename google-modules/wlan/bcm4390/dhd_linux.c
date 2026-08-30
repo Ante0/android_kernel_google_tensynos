@@ -1,7 +1,7 @@
 /*
  * Basically selected code segments from usb-cdc.c and usb-rndis.c
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -5694,7 +5694,6 @@ dhd_monitor_stop(struct net_device *net)
 	DHD_PRINT(("%s : enable RPM\n", __FUNCTION__));
 	DHD_ART_WAKE_UNLOCK(&dhd->pub);
 	/* clear filter bssid after use */
-	bzero(&cfg->art_bssid, ETH_ALEN);
 	bzero(&dhd->pub.art_bssid, ETH_ALEN);
 #endif /* DHD_ART */
 exit:
@@ -6075,9 +6074,12 @@ dhd_add_monitor_if(dhd_info_t *dhd)
 		return;
 	}
 
+#ifdef WONDERTAP
 	if (!(dhdp->op_mode & DHD_FLAG_MONITOR_MODE)) {
 		devname = "wondertap";
-	} else {
+	} else
+#endif /* WONDERTAP */
+	{
 		devname = "radiotap";
 	}
 

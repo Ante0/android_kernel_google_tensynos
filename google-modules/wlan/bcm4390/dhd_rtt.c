@@ -1,7 +1,7 @@
 /*
  * Broadcom Dongle Host Driver (DHD), RTT
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1142,12 +1142,47 @@ rtt_unpack_xtlv_cbfn(void *ctx, const uint8 *p_data, uint16 tlvid, uint16 len)
 	wl_proxd_ftm_session_status_t *p_data_info = NULL;
 	uint32 chan_data_entry = 0;
 	uint16 expected_rtt_result_ver = 0;
+	rtt_event_data_info_t *rtt_event_data_info = NULL;
+	rtt_mc_az_result_t *rtt_result = NULL;
+	bcm_xtlv_t *tlv = NULL;
 
-	rtt_event_data_info_t *rtt_event_data_info = (rtt_event_data_info_t *)ctx;
-	rtt_mc_az_result_t *rtt_result = rtt_event_data_info->rtt_result;
-	bcm_xtlv_t *tlv = rtt_event_data_info->tlv;
+	if (!ctx) {
+		DHD_RTT_ERR(("rtt_unpack_xtlv_cbfn: ctx is NULL\n"));
+		return BCME_ERROR;
+	}
+
+	rtt_event_data_info = (rtt_event_data_info_t *)ctx;
+	rtt_result = rtt_event_data_info->rtt_result;
+	tlv = rtt_event_data_info->tlv;
 
 	BCM_REFERENCE(p_data_info);
+
+	if ((tlvid == WL_PROXD_TLV_ID_RTT_RESULT ||
+			tlvid == WL_PROXD_TLV_ID_RTT_RESULT_V2 ||
+			tlvid == WL_PROXD_TLV_ID_RTT_RESULT_V3 ||
+			tlvid == WL_FTM_TLV_ID_AZ_RTT_RESULT_V1 ||
+			tlvid == WL_FTM_TLV_ID_AZ_RTT_RESULT_V2 ||
+			tlvid == WL_FTM_TLV_ID_AZ_RTT_RESULT_V3) &&
+			!rtt_result) {
+		DHD_RTT_ERR(("rtt_unpack_xtlv_cbfn: rtt_result is NULL for TLV ID %d\n", tlvid));
+		return BCME_ERROR;
+	}
+
+	if ((tlvid == WL_PROXD_TLV_ID_SESSION_STATUS) &&
+		!rtt_event_data_info->session_status) {
+		DHD_RTT_ERR(("rtt_unpack_xtlv_cbfn: session_status is NULL for TLV ID %d\n",
+				tlvid));
+		return BCME_ERROR;
+	}
+
+	if ((tlvid == WL_PROXD_TLV_ID_COLLECT_DATA ||
+			tlvid == WL_PROXD_TLV_ID_LCI ||
+			tlvid == WL_PROXD_TLV_ID_CIVIC ||
+			tlvid == WL_PROXD_TLV_ID_MF_STATS_DATA) &&
+			!rtt_event_data_info->tlv) {
+		DHD_RTT_ERR(("rtt_unpack_xtlv_cbfn: tlv is NULL for TLV ID %d\n", tlvid));
+		return BCME_ERROR;
+	}
 
 	switch (tlvid) {
 	case WL_PROXD_TLV_ID_RTT_RESULT:
@@ -1155,10 +1190,6 @@ rtt_unpack_xtlv_cbfn(void *ctx, const uint8 *p_data, uint16 tlvid, uint16 len)
 	case WL_PROXD_TLV_ID_RTT_RESULT_V3:
 		DHD_RTT(("WL_PROXD_TLV_ID_RTT_RESULT\n"));
 		expected_rtt_result_ver = rtt_result_ver(tlvid, p_data);
-		if (rtt_result == NULL) {
-			ret = BCME_ERROR;
-			break;
-		}
 		switch (expected_rtt_result_ver) {
 		case WL_PROXD_RTT_RESULT_VERSION_1:
 			ret = dhd_rtt_convert_results_to_host_v1(rtt_result,
@@ -1180,10 +1211,6 @@ rtt_unpack_xtlv_cbfn(void *ctx, const uint8 *p_data, uint16 tlvid, uint16 len)
 		break;
 	case WL_PROXD_TLV_ID_SESSION_STATUS:
 		DHD_RTT(("WL_FTM_TLV_ID_SESSION_STATUS\n"));
-		if (rtt_event_data_info->session_status == NULL) {
-			ret = BCME_ERROR;
-			break;
-		}
 		ret = memcpy_s(rtt_event_data_info->session_status,
 				sizeof(wl_proxd_ftm_session_status_t), p_data, len);
 		if (ret != BCME_OK) {
@@ -1233,32 +1260,22 @@ rtt_unpack_xtlv_cbfn(void *ctx, const uint8 *p_data, uint16 tlvid, uint16 len)
 		DHD_RTT(("WL_FTM_TLV_ID_LCI, IE data=%lx, len=%d\n",
 			(unsigned long)p_data, len));
 		rtt_prhex("", p_data, len);
-		if (tlv) {
-			tlv->id = WL_PROXD_TLV_ID_LCI;
-			ret = memcpy_s(tlv->data, tlv->len, p_data, len);
-			tlv->len = len;
-			if (ret != BCME_OK) {
-				break;
-			}
-		}
-		else {
-			ret = BCME_ERROR;
+		tlv->id = WL_PROXD_TLV_ID_LCI;
+		ret = memcpy_s(tlv->data, tlv->len, p_data, len);
+		tlv->len = len;
+		if (ret != BCME_OK) {
+			break;
 		}
 		break;
 	case WL_PROXD_TLV_ID_CIVIC:
 		DHD_RTT(("WL_FTM_TLV_ID_CIVIC, IE data=%lx, len=%d\n",
 			(unsigned long)p_data, len));
 		rtt_prhex("", p_data, len);
-		if (tlv) {
-			tlv->id = WL_PROXD_TLV_ID_CIVIC;
-			tlv->len = len;
-			ret = memcpy_s(tlv->data, tlv->len, p_data, len);
-			if (ret != BCME_OK) {
-				break;
-			}
-		}
-		else {
-			ret = BCME_ERROR;
+		tlv->id = WL_PROXD_TLV_ID_CIVIC;
+		tlv->len = len;
+		ret = memcpy_s(tlv->data, tlv->len, p_data, len);
+		if (ret != BCME_OK) {
+			break;
 		}
 		break;
 #endif /* WL_RTT_LCI */
@@ -5962,6 +5979,10 @@ dhd_rtt_parse_az_result_event(wl_proxd_event_t *proxd_ev_data,
 	memset(&rtt_event_data_info, 0, sizeof(rtt_event_data_info_t));
 
 	rtt_event_data_info.rtt_result = rtt_result;
+	if (!session_status) {
+		ret = -ENOMEM;
+		goto exit;
+	}
 	rtt_event_data_info.session_status = session_status;
 	/* unpack TLVs and invokes the cbfn to print the event content TLVs */
 	ret = bcm_unpack_xtlv_buf((void *) &rtt_event_data_info,

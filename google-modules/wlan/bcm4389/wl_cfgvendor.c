@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 Vendor Extension Code
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -3495,14 +3495,19 @@ wl_cfgvendor_set_td_policy(struct wiphy *wiphy,
 			u32 td_policy = nla_get_u32(iter);
 
 			WL_INFORM_MEM(("Setting TD policy %d\n", td_policy));
-			ret = wl_cfg80211_set_wsec_info(net, &td_policy,
-				sizeof(td_policy), WL_WSEC_INFO_BSS_TD_POLICY);
-			if (unlikely(ret)) {
-				WL_ERR(("set wsec_info for td_policy failed, error %d\n", ret));
-				/* Trigger disassoc, going ahead with connection is
-				 * violation of TD policy
-				 */
-				wl_cfg80211_disassoc(net, WLAN_REASON_UNSPECIFIED);
+			if (td_policy == TRANSITION_MODE_WPA3_PSK ||
+					td_policy == TRANSITION_MODE_SAE_PK) {
+				ret = wl_cfg80211_set_wsec_info(net, &td_policy,
+					sizeof(td_policy), WL_WSEC_INFO_BSS_TD_POLICY);
+				if (unlikely(ret)) {
+					WL_ERR(("set wsec_info for td_policy failed, error %d\n", ret));
+					/* Trigger disassoc, going ahead with connection is
+					* violation of TD policy
+					*/
+					wl_cfg80211_disassoc(net, WLAN_REASON_UNSPECIFIED);
+				}
+			} else {
+				WL_ERR(("Unsupported TD policy %d\n", td_policy));
 			}
 			break;
 		}

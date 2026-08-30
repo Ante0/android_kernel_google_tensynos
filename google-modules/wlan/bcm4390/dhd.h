@@ -4,7 +4,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1334,7 +1334,11 @@ typedef struct dhd_db7_info {
 } dhd_db7_info_t;
 
 #ifdef DHD_ART
+#ifdef WONDERTAP
 #define IS_ART_IFACE(ifname) strstr(ifname, "wondertap0")
+#else
+#define IS_ART_IFACE(ifname) strstr(ifname, "radiotap0")
+#endif /* WONDERTAP */
 typedef struct dhd_art_counters {
     uint64 rx_packets;
     uint64 rx_dbg_monitor_packets;

@@ -1,7 +1,7 @@
 /*
  * Customer HW 2 dependant file
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -2207,6 +2207,7 @@ static int dhd_wonder_remove_wrapper(struct platform_device *pdev)
 	dhd_wonder_remove(pdev);
 	return 0;
 }
+
 #define dhd_wonder_remove dhd_wonder_remove_wrapper
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0) */
 
@@ -2222,6 +2223,6 @@ static struct platform_driver dhd_wonder_driver = {
 	.driver = {
 		.name = "dhd_wonder_dev",
 		.of_match_table = dhd_wonder_dt_ids,
-	},
+		},
 };
 #endif /* WONDERTAP */

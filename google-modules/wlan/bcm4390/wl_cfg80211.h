@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -2513,9 +2513,6 @@ struct bcm_cfg80211 {
 	u64 cfg80211_features;
 	uint32 nan_usd_busy_cnt;
 	uint32 actfrm_fail_cnt;
-#ifdef DHD_ART
-	u8 art_bssid[ETHER_ADDR_LEN]; /* BSSID filter */
-#endif /* DHD_ART */
 };
 
 typedef struct wl_multink_config {
