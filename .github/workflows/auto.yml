@@ -83,6 +83,7 @@ jobs:
       - name: Update Nightly release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_NOTES: ${{ needs.check.outputs.release_notes }}
         run: |
           ./gscripts/release-nightly.sh \
             "${{ needs.check.outputs.source_sha }}" \
@@ -90,4 +91,4 @@ jobs:
             "${{ needs.check.outputs.next_sha }}" \
             "${{ needs.check.outputs.susfs_sha }}" \
             "${{ needs.check.outputs.nomount_sha }}" \
-            "${{ needs.check.outputs.release_notes }}"
+            "$RELEASE_NOTES"
