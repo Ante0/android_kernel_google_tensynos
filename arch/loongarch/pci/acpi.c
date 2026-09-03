@@ -26,9 +26,12 @@ void pcibios_add_bus(struct pci_bus *bus)
 
 int pcibios_root_bridge_prepare(struct pci_host_bridge *bridge)
 {
-	struct pci_config_window *cfg = bridge->bus->sysdata;
-	struct acpi_device *adev = to_acpi_device(cfg->parent);
+	struct acpi_device *adev = NULL;
 	struct device *bus_dev = &bridge->bus->dev;
+	struct pci_config_window *cfg = bridge->bus->sysdata;
+
+	if (!acpi_disabled)
+		adev = to_acpi_device(cfg->parent);
 
 	ACPI_COMPANION_SET(&bridge->dev, adev);
 	set_dev_node(bus_dev, pa_to_nid(cfg->res.start));
@@ -58,11 +61,16 @@ static void acpi_release_root_info(struct acpi_pci_root_info *ci)
 static int acpi_prepare_root_resources(struct acpi_pci_root_info *ci)
 {
 	int status;
+	unsigned long long pci_h = 0;
 	struct resource_entry *entry, *tmp;
 	struct acpi_device *device = ci->bridge;
 
 	status = acpi_pci_probe_root_resources(ci);
 	if (status > 0) {
+		acpi_evaluate_integer(device->handle, "PCIH", NULL, &pci_h);
+		if (pci_h)
+			return status;
+
 		resource_list_for_each_entry_safe(entry, tmp, &ci->resources) {
 			if (entry->res->flags & IORESOURCE_MEM) {
 				entry->offset = ci->root->mcfg_addr & GENMASK_ULL(63, 40);

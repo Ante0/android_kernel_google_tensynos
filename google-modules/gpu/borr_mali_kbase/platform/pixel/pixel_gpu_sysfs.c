@@ -342,7 +342,7 @@ static ssize_t trigger_fw_fault_store(struct device *dev, struct device_attribut
 {
 	struct kbase_device *kbdev = dev->driver_data;
 	u32 addr = 0;
-	struct device_node *dpm = of_find_node_by_name(NULL, "dpm");
+	struct device_node *dpm __free(device_node) = of_find_node_by_name(NULL, "dpm");
 	const char *variant = NULL;
 
 	/* Make this a no-op on -user builds. */
@@ -746,7 +746,7 @@ static ssize_t hint_power_on_store(struct device *dev, struct device_attribute *
 	if (!pc)
 		return -ENODEV;
 
-	ret = strtobool(buf, &enabled);
+	ret = kstrtobool(buf, &enabled);
 	if (ret)
 		return -EINVAL;
 

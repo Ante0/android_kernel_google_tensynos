@@ -19,11 +19,11 @@
 #define CHIP_VER_TRIM_ADDR 0x3F004
 #define CHIP_VER_TRIM_OLD_ADDR 0x1F64E
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 #define CRC_ERR_FLAG_ADDR 0x3F135
 #endif
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 typedef struct nvt_ts_reg {
 	uint32_t addr; /* byte in which address */
 	uint8_t mask; /* in which bits of that byte */
@@ -61,7 +61,7 @@ struct nvt_ts_mem_map {
 	uint32_t PEN_RX_ADDR;
 	uint32_t READ_FLASH_CHECKSUM_ADDR;
 	uint32_t RW_FLASH_DATA_ADDR;
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	uint32_t GCM_CODE_ADDR;
 	uint32_t FLASH_CMD_ADDR;
 	uint32_t FLASH_CMD_ISSUE_ADDR;
@@ -77,11 +77,11 @@ struct nvt_ts_mem_map {
 	uint32_t POR_CD_ADDR;
 	uint32_t TX_AUTO_COPY_EN;
 	uint32_t SPI_DMA_TX_INFO;
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	/* FW History */
 	uint32_t MMAP_HISTORY_EVENT0;
 	uint32_t MMAP_HISTORY_EVENT1;
-#if !SPI_FLASH
+#if !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	/* BLD CRC */
 	uint32_t BLD_LENGTH_ADDR;
 	uint32_t ILM_LENGTH_ADDR;
@@ -98,7 +98,7 @@ struct nvt_ts_mem_map {
 	uint32_t BLD_ILM_DLM_CRC_ADDR;
 	uint32_t DMA_CRC_FLAG_ADDR;
 	uint32_t SPI_DMA_VAL_ADDR;
-#endif // !SPI_FLASH
+#endif // !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	uint32_t EB_INFO_ADDR;
 	uint32_t HID_PEN_INFO_ADDR;
 };
@@ -106,7 +106,7 @@ struct nvt_ts_mem_map {
 struct nvt_ts_hw_info {
 	uint8_t hw_crc;
 };
-#if !SPI_FLASH
+#if !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 static const struct nvt_ts_mem_map NT36523_memory_map = {
 	.EVENT_BUF_ADDR           = 0x2FE00,
 	.HID_PEN_INFO_ADDR        = 0x2FE9E,
@@ -163,7 +163,7 @@ static const struct nvt_ts_mem_map NT36523_memory_map = {
 	.BLD_ILM_DLM_CRC_ADDR     = 0x3F133,
 	.DMA_CRC_FLAG_ADDR        = 0x3F134,
 };
-#endif // !SPI_FLASH
+#endif // !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 
 static const struct nvt_ts_mem_map NT36523N_memory_map = {
 	.EVENT_BUF_ADDR           = 0x2FD00,
@@ -198,7 +198,7 @@ static const struct nvt_ts_mem_map NT36523N_memory_map = {
 	.PEN_RX_ADDR              = 0x397F6,
 	.READ_FLASH_CHECKSUM_ADDR = 0x24000,
 	.RW_FLASH_DATA_ADDR       = 0x24002,
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	.GCM_CODE_ADDR            = 0x3F780,
 	.FLASH_CMD_ADDR           = 0x3F783,
 	.FLASH_CMD_ISSUE_ADDR     = 0x3F78E,
@@ -209,11 +209,11 @@ static const struct nvt_ts_mem_map NT36523N_memory_map = {
 	.BOOT_RDY_ADDR            = 0x3F10D,
 	.TX_AUTO_COPY_EN          = 0x3F7E8,
 	.SPI_DMA_TX_INFO          = 0x3F7F1,
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	/* FW History */
 	.MMAP_HISTORY_EVENT0      = 0x38D54,
 	.MMAP_HISTORY_EVENT1      = 0x38D94,
-#if !SPI_FLASH
+#if !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	/* BLD CRC */
 	.BLD_LENGTH_ADDR          = 0x3F138,	//0x3F138 ~ 0x3F13A	(3 bytes)
 	.ILM_LENGTH_ADDR          = 0x3F118,	//0x3F118 ~ 0x3F11A	(3 bytes)
@@ -230,10 +230,10 @@ static const struct nvt_ts_mem_map NT36523N_memory_map = {
 	.BLD_ILM_DLM_CRC_ADDR     = 0x3F133,
 	.DMA_CRC_FLAG_ADDR        = 0x3F134,
 	.SPI_DMA_VAL_ADDR         = 0x3F7D0,
-#endif // !SPI_FLASH
+#endif // !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 };
 
-#if !SPI_FLASH
+#if !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 static const struct nvt_ts_mem_map NT36526_memory_map = {
 	.EVENT_BUF_ADDR           = 0x22D00,
 	.RAW_PIPE0_ADDR           = 0x24000,
@@ -406,12 +406,12 @@ static const struct nvt_ts_mem_map NT36676F_memory_map = {
 	.READ_FLASH_CHECKSUM_ADDR = 0x14000,
 	.RW_FLASH_DATA_ADDR       = 0x14002,
 };
-#endif // !SPI_FLASH
+#endif // !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 
 static struct nvt_ts_hw_info NT36523_hw_info = {
 	.hw_crc         = 2,
 };
-#if !SPI_FLASH
+#if !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 static struct nvt_ts_hw_info NT36526_hw_info = {
 	.hw_crc         = 2,
 };
@@ -435,7 +435,7 @@ static struct nvt_ts_hw_info NT36525_hw_info = {
 static struct nvt_ts_hw_info NT36676F_hw_info = {
 	.hw_crc         = 0,
 };
-#endif // !SPI_FLASH
+#endif // !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 
 #define NVT_ID_BYTE_MAX 6
 struct nvt_ts_trim_id_table {
@@ -448,7 +448,7 @@ struct nvt_ts_trim_id_table {
 static const struct nvt_ts_trim_id_table trim_id_table[] = {
 	{.id = {0x17, 0xFF, 0xFF, 0x23, 0x65, 0x03}, .mask = {1, 0, 0, 1, 1, 1},
 		.mmap = &NT36523N_memory_map, .hwinfo = &NT36523_hw_info},
-#if !SPI_FLASH
+#if !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	{.id = {0x0D, 0xFF, 0xFF, 0x72, 0x66, 0x03}, .mask = {1, 0, 0, 1, 1, 1},
 		.mmap = &NT36675_memory_map,  .hwinfo = &NT36675_hw_info},
 	{.id = {0x20, 0xFF, 0xFF, 0x72, 0x66, 0x03}, .mask = {1, 0, 0, 1, 1, 1},
@@ -513,5 +513,5 @@ static const struct nvt_ts_trim_id_table trim_id_table[] = {
 		.mmap = &NT36525_memory_map,  .hwinfo = &NT36525_hw_info},
 	{.id = {0xFF, 0xFF, 0xFF, 0x76, 0x66, 0x03}, .mask = {0, 0, 0, 1, 1, 1},
 		.mmap = &NT36676F_memory_map, .hwinfo = &NT36676F_hw_info}
-#endif // !SPI_FLASH
+#endif // !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 };

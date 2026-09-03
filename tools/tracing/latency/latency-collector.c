@@ -1584,7 +1584,7 @@ static void *do_printloop(void *arg)
 		/*
 		 * Toss a coin to decide if we want to sleep before printing
 		 * out the backtrace. The reason for this is that opening
-		 * /sys/kernel/debug/tracing/trace will cause a blackout of
+		 * /sys/kernel/tracing/trace will cause a blackout of
 		 * hundreds of ms, where no latencies will be noted by the
 		 * latency tracer. Thus by randomly sleeping we try to avoid
 		 * missing traces systematically due to this. With this option
@@ -1725,7 +1725,7 @@ static void show_usage(void)
 "-n, --notrace\t\tIf latency is detected, do not print out the content of\n"
 "\t\t\tthe trace file to standard output\n\n"
 
-"-t, --threads NRTHR\tRun NRTHR threads for printing. Default is %d.\n\n"
+"-e, --threads NRTHR\tRun NRTHR threads for printing. Default is %d.\n\n"
 
 "-r, --random\t\tArbitrarily sleep a certain amount of time, default\n"
 "\t\t\t%ld ms, before reading the trace file. The\n"

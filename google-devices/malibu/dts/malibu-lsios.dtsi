@@ -1,0 +1,986 @@
+// SPDX-License-Identifier: GPL-2.0-only
+#include <dt-bindings/gpio/google,mbu.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/mbu-gic.h>
+
+/{
+		aliases {
+		i2c0 = &lsios_i2c0;
+		i2c1 = &lsios_i2c1;
+		i2c2 = &lsios_i2c2;
+		i2c3 = &lsios_i2c3;
+		i2c4 = &lsios_i2c4;
+		i2c5 = &lsioe_i2c0;
+		i2c6 = &lsioe_i2c1;
+		i2c7 = &lsioe_i2c2;
+		i2c8 = &lsioe_i2c3;
+		i2c9 = &lsioe_i2c4;
+		i2c10 = &aoss_pg_i2c0;
+		i3c0 = &lsios_i3c0;
+		i3c1 = &lsios_i3c1;
+		i3c2 = &lsios_i3c2;
+		i3c3 = &lsios_i3c3;
+		i3c4 = &lsios_i3c4;
+		i3c5 = &lsioe_i3c0;
+		i3c6 = &lsioe_i3c1;
+		i3c7 = &lsioe_i3c2;
+		i3c8 = &lsioe_i3c3;
+		i3c9 = &lsioe_i3c4;
+		i3c10 = &aoss_pg_i3c0;
+		i3c11 = &aoss_pg_i3c1;
+		i3c12 = &aoss_pg_i3c2;
+		uart0 = &lsios_uart0;
+		uart1 = &lsios_uart1;
+		uart2 = &lsios_uart2;
+		uart3 = &lsios_uart3;
+		uart4 = &lsioe_uart0;
+		uart5 = &lsioe_uart1;
+		uart6 = &aoss_pg_uart0;
+		uart7 = &aoss_pg_uart1;
+		uart8 = &aoss_pg_uart2;
+		uart9 = &aoss_pg_uart3;
+		uart10 = &aoss_pg_uart4;
+		spi0 = &lsios_spi0;
+		spi1 = &lsios_spi1;
+		spi2 = &lsios_spi2;
+		spi3 = &lsios_spi3;
+		spi4 = &lsioe_spi0;
+		spi5 = &lsioe_spi1;
+		spi6 = &aoss_pg_spi0;
+		spi7 = &aoss_pg_spi1;
+		spi8 = &aoss_pg_spi2;
+		spi9 = &aoss_pg_spi3;
+		spi10 = &aoss_pg_spi4;
+		spi11 = &aoss_pg_spi5;
+		spi12 = &aoss_pg_aud_spi;
+	};
+
+	lsios_i2c0: i2c@3bdca000 {
+		compatible = "google,i2c";
+		reg = <0x0 0x3bdca000 0x0 0x100>;
+		i2c-sda-hold-time-ns = <5>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_I2C_0_IC_INTR>;
+		clocks = <&lsio_s_i2c_0_clk>,
+			 <&lsio_s_i2c_0_cfg_clk>;
+		clock-names = "ic_clk", "pclk";
+		resets = <&lsio_s_resets RST_LSIO_S_I2C_0_PERI_CFG_CLK>;
+		reset-names = "ic_rst";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_i2c0_2_wire_func>;
+		pinctrl-1 = <&lsios_i2c0_2_wire_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsios_i2c1: i2c@3bdcb000 {
+		compatible = "google,i2c";
+		reg = <0x0 0x3bdcb000 0x0 0x100>;
+		i2c-sda-hold-time-ns = <5>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_I2C_1_IC_INTR>;
+		clocks = <&lsio_s_i2c_1_clk>,
+			 <&lsio_s_i2c_1_cfg_clk>;
+		clock-names = "ic_clk", "pclk";
+		resets = <&lsio_s_resets RST_LSIO_S_I2C_1_PERI_CFG_CLK>;
+		reset-names = "ic_rst";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_i2c1_2_wire_func>;
+		pinctrl-1 = <&lsios_i2c1_2_wire_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsios_i2c2: i2c@3bdcc000 {
+		compatible = "google,i2c";
+		reg = <0x0 0x3bdcc000 0x0 0x100>;
+		i2c-sda-hold-time-ns = <5>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_I2C_2_IC_INTR>;
+		clocks = <&lsio_s_i2c_2_clk>,
+			 <&lsio_s_i2c_2_cfg_clk>;
+		clock-names = "ic_clk", "pclk";
+		resets = <&lsio_s_resets RST_LSIO_S_I2C_2_PERI_CFG_CLK>;
+		reset-names = "ic_rst";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_i2c2_2_wire_func>;
+		pinctrl-1 = <&lsios_i2c2_2_wire_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsios_i2c3: i2c@3bdcd000 {
+		compatible = "google,i2c";
+		reg = <0x0 0x3bdcd000 0x0 0x100>;
+		i2c-sda-hold-time-ns = <5>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_I2C_3_IC_INTR>;
+		clocks = <&lsio_s_i2c_3_clk>,
+			 <&lsio_s_i2c_3_cfg_clk>;
+		clock-names = "ic_clk", "pclk";
+		resets = <&lsio_s_resets RST_LSIO_S_I2C_3_PERI_CFG_CLK>;
+		reset-names = "ic_rst";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_i2c3_2_wire_func>;
+		pinctrl-1 = <&lsios_i2c3_2_wire_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsios_i2c4: i2c@3bdce000 {
+		compatible = "google,i2c";
+		reg = <0x0 0x3bdce000 0x0 0x100>;
+		i2c-sda-hold-time-ns = <5>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_I2C_4_IC_INTR>;
+		clocks = <&lsio_s_i2c_4_clk>,
+			 <&lsio_s_i2c_4_cfg_clk>;
+		clock-names = "ic_clk", "pclk";
+		resets = <&lsio_s_resets RST_LSIO_S_I2C_4_PERI_CFG_CLK>;
+		reset-names = "ic_rst";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_i2c4_2_wire_func>;
+		pinctrl-1 = <&lsios_i2c4_2_wire_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsioe_i2c0: i2c@3a1ca000 {
+		compatible = "google,i2c";
+		reg = <0x0 0x3a1ca000 0x0 0x100>;
+		i2c-sda-hold-time-ns = <5>;
+		interrupts-extended = <&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_IP_TOP_I2C_0_IC_INTR>;
+		clocks = <&lsio_e_i2c_0_clk>,
+			 <&lsio_e_i2c_0_cfg_clk>;
+		clock-names = "ic_clk", "pclk";
+		resets = <&lsio_e_resets RST_LSIO_E_I2C_0_PERI_CFG_CLK>;
+		reset-names = "ic_rst";
+		power-domains = <&lsio_e_cli_gpio_pd>;
+		pinctrl-0 = <&lsioe_i2c0_2_wire_func>;
+		pinctrl-1 = <&lsioe_i2c0_2_wire_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsioe_i2c1: i2c@3a1cb000 {
+		compatible = "google,i2c";
+		reg = <0x0 0x3a1cb000 0x0 0x100>;
+		i2c-sda-hold-time-ns = <5>;
+		interrupts-extended = <&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_IP_TOP_I2C_1_IC_INTR>;
+		clocks = <&lsio_e_i2c_1_clk>,
+			 <&lsio_e_i2c_1_cfg_clk>;
+		clock-names = "ic_clk", "pclk";
+		resets = <&lsio_e_resets RST_LSIO_E_I2C_1_PERI_CFG_CLK>;
+		reset-names = "ic_rst";
+		power-domains = <&lsio_e_cli_gpio_pd>;
+		pinctrl-0 = <&lsioe_i2c1_2_wire_func>;
+		pinctrl-1 = <&lsioe_i2c1_2_wire_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsioe_i2c2: i2c@3a1cc000 {
+		compatible = "google,i2c";
+		reg = <0x0 0x3a1cc000 0x0 0x100>;
+		i2c-sda-hold-time-ns = <5>;
+		interrupts-extended = <&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_IP_TOP_I2C_2_IC_INTR>;
+		clocks = <&lsio_e_i2c_2_clk>,
+			 <&lsio_e_i2c_2_cfg_clk>;
+		clock-names = "ic_clk", "pclk";
+		resets = <&lsio_e_resets RST_LSIO_E_I2C_2_PERI_CFG_CLK>;
+		reset-names = "ic_rst";
+		power-domains = <&lsio_e_cli_gpio_pd>;
+		pinctrl-0 = <&lsioe_i2c2_2_wire_func>;
+		pinctrl-1 = <&lsioe_i2c2_2_wire_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsioe_i2c3: i2c@3a1cd000 {
+		compatible = "google,i2c";
+		reg = <0x0 0x3a1cd000 0x0 0x100>;
+		i2c-sda-hold-time-ns = <5>;
+		interrupts-extended = <&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_IP_TOP_I2C_3_IC_INTR>;
+		clocks = <&lsio_e_i2c_3_clk>,
+			 <&lsio_e_i2c_3_cfg_clk>;
+		clock-names = "ic_clk", "pclk";
+		resets = <&lsio_e_resets RST_LSIO_E_I2C_3_PERI_CFG_CLK>;
+		reset-names = "ic_rst";
+		power-domains = <&lsio_e_cli_gpio_pd>;
+		pinctrl-0 = <&lsioe_i2c3_2_wire_func>;
+		pinctrl-1 = <&lsioe_i2c3_2_wire_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsioe_i2c4: i2c@3a1ce000 {
+		compatible = "google,i2c";
+		reg = <0x0 0x3a1ce000 0x0 0x100>;
+		i2c-sda-hold-time-ns = <5>;
+		interrupts-extended = <&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_IP_TOP_I2C_4_IC_INTR>;
+		clocks = <&lsio_e_i2c_4_clk>,
+			 <&lsio_e_i2c_4_cfg_clk>;
+		clock-names = "ic_clk", "pclk";
+		resets = <&lsio_e_resets RST_LSIO_E_I2C_4_PERI_CFG_CLK>;
+		reset-names = "ic_rst";
+		power-domains = <&lsio_e_cli_gpio_pd>;
+		pinctrl-0 = <&lsioe_i2c4_2_wire_func>;
+		pinctrl-1 = <&lsioe_i2c4_2_wire_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	aoss_pg_i2c0: i2c@da20000 {
+		compatible = "google,i2c";
+		reg = <0x0 0x0da20000 0x0 0x100>;
+		i2c-sda-hold-time-ns = <5>;
+		interrupts-extended = <&aoss_ambss_multicast_aggr_11 AOSS_GIA_MULTICAST_AGGR_11_AUX_PARTITION_AMB_PERIPH_I2C_AMB_INTR>;
+		clocks = <&aoss_pg_amb_i2c0_peri_clk>,
+			 <&aoss_pg_amb_i2c0_apb_clk>;
+		clock-names = "ic_clk", "pclk";
+		resets = <&aoss_pg_amb_resets RST_AOSS_PG_AMB_I2C0_PERI_CFG_CLK>;
+		reset-names = "ic_rst";
+		power-domains = <&sswrp_aoss_pg_pd>;
+		pinctrl-0 = <&aoss_pg_i2c0_2_wire_func>;
+		pinctrl-1 = <&aoss_pg_i2c0_2_wire_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsios_i3c0: i3c-master@3bdc5000 {
+		compatible = "snps,dw-i3c-master-1.00a";
+		reg = <0x0 0x3bdc5000 0x0 0x2a0>;
+		#address-cells = <3>;
+		#size-cells = <0>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_I3C_0_IC_INTR>;
+		clocks = <&lsio_s_i3c_0_clk>,
+			 <&lsio_s_i3c_0_cfg_clk>;
+		clock-names = "core_clk", "apb_clk";
+		resets = <&lsio_s_resets RST_LSIO_S_I3C_0_PERI_CFG_CLK>;
+		reset-names = "core_rst";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_i3c0_2_wire_func>;
+		pinctrl-1 = <&lsios_i3c0_2_wire_sleep>;
+		pinctrl-names = "default","sleep";
+		clock-frequency = <1000000>;
+		status = "disabled";
+	};
+
+	lsios_i3c1: i3c-master@3bdc6000 {
+		compatible = "snps,dw-i3c-master-1.00a";
+		reg = <0x0 0x3bdc6000 0x0 0x2a0>;
+		#address-cells = <3>;
+		#size-cells = <0>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_I3C_1_IC_INTR>;
+		clocks = <&lsio_s_i3c_1_clk>,
+			 <&lsio_s_i3c_1_cfg_clk>;
+		clock-names = "core_clk", "apb_clk";
+		resets = <&lsio_s_resets RST_LSIO_S_I3C_1_PERI_CFG_CLK>;
+		reset-names = "core_rst";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_i3c1_2_wire_func>;
+		pinctrl-1 = <&lsios_i3c1_2_wire_sleep>;
+		pinctrl-names = "default","sleep";
+		clock-frequency = <1000000>;
+		status = "disabled";
+	};
+
+	lsios_i3c2: i3c-master@3bdc7000 {
+		compatible = "snps,dw-i3c-master-1.00a";
+		reg = <0x0 0x3bdc7000 0x0 0x2a0>;
+		#address-cells = <3>;
+		#size-cells = <0>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_I3C_2_IC_INTR>;
+		clocks = <&lsio_s_i3c_2_clk>,
+			 <&lsio_s_i3c_2_cfg_clk>;
+		clock-names = "core_clk", "apb_clk";
+		resets = <&lsio_s_resets RST_LSIO_S_I3C_2_PERI_CFG_CLK>;
+		reset-names = "core_rst";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_i3c2_2_wire_func>;
+		pinctrl-1 = <&lsios_i3c2_2_wire_sleep>;
+		pinctrl-names = "default","sleep";
+		clock-frequency = <1000000>;
+		status = "disabled";
+	};
+
+	lsios_i3c3: i3c-master@3bdc8000 {
+		compatible = "snps,dw-i3c-master-1.00a";
+		reg = <0x0 0x3bdc8000 0x0 0x2a0>;
+		#address-cells = <3>;
+		#size-cells = <0>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_I3C_3_IC_INTR>;
+		clocks = <&lsio_s_i3c_3_clk>,
+			 <&lsio_s_i3c_3_cfg_clk>;
+		clock-names = "core_clk", "apb_clk";
+		resets = <&lsio_s_resets RST_LSIO_S_I3C_3_PERI_CFG_CLK>;
+		reset-names = "core_rst";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_i3c3_2_wire_func>;
+		pinctrl-1 = <&lsios_i3c3_2_wire_sleep>;
+		pinctrl-names = "default","sleep";
+		clock-frequency = <1000000>;
+		status = "disabled";
+	};
+
+	lsios_i3c4: i3c-master@3bdc9000 {
+		compatible = "snps,dw-i3c-master-1.00a";
+		reg = <0x0 0x3bdc9000 0x0 0x2a0>;
+		#address-cells = <3>;
+		#size-cells = <0>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_I3C_4_IC_INTR>;
+		clocks = <&lsio_s_i3c_4_clk>,
+			 <&lsio_s_i3c_4_cfg_clk>;
+		clock-names = "core_clk", "apb_clk";
+		resets = <&lsio_s_resets RST_LSIO_S_I3C_4_PERI_CFG_CLK>;
+		reset-names = "core_rst";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_i3c4_2_wire_func>;
+		pinctrl-1 = <&lsios_i3c4_2_wire_sleep>;
+		pinctrl-names = "default","sleep";
+		clock-frequency = <1000000>;
+		status = "disabled";
+	};
+
+	lsioe_i3c0: i3c-master@3a1c5000 {
+		compatible = "snps,dw-i3c-master-1.00a";
+		reg = <0x0 0x3a1c5000 0x0 0x2a0>;
+		#address-cells = <3>;
+		#size-cells = <0>;
+		interrupts-extended = <&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_IP_TOP_I3C_0_IC_INTR>;
+		clocks = <&lsio_e_i3c_0_clk>,
+			 <&lsio_e_i3c_0_cfg_clk>;
+		clock-names = "core_clk", "apb_clk";
+		resets = <&lsio_e_resets RST_LSIO_E_I3C_0_PERI_CFG_CLK>;
+		reset-names = "core_rst";
+		power-domains = <&lsio_e_cli_gpio_pd>;
+		pinctrl-0 = <&lsioe_i3c0_2_wire_func>;
+		pinctrl-1 = <&lsioe_i3c0_2_wire_sleep>;
+		pinctrl-names = "default","sleep";
+		clock-frequency = <1000000>;
+		status = "disabled";
+	};
+
+	lsioe_i3c1: i3c-master@3a1c6000 {
+		compatible = "snps,dw-i3c-master-1.00a";
+		reg = <0x0 0x3a1c6000 0x0 0x2a0>;
+		#address-cells = <3>;
+		#size-cells = <0>;
+		interrupts-extended = <&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_IP_TOP_I3C_1_IC_INTR>;
+		clocks = <&lsio_e_i3c_1_clk>,
+			 <&lsio_e_i3c_1_cfg_clk>;
+		clock-names = "core_clk", "apb_clk";
+		resets = <&lsio_e_resets RST_LSIO_E_I3C_1_PERI_CFG_CLK>;
+		reset-names = "core_rst";
+		power-domains = <&lsio_e_cli_gpio_pd>;
+		pinctrl-0 = <&lsioe_i3c1_2_wire_func>;
+		pinctrl-1 = <&lsioe_i3c1_2_wire_sleep>;
+		pinctrl-names = "default","sleep";
+		clock-frequency = <1000000>;
+		status = "disabled";
+	};
+
+	lsioe_i3c2: i3c-master@3a1c7000 {
+		compatible = "snps,dw-i3c-master-1.00a";
+		reg = <0x0 0x3a1c7000 0x0 0x2a0>;
+		#address-cells = <3>;
+		#size-cells = <0>;
+		interrupts-extended = <&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_IP_TOP_I3C_2_IC_INTR>;
+		clocks = <&lsio_e_i3c_2_clk>,
+			 <&lsio_e_i3c_2_cfg_clk>;
+		clock-names = "core_clk", "apb_clk";
+		resets = <&lsio_e_resets RST_LSIO_E_I3C_2_PERI_CFG_CLK>;
+		reset-names = "core_rst";
+		power-domains = <&lsio_e_cli_gpio_pd>;
+		pinctrl-0 = <&lsioe_i3c2_2_wire_func>;
+		pinctrl-1 = <&lsioe_i3c2_2_wire_sleep>;
+		pinctrl-names = "default","sleep";
+		clock-frequency = <1000000>;
+		status = "disabled";
+	};
+
+	lsioe_i3c3: i3c-master@3a1c8000 {
+		compatible = "snps,dw-i3c-master-1.00a";
+		reg = <0x0 0x3a1c8000 0x0 0x2a0>;
+		#address-cells = <3>;
+		#size-cells = <0>;
+		interrupts-extended = <&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_IP_TOP_I3C_3_IC_INTR>;
+		clocks = <&lsio_e_i3c_3_clk>,
+			 <&lsio_e_i3c_3_cfg_clk>;
+		clock-names = "core_clk", "apb_clk";
+		resets = <&lsio_e_resets RST_LSIO_E_I3C_3_PERI_CFG_CLK>;
+		reset-names = "core_rst";
+		power-domains = <&lsio_e_cli_gpio_pd>;
+		pinctrl-0 = <&lsioe_i3c3_2_wire_func>;
+		pinctrl-1 = <&lsioe_i3c3_2_wire_sleep>;
+		pinctrl-names = "default","sleep";
+		clock-frequency = <1000000>;
+		status = "disabled";
+	};
+
+	lsioe_i3c4: i3c-master@3a1c9000 {
+		compatible = "snps,dw-i3c-master-1.00a";
+		reg = <0x0 0x3a1c9000 0x0 0x2a0>;
+		#address-cells = <3>;
+		#size-cells = <0>;
+		interrupts-extended = <&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_IP_TOP_I3C_4_IC_INTR>;
+		clocks = <&lsio_e_i3c_4_clk>,
+			 <&lsio_e_i3c_4_cfg_clk>;
+		clock-names = "core_clk", "apb_clk";
+		resets = <&lsio_e_resets RST_LSIO_E_I3C_4_PERI_CFG_CLK>;
+		reset-names = "core_rst";
+		power-domains = <&lsio_e_cli_gpio_pd>;
+		pinctrl-0 = <&lsioe_i3c4_2_wire_func>;
+		pinctrl-1 = <&lsioe_i3c4_2_wire_sleep>;
+		pinctrl-names = "default","sleep";
+		clock-frequency = <1000000>;
+		status = "disabled";
+	};
+
+	aoss_pg_i3c0: i3c-master@da21000 {
+		compatible = "snps,dw-i3c-master-1.00a";
+		reg = <0x0 0x0da21000 0x0 0x2a0>;
+		#address-cells = <3>;
+		#size-cells = <0>;
+		interrupts-extended = <&aoss_ambss_multicast_aggr_11 AOSS_GIA_MULTICAST_AGGR_11_AUX_PARTITION_AMB_PERIPH_I3C0_INTR>;
+		clocks = <&aoss_pg_amb_i3c0_peri_clk>,
+			 <&aoss_pg_amb_i3c0_apb_clk>;
+		clock-names = "core_clk", "apb_clk";
+		resets = <&aoss_pg_amb_resets RST_AOSS_PG_AMB_I3C0_PERI_CFG_CLK>;
+		reset-names = "core_rst";
+		power-domains = <&sswrp_aoss_pg_pd>;
+		pinctrl-0 = <&aoss_pg_i3c0_2_wire_func>;
+		pinctrl-1 = <&aoss_pg_i3c0_2_wire_sleep>;
+		pinctrl-names = "default","sleep";
+		clock-frequency = <1000000>;
+		status = "disabled";
+	};
+
+	aoss_pg_i3c1: i3c-master@da22000 {
+		compatible = "snps,dw-i3c-master-1.00a";
+		reg = <0x0 0x0da22000 0x0 0x2a0>;
+		#address-cells = <3>;
+		#size-cells = <0>;
+		interrupts-extended = <&aoss_ambss_multicast_aggr_11 AOSS_GIA_MULTICAST_AGGR_11_AUX_PARTITION_AMB_PERIPH_I3C1_INTR>;
+		clocks = <&aoss_pg_amb_i3c1_peri_clk>,
+			 <&aoss_pg_amb_i3c1_apb_clk>;
+		clock-names = "core_clk", "apb_clk";
+		resets = <&aoss_pg_amb_resets RST_AOSS_PG_AMB_I3C1_PERI_CFG_CLK>;
+		reset-names = "core_rst";
+		power-domains = <&sswrp_aoss_pg_pd>;
+		pinctrl-0 = <&aoss_pg_i3c1_2_wire_func>;
+		pinctrl-1 = <&aoss_pg_i3c1_2_wire_sleep>;
+		pinctrl-names = "default","sleep";
+		clock-frequency = <1000000>;
+		status = "disabled";
+	};
+
+	aoss_pg_i3c2: i3c-master@da23000 {
+		compatible = "snps,dw-i3c-master-1.00a";
+		reg = <0x0 0x0da23000 0x0 0x2a0>;
+		#address-cells = <3>;
+		#size-cells = <0>;
+		interrupts-extended = <&aoss_ambss_multicast_aggr_11 AOSS_GIA_MULTICAST_AGGR_11_AUX_PARTITION_AMB_PERIPH_I3C2_INTR>;
+		clocks = <&aoss_pg_amb_i3c2_peri_clk>,
+			 <&aoss_pg_amb_i3c2_apb_clk>;
+		clock-names = "core_clk", "apb_clk";
+		resets = <&aoss_pg_amb_resets RST_AOSS_PG_AMB_I3C2_PERI_CFG_CLK>;
+		reset-names = "core_rst";
+		power-domains = <&sswrp_aoss_pg_pd>;
+		pinctrl-0 = <&aoss_pg_i3c2_2_wire_func>;
+		pinctrl-1 = <&aoss_pg_i3c2_2_wire_sleep>;
+		pinctrl-names = "default","sleep";
+		clock-frequency = <1000000>;
+		status = "disabled";
+	};
+
+	lsios_uart0: uart@3bdd3000 {
+		compatible = "goog,goog-dw-apb-uart";
+		reg = <0x0 0x3bdd3000 0x0 0x100>;
+		reg-shift = <2>;
+		reg-io-width = <4>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_UART_0_INTR>;
+		clocks = <&lsio_s_uart_0_clk>,
+			 <&lsio_s_uart_0_cfg_clk>;
+		clock-names = "baudclk", "apb_pclk";
+		resets = <&lsio_s_resets RST_LSIO_S_UART_0_PERI_CFG_CLK>;
+		reset-names = "s_rst_n";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_uart0_func>;
+		pinctrl-1 = <&lsios_uart0_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsios_uart1: uart@3bdd4000 {
+		compatible = "goog,goog-dw-apb-uart";
+		reg = <0x0 0x3bdd4000 0x0 0x100>;
+		reg-shift = <2>;
+		reg-io-width = <4>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_UART_1_INTR>;
+		clocks = <&lsio_s_uart_1_clk>,
+			 <&lsio_s_uart_1_cfg_clk>;
+		clock-names = "baudclk", "apb_pclk";
+		resets = <&lsio_s_resets RST_LSIO_S_UART_1_PERI_CFG_CLK>;
+		reset-names = "s_rst_n";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_uart1_func>;
+		pinctrl-1 = <&lsios_uart1_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsios_uart2: uart@3bdd5000 {
+		compatible = "goog,goog-dw-apb-uart";
+		reg = <0x0 0x3bdd5000 0x0 0x100>;
+		reg-shift = <2>;
+		reg-io-width = <4>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_UART_2_INTR>;
+		clocks = <&lsio_s_uart_2_clk>,
+			 <&lsio_s_uart_2_cfg_clk>;
+		clock-names = "baudclk", "apb_pclk";
+		resets = <&lsio_s_resets RST_LSIO_S_UART_2_PERI_CFG_CLK>;
+		reset-names = "s_rst_n";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_uart2_func>;
+		pinctrl-1 = <&lsios_uart2_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsios_uart3: uart@3bdd6000 {
+		compatible = "goog,goog-dw-apb-uart";
+		reg = <0x0 0x3bdd6000 0x0 0x100>;
+		reg-shift = <2>;
+		reg-io-width = <4>;
+		interrupts = <GIC_SPI SSWRP_LSIOS_LSIOS_AP_INTR_NS_LSIOS_UART3_INTR IRQ_TYPE_LEVEL_HIGH 0>;
+		clocks = <&lsio_s_uart_3_clk>,
+			 <&lsio_s_uart_3_cfg_clk>;
+		clock-names = "baudclk", "apb_pclk";
+		resets = <&lsio_s_resets RST_LSIO_S_UART_3_PERI_CFG_CLK>;
+		reset-names = "s_rst_n";
+		pinctrl-0 = <&lsios_uart3_func>;
+		pinctrl-1 = <>;
+		pinctrl-names = "default", "sleep";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+	};
+
+	lsioe_uart0: uart@3a1d3000 {
+		compatible = "goog,goog-dw-apb-uart";
+		reg = <0x0 0x3a1d3000 0x0 0x100>;
+		reg-shift = <2>;
+		reg-io-width = <4>;
+		interrupts-extended = <&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_IP_TOP_UART_0_INTR>;
+		clocks = <&lsio_e_uart_0_clk>,
+			 <&lsio_e_uart_0_cfg_clk>;
+		clock-names = "baudclk", "apb_pclk";
+		resets = <&lsio_e_resets RST_LSIO_E_UART_0_PERI_CFG_CLK>;
+		reset-names = "s_rst_n";
+		power-domains = <&lsio_e_cli_gpio_pd>;
+		pinctrl-0 = <&lsioe_uart0_func>;
+		pinctrl-1 = <&lsioe_uart0_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsioe_uart1: uart@3a1d4000 {
+		compatible = "goog,goog-dw-apb-uart";
+		reg = <0x0 0x3a1d4000 0x0 0x100>;
+		reg-shift = <2>;
+		reg-io-width = <4>;
+		interrupts-extended = <&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_IP_TOP_UART_1_INTR>;
+		clocks = <&lsio_e_uart_1_clk>,
+			 <&lsio_e_uart_1_cfg_clk>;
+		clock-names = "baudclk", "apb_pclk";
+		resets = <&lsio_e_resets RST_LSIO_E_UART_1_PERI_CFG_CLK>;
+		reset-names = "s_rst_n";
+		power-domains = <&lsio_e_cli_gpio_pd>;
+		pinctrl-0 = <&lsioe_uart1_func>;
+		pinctrl-1 = <&lsioe_uart1_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	aoss_pg_uart0: uart@da24000 {
+		compatible = "goog,goog-dw-apb-uart";
+		reg = <0x0 0x0da24000 0x0 0x100>;
+		reg-shift = <2>;
+		reg-io-width = <4>;
+		interrupts-extended = <&aoss_ambss_multicast_aggr_11 AOSS_GIA_MULTICAST_AGGR_11_AUX_PARTITION_AMB_PERIPH_UART0_INTR>;
+		clocks = <&aoss_pg_amb_uart0_peri_clk>,
+			 <&aoss_pg_amb_uart0_apb_clk>;
+		clock-names = "baudclk", "apb_pclk";
+		resets = <&aoss_pg_amb_resets RST_AOSS_PG_AMB_UART0_PERI_CFG_CLK>;
+		reset-names = "s_rst_n";
+		power-domains = <&sswrp_aoss_pg_pd>;
+		pinctrl-0 = <&aoss_pg_uart0_func>;
+		pinctrl-1 = <&aoss_pg_uart0_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	aoss_pg_uart1: uart@da25000 {
+		compatible = "goog,goog-dw-apb-uart";
+		reg = <0x0 0x0da25000 0x0 0x100>;
+		reg-shift = <2>;
+		reg-io-width = <4>;
+		interrupts-extended = <&aoss_ambss_multicast_aggr_11 AOSS_GIA_MULTICAST_AGGR_11_AUX_PARTITION_AMB_PERIPH_UART1_INTR>;
+		clocks = <&aoss_pg_amb_uart1_peri_clk>,
+			 <&aoss_pg_amb_uart1_apb_clk>;
+		clock-names = "baudclk", "apb_pclk";
+		resets = <&aoss_pg_amb_resets RST_AOSS_PG_AMB_UART1_PERI_CFG_CLK>;
+		reset-names = "s_rst_n";
+		power-domains = <&sswrp_aoss_pg_pd>;
+		pinctrl-0 = <&aoss_pg_uart1_func>;
+		pinctrl-1 = <&aoss_pg_uart1_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	aoss_pg_uart2: uart@da26000 {
+		compatible = "goog,goog-dw-apb-uart";
+		reg = <0x0 0x0da26000 0x0 0x100>;
+		reg-shift = <2>;
+		reg-io-width = <4>;
+		interrupts-extended = <&aoss_ambss_multicast_aggr_11 AOSS_GIA_MULTICAST_AGGR_11_AUX_PARTITION_AMB_PERIPH_UART2_INTR>;
+		clocks = <&aoss_pg_amb_uart2_peri_clk>,
+			 <&aoss_pg_amb_uart2_apb_clk>;
+		clock-names = "baudclk", "apb_pclk";
+		resets = <&aoss_pg_amb_resets RST_AOSS_PG_AMB_UART2_PERI_CFG_CLK>;
+		reset-names = "s_rst_n";
+		power-domains = <&sswrp_aoss_pg_pd>;
+		pinctrl-0 = <&aoss_pg_uart2_func>;
+		pinctrl-1 = <&aoss_pg_uart2_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	aoss_pg_uart3: uart@da27000 {
+		compatible = "goog,goog-dw-apb-uart";
+		reg = <0x0 0x0da27000 0x0 0x100>;
+		reg-shift = <2>;
+		reg-io-width = <4>;
+		interrupts-extended = <&aoss_ambss_multicast_aggr_11 AOSS_GIA_MULTICAST_AGGR_11_AUX_PARTITION_AMB_PERIPH_UART3_INTR>;
+		clocks = <&aoss_pg_amb_uart3_peri_clk>,
+			 <&aoss_pg_amb_uart3_apb_clk>;
+		clock-names = "baudclk", "apb_pclk";
+		resets = <&aoss_pg_amb_resets RST_AOSS_PG_AMB_UART3_PERI_CFG_CLK>;
+		reset-names = "s_rst_n";
+		power-domains = <&sswrp_aoss_pg_pd>;
+		pinctrl-0 = <&aoss_pg_uart3_func>;
+		pinctrl-1 = <&aoss_pg_uart3_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	aoss_pg_uart4: uart@da28000 {
+		compatible = "goog,goog-dw-apb-uart";
+		reg = <0x0 0x0da28000 0x0 0x100>;
+		reg-shift = <2>;
+		reg-io-width = <4>;
+		interrupts-extended = <&aoss_ambss_multicast_aggr_11 AOSS_GIA_MULTICAST_AGGR_11_AUX_PARTITION_AMB_PERIPH_UART4_INTR>;
+		clocks = <&aoss_pg_amb_uart4_peri_clk>,
+			 <&aoss_pg_amb_uart4_apb_clk>;
+		clock-names = "baudclk", "apb_pclk";
+		resets = <&aoss_pg_amb_resets RST_AOSS_PG_AMB_UART4_PERI_CFG_CLK>;
+		reset-names = "s_rst_n";
+		power-domains = <&sswrp_aoss_pg_pd>;
+		pinctrl-0 = <&aoss_pg_uart4_func>;
+		pinctrl-1 = <&aoss_pg_uart4_sleep>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsios_spi0: spi@3bdcf000 {
+		compatible = "google,spi";
+		reg = <0x0 0x3bdcf000 0x0 0x100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		num-cs = <1>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_SPI_0_SSI_INTR>;
+		clocks = <&lsio_s_spi_0_clk>,
+			 <&lsio_s_spi_0_cfg_clk>;
+		clock-names = "ssi_clk", "pclk";
+		resets = <&lsio_s_resets RST_LSIO_S_SPI_0_PERI_CFG_CLK>;
+		reset-names = "spi";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_spi0_clk_mosi_miso_func>, <&lsios_spi0_cs_gpio_func>;
+		pinctrl-1 = <&lsios_spi0_sleep>;
+		cs-gpios = <&lsios_pinctrl XLSIOS_SPIU0_CSn_CTSn GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsios_spi1: spi@3bdd0000 {
+		compatible = "google,spi";
+		reg = <0x0 0x3bdd0000 0x0 0x100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		num-cs = <1>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_SPI_1_SSI_INTR>;
+		clocks = <&lsio_s_spi_1_clk>,
+			 <&lsio_s_spi_1_cfg_clk>;
+		clock-names = "ssi_clk", "pclk";
+		resets = <&lsio_s_resets RST_LSIO_S_SPI_1_PERI_CFG_CLK>;
+		reset-names = "spi";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_spi1_clk_mosi_miso_func>, <&lsios_spi1_cs_gpio_func>;
+		pinctrl-1 = <&lsios_spi1_sleep>;
+		cs-gpios = <&lsios_pinctrl XLSIOS_SPIU1_CSn_CTSn GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsios_spi2: spi@3bdd1000 {
+		compatible = "google,spi";
+		reg = <0x0 0x3bdd1000 0x0 0x100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		num-cs = <1>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_SPI_2_SSI_INTR>;
+		clocks = <&lsio_s_spi_2_clk>,
+			 <&lsio_s_spi_2_cfg_clk>;
+		clock-names = "ssi_clk", "pclk";
+		resets = <&lsio_s_resets RST_LSIO_S_SPI_2_PERI_CFG_CLK>;
+		reset-names = "spi";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_spi2_clk_mosi_miso_func>, <&lsios_spi2_cs_gpio_func>;
+		pinctrl-1 = <&lsios_spi2_sleep>;
+		cs-gpios = <&lsios_pinctrl XLSIOS_SPIU2_CSn_CTSn GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "sleep";
+		spi-dma-16B-align-only;
+		status = "disabled";
+	};
+
+	lsios_spi3: spi@3bdd2000 {
+		compatible = "google,spi";
+		reg = <0x0 0x3bdd2000 0x0 0x100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		num-cs = <1>;
+		interrupts-extended = <&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_IP_TOP_SPI_3_SSI_INTR>;
+		clocks = <&lsio_s_spi_3_clk>,
+			 <&lsio_s_spi_3_cfg_clk>;
+		clock-names = "ssi_clk", "pclk";
+		resets = <&lsio_s_resets RST_LSIO_S_SPI_3_PERI_CFG_CLK>;
+		reset-names = "spi";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&lsios_spi3_clk_mosi_miso_func>, <&lsios_spi3_cs_gpio_func>;
+		pinctrl-1 = <&lsios_spi3_sleep>;
+		cs-gpios = <&lsios_pinctrl XLSIOS_SPIU3_CSn_CTSn GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsioe_spi0: spi@3a1cf000 {
+		compatible = "google,spi";
+		reg = <0x0 0x3a1cf000 0x0 0x100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		num-cs = <1>;
+		interrupts-extended = <&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_IP_TOP_SPI_0_SSI_INTR>;
+		clocks = <&lsio_e_spi_0_clk>,
+			 <&lsio_e_spi_0_cfg_clk>;
+		clock-names = "ssi_clk", "pclk";
+		resets = <&lsio_e_resets RST_LSIO_E_SPI_0_PERI_CFG_CLK>;
+		reset-names = "spi";
+		power-domains = <&lsio_e_cli_gpio_pd>;
+		pinctrl-0 = <&lsioe_spi0_clk_mosi_miso_func>, <&lsioe_spi0_cs_gpio_func>;
+		pinctrl-1 = <&lsioe_spi0_sleep>;
+		cs-gpios = <&lsioe_pinctrl XLSIOE_SPIU4_CSn_CTSn GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	lsioe_spi1: spi@3a1d0000 {
+		compatible = "google,spi";
+		reg = <0x0 0x3a1d0000 0x0 0x100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		num-cs = <1>;
+		interrupts-extended = <&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_IP_TOP_SPI_1_SSI_INTR>;
+		clocks = <&lsio_e_spi_1_clk>,
+			 <&lsio_e_spi_1_cfg_clk>;
+		clock-names = "ssi_clk", "pclk";
+		resets = <&lsio_e_resets RST_LSIO_E_SPI_1_PERI_CFG_CLK>;
+		reset-names = "spi";
+		power-domains = <&lsio_e_cli_gpio_pd>;
+		pinctrl-0 = <&lsioe_spi1_clk_mosi_miso_func>, <&lsioe_spi1_cs_gpio_func>;
+		pinctrl-1 = <&lsioe_spi1_sleep>;
+		cs-gpios = <&lsioe_pinctrl XLSIOE_SPIU5_CSn_CTSn GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	aoss_pg_spi0: spi@da2a000 {
+		compatible = "google,spi";
+		reg = <0x0 0x0da2a000 0x0 0x100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		num-cs = <1>;
+		interrupts-extended = <&aoss_ambss_multicast_aggr_11 AOSS_GIA_MULTICAST_AGGR_11_AUX_PARTITION_AMB_PERIPH_SPI0_INTR>;
+		clocks = <&aoss_pg_amb_spi0_peri_clk>,
+			 <&aoss_pg_amb_spi0_apb_clk>;
+		clock-names = "ssi_clk", "pclk";
+		resets = <&aoss_pg_amb_resets RST_AOSS_PG_AMB_SPI0_PERI_CFG_CLK>;
+		reset-names = "spi";
+		power-domains = <&sswrp_aoss_pg_pd>;
+		pinctrl-0 = <&aoss_pg_spi0_clk_mosi_miso_func>, <&aoss_pg_spi0_cs_gpio_func>;
+		pinctrl-1 = <&aoss_pg_spi0_sleep>;
+		/* Relocate this definition to the UWB device tree, as some projects lack UWB
+		support, and the pinctrl will not define this particular pin.*/
+		/* cs-gpios = <&aoss_pinctrl XAOSS_AMB_SPI0_CSn GPIO_ACTIVE_LOW>; */
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	aoss_pg_spi1: spi@da2b000 {
+		compatible = "google,spi";
+		reg = <0x0 0x0da2b000 0x0 0x100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		num-cs = <1>;
+		interrupts-extended = <&aoss_ambss_multicast_aggr_11 AOSS_GIA_MULTICAST_AGGR_11_AUX_PARTITION_AMB_PERIPH_SPI2_INTR>;
+		clocks = <&aoss_pg_amb_spi2_peri_clk>,
+			 <&aoss_pg_amb_spi2_apb_clk>;
+		clock-names = "ssi_clk", "pclk";
+		resets = <&aoss_pg_amb_resets RST_AOSS_PG_AMB_SPI2_PERI_CFG_CLK>;
+		reset-names = "spi";
+		power-domains = <&sswrp_aoss_pg_pd>;
+		pinctrl-0 = <&aoss_pg_spi1_clk_mosi_miso_func>, <&aoss_pg_spi1_cs_gpio_func>;
+		pinctrl-1 = <&aoss_pg_spi1_sleep>;
+		cs-gpios = <&aoss_pinctrl XAOSS_AMB_SPI2_CSn GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	aoss_pg_spi2: spi@da2c000 {
+		compatible = "google,spi";
+		reg = <0x0 0x0da2c000 0x0 0x100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		num-cs = <1>;
+		interrupts-extended = <&aoss_ambss_multicast_aggr_11 AOSS_GIA_MULTICAST_AGGR_11_AUX_PARTITION_AMB_PERIPH_SPI3_INTR>;
+		clocks = <&aoss_pg_amb_spi3_peri_clk>,
+			 <&aoss_pg_amb_spi3_apb_clk>;
+		clock-names = "ssi_clk", "pclk";
+		resets = <&aoss_pg_amb_resets RST_AOSS_PG_AMB_SPI3_PERI_CFG_CLK>;
+		reset-names = "spi";
+		power-domains = <&sswrp_aoss_pg_pd>;
+		pinctrl-0 = <&aoss_pg_spi2_clk_mosi_miso_func>, <&aoss_pg_spi2_cs_gpio_func>;
+		pinctrl-1 = <&aoss_pg_spi2_sleep>;
+		cs-gpios = <&aoss_pinctrl XAOSS_AMB_SPI3_CSn GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "sleep";
+		spi-dma-16B-align-only;
+		status = "disabled";
+	};
+
+	aoss_pg_spi3: spi@da2d000 {
+		compatible = "google,spi";
+		reg = <0x0 0x0da2d000 0x0 0x100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		num-cs = <1>;
+		interrupts-extended = <&aoss_ambss_multicast_aggr_11 AOSS_GIA_MULTICAST_AGGR_11_AUX_PARTITION_AMB_PERIPH_SPI4_INTR>;
+		clocks = <&aoss_pg_amb_spi4_peri_clk>,
+			 <&aoss_pg_amb_spi4_apb_clk>;
+		clock-names = "ssi_clk", "pclk";
+		resets = <&aoss_pg_amb_resets RST_AOSS_PG_AMB_SPI4_PERI_CFG_CLK>;
+		reset-names = "spi";
+		power-domains = <&sswrp_aoss_pg_pd>;
+		pinctrl-0 = <&aoss_pg_spi3_clk_mosi_miso_func>, <&aoss_pg_spi3_cs_gpio_func>;
+		pinctrl-1 = <&aoss_pg_spi3_sleep>;
+		cs-gpios = <&aoss_pinctrl XAOSS_AMB_SPI4_CSn GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	aoss_pg_spi4: spi@da2e000 {
+		compatible = "google,spi";
+		reg = <0x0 0x0da2e000 0x0 0x100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		num-cs = <1>;
+		interrupts-extended = <&aoss_ambss_multicast_aggr_11 AOSS_GIA_MULTICAST_AGGR_11_AUX_PARTITION_AMB_PERIPH_SPI5_INTR>;
+		clocks = <&aoss_pg_amb_spi5_peri_clk>,
+			 <&aoss_pg_amb_spi5_apb_clk>;
+		clock-names = "ssi_clk", "pclk";
+		resets = <&aoss_pg_amb_resets RST_AOSS_PG_AMB_SPI5_PERI_CFG_CLK>;
+		reset-names = "spi";
+		power-domains = <&sswrp_aoss_pg_pd>;
+		pinctrl-0 = <&aoss_pg_spi4_clk_mosi_miso_func>, <&aoss_pg_spi4_cs_gpio_func>;
+		pinctrl-1 = <&aoss_pg_spi4_sleep>;
+		cs-gpios = <&aoss_pinctrl XAOSS_AMB_SPI5_CSn GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	aoss_pg_spi5: spi@da2f000 {
+		compatible = "google,spi";
+		reg = <0x0 0x0da2f000 0x0 0x100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		num-cs = <1>;
+		interrupts-extended = <&aoss_ambss_multicast_aggr_11 AOSS_GIA_MULTICAST_AGGR_11_AUX_PARTITION_AMB_PERIPH_SPI6_INTR>;
+		clocks = <&aoss_pg_amb_spi6_peri_clk>,
+			 <&aoss_pg_amb_spi6_apb_clk>;
+		clock-names = "ssi_clk", "pclk";
+		resets = <&aoss_pg_amb_resets RST_AOSS_PG_AMB_SPI6_PERI_CFG_CLK>;
+		reset-names = "spi";
+		power-domains = <&sswrp_aoss_pg_pd>;
+		pinctrl-0 = <&aoss_pg_spi5_clk_mosi_miso_func>, <&aoss_pg_spi5_cs_gpio_func>;
+		pinctrl-1 = <&aoss_pg_spi5_sleep>;
+		cs-gpios = <&aoss_pinctrl XAOSS_SC_SPI6_CSn GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	aoss_pg_aud_spi: spi@da30000 {
+		compatible = "google,spi";
+		reg = <0x0 0x0da30000 0x0 0x100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		num-cs = <1>;
+		interrupts-extended = <&aoss_ambss_multicast_aggr_11 AOSS_GIA_MULTICAST_AGGR_11_AUX_PARTITION_AMB_PERIPH_SPI1_INTR>;
+		clocks = <&aoss_pg_amb_spi1_peri_clk>,
+			 <&aoss_pg_amb_spi1_apb_clk>;
+		clock-names = "ssi_clk", "pclk";
+		resets = <&aoss_pg_amb_resets RST_AOSS_PG_AMB_SPI1_PERI_CFG_CLK>;
+		reset-names = "spi";
+		power-domains = <&sswrp_aoss_pg_pd>;
+		pinctrl-0 = <&aoss_pg_spi6_clk_mosi_miso_func>, <&aoss_pg_spi6_cs_gpio_func>;
+		pinctrl-1 = <&aoss_pg_spi6_sleep>;
+		cs-gpios = <&aoss_pinctrl XAOSS_AMB_SPI1_CSn GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "sleep";
+		status = "disabled";
+	};
+
+	spmi_cpm: spmi@ebf1000 {
+		compatible = "google,smartdv-spmi";
+		reg = <0x0 0xebf1000 0x0 0x100>,
+		      <0x0 0xeb82014 0x0 0x4>;
+		clock-frequency = <19000000>;
+		master_arb_en = <0>;
+		master_id = <0>;
+		spmi_ver = <1>;
+		arb_retry_limit = <6>;
+		prescalar = <0x0>;
+		read_latancy = <0>;
+		arb_scl_delay = <0>;
+		status = "disabled";
+	};
+
+	pwm0: pwm@3bdb2000 {
+		compatible = "faraday,ftpwmtmr010";
+		reg = <0x0 0x3bdb2000 0x0 0x94>;
+		interrupts-extended =	<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_IP_TOP_PWM_TMR1_INTR>,
+					<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_IP_TOP_PWM_TMR2_INTR>,
+					<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_IP_TOP_PWM_TMR3_INTR>,
+					<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_IP_TOP_PWM_TMR4_INTR>;
+		clocks = <&lsio_s_pwm_cfg_clk>, <&lsio_s_pwm_clk>;
+		clock-names = "pclk", "ext_clk";
+		resets = <&lsio_s_resets RST_LSIO_S_CG_PWM_CFG_CLK>, <&lsio_s_resets RST_LSIO_S_CG_PWM_CLK>;
+		reset-names = "pwm_cfg", "pwm";
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		pinctrl-0 = <&pwm0_func>, <&pwm1_func>, <&pwm2_func>, <&pwm3_func>;
+		pinctrl-1 = <&pwm0_sleep>, <&pwm1_sleep>, <&pwm2_sleep>, <&pwm3_sleep>;
+		pinctrl-names = "default", "sleep";
+		#pwm-cells = <2>;
+		status = "disabled";
+	};
+};

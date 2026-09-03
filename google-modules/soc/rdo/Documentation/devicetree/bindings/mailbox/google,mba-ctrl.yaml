@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2022 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/mailbox/google,mba-ctrl.yaml#
+$schema: http://devicetree.org/meta-schemas/base.yaml#
+
+title: Google MailBox Array Controller
+
+maintainers:
+  - Lucas Wei <lucaswei@google.com>
+  - Subhash Jadavani <sjadavani@google.com>
+
+description:
+  The Google MailBox Array Controller initializes each channel with coupled
+  mbox_controller. Clients add these nodes into property, mboxes, and overwrite
+  status property to make channel binding to client and able to be used.
+
+properties:
+  compatible:
+    enum:
+      - google,mba-ctrl
+
+  interrupts:
+    description: set interrupts for message ack and host response notification.
+
+  reg:
+    description: region of client function registers.
+    maxItems: 1
+
+  "#mbox-cells":
+    const: 1
+    description: number of argument when writing the list of property, mboxes.
+      This value must be constant value of one which is used to index mbox_chan
+      from mbox_controller.
+
+  "google,syscon-phandle":
+    type: object
+    description: device node of syscon phandle to access global mailbox registers.
+      The second cell should hold the client ID in the NUM_MSG_REG_<client-ID>
+      register block of the IDENTIFICATION registers space.
+
+  "google,syscon-client-phandle":
+    type: object
+    description: Phandle to a syscon device that manages a shared client MMIO region.
+      This allows multiple mailbox controller instances to safely share the
+      same underlying hardware registers. If this property is not provided,
+      the driver will manage its own memory mapping of the region defined
+      in the 'reg' property.
+
+  "mba-ip-version":
+    type: array
+    description: [optional] array of 2 elements, where the first element of the array is
+      the major version and the second element is the minor version of the MBA IP.
+      If the property is not present, the MBA IP VERSION will be read from the MBA IP register.
+
+  "payload-size":
+    type: integer
+    description: the size of mailbox payload buffer in words (one word is 4-bytes).
+      For non-queue mode interrupt-only transactions, specifying this property to zero
+      allows the mailbox controller to bypass the copy of client's data to MBA hardware.
+
+  "queue-mode":
+    type: boolean
+    description: configure the message address space in queue mode. Size of each slot
+      is set to payload-size. (This is exclusive to other modes)
+
+  "doorbell-mode":
+    type: boolean
+    description: configure the mailbox controller to run doorbell mode. When mailbox controller
+      running in doorbell mode, client can ring the mailbox channels to corresponding doorbell bits
+      and register channel callbacks to wait for notifications. (This is exclusive to other modes)
+
+  "doorbell-irq-delegation":
+    type: boolean
+    description: configure to enable IRQ delegation feature under doorbell mode. When mailbox
+      controller running in doorbell mode with IRQ delegation enabled, mailbox controller will put
+      shadow IRQ status to client's callback function argument for bit clearing. Client can clear
+      that shadow IRQ status to handle IRQ status bits in group in oneshot callback invocation.
+
+required:
+  - compatible
+  - reg
+  - interrupts
+  - "#mbox-cells"
+  - "google,syscon-phandle"
+
+additionalProperties: false
+
+examples:
+  - |
+    mba_sswrp_aoc_client_0: mba_sswrp_aoc_client_0@b490000 {
+        compatible = "google,mba-ctrl";
+        reg = <0x0 0xb490000 0x0 0x30>;
+        interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>;
+        #mbox-cells = <1>;
+        google,syscon-phandle = <&aoc_mba_syscon 0>;
+        mba-ip-version = < 1 0 >
+        payload-size = <4>;
+        queue-mode;
+        status = "disabled";
+    };

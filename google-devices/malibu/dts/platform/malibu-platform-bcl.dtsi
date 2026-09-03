@@ -1,0 +1,368 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Google Malibu specific bcl device tree source
+ *
+ * Copyright (c) 2025 Google LLC
+ *		https://www.google.com
+ */
+#include <dt-bindings/gpio/google,mbu.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq-gia-google-mbu.h>
+#include <dt-bindings/interrupt-controller/mbu-gic.h>
+#include <dt-bindings/mailbox/google,mbu.h>
+#include <dt-bindings/soc/google/rdo-bcl_defs.h>
+
+/ {
+	fragment@battery {
+		target-path = "/";
+		__overlay__ {
+			google_mitigation: google-mitigation {
+				compatible = "google,google-bcl";
+				thermal-sensor-cells = <1>;
+				google,ifpmic = <M77779>;
+				google,charger = <&max77779_chg>;
+				google,pmic = <&max77779_pmic>;
+				google,power-supply = <&max77779_fg>;
+				google,vimon = <&max77779_vimon>;
+				mboxes = <&goog_mba_cpm_iface>;
+				dsu_con_heavy = <4>;
+				cme_con_heavy = <4>;
+				aur_con_heavy = <7>;
+				gpu_con_heavy = <4>;
+				tpu_con_heavy = <7>;
+				cpu1a_con_heavy = <7>;
+				cpu1b_con_heavy = <7>;
+				cpu2_con_heavy = <7>;
+				dsu_con_light = <2>;
+				cme_con_light = <2>;
+				aur_con_light = <2>;
+				gpu_con_light = <2>;
+				tpu_con_light = <2>;
+				cpu1a_con_light = <2>;
+				cpu1b_con_light = <2>;
+				cpu2_con_light = <2>;
+				dsu_mitigation_res_en = <0x2c7>;
+				cme_mitigation_res_en = <0x2c7>;
+				aur_mitigation_res_en = <0xc7>;
+				gpu_mitigation_res_en = <0x2cf>;
+				tpu_mitigation_res_en = <0x2cf>;
+				cpu1a_mitigation_res_en = <0x2cf>;
+				cpu1b_mitigation_res_en = <0x2c7>;
+				cpu2_mitigation_res_en = <0x2cf>;
+				dsu_mitigation_type = <0x85>;
+				cme_mitigation_type = <0x85>;
+				aur_mitigation_type = <0x85>;
+				gpu_mitigation_type = <0x8d>;
+				tpu_mitigation_type = <0x8d>;
+				cpu1a_mitigation_type = <0x8d>;
+				cpu1b_mitigation_type = <0x85>;
+				cpu2_mitigation_type = <0x8d>;
+				batoilo_lower = <1800>;
+				batoilo_upper = <8000>;
+				batoilo2_lower = <3800>;
+				batoilo2_upper = <10000>;
+				batoilo_wlc_trig_lvl = <5400>;
+				batoilo2_wlc_trig_lvl = <7000>;
+				batoilo_trig_lvl = <5800>;
+				batoilo_usb_trig_lvl = <5400>;
+				batoilo2_trig_lvl = <7000>;
+				batoilo_bat_open_to = <0x0>;    /* Disable BATFET open */
+				batoilo2_bat_open_to = <0x6>;   /* 21ms */
+				batoilo_rel = <0x2>;   /* 1ms */
+				batoilo2_rel = <0x2>;   /* 1ms */
+				batoilo_det = <0x1F>;   /* 46ms DEBOUNCE to VDROOP */
+				batoilo2_det = <0x1>;   /* 30us DEBOUNCE to VDROOP */
+				batoilo_int_det = <0x2>;   /* 5ms */
+				batoilo2_int_det = <0x1>;   /* 30us */
+				batoilo_int_rel = <0x2>;   /* 1ms */
+				batoilo2_int_rel = <0x2>;   /* 1ms */
+				uvlo1_rel = <0x1>;   /* 1ms */
+				uvlo2_rel = <0x1>;   /* 1ms */
+				uvlo1_det = <0x1>;   /* 30us */
+				uvlo2_det = <0x0>;   /* 0us */
+				evt_cnt_enable = <0x1>;
+				evt_cnt_rate = <0x0>;   /* 16k */
+				odpm_cpu1_ch = <2>; /* ch 2 */
+				odpm_cpu1_pmic = <0>; /* main */
+				odpm_cpu2_ch = <1>; /* ch 1 */
+				odpm_cpu2_pmic = <0>; /* main */
+				odpm_tpu_ch = <6>; /* ch 6 */
+				odpm_tpu_pmic = <0>; /* main */
+				odpm_gpu_ch = <1>; /* ch 1 */
+				odpm_gpu_pmic = <1>; /* sub */
+				uvlo1_lvl = <0xC>;   /* 3.2V */
+				uvlo2_lvl = <0xA>;   /* 3.1V */
+				pre_uvlo_th = <0x76>; /* 3.3V Rise, 2.85V Fall */
+				pre_uvlo_debounce = <0x0>; /* 0us */
+				vimon_pwr_loop_thresh = <4000>; /* 4A pwr reduction thresh */
+				vimon_pwr_loop_cnt = <3>; /* 3 ibatt sample count */
+				min_v_thrs = <3200>; /* 3.2V minimum voltage threshold */
+				min_v_thrs_cnt_max = <20>; /* 20 counts for 166ms total */
+				min_i_clr_thrs = <4000>; /* 4A minimum */
+				min_i_shdn_en;
+				uvlo1_vdrp1_en;
+				uvlo2_vdrp2_en;
+				oilo1_vdrp2_en;
+				oilo2_vdrp2_en;
+				vimon_pwr_loop_en;
+				ifpmic_irq_drv_en;
+				vimon_trig = <0xA>; /* OILO1 | UVLO1 */
+				cpu0_cluster = <1>;
+				cpu1_cluster = <5>;
+				cpu2_cluster = <6>;
+				vdroop_int_mask = <0xDF>;   /* BATOILO1 only */
+				intb_int_mask = <0x0>;   /* All passed */
+				ocp_batfet_timeout = <2700>;   /* 2700ms */
+				ocp_batfet_timeout_en;
+				mba-dest-channel = <MBOX_DEST_CHAN_BCL>;
+				mba-pmic-dest-channel = <MBOX_DEST_CHAN_BCL_DA9188_REGULATOR>;
+				interrupts-extended =
+					<&gic GIC_SPI SSWRP_AOSS_AOSS_CPUACC_INTR_CPU0_1
+						IRQ_TYPE_EDGE_RISING 0>,
+					<&gic GIC_SPI SSWRP_AOSS_AOSS_CPUACC_INTR_CPU0_2
+						IRQ_TYPE_EDGE_RISING 0>,
+					<&gic GIC_SPI SSWRP_AOSS_AOSS_CPUACC_INTR_CPU0_0
+						IRQ_TYPE_EDGE_RISING 0>,
+					<&max77779_pmic_irq 6 IRQ_TYPE_LEVEL_LOW>;
+				interrupt-names = "vd1", "vd2", "pre_uvlo", "intb";
+				pinctrl-names = "default";
+				uvlo-gpios = <&aoss_pinctrl XAOSS_CPM_PRE_UVLO GPIO_ACTIVE_HIGH>;
+				vd1-gpios = <&aoss_pinctrl XAOSS_CPM_VDROOP1 GPIO_ACTIVE_HIGH>;
+				vd2-gpios = <&aoss_pinctrl XAOSS_CPM_VDROOP2 GPIO_ACTIVE_HIGH>;
+				devfreq = <&gpu &edgetpu &gxp>;
+				non_monitored_module_ids = <AUDIO_MITIGATION_ID
+								HAPTICS_MITIGATION_ID>;
+
+				/* TODO enable dynmic clock division after policy tuning
+				 * cpu2_dyn_clk_div_en;
+				 * cpu1a_dyn_clk_div_en;
+				 * cpu1b_dyn_clk_div_en;
+				 */
+
+				/* Clock divide ratios
+				 * for operating levels: high, mid-high, mid-low, low
+				 */
+				cpu2_dyn_clk_div_ratio = /bits/ 8 <7 4 2 1>;
+				cpu1a_dyn_clk_div_ratio = /bits/ 8 <7 4 2 1>;
+				cpu1b_dyn_clk_div_ratio =  /bits/ 8 <7 4 2 1>;
+
+				/* Thresholds for operating levels:
+				 * high, mid-high, mid-low, low (USOD, OD, UD, UUD)
+				 */
+				cpu2_dyn_clk_oplv_thresh  = <4 11 19 23>;
+				cpu1a_dyn_clk_oplv_thresh  = <3 11 18 23>;
+				cpu1b_dyn_clk_oplv_thresh  = <4 11 18 23>;
+
+				irq_config {
+					irq,uvlo1;
+					irq,batoilo;
+					irq,batoilo2;
+					irq,pre_uvlo;
+				};
+
+				ifpmic_irq_mapping {
+					sys_uvlo1 = <IF_VDROOP1>;
+					sys_uvlo2 = <IF_SHARED>;
+					bat_oilo1 = <IF_INTB>;
+					bat_oilo2 = <IF_VDROOP2>;
+				};
+
+				freq_qos {
+					oilo1 {
+						cpucl0 = <1632000 1632000>;
+						cpucl1 = <1305000 1305000>;
+						cpucl2 = <1996000 1996000>;
+						gpu = <748000 748000>;
+						tpu = <825600 825600>;
+						gxp = <729600 729600>;
+					};
+					pre_uvlo {
+						cpucl0 = <1632000 1632000>;
+						cpucl1 = <2035000 2035000>;
+						cpucl2 = <2496000 2496000>;
+						gpu = <748000 748000>;
+						tpu = <825600 825600>;
+						gxp = <729600 729600>;
+					};
+				};
+				main_mitigation {
+					ch1 {
+						module_id = <AMB_MITIGATION_ID>;
+						threshold = <500000>; /* 500000uA */
+					};
+					ch2 {
+						module_id = <CPU_BIG_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch3 {
+						module_id = <CPU_MID_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch4 {
+						module_id = <CPU_LITTLE_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch5 {
+						module_id = <AUR_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch6 {
+						module_id = <LDO_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch7 {
+						module_id = <TPU_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch8 {
+						module_id = <LDO_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch9 {
+						module_id = <TPU_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch10 {
+						module_id = <AOC_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch11 {
+						module_id = <CPU_LITTLE_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch12 {
+						module_id = <CPU_MID_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch13 {
+						module_id = <WLAN_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch14 {
+						module_id = <BATT_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch15 {
+						module_id = <CAMERA_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch16 {
+						module_id = <CAMERA_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+				};
+				sub_mitigation {
+					ch1 {
+						module_id = <MM_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch2 {
+						module_id = <GPU_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch3 {
+						module_id = <LDO_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch4 {
+						module_id = <DDR_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch5 {
+						module_id = <DDR_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch6 {
+						module_id = <LDO_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch7 {
+						module_id = <LDO_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch8 {
+						module_id = <GMC_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch9 {
+						module_id = <INFRA_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch10 {
+						module_id = <INFRA_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch11 {
+						module_id = <UFS_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch12 {
+						module_id = <MIX_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch13 {
+						module_id = <CELLULAR_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch14 {
+						module_id = <MODEM_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch15 {
+						module_id = <DISPLAY_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch16 {
+						module_id = <DISPLAY_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+				};
+			};
+			max77779_bcl_irq: max77779-bcl-irq {
+				compatible = "max77779-bcl-irq";
+				status = "okay";
+
+				ifpmic = <&max77779_pmic>;
+				chg = <&max77779_chg>;
+				vimon = <&max77779_vimon>;
+
+				vd1-gpios = <&aoss_pinctrl XAOSS_CPM_VDROOP1 GPIO_ACTIVE_HIGH>;
+				vd2-gpios = <&aoss_pinctrl XAOSS_CPM_VDROOP2 GPIO_ACTIVE_HIGH>;
+
+				max77779-bcl-interrupts {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					uvlo1: interrupt@0 {
+						reg = <0>;
+						label = "uvlo1";
+						interrupts-extended = <&gic
+							GIC_SPI SSWRP_AOSS_AOSS_CPUACC_INTR_CPU0_1
+							IRQ_TYPE_EDGE_RISING 0>;
+						interrupt-parent = <&gic>;
+						interrupt-name = "vd1";
+						irq-handler = "vdroop";
+					};
+					oilo1: interrupt@1 {
+						reg = <1>;
+						label = "oilo1";
+						interrupts-extended = <&max77779_pmic_irq 6
+							IRQ_TYPE_LEVEL_LOW 0>;
+						irq-class = "intb";
+						interrupt-name = "intb";
+						irq-handler = "irqb";
+					};
+					oilo2: interrupt@2 {
+						reg = <2>;
+						label = "oilo2";
+						interrupts-extended = <&gic
+							GIC_SPI SSWRP_AOSS_AOSS_CPUACC_INTR_CPU0_2
+							IRQ_TYPE_EDGE_RISING 0>;
+						interrupt-parent = <&gic>;
+						interrupt-name = "vd2";
+						irq-handler = "vdroop";
+					};
+				};
+			};
+		};
+	};
+};

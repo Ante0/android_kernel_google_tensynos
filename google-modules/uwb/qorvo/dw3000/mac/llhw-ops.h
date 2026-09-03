@@ -343,7 +343,7 @@ llhw_rx_get_measurement(struct mcps802154_local *local, void *rx_ctx,
 	return r;
 }
 
-#ifdef CONFIG_MCPS802154_TESTMODE
+#if IS_ENABLED(CONFIG_MCPS802154_TESTMODE)
 static inline int llhw_testmode_cmd(struct mcps802154_local *local, void *data,
 				    int len)
 {

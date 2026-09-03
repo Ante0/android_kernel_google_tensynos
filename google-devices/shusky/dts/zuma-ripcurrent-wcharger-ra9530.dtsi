@@ -56,7 +56,7 @@
 		idt,fuel-gauge = <&google_battery>;
 
 		/* WLCDC */
-		idt,gpio_dc_switch = <&s2mpg14_gpio 0 GPIO_ACTIVE_HIGH>; /* WLC_RX_SW_EN */
+		idt,dc_switch-gpios = <&s2mpg14_gpio 0 GPIO_ACTIVE_HIGH>; /* WLC_RX_SW_EN */
 		idt,max_vout_mv = <19500>;
 		idt,has_wlc_dc = <1>;
 		idt,has_rtx = <1>;
@@ -65,10 +65,10 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&wc_irq &wc_en>;
 
-		idt,gpio_wlc_en = <&gph1 4 GPIO_ACTIVE_LOW>;
-		idt,gpio_qien = <&gph1 4 GPIO_ACTIVE_LOW>;
-		idt,irq_gpio = <&gpa8 1 GPIO_ACTIVE_LOW>;
-		idt,gpio_ben = <&ln8411_gpio 0 GPIO_ACTIVE_HIGH>;
+		idt,wlc_en-gpios = <&gph1 4 GPIO_ACTIVE_LOW>;
+		idt,qien-gpios = <&gph1 4 GPIO_ACTIVE_LOW>;
+		idt,irq-gpios = <&gpa8 1 GPIO_ACTIVE_LOW>;
+		idt,ben-gpios = <&ln8411_gpio 0 GPIO_ACTIVE_HIGH>;
 
 		/* TXID: Phone type */
 		idt,tx_id_phone_type = /bits/ 8 <3>;

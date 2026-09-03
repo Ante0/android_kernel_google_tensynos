@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# backlight drivers.
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "rt4539_bl",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "rt4539_bl.ko",
+    conditional_srcs = {
+        "CONFIG_BACKLIGHT_RT4539_GS": {
+            True: [
+                "rt4539_bl.c",
+            ],
+        },
+    },
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

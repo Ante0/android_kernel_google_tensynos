@@ -9,16 +9,17 @@
 #include <linux/clkdev.h>
 #include <linux/clk-provider.h>
 #include <linux/module.h>
-#include <linux/of_platform.h>
+#include <linux/mod_devicetable.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/platform_device.h>
 #include <soc/google/cal-if.h>
 #include <dt-bindings/clock/zuma.h>
 
-#include "../../soc/google/cal-if/zuma/cmucal-vclk.h"
-#include "../../soc/google/cal-if/zuma/cmucal-node.h"
-#include "../../soc/google/cal-if/zuma/cmucal-qch.h"
-#include "../../soc/google/cal-if/zuma/clkout_zuma.h"
+#include "zuma/cmucal-vclk.h"
+#include "zuma/cmucal-node.h"
+#include "zuma/cmucal-qch.h"
+#include "zuma/clkout_zuma.h"
 #include "composite.h"
 
 

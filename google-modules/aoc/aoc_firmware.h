@@ -13,8 +13,6 @@
 
 #define AOC_FIRMWARE_OFFSET_INVALID 0xffffffff
 
-#define AOC_AUTH_HEADER_SIZE 4096
-
 struct iommu_entry {
     uint64_t value;
 };
@@ -27,7 +25,11 @@ struct iommu_entry {
 /* Dev builds bypass the UUID check on load */
 bool _aoc_fw_is_release(const struct firmware *fw);
 
+u32 _aoc_fw_header_size(const struct firmware *fw);
+
 bool _aoc_fw_is_signed(const struct firmware *fw);
+
+bool _aoc_fw_has_pq_header(const struct firmware *fw);
 
 bool _aoc_fw_is_compatible(const struct firmware *fw);
 
@@ -57,3 +59,13 @@ u32 _aoc_fw_get_header_version(const struct firmware *fw);
 uint16_t _aoc_fw_bl_size(const struct firmware *fw);
 
 u32 *_aoc_fw_bl(const struct firmware *fw);
+
+bool _aoc_fw_has_legacy_auth_header(const struct firmware *fw);
+
+void _aoc_fw_init_boot_breadcrumbs(void *fw);
+
+u32 _aoc_fw_boot_breadcrumbs(void *fw);
+
+u8 _aoc_fw_core_boot_breadcrumbs(void *fw, int index);
+
+void _aoc_init_core_boot_breadcrumbs(void *fw, int index);

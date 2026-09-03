@@ -13,6 +13,7 @@
 #ifndef __DMA_BUF_H__
 #define __DMA_BUF_H__
 
+#include <linux/android_kabi.h>
 #include <linux/iosys-map.h>
 #include <linux/file.h>
 #include <linux/err.h>
@@ -22,8 +23,11 @@
 #include <linux/fs.h>
 #include <linux/dma-fence.h>
 #include <linux/wait.h>
+#include <linux/workqueue.h>
 #include <linux/android_kabi.h>
+#include <linux/refcount.h>
 #include <linux/atomic.h>
+#include <linux/jump_label.h>
 
 struct device;
 struct dma_buf;
@@ -403,15 +407,6 @@ struct dma_buf {
 	const struct dma_buf_ops *ops;
 
 	/**
-	 * @lock:
-	 *
-	 * Used internally to serialize list manipulation, attach/detach and
-	 * vmap/unmap. Note that in many cases this is superseeded by
-	 * dma_resv_lock() on @resv.
-	 */
-	struct mutex lock;
-
-	/**
 	 * @vmapping_counter:
 	 *
 	 * Used internally to refcnt the vmaps returned by dma_buf_vmap().
@@ -428,20 +423,23 @@ struct dma_buf {
 	/**
 	 * @exp_name:
 	 *
-	 * Name of the exporter; useful for debugging. See the
-	 * DMA_BUF_SET_NAME IOCTL.
+	 * Name of the exporter; useful for debugging. Must not be NULL
 	 */
 	const char *exp_name;
 
 	/**
 	 * @name:
 	 *
-	 * Userspace-provided name; useful for accounting and debugging,
-	 * protected by dma_resv_lock() on @resv and @name_lock for read access.
+	 * Userspace-provided name. Default value is NULL. If not NULL,
+	 * length cannot be longer than DMA_BUF_NAME_LEN, including NIL
+	 * char. Useful for accounting and debugging. Read/Write accesses
+	 * are protected by @name_lock
+	 *
+	 * See the IOCTLs DMA_BUF_SET_NAME or DMA_BUF_SET_NAME_A/B
 	 */
 	const char *name;
 
-	/** @name_lock: Spinlock to protect name acces for read access. */
+	/** @name_lock: Spinlock to protect name access for read access. */
 	spinlock_t name_lock;
 
 	/**
@@ -478,7 +476,7 @@ struct dma_buf {
 	 *   anything the userspace API considers write access.
 	 *
 	 * - Drivers may just always add a write fence, since that only
-	 *   causes unecessarily synchronization, but no correctness issues.
+	 *   causes unnecessary synchronization, but no correctness issues.
 	 *
 	 * - Some drivers only expose a synchronous userspace API with no
 	 *   pipelining across drivers. These do not set any fences for their
@@ -527,18 +525,27 @@ struct dma_buf {
 	 * `DMA-BUF statistics`_ for the uapi this enables.
 	 */
 	struct dma_buf_sysfs_entry {
-		struct kobject kobj;
+		union {
+			struct kobject kobj;
+
+			/** @sysfs_add_work:
+			 *
+			 * For deferred sysfs kobject creation using a workqueue.
+			 */
+			struct work_struct sysfs_add_work;
+		};
 		struct dma_buf *dmabuf;
 	} *sysfs_entry;
 #endif
 
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 	/**
 	 * @nr_task_refs:
 	 *
 	 * The number of tasks that reference this buffer. For calculating PSS.
 	 */
-	ANDROID_KABI_USE(1, atomic64_t nr_task_refs);
-	ANDROID_KABI_RESERVE(2);
+	ANDROID_BACKPORT_USE(1, atomic64_t nr_task_refs);
 };
 
 /**
@@ -574,6 +581,7 @@ struct dma_buf_attach_ops {
 	 * point to the new location of the DMA-buf.
 	 */
 	void (*move_notify)(struct dma_buf_attachment *attach);
+
 	ANDROID_KABI_RESERVE(1);
 };
 
@@ -643,18 +651,10 @@ struct dma_buf_export_info {
 	ANDROID_KABI_RESERVE(2);
 };
 
-/**
- * struct task_dma_buf_record and struct task_dma_buf_info will NEVER be exposed
- * to vendor modules, except possibly via an opaque pointer. Their definitions
- * can therefore be hidden from MODVERSIONS CRC machinery, allowing arbitrary
- * future changes.
- */
-#ifdef __GENKSYMS__
-
-struct task_dma_buf_record;
-struct task_dma_buf_info;
-
-#else
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+int get_dmabuf_debugfs_data(int (*fn)(const struct dma_buf *, void *),
+			void *private);
+#endif
 
 /**
  * struct task_dma_buf_record - Holds the number of (VMA and FD) references to a
@@ -697,8 +697,6 @@ struct task_dma_buf_info {
 	struct list_head dmabufs;
 	unsigned int dmabuf_count;
 };
-
-#endif
 
 /**
  * DEFINE_DMA_BUF_EXPORT_INFO - helper macro for exporters
@@ -752,8 +750,6 @@ dma_buf_attachment_is_dynamic(struct dma_buf_attachment *attach)
 	return !!attach->importer_ops;
 }
 
-int dma_buf_get_each(int (*callback)(const struct dma_buf *dmabuf,
-		     void *private), void *private);
 struct dma_buf_attachment *dma_buf_attach(struct dma_buf *dmabuf,
 					  struct device *dev);
 struct dma_buf_attachment *
@@ -797,6 +793,8 @@ int dma_buf_mmap(struct dma_buf *, struct vm_area_struct *,
 		 unsigned long);
 int dma_buf_vmap(struct dma_buf *dmabuf, struct iosys_map *map);
 void dma_buf_vunmap(struct dma_buf *dmabuf, struct iosys_map *map);
+int dma_buf_vmap_unlocked(struct dma_buf *dmabuf, struct iosys_map *map);
+void dma_buf_vunmap_unlocked(struct dma_buf *dmabuf, struct iosys_map *map);
 long dma_buf_set_name(struct dma_buf *dmabuf, const char *name);
 int dma_buf_get_flags(struct dma_buf *dmabuf, unsigned long *flags);
 struct dma_buf *dma_buf_iter_begin(void);
@@ -808,8 +806,20 @@ int is_dma_buf_file(struct file *file);
 int dma_buf_account_task(struct dma_buf *dmabuf, struct task_dma_buf_info *dmabuf_info);
 void dma_buf_unaccount_task(struct dma_buf *dmabuf, struct task_dma_buf_info *dmabuf_info);
 int copy_dmabuf_info(u64 clone_flags, struct task_struct *task);
+void get_dmabuf_info(struct task_dma_buf_info *dmabuf_info);
 void put_dmabuf_info(struct task_dma_buf_info *dmabuf_info);
 int dma_buf_begin_new_exec(struct files_struct *old_files);
+
+DECLARE_STATIC_KEY_TRUE(dmabuf_accounting_key);
+/**
+ * is_dmabuf_accounting_enabled - Check if dmabuf accounting is enabled
+ *
+ * Return: true if enabled, false otherwise
+ */
+static inline bool is_dmabuf_accounting_enabled(void)
+{
+	return static_branch_likely(&dmabuf_accounting_key);
+}
 
 #else /* CONFIG_DMA_SHARED_BUFFER */
 
@@ -820,8 +830,11 @@ static inline void dma_buf_unaccount_task(struct dma_buf *dmabuf,
 					  struct task_dma_buf_info *dmabuf_info) {}
 static inline int copy_dmabuf_info(u64 clone_flags,
 				   struct task_struct *task) { return 0; }
+static inline void get_dmabuf_info(struct task_dma_buf_info *dmabuf_info) {}
 static inline void put_dmabuf_info(struct task_dma_buf_info *dmabuf_info) {}
 static inline int dma_buf_begin_new_exec(struct files_struct *old_files) { return 0; }
 
+static inline bool is_dmabuf_accounting_enabled(void) { return false; }
 #endif /* CONFIG_DMA_SHARED_BUFFER */
+
 #endif /* __DMA_BUF_H__ */

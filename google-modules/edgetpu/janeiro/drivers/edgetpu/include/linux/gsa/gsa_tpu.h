@@ -8,6 +8,15 @@
 #ifndef __LINUX_GSA_TPU_H
 #define __LINUX_GSA_TPU_H
 
+/* This header file is a stub and shouldn't be used when compiling the driver
+ * in the Pixel tree. Instead, we need to be using the header in the kernel
+ * tree or SoC modules project, e.g. private/google-modules/soc/gs. To avoid
+ * instroducing conflicts when merging updates to this driver or re-introducing
+ * this header from a merge, I'm insttead adding this build time error to make
+ * sure we catch any changes that get this header included again.
+ */
+#error "We should not be using this header file!"
+
 #include <linux/device.h>
 #include <linux/types.h>
 

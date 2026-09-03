@@ -36,6 +36,7 @@ int
 nvif_disp_ctor(struct nvif_device *device, const char *name, s32 oclass, struct nvif_disp *disp)
 {
 	static const struct nvif_mclass disps[] = {
+		{ AD102_DISP, 0 },
 		{ GA102_DISP, 0 },
 		{ TU102_DISP, 0 },
 		{ GV100_DISP, 0 },
@@ -60,7 +61,7 @@ nvif_disp_ctor(struct nvif_device *device, const char *name, s32 oclass, struct 
 	cid = nvif_sclass(&device->object, disps, oclass);
 	disp->object.client = NULL;
 	if (cid < 0) {
-		NVIF_ERRON(cid, &device->object, "[NEW disp%04x] not supported", oclass);
+		NVIF_DEBUG(&device->object, "[NEW disp%04x] not supported", oclass);
 		return cid;
 	}
 
@@ -72,9 +73,10 @@ nvif_disp_ctor(struct nvif_device *device, const char *name, s32 oclass, struct 
 	if (ret)
 		return ret;
 
-	NVIF_DEBUG(&disp->object, "[NEW] conn_mask:%08x outp_mask:%08x",
-		   args.conn_mask, args.outp_mask);
+	NVIF_DEBUG(&disp->object, "[NEW] conn_mask:%08x outp_mask:%08x head_mask:%08x",
+		   args.conn_mask, args.outp_mask, args.head_mask);
 	disp->conn_mask = args.conn_mask;
 	disp->outp_mask = args.outp_mask;
+	disp->head_mask = args.head_mask;
 	return 0;
 }

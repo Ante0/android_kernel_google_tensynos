@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_CDD_CPU_IDLE_INFO
+	tristate "Google CDD record cpu idle info"
+	default n
+	help
+	  This is a test module that collects cpu idle information. In this
+	  module a notifier is register to collect cpu_pm events. The
+	  collection is triggered when a low power cpu_pm event occurs.
+	  Specifically, CPU_PM_ENTER and CPU_CLUSTER_PM_ENTER events are logged
+	  as CDD_FLAG_IN, while all other event kinds are logged as
+	  CDD_FLAG_OUT.

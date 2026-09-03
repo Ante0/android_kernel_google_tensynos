@@ -174,8 +174,7 @@ static irqreturn_t am2315_trigger_handler(int irq, void *p)
 		data->scan.chans[1] = sensor_data.temp_data;
 	} else {
 		i = 0;
-		for_each_set_bit(bit, indio_dev->active_scan_mask,
-				 indio_dev->masklength) {
+		iio_for_each_active_channel(indio_dev, bit) {
 			data->scan.chans[i] = (bit ? sensor_data.temp_data :
 					       sensor_data.hum_data);
 			i++;
@@ -218,8 +217,7 @@ static const struct iio_info am2315_info = {
 	.read_raw		= am2315_read_raw,
 };
 
-static int am2315_probe(struct i2c_client *client,
-			const struct i2c_device_id *id)
+static int am2315_probe(struct i2c_client *client)
 {
 	int ret;
 	struct iio_dev *indio_dev;
@@ -254,7 +252,7 @@ static int am2315_probe(struct i2c_client *client,
 }
 
 static const struct i2c_device_id am2315_i2c_id[] = {
-	{"am2315", 0},
+	{ "am2315" },
 	{}
 };
 MODULE_DEVICE_TABLE(i2c, am2315_i2c_id);
@@ -263,7 +261,7 @@ static struct i2c_driver am2315_driver = {
 	.driver = {
 		.name = "am2315",
 	},
-	.probe =            am2315_probe,
+	.probe =        am2315_probe,
 	.id_table =         am2315_i2c_id,
 };
 

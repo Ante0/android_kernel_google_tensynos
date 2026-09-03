@@ -326,16 +326,14 @@ static void trusty_virtio_del_vqs(struct virtio_device *vdev)
 
 static struct virtqueue *_find_vq(struct virtio_device *vdev,
 				  unsigned int id,
-				  void (*callback)(struct virtqueue *vq),
-				  const char *name,
-				  bool ctx)
+				  struct virtqueue_info *vqi)
 {
 	struct trusty_vring *tvr;
 	struct trusty_vdev *tvdev = vdev_to_tvdev(vdev);
 	phys_addr_t pa;
 	int ret;
 
-	if (!name)
+	if (!vqi->name)
 		return ERR_PTR(-EINVAL);
 
 	if (id >= tvdev->vring_num)
@@ -377,13 +375,15 @@ static struct virtqueue *_find_vq(struct virtio_device *vdev,
 		 tvr->notifyid);
 
 	tvr->vq = vring_new_virtqueue(id, tvr->elem_num, tvr->align,
-				      vdev, true, ctx, tvr->vaddr,
-				      trusty_virtio_notify, callback, name);
+				      vdev, true, vqi->ctx, tvr->vaddr,
+				      trusty_virtio_notify, vqi->callback,
+				      vqi->name);
 	if (!tvr->vq) {
 		dev_err(&vdev->dev, "vring_new_virtqueue %s failed\n",
-			name);
+			vqi->name);
 		goto err_new_virtqueue;
 	}
+	virtqueue_set_dma_premapped(tvr->vq);
 
 	tvr->vq->priv = tvr;
 
@@ -409,20 +409,14 @@ err_share_memory:
 
 static int trusty_virtio_find_vqs(struct virtio_device *vdev, unsigned int nvqs,
 				  struct virtqueue *vqs[],
-				  vq_callback_t *callbacks[],
-				  const char * const names[],
-				  const bool *ctxs,
+				  struct virtqueue_info vqs_info[],
 				  struct irq_affinity *desc)
 {
 	unsigned int i;
 	int ret;
-	bool ctx = false;
 
 	for (i = 0; i < nvqs; i++) {
-		ctx = false;
-		if (ctxs)
-			ctx = ctxs[i];
-		vqs[i] = _find_vq(vdev, i, callbacks[i], names[i], ctx);
+		vqs[i] = _find_vq(vdev, i, &vqs_info[i]);
 		if (IS_ERR(vqs[i])) {
 			ret = PTR_ERR(vqs[i]);
 			_del_vqs(vdev);
@@ -704,21 +698,6 @@ err_share_memory:
 	return ret;
 }
 
-static dma_addr_t trusty_virtio_dma_map_page(struct device *dev,
-					     struct page *page,
-					     unsigned long offset, size_t size,
-					     enum dma_data_direction dir,
-					     unsigned long attrs)
-{
-	struct tipc_msg_buf *buf = page_to_virt(page) + offset;
-
-	return buf->buf_id;
-}
-
-static const struct dma_map_ops trusty_virtio_dma_map_ops = {
-	.map_page = trusty_virtio_dma_map_page,
-};
-
 static int trusty_virtio_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -735,8 +714,6 @@ static int trusty_virtio_probe(struct platform_device *pdev)
 	INIT_WORK(&tctx->check_vqs, check_all_vqs);
 	INIT_WORK(&tctx->kick_vqs, kick_vqs);
 	platform_set_drvdata(pdev, tctx);
-
-	set_dma_ops(&pdev->dev, &trusty_virtio_dma_map_ops);
 
 	tctx->check_wq = alloc_workqueue("trusty-check-wq",
 					 WQ_UNBOUND | WQ_HIGHPRI, 0);
@@ -772,7 +749,7 @@ err_create_check_wq:
 	return ret;
 }
 
-static int trusty_virtio_remove(struct platform_device *pdev)
+static void trusty_virtio_remove(struct platform_device *pdev)
 {
 	struct trusty_ctx *tctx = platform_get_drvdata(pdev);
 	int ret;
@@ -809,7 +786,6 @@ static int trusty_virtio_remove(struct platform_device *pdev)
 
 	/* free context */
 	kfree(tctx);
-	return 0;
 }
 
 static const struct of_device_id trusty_of_match[] = {

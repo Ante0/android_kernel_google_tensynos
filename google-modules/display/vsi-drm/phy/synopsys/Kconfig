@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config DRM_DW_MIPI_CDPHY
+	tristate "DesignWare MIPI CDPHY"
+	select GENERIC_PHY
+	select GENERIC_PHY_MIPI_DPHY
+	help
+	 Enables support for Synopsys MIPI CD-PHY Tx driver.

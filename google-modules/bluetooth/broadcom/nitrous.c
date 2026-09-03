@@ -56,6 +56,7 @@ struct nitrous_bt_lpm {
 	struct gpio_desc *gpio_dev_wake;     /* Host -> Dev WAKE GPIO */
 	struct gpio_desc *gpio_host_wake;    /* Dev -> Host WAKE GPIO */
 	struct gpio_desc *gpio_power;        /* GPIO to control power */
+	struct gpio_desc *gpio_regon_ff;        /* GPIO to control regon ff */
 	struct gpio_desc *gpio_timesync;     /* GPIO for timesync */
 	struct gpio_desc *gpio_ble_dbo;      /* GPIO for dbo */
 	int irq_host_wake;           /* IRQ associated with HOST_WAKE GPIO */
@@ -71,6 +72,7 @@ struct nitrous_bt_lpm {
 	int dbo_state;
 	int dbo_config;
 	bool off_mode_latch;
+	bool regon_state;
 
 	struct device *dev;
 	struct rfkill *rfkill;
@@ -202,6 +204,9 @@ static irqreturn_t nitrous_host_wake_isr(int irq, void *data)
 		pm_stay_awake(lpm->dev);
 		exynos_update_ip_idle_status(lpm->idle_bt_rx_ip_index, STATUS_BUSY);
 
+		/* Automatically trigger Runtime PM Resume (Wakes UART & asserts DEV_WAKE) */
+		pm_runtime_get(lpm->dev);
+
 		/* get timestamp for logging */
 		ktime_get_real_ts64(&ts);
 
@@ -217,6 +222,10 @@ static irqreturn_t nitrous_host_wake_isr(int irq, void *data)
 		exynos_update_ip_idle_status(lpm->idle_bt_rx_ip_index, STATUS_IDLE);
 		/* Release host-wake wakelock */
 		pm_wakeup_dev_event(lpm->dev, lpm->wakelock_ctrl, false);
+
+		/* Allow Runtime PM to autosuspend UART & DEV_WAKE after delay */
+		pm_runtime_mark_last_busy(lpm->dev);
+		pm_runtime_put_autosuspend(lpm->dev);
 
 		/* Get timestamp for logging */
 		ktime_get_real_ts64(&ts);
@@ -616,12 +625,10 @@ static void nitrous_lpm_remove_proc_entries(struct nitrous_bt_lpm *lpm)
 		remove_proc_entry("btwake", sleep_dir);
 		remove_proc_entry("sleep", bluetooth_dir);
 	}
-	if (lpm->wakelock_ctrl) {
+	if (lpm->wakelock_ctrl)
 		remove_proc_entry("wakelock_ctrl", bluetooth_dir);
-	}
-	if (lpm->timesync_state) {
+	if (lpm->timesync_state)
 		remove_proc_entry("timesync", bluetooth_dir);
-	}
 	remove_proc_entry("bluetooth", 0);
 	if (lpm->proc) {
 		devm_kfree(lpm->dev, lpm->proc);
@@ -629,19 +636,21 @@ static void nitrous_lpm_remove_proc_entries(struct nitrous_bt_lpm *lpm)
 	}
 }
 
-static void toggle_timesync(struct nitrous_bt_lpm *lpm) {
+static void toggle_timesync(struct nitrous_bt_lpm *lpm)
+{
 	int rc;
 
 	if (lpm->timesync_state == TIMESYNC_NOT_SUPPORTED)
 		return;
 	rc = devm_request_irq(lpm->dev, lpm->irq_timesync, ntirous_timesync_isr,
-			IRQF_TRIGGER_RISING, "bt_timesync", lpm);
+			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, "bt_timesync", lpm);
 	if (unlikely(rc)) {
 		lpm->timesync_state = TIMESYNC_SUPPORTED;
-		dev_logbuffer_logk(lpm->dev, lpm->log, LOGLEVEL_ERR, "Unable to request IRQ for bt_timesync GPIO");
+		dev_logbuffer_logk(lpm->dev, lpm->log, LOGLEVEL_ERR,
+				"Unable to request IRQ for bt_timesync GPIO");
 	} else {
 		lpm->timesync_state = TIMESYNC_ENABLED;
-		logbuffer_log(lpm->log, "Rquest IRQ for bt_timesync GPIO successful");
+		logbuffer_log(lpm->log, "Request IRQ for bt_timesync GPIO successful");
 	}
 }
 
@@ -832,6 +841,31 @@ static void toggle_dbo_ff(struct nitrous_bt_lpm *lpm)
 }
 
 /*
+ * Toggle AOSS_AMB_SPI2_CSn for Flip-Flop design
+ */
+static void toggle_regon_ff(struct nitrous_bt_lpm *lpm)
+{
+	if (lpm->regon_state) {
+		udelay(2);
+		gpiod_set_value_cansleep(lpm->gpio_regon_ff, false);
+		udelay(1);
+		gpiod_set_value_cansleep(lpm->gpio_regon_ff, true);
+		udelay(1);
+		gpiod_set_value_cansleep(lpm->gpio_regon_ff, false);
+	}
+}
+
+/*
+ * Helper to toggle the Flip-Flop control GPIOs (DBO and REGON)
+ */
+static void nitrous_toggle_ff_gpios(struct nitrous_bt_lpm *lpm)
+{
+	toggle_dbo_ff(lpm);
+	// Fix: Bluetooth stuck power issue.
+	toggle_regon_ff(lpm);
+}
+
+/*
  * Set BT power on/off (blocked is true: OFF; blocked is false: ON)
  */
 static int nitrous_rfkill_set_power(void *data, bool blocked)
@@ -874,13 +908,13 @@ static int nitrous_rfkill_set_power(void *data, bool blocked)
 		logbuffer_log(lpm->log, "Power up BT chip %ptTt", &ts);
 		dev_dbg(lpm->dev, "REG_ON: Low");
 		gpiod_set_value_cansleep(lpm->gpio_power, false);
-		toggle_dbo_ff(lpm);
+		nitrous_toggle_ff_gpios(lpm);
 		msleep(30);
 		exynos_update_ip_idle_status(lpm->idle_bt_tx_ip_index, STATUS_BUSY);
 		exynos_update_ip_idle_status(lpm->idle_bt_rx_ip_index, STATUS_BUSY);
 		dev_dbg(lpm->dev, "REG_ON: High");
 		gpiod_set_value_cansleep(lpm->gpio_power, true);
-		toggle_dbo_ff(lpm);
+		nitrous_toggle_ff_gpios(lpm);
 		/* Set DEV_WAKE to High as part of the power sequence */
 		dev_dbg(lpm->dev, "DEV_WAKE: High - Power sequence");
 		gpiod_set_value_cansleep(lpm->gpio_dev_wake, true);
@@ -893,7 +927,7 @@ static int nitrous_rfkill_set_power(void *data, bool blocked)
 		logbuffer_log(lpm->log, "Power down BT chip %ptTt", &ts);
 		dev_dbg(lpm->dev, "REG_ON: Low");
 		gpiod_set_value_cansleep(lpm->gpio_power, false);
-		toggle_dbo_ff(lpm);
+		nitrous_toggle_ff_gpios(lpm);
 		exynos_update_ip_idle_status(lpm->idle_bt_tx_ip_index, STATUS_IDLE);
 		exynos_update_ip_idle_status(lpm->idle_bt_rx_ip_index, STATUS_IDLE);
 	}
@@ -1006,6 +1040,14 @@ static int nitrous_probe(struct platform_device *pdev)
 	}
 	dev_dbg(lpm->dev, "DBO support: %x", lpm->dbo_state);
 
+	lpm->regon_state = device_property_read_bool(lpm->dev, "bt-regon-ff");
+
+	lpm->gpio_regon_ff = devm_gpiod_get_optional(lpm->dev, "regon-ff", GPIOD_OUT_LOW);
+	if (IS_ERR(lpm->gpio_regon_ff))
+		dev_warn(lpm->dev, "Can't get regon GPIO descriptor\n");
+
+	dev_dbg(lpm->dev, "REGON support: %x", lpm->regon_state);
+
 	lpm->off_mode_latch = device_property_read_bool(lpm->dev, "off-mode-latch");
 
 	if (!of_property_read_u32(pdev->dev.of_node, "goog,wakelock-ctrl",
@@ -1084,13 +1126,13 @@ err_lpm_init:
 	return rc;
 }
 
-static int nitrous_remove(struct platform_device *pdev)
+static void nitrous_remove(struct platform_device *pdev)
 {
 	struct nitrous_bt_lpm *lpm = platform_get_drvdata(pdev);
 	int i;
 
 	if (!lpm) {
-		return -EINVAL;
+		return;
 	}
 
 	logbuffer_log(lpm->log, "removing");
@@ -1106,8 +1148,6 @@ static int nitrous_remove(struct platform_device *pdev)
 	}
 
 	devm_kfree(&pdev->dev, lpm);
-
-	return 0;
 }
 
 static int nitrous_suspend_device(struct device *dev)

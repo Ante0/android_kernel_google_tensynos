@@ -33,7 +33,7 @@
 #include <linux/mutex.h>
 #include <crypto/aes.h>
 
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 
 #include "fira_crypto.h"
 #include <net/mcps802154_frame.h>

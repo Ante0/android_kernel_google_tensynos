@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * mustang device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "lga-mustang-pinctrl.dtsi"
+#include "lga-muzel-common.dtsi"
+#include "lga-mustang-common.dtsi"
+#include "lga-mustang-camera.dtsi"
+#include "lga-mustang-pvt1-battery.dtsi"
+#include "lga-mustang-evt1-charging.dtsi"
+#include "lga-mustang-evt1_1-wcharger.dtsi"
+#include "google-base/platform/lga-uwb-u100-power-switch.dtsi"
+
+/ {
+	board_id = <0x70506>;
+	board_rev = <0x010000>;
+	fragment@boardbase {
+		target-path = "/";
+		__overlay__ {
+			model = "MUSTANG MP based on LGA";
+			compatible = "google,lga-mustang", "google,lga";
+		};
+	};
+};
+

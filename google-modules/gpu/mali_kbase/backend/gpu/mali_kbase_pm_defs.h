@@ -43,6 +43,8 @@ struct kbase_jd_atom;
  * @KBASE_PM_CORE_SHADER: Shader cores
  * @KBASE_PM_CORE_TILER: Tiler cores
  * @KBASE_PM_CORE_STACK: Core stacks
+ * @KBASE_PM_CORE_NEURAL: Neural engine
+ * @KBASE_PM_CORE_BASE: Shader core base domain
  *
  * These enumerated values are used in calls to
  * - kbase_pm_get_present_cores()
@@ -63,15 +65,20 @@ enum kbase_pm_core_type {
 	KBASE_PM_CORE_SHADER = HOST_POWER_ENUM(SHADER_PRESENT),
 	KBASE_PM_CORE_TILER = HOST_POWER_ENUM(TILER_PRESENT),
 	KBASE_PM_CORE_STACK = HOST_POWER_ENUM(STACK_PRESENT),
-	/**
-	 * @KBASE_PM_CORE_NEURAL: Neural engine
-	 */
 	KBASE_PM_CORE_NEURAL = HOST_POWER_ENUM(NEURAL_PRESENT),
-	/**
-	 * @KBASE_PM_CORE_BASE: Shader core base domain
-	 */
 	KBASE_PM_CORE_BASE = HOST_POWER_ENUM(BASE_PRESENT)
 };
+
+/**
+ * GET_TILER_PM_CORE_ID - Get valid PM_CORE_ID for TILER.
+ *
+ * @kbdev: The kbase device structure (must be a valid pointer)
+ *
+ * This function returns KBASE_PM_CORE_ID for TILER module.
+ *
+ * Return: enum ID for TILER module in current GPU
+ */
+#define GET_TILER_PM_CORE_ID(kbdev) KBASE_PM_CORE_TILER
 
 /*
  * enum kbase_l2_core_state - The states used for the L2 cache & tiler power
@@ -153,9 +160,9 @@ enum kbase_pm_runtime_suspend_abort_reason {
  *  @idle_mcu: The amount of time MCU was idle measured in units of 256ns
  */
 struct kbasep_pm_metrics {
-	u32 time_busy;
-	u32 time_idle;
-	u32 time_in_protm;
+	u64 time_busy;
+	u64 time_idle;
+	u64 time_in_protm;
 	u32 busy_mcu;
 	u32 idle_mcu;
 };

@@ -1,0 +1,77 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * LGA platform common USB.Type-C.spmi.device source
+ *
+ * Copyright 2023-2024 Google LLC.
+ *
+ */
+#include <dt-bindings/usb/pd.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,lga.h>
+
+&cpm_pinctrl {
+	status = "okay";
+	usb_pd_irq: usb_pd_irq {
+		pins = "XCPM_EINT_11";
+		function = "cpm_int";
+	};
+};
+
+&spmi_cpm {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+#include "max777x9-tcpc-spmi.dtsi"
+};
+
+/*
+ * TODO: Add role-sw-dev attribute once data driver is brought up on deepspace platform. Else typec
+ * driver probe will defer and eventually fail as the role-sw node will not be found.
+ */
+&max77759tcpcspmi {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&usb_pd_irq>;
+	interrupt-parent = <&cpm_pinctrl>;
+	usbpd,usbpd_int-gpio = <IFPMIC2AP_ALERT_L_1V2_AY3(GPIO_ACTIVE_LOW)>;
+	chg-psy-name = "gcpm";
+	phy-mode-mux;
+	ports {
+		port@2 {
+			switch_notification_source: endpoint {
+				remote-endpoint = <&switch_notification_sink>;
+			};
+		};
+	};
+};
+
+&usb {
+	usb-role-switch;
+};
+
+&usb_phy {
+	ports {
+		port@0 {
+			switch_notification_sink: endpoint {
+				remote-endpoint = <&switch_notification_source>;
+			};
+		};
+	};
+};
+
+/ {
+	fragment@typec {
+		target-path = "/";
+		__overlay__ {
+			google,usbc_port_cooling_dev {
+				extcon = <&max77759tcpcspmi>;
+				compatible = "google,usbc_port_cooling_dev";
+				google,usb-cd-polling-interval-ms = <5000>;
+				google,usb-cd-connected-interval-ms = <700>;
+				google,usb-cd-unplug-interval-sec = <2>;
+				#cooling-cells = <2>;
+			};
+		};
+	};
+};

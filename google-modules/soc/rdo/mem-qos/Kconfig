@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_MEM_QOS
+	tristate "Google QoS Box driver"
+	depends on ARCH_GOOGLE
+	help
+	  Enable support for Google QoS Box.
+	  This driver implements register programming sequence to support
+	  QoS related configurations for each IP block which contains QoS Box.
+	  If unsure select "N".
+
+config GOOGLE_MEM_QOS_MOCK_CLIENT
+	tristate "Google Mem QoS Mock Client driver"
+	depends on GOOGLE_MEM_QOS
+	help
+	  Enable support for Google Mem QoS Mock Client driver.
+	  Mem QoS Mock Client driver provides debugfs knobs to enable
+	  calling Google Mem QoS APIs from user-space by writing the
+	  debugfs knobs.
+	  If unsure select "N".

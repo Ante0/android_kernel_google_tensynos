@@ -2,7 +2,7 @@
 /*
  * GXP user command interface.
  *
- * Copyright (C) 2022 Google LLC
+ * Copyright (C) 2024-2026 Google LLC
  */
 
 #include <linux/align.h>
@@ -237,6 +237,8 @@ static void gxp_uci_push_async_response(struct gxp_uci_async_response *async_res
 
 	async_resp->status = status;
 	async_resp->processed = true;
+	async_resp->resp.seq = gcip_mailbox_awaiter_get_seq(&async_resp->gcip_awaiter);
+	async_resp->resp.client_id = async_resp->vd->client_id;
 	list_del(&async_resp->wait_list_entry);
 
 	gxp_vd_release_credit(async_resp->vd);
@@ -382,14 +384,6 @@ static u64 gxp_uci_get_resp_elem_seq(struct gcip_mailbox *mailbox, void *resp)
 	return elem->seq;
 }
 
-static void gxp_uci_set_resp_elem_seq(struct gcip_mailbox *mailbox, void *resp,
-				      u64 seq)
-{
-	struct gxp_uci_response *elem = resp;
-
-	elem->seq = seq;
-}
-
 static int gxp_uci_before_enqueue_wait_list(struct gcip_mailbox *mailbox, void *resp,
 					    struct gcip_mailbox_awaiter *gcip_awaiter)
 {
@@ -424,13 +418,14 @@ static int gxp_uci_before_enqueue_wait_list(struct gcip_mailbox *mailbox, void *
 	 * submitted to the firmware and the kernel driver doesn't need to care signaling out-fences
 	 * with an error caused in the driver side.
 	 */
-	ret = gcip_fence_array_submit_waiter_and_signaler(async_resp->in_fences,
-							  async_resp->out_fences, IIF_IP_DSP);
+	ret = gcip_fence_array_submit_waiter_and_signaler(
+		async_resp->in_fences, async_resp->out_fences, NULL, NULL, IIF_IP_DSP);
 	if (ret) {
 		dev_err(mailbox->dev, "Failed to submit waiter or signaler to fences, ret=%d", ret);
 		return ret;
 	}
 
+	gcip_mailbox_awaiter_get(&async_resp->gcip_awaiter);
 	spin_lock_irqsave(async_resp->queue_lock, flags);
 	list_add_tail(&async_resp->wait_list_entry, async_resp->wait_queue);
 	spin_unlock_irqrestore(async_resp->queue_lock, flags);
@@ -452,7 +447,6 @@ static const struct gcip_mailbox_ops gxp_uci_gcip_mbx_ops = {
 	.acquire_rx_queue_lock = gxp_mailbox_gcip_ops_acquire_rx_queue_lock,
 	.release_rx_queue_lock = gxp_mailbox_gcip_ops_release_rx_queue_lock,
 	.get_resp_elem_seq = gxp_uci_get_resp_elem_seq,
-	.set_resp_elem_seq = gxp_uci_set_resp_elem_seq,
 	.wait_for_tx_queue_not_full = gxp_mailbox_gcip_ops_wait_for_tx_queue_not_full,
 	.before_enqueue_wait_list = gxp_uci_before_enqueue_wait_list,
 	.after_enqueue_cmd = gxp_mailbox_gcip_ops_after_enqueue_cmd,
@@ -769,7 +763,7 @@ static int gxp_uci_push_cmd(struct gxp_uci *uci, struct gxp_client *client,
 	}
 
 	ret = gcip_mailbox_awaiter_init(&async_resp->gcip_awaiter, uci->mbx->mbx_impl.gcip_mbx,
-					&async_resp->resp, &gxp_uci_async_response_ops);
+					&async_resp->resp, &gxp_uci_async_response_ops, NULL);
 	if (ret)
 		goto err_free_async_resp;
 
@@ -817,6 +811,8 @@ static int gxp_uci_push_cmd(struct gxp_uci *uci, struct gxp_client *client,
 	ret = gxp_mailbox_put_cmd(uci->mbx, cmd, &async_resp->gcip_awaiter);
 	if (ret)
 		goto err_put_iif_ikf;
+
+	gcip_mailbox_awaiter_put(&async_resp->gcip_awaiter);
 
 	return 0;
 
@@ -979,7 +975,7 @@ int gxp_uci_wait_async_response(struct mailbox_resp_queue *uci_resp_queue,
 
 	spin_unlock_irq(&uci_resp_queue->lock);
 
-	*resp_seq = async_resp->resp.seq;
+	*resp_seq = gcip_mailbox_awaiter_get_seq(&async_resp->gcip_awaiter);
 	switch (async_resp->status) {
 	case GXP_RESP_OK:
 		*error_code = async_resp->resp.code;

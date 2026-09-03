@@ -183,49 +183,6 @@ static int get_property(unsigned int isp, unsigned long input,
 }
 
 /**
- * isp_cooling_get_level - for a give isp, return the cooling level.
- * @isp: isp for which the level is required
- * @fps: the fps of interest
- *
- * This function will match the cooling level corresponding to the
- * requested @fps and return it.
- *
- * Return: The matched cooling level on success or THERMAL_CSTATE_INVALID
- * otherwise.
- */
-unsigned long isp_cooling_get_level(unsigned int isp, unsigned int fps)
-{
-	unsigned int val;
-
-	if (get_property(isp, (unsigned long)fps, &val, GET_LEVEL))
-		return THERMAL_CSTATE_INVALID;
-
-	return (unsigned long)val;
-}
-EXPORT_SYMBOL_GPL(isp_cooling_get_level);
-
-/**
- * isp_cooling_get_fps - for a give isp, return the fps value corresponding to cooling level.
- * @isp: isp for which the level is required
- * @level: the cooling level
- *
- * This function will match the fps value corresponding to the
- * requested @level and return it.
- *
- * Return: The matched fps value on success or ISP_FPS_INVALID otherwise.
- */
-unsigned long isp_cooling_get_fps(unsigned int isp, unsigned long level)
-{
-	unsigned int val;
-
-	if (get_property(isp, level, &val, GET_FPS))
-		return ISP_FPS_INVALID;
-
-	return (unsigned long)val;
-}
-EXPORT_SYMBOL_GPL(isp_cooling_get_fps);
-
-/**
  * isp_apply_cooling - function to apply fps clipping.
  * @isp_device: isp_cooling_device pointer containing fps
  *	clipping data.
@@ -338,66 +295,6 @@ int exynos_tmu_isp_add_notifier(struct notifier_block *n)
 }
 EXPORT_SYMBOL_GPL(exynos_tmu_isp_add_notifier);
 
-static int parse_ect_cooling_level(struct thermal_cooling_device *cdev,
-				   char *cooling_name)
-{
-	struct thermal_instance *instance;
-	struct thermal_zone_device *tz;
-	bool foundtz = false;
-	void *thermal_block;
-	struct ect_ap_thermal_function *function;
-	int i, temperature;
-	unsigned int freq;
-
-	mutex_lock(&cdev->lock);
-	list_for_each_entry(instance, &cdev->thermal_instances, cdev_node) {
-		tz = instance->tz;
-		if (!strncasecmp(cooling_name, tz->type, THERMAL_NAME_LENGTH)) {
-			foundtz = true;
-			break;
-		}
-	}
-	mutex_unlock(&cdev->lock);
-
-	if (!foundtz)
-		goto skip_ect;
-
-	thermal_block = ect_get_block(BLOCK_AP_THERMAL);
-	if (!thermal_block)
-		goto skip_ect;
-
-	function = ect_ap_thermal_get_function(thermal_block, cooling_name);
-	if (!function)
-		goto skip_ect;
-
-	for (i = 0; i < function->num_of_range; ++i) {
-		unsigned long max_level = 0;
-		int level;
-
-		temperature = function->range_list[i].lower_bound_temperature;
-		freq = function->range_list[i].max_frequency;
-
-		instance = get_thermal_instance(tz, cdev, i);
-		if (!instance) {
-			pr_err("%s: (%s, %d)instance isn't valid\n", __func__, cooling_name, i);
-			goto skip_ect;
-		}
-
-		cdev->ops->get_max_state(cdev, &max_level);
-		level = isp_cooling_get_level(0, freq);
-
-		if (level == THERMAL_CSTATE_INVALID)
-			level = max_level;
-
-		instance->upper = level;
-
-		pr_info("Parsed From ECT : %s: [%d] Temperature : %d, frequency : %u, level: %d\n",
-			cooling_name, i, temperature, freq, level);
-	}
-skip_ect:
-	return 0;
-}
-
 /**
  * __isp_cooling_register - helper function to create isp cooling device
  * @np: a valid struct device_node to the cooling device device tree node
@@ -441,8 +338,6 @@ __isp_cooling_register(struct device_node *np,
 		return cool_dev;
 	}
 
-	parse_ect_cooling_level(cool_dev, "ISP");
-
 	isp_dev->cool_dev = cool_dev;
 	isp_dev->isp_state = 0;
 	mutex_lock(&cooling_isp_lock);
@@ -453,24 +348,6 @@ __isp_cooling_register(struct device_node *np,
 
 	return cool_dev;
 }
-
-/**
- * isp_cooling_register - function to create isp cooling device.
- * @clip_isp: cpumask of gpus where the fps constraints will happen.
- *
- * This interface function registers the isp cooling device with the name
- * "thermal-isp-%x". This api can support multiple instances of isp
- * cooling devices.
- *
- * Return: a valid struct thermal_cooling_device pointer on success,
- * on failure, it returns a corresponding ERR_PTR().
- */
-struct thermal_cooling_device *
-isp_cooling_register(const struct cpumask *clip_isp)
-{
-	return __isp_cooling_register(NULL, clip_isp);
-}
-EXPORT_SYMBOL_GPL(isp_cooling_register);
 
 /**
  * of_isp_cooling_register - function to create isp cooling device.
@@ -485,7 +362,7 @@ EXPORT_SYMBOL_GPL(isp_cooling_register);
  * Return: a valid struct thermal_cooling_device pointer on success,
  * on failure, it returns a corresponding ERR_PTR().
  */
-struct thermal_cooling_device *
+static struct thermal_cooling_device *
 of_isp_cooling_register(struct device_node *np,
 			const struct cpumask *clip_isp)
 {
@@ -494,31 +371,6 @@ of_isp_cooling_register(struct device_node *np,
 
 	return __isp_cooling_register(np, clip_isp);
 }
-EXPORT_SYMBOL_GPL(of_isp_cooling_register);
-
-/**
- * isp_cooling_unregister - function to remove isp cooling device.
- * @cdev: thermal cooling device pointer.
- *
- * This interface function unregisters the "thermal-isp-%x" cooling device.
- */
-void isp_cooling_unregister(struct thermal_cooling_device *cdev)
-{
-	struct isp_cooling_device *isp_dev;
-
-	if (!cdev)
-		return;
-
-	isp_dev = cdev->devdata;
-	mutex_lock(&cooling_isp_lock);
-	isp_dev_count--;
-	mutex_unlock(&cooling_isp_lock);
-
-	thermal_cooling_device_unregister(isp_dev->cool_dev);
-	release_idr(&isp_idr, isp_dev->id);
-	kfree(isp_dev);
-}
-EXPORT_SYMBOL_GPL(isp_cooling_unregister);
 
 /**
  * isp_cooling_table_init - function to make ISP fps throttling table.

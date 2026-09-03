@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2024 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/thermal/google,thermal_cpm_mbox.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google Thermal cpm mbox driver
+
+maintainers:
+  - Ram Chandrasekar <rchandrasekar@google.com>
+  - Henry Hsiao <pinhsinh@google.com>
+  - Jikai Ma <jikai@google.com>
+
+description: |
+    This driver provide mailbox interface for different thermal
+	  functionalities. It provide send message and send request to
+	  CPM, and it also provide RX callback when CPM send a message
+	  to thermal service.
+
+properties:
+  compatible:
+    const: thermal-cpm-mbox
+
+  mba-dest-channel:
+    desscription: The mailbox tx destination channel
+
+  mboxes:
+    description: phandle reference to the CPM mailbox
+
+  required:
+    - compatible
+    - mba-dest-channel
+    - mboxes
+
+additionalProperties: false
+
+examples:
+  - |
+	thermal_cpm_mbox {
+		compatible = "thermal-cpm-mbox";
+		mba-dest-channel = <MBOX_DEST_CHAN_THERMAL_V2>;
+		mboxes = <&goog_mba_cpm_iface>;
+	};

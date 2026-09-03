@@ -5,7 +5,7 @@
 
 #include "mlx5_core.h"
 #include "lib/eq.h"
-#include "lib/mlx5.h"
+#include "lib/events.h"
 
 struct mlx5_event_nb {
 	struct mlx5_nb  nb;
@@ -429,6 +429,7 @@ int mlx5_blocking_notifier_register(struct mlx5_core_dev *dev, struct notifier_b
 
 	return blocking_notifier_chain_register(&events->sw_nh, nb);
 }
+EXPORT_SYMBOL(mlx5_blocking_notifier_register);
 
 int mlx5_blocking_notifier_unregister(struct mlx5_core_dev *dev, struct notifier_block *nb)
 {
@@ -436,6 +437,7 @@ int mlx5_blocking_notifier_unregister(struct mlx5_core_dev *dev, struct notifier
 
 	return blocking_notifier_chain_unregister(&events->sw_nh, nb);
 }
+EXPORT_SYMBOL(mlx5_blocking_notifier_unregister);
 
 int mlx5_blocking_notifier_call_chain(struct mlx5_core_dev *dev, unsigned int event,
 				      void *data)
@@ -443,9 +445,4 @@ int mlx5_blocking_notifier_call_chain(struct mlx5_core_dev *dev, unsigned int ev
 	struct mlx5_events *events = dev->priv.events;
 
 	return blocking_notifier_call_chain(&events->sw_nh, event, data);
-}
-
-void mlx5_events_work_enqueue(struct mlx5_core_dev *dev, struct work_struct *work)
-{
-	queue_work(dev->priv.events->wq, work);
 }

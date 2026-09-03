@@ -33,7 +33,7 @@ MODULE_DEVICE_TABLE(of, edgetpu_of_match);
 
 static struct platform_driver edgetpu_platform_driver = {
 	.probe = edgetpu_mobile_platform_probe,
-	.remove_new = edgetpu_mobile_platform_remove,
+	.remove = edgetpu_mobile_platform_remove,
 	.driver = {
 			.name = "edgetpu_platform",
 			.of_match_table = edgetpu_of_match,

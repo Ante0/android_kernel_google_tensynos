@@ -13,6 +13,17 @@ config INPUT_KEYDEBUG
 	  Say Y here if you want to hook debug function to dump information
 	  to debug device hang when some keys are long pressed.
 
+config INPUT_POWER_KEYDEBUG
+	tristate "Long Press Power Key Debugging"
+	depends on INPUT && KERNEL_TOP
+	help
+	  Say Y here if you want to enable debug functionality specifically
+	  for long presses of power-related keys. This option allows
+	  the system to dump valuable debug information when a power key
+	  is held down for an extended period, which can be crucial
+	  for diagnosing system hangs or other issues related to power management.
+	  It helps in understanding the device state during such scenarios.
+
 config INPUT_KEYCOMBO
 	tristate "Key combo"
 	depends on INPUT
@@ -21,8 +32,6 @@ config INPUT_KEYCOMBO
 
 
 source "$(KCONFIG_SOC_GS_PREFIX)drivers/input/misc/Kconfig"
-
-source "$(KCONFIG_SOC_GS_PREFIX)drivers/input/fingerprint/Kconfig"
 
 source "$(KCONFIG_SOC_GS_PREFIX)drivers/input/keyboard/Kconfig"
 

@@ -190,6 +190,7 @@ config USB_F_MASS_STORAGE
 	tristate
 
 config USB_F_FS
+	select DMA_SHARED_BUFFER
 	tristate
 
 config USB_F_UAC1
@@ -203,9 +204,15 @@ config USB_F_UAC2
 
 config USB_F_UVC
 	tristate
+	select UVC_COMMON
 
 config USB_F_MIDI
 	tristate
+
+config USB_F_MIDI2
+	tristate
+	select SND_UMP
+	select SND_UMP_LEGACY_RAWMIDI
 
 config USB_F_HID
 	tristate
@@ -216,11 +223,9 @@ config USB_F_PRINTER
 config USB_F_TCM
 	tristate
 
-config USB_F_ACC
-	tristate
-
-config USB_F_AUDIO_SRC
-	tristate
+# due to coupling with composite driver, can not be built as a module.
+config ANDROID_USB_F_ACC
+	bool
 
 # this first set of drivers all depend on bulk-capable hardware.
 
@@ -236,13 +241,16 @@ config USB_CONFIGFS
 	  appropriate symbolic links.
 	  For more information see Documentation/usb/gadget_configfs.rst.
 
-config USB_CONFIGFS_UEVENT
-	bool "Uevent notification of Gadget state"
+config ANDROID_USB_CONFIGFS_UEVENT
+	bool "Uevent notification of Gadget State"
 	depends on USB_CONFIGFS
 	help
-	  Enable uevent notifications to userspace when the gadget
-	  state changes. The gadget can be in any of the following
-	  three states: "CONNECTED/DISCONNECTED/CONFIGURED"
+	  Enable uevent notifications to userspace when gadget state changes.
+	  The gadget can be in any of the following three states:
+	  "CONNECTED", "DISCONNECTED" or "CONFIGURED".
+	  Additionally, selecting this will create the android_usb class of
+	  devices, including a "state" attribute for the android_device which
+	  shows the gadget state.
 
 config USB_CONFIGFS_SERIAL
 	bool "Generic serial bulk in/out"
@@ -385,23 +393,6 @@ config USB_CONFIGFS_F_FS
 	  implemented in kernel space (for instance Ethernet, serial or
 	  mass storage) and other are implemented in user space.
 
-config USB_CONFIGFS_F_ACC
-	bool "Accessory gadget"
-	depends on USB_CONFIGFS
-	depends on HID=y
-	select USB_F_ACC
-	help
-	  USB gadget Accessory support
-
-config USB_CONFIGFS_F_AUDIO_SRC
-	bool "Audio Source gadget"
-	depends on USB_CONFIGFS
-	depends on SND
-	select SND_PCM
-	select USB_F_AUDIO_SRC
-	help
-	  USB gadget Audio Source support
-
 config USB_CONFIGFS_F_UAC1
 	bool "Audio Class 1.0"
 	depends on USB_CONFIGFS
@@ -466,6 +457,19 @@ config USB_CONFIGFS_F_MIDI
 	  connections can then be made on the gadget system, using
 	  ALSA's aconnect utility etc.
 
+config USB_CONFIGFS_F_MIDI2
+	bool "MIDI 2.0 function"
+	depends on USB_CONFIGFS
+	depends on SND
+	select USB_LIBCOMPOSITE
+	select USB_F_MIDI2
+	help
+	  The MIDI 2.0 function driver provides the generic emulated
+	  USB MIDI 2.0 interface, looped back to ALSA UMP rawmidi
+	  device on the gadget host. It supports UMP 1.1 spec and
+	  responds UMP Stream messages for UMP Endpoint and Function
+	  Block information / configuration.
+
 config USB_CONFIGFS_F_HID
 	bool "HID function"
 	depends on USB_CONFIGFS
@@ -516,6 +520,18 @@ config USB_CONFIGFS_F_TCM
 	  interface 0 (primary) and UAS is on alternative interface 1.
 	  Both protocols can work on USB2.0 and USB3.0.
 	  UAS utilizes the USB 3.0 feature called streams support.
+
+config ANDROID_USB_CONFIGFS_F_ACC
+	bool "Accessory Gadget"
+	depends on USB_CONFIGFS
+	depends on HID=y
+	select ANDROID_USB_F_ACC
+	help
+	  This Accessory function adds support for the Android Open Accessory
+	  (AOA) protocol v2. Devices which support this protocol send vendor
+	  specific control_requests to describe what they are and what
+	  userspace application should handle their traffic. This function
+	  enables the data exchange with usersapce.
 
 source "drivers/usb/gadget/legacy/Kconfig"
 

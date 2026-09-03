@@ -13,24 +13,48 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/string_choices.h>
 #include <linux/suspend.h>
 #include "../dual_accel_detect.h"
+
+enum intel_hid_tablet_sw_mode {
+	TABLET_SW_AUTO = -1,
+	TABLET_SW_OFF  = 0,
+	TABLET_SW_AT_EVENT,
+	TABLET_SW_AT_PROBE,
+};
+
+static bool enable_5_button_array;
+module_param(enable_5_button_array, bool, 0444);
+MODULE_PARM_DESC(enable_5_button_array,
+	"Enable 5 Button Array support. "
+	"If you need this please report this to: platform-driver-x86@vger.kernel.org");
+
+static int enable_sw_tablet_mode = TABLET_SW_AUTO;
+module_param(enable_sw_tablet_mode, int, 0444);
+MODULE_PARM_DESC(enable_sw_tablet_mode,
+	"Enable SW_TABLET_MODE reporting -1:auto 0:off 1:at-first-event 2:at-probe. "
+	"If you need this please report this to: platform-driver-x86@vger.kernel.org");
 
 /* When NOT in tablet mode, VGBS returns with the flag 0x40 */
 #define TABLET_MODE_FLAG BIT(6)
 
+MODULE_DESCRIPTION("Intel HID Event hotkey driver");
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Alex Hung");
 
 static const struct acpi_device_id intel_hid_ids[] = {
-	{"INT33D5", 0},
-	{"INTC1051", 0},
-	{"INTC1054", 0},
-	{"INTC1070", 0},
-	{"INTC1076", 0},
-	{"INTC1077", 0},
-	{"INTC1078", 0},
-	{"", 0},
+	{ "INT33D5" },
+	{ "INTC1051" },
+	{ "INTC1054" },
+	{ "INTC1070" },
+	{ "INTC1076" },
+	{ "INTC1077" },
+	{ "INTC1078" },
+	{ "INTC107B" },
+	{ "INTC10CB" },
+	{ "INTC10CC" },
+	{ }
 };
 MODULE_DEVICE_TABLE(acpi, intel_hid_ids);
 
@@ -103,6 +127,13 @@ static const struct dmi_system_id button_array_table[] = {
 		},
 	},
 	{
+		.ident = "Lenovo ThinkPad X1 Fold 16 Gen 1",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_FAMILY, "ThinkPad X1 Fold 16 Gen 1"),
+		},
+	},
+	{
 		.ident = "Microsoft Surface Go 3",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "Microsoft Corporation"),
@@ -144,6 +175,24 @@ static const struct dmi_system_id dmi_vgbs_allow_list[] = {
 			DMI_MATCH(DMI_PRODUCT_NAME, "HP Elite Dragonfly G2 Notebook PC"),
 		},
 	},
+	{
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Dell Inc."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Dell Pro Rugged 10 Tablet RA00260"),
+		},
+	},
+	{
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Dell Inc."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Dell Pro Rugged 12 Tablet RA02260"),
+		},
+	},
+	{
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Dell Inc."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Dell 14 Plus 2-in-1 DB04250"),
+		},
+	},
 	{ }
 };
 
@@ -170,7 +219,6 @@ struct intel_hid_priv {
 	struct input_dev *array;
 	struct input_dev *switches;
 	bool wakeup_mode;
-	bool auto_add_switch;
 };
 
 #define HID_EVENT_FILTER_UUID	"eeec56b3-4442-408f-a792-4edd4d758054"
@@ -317,10 +365,8 @@ static int intel_hid_set_enable(struct device *device, bool enable)
 	acpi_handle handle = ACPI_HANDLE(device);
 
 	/* Enable|disable features - power button is always enabled */
-	if (!intel_hid_execute_method(handle, INTEL_HID_DSM_HDSM_FN,
-				      enable)) {
-		dev_warn(device, "failed to %sable hotkeys\n",
-			 enable ? "en" : "dis");
+	if (!intel_hid_execute_method(handle, INTEL_HID_DSM_HDSM_FN, enable)) {
+		dev_warn(device, "failed to %s hotkeys\n", str_enable_disable(enable));
 		return -EIO;
 	}
 
@@ -377,6 +423,14 @@ static int intel_hid_pl_suspend_handler(struct device *device)
 	return 0;
 }
 
+static int intel_hid_pl_freeze_handler(struct device *device)
+{
+	struct intel_hid_priv *priv = dev_get_drvdata(device);
+
+	priv->wakeup_mode = false;
+	return intel_hid_pl_suspend_handler(device);
+}
+
 static int intel_hid_pl_resume_handler(struct device *device)
 {
 	intel_hid_pm_complete(device);
@@ -391,7 +445,7 @@ static int intel_hid_pl_resume_handler(struct device *device)
 static const struct dev_pm_ops intel_hid_pl_pm_ops = {
 	.prepare = intel_hid_pm_prepare,
 	.complete = intel_hid_pm_complete,
-	.freeze  = intel_hid_pl_suspend_handler,
+	.freeze  = intel_hid_pl_freeze_handler,
 	.thaw  = intel_hid_pl_resume_handler,
 	.restore  = intel_hid_pl_resume_handler,
 	.suspend  = intel_hid_pl_suspend_handler,
@@ -493,6 +547,7 @@ static void notify_handler(acpi_handle handle, u32 event, void *context)
 	struct platform_device *device = context;
 	struct intel_hid_priv *priv = dev_get_drvdata(&device->dev);
 	unsigned long long ev_index;
+	struct key_entry *ke;
 	int err;
 
 	/*
@@ -500,7 +555,8 @@ static void notify_handler(acpi_handle handle, u32 event, void *context)
 	 * SW_TABLET_MODE report, in these cases we enable support when receiving
 	 * the first event instead of during driver setup.
 	 */
-	if (!priv->switches && priv->auto_add_switch && (event == 0xcc || event == 0xcd)) {
+	if (!priv->switches && enable_sw_tablet_mode == TABLET_SW_AT_EVENT &&
+	    (event == 0xcc || event == 0xcd)) {
 		dev_info(&device->dev, "switch event received, enable switches supports\n");
 		err = intel_hid_switches_setup(device);
 		if (err)
@@ -533,10 +589,14 @@ static void notify_handler(acpi_handle handle, u32 event, void *context)
 		if (event == 0xc0 || !priv->array)
 			return;
 
-		if (!sparse_keymap_entry_from_scancode(priv->array, event)) {
+		ke = sparse_keymap_entry_from_scancode(priv->array, event);
+		if (!ke) {
 			dev_info(&device->dev, "unknown event 0x%x\n", event);
 			return;
 		}
+
+		if (ke->type == KE_IGNORE)
+			return;
 
 wakeup:
 		pm_wakeup_hard_event(&device->dev);
@@ -605,7 +665,7 @@ static bool button_array_present(struct platform_device *device)
 			return true;
 	}
 
-	if (dmi_check_system(button_array_table))
+	if (enable_5_button_array || dmi_check_system(button_array_table))
 		return true;
 
 	return false;
@@ -642,7 +702,14 @@ static int intel_hid_probe(struct platform_device *device)
 	dev_set_drvdata(&device->dev, priv);
 
 	/* See dual_accel_detect.h for more info on the dual_accel check. */
-	priv->auto_add_switch = dmi_check_system(dmi_auto_add_switch) && !dual_accel_detect();
+	if (enable_sw_tablet_mode == TABLET_SW_AUTO) {
+		if (dmi_check_system(dmi_vgbs_allow_list))
+			enable_sw_tablet_mode = TABLET_SW_AT_PROBE;
+		else if (dmi_check_system(dmi_auto_add_switch) && !dual_accel_detect())
+			enable_sw_tablet_mode = TABLET_SW_AT_EVENT;
+		else
+			enable_sw_tablet_mode = TABLET_SW_OFF;
+	}
 
 	err = intel_hid_input_setup(device);
 	if (err) {
@@ -659,7 +726,7 @@ static int intel_hid_probe(struct platform_device *device)
 	}
 
 	/* Setup switches for devices that we know VGBS return correctly */
-	if (dmi_check_system(dmi_vgbs_allow_list)) {
+	if (enable_sw_tablet_mode == TABLET_SW_AT_PROBE) {
 		dev_info(&device->dev, "platform supports switches\n");
 		err = intel_hid_switches_setup(device);
 		if (err)
@@ -704,7 +771,7 @@ err_remove_notify:
 	return err;
 }
 
-static int intel_hid_remove(struct platform_device *device)
+static void intel_hid_remove(struct platform_device *device)
 {
 	acpi_handle handle = ACPI_HANDLE(&device->dev);
 
@@ -712,12 +779,6 @@ static int intel_hid_remove(struct platform_device *device)
 	acpi_remove_notify_handler(handle, ACPI_DEVICE_NOTIFY, notify_handler);
 	intel_hid_set_enable(&device->dev, false);
 	intel_button_array_enable(&device->dev, false);
-
-	/*
-	 * Even if we failed to shut off the event stream, we can still
-	 * safely detach from the device.
-	 */
-	return 0;
 }
 
 static struct platform_driver intel_hid_pl_driver = {
@@ -727,7 +788,7 @@ static struct platform_driver intel_hid_pl_driver = {
 		.pm = &intel_hid_pl_pm_ops,
 	},
 	.probe = intel_hid_probe,
-	.remove = intel_hid_remove,
+	.remove_new = intel_hid_remove,
 };
 
 /*

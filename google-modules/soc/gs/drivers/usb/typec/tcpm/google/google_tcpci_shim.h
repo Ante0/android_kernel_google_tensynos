@@ -17,6 +17,7 @@
 #define TCPC_TC_REV			0x6
 #define TCPC_PD_REV			0x8
 #define TCPC_PD_INT_REV			0xa
+#define TCPC_PD_INT_REV_H		0xb
 
 #define TCPC_ALERT			0x10
 #define TCPC_ALERT_EXTND		BIT(14)
@@ -89,6 +90,7 @@
 #define TCPC_CC_STATUS_TERM_RP		0
 #define TCPC_CC_STATUS_TERM_RD		1
 #define TCPC_CC_STATE_SRC_OPEN		0
+#define TCPC_CC_STATE_SRC_RA		1
 #define TCPC_CC_STATUS_CC2_SHIFT	2
 #define TCPC_CC_STATUS_CC2_MASK		0x3
 #define TCPC_CC_STATUS_CC1_SHIFT	0
@@ -125,6 +127,7 @@
 #define TCPC_DEV_CAP_2			0x26
 #define TCPC_STD_INPUT_CAP		0x28
 #define TCPC_STD_OUTPUT_CAP		0x29
+#define TCPC_CNFG_EXT1			0x2a
 
 #define TCPC_MSG_HDR_INFO		0x2e
 #define TCPC_MSG_HDR_INFO_DATA_ROLE	BIT(3)
@@ -165,9 +168,13 @@
 #define TCPC_VBUS_STOP_DISCHARGE_THRESH		0x74
 #define TCPC_VBUS_VOLTAGE_ALARM_HI_CFG		0x76
 #define TCPC_VBUS_VOLTAGE_ALARM_LO_CFG		0x78
+#define TCPC_VBUS_VOLTAGE_ALARM_LO_CFG_H	0x79
 
 /* I2C_WRITE_BYTE_COUNT + 1 when TX_BUF_BYTE_x is only accessible I2C_WRITE_BYTE_COUNT */
 #define TCPC_TRANSMIT_BUFFER_MAX_LEN		31
+
+#define	PD_RETRY_COUNT_DEFAULT			3
+#define	PD_RETRY_COUNT_3_0_OR_HIGHER		2
 
 #define tcpc_presenting_rd(REGVAL, CCNUM) \
 	(!(TCPC_ROLE_CTRL_DRP & (REGVAL)) && \
@@ -210,6 +217,14 @@ struct google_shim_tcpci {
  *		then it indicates vbus not present and > 0 will indicate
  *		presence. Error value will be returned < 0, with corresponding
  *		error num.
+ * @rx:
+ *		Required; Rx callback to execute bus specific handling for receiving data from
+ *		TCPCI_RECEIVE_BUFFER.The allocated buffer size should be guaranteed
+ *		"pd_msg_size + 2" by the caller. This is to accommodate the RX buffer metadata
+ *		(byte count & sop* frame type).
+ * @tx:
+ *		Optional; Tx callback to execute bus specific handling for
+ *		transmitting data to TCPCI_TRANSMIT_BUFFER.
  */
 struct google_shim_tcpci_data {
 	struct regmap *regmap;
@@ -231,6 +246,9 @@ struct google_shim_tcpci_data {
 	void (*check_contaminant)(struct google_shim_tcpci *tcpci,
 				  struct google_shim_tcpci_data *data);
 	int (*get_vbus)(struct google_shim_tcpci *tcpci, struct google_shim_tcpci_data *data);
+	int (*rx)(struct google_shim_tcpci *tcpci, u8 *rx_buf, size_t pd_msg_size);
+	int (*tx)(struct google_shim_tcpci *tcpci, enum tcpm_transmit_type type,
+		  const struct pd_message *msg, unsigned int negotiated_rev);
 	bool (*is_vbus_vsafe0v)(struct google_shim_tcpci *tcpci,
 				struct google_shim_tcpci_data *data);
 };

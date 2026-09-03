@@ -7,7 +7,7 @@
 #include <linux/swap.h>
 #include <trace/events/android_vendor_lmk.h>
 
-#include "../../include/pixel_mm_hint.h"
+#include "pixel_mm_hint.h"
 
 #define K(x) ((x) << (PAGE_SHIFT-10))
 #define SWAPPINESS_MAX 200

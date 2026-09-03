@@ -1,0 +1,87 @@
+What:		/sys/class/power_supply/wireless/device/version
+Contact:	pixel-bms-sw@google.com
+Description:
+		Version information about the chip and driver such as chip id, firmware
+		version date and time codes in human readable format
+
+What:		/sys/class/power_supply/wireless/device/status
+Contact:	pixel-bms-sw@google.com
+Description:
+		Driver status and state information printed in human readable format
+
+What:		/sys/class/power_supply/wireless/device/addr
+Contact:	pixel-bms-sw@google.com
+Description:
+		i2c 16-bit register address input to send manual i2c commands
+
+What:		/sys/class/power_supply/wireless/device/count
+Contact:	pixel-bms-sw@google.com
+Description:
+		i2c count input to send manual i2c commands in number of bytes to read/write
+
+What:		/sys/class/power_supply/wireless/device/data
+Contact:	pixel-bms-sw@google.com
+Description:
+		i2c data information to send manual i2c commands in 0xAA 0xBB 0xCC format
+
+What:		/sys/class/power_supply/wireless/device/ccreset
+Contact:	pixel-bms-sw@google.com
+Description:
+		Reset the in-band communication channel between RX and TX
+
+What:		/sys/class/power_supply/wireless/device/txbusy
+Contact:	pixel-bms-sw@google.com
+Description:
+		Check if the in-band communication channel is busy transmitting
+
+What:		/sys/class/power_supply/wireless/device/txdone
+Contact:	pixel-bms-sw@google.com
+Description:
+		Check if the transmission over in-band communication channel is done
+
+What:		/sys/class/power_supply/wireless/device/txlen
+Contact:	pixel-bms-sw@google.com
+Description:
+		Number of bytes to transmit in the in-band communication channel
+
+What:		/sys/class/power_supply/wireless/device/rxlen
+Contact:	pixel-bms-sw@google.com
+Description:
+		Number of bytes received in the in-band communication channel
+
+What:		/sys/class/power_supply/wireless/device/rxdone
+Contact:	pixel-bms-sw@google.com
+Description:
+		Whether the in-band communication channel data receiving is complete
+
+What:		/sys/class/power_supply/wireless/device/features
+Contact:	pixel-bms-sw@google.com
+Description:
+		Supported feature mask in the format "id:features". id=0 corresponds to just set
+		current session
+
+What:		/sys/class/power_supply/wireless/device/authtype
+Contact:	pixel-bms-sw@google.com
+Description:
+		Authentication type to run (0 = Bidi, others = WPC packet types)
+
+What:		/sys/class/power_supply/wireless/device/wpc_ready
+Contact:	pixel-bms-sw@google.com
+Description:
+		Check this node to see if the driver/HW is ready for WPC authentication
+
+What:		/sys/class/power_supply/wireless/device/ap5v_gpio
+Contact:	pixel-bms-sw@google.com
+Description:
+		Read or set the AP5V GPIO value
+
+What:		/sys/class/power_supply/wireless/device/mode_gpio_status
+Contact:	pixel-bms-sw@google.com
+Description:
+		Read or set the mode GPIO value. 0 = MPP Restricted, 1 = MPP, 2 = BPP
+
+What:		/sys/class/power_supply/wireless/device/calibration
+Contact:	pixel-bms-sw@google.com
+Description:
+		Write: run calibration. Read: Check calibration status
+

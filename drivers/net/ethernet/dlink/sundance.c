@@ -708,7 +708,7 @@ static int change_mtu(struct net_device *dev, int new_mtu)
 {
 	if (netif_running(dev))
 		return -EBUSY;
-	dev->mtu = new_mtu;
+	WRITE_ONCE(dev->mtu, new_mtu);
 	return 0;
 }
 
@@ -1414,7 +1414,6 @@ static void refill_rx (struct net_device *dev)
 {
 	struct netdev_private *np = netdev_priv(dev);
 	int entry;
-	int cnt = 0;
 
 	/* Refill the Rx ring buffers. */
 	for (;(np->cur_rx - np->dirty_rx + RX_RING_SIZE) % RX_RING_SIZE > 0;
@@ -1441,7 +1440,6 @@ static void refill_rx (struct net_device *dev)
 		np->rx_ring[entry].frag.length =
 			cpu_to_le32(np->rx_buf_sz | LastFrag);
 		np->rx_ring[entry].status = 0;
-		cnt++;
 	}
 }
 static void netdev_error(struct net_device *dev, int intr_status)

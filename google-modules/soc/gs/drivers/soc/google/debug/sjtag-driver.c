@@ -249,7 +249,6 @@ static int send_ipc_cmd(struct sjtag_dev_state *st, int cmd_code, char *data_buf
 	int ipc_status;
 	u32 cmd_status = ~0;
 	u32 consent_status = ~0;
-	u32 dbg_time;
 	char consent_status_str[10] = "";
 
 	const char *cmd_str = sjtag_ipc_cmd_lut[cmd_code].str;
@@ -268,6 +267,7 @@ static int send_ipc_cmd(struct sjtag_dev_state *st, int cmd_code, char *data_buf
 		cmd_status = cmd.buffer[1];
 	} else {
 		switch (cmd_code) {
+#if IS_ENABLED(CONFIG_GSA)
 		case SJTAG_GET_PKHASH:
 			ipc_status = gsa_sjtag_get_pub_key_hash(st->gsa_dev, data_buff, data_len,
 					&cmd_status);
@@ -293,11 +293,14 @@ static int send_ipc_cmd(struct sjtag_dev_state *st, int cmd_code, char *data_buf
 			if (data_buff)
 				*(u32 *)data_buff = cmd_status;
 			break;
-		case SJTAG_GET_DBG_TIME:
+		case SJTAG_GET_DBG_TIME: {
+			u32 dbg_time;
 			ipc_status = gsa_sjtag_get_status(st->gsa_dev, NULL, &cmd_status,
 					&dbg_time);
 			*(u32 *)data_buff = dbg_time;
 			break;
+		}
+#endif
 		default:
 			ipc_status = -EFAULT;
 			break;
@@ -884,6 +887,7 @@ static int sjtag_read_dt(struct platform_device *pdev)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_GSA)
 static void sjtag_release_gsa_device(void *rock)
 {
 	struct sjtag_dev_state *st = (struct sjtag_dev_state *)rock;
@@ -913,6 +917,7 @@ static int sjtag_find_gsa_device(struct platform_device *pdev)
 
 	return devm_add_action_or_reset(st->dev, sjtag_release_gsa_device, st);
 }
+#endif
 
 /********************************************************************/
 
@@ -946,9 +951,11 @@ static int sjtag_probe(struct platform_device *pdev)
 	if (rc)
 		return rc;
 
+#if IS_ENABLED(CONFIG_GSA)
 	rc = sjtag_find_gsa_device(pdev);
 	if (rc)
 		return rc;
+#endif
 
 	st->cmd_kstatus = SJTAG_CMD_KSTATUS_OK;
 
@@ -959,9 +966,8 @@ static int sjtag_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int sjtag_remove(struct platform_device *pdev)
+static void sjtag_remove(struct platform_device *pdev)
 {
-	return 0;
 }
 
 static const struct of_device_id sjtag_of_match[] = {

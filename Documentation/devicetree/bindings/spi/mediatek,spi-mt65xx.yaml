@@ -10,7 +10,7 @@ maintainers:
   - Leilk Liu <leilk.liu@mediatek.com>
 
 allOf:
-  - $ref: "/schemas/spi/spi-controller.yaml#"
+  - $ref: /schemas/spi/spi-controller.yaml#
 
 properties:
   compatible:
@@ -33,6 +33,7 @@ properties:
           - const: mediatek,mt6765-spi
       - items:
           - enum:
+              - mediatek,mt7981-spi-ipm
               - mediatek,mt7986-spi-ipm
               - mediatek,mt8188-spi-ipm
           - const: mediatek,spi-ipm

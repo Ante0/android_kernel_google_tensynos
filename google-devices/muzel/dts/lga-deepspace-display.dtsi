@@ -1,0 +1,177 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+
+&disp_vddd {
+	status = "okay";
+	gpio = <PMICS2DISP0_BUCK_EN(GPIO_ACTIVE_HIGH)>;
+};
+
+&lsioe_cli14_i2c {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <400000>;
+	s2dos07x02: s2dos07x02@60 {
+		compatible = "samsung,s2dos07x02";
+		reg = <0x60>;
+		status = "okay";
+		regulator-name = "s2dos07x02-pmic";
+	};
+	tps628600: tps628600@40 {
+		compatible = "ti,tps628600";
+		reg = <0x40>;
+		status = "okay";
+		regulator-name = "tps628600-reg";
+		enable-gpios = <PMICS2DISP0_BUCK_EN(GPIO_ACTIVE_HIGH)>;
+	};
+};
+
+&gs_dsi0_connector {
+	google,preferred-panel = <&google_gs_km4>;
+
+	google_gs_flea: panel-gs-flea {
+		compatible = "google,gs-flea";
+		label = "google-flea";
+		channel = <0>;
+
+		/* reset, power */
+		reset-gpios = <PMICS2DISP0_RESET_L(GPIO_ACTIVE_HIGH)>;
+		vci-supply = <&ldo_14m_reg>;
+		vddi-supply = <&buck_12s_reg>;
+		vddd-supply = <&tps628600>;
+		vddd-normal-microvolt = <1062500>;
+		vddd-lp-microvolt     = <1000000>;
+
+		/* touch */
+		touch = <&spitouch>;
+	};
+
+	google_gs_fleb: panel-gs-fleb {
+		compatible = "google,gs-fleb";
+		label = "google-fleb";
+		channel = <0>;
+
+		/* reset, power */
+		reset-gpios = <PMICS2DISP0_RESET_L(GPIO_ACTIVE_HIGH)>;
+		vci-supply = <&ldo_14m_reg>;
+		vddi-supply = <&buck_12s_reg>;
+		vddd-supply = <&tps628600>;
+		vddd-normal-microvolt = <1112500>;
+		vddd-lp-microvolt     = <1062500>;
+
+		/* touch */
+		touch = <&spitouch>;
+	};
+
+	google_gs_bzea: panel-gs-bzea {
+		compatible = "google,gs-bzea";
+		label = "google-bzea";
+		channel = <0>;
+
+		/* reset, power */
+		reset-gpios = <PMICS2DISP0_RESET_L(GPIO_ACTIVE_HIGH)>;
+		vci-supply = <&ldo_14m_reg>;
+		vddi-supply = <&buck_12s_reg>;
+		vddd-supply = <&s2dos07x02>;
+		vddd-normal-microvolt = <912500>;
+		vddd-lp-microvolt     = <862500>;
+
+		/* touch */
+		touch = <&spitouch>;
+	};
+	google_gs_cm4: panel-gs-cm4 {
+		compatible = "google,gs-cm4";
+		label = "google-cm4";
+		channel = <0>;
+
+		/* reset, power */
+		reset-gpios = <PMICS2DISP0_RESET_L(GPIO_ACTIVE_HIGH)>;
+		vci-supply = <&ldo_14m_reg>;
+		vddi-supply = <&buck_12s_reg>;
+		vddd-supply = <&disp_vddd>;
+
+		/* touch */
+		touch = <&spitouch>;
+	};
+	google_gs_km4: panel-gs-km4 {
+		compatible = "google,gs-km4";
+		label = "google-km4";
+		channel = <0>;
+
+		/* reset, power */
+		reset-gpios = <PMICS2DISP0_RESET_L(GPIO_ACTIVE_HIGH)>;
+		vci-supply = <&ldo_14m_reg>;
+		vddi-supply = <&buck_12s_reg>;
+		vddd-supply = <&disp_vddd>;
+
+		/* touch */
+		touch = <&spitouch>;
+	};
+	google_gs_mtea: panel-gs-mtea {
+		compatible = "google,gs-mtea";
+		label = "google-mtea";
+		channel = <0>;
+
+		/* reset, power */
+		reset-gpios = <PMICS2DISP0_RESET_L(GPIO_ACTIVE_HIGH)>;
+		vci-supply = <&ldo_14m_reg>;
+		vddi-supply = <&buck_12s_reg>;
+		vddd-supply = <&s2dos07x02>;
+		vddd-normal-microvolt = <912500>;
+		vddd-lp-microvolt     = <862500>;
+
+		/* touch */
+		touch = <&spitouch>;
+	};
+	google_gs_tg4c: panel-gs-tg4c {
+
+		compatible = "google,gs-tg4c";
+		label = "google-tg4c";
+		channel = <0>;
+
+		/* reset, power */
+		reset-gpios = <PMICS2DISP0_RESET_L(GPIO_ACTIVE_HIGH)>;
+		vci-supply = <&ldo_14m_reg>;
+		vddi-supply = <&buck_12s_reg>;
+		vddd-supply = <&disp_vddd>;
+
+		/* touch */
+		touch = <&spitouch>;
+	};
+	google_gs_tk4b: panel-gs-tk4b {
+
+		compatible = "google,gs-tk4b";
+		label = "google-tk4b";
+		channel = <0>;
+
+		/* reset, power */
+		reset-gpios = <PMICS2DISP0_RESET_L(GPIO_ACTIVE_HIGH)>;
+		vci-supply = <&ldo_14m_reg>;
+		vddi-supply = <&buck_12s_reg>;
+		vddd-supply = <&disp_vddd>;
+
+		/* touch */
+		touch = <&spitouch>;
+	};
+	google_gs_tk4c: panel-gs-tk4c {
+
+		compatible = "google,gs-tk4c";
+		label = "google-tk4c";
+		channel = <0>;
+
+		/* reset, power */
+		reset-gpios = <PMICS2DISP0_RESET_L(GPIO_ACTIVE_HIGH)>;
+		vci-supply = <&ldo_14m_reg>;
+		vddi-supply = <&buck_12s_reg>;
+		vddd-supply = <&disp_vddd>;
+
+		/* touch */
+		touch = <&spitouch>;
+	};
+
+};
+
+&dsi2h0 {
+	datarate = <1368>;
+};

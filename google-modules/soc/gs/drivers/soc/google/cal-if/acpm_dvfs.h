@@ -29,6 +29,8 @@ struct acpm_dvfs {
 #define SET_INIT_FREQ	3
 
 #if IS_ENABLED(CONFIG_ACPM_DVFS)
+extern const struct attribute_group exynos_acpm_async_dvfs_group;
+
 int exynos_acpm_dvfs_init(void);
 
 extern int exynos_acpm_set_rate(unsigned int id, unsigned long rate);

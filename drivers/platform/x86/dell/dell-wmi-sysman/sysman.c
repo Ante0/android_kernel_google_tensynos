@@ -25,7 +25,6 @@ struct wmi_sysman_priv wmi_priv = {
 /* reset bios to defaults */
 static const char * const reset_types[] = {"builtinsafe", "lastknowngood", "factory", "custom"};
 static int reset_option = -1;
-static struct class *fw_attr_class;
 
 
 /**
@@ -255,7 +254,7 @@ static void attr_name_release(struct kobject *kobj)
 	kfree(kobj);
 }
 
-static struct kobj_type attr_name_ktype = {
+static const struct kobj_type attr_name_ktype = {
 	.release	= attr_name_release,
 	.sysfs_ops	= &wmi_sysman_kobj_sysfs_ops,
 };
@@ -303,16 +302,13 @@ union acpi_object *get_wmiobj_pointer(int instance_id, const char *guid_string)
  */
 int get_instance_count(const char *guid_string)
 {
-	union acpi_object *wmi_obj = NULL;
-	int i = 0;
+	int ret;
 
-	do {
-		kfree(wmi_obj);
-		wmi_obj = get_wmiobj_pointer(i, guid_string);
-		i++;
-	} while (wmi_obj);
+	ret = wmi_instance_count(guid_string);
+	if (ret < 0)
+		return 0;
 
-	return (i-1);
+	return ret;
 }
 
 /**
@@ -544,15 +540,11 @@ static int __init sysman_init(void)
 		goto err_exit_bios_attr_pass_interface;
 	}
 
-	ret = fw_attributes_class_get(&fw_attr_class);
-	if (ret)
-		goto err_exit_bios_attr_pass_interface;
-
-	wmi_priv.class_dev = device_create(fw_attr_class, NULL, MKDEV(0, 0),
+	wmi_priv.class_dev = device_create(&firmware_attributes_class, NULL, MKDEV(0, 0),
 				  NULL, "%s", DRIVER_NAME);
 	if (IS_ERR(wmi_priv.class_dev)) {
 		ret = PTR_ERR(wmi_priv.class_dev);
-		goto err_unregister_class;
+		goto err_exit_bios_attr_pass_interface;
 	}
 
 	wmi_priv.main_dir_kset = kset_create_and_add("attributes", NULL,
@@ -607,9 +599,6 @@ err_release_attributes_data:
 err_destroy_classdev:
 	device_unregister(wmi_priv.class_dev);
 
-err_unregister_class:
-	fw_attributes_class_put();
-
 err_exit_bios_attr_pass_interface:
 	exit_bios_attr_pass_interface();
 
@@ -623,7 +612,6 @@ static void __exit sysman_exit(void)
 {
 	release_attributes_data();
 	device_unregister(wmi_priv.class_dev);
-	fw_attributes_class_put();
 	exit_bios_attr_set_interface();
 	exit_bios_attr_pass_interface();
 }

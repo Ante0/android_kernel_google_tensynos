@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * Synaptics TouchComm C library
  *
- * Synaptics TouchCom touchscreen driver
- *
- * Copyright (C) 2017-2020 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2024 Synaptics Incorporated. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,39 +29,75 @@
  * DOLLARS.
  */
 
-/*
- * @file: synaptics_touchcom_core_dev.h
+/**
+ * @file synaptics_touchcom_core_dev.h
  *
- * This file is the topmost header file for Synaptics TouchComm device, also
- * defines the TouchComm device context structure which will be passed to
- * all other functions that expect a device handle.
+ * @brief This file is the topmost header file and also includes the main context
+ *        structure and the definitions for the communication of TouchComm protocol.
  */
 
 #ifndef _SYNAPTICS_TOUCHCOM_CORE_DEV_H_
 #define _SYNAPTICS_TOUCHCOM_CORE_DEV_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
-#include "syna_tcm2_platform.h"
+#include "synaptics_touchcom_platform.h"
 
 
-#define SYNA_TCM_CORE_LIB_VERSION 0x0126
-#define SYNA_TCM_CORE_LIB_CUSTOM_CODE	0x02
+#define SYNA_TCM_CORE_LIB_VERSION		0x0205
+#define SYNA_TCM_CORE_LIB_CUSTOM_CODE	0x00
 
 
-/*
- * @section: Parameters pre-defined
+#if defined(_WIN32) || defined(WIN32) || defined(__WIN32__)
+#define OS_WIN
+#endif
+
+#if defined(TOUCHCOMM_VERSION_1_ONLY)
+/* enable the support of protocol version 1 if set */
+#define HAS_VERSION_1_SUPPORT
+#else
+#if defined(TOUCHCOMM_VERSION_2_ONLY)
+/* enable the support of protocol version 2 if set */
+#define HAS_VERSION_2_SUPPORT
+#else
+/* enable the support of both in default */
+#define HAS_VERSION_1_SUPPORT
+#define HAS_VERSION_2_SUPPORT
+#endif
+#endif
+
+#ifdef HAS_VERSION_2_SUPPORT
+#if defined(TOUCHCOMM_VERSION_2_LEGACY_FW)
+#define VERSION_2_LEGACY_FW
+#endif
+#endif
+
+
+ /**
+  * Touchcomm Protocols
+  *
+  *   PROTOCOL_DETECT_AUTO     :  Detect all possible protocols
+  *   PROTOCOL_DETECT_VERSION_1:  Specify the protocol version 1
+  *   PROTOCOL_DETECT_VERSION_2:  Specify the protocol version 2
+  *   PROTOCOL_FORCE_ASSIGNMENT:  Request not to handling the startup packet
+  */
+#define PROTOCOL_DETECT_AUTO      (0x00)
+#define PROTOCOL_DETECT_VERSION_1 (0x01)
+#define PROTOCOL_DETECT_VERSION_2 (0x02)
+
+#define PROTOCOL_FORCE_ASSIGNMENT (0x80)
+
+
+/**
+ * Common parameters
  *
- * @brief: MAX_NUM_OBJECTS
- *         Maximum number of objects being detected
- *
- * @brief: MAX_SIZE_GESTURE_DATA
- *         Maximum size of gesture data
- *
- * @brief: MAX_SIZE_CONFIG_ID
- *         Maximum size of customer configuration ID
- *
- * @brief: MAX_NUM_KNOB_OBJECTS
- *         Maximum size of knob objects
+ *    MAX_NUM_OBJECTS       :  Maximum number of objects being detected
+ *    MAX_SIZE_GESTURE_DATA :  Maximum size of gesture data
+ *    MAX_SIZE_CONFIG_ID    :  Maximum size of customer configuration ID
+ *    MAX_NUM_KNOB_OBJECTS  :  Maximum number of knob objects
+ *    MAX_REPORT_TYPES      :  Maximum types of message
  */
 #define MAX_NUM_OBJECTS (10)
 
@@ -71,91 +107,52 @@
 
 #define MAX_NUM_KNOB_OBJECTS (2)
 
-/*
- * @section: Command-handling relevant definitions
+#define MAX_REPORT_TYPES (256)
+
+/**
+ * Common definitions for Touchcomm message
  *
- * @brief: MESSAGE_HEADER_SIZE
- *         The size of message header
- *
- * @brief: CMD_RESPONSE_TIMEOUT_MS
- *         Time frame for a command execution
- *
- * @brief: CMD_RESPONSE_POLLING_DELAY_MS
- *         Generic time frame to check the response in polling
- *
- * @brief: RD_RETRY_US
- *         For retry reading, delay time range in microsecond
- *
- * @brief: WR_DELAY_US
- *         For continued writes, delay time range in microsecond
- *
- * @brief: TAT_DELAY_US
- *         For bus turn-around, delay time range in microsecond
- *
- * @brief: FW_MODE_SWITCH_DELAY_MS
- *         The default time for fw mode switching
- *
- * @brief: RESET_DELAY_MS
- *         The default time after reset in case it's not set properly
- *
- * @brief: FORCE_ATTN_DRIVEN
- *         Special flag to read in resp packet in ISR function
- *
- * @brief: DEFAULT_FLASH_ERASE_DELAY
- * @brief: DEFAULT_FLASH_WRITE_DELAY
- * @brief: DEFAULT_FLASH_READ_DELAY
- *         The default time to do flash erase/write/read
- *
- * @brief: RESP_IN_ATTN
- * @brief: RESP_IN_POLLING
- *         Few particular values representing the method of response handling
- *
- * @brief: TCM_MSG_CRC_LENGTH
- *         Length of message CRC data
- *
- * @brief: TCM_EXTRA_RC_LENGTH
- *         Length of extra RC data
+ *    MESSAGE_HEADER_SIZE: The size of message header
+ *    TCM_MSG_CRC_LENGTH : Length of message CRC data
+ *    TCM_EXTRA_RC_LENGTH: Length of extra RC data
  */
 #define MESSAGE_HEADER_SIZE (4)
 
-#define CMD_RESPONSE_TIMEOUT_MS (3000)
-
-#define CMD_RESPONSE_POLLING_DELAY_MS (2)
-
-#define RD_RETRY_US_MIN (5000)
-#define RD_RETRY_US_MAX (10000)
-
-#define WR_DELAY_US_MIN (500)
-#define WR_DELAY_US_MAX (1000)
-
-#define TAT_DELAY_US_MIN (50)
-#define TAT_DELAY_US_MAX (100)
-
-#define FW_MODE_SWITCH_DELAY_MS (200)
-
-#define RESET_DELAY_MS (200)
-
-#define DEFAULT_FLASH_ERASE_DELAY (~0)
-#define DEFAULT_FLASH_WRITE_DELAY (~0)
-#define DEFAULT_FLASH_READ_DELAY (~0)
-
-#define RESP_IN_ATTN (0)
-#define RESP_IN_POLLING (CMD_RESPONSE_POLLING_DELAY_MS)
-
-#define CONFIG_HIGH_REPORT_RATE 0
-#define CONFIG_LOW_REPORT_RATE 1
-
-#define TCM_MSG_CRC_LENGTH (2)
+#define TCM_MSG_CRC_LENGTH  (2)
 #define TCM_EXTRA_RC_LENGTH (1)
 
-/*
- * @section: Macro to show string in log
+/**
+ * Definitions for command processing
+ *
+ *    CMD_RESPONSE_DEFAULT_POLLING_DELAY_MS : Time period to poll the response
+ *    CMD_RESPONSE_IN_ATTN                  : Process command by ATTN-driven
+ *    CMD_RESPONSE_IN_POLLING               : Process command in polling
  */
+
+
+
+#define CMD_RESPONSE_DEFAULT_POLLING_DELAY_MS (2)
+
+#define CMD_RESPONSE_IN_ATTN (0)
+#define CMD_RESPONSE_IN_POLLING (CMD_RESPONSE_DEFAULT_POLLING_DELAY_MS)
+
+/**
+ * Default timings regarding to reflash
+ *
+ *    DEFAULT_FLASH_ERASE_DELAY_US : Time required for a flash erase per 'page'
+ *    DEFAULT_FLASH_WRITE_DELAY_US : Time required for a flash write per 'block'
+ *    DEFAULT_FLASH_READ_DELAY_US  : Time required for a flash read per 'word'
+ */
+
+#define DEFAULT_FLASH_ERASE_DELAY_US (20000)
+#define DEFAULT_FLASH_WRITE_DELAY_US (20)
+#define DEFAULT_FLASH_READ_DELAY_US  (10)
+
+
+/** Macro to show string in log */
 #define STR(x) #x
 
-/*
- * @section: Helpers to check the device mode
- */
+/** Helpers to check the device mode */
 #define IS_APP_FW_MODE(mode) \
 	(mode == MODE_APPLICATION_FIRMWARE)
 
@@ -168,25 +165,19 @@
 	(mode == MODE_TDDI_HDL_BOOTLOADER) || \
 	(mode == MODE_MULTICHIP_TDDI_BOOTLOADER))
 
+#define IS_TDDI_BOOTLOADER_MODE(mode) \
+	((mode == MODE_TDDI_BOOTLOADER)  || \
+	(mode == MODE_TDDI_HDL_BOOTLOADER) || \
+	(mode == MODE_MULTICHIP_TDDI_BOOTLOADER))
+
 #define IS_ROM_BOOTLOADER_MODE(mode) \
 	(mode == MODE_ROMBOOTLOADER)
 
 #define IS_DISPLAY_ROM_BOOTLOADER_MODE(mode) \
 	(mode == MODE_DISPLAY_ROMBOOTLOADER)
 
-/*
- * @section: Types for lower-level bus being used
- */
-enum bus_connection {
-	BUS_TYPE_NONE,
-	BUS_TYPE_I2C,
-	BUS_TYPE_SPI,
-	BUS_TYPE_I3C,
-};
 
-/*
- * @section: Error codes
- */
+/** Definitions of error codes */
 enum error_codes {
 	ERR_MASK = 0xf0,
 	ERR_INVAL = 0xf1,      /* invalid parameters */
@@ -194,23 +185,17 @@ enum error_codes {
 	ERR_NOMEM = 0xf3,      /* out of memory */
 	ERR_TIMEDOUT = 0xf4,   /* execution timeout */
 	ERR_NODEV = 0xf5,      /* no touchcomm device */
+	ERR_BUSY = 0xf6,       /* device is busy */
 };
 
-
-/*
- * @section: TouchComm Firmware Version
- */
+/** Version of TouchComm Firmware */
 enum tcm_firmware_protocol {
 	TOUCHCOMM_NONE = 0,
 	TOUCHCOMM_V1 = 1,
 	TOUCHCOMM_V2 = 2,
 };
 
-/*
- * @section: TouchComm Firmware Modes
- *
- * The current mode running is defined in Identify Info Packet.
- */
+/** Definitions of TouchComm firmware modes */
 enum tcm_firmware_mode {
 	MODE_UNKNOWN = 0x00,
 	MODE_APPLICATION_FIRMWARE = 0x01,
@@ -224,13 +209,11 @@ enum tcm_firmware_mode {
 
 	MODE_DISPLAY_ROMBOOTLOADER = 0x40,
 	MODE_DISPLAY_APPLICATION_FIRMWARE = 0x41,
+
+	MODE_RMI_MICRO_BOOTLOADER = 0xff,
 };
 
-/*
- * @section: Status of Application Firmware
- *
- * The current status is defined in Application Info Packet.
- */
+/** Status of Application Firmware */
 enum tcm_app_status {
 	APP_STATUS_OK = 0x00,
 	APP_STATUS_BOOTING = 0x01,
@@ -238,50 +221,7 @@ enum tcm_app_status {
 	APP_STATUS_BAD_APP_CONFIG = 0xff,
 };
 
-/*
- * @section: Touch Scan Mode Dynamic Configuration
- *
- * The current touch scan mode.
- */
-enum tcm_scan_mode {
-	SCAN_NORMAL_IDLE = 0,
-	SCAN_NORMAL_ACTIVE,
-	SCAN_LPWG_IDLE,
-	SCAN_LPWG_ACTIVE,
-	SCAN_SLEEP,
-};
-
-/*
- * @section: Touch INT2 Production Configuration
- *
- * The current touch INT2.
- */
-enum tcm_int2_production {
-	INT2_PRODUCTION_DISABLE = 0,
-	INT2_PRODUCTION_HIGH = 1,
-	INT2_PRODUCTION_LOW = 3,
-};
-
-/*
- * @section: Heatmap Mode Configuration
- *
- */
-enum tcm_heatmap_mode {
-	HEATMAP_MODE_COORD = 1,
-	HEATMAP_MODE_COMBINED = 4,
-};
-
-enum tcm_gesture_type {
-	GESTURE_TYPE_STTW = 1,
-	GESTURE_TYPE_LPTW = 2,
-	GESTURE_TYPE_STTW_AND_LPTW = 3,
-};
-
-/*
- * @section: Field IDs in Dynamic Configuration
- *
- * The codes specify the generic dynamic configuration options.
- */
+/** Field id for dynamic config command */
 enum dynamic_tcm_config_id {
 	DC_UNKNOWN = 0x00,
 	DC_DISABLE_DOZE = 0x01,
@@ -301,52 +241,9 @@ enum dynamic_tcm_config_id {
 	DC_INHIBIT_ACTIVE_GESTURE = 0x0f,
 	DC_DISABLE_PROXIMITY = 0x10,
 	DC_CONTROL_LBP_HBP = 0x11,
-	DC_STTW_JITTER = 0xC2,
-	DC_STTW_MAX_TOUCH_SIZE = 0xC3,
-	DC_STTW_MIN_FRAME = 0xC5,
-	DC_STTW_MAX_FRAME = 0xC6,
-	DC_STTW_MIN_X = 0xC7,
-	DC_STTW_MAX_X = 0xC8,
-	DC_STTW_MIN_Y = 0xC9,
-	DC_STTW_MAX_Y = 0xCA,
-	DC_HIGH_SENSITIVITY_MODE = 0xCB,
-	DC_INT2_PRODUCTION_CMD = 0xD2,
-	DC_LPTW_MIN_X = 0xD7,
-	DC_LPTW_MAX_X = 0xD8,
-	DC_LPTW_MIN_Y = 0xD9,
-	DC_LPTW_MAX_Y = 0xDA,
-	DC_LPTW_MIN_FRAME = 0xDB,
-	DC_LPTW_JITTER = 0xDC,
-	DC_LPTW_MAX_TOUCH_SIZE = 0xDD,
-	DC_LPTW_MARGINAL_MIN_X = 0xDE,
-	DC_LPTW_MARGINAL_MAX_X = 0xDF,
-	DC_LPTW_MARGINAL_MIN_Y = 0xE0,
-	DC_LPTW_MARGINAL_MAX_Y = 0xE1,
-	DC_LPTW_MONITOR_CH_MIN_TX = 0xE2,
-	DC_LPTW_MONITOR_CH_MAX_TX = 0xE3,
-	DC_LPTW_MONITOR_CH_MIN_RX = 0xE4,
-	DC_LPTW_MONITOR_CH_MAX_RX = 0xE5,
-	/* Set 0 for high report rate(240Hz), 1 for low report rate(120Hz). */
-	DC_REPORT_RATE_SWITCH = 0xE6,
-	DC_LPTW_NODE_COUNT_MIN = 0xE7,
-	DC_LPTW_MOTION_BOUNDARY = 0xE8,
-	DC_FORCE_DOZE_MODE = 0xF0,
-	DC_COMPRESSION_THRESHOLD = 0xF1,
-	DC_TOUCH_SCAN_MODE = 0xF2,
-	DC_ENABLE_PALM_REJECTION = 0xF3,
-	DC_CONTINUOUSLY_REPORT = 0xF5,
-	DC_GRIP_DELTA_THRESHOLD = 0xF6,
-	DC_GRIP_BORDER_THRESHOLD = 0xF7,
-	DC_COORD_FILTER = 0xF8,
-	DC_HEATMAP_MODE = 0xFC,
-	DC_GESTURE_TYPE = 0xFE,
 };
 
-/*
- * @section: TouchComm Commands
- *
- * List the generic commands supported in TouchComm command-response protocol.
- */
+/** Generic Touchcomm commands */
 enum tcm_command {
 	CMD_NONE = 0x00,
 	CMD_CONTINUE_WRITE = 0x01,
@@ -384,6 +281,10 @@ enum tcm_command {
 	CMD_DOWNLOAD_CONFIG = 0x30,
 	CMD_ENTER_PRODUCTION_TEST_MODE = 0x31,
 	CMD_GET_FEATURES = 0x32,
+	CMD_CALIBRATE = 0x33,
+	CMD_START_APPLICATION_ACQUISITION = 0x37,
+	CMD_STOP_APPLICATION_ACQUISITION = 0x38,
+	CMD_SET_GLOBAL_STATIC_CONFIG = 0x39,
 	CMD_GET_ROMBOOT_INFO = 0x40,
 	CMD_WRITE_PROGRAM_RAM = 0x41,
 	CMD_ROMBOOT_RUN_BOOTLOADER_FIRMWARE = 0x42,
@@ -393,26 +294,26 @@ enum tcm_command {
 	CMD_SMART_BRIDGE_RESET = 0x49,
 	CMD_GET_DISPLAY_APP_INFO = 0x50,
 	CMD_REBOOT_TO_DISPLAY_ROM_BOOTLOADER = 0x51,
+	CMD_OPTIMIZED_WRITE_FLASH = 0xFE,
 };
 
-/*
- * @section: TouchComm Status Codes
+/** Status codes after the command processing
  *
- * Define the following status codes for all command responses.
- *  0x00: (v1)      no commands are pending and no reports are available.
- *  0x01: (v1 & v2) the previous command succeeded.
- *  0x03: (v1 & v2) the payload continues a previous response.
- *  0x04: (v2)      command was written, but no reports were available.
- *  0x07: (v2)      the previous write was successfully received.
- *  0x08: (v2)      the previous write was corrupt. The host should resend.
- *  0x09: (v2)      the previous command failed.
- *  0x0c: (v1 & v2) write was larger than the device's receive buffer.
- *  0x0d: (v1 & v2) a command was sent before the previous command completed.
- *  0x0e: (v1 & v2) the requested command is not implemented.
- *  0x0f: (v1 & v2) generic communication error, probably incorrect payload.
+ *    0x00: (v1)      no commands are pending and no reports are available.
+ *    0x01: (v1 & v2) the previous command succeeded.
+ *    0x03: (v1 & v2) the payload continues a previous response.
+ *    0x04: (v2)      command was written, but no reports were available.
+ *    0x07: (v2)      the previous write was successfully received.
+ *    0x08: (v2)      the previous write was corrupt. The host should resend.
+ *    0x09: (v2)      the previous command failed.
+ *    0x0c: (v1 & v2) write was larger than the device's receive buffer.
+ *    0x0d: (v1 & v2) a command was sent before the previous command completed.
+ *    0x0e: (v1 & v2) the requested command is not implemented.
+ *    0x0f: (v1 & v2) generic communication error, probably incorrect payload.
  *
- *  0xfe: self-defined status for a corrupted packet.
- *  0xff: self-defined status for an invalid data.
+ * Driver-defined status
+ *    0xfe: self-defined status for a corrupted packet.
+ *    0xff: self-defined status for an invalid data.
  */
 enum tcm_status_code {
 	STATUS_IDLE = 0x00,
@@ -426,19 +327,13 @@ enum tcm_status_code {
 	STATUS_PREVIOUS_COMMAND_PENDING = 0x0d,
 	STATUS_NOT_IMPLEMENTED = 0x0e,
 	STATUS_ERROR = 0x0f,
+
+	/* driver-defined status */
 	STATUS_PACKET_CORRUPTED = 0xfe,
 	STATUS_INVALID = 0xff,
 };
 
-/*
- * @section: TouchComm Report Codes
- *
- * Define the following report codes generated by TouchComm firmware.
- *  0x10:   Identify Info Packet
- *  0x11:   Touch Report
- *  0x12:   Delta Cap. Image
- *  0x13:   Raw Cap. Image
- */
+/** Generic Touchcomm reports */
 enum tcm_report_type {
 	REPORT_IDENTIFY = 0x10,
 	REPORT_TOUCH = 0x11,
@@ -447,22 +342,15 @@ enum tcm_report_type {
 	REPORT_BASELINE = 0x14,
 };
 
-/*
- * @section: States in Command Processing
- *
- * List the states in command processing.
- */
+/** List the states during the command processing  */
 enum tcm_command_status {
 	CMD_STATE_IDLE = 0,
 	CMD_STATE_BUSY = 1,
+	CMD_STATE_TERMINATED = 2,
 	CMD_STATE_ERROR = -1,
 };
 
-/*
- * @section: Production Test Items
- *
- * List the generic production test items
- */
+/** Common production test items */
 enum tcm_test_code {
 	TEST_NOT_IMPLEMENTED = 0x00,
 
@@ -486,16 +374,13 @@ enum tcm_test_code {
 	TEST_PID22_TRANS_CAP_RAW = 0x16,
 	TEST_PID29_HYBRID_ABS_NOISE = 0x1D,
 	TEST_PID30_BSC_CALIB = 0x1E,
+	TEST_PID92_SERIAL_NUMBER = 0x5C,
 
 	TEST_PID_MAX,
 };
 
 
-/*
- * @section: Internal Buffer Structure
- *
- * This structure is taken as the internal common buffer.
- */
+/** Layout of the structure of internal buffer */
 struct tcm_buffer {
 	unsigned char *buf;
 	unsigned int buf_size;
@@ -505,7 +390,36 @@ struct tcm_buffer {
 };
 
 /*
- * @section: TouchComm Identify Info Packet
+ * @section: PT Serial Number Test Packet
+ *
+ * This packet provides the Serial Number Test information.
+ */
+struct tcm_serial_number_info {
+	unsigned char wafer_lot[12];
+	unsigned char x_coordinate[6];
+	unsigned char y_coordinate[6];
+	unsigned char date_wafer_code[8];
+};
+
+/** Definitions of timing settings */
+struct tcm_timings {
+	/* timeout time of command processing */
+	int cmd_timeout_ms;
+	/* time interval to process command in polling */
+	int cmd_polling_ms;
+	/* bus turnaround time (0: min / 1: max) */
+	int cmd_turnaround_us[2];
+	/* command retry delay (0: min / 1: max) */
+	int cmd_retry_us[2];
+	/* timings for flash operations (0: erase / 1: write / 2: read) */
+	int flash_ops_delay_us[3];
+	/* time delay for firmware mode switching */
+	int fw_switch_delay_ms;
+	/* time delay after issuing a reset */
+	int reset_delay_ms;
+};
+
+/** Definitions of TouchComm Identify Info Packet
  *           Ver.1: size is 24 (0x18) bytes
  *           Ver.2: size is extended to 32 (0x20) bytes
  *
@@ -522,18 +436,13 @@ struct tcm_identification_info {
 	unsigned char build_id[4];
 	unsigned char max_write_size[2];
 	/* extension in ver.2 */
+	unsigned char current_read_size[2];
 	unsigned char max_read_size[2];
-	unsigned char max_possible_read_size[2];
 	unsigned char reserved[20];
 };
 
 
-/*
- * @section: TouchComm Application Information Packet
- *
- * The application info packet provides the information about the application
- * firmware as well as the touch controller.
- */
+/** Definitions of TouchComm Application Information Packet */
 struct tcm_application_info {
 	unsigned char version[2];
 	unsigned char status[2];
@@ -554,11 +463,7 @@ struct tcm_application_info {
 	unsigned char num_of_force_elecs[2];
 };
 
-/*
- * @section: TouchComm boot information packet
- *
- * The boot info packet provides the information of TouchBoot.
- */
+/** Definitions of TouchComm boot information packet */
 struct tcm_boot_info {
 	unsigned char version;
 	unsigned char status;
@@ -567,7 +472,7 @@ struct tcm_boot_info {
 	unsigned char erase_page_size_words[2];
 	unsigned char max_write_payload_size[2];
 	unsigned char last_reset_reason;
-	unsigned char pc_at_time_of_last_reset[2];
+	unsigned char supplemental_reset_code[2];
 	unsigned char boot_config_start_block[2];
 	unsigned char boot_config_size_blocks[2];
 	/* extension in ver.2 */
@@ -579,11 +484,7 @@ struct tcm_boot_info {
 	unsigned char custom_otp_length_blocks[2];
 };
 
-/*
- * @section: TouchComm ROMboot information packet
- *
- * The ROMboot info packet provides the information of ROM bootloader.
- */
+/** Definitions of TouchComm ROMboot information packet */
 struct tcm_romboot_info {
 	unsigned char version;
 	unsigned char status;
@@ -594,34 +495,12 @@ struct tcm_romboot_info {
 	unsigned char pc_at_time_of_last_reset[2];
 };
 
-/*
- * @section: TouchComm features description packet
- *
- * The features description packet tells which features are supported.
- */
+/** Definitions of TouchComm features description packet */
 struct tcm_features_info {
 	unsigned char byte[16];
 };
 
-/*
- * @section: Data blob for touch data reported
- *
- * Once receiving a touch report generated by firmware, the touched data
- * will be parsed and converted to touch_data_blob structure as a data blob.
- *
- * @subsection: tcm_touch_data_blob
- *              The touch_data_blob contains all sorts of touched data entities.
- *
- * @subsection tcm_objects_data_blob
- *             The objects_data_blob includes the data for each active objects.
- *
- * @subsection tcm_gesture_data_blob
- *             The gesture_data_blob contains the gesture data if detected.
- *
- * @subsection tcm_knob_data_blob
- *             The tcm_knob_data_blob contains the knob data if detected.
- *
- */
+/** Data blobs for touch reporting */
 struct tcm_objects_data_blob {
 	unsigned char status;
 	unsigned int x_pos;
@@ -648,12 +527,10 @@ struct tcm_gesture_data_blob {
 	};
 };
 struct tcm_knob_data_blob {
+	bool update;
 	unsigned short angle;
 	unsigned short click;
 	unsigned short grasp;
-
-	unsigned short cal_slug_raw[3];
-	unsigned short cal_slug_delta[3];
 };
 struct tcm_touch_data_blob {
 
@@ -686,75 +563,110 @@ struct tcm_touch_data_blob {
 	struct tcm_knob_data_blob knob[MAX_NUM_KNOB_OBJECTS];
 };
 
-/*
- * @section: Callback function used to parse custom touch entity
+/** Callback to customize the handling of message
  *
- * Allow to invoke the customized implementation to parse touch data inside
- * touch report.
- *
+ * Definitions of callback function
  * @param
- *    [ in]    code:          the code of current touch entity
- *    [ in]    config:        the report configuration stored
- *    [in/out] config_offset: offset of current position in report config,
- *                            the updated position should be returned.
- *    [ in]    report:        touch report given
- *    [in/out] report_offset: offset of current position in touch report,
- *                            the updated position should be returned.
- *    [ in]    report_size:   size of given touch report
- *    [ in]    callback_data: pointer to caller data
+ *    [ in] code:          the code of message
+ *    [ in] data:          data to handle
+ *    [ in] data_size:     size of data
+ *    [ in] callback_data: private data to callback function;
  *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
+ */
+typedef int (*tcm_message_callback_t) (const unsigned char code,
+	const unsigned char *data, unsigned int data_size, void *callback_data);
+
+struct tcm_message_callback {
+	void *private_data;
+	tcm_message_callback_t cb;
+};
+
+/** Callback to parse custom touch entity
+ *
+ * Definitions of callback function
+ * @param
+ *    [ in]    code:          the code of touch entity to parse
+ *    [ in]    config:        the report configuration stored
+ *    [in/out] config_offset: current position in the report config;
+ *                            function shall update and return this value
+ *    [ in]    report:        touch report
+ *    [in/out] report_offset: current position in the touch report
+ *                            function shall update and return this value
+ *    [ in]    report_size:   size of given touch report
+ *    [ in] callback_data:    private data to callback function;
+ *
+ * @return
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 typedef int (*tcm_custom_touch_entity_callback_t) (const unsigned char code,
-		const unsigned char *config, unsigned int *config_offset,
-		const unsigned char *report, unsigned int *report_offset,
-		unsigned int report_size, void *callback_data);
+	const unsigned char *config, unsigned int *config_offset,
+	const unsigned char *report, unsigned int *report_offset,
+	unsigned int report_size, void *callback_data);
 
-/*
- * @section: Callback function used to parse custom gesture data
+struct tcm_custom_touch_entity_callback {
+	void *private_data;
+	tcm_custom_touch_entity_callback_t cb;
+};
+
+/** Callback to parse custom gesture data
  *
- * Allow to invoke the customized implementation to get gesture data inside
- * touch report.
- *
+ * Definitions of callback function
  * @param
- *    [ in]    code:          the code of current touch entity
+ *    [ in]    code:          the code of touch entity to parse
  *    [ in]    config:        the report configuration stored
- *    [in/out] config_offset: offset of current position in report config,
- *                            the updated position should be returned.
- *    [ in]    report:        touch report given
- *    [in/out] report_offset: offset of current position in touch report,
- *                            the updated position should be returned.
+ *    [in/out] config_offset: current position in the report config;
+ *                            function shall update and return this value
+ *    [ in]    report:        touch report
+ *    [in/out] report_offset: current position in the touch report
+ *                            function shall update and return this value
  *    [ in]    report_size:   size of given touch report
- *    [ in]    callback_data: pointer to caller data
+ *    [ in] callback_data:    private data to callback function;
  *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 typedef int (*tcm_custom_gesture_callback_t) (const unsigned char code,
-		const unsigned char *config, unsigned int *config_offset,
-		const unsigned char *report, unsigned int *report_offset,
-		unsigned int report_size, void *callback_data);
+	const unsigned char *config, unsigned int *config_offset,
+	const unsigned char *report, unsigned int *report_offset,
+	unsigned int report_size, void *callback_data);
 
-/*
- * @section: Callback function being invoked once getting a reset
- *
- * Allow to invoke the customized implementation to handle the unexpected reset
- * including self-reset, external reset, and so on.
+struct tcm_custom_gesture_callback {
+	void *private_data;
+	tcm_custom_gesture_callback_t cb;
+};
+
+/** Definitions of callback function being used to customize the function of ID comparison
  *
  * @param
- *    [ in]    callback_data: pointer to caller data
+ *    [ in] image_fw_id:      firmware ID defined in the image file
+ *    [ in] device_fw_id:     device firmware ID
+ *    [ in] image_config_id:  config ID defined in the image file
+ *    [ in] device_config_id: device config ID
+ *    [ in] size_of_config:   size of config ID
  *
  * @return
- *    none.
- */
-typedef void (*tcm_reset_occurrence_callback_t) (void *callback_data);
-
-/*
- * @section: TouchComm Message Handling Wrapper
+ *    one of the following enumerated values being used to indicate the target to update
+ *    in case of success
  *
- * The structure contains the essential buffers and parameters to implement
- * the command-response protocol for both TouchCom ver.1 and TouchCom ver.2.
+ *       - 0: UPDATE_NONE                 no needs to update
+ *       - 1: UPDATE_FIRMWARE_AND_CONFIG  update the firmware code area and the
+ *                                        associated firmware config area
+ *       - 2: UPDATE_CONFIG               update the firmware config area only
+ *
+ *    otherwise, a negative value.
+ */
+typedef int (*tcm_custom_id_comparison_t) (unsigned int image_fw_id,
+	unsigned int device_fw_id, unsigned char *image_config_id,
+	unsigned char *device_config_id, int size_of_config);
+
+
+
+/**
+ * Structures for TouchComm message handling module
+ *
+ * The context structure for the processing of TouchComm message.
  */
 struct tcm_message_data_blob {
 
@@ -762,11 +674,15 @@ struct tcm_message_data_blob {
 	syna_pal_atomic_t command_status;
 	unsigned char command;
 	unsigned char status_report_code;
-	unsigned int payload_length;
 	unsigned char response_code;
-	unsigned char report_code;
+	unsigned int payload_length;
 	unsigned char seq_toggle;
-	unsigned int default_resp_reading;
+
+	/* timings for command processing */
+	unsigned int command_timeout_time;
+	unsigned int command_polling_time;
+	unsigned int turnaround_time[2];
+	unsigned int retry_time[2];
 
 	/* completion event for command processing */
 	syna_pal_completion_t cmd_completion;
@@ -780,41 +696,39 @@ struct tcm_message_data_blob {
 	struct tcm_buffer out;
 	struct tcm_buffer temp;
 
-	/* mutex for the protection of command processing */
+	/* mutex to protect the command processing */
 	syna_pal_mutex_t cmd_mutex;
 
-	/* mutex for the read/write protection */
+	/* mutex to ensure that only a read or a write is requested */
 	syna_pal_mutex_t rw_mutex;
-
-	/* flag to indicate the legacy protocol */
-	bool legacy;
 
 	/* flag for the enabling of predict reading
 	 * predict reading aims to retrieve all data in one transfer;
-	 * otherwise, standard reading reads 4-byte header and payload
-	 * data separately
+	 * otherwise, separately reads the header and payload data
 	 */
 	bool predict_reads;
 	unsigned int predict_length;
 
-	/* variables for the crc appended
-	 */
+	/* variables for crc info */
 	bool has_crc;
 	unsigned short crc_bytes;
 	bool has_extra_rc;
 	unsigned char rc_byte;
+	bool enable_response_log;
 };
 
-/*
- * @section: TouchComm core device context structure
+/**
+ * TouchComm core device context structure
  *
  * The device context contains parameters and internal buffers, that will
- * be passed to all other functions that expect a device handle.
+ * be passed to all other functions that expects a device handle.
  *
- * Calling syna_tcm_allocate_device() can allocate this structure, and
- * syna_tcm_remove_device() releases the structure if no longer needed.
+ * This structure can be allocated by syna_tcm_allocate_device(),
+ * and be released by syna_tcm_remove_device() if no longer needed.
  */
 struct tcm_dev {
+	/* point to the parent device */
+	void *parent;
 
 	/* basic device information */
 	unsigned char protocol;
@@ -827,20 +741,16 @@ struct tcm_dev {
 	unsigned int cols;
 	unsigned char config_id[MAX_SIZE_CONFIG_ID];
 
-	/* capability of read/write data transferred
-	 * which were assigned through syna_hw_interface
-	 * and being updated once getting the startup packet
-	 */
+	/* capability of each read/write data transferred */
 	unsigned int max_wr_size;
 	unsigned int max_rd_size;
-	bool bypass_max_wr_rd_setup;
 
-	/* hardware-specific data structure
-	 * defined in syna_touchcom_platform.h
-	 */
-	struct syna_hw_interface *hw_if;
+	/* hardware platform interface */
+	struct tcm_hw_platform *hw;
+	/* resources of irq control */
+	syna_pal_mutex_t irq_en_mutex;
 
-	/* TouchComm defined structures */
+	/* firmware info packet */
 	struct tcm_identification_info id_info;
 	struct tcm_application_info app_info;
 	struct tcm_boot_info boot_info;
@@ -851,7 +761,6 @@ struct tcm_dev {
 	 */
 	struct tcm_buffer report_buf;
 	struct tcm_buffer resp_buf;
-	struct tcm_buffer external_buf;
 
 	/* touch report configuration */
 	struct tcm_buffer touch_config;
@@ -860,191 +769,141 @@ struct tcm_dev {
 	unsigned int bits_config_heading;
 	unsigned int bits_config_tailing;
 
-	/* TouchComm message handling wrapper */
+	/* time settings for the certain scenarios */
+	unsigned int fw_mode_switching_time;
+	unsigned int reset_delay_time;
+
+	/* flag indicating under the processing of production testing */
+	bool testing_purpose;
+
+	/* data for Touchcomm message handling */
+	syna_pal_atomic_t command_processing;
 	struct tcm_message_data_blob msg_data;
 
-	/* indicate that fw update is on-going */
+	/* flag to indicate an on-going process of fw update */
 	syna_pal_atomic_t firmware_flashing;
 
-	/* abstraction to read a TouchComm message from device.
-	 * Function will be assigned by syna_tcm_detect_device().
-	 *
-	 * After read_message() returned, the retrieved data will be available
-	 * and stored either in buffer.report or buffer.resp based on the
-	 * code returned.
+	/* abstraction to read a TouchComm message from device
 	 *
 	 * @param
-	 *    [ in] tcm_dev:            the device handle
-	 *    [out] status_report_code: status code or report code received
+	 *    [ in] tcm_dev:            the TouchComm device handle
+	 *    [out] status_report_code: status code or report code in the packet
 	 *
 	 * @return
-	 *    0 or positive value on success; otherwise, on error.
+	 *    0 or positive value in case of success, a negative value otherwise.
 	 */
 	int (*read_message)(struct tcm_dev *tcm_dev,
-			unsigned char *status_report_code);
+		unsigned char *status_report_code);
 
-	/* abstraction to write a TouchComm message to device and retrieve the
-	 * response to command.
-	 * Function will be assigned by syna_tcm_detect_device().
-	 *
-	 * After calling write_message(), the response code is returned
-	 * and the response data is stored in buffer.resp.
+	/* abstraction to write a TouchComm message and retrieve the response
 	 *
 	 * @param
-	 *    [ in] tcm_dev:        the device handle
-	 *    [ in] command:        TouchComm command to write
-	 *    [ in] payload:        data payload, if any
-	 *    [ in] length_total:   length of total payload
-	 *    [ in] length:         length of payload data, if any
-	 *    [out] resp_code:      response code returned
-	 *    [ in] delay_ms_resp:  delay time for response reading.
-	 *                          a positive value presents the polling time;
-	 *                          or, set '0' (RESP_IN_ATTN) for ATTN driven
+	 *    [ in] tcm_dev:       the TouchComm device handle
+	 *    [ in] command:       TouchComm command
+	 *    [ in] payload:       data payload, if any
+	 *    [ in] payload_len:   length of data payload, if any
+	 *    [out] resp_code:     response code returned
+	 *    [ in] resp_reading:  method to read in the response
+	 *                         a positive value presents the ms time delay for polling;
+	 *                         or, set '0' or 'RESP_IN_ATTN' for ATTN driven
 	 * @return
-	 *    0 or positive value on success; otherwise, on error.
+	 *    0 or positive value in case of success, a negative value otherwise.
 	 */
-	int (*write_message)(struct tcm_dev *tcm_dev,
-			unsigned char command, unsigned char *payload,
-			unsigned int length_total, unsigned int length,
-			unsigned char *resp_code, unsigned int delay_ms_resp);
+	int (*write_message)(struct tcm_dev *tcm_dev, unsigned char command,
+		unsigned char *payload, unsigned int payload_length,
+		unsigned char *resp_code, unsigned int resp_reading);
 
-
-	/* abstraction to set up the maximum read/write size.
-	 *
-	 * Typically, the maximum read/write size is assigned after calling
-	 * syna_tcm_detect_device(). Just in case, exposing this function to
-	 * allow caller to adjust the size of read/write operation.
+	/* abstraction to terminate the command processing
 	 *
 	 * @param
-	 *    [ in] tcm_dev:            the device handle
+	 *    [ in] tcm_dev: the TouchComm device handle
 	 *
 	 * @return
-	 *    0 or positive value on success; otherwise, on error.
+	 *    void.
 	 */
-	int (*set_max_rw_size)(struct tcm_dev *tcm_dev);
+	void (*terminate)(struct tcm_dev *tcm_dev);
 
-	/* callbacks
-	 *   custom_touch_data_parse_func: custom touch data entity parsing
-	 *   custom_gesture_parse_func : custom gesture data entity parsing
-	 *   cb_custom_touch_entity: callback to parse custom touch entity
-	 *   cb_custom_gesture : callback to parse custom gesture
-	 *   cb_reset_occurrence : callback once reset occurrence
+	/* abstraction to set up the maximum read/write size
+	 *
+	 * @param
+	 *    [ in] tcm_dev: the TouchComm device handle
+	 *    [ in] wr_size: the max. size for each write
+	 *    [ in] rd_size: the max. size for each read
+	 *
+	 * @return
+	 *    0 or positive value in case of success, a negative value otherwise.
 	 */
-	tcm_custom_touch_entity_callback_t cb_custom_touch_entity;
-	void *cbdata_touch_entity;
-	tcm_custom_gesture_callback_t cb_custom_gesture;
-	void *cbdata_gesture;
-	tcm_reset_occurrence_callback_t cb_reset_occurrence;
-	void *cbdata_reset;
+	int (*set_max_rw_size)(struct tcm_dev *tcm_dev,
+		unsigned int wr_size, unsigned int rd_size);
+
+	/* callback to handle the custom touch entity */
+	struct tcm_custom_touch_entity_callback cb_custom_touch_entity_handler;
+	/* callback to handle the custom gesture */
+	struct tcm_custom_gesture_callback cb_custom_gesture_handler;
+	/* callbacks for the handling of reports */
+	struct tcm_message_callback cb_report_dispatcher[MAX_REPORT_TYPES];
+	/* callback to duplicate the data to external buffer */
+	struct tcm_message_callback cb_data_duplicator[MAX_REPORT_TYPES];
+	/* callback to perform the ID comparison */
+	tcm_custom_id_comparison_t cb_custom_id_comparison;
 };
 /* end of structure syna_tcm_dev */
 
 
 /*
- * @section: Protocol detection
- *
- * @brief: syna_tcm_v1_detect
- *         Check whether TouchComm ver.1 firmware is running
- *
- * @brief: syna_tcm_v2_detect
- *         Check whether TouchComm ver.2 firmware is running
+ * Helpers for the protocol detection
  */
-/* syna_tcm_v1_detect()
- *
- * Function to process the startup packet of TouchComm ver.1 and
- * check whether TouchComm ver.1 firmware is running.
- * Function is implemented in synaptics_tcm2_core_v1.c.
- *
- * @param
- *    [ in] tcm_dev: the device handle
- *    [ in] data:    data packet in raw 4-byte data
- *    [ in] size:    length of input data in bytes
- *
- * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
- */
-int syna_tcm_v1_detect(struct tcm_dev *tcm_dev, unsigned char *data,
-		unsigned int data_len);
 
-/* syna_tcm_v2_detect()
- *
- * Function to process the startup packet of TouchComm ver.2 and
- * check whether TouchComm ver.2 firmware is running.
- * Function is implemented in synaptics_tcm2_core_v2.c.
- *
- * @param
- *    [ in] tcm_dev: the device handle
- *    [ in] data:    data packet in raw 4-byte data
- *    [ in] size:    length of input data in bytes
- *
- * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
- */
-int syna_tcm_v2_detect(struct tcm_dev *tcm_dev, unsigned char *data,
-		unsigned int data_len);
-/*
- * syna_tcm_v1_set_ops()
- *
- * Assign read / write operations of TouchComm ver.1 firmware
+#ifdef HAS_VERSION_1_SUPPORT
+/**
+ * @brief   Detect whether TouchComm ver.1 firmware is running.
+ *          Function is implemented in synaptics_tcm2_core_v1.c.
  *
  * @param
- *    [ in] tcm_dev: the device handle
+ *    [ in] tcm_dev:  the TouchComm device handle
+ *    [ in] bypass:   flag to bypass the detection
+ *    [ in] do_reset: flag to issue a reset if falling down to error
  *
  * @return
- *    none
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-void syna_tcm_v1_set_ops(struct tcm_dev *tcm_dev);
-/*
- * syna_tcm_v2_set_ops()
- *
- * Assign read / write operations of TouchComm ver.2 firmware
+int syna_tcm_v1_detect(struct tcm_dev *tcm_dev, bool bypass, bool do_reset);
+#endif
+
+#ifdef HAS_VERSION_2_SUPPORT
+/**
+ * @brief   Detect whether TouchComm ver.2 firmware is running.
+ *          Function is implemented in synaptics_tcm2_core_v2.c.
  *
  * @param
- *    [ in] tcm_dev: the device handle
+ *    [ in] tcm_dev:  the TouchComm device handle
+ *    [ in] bypass:   flag to bypass the detection
+ *    [ in] do_reset: flag to issue a reset if falling down to error
  *
  * @return
- *    none
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-void syna_tcm_v2_set_ops(struct tcm_dev *tcm_dev);
+int syna_tcm_v2_detect(struct tcm_dev *tcm_dev, bool bypass, bool do_reset);
+#endif
 
 
 /*
- * @section: Buffers Management helpers
- *
- * @brief: syna_tcm_buf_alloc
- *         Allocate the requested memory space for the buffer structure
- *
- * @brief: syna_tcm_buf_realloc
- *         Extend the requested memory space for the buffer structure
- *
- * @brief: syna_tcm_buf_init
- *         Initialize the buffer structure
- *
- * @brief: syna_tcm_buf_lock
- *         Protect the access of current buffer structure
- *
- * @brief: syna_tcm_buf_unlock
- *         Open the access of current buffer structure
- *
- * @brief: syna_tcm_buf_release
- *         Release the buffer structure
+ * Helpers for buffers management
  */
 
-/*
- * syna_tcm_buf_alloc()
- *
- * Allocate the requested memory space for the given buffer only if
- * the existed buffer is not enough for the requirement.
+/**
+ * @brief   Allocate only if the current size is less than the requirement,
+ *          do nothing otherwise.
  *
  * @param
- *    [ in] pbuf: pointer to an internal buffer
+ *    [ in] pbuf: pointer to a buffer
  *    [ in] size: required size to be allocated
  *
  * @return
- *     0 or positive value on success; otherwise, on error.
+ *     0 or positive value in case of success, a negative value otherwise.
  */
 static inline int syna_tcm_buf_alloc(struct tcm_buffer *pbuf,
-		unsigned int size)
+	unsigned int size)
 {
 	if (!pbuf) {
 		LOGE("Invalid buffer structure\n");
@@ -1055,7 +914,7 @@ static inline int syna_tcm_buf_alloc(struct tcm_buffer *pbuf,
 		if (pbuf->buf)
 			syna_pal_mem_free((void *)pbuf->buf);
 
-		pbuf->buf = syna_pal_mem_alloc(size, sizeof(unsigned char));
+		pbuf->buf = (unsigned char *)syna_pal_mem_alloc(size, sizeof(unsigned char));
 		if (!(pbuf->buf)) {
 			LOGE("Fail to allocate memory (size = %d)\n",
 				(int)(size*sizeof(unsigned char)));
@@ -1071,23 +930,18 @@ static inline int syna_tcm_buf_alloc(struct tcm_buffer *pbuf,
 
 	return 0;
 }
-
-/*
- * syna_tcm_buf_realloc()
- *
- * Extend the requested memory space for the given buffer only if
- * the existed buffer is not enough for the requirement.
- * Then, move the content to the new memory space.
- *
+/**
+ * @brief   Extend if the current size is less than the requirement,
+ *          After that, move the content to the new buffer.
  * @param
- *    [ in] pbuf: pointer to an internal buffer
+ *    [ in] pbuf: pointer to a buffer
  *    [ in] size: required size to be extended
  *
  * @return
- *     0 or positive value on success; otherwise, on error.
+ *     0 or positive value in case of success, a negative value otherwise.
  */
 static inline int syna_tcm_buf_realloc(struct tcm_buffer *pbuf,
-		unsigned int size)
+	unsigned int size)
 {
 	int retval;
 	unsigned char *temp_src;
@@ -1102,7 +956,7 @@ static inline int syna_tcm_buf_realloc(struct tcm_buffer *pbuf,
 		temp_src = pbuf->buf;
 		temp_size = pbuf->buf_size;
 
-		pbuf->buf = syna_pal_mem_alloc(size, sizeof(unsigned char));
+		pbuf->buf = (unsigned char *)syna_pal_mem_alloc(size, sizeof(unsigned char));
 		if (!(pbuf->buf)) {
 			LOGE("Fail to allocate memory (size = %d)\n",
 				(int)(size * sizeof(unsigned char)));
@@ -1130,32 +984,28 @@ static inline int syna_tcm_buf_realloc(struct tcm_buffer *pbuf,
 
 	return 0;
 }
-/*
- * syna_tcm_buf_init()
- *
- * Initialize the buffer structure.
+/**
+ * @brief   Initialize the buffer.
  *
  * @param
- *    [ in] pbuf: pointer to an internal buffer
+ *    [ in] pbuf: pointer to a buffer
  *
  * @return
  *     none
  */
-static inline void syna_tcm_buf_init(struct tcm_buffer *pbuf)
-{
-	pbuf->buf_size = 0;
-	pbuf->data_length = 0;
-	pbuf->ref_cnt = 0;
-	pbuf->buf = NULL;
-	syna_pal_mutex_alloc(&pbuf->buf_mutex);
-}
-/*
- * syna_tcm_buf_lock()
- *
- * Protect the access of current buffer structure.
+#define syna_tcm_buf_init(pbuf)					\
+	do {							\
+		(pbuf)->buf_size = 0;				\
+		(pbuf)->data_length = 0;			\
+		(pbuf)->ref_cnt = 0;				\
+		(pbuf)->buf = NULL;				\
+		syna_pal_mutex_alloc(&(pbuf)->buf_mutex);	\
+	} while (0)
+/**
+ * @brief   Protect the access of the buffer.
  *
  * @param
- *    [ in] pbuf: pointer to an internal buffer
+ *    [ in] pbuf: pointer to a buffer
  *
  * @return
  *     none
@@ -1168,10 +1018,8 @@ static inline void syna_tcm_buf_lock(struct tcm_buffer *pbuf)
 	syna_pal_mutex_lock(&pbuf->buf_mutex);
 	pbuf->ref_cnt++;
 }
-/*
- * syna_tcm_buf_unlock()
- *
- * Open the access of current buffer structure.
+/**
+ * @brief   Open the access of the buffer.
  *
  * @param
  *    [ in] pbuf: pointer to an internal buffer
@@ -1187,13 +1035,11 @@ static inline void syna_tcm_buf_unlock(struct tcm_buffer *pbuf)
 	pbuf->ref_cnt--;
 	syna_pal_mutex_unlock(&pbuf->buf_mutex);
 }
-/*
- * syna_tcm_buf_release()
- *
- * Release the buffer structure.
+/**
+ * @brief   Release the buffer.
  *
  * @param
- *    [ in] pbuf: pointer to an internal buffer
+ *    [ in] pbuf: pointer to a buffer
  *
  * @return
  *     none
@@ -1201,7 +1047,7 @@ static inline void syna_tcm_buf_unlock(struct tcm_buffer *pbuf)
 static inline void syna_tcm_buf_release(struct tcm_buffer *pbuf)
 {
 	if (pbuf->ref_cnt != 0)
-		LOGE("Buffer access hold, %d\n", pbuf->ref_cnt);
+		LOGE("Buffer still in used, %d references\n", pbuf->ref_cnt);
 
 	syna_pal_mutex_free(&pbuf->buf_mutex);
 	syna_pal_mem_free((void *)pbuf->buf);
@@ -1209,41 +1055,38 @@ static inline void syna_tcm_buf_release(struct tcm_buffer *pbuf)
 	pbuf->data_length = 0;
 	pbuf->ref_cnt = 0;
 }
-/*
- * syna_tcm_buf_clear()
- *
- * Clear the buffer content.
+/**
+ * @brief   Clear the buffer content.
  *
  * @param
- *    [ in] pbuf: pointer to an internal buffer
+ *    [ in] pbuf: pointer to a buffer
  *
  * @return
  *     none
  */
 static inline void syna_tcm_buf_clear(struct tcm_buffer *pbuf)
 {
-	if (pbuf->ref_cnt == 0)
-		LOGW("Buffer not lock before clear\n");
+	if (pbuf->ref_cnt != 0)
+		LOGE("Buffer still in used, %d references\n", pbuf->ref_cnt);
 
 	syna_pal_mem_set((void *)pbuf->buf, 0x00, pbuf->buf_size);
 	pbuf->data_length = 0;
 }
-/*
- * syna_tcm_buf_copy()
- *
- * Helper to copy data from the source buffer to the destination buffer.
- * The size of destination buffer may be reallocated, if the size is
- * smaller than the actual data size to be copied.
+/**
+ * @brief   Wrap up the data copying from the source buffer to the
+ *          destination buffer. The size of destination buffer may
+ *          be reallocated, if the size is smaller than the actual
+ *          data size to copy.
  *
  * @param
- *    [out] dest: pointer to an internal buffer
+ *    [out] dest: pointer to a buffer
  *    [ in] src:  required size to be extended
  *
  * @return
- *     0 or positive value on success; otherwise, on error.
+ *     0 or positive value in case of success, a negative value otherwise.
  */
 static inline int syna_tcm_buf_copy(struct tcm_buffer *dest,
-		struct tcm_buffer *src)
+	struct tcm_buffer *src)
 {
 	int retval = 0;
 
@@ -1272,97 +1115,125 @@ static inline int syna_tcm_buf_copy(struct tcm_buffer *dest,
 
 	return 0;
 }
-/*
- * @section: Reads / Writes Abstraction Function
- *
- * @brief: syna_tcm_read
- *         Read the data from bus directly
- *
- * @brief: syna_tcm_write
- *         Write the data to bus directly
- */
+
 
 /*
- * syna_tcm_read()
- *
- * The bare read function, reading in the requested data bytes
- * from bus directly.
- *
- * @param
- *    [ in] tcm_dev: the device handle
- *    [out] rd_data: buffer for storing data retrieved from device
- *    [ in] rd_len:  length of reading data in bytes
- *
- * @return
- *    the number of data bytes retrieved;
- *    otherwise, negative value, on error.
+ * Abstractions of hardware-specific operations
  */
+
+ /**
+  * @brief   Abstract the operation of data reading regardless the type of bus.
+  *
+  * @param
+  *    [ in] tcm_dev:  the TouchComm device handle
+  *    [out] rd_data:  buffer for storing data retrieved from device
+  *    [ in] rd_len:   length of reading data in bytes
+  *
+  * @return
+  *    0 or positive value in case of success, a negative value otherwise.
+  */
 static inline int syna_tcm_read(struct tcm_dev *tcm_dev,
 	unsigned char *rd_data, unsigned int rd_len)
 {
-	struct syna_hw_interface *hw_if;
+	struct tcm_hw_platform *hw;
 
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
 		return -ERR_INVAL;
 	}
 
-	hw_if = tcm_dev->hw_if;
-	if (!hw_if->ops_read_data) {
-		LOGE("Invalid hw ops_read function\n");
+	hw = tcm_dev->hw;
+	if (!hw) {
+		LOGE("Invalid handle of hardware platform\n");
+		return -ERR_INVAL;
+	}
+
+	if (!hw->ops_read_data) {
+		LOGE("Invalid hardware read operation, ops_read_data is null\n");
 		return -ERR_NODEV;
 	}
 
-	return hw_if->ops_read_data(hw_if, rd_data, rd_len);
+	return hw->ops_read_data(hw, rd_data, rd_len);
 }
 
-/*
- * syna_tcm_write()
- *
- * The bare write function, writing the given data bytes to bus directly.
+/**
+ * @brief   Abstract the operation of data writing regardless the type of bus.
  *
  * @param
- *    [ in] tcm_dev:  the device handle
- *    [ in] wr_data:  written data
+ *    [ in] tcm_dev:  the TouchComm device handle
+ *    [ in] wr_data:  data to write
  *    [ in] wr_len:   length of written data in bytes
  *
  * @return
- *    the number of data bytes retrieved;
- * otherwise, negative value, on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static inline int syna_tcm_write(struct tcm_dev *tcm_dev,
 	unsigned char *wr_data, unsigned int wr_len)
 {
-	struct syna_hw_interface *hw_if;
+	struct tcm_hw_platform *hw;
 
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
 		return -ERR_INVAL;
 	}
 
-	hw_if = tcm_dev->hw_if;
-	if (!hw_if->ops_write_data) {
-		LOGE("Invalid hw ops_write function\n");
+	hw = tcm_dev->hw;
+	if (!hw) {
+		LOGE("Invalid handle of hardware platform\n");
+		return -ERR_INVAL;
+	}
+
+	if (!hw->ops_write_data) {
+		LOGE("Invalid hardware write operation, ops_write_data is null\n");
 		return -ERR_NODEV;
 	}
 
-	return hw_if->ops_write_data(hw_if, wr_data, wr_len);
+	return hw->ops_write_data(hw, wr_data, wr_len);
 }
 
-/*
- * @section: CRC Calculation Function
+/**
+ * @brief   Abstract the operation of interrupt control.
  *
- * @brief: syna_tcm_crc6
- *         Return the crc-6 calculated
+ * @param
+ *    [ in] tcm_dev:  the TouchComm device handle
+ *    [ in] en:       '1' for enabling, and '0' for disabling
  *
- * @brief: syna_tcm_crc16
- *         Return the crc-16 calculated
+ * @return
+ *    0 if nothing to do, positive value in case of success, a negative value otherwise.
  */
+static inline int syna_tcm_enable_irq(struct tcm_dev *tcm_dev, bool en)
+{
+	int retval = 0;
+	struct tcm_hw_platform *hw;
+
+	if (!tcm_dev) {
+		LOGE("Invalid tcm device handle\n");
+		return -ERR_INVAL;
+	}
+
+	hw = tcm_dev->hw;
+	if (!hw) {
+		LOGE("Invalid handle of hardware platform\n");
+		return -ERR_INVAL;
+	}
+
+	if (!hw->ops_enable_attn)
+		return 0;
+
+	syna_pal_mutex_lock(&tcm_dev->irq_en_mutex);
+	retval = hw->ops_enable_attn(hw, en);
+	syna_pal_mutex_unlock(&tcm_dev->irq_en_mutex);
+
+	return retval;
+}
+
 
 /*
- * syna_tcm_crc6()
- *
- * Calculate the crc-6 with polynomial and return
+ * Helpers of CRC calculations
+ */
+
+/**
+ * @brief   Calculate the crc-6 with polynomial
  *
  * @param
  *    [ in] p:    byte array for the calculation
@@ -1402,10 +1273,8 @@ static inline unsigned char syna_tcm_crc6(unsigned char *p,
 
 	return (unsigned char)((r >> 2) & 0x3F);
 }
-/*
- * syna_tcm_crc16()
- *
- * Calculate the crc-16 for TouchCom packet.
+/**
+ * @brief   Calculate the crc-16
  *
  * @param
  *    [ in] p:   byte array for the calculation
@@ -1463,5 +1332,9 @@ static inline unsigned short syna_tcm_crc16(unsigned char *p,
 	return r;
 }
 
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* end of _SYNAPTICS_TOUCHCOM_CORE_DEV_H_ */

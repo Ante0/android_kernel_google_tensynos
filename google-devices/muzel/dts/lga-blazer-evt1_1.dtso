@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * blazer device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "lga-blazer-pinctrl.dtsi"
+#include "lga-muzel-common.dtsi"
+#include "lga-blazer-common.dtsi"
+#include "lga-blazer-camera.dtsi"
+#include "lga-blazer-evt1-charging.dtsi"
+#include "google-base/platform/lga-uwb-u100-power-switch.dtsi"
+
+/ {
+	board_id = <0x70403>;
+	board_rev = <0x010100>;
+	fragment@boardbase {
+		target-path = "/";
+		__overlay__ {
+			model = "BLAZER EVT 1.1 based on LGA";
+			compatible = "google,lga-blazer", "google,lga";
+		};
+	};
+};
+

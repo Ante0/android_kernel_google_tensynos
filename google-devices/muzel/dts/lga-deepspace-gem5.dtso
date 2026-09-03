@@ -1,0 +1,388 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Challengerdeep device tree source
+ *
+ * Copyright 2022 Google LLC
+ */
+
+/dts-v1/;
+/plugin/;
+
+#define BATTERY_EEPROM_1K
+
+/* Use deepspace GPIO configs. */
+#include "lga-deepspace-pinctrl.dtsi"
+#include "lga-deepspace-coresight-disabled.dtsi"
+/ {
+	board_id = <0x78000>;
+	board_rev = <0x00010001>;
+	fragment@boardbase {
+		target-path = "/";
+		__overlay__ {
+			model = "EMULATOR board based on LGA";
+			compatible = "google,lga", "google,lga-emulator";
+		};
+	};
+};
+
+&memss_level_aggr_fmc_irq_h1_0 {
+	status = "disabled";
+};
+
+&memss_level_aggr_fmc_irq_h1_1 {
+	status = "disabled";
+};
+
+&memss_level_aggr_fmc_irq_h1_2 {
+	status = "disabled";
+};
+
+&memss_level_aggr_fmc_irq_h1_3 {
+	status = "disabled";
+};
+
+/*
+ * Disable ISPFE, ISPBE and GSW nodes as GEM5 platform does not support these sswrps.
+ * Also disable GIA nodes associated with these sswrps for the same reason.
+ */
+
+&sswrp_ispfe {
+	status = "disabled";
+};
+
+&ispfe_level_aggr_10_intr {
+	status = "disabled";
+};
+
+&ispfe_level_aggr_3_intr {
+	status = "disabled";
+};
+
+&ispfe_pulse_aggr_5_intr {
+	status = "disabled";
+};
+
+&ispfe_level_aggr_5_intr {
+	status = "disabled";
+};
+
+&ispfe_pulse_aggr_6_intr {
+	status = "disabled";
+};
+
+&ispfe_pulse_aggr_7_intr {
+	status = "disabled";
+};
+
+&ispfe_level_aggr_11_intr {
+	status = "disabled";
+};
+
+&ispfe_level_aggr_12_intr {
+	status = "disabled";
+};
+
+&sswrp_ispbe {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ap {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_0 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_1 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_2 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_3 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_4 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_5 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_6 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_7 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_8 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_9 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_10 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_11 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_12 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_13 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_14 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_15 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_16 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_17 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_18 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_19 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_20 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_error_21 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_0 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_1 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_2 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_3 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_4 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_5 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_6 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_7 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_8 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_9 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_10 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_11 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_12 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_13 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_14 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_15 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_16 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_17 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_18 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_19 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_20 {
+	status = "disabled";
+};
+
+&ispbe_level_aggr_ita_update_21 {
+	status = "disabled";
+};
+
+&sswrp_gsw {
+	status = "disabled";
+};
+
+&gsw_level_aggr_01_intr {
+	status = "disabled";
+};
+
+&chosen {
+	bootargs = "earlycon=uart8250,mmio32,0xdb62000 norandmaps ro androidboot.force_normal_boot=1 loglevel=8 init=/init console=ttyS0,12500000n8 8250.nr_uarts=4 androidboot.boot_devices=3c400000.ufs printk.devkmsg=on firmware_class.path=/vendor/firmware fw_devlink=rpm androidboot.first_stage_console=1 androidboot.hardware.platform=gem5 androidboot.selinux=permissive pvrsrvkm.FabricCoherencyOverride=0";
+	/* hardcode rng seed for gem5 */
+	rng-seed = "deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef /
+		    deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef /
+		    deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef";
+};
+
+&gpu {
+	pre-silicon;
+	virtual-platform;
+};
+
+&gdmc_ap_non_secure_req_mba_client_2 {
+	status = "okay";
+};
+
+&gdmc_ap_non_secure_resp_mba_client_3 {
+	status = "okay";
+};
+
+&gdmc_ap_critical_req_mba_client_4 {
+	status = "okay";
+};
+
+&gdmc_ap_critical_resp_mba_client_5 {
+	status = "okay";
+};
+
+&gdmc_ap1_req_mba_client_6 {
+	status = "okay";
+};
+
+&gdmc_ap1_resp_mba_client_7 {
+	status = "okay";
+};
+
+&gdmc_ap2_req_mba_client_8 {
+	status = "okay";
+};
+
+&gdmc_ap2_resp_mba_client_9 {
+	status = "okay";
+};
+
+&gdmc_ap3_req_mba_client_10 {
+	status = "okay";
+};
+
+&gdmc_ap3_resp_mba_client_11 {
+	status = "okay";
+};
+
+&goog_mba_aggr_gdmc {
+	status = "okay";
+};
+
+&goog_mba_aggr_gdmc_crit {
+	status = "okay";
+};
+
+&goog_mba_gdmc_iface {
+	status = "okay";
+};
+
+/ {
+	fragment@fixed-clock {
+		target-path = "/";
+		__overlay__ {
+			clk_200mhz: clk_200mhz {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <200000000>;
+			};
+		};
+	};
+};
+
+&lsion_cli16_uart {
+	clocks = <&clk_200mhz>;
+	clock-names = "baudclk";
+	pinctrl-0 = <&cli16_uart_conf>;
+	pinctrl-1 = <&cli16_uart_conf>;
+};
+
+&ufs {
+	google,skip-ufs-phy-init;
+};
+
+&cpm_ap_ns_req_mba_client_0 {
+	status = "okay";
+};
+
+&cpm_ap_ns_resp_mba_client_1 {
+	status = "okay";
+};
+
+&goog_mba_cpm_iface {
+	status = "okay";
+};
+
+&amb_smmu {
+	status = "disabled";
+};
+
+&gdmc_pulse_aggr_dhub_irq {
+	status = "disabled";
+};
+
+&gdmc_level_aggr_0_intr {
+	status = "disabled";
+};

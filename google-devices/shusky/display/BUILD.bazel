@@ -1,32 +1,103 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
 
-kernel_module(
-    name = "drm_panel.google",
-    srcs = glob([
-        "**/*.c",
-        "**/*.h",
-    ]) + [
-        "Kbuild",
-        "//private/google-modules/display/common:headers",
-        "//private/google-modules/display/samsung:headers",
-        "//private/google-modules/display/samsung/include:headers",
-        "//private/google-modules/soc/gs:gs_soc_headers",
+package(default_visibility = [
+    "//private/devices/google/shusky:__subpackages__",
+])
+
+ddk_module(
+    name = "panel-google-bigsurf",
+    srcs = [
+        "panel-google-bigsurf.c",
     ],
-    outs = [
-        # keep sorted
-        "panel-google-bigsurf.ko",
-        "panel-google-hk3.ko",
-        "panel-google-shoreline.ko",
+    out = "panel-google-bigsurf.ko",
+    copts = [
+        "-Werror",
     ],
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
     ],
     deps = [
-        "//private/google-modules/display/samsung:display.samsung",
-        "//private/google-modules/soc/gs:gs_soc_module",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common:ddk_headers",
+        "//private/google-modules/display/common/gs_drm:gs-drm-connector",
+        "//private/google-modules/display/samsung:exynos-drm",
+        "//private/google-modules/display/samsung:headers",
+        "//private/google-modules/display/samsung/panel:panel-samsung-drv",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-google-hk3",
+    srcs = [
+        "panel-google-hk3.c",
+    ],
+    out = "panel-google-hk3.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common:ddk_headers",
+        "//private/google-modules/display/common/gs_drm:gs-drm-connector",
+        "//private/google-modules/display/common/gs_panel:gs-panel",
+        "//private/google-modules/display/samsung:exynos-drm",
+        "//private/google-modules/display/samsung:headers",
+        "//private/google-modules/display/samsung/panel:panel-common",
+        "//private/google-modules/display/samsung/panel:panel-samsung-drv",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-google-shoreline",
+    srcs = [
+        "panel-google-shoreline.c",
+    ],
+    out = "panel-google-shoreline.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common:ddk_headers",
+        "//private/google-modules/display/common/gs_drm:gs-drm-connector",
+        "//private/google-modules/display/samsung:exynos-drm",
+        "//private/google-modules/display/samsung:headers",
+        "//private/google-modules/display/samsung/panel:panel-common",
+        "//private/google-modules/display/samsung/panel:panel-samsung-drv",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-gs-hk3",
+    srcs = [
+        "panel-gs-hk3.c",
+    ],
+    out = "panel-gs-hk3.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common:ddk_headers",
+        "//private/google-modules/display/samsung:headers",
+        "//private/google-modules/soc/gs:headers",
     ],
 )

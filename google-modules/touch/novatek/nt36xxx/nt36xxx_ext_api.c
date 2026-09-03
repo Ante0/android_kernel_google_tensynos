@@ -76,7 +76,7 @@ uint32_t playback_addr;
 uint8_t  playback_enabled;
 uint8_t  grip_level;
 
-ssize_t nvt_check_api_cmd_result(uint16_t cmd_test_bit, uint16_t pattern)
+static ssize_t nvt_check_api_cmd_result(uint16_t cmd_test_bit, uint16_t pattern)
 {
 	uint8_t spi_buf[3] = {0}, shift = 0;
 	uint16_t result;
@@ -94,7 +94,7 @@ ssize_t nvt_check_api_cmd_result(uint16_t cmd_test_bit, uint16_t pattern)
 	return 0;
 }
 
-ssize_t nvt_get_api_status(uint16_t cmd_get_bit)
+static ssize_t nvt_get_api_status(uint16_t cmd_get_bit)
 {
 	uint8_t spi_buf[3] = {0}, shift = 0;
 	uint16_t status;
@@ -683,7 +683,7 @@ static ssize_t nvt_sw_reset_store(struct device *dev,
 	if (mutex_lock_interruptible(&ts->lock))
 		return -ERESTARTSYS;
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	nvt_clear_fw_reset_state();
 	nvt_bootloader_reset();
 	if (nvt_check_fw_reset_state(RESET_STATE_NORMAL_RUN)) {
@@ -693,7 +693,7 @@ static ssize_t nvt_sw_reset_store(struct device *dev,
 	}
 #else
 	nvt_update_firmware(get_fw_name(), 1);
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	mutex_unlock(&ts->lock);
 
 	NVT_LOGD("--\n");
@@ -720,7 +720,7 @@ static ssize_t nvt_sensing_store(struct device *dev,
 	switch (mode) {
 	case CMD_ENABLE:
 		NVT_LOG("Enable Sensing Mode\n");
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 		nvt_clear_fw_reset_state();
 		nvt_bootloader_reset();
 		ret = nvt_check_fw_reset_state(RESET_STATE_NORMAL_RUN);
@@ -731,7 +731,7 @@ static ssize_t nvt_sensing_store(struct device *dev,
 		}
 #else
 		ret = nvt_update_firmware(get_fw_name(), 1);
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 		break;
 	case CMD_DISABLE:
 		NVT_LOG("Disable Sensing Mode\n");
@@ -997,7 +997,7 @@ static ssize_t nvt_sync_freq_show(struct device *dev,
 	return ret;
 }
 
-void cal_uniformity(uint8_t *arr, uint32_t size)
+static void cal_uniformity(uint8_t *arr, uint32_t size)
 {
 	uint8_t is_right_most, is_bottom;
 	uint16_t res, i;
@@ -1090,20 +1090,20 @@ static int32_t nvt_get_cc_uniformity(void)
 
 	if (mutex_lock_interruptible(&ts->lock))
 		return -ERESTARTSYS;
-#if !SPI_FLASH
+#if !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	nvt_update_firmware(get_mp_fw_name(), 1);
-#endif // !SPI_FLASH
+#endif // !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	if (nvt_get_fw_info()) {
 		mutex_unlock(&ts->lock);
 		NVT_ERR("get fw info failed!\n");
 		return -EAGAIN;
 	}
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
     if (nvt_check_fw_reset_state(RESET_STATE_NORMAL_RUN)) {
 #else
     if (nvt_check_fw_reset_state(RESET_STATE_REK)) {
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 		mutex_unlock(&ts->lock);
 		NVT_ERR("check fw reset state failed!\n");
 		return -EAGAIN;
@@ -1150,7 +1150,7 @@ static int32_t nvt_get_cc_uniformity(void)
 		     cc_uniformity_spi_buf_size);
 
 	nvt_change_mode(NORMAL_MODE);
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	nvt_clear_fw_reset_state();
 	nvt_bootloader_reset();
 	if (nvt_check_fw_reset_state(RESET_STATE_NORMAL_RUN)) {
@@ -1160,7 +1160,7 @@ static int32_t nvt_get_cc_uniformity(void)
 	}
 #else
 	nvt_update_firmware(get_fw_name(), 1);
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	mutex_unlock(&ts->lock);
 
 	cal_uniformity(cc_uniformity_spi_buf, cc_uniformity_spi_buf_size);
@@ -1988,7 +1988,7 @@ static ssize_t nvt_dttw_detection_window_edge_store(struct device *dev,
 static ssize_t nvt_fw_history_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	NVT_LOGD("++\n");
 	if (mutex_lock_interruptible(&ts->lock))
 		return -ERESTARTSYS;
@@ -2020,10 +2020,10 @@ static ssize_t nvt_fw_history_show(struct device *dev,
 	mutex_unlock(&ts->lock);
 	NVT_LOGD("--\n");
 	return idx;
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 }
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 static ssize_t nvt_mp_settings_mode_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -2078,7 +2078,7 @@ static ssize_t nvt_mp_settings_mode_store(struct device *dev,
 		return count;
 	}
 }
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 
 static ssize_t nvt_selftest_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -2134,9 +2134,9 @@ static DEVICE_ATTR_RW(nvt_dttw_tap_gap_duration_min);
 static DEVICE_ATTR_RW(nvt_dttw_motion_tolerance);
 static DEVICE_ATTR_RW(nvt_dttw_detection_window_edge);
 static DEVICE_ATTR_RO(nvt_fw_history);
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 static DEVICE_ATTR_RW(nvt_mp_settings_mode);
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 static DEVICE_ATTR_RO(nvt_selftest);
 
 static struct attribute *nvt_api_attrs[] = {
@@ -2174,9 +2174,9 @@ static struct attribute *nvt_api_attrs[] = {
 	&dev_attr_nvt_dttw_motion_tolerance.attr,
 	&dev_attr_nvt_dttw_detection_window_edge.attr,
 	&dev_attr_nvt_fw_history.attr,
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	&dev_attr_nvt_mp_settings_mode.attr,
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	&dev_attr_nvt_selftest.attr,
 	NULL
 };
@@ -2457,7 +2457,6 @@ exit_nvt_touch_sysfs_init:
 void nvt_extra_api_deinit(void)
 {
 	NVT_LOGD("++\n");
-	devm_device_remove_group(&ts->input_dev->dev, &nvt_api_attribute_group);
 	sysfs_remove_link(ts->input_dev->dev.kobj.parent, NVT_TOUCH_SYSFS_LINK);
 	devm_kfree(&ts->client->dev, ts->heatmap_spi_buf);
 	ts->heatmap_spi_buf = NULL;

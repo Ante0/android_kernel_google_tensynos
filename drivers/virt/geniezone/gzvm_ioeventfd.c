@@ -7,7 +7,7 @@
 #include <linux/file.h>
 #include <linux/syscalls.h>
 #include <linux/gzvm.h>
-#include <linux/gzvm_drv.h>
+#include <linux/soc/mediatek/gzvm_drv.h>
 #include <linux/wait.h>
 #include <linux/poll.h>
 #include <linux/module.h>
@@ -23,13 +23,13 @@ struct gzvm_ioevent {
 };
 
 /**
- * ioeventfd_check_collision() - Check collison assumes gzvm->slots_lock held.
+ * ioeventfd_check_collision() - Check collision assumes gzvm->ioevent_lock held.
  * @gzvm: Pointer to gzvm.
  * @p: Pointer to gzvm_ioevent.
  *
  * Return:
- * * true			- collison found
- * * false			- no collison
+ * * true			- collision found
+ * * false			- no collision
  */
 static bool ioeventfd_check_collision(struct gzvm *gzvm, struct gzvm_ioevent *p)
 {
@@ -115,8 +115,7 @@ static int gzvm_deassign_ioeventfd(struct gzvm *gzvm,
 
 	wildcard = !(args->flags & GZVM_IOEVENTFD_FLAG_DATAMATCH);
 
-	mutex_lock(&gzvm->lock);
-
+	mutex_lock(&gzvm->ioevent_lock);
 	list_for_each_entry_safe(p, tmp, &gzvm->ioevents, list) {
 		if (p->evt_ctx != evt_ctx  ||
 		    p->addr != args->addr  ||
@@ -132,7 +131,7 @@ static int gzvm_deassign_ioeventfd(struct gzvm *gzvm,
 		break;
 	}
 
-	mutex_unlock(&gzvm->lock);
+	mutex_unlock(&gzvm->ioevent_lock);
 
 	/* got in the front of this function */
 	eventfd_ctx_put(evt_ctx);
@@ -165,14 +164,15 @@ static int gzvm_assign_ioeventfd(struct gzvm *gzvm, struct gzvm_ioeventfd *args)
 		evt->wildcard = true;
 	}
 
+	mutex_lock(&gzvm->ioevent_lock);
 	if (ioeventfd_check_collision(gzvm, evt)) {
 		ret = -EEXIST;
+		mutex_unlock(&gzvm->ioevent_lock);
 		goto err_free;
 	}
 
-	mutex_lock(&gzvm->lock);
 	list_add_tail(&evt->list, &gzvm->ioevents);
-	mutex_unlock(&gzvm->lock);
+	mutex_unlock(&gzvm->ioevent_lock);
 
 	return 0;
 
@@ -259,18 +259,33 @@ bool gzvm_ioevent_write(struct gzvm_vcpu *vcpu, __u64 addr, int len,
 {
 	struct gzvm_ioevent *e;
 
+	mutex_lock(&vcpu->gzvm->ioevent_lock);
 	list_for_each_entry(e, &vcpu->gzvm->ioevents, list) {
 		if (gzvm_ioevent_in_range(e, addr, len, val)) {
-			eventfd_signal(e->evt_ctx, 1);
+			eventfd_signal(e->evt_ctx);
+			mutex_unlock(&vcpu->gzvm->ioevent_lock);
 			return true;
 		}
 	}
+
+	mutex_unlock(&vcpu->gzvm->ioevent_lock);
 	return false;
 }
 
 int gzvm_init_ioeventfd(struct gzvm *gzvm)
 {
 	INIT_LIST_HEAD(&gzvm->ioevents);
+	mutex_init(&gzvm->ioevent_lock);
 
 	return 0;
+}
+
+void gzvm_vm_ioeventfd_release(struct gzvm *gzvm)
+{
+	struct gzvm_ioevent *p, *tmp;
+
+	mutex_lock(&gzvm->ioevent_lock);
+	list_for_each_entry_safe(p, tmp, &gzvm->ioevents, list)
+		gzvm_ioevent_release(p);
+	mutex_unlock(&gzvm->ioevent_lock);
 }

@@ -2739,14 +2739,18 @@
 				reg-addr-bitwidth = <8>;
 				reg-value-bitwidth = <8>;
 
-				/* Power Management hibernation (deep sleep) */
-				/* 1 : enable, 0 : disable */
-				pm-hibernation = <0>;
-
 				/* GPIOs */
 				/* HW_ENABLE GPP8[2] */
 				enable-gpios =
 					<&gpp8 2 GPIO_ACTIVE_HIGH>;
+
+				power-up-seqs = "enable";
+				power-up-seq-types = "gpio";
+				power-up-seq-delays-us = <0>;
+
+				power-down-seqs = "enable";
+				power-down-seq-types = "gpio";
+				power-down-seq-delays-us = <0>;
 			};
 
 			tof0: tof@0 {

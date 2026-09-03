@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+#
+# RDO experimental driver
+#
+menuconfig RDO_EXPERIMENTAL
+	bool "RDO experimental"
+	depends on ARCH_GOOGLE
+	help
+	  Say Y here to get to see options for rdo expermental drivers.
+	  This option alone does not add any kernel code.
+
+	  If you say N, all options in this submenu will be skipped and disabled.
+
+if RDO_EXPERIMENTAL
+
+config RDO_CPUIDLE_WFI_ONLY
+	tristate "RDO_CPUIDLE_WFI_ONLY"
+	depends on CPU_IDLE
+	help
+	  This driver is to test a cpuidle driver with wfi.
+
+config RDO_EXPERIMENTAL_MBA
+	tristate "Old and experimental MBA driver."
+	help
+	  Old and experimental MBA driver.
+
+config RDO_EXPERIMENTAL_PMIC
+	tristate "PMIC mock driver."
+	help
+	  PMIC mock driver for support of reboot.
+
+config RDO_EXPERIMENTAL_APT
+	tristate "APT driver"
+	help
+	  Apt driver.
+
+config RDO_EXPERIMENTAL_MANUAL_LPCM
+	tristate "LPCM driver with manual sequence"
+	help
+	  LPCM driver with manual defined setup operations in device tree.
+	  This is a hack for emulation platforms that does not yet have CPM
+	  to enable IPs.
+	  If unsure select "N".
+
+endif # RDO_EXPERIMENTAL

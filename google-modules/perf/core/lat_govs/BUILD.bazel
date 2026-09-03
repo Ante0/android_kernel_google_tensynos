@@ -1,0 +1,150 @@
+# SPDX-License-Identifier: MIT
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load(
+    "@kleaf//build/kernel/kleaf:kernel.bzl",
+    "ddk_headers",
+    "ddk_module",
+)
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "gs_governor_utils",
+    srcs = [
+        "gs_governor_utils.c",
+    ],
+    out = "gs_governor_utils.ko",
+    hdrs = [
+        "gs_governor_utils.h",
+        "gs_lat_governors_trace.h",
+    ],
+    includes = ["."],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/gs_perf_mon",
+    ],
+)
+
+ddk_module(
+    name = "cmefreq_gov",
+    srcs = [
+        "cmefreq_gov.c",
+    ],
+    out = "cmefreq_gov.ko",
+    defconfig = "cmefreq_gov_enabled_defconfig",
+    kconfig = "cmefreq_gov_Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":gs_governor_utils",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/core/gs_perf_domain:perf_domain",
+        "//private/google-modules/perf/core/gs_perf_mon",
+    ],
+)
+
+ddk_headers(
+    name = "gs_governor_memlat_api",
+    hdrs = ["include/perf/core/gs_governor_memlat.h"],
+    includes = ["include"],
+    kconfigs = ["gs_governor_memlat_Kconfig"],
+    visibility = ["//visibility:private"],
+)
+
+ddk_headers(
+    name = "gs_governor_memlat_stub",
+    hdrs = [":gs_governor_memlat_api"],
+    defconfigs = ["gs_governor_memlat_disabled_defconfig"],
+    visibility = ["//visibility:private"],
+)
+
+ddk_module(
+    name = "gs_governor_memlat_real",
+    srcs = [
+        "gs_governor_memlat.c",
+    ],
+    out = "gs_governor_memlat.ko",
+    hdrs = [":gs_governor_memlat_api"],
+    defconfig = "gs_governor_memlat_enabled_defconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    visibility = ["//visibility:private"],
+    deps = [
+        ":gs_governor_utils",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/core/gs_perf_domain:perf_domain",
+        "//private/google-modules/perf/core/gs_perf_mon",
+    ],
+)
+
+ddk_headers(
+    name = "gs_governor_dsulat_api",
+    hdrs = ["include/perf/core/gs_governor_dsulat.h"],
+    includes = ["include"],
+    kconfigs = ["gs_governor_dsulat_Kconfig"],
+    visibility = ["//visibility:private"],
+)
+
+ddk_headers(
+    name = "gs_governor_dsulat_stub",
+    hdrs = [":gs_governor_dsulat_api"],
+    defconfigs = ["gs_governor_dsulat_disabled_defconfig"],
+    visibility = ["//visibility:private"],
+)
+
+ddk_module(
+    name = "gs_governor_dsulat_real",
+    srcs = [
+        "gs_governor_dsulat.c",
+    ],
+    out = "gs_governor_dsulat.ko",
+    hdrs = [":gs_governor_dsulat_api"],
+    defconfig = "gs_governor_dsulat_enabled_defconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    visibility = ["//visibility:private"],
+    deps = [
+        ":gs_governor_utils",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/core/gs_perf_domain:perf_domain",
+        "//private/google-modules/perf/core/gs_perf_mon",
+    ],
+)
+
+bool_flag(
+    name = "enable_lat_govs",
+    build_setting_default = False,
+    visibility = ["//visibility:private"],
+)
+
+config_setting(
+    name = "gs_governor_dsulat_enabled",
+    flag_values = {":enable_lat_govs": "1"},
+    visibility = ["//visibility:private"],
+)
+
+alias(
+    name = "gs_governor_dsulat",
+    actual = select({
+        ":gs_governor_dsulat_enabled": ":gs_governor_dsulat_real",
+        "//conditions:default": ":gs_governor_dsulat_stub",
+    }),
+)
+
+config_setting(
+    name = "gs_governor_memlat_enabled",
+    flag_values = {":enable_lat_govs": "1"},
+    visibility = ["//visibility:private"],
+)
+
+alias(
+    name = "gs_governor_memlat",
+    actual = select({
+        ":gs_governor_memlat_enabled": ":gs_governor_memlat_real",
+        "//conditions:default": ":gs_governor_memlat_stub",
+    }),
+)

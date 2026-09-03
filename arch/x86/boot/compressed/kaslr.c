@@ -119,13 +119,8 @@ char *skip_spaces(const char *str)
 #include "../../../../lib/ctype.c"
 #include "../../../../lib/cmdline.c"
 
-enum parse_mode {
-	PARSE_MEMMAP,
-	PARSE_EFI,
-};
-
 static int
-parse_memmap(char *p, u64 *start, u64 *size, enum parse_mode mode)
+parse_memmap(char *p, u64 *start, u64 *size)
 {
 	char *oldp;
 
@@ -148,29 +143,11 @@ parse_memmap(char *p, u64 *start, u64 *size, enum parse_mode mode)
 		*start = memparse(p + 1, &p);
 		return 0;
 	case '@':
-		if (mode == PARSE_MEMMAP) {
-			/*
-			 * memmap=nn@ss specifies usable region, should
-			 * be skipped
-			 */
-			*size = 0;
-		} else {
-			u64 flags;
-
-			/*
-			 * efi_fake_mem=nn@ss:attr the attr specifies
-			 * flags that might imply a soft-reservation.
-			 */
-			*start = memparse(p + 1, &p);
-			if (p && *p == ':') {
-				p++;
-				if (kstrtoull(p, 0, &flags) < 0)
-					*size = 0;
-				else if (flags & EFI_MEMORY_SP)
-					return 0;
-			}
-			*size = 0;
-		}
+		/*
+		 * memmap=nn@ss specifies usable region, should
+		 * be skipped
+		 */
+		*size = 0;
 		fallthrough;
 	default:
 		/*
@@ -185,7 +162,7 @@ parse_memmap(char *p, u64 *start, u64 *size, enum parse_mode mode)
 	return -EINVAL;
 }
 
-static void mem_avoid_memmap(enum parse_mode mode, char *str)
+static void mem_avoid_memmap(char *str)
 {
 	static int i;
 
@@ -200,7 +177,7 @@ static void mem_avoid_memmap(enum parse_mode mode, char *str)
 		if (k)
 			*k++ = 0;
 
-		rc = parse_memmap(str, &start, &size, mode);
+		rc = parse_memmap(str, &start, &size);
 		if (rc < 0)
 			break;
 		str = k;
@@ -281,7 +258,7 @@ static void handle_mem_options(void)
 			break;
 
 		if (!strcmp(param, "memmap")) {
-			mem_avoid_memmap(PARSE_MEMMAP, val);
+			mem_avoid_memmap(val);
 		} else if (IS_ENABLED(CONFIG_X86_64) && strstr(param, "hugepages")) {
 			parse_gb_huge_pages(param, val);
 		} else if (!strcmp(param, "mem")) {
@@ -295,8 +272,6 @@ static void handle_mem_options(void)
 
 			if (mem_size < mem_limit)
 				mem_limit = mem_size;
-		} else if (!strcmp(param, "efi_fake_mem")) {
-			mem_avoid_memmap(PARSE_EFI, val);
 		}
 	}
 
@@ -668,10 +643,37 @@ static bool process_mem_region(struct mem_vector *region,
 		}
 	}
 #endif
-	return 0;
+	return false;
 }
 
 #ifdef CONFIG_EFI
+
+/*
+ * Only EFI_CONVENTIONAL_MEMORY and EFI_UNACCEPTED_MEMORY (if supported) are
+ * guaranteed to be free.
+ *
+ * Pick free memory more conservatively than the EFI spec allows: according to
+ * the spec, EFI_BOOT_SERVICES_{CODE|DATA} are also free memory and thus
+ * available to place the kernel image into, but in practice there's firmware
+ * where using that memory leads to crashes. Buggy vendor EFI code registers
+ * for an event that triggers on SetVirtualAddressMap(). The handler assumes
+ * that EFI_BOOT_SERVICES_DATA memory has not been touched by loader yet, which
+ * is probably true for Windows.
+ *
+ * Preserve EFI_BOOT_SERVICES_* regions until after SetVirtualAddressMap().
+ */
+static inline bool memory_type_is_free(efi_memory_desc_t *md)
+{
+	if (md->type == EFI_CONVENTIONAL_MEMORY)
+		return true;
+
+	if (IS_ENABLED(CONFIG_UNACCEPTED_MEMORY) &&
+	    md->type == EFI_UNACCEPTED_MEMORY)
+		    return true;
+
+	return false;
+}
+
 /*
  * Returns true if we processed the EFI memmap, which we prefer over the E820
  * table if it is available.
@@ -716,18 +718,7 @@ process_efi_entries(unsigned long minimum, unsigned long image_size)
 	for (i = 0; i < nr_desc; i++) {
 		md = efi_early_memdesc_ptr(pmap, e->efi_memdesc_size, i);
 
-		/*
-		 * Here we are more conservative in picking free memory than
-		 * the EFI spec allows:
-		 *
-		 * According to the spec, EFI_BOOT_SERVICES_{CODE|DATA} are also
-		 * free memory and thus available to place the kernel image into,
-		 * but in practice there's firmware where using that memory leads
-		 * to crashes.
-		 *
-		 * Only EFI_CONVENTIONAL_MEMORY is guaranteed to be free.
-		 */
-		if (md->type != EFI_CONVENTIONAL_MEMORY)
+		if (!memory_type_is_free(md))
 			continue;
 
 		if (efi_soft_reserve_enabled() &&

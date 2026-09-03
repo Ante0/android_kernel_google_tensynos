@@ -17,16 +17,17 @@ struct gs_panel_register {
 	u8 address;
 	int size;
 	bool read_individually;
-	const struct gs_dsi_cmdset *pre_read_cmdset;
-	const struct gs_dsi_cmdset *post_read_cmdset;
+	struct gs_dsi_cmdset *pre_read_cmdset;
+	struct gs_dsi_cmdset *post_read_cmdset;
+	u32 revision;
 };
 
 struct gs_panel_registers_desc {
 	int register_count;
-	const struct gs_panel_register *registers;
+	struct gs_panel_register *registers;
 
-	const struct gs_dsi_cmdset *global_pre_read_cmdset;
-	const struct gs_dsi_cmdset *global_post_read_cmdset;
+	struct gs_dsi_cmdset *global_pre_read_cmdset;
+	struct gs_dsi_cmdset *global_post_read_cmdset;
 };
 
 struct gs_panel_test;
@@ -66,15 +67,16 @@ struct gs_panel_query_funcs {
 };
 
 struct gs_panel_test_desc {
-	const struct gs_panel_test_funcs *test_funcs;
-	const struct gs_panel_registers_desc *regs_desc;
-	const struct gs_panel_query_funcs *query_desc;
+	struct gs_panel_test_funcs *test_funcs;
+	struct gs_panel_registers_desc *regs_desc;
+	struct gs_panel_query_funcs *query_desc;
 };
 
 struct gs_panel_test {
 	struct gs_panel *ctx;
 	struct device *dev;
-	const struct gs_panel_test_desc *test_desc;
+	struct gs_panel_test_desc *test_desc;
+	struct dentry *debugfs_root;
 };
 
 /**
@@ -88,8 +90,35 @@ struct gs_panel_test {
 int gs_panel_read_register_value(struct gs_panel_test *test, const struct gs_panel_register *reg,
 				 u8 *value);
 
+int add_new_registers_to_debugfs(struct gs_panel_test *test, struct dentry *test_root);
+
+int gs_panel_test_init_helper(struct gs_panel *ctx, struct gs_panel_test *test);
+int gs_panel_test_remove_helper(struct gs_panel_test *test);
 int gs_panel_test_common_init(struct platform_device *pdev, struct gs_panel_test *test);
 int gs_panel_test_common_remove(struct platform_device *pdev);
+
+struct array_to_value {
+	const u8 *array;
+	const int value;
+	const u64 rev;
+};
+
+struct gs_panel_register_query {
+	const struct gs_panel_register *reg;
+	const struct array_to_value *map;
+	int map_size;
+	int default_result;
+};
+
+/**
+ * get_query_result_from_register() - gets the query result from register object
+ * @test: handle for gs_panel_test
+ * @query: register map describing the query
+ *
+ * Return: matching value from map array, or default_result
+ */
+int get_query_result_from_register(struct gs_panel_test *test,
+				   const struct gs_panel_register_query *query);
 
 #define GS_PANEL_REG(_name, _address)                         \
 	{                                                     \
@@ -106,9 +135,21 @@ int gs_panel_test_common_remove(struct platform_device *pdev);
 		.name = _name, .address = _address, .size = 1, .pre_read_cmdset = _cmdset \
 	}
 
+#define GS_PANEL_REG_WITH_POST_CMDS(_name, _address, _pre_cmdset, _post_cmdset)                \
+	{                                                                                      \
+		.name = _name, .address = _address, .size = 1, .pre_read_cmdset = _pre_cmdset, \
+		.post_read_cmdset = _post_cmdset                                               \
+	}
+
 #define GS_PANEL_REG_LONG_WITH_CMDS(_name, _address, _size, _cmdset)                          \
 	{                                                                                     \
 		.name = _name, .address = _address, .size = _size, .pre_read_cmdset = _cmdset \
+	}
+
+#define GS_PANEL_REG_LONG_WITH_POST_CMDS(_name, _address, _size, _pre_cmdset, _post_cmdset)        \
+	{                                                                                          \
+		.name = _name, .address = _address, .size = _size, .pre_read_cmdset = _pre_cmdset, \
+		.post_read_cmdset = _post_cmdset                                                   \
 	}
 
 #define gs_panel_test_has_debugfs_init(test)                             \

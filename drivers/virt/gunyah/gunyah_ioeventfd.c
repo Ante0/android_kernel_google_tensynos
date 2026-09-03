@@ -1,41 +1,43 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/eventfd.h>
+#include <linux/device/driver.h>
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/gunyah.h>
-#include <linux/gunyah_vm_mgr.h>
 #include <linux/module.h>
 #include <linux/printk.h>
 
 #include <uapi/linux/gunyah.h>
 
-struct gh_ioeventfd {
-	struct gh_vm_function_instance *f;
-	struct gh_vm_io_handler io_handler;
+struct gunyah_ioeventfd {
+	struct gunyah_vm_function_instance *f;
+	struct gunyah_vm_io_handler io_handler;
 
 	struct eventfd_ctx *ctx;
 };
 
-static int gh_write_ioeventfd(struct gh_vm_io_handler *io_dev, u64 addr, u32 len, u64 data)
+static int gunyah_write_ioeventfd(struct gunyah_vm_io_handler *io_dev, u64 addr,
+				  u32 len, u64 data)
 {
-	struct gh_ioeventfd *iofd = container_of(io_dev, struct gh_ioeventfd, io_handler);
+	struct gunyah_ioeventfd *iofd =
+		container_of(io_dev, struct gunyah_ioeventfd, io_handler);
 
-	eventfd_signal(iofd->ctx, 1);
+	eventfd_signal(iofd->ctx);
 	return 0;
 }
 
-static struct gh_vm_io_handler_ops io_ops = {
-	.write = gh_write_ioeventfd,
+static struct gunyah_vm_io_handler_ops io_ops = {
+	.write = gunyah_write_ioeventfd,
 };
 
-static long gh_ioeventfd_bind(struct gh_vm_function_instance *f)
+static long gunyah_ioeventfd_bind(struct gunyah_vm_function_instance *f)
 {
-	const struct gh_fn_ioeventfd_arg *args = f->argp;
-	struct gh_ioeventfd *iofd;
+	const struct gunyah_fn_ioeventfd_arg *args = f->argp;
+	struct gunyah_ioeventfd *iofd;
 	struct eventfd_ctx *ctx;
 	int ret;
 
@@ -43,7 +45,7 @@ static long gh_ioeventfd_bind(struct gh_vm_function_instance *f)
 		return -EINVAL;
 
 	/* All other flag bits are reserved for future use */
-	if (args->flags & ~GH_IOEVENTFD_FLAGS_DATAMATCH)
+	if (args->flags & ~GUNYAH_IOEVENTFD_FLAGS_DATAMATCH)
 		return -EINVAL;
 
 	/* must be natural-word sized, or 0 to ignore length */
@@ -63,7 +65,7 @@ static long gh_ioeventfd_bind(struct gh_vm_function_instance *f)
 		return -EINVAL;
 
 	/* ioeventfd with no length can't be combined with DATAMATCH */
-	if (!args->len && (args->flags & GH_IOEVENTFD_FLAGS_DATAMATCH))
+	if (!args->len && (args->flags & GUNYAH_IOEVENTFD_FLAGS_DATAMATCH))
 		return -EINVAL;
 
 	ctx = eventfd_ctx_fdget(args->fd);
@@ -81,7 +83,7 @@ static long gh_ioeventfd_bind(struct gh_vm_function_instance *f)
 
 	iofd->ctx = ctx;
 
-	if (args->flags & GH_IOEVENTFD_FLAGS_DATAMATCH) {
+	if (args->flags & GUNYAH_IOEVENTFD_FLAGS_DATAMATCH) {
 		iofd->io_handler.datamatch = true;
 		iofd->io_handler.len = args->len;
 		iofd->io_handler.data = args->datamatch;
@@ -89,7 +91,7 @@ static long gh_ioeventfd_bind(struct gh_vm_function_instance *f)
 	iofd->io_handler.addr = args->addr;
 	iofd->io_handler.ops = &io_ops;
 
-	ret = gh_vm_add_io_handler(f->ghvm, &iofd->io_handler);
+	ret = gunyah_vm_add_io_handler(f->ghvm, &iofd->io_handler);
 	if (ret)
 		goto err_io_dev_add;
 
@@ -102,29 +104,36 @@ err_eventfd:
 	return ret;
 }
 
-static void gh_ioevent_unbind(struct gh_vm_function_instance *f)
+static void gunyah_ioevent_unbind(struct gunyah_vm_function_instance *f)
 {
-	struct gh_ioeventfd *iofd = f->data;
+	struct gunyah_ioeventfd *iofd = f->data;
 
+	gunyah_vm_remove_io_handler(iofd->f->ghvm, &iofd->io_handler);
 	eventfd_ctx_put(iofd->ctx);
-	gh_vm_remove_io_handler(iofd->f->ghvm, &iofd->io_handler);
 	kfree(iofd);
 }
 
-static bool gh_ioevent_compare(const struct gh_vm_function_instance *f,
-				const void *arg, size_t size)
+static bool gunyah_ioevent_compare(const struct gunyah_vm_function_instance *f,
+				   const void *arg, size_t size)
 {
-	const struct gh_fn_ioeventfd_arg *instance = f->argp,
-					 *other = arg;
+	const struct gunyah_fn_ioeventfd_arg *instance = f->argp, *other = arg;
 
 	if (sizeof(*other) != size)
 		return false;
 
-	return instance->addr == other->addr;
+	if (instance->addr != other->addr || instance->len != other->len ||
+	    instance->flags != other->flags)
+		return false;
+
+	if ((instance->flags & GUNYAH_IOEVENTFD_FLAGS_DATAMATCH) &&
+	    instance->datamatch != other->datamatch)
+		return false;
+
+	return true;
 }
 
-DECLARE_GH_VM_FUNCTION_INIT(ioeventfd, GH_FN_IOEVENTFD, 3,
-				gh_ioeventfd_bind, gh_ioevent_unbind,
-				gh_ioevent_compare);
+DECLARE_GUNYAH_VM_FUNCTION_INIT(ioeventfd, GUNYAH_FN_IOEVENTFD, 3,
+				gunyah_ioeventfd_bind, gunyah_ioevent_unbind,
+				gunyah_ioevent_compare);
 MODULE_DESCRIPTION("Gunyah ioeventfd VM Function");
 MODULE_LICENSE("GPL");

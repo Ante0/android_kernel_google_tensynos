@@ -186,8 +186,8 @@ struct gs_tmu_data {
 	int limited_frequency;
 	int limited_threshold;
 	int limited_threshold_release;
-	int trip_switch_on;
-	int trip_control_temp;
+	int trip_id_switch_on;
+	int trip_id_control_temp;
 	struct exynos_pm_qos_request thermal_limit_request;
 	bool limited;
 	void __iomem *base;

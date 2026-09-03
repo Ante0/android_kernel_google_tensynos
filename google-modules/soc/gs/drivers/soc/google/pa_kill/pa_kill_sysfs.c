@@ -10,9 +10,6 @@
 extern struct kobject *vendor_mm_kobj;
 static struct kobject *pa_kill_parent_kobj;
 static struct kobject pa_kill_kobj;
-extern void reclaim_memory(unsigned long nr_demand_pages);
-extern void destroy_kill_threads(void);
-extern int create_kill_threads(unsigned int nr_thread);
 extern unsigned long extra_free_kb;
 extern atomic_long_t pa_kill_count;
 atomic_long_t pa_nr_attempt;
@@ -22,7 +19,6 @@ extern unsigned int killable_min_oom_adj;
 extern bool movable_allowable;
 extern unsigned int nr_kill_thread;
 
-extern void pa_set_cpu_affinity(void);
 extern cpumask_t pa_task_cpu_affinity;
 static DEFINE_MUTEX(sysfs_lock);
 

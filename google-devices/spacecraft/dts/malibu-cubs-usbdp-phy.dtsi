@@ -1,0 +1,65 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Cubs USBDP PHY device tree
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+
+ &usb_phy {
+	dp_tune_params {
+		/* RBR */
+		dp_tune_rbr_vs_0_pe_2 {
+			tune_value = <27 0 8>;
+		};
+		dp_tune_rbr_vs_0_pe_3 {
+			tune_value = <33 0 15>;
+		};
+		dp_tune_rbr_vs_1_pe_1 {
+			tune_value = <34 0 6>;
+		};
+		dp_tune_rbr_vs_1_pe_2 {
+			tune_value = <36 0 12>;
+		};
+		dp_tune_rbr_vs_2_pe_0 {
+			tune_value = <40 0 0>;
+		};
+		dp_tune_rbr_vs_2_pe_1 {
+			tune_value = <40 0 8>;
+		};
+
+		/* HBR */
+		dp_tune_hbr_vs_0_pe_2 {
+			tune_value = <27 0 8>;
+		};
+		dp_tune_hbr_vs_0_pe_3 {
+			tune_value = <33 0 15>;
+		};
+		dp_tune_hbr_vs_1_pe_1 {
+			tune_value = <34 0 8>;
+		};
+		dp_tune_hbr_vs_1_pe_2 {
+			tune_value = <34 0 14>;
+		};
+		dp_tune_hbr_vs_2_pe_0 {
+			tune_value = <42 0 2>;
+		};
+		dp_tune_hbr_vs_2_pe_1 {
+			tune_value = <38 0 10>;
+		};
+
+		/* HBR2 */
+		dp_tune_hbr2_vs_0_pe_2 {
+			tune_value = <28 0 9>;
+		};
+		dp_tune_hbr2_vs_0_pe_3 {
+			tune_value = <32 0 16>;
+		};
+		dp_tune_hbr2_vs_1_pe_1 {
+			tune_value = <34 0 4>;
+		};
+		dp_tune_hbr2_vs_2_pe_1 {
+			tune_value = <42 0 6>;
+		};
+	};
+};

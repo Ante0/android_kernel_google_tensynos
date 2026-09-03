@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: GPL-2.0
+
+# FignerprintCard
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_module(
+    name = "goodixfp",
+    srcs = [
+        "gf_spi.c",
+        "gf_spi.h",
+        "netlink.c",
+        "platform.c",
+    ],
+    out = "goodixfp.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+    ],
+)

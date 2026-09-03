@@ -350,10 +350,8 @@ int dit_enqueue_reg_value_with_ext_lock(u32 value, u32 offset)
 
 	if (dit_is_kicked_any() || !dc->init_done || !list_empty(&dc->reg_value_q)) {
 		reg_item = devm_kzalloc(dc->dev, sizeof(struct dit_reg_value_item), GFP_ATOMIC);
-		if (!reg_item) {
-			mif_err("set reg value 0x%08X at 0x%08X enqueue failed\n", value, offset);
+		if (!reg_item)
 			return -ENOMEM;
-		}
 
 		reg_item->value = value;
 		reg_item->offset = offset;
@@ -836,10 +834,8 @@ static int dit_fill_rx_dst_data_buffer(enum dit_desc_ring ring_num, unsigned int
 	if (unlikely(!desc_info->dst_skb_buf[ring_num])) {
 		buf_size = sizeof(struct sk_buff *) * desc_info->dst_desc_ring_len;
 		desc_info->dst_skb_buf[ring_num] = devm_kzalloc(dc->dev, buf_size, GFP_KERNEL);
-		if (!desc_info->dst_skb_buf[ring_num]) {
-			mif_err("dit dst[%d] skb container alloc failed\n", ring_num);
+		if (!desc_info->dst_skb_buf[ring_num])
 			return -ENOMEM;
-		}
 	}
 
 	dst_desc = desc_info->dst_desc_ring[ring_num];
@@ -1535,10 +1531,8 @@ static int dit_init_desc(enum dit_direction dir)
 		buf_size = sizeof(struct dit_src_desc) *
 			(desc_info->src_desc_ring_len + DIT_SRC_DESC_RING_LEN_PADDING);
 		buf = devm_kzalloc(dc->dev, buf_size, GFP_KERNEL);
-		if (!buf) {
-			mif_err("dit dir[%d] src desc alloc failed\n", dir);
+		if (!buf)
 			return -ENOMEM;
-		}
 		desc_info->src_desc_ring = buf;
 	}
 
@@ -1556,10 +1550,8 @@ static int dit_init_desc(enum dit_direction dir)
 	if (!desc_info->src_skb_buf) {
 		buf_size = sizeof(struct sk_buff *) * desc_info->src_desc_ring_len;
 		buf = devm_kzalloc(dc->dev, buf_size, GFP_KERNEL);
-		if (!buf) {
-			mif_err("dit dir[%d] src skb container alloc failed\n", dir);
+		if (!buf)
 			return -ENOMEM;
-		}
 		desc_info->src_skb_buf = buf;
 	}
 
@@ -1570,10 +1562,8 @@ static int dit_init_desc(enum dit_direction dir)
 		if (!desc_info->dst_desc_ring[ring_num]) {
 			buf_size = sizeof(struct dit_dst_desc) * desc_info->dst_desc_ring_len;
 			buf = devm_kzalloc(dc->dev, buf_size, GFP_KERNEL);
-			if (!buf) {
-				mif_err("dit dir[%d] dst desc[%d] alloc failed\n", dir, ring_num);
+			if (!buf)
 				return -ENOMEM;
-			}
 			desc_info->dst_desc_ring[ring_num] = buf;
 		}
 
@@ -1753,7 +1743,6 @@ static int dit_register_irq(struct platform_device *pdev)
 
 	dc->irq_buf = devm_kzalloc(dev, sizeof(int) * irq_len, GFP_KERNEL);
 	if (!dc->irq_buf) {
-		mif_err("dit irq buf alloc failed\n");
 		ret = -ENOMEM;
 		goto error;
 	}
@@ -2330,10 +2319,8 @@ int dit_create(struct platform_device *pdev)
 	}
 
 	dc = devm_kzalloc(dev, sizeof(struct dit_ctrl_t), GFP_KERNEL);
-	if (!dc) {
-		mif_err("dit ctrl alloc failed\n");
+	if (!dc)
 		return -ENOMEM;
-	}
 
 	dc->dev = dev;
 
@@ -2424,9 +2411,8 @@ static int dit_probe(struct platform_device *pdev)
 	return dit_create(pdev);
 }
 
-static int dit_remove(struct platform_device *pdev)
+static void dit_remove(struct platform_device *pdev)
 {
-	return 0;
 }
 
 static int dit_suspend(struct device *dev)

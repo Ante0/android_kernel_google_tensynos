@@ -119,6 +119,7 @@ static unsigned int daio_device_index(enum DAIOTYP type, struct hw *hw)
 		switch (type) {
 		case SPDIFOO:	return 0;
 		case SPDIFIO:	return 0;
+		case SPDIFI1:	return 1;
 		case LINEO1:	return 4;
 		case LINEO2:	return 7;
 		case LINEO3:	return 5;
@@ -684,7 +685,7 @@ static int daio_mgr_commit_write(struct daio_mgr *mgr)
 	return 0;
 }
 
-int daio_mgr_create(struct hw *hw, struct daio_mgr **rdaio_mgr)
+int daio_mgr_create(struct hw *hw, void **rdaio_mgr)
 {
 	int err, i;
 	struct daio_mgr *daio_mgr;
@@ -738,8 +739,9 @@ error1:
 	return err;
 }
 
-int daio_mgr_destroy(struct daio_mgr *daio_mgr)
+int daio_mgr_destroy(void *ptr)
 {
+	struct daio_mgr *daio_mgr = ptr;
 	unsigned long flags;
 
 	/* free daio input mapper list */

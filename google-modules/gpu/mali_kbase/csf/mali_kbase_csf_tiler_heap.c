@@ -525,7 +525,7 @@ static void delete_heap(struct kbase_csf_tiler_heap *heap)
 	WARN_ON(heap->chunk_count);
 	KBASE_TLSTREAM_AUX_TILER_HEAP_STATS(kctx->kbdev, kctx->id, heap->heap_id, 0, 0,
 					    heap->max_chunks, heap->chunk_size, 0,
-					    heap->target_in_flight, 0);
+					    heap->target_in_flight, 0, 0);
 
 	if (heap->buf_desc_reg) {
 		kbase_vunmap(kctx, &heap->buf_desc_map);
@@ -809,7 +809,7 @@ int kbase_csf_tiler_heap_init(struct kbase_context *const kctx, u32 const chunk_
 					    PFN_UP(heap->chunk_size * heap->max_chunks),
 					    PFN_UP(heap->chunk_size * heap->chunk_count),
 					    heap->max_chunks, heap->chunk_size, heap->chunk_count,
-					    heap->target_in_flight, 0);
+					    heap->target_in_flight, 0, buf_desc_va);
 
 #if defined(CONFIG_MALI_VECTOR_DUMP)
 	list_for_each_entry(chunk, &heap->chunks_list, link) {
@@ -1059,7 +1059,7 @@ int kbase_csf_tiler_heap_alloc_new_chunk(struct kbase_context *kctx, u64 gpu_hea
 					    PFN_UP(heap->chunk_size * heap->max_chunks),
 					    PFN_UP(heap->chunk_size * heap->chunk_count),
 					    heap->max_chunks, heap->chunk_size, heap->chunk_count,
-					    heap->target_in_flight, nr_in_flight);
+					    heap->target_in_flight, nr_in_flight, 0);
 	KBASE_TLSTREAM_TILER_HEAP_CHUNK_ALLOC(kctx->kbdev, kctx->id, heap, chunk->gpu_va);
 
 	mutex_unlock(&kctx->csf.tiler_heaps.lock);

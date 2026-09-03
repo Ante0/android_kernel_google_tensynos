@@ -3,19 +3,19 @@
  * Xilinx ZynqMP SHA Driver.
  * Copyright (c) 2022 Xilinx Inc.
  */
-#include <linux/cacheflush.h>
 #include <crypto/hash.h>
 #include <crypto/internal/hash.h>
 #include <crypto/sha3.h>
-#include <linux/crypto.h>
+#include <linux/cacheflush.h>
+#include <linux/cleanup.h>
 #include <linux/device.h>
 #include <linux/dma-mapping.h>
+#include <linux/err.h>
 #include <linux/firmware/xlnx-zynqmp.h>
-#include <linux/init.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/of_device.h>
+#include <linux/spinlock.h>
 #include <linux/platform_device.h>
 
 #define ZYNQMP_DMA_BIT_MASK		32U
@@ -43,6 +43,8 @@ struct zynqmp_sha_desc_ctx {
 
 static dma_addr_t update_dma_addr, final_dma_addr;
 static char *ubuf, *fbuf;
+
+static DEFINE_SPINLOCK(zynqmp_sha_lock);
 
 static int zynqmp_sha_init_tfm(struct crypto_shash *hash)
 {
@@ -125,7 +127,8 @@ static int zynqmp_sha_export(struct shash_desc *desc, void *out)
 	return crypto_shash_export(&dctx->fbk_req, out);
 }
 
-static int zynqmp_sha_digest(struct shash_desc *desc, const u8 *data, unsigned int len, u8 *out)
+static int __zynqmp_sha_digest(struct shash_desc *desc, const u8 *data,
+			       unsigned int len, u8 *out)
 {
 	unsigned int remaining_len = len;
 	int update_size;
@@ -160,6 +163,12 @@ static int zynqmp_sha_digest(struct shash_desc *desc, const u8 *data, unsigned i
 	return ret;
 }
 
+static int zynqmp_sha_digest(struct shash_desc *desc, const u8 *data, unsigned int len, u8 *out)
+{
+	scoped_guard(spinlock_bh, &zynqmp_sha_lock)
+		return __zynqmp_sha_digest(desc, data, len, out);
+}
+
 static struct zynqmp_sha_drv_ctx sha3_drv_ctx = {
 	.sha3_384 = {
 		.init = zynqmp_sha_init,
@@ -183,7 +192,6 @@ static struct zynqmp_sha_drv_ctx sha3_drv_ctx = {
 				     CRYPTO_ALG_NEED_FALLBACK,
 			.cra_blocksize = SHA3_384_BLOCK_SIZE,
 			.cra_ctxsize = sizeof(struct zynqmp_sha_tfm_ctx),
-			.cra_alignmask = 3,
 			.cra_module = THIS_MODULE,
 		}
 	}
@@ -239,20 +247,18 @@ err_shash:
 	return err;
 }
 
-static int zynqmp_sha_remove(struct platform_device *pdev)
+static void zynqmp_sha_remove(struct platform_device *pdev)
 {
 	sha3_drv_ctx.dev = platform_get_drvdata(pdev);
 
 	dma_free_coherent(sha3_drv_ctx.dev, ZYNQMP_DMA_ALLOC_FIXED_SIZE, ubuf, update_dma_addr);
 	dma_free_coherent(sha3_drv_ctx.dev, SHA3_384_DIGEST_SIZE, fbuf, final_dma_addr);
 	crypto_unregister_shash(&sha3_drv_ctx.sha3_384);
-
-	return 0;
 }
 
 static struct platform_driver zynqmp_sha_driver = {
 	.probe = zynqmp_sha_probe,
-	.remove = zynqmp_sha_remove,
+	.remove_new = zynqmp_sha_remove,
 	.driver = {
 		.name = "zynqmp-sha3-384",
 	},

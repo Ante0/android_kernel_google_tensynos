@@ -1,0 +1,173 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+#include <dt-bindings/interconnect/google,icc.h>
+#include <dt-bindings/interconnect/google,mbu.h>
+#include <dt-bindings/interconnect/google,mbu,irm.h>
+
+/ {
+	icc_gmc: icc_gmc {
+		compatible = "google,icc-gmc";
+		#interconnect-cells = <1>;
+		google,irm = <&irm>;
+		google,irm-commom-prop = <&irm_common>;
+	};
+
+	icc_ispfe: icc_ispfe {
+		compatible = "google,icc-ispfe";
+		#interconnect-cells = <1>;
+		google,irm = <&irm>;
+		google,irm-commom-prop = <&irm_common>;
+	};
+
+	icc_ispbe: icc_ispbe {
+		compatible = "google,icc-ispbe";
+		#interconnect-cells = <1>;
+		google,irm = <&irm>;
+		google,irm-commom-prop = <&irm_common>;
+	};
+
+	icc_gcv: icc_gcv {
+		compatible = "google,icc-gcv";
+		#interconnect-cells = <1>;
+		google,irm = <&irm>;
+		google,irm-commom-prop = <&irm_common>;
+	};
+
+	irm_common: irm_common {
+		num_vc = <5>;
+	};
+
+	irm: irm@5360000 {
+		compatible = "google,irm";
+		mboxes = <&goog_mba_cpm_iface>;
+		mba-dest-channel = <MBOX_DEST_CHAN_IRM>;
+		reg = <0x0 0xeb60000 0x0 0x17a8>;
+		google,irm-commom-prop = <&irm_common>;
+		client-prop = <0x1000 IRM_IDX_APC GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1080 IRM_IDX_DPU GOOGLE_ICC_UPDATE_SYNC>,
+			      <0x1100 IRM_IDX_PCIE_0 GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1180 IRM_IDX_PCIE_1 GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1200 IRM_IDX_UFS GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1280 IRM_IDX_USB GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1300 IRM_IDX_ISP_SET_0 GOOGLE_ICC_UPDATE_SYNC>,
+			      <0x1380 IRM_IDX_ISP_SET_1 GOOGLE_ICC_UPDATE_SYNC>,
+			      <0x1400 IRM_IDX_HSION GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1480 IRM_IDX_GPCA GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1500 IRM_IDX_GPU GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1580 IRM_IDX_CODEC_3P GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1600 IRM_IDX_G2D GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1680 IRM_IDX_GCV GOOGLE_ICC_UPDATE_SYNC>,
+			      <0x1700 IRM_IDX_GSA GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1780 IRM_IDX_DPA GOOGLE_ICC_UPDATE_ASYNC>;
+		client-name = "apc",
+			      "dpu",
+			      "pcie_0",
+			      "pcie_1",
+			      "ufs",
+			      "usb",
+			      "isp_set_0",
+			      "isp_set_1",
+			      "hsion",
+			      "gpca",
+			      "gpu",
+			      "codec_3p",
+			      "g2d",
+			      "gcv",
+			      "gsa",
+			      "dpa";
+	};
+
+	apc_irm: apc-irm {
+		compatible = "google,apc-irm";
+		mboxes = <&goog_mba_cpm_iface>;
+		mba-dest-channel = <MBOX_DEST_CHAN_IRM>;
+		google,disable-sync-clients;
+	};
+
+	google_icc_helper_mock_client: google_icc_helper_mock_client {
+		compatible = "google,icc-helper-mock-client";
+		interconnects = <&icc_gmc SSWRP_APC &icc_gmc GMC>,
+				<&icc_gmc SSWRP_DPU &icc_gmc GMC>,
+				<&icc_gmc SSWRP_PCIE_0 &icc_gmc GMC>,
+				<&icc_gmc SSWRP_PCIE_1 &icc_gmc GMC>,
+				<&icc_gmc SSWRP_UFS &icc_gmc GMC>,
+				<&icc_gmc SSWRP_USB &icc_gmc GMC>,
+				<&icc_ispfe ISPFE_TOP &icc_gmc SSWRP_ISP_SET_0>,
+				<&icc_ispfe ISPFE_CSISFE &icc_gmc SSWRP_ISP_SET_0>,
+				<&icc_ispfe ISPFE_CORE0 &icc_gmc SSWRP_ISP_SET_0>,
+				<&icc_ispfe ISPFE_CORE1 &icc_gmc SSWRP_ISP_SET_0>,
+				<&icc_ispfe ISPFE_CORE2 &icc_gmc SSWRP_ISP_SET_0>,
+				<&icc_gmc SSWRP_ISP_SET_0 &icc_gmc GMC>,
+				<&icc_ispbe ISPBE_MSA_TNR &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_ispbe ISPBE_MSA_HDR &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_ispbe ISPBE_BTR &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_ispbe ISPBE_ITCC &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_ispbe ISPBE_YUV &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_ispbe ISPBE_PDMA &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_ispbe ISPBE_MSA_TNR_PDMA &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_ispbe ISPBE_MSA_HDR_PDMA &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_ispbe ISPBE_PIPE &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_ispbe ISPBE_MSA_TNR_PIPE &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_ispbe ISPBE_MSA_HDR_PIPE &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_gmc SSWRP_ISP_SET_1 &icc_gmc GMC>,
+				<&icc_gmc SSWRP_HSION &icc_gmc GMC>,
+				<&icc_gmc SSWRP_GPCA &icc_gmc GMC>,
+				<&icc_gmc SSWRP_GPU &icc_gmc GMC>,
+				<&icc_gmc SSWRP_JPU &icc_gmc SSWRP_CODEC_3P>,
+				<&icc_gmc SSWRP_VPU &icc_gmc SSWRP_CODEC_3P>,
+				<&icc_gmc SSWRP_CODEC_3P &icc_gmc GMC>,
+				<&icc_gmc SSWRP_G2D &icc_gmc GMC>,
+				<&icc_gcv GCV_GSE &icc_gmc SSWRP_GCV>,
+				<&icc_gcv GCV_GWE &icc_gmc SSWRP_GCV>,
+				<&icc_gcv GCV_CRE &icc_gmc SSWRP_GCV>,
+				<&icc_gcv GCV_GSW_PDMA &icc_gmc SSWRP_GCV>,
+				<&icc_gcv GCV_CRE_PDMA &icc_gmc SSWRP_GCV>,
+				<&icc_gcv GCV_GSW_PIPE &icc_gmc SSWRP_GCV>,
+				<&icc_gcv GCV_CRE_PIPE &icc_gmc SSWRP_GCV>,
+				<&icc_gmc SSWRP_GCV &icc_gmc GMC>,
+				<&icc_gmc SSWRP_GSA &icc_gmc GMC>,
+				<&icc_gmc SSWRP_DPA &icc_gmc GMC>;
+		interconnect-names = "sswrp-apc",
+				     "sswrp-dpu",
+				     "sswrp-pcie-0",
+				     "sswrp-pcie-1",
+				     "sswrp-ufs",
+				     "sswrp-usb",
+				     "ispfe-top",
+				     "ispfe-csisfe",
+				     "ispfe-core0",
+				     "ispfe-core1",
+				     "ispfe-core2",
+				     "ispfe-update-irm",
+				     "ispbe-msa-tnr",
+				     "ispbe-msa-hdr",
+				     "ispbe-btr",
+				     "ispbe-itcc",
+				     "ispbe-yuv",
+				     "ispbe-pdma",
+				     "ispbe-msa-tnr-pdma",
+				     "ispbe-msa-hdr-pdma",
+				     "ispbe-pipe",
+				     "ispbe-msa-tnr-pipe",
+				     "ispbe-msa-hdr-pipe",
+				     "ispbe-update-irm",
+				     "sswrp-hsion",
+				     "sswrp-gpca",
+				     "sswrp-gpu",
+				     "path_jpu",
+				     "path_vpu",
+				     "sswrp-codec-3p",
+				     "sswrp-g2d",
+				     "gcv-gse",
+				     "gcv-gwe",
+				     "gcv-cre",
+				     "gcv-gsw-pdma",
+				     "gcv-cre-pdma",
+				     "gcv-gsw-pipe",
+				     "gcv-cre-pipe",
+				     "gcv-update-irm",
+				     "sswrp-gsa",
+				     "sswrp-dpa";
+		google,irm-commom-prop = <&irm_common>;
+	};
+};

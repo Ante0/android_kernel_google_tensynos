@@ -7,6 +7,7 @@
 #define __GZVM_ARCH_COMMON_H__
 
 #include <linux/arm-smccc.h>
+#include <linux/clocksource.h>
 
 enum {
 	GZVM_FUNC_CREATE_VM = 0,
@@ -26,13 +27,14 @@ enum {
 	GZVM_FUNC_SET_DTB_CONFIG = 16,
 	GZVM_FUNC_MAP_GUEST = 17,
 	GZVM_FUNC_MAP_GUEST_BLOCK = 18,
+	GZVM_FUNC_GET_STATISTICS = 19,
 	NR_GZVM_FUNC,
 };
 
 #define SMC_ENTITY_MTK			59
 #define GZVM_FUNCID_START		(0x1000)
 #define GZVM_HCALL_ID(func)						\
-	ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL, ARM_SMCCC_SMC_32,	\
+	ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL, ARM_SMCCC_SMC_64,	\
 			   SMC_ENTITY_MTK, (GZVM_FUNCID_START + (func)))
 
 #define MT_HVC_GZVM_CREATE_VM		GZVM_HCALL_ID(GZVM_FUNC_CREATE_VM)
@@ -52,35 +54,29 @@ enum {
 #define MT_HVC_GZVM_SET_DTB_CONFIG	GZVM_HCALL_ID(GZVM_FUNC_SET_DTB_CONFIG)
 #define MT_HVC_GZVM_MAP_GUEST		GZVM_HCALL_ID(GZVM_FUNC_MAP_GUEST)
 #define MT_HVC_GZVM_MAP_GUEST_BLOCK	GZVM_HCALL_ID(GZVM_FUNC_MAP_GUEST_BLOCK)
+#define MT_HVC_GZVM_GET_STATISTICS	GZVM_HCALL_ID(GZVM_FUNC_GET_STATISTICS)
 
 #define GIC_V3_NR_LRS			16
 
 /**
  * gzvm_hypcall_wrapper() - the wrapper for hvc calls
- * @a0-a7: arguments passed in registers 0 to 7
+ * @a0: argument passed in registers 0
+ * @a1: argument passed in registers 1
+ * @a2: argument passed in registers 2
+ * @a3: argument passed in registers 3
+ * @a4: argument passed in registers 4
+ * @a5: argument passed in registers 5
+ * @a6: argument passed in registers 6
+ * @a7: argument passed in registers 7
  * @res: result values from registers 0 to 3
  *
  * Return: The wrapper helps caller to convert geniezone errno to Linux errno.
  */
-static inline int gzvm_hypcall_wrapper(unsigned long a0, unsigned long a1,
-				       unsigned long a2, unsigned long a3,
-				       unsigned long a4, unsigned long a5,
-				       unsigned long a6, unsigned long a7,
-				       struct arm_smccc_res *res)
-{
-	arm_smccc_hvc(a0, a1, a2, a3, a4, a5, a6, a7, res);
-	return gzvm_err_to_errno(res->a0);
-}
-
-static inline u16 get_vmid_from_tuple(unsigned int tuple)
-{
-	return (u16)(tuple >> 16);
-}
-
-static inline u16 get_vcpuid_from_tuple(unsigned int tuple)
-{
-	return (u16)(tuple & 0xffff);
-}
+int gzvm_hypcall_wrapper(unsigned long a0, unsigned long a1,
+			 unsigned long a2, unsigned long a3,
+			 unsigned long a4, unsigned long a5,
+			 unsigned long a6, unsigned long a7,
+			 struct arm_smccc_res *res);
 
 /**
  * struct gzvm_vcpu_hwstate: Sync architecture state back to host for handling
@@ -88,6 +84,12 @@ static inline u16 get_vcpuid_from_tuple(unsigned int tuple)
  * @__pad: add an explicit '__u32 __pad;' in the middle to make it clear
  *         what the actual layout is.
  * @lr: The array of LRs(list registers).
+ * @vtimer_offset: The offset maintained by hypervisor that is host cycle count
+ *                 when guest VM startup.
+ * @vtimer_delay: The remaining time before the next timer tick is triggered
+ *                while the VM is running.
+ * @vtimer_migrate: Indicates whether the guest virtual timer needs to be
+ *                  migrated to the host software timer.
  *
  * - Keep the same layout of hypervisor data struct.
  * - Sync list registers back for acking virtual device interrupt status.
@@ -96,19 +98,23 @@ struct gzvm_vcpu_hwstate {
 	__le32 nr_lrs;
 	__le32 __pad;
 	__le64 lr[GIC_V3_NR_LRS];
+	__le64 vtimer_offset;
+	__le64 vtimer_delay;
+	__le32 vtimer_migrate;
 };
+
+struct timecycle {
+	u32 mult;
+	u32 shift;
+};
+
+u32 gzvm_vtimer_get_clock_mult(void);
+u32 gzvm_vtimer_get_clock_shift(void);
 
 static inline unsigned int
 assemble_vm_vcpu_tuple(u16 vmid, u16 vcpuid)
 {
 	return ((unsigned int)vmid << 16 | vcpuid);
-}
-
-static inline void
-disassemble_vm_vcpu_tuple(unsigned int tuple, u16 *vmid, u16 *vcpuid)
-{
-	*vmid = get_vmid_from_tuple(tuple);
-	*vcpuid = get_vcpuid_from_tuple(tuple);
 }
 
 #endif /* __GZVM_ARCH_COMMON_H__ */

@@ -283,7 +283,7 @@ static int intel_punit_ipc_probe(struct platform_device *pdev)
 	} else {
 		ret = devm_request_irq(&pdev->dev, irq, intel_punit_ioc,
 				       IRQF_NO_SUSPEND, "intel_punit_ipc",
-				       &punit_ipcdev);
+				       punit_ipcdev);
 		if (ret) {
 			dev_err(&pdev->dev, "Failed to request irq: %d\n", irq);
 			return ret;
@@ -302,11 +302,6 @@ static int intel_punit_ipc_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int intel_punit_ipc_remove(struct platform_device *pdev)
-{
-	return 0;
-}
-
 static const struct acpi_device_id punit_ipc_acpi_ids[] = {
 	{ "INT34D4", 0 },
 	{ }
@@ -315,7 +310,6 @@ MODULE_DEVICE_TABLE(acpi, punit_ipc_acpi_ids);
 
 static struct platform_driver intel_punit_ipc_driver = {
 	.probe = intel_punit_ipc_probe,
-	.remove = intel_punit_ipc_remove,
 	.driver = {
 		.name = "intel_punit_ipc",
 		.acpi_match_table = punit_ipc_acpi_ids,

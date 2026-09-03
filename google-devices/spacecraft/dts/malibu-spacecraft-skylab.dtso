@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Spacecraft Skylab device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+/dts-v1/;
+/plugin/;
+
+/* define board-specific  GPIO macros before other devicetrees */
+#include "malibu-spacecraft-pinctrl.dtsi"
+#include "google-base/platform/malibu-platform-common.dtsi"
+#include "malibu-spacecraft-common.dtsi"
+#include "malibu-spacecraft-display.dtsi"
+#include "malibu-spacecraft-touch.dtsi"
+#include "google-base/platform/malibu-platform-wlan-brcm.dtsi"
+#include "google-base/platform/malibu-platform-uwb.dtsi"
+#include "google-base/platform/malibu-pm-quarantine.dtsi"
+
+/ {
+	board_id = <0x80101>;
+	board_rev = <0x010004>;
+	fragment@boardbase {
+		target-path = "/";
+		__overlay__ {
+			model = "Spacecraft Skylab board based on MALIBU";
+			compatible = "google,malibu-spacecraft-skylab", "google,malibu";
+		};
+	};
+};

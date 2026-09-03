@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,lga.h>
+
+&hsion_pinctrl {
+	hsion_nfc_output_gpios: hsion_nfc_output_gpios {
+		pins = "XHSION_GPIO4",
+		       "XHSION_GPIO6",
+		       "XHSION_GPIO7";
+		function = "hsion_gpio";
+		bias-pull-up;
+		output-high;
+	};
+	hsion_nfc_input_gpios: hsion_nfc_input_gpios {
+		pins = "XHSION_GPIO3",
+		       "XHSION_GPIO8";
+		function = "hsion_gpio";
+		bias-pull-down;
+		input-enable;
+	};
+};

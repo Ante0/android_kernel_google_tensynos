@@ -12,6 +12,7 @@
 
 #define AOC_AUTH_HEADER_MAGIC_VALUE 0x00434F41
 
+#include <linux/stddef.h>
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/types.h>
@@ -21,7 +22,67 @@
 #include "aoc_firmware.h"
 #include "aoc-interface.h"
 
+#define AOC_AUTH_HEADER_LEGACY_SIZE  0x1000
+#define AOC_AUTH_HEADER_V1_SIZE      0x1000
+#define AOC_AUTH_HEADER_V2_SIZE      0x5000
+
 struct aoc_auth_header {
+	u32 image_format_version;
+	union {
+		struct {
+			u8 root_signature[512];
+			u8 root_public_key[512];
+			u8 delegate_public_key[512];
+			u8 delegate_policy[96];
+			u8 delegate_signature[512];
+			struct {
+				u32 sw_image_id;
+				u32 sw_rollback_info;
+				u32 delegate_rollback_info;
+				u32 length;
+				u8 delegate_header_flags[40];
+				u8 body_hash[64];
+				u8 chip_id[20];
+				u8 auth_config[256];
+				u8 image_config[256];
+			} delegate_header;
+			u8 padding[1296];
+		} header_v1;
+		struct {
+			u8 root_signature[512];
+			u8 root_pq_signature[7856];
+			u8 root_public_key[512];
+			u8 root_pq_public_key[60];
+			u8 delegate_public_key[512];
+			u8 delegate_pq_public_key[60];
+			u8 delegate_policy[96];
+			u8 delegate_signature[512];
+			u8 delegate_pq_signature[7856];
+			struct {
+				u32 sw_image_id;
+				u32 sw_rollback_info;
+				u32 delegate_rollback_info;
+				u32 length;
+				u8 delegate_header_flags[40];
+				u8 body_hash[64];
+				u8 chip_id[20];
+				u8 auth_config[256];
+				u8 image_config[256];
+			} delegate_header;
+			u8 padding[1848];
+		} header_v2;
+	};
+} __packed;
+
+_Static_assert((offsetof(struct aoc_auth_header, header_v1.padding) +
+				sizeof_field(struct aoc_auth_header, header_v1.padding))
+				== AOC_AUTH_HEADER_V1_SIZE, "v1 header size incorrect");
+
+_Static_assert((offsetof(struct aoc_auth_header, header_v2.padding) +
+				sizeof_field(struct aoc_auth_header, header_v2.padding))
+				== AOC_AUTH_HEADER_V2_SIZE, "v2 header size incorrect");
+
+struct aoc_auth_header_legacy {
 	u8 signature[512];
 	u8 key[512];
 	union {
@@ -75,6 +136,8 @@ struct aoc_superbin_header {
 	u32 hifi3z_data_offset;
 	u32 hifi3z_data_size;
 	u32 crc32;
+	u32 boot_breadcrumbs;
+	u8  core_boot_breadcrumbs[8];
 } __packed;
 
 struct aoc_image_config {
@@ -95,22 +158,57 @@ struct aoc_image_config {
 	};
 };
 
-static u32 aoc_img_header_size(const struct firmware *fw)
+static bool is_legacy_auth_header_v1(const struct aoc_auth_header *header)
 {
-	if(_aoc_fw_is_signed(fw))
-		return AOC_AUTH_HEADER_SIZE;
+	const struct aoc_auth_header_legacy *legacy_header =
+		(const struct aoc_auth_header_legacy *)(header);
+	return (le32_to_cpu(legacy_header->header_v1.generation) == 1) &&
+			le32_to_cpu(legacy_header->header_v1.magic) == AOC_AUTH_HEADER_MAGIC_VALUE;
+}
 
-	return 0UL;
+static bool is_legacy_auth_header_v2(const struct aoc_auth_header *header)
+{
+	const struct aoc_auth_header_legacy *legacy_header =
+		(const struct aoc_auth_header_legacy *)(header);
+	return (le32_to_cpu(legacy_header->header_v2.generation) == 2) &&
+		le32_to_cpu(legacy_header->header_v2.magic) == AOC_AUTH_HEADER_MAGIC_VALUE;
+}
+
+u32 _aoc_fw_header_size(const struct firmware *fw)
+{
+	u32 version = _aoc_fw_get_header_version(fw);
+	u32 retval = 0;
+
+	if (version == 0)
+		retval = 0;
+	else if (_aoc_fw_has_legacy_auth_header(fw))
+		retval = AOC_AUTH_HEADER_LEGACY_SIZE;
+	else if (version == 1)
+		retval = AOC_AUTH_HEADER_V1_SIZE;
+	else if (version == 2)
+		retval = AOC_AUTH_HEADER_V2_SIZE;
+
+	if (retval > fw->size)
+		retval = 0;
+
+	return retval;
 }
 
 static bool region_is_in_firmware(size_t start, size_t length,
 				  const struct firmware *fw)
 {
-	return ((start + length) < (fw->size - aoc_img_header_size(fw)));
+	return ((start + length) <= (fw->size - _aoc_fw_header_size(fw)));
 }
 
 static const struct aoc_superbin_header *superbin_header(const struct firmware* fw) {
-	return (const struct aoc_superbin_header *)(fw->data + aoc_img_header_size(fw));
+	return (const struct aoc_superbin_header *)(fw->data + _aoc_fw_header_size(fw));
+}
+
+bool _aoc_fw_has_legacy_auth_header(const struct firmware *fw)
+{
+	const struct aoc_auth_header *header = (const struct aoc_auth_header *)(fw->data);
+
+	return is_legacy_auth_header_v1(header) || is_legacy_auth_header_v2(header);
 }
 
 bool _aoc_fw_is_valid(const struct firmware *fw)
@@ -162,18 +260,22 @@ bool _aoc_fw_is_release(const struct firmware *fw)
 
 u32 _aoc_fw_get_header_version(const struct firmware *fw)
 {
-	const struct aoc_auth_header *header = (const struct aoc_auth_header *)(fw->data);
-	if ((le32_to_cpu(header->header_v1.generation) == 1) &&
-			le32_to_cpu(header->header_v1.magic) == AOC_AUTH_HEADER_MAGIC_VALUE) {
-		return 1;
+	const struct aoc_auth_header *header;
+
+	if (!fw || fw->size < sizeof(u32))
+		return 0;
+
+	header = (const struct aoc_auth_header *)(fw->data);
+
+	if (fw->size >= sizeof(struct aoc_auth_header_legacy)) {
+		if (is_legacy_auth_header_v1(header))
+			return 1;
+
+		if (is_legacy_auth_header_v2(header))
+			return 2;
 	}
 
-	if ((le32_to_cpu(header->header_v2.generation) == 2) &&
-		le32_to_cpu(header->header_v2.magic) == AOC_AUTH_HEADER_MAGIC_VALUE) {
-		return 2;
-	}
-
-	return 0;
+	return le32_to_cpu(header->image_format_version);
 }
 
 bool _aoc_fw_is_signed(const struct firmware *fw)
@@ -181,18 +283,41 @@ bool _aoc_fw_is_signed(const struct firmware *fw)
 	return _aoc_fw_get_header_version(fw) != 0;
 }
 
+bool _aoc_fw_has_pq_header(const struct firmware *fw)
+{
+	return (!_aoc_fw_has_legacy_auth_header(fw) && _aoc_fw_get_header_version(fw) >= 2);
+}
+
 struct aoc_image_config *_aoc_fw_image_config(const struct firmware *fw)
 {
 	const struct aoc_auth_header *header = (const struct aoc_auth_header *)(fw->data);
-	u32 header_version = _aoc_fw_get_header_version(fw);
+	u32 header_version;
 
-	switch (header_version) {
-	case 1:
-		return (struct aoc_image_config *)&header->header_v1.image_config;
-	case 2:
-		return (struct aoc_image_config *)&header->header_v2.image_config;
-	default:
-		return (struct aoc_image_config *)&header->header_v1.image_config;
+	if (_aoc_fw_has_legacy_auth_header(fw)) {
+		const struct aoc_auth_header_legacy *legacy_header =
+			(const struct aoc_auth_header_legacy *)(header);
+		header_version = _aoc_fw_get_header_version(fw);
+		switch (header_version) {
+		case 1:
+			return (struct aoc_image_config *)&legacy_header->header_v1.image_config;
+		case 2:
+			return (struct aoc_image_config *)&legacy_header->header_v2.image_config;
+		default:
+			return (struct aoc_image_config *)&legacy_header->header_v1.image_config;
+		}
+	} else {
+		const struct aoc_auth_header *header = (const struct aoc_auth_header *)(fw->data);
+
+		header_version = _aoc_fw_get_header_version(fw);
+		switch (header_version) {
+		case 2:
+			return (struct aoc_image_config *)
+					&header->header_v2.delegate_header.image_config;
+		case 1:
+		default:
+			return (struct aoc_image_config *)
+					&header->header_v1.delegate_header.image_config;
+		}
 	}
 }
 
@@ -251,7 +376,13 @@ bool _aoc_fw_is_compatible(const struct firmware *fw)
 	uuid_offset = le32_to_cpu(header->uuid_table_offset);
 	uuid_size = le32_to_cpu(header->uuid_table_size);
 
-	if (AocInterfaceCheck(fw->data + aoc_img_header_size(fw) + uuid_offset, uuid_size) != 0) {
+	if (!region_is_in_firmware(uuid_offset, uuid_size, fw)) {
+		pr_err("invalid method signature region\n");
+		return false;
+	}
+
+	if (AocInterfaceCheck(fw->data + _aoc_fw_header_size(fw) +
+		uuid_offset, uuid_size) != 0) {
 		pr_err("failed to validate method signature table\n");
 		return false;
 	}
@@ -285,10 +416,38 @@ const char* _aoc_fw_version(const struct firmware *fw)
 
 bool _aoc_fw_commit(const struct firmware *fw, void *dest)
 {
-	u32 header_size = aoc_img_header_size(fw);
 	if (!_aoc_fw_is_valid(fw))
 		return false;
 
+	u32 header_size = _aoc_fw_header_size(fw);
 	memcpy(dest, fw->data + header_size, fw->size - header_size);
 	return true;
+}
+
+void _aoc_fw_init_boot_breadcrumbs(void *fw)
+{
+	struct aoc_superbin_header *header = fw;
+
+	header->boot_breadcrumbs = 0;
+}
+
+u32 _aoc_fw_boot_breadcrumbs(void *fw)
+{
+	const struct aoc_superbin_header *header = fw;
+
+	return le32_to_cpu(header->boot_breadcrumbs);
+}
+
+u8 _aoc_fw_core_boot_breadcrumbs(void *fw, int index)
+{
+	const struct aoc_superbin_header *header = fw;
+
+	return header->core_boot_breadcrumbs[index];
+}
+
+void _aoc_init_core_boot_breadcrumbs(void *fw, int index)
+{
+	struct aoc_superbin_header *header = fw;
+
+	header->core_boot_breadcrumbs[index] = 0;
 }

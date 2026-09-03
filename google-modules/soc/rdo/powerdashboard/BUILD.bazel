@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "google_powerdashboard",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "google_powerdashboard.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_POWERDASHBOARD": {
+            True: [
+                "google_powerdashboard_helper.c",
+                "google_powerdashboard_main.c",
+            ],
+        },
+        "CONFIG_SOC_LGA": {
+            True: [
+                "lga/google_powerdashboard_impl.c",
+                "lga/google_powerdashboard_sysfs.c",
+            ],
+        },
+        "CONFIG_SOC_MBU": {
+            True: [
+                "mbu/google_powerdashboard_impl.c",
+                "mbu/google_powerdashboard_sysfs.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-cpm-iface",
+        "//private/google-modules/soc/rdo/drivers/soc/google:google_gtc",
+        "//private/google-modules/soc/rdo/drivers/soc/google/dvfs-helper:dvfs_helper",
+    ],
+)

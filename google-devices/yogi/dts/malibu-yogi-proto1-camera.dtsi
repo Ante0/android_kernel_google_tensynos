@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * camera lwis device tree for MBU device
+ *
+ * Copyright 2025 Google LLC.
+ *
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+#include "malibu-yogi-proto1_1-camera.dtsi"
+
+&camera_buck_boost {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+};
+
+&sgm38122_csia {
+	google,enable-pin-can-restart;
+};
+&sgm38122_csib {
+	google,enable-pin-can-restart;
+};
+&sgm38122_csif {
+	google,enable-pin-can-restart;
+};

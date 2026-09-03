@@ -1,0 +1,27 @@
+import("//build_overrides/noa.gni")
+import("$dir_noa_packages/noa_common/sim/ncp/wlan_fw/wlan_service.gni")
+
+wlan_source_set("noa_ring_svc") {
+  public = [ "$dir_wlan_fw/modules/noa_ring_svc/noa_ring_svc.h" ]
+  public_deps = [ "$dir_wlan_fw/ext_svc" ]
+  sources = [ "$dir_wlan_fw/modules/noa_ring_svc/noa_ring_svc.cc" ]
+  deps = [
+    "$dir_wlan_fw:wlan_cast",
+    "$dir_wlan_fw/sys_if:common",
+    "$dir_wlan_fw/sys_if:types",
+    "$dir_wlan_fw/wlan_log",
+  ]
+}
+
+wlan_test("noa_ring_svc_test") {
+  enable_if = current_os == "linux" && pw_unit_test_BACKEND == "$dir_pigweed/pw_unit_test:googletest"
+  sources = [ "$dir_wlan_fw/modules/noa_ring_svc/noa_ring_svc_test.cc" ]
+  deps = [
+    ":noa_ring_svc",
+    "$dir_noa_services/ring_service:mock_ring_shared_info",
+  ]
+}
+
+wlan_test_group("tests") {
+  tests = [ ":noa_ring_svc_test" ]
+}

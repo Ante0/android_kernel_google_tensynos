@@ -11,21 +11,17 @@
  * mechanism for vendor modules to hook and extend functionality
  */
 struct module;
-DECLARE_RESTRICTED_HOOK(android_rvh_set_module_permit_before_init,
-	TP_PROTO(const struct module *mod),
-	TP_ARGS(mod), 1);
+DECLARE_HOOK(android_vh_free_mod_mem,
+		TP_PROTO(const struct module *mod),
+		TP_ARGS(mod));
 
-DECLARE_RESTRICTED_HOOK(android_rvh_set_module_permit_after_init,
-	TP_PROTO(const struct module *mod),
-	TP_ARGS(mod), 1);
+DECLARE_HOOK(android_vh_set_mod_perm_after_init,
+		TP_PROTO(const struct module *mod),
+		TP_ARGS(mod));
 
-DECLARE_RESTRICTED_HOOK(android_rvh_set_module_core_rw_nx,
-	TP_PROTO(const struct module *mod),
-	TP_ARGS(mod), 1);
-
-DECLARE_RESTRICTED_HOOK(android_rvh_set_module_init_rw_nx,
-	TP_PROTO(const struct module *mod),
-	TP_ARGS(mod), 1);
+DECLARE_HOOK(android_vh_set_mod_perm_before_init,
+		TP_PROTO(const struct module *mod),
+		TP_ARGS(mod));
 
 #endif /* _TRACE_HOOK_MODULE_H */
 /* This part must be outside protection */

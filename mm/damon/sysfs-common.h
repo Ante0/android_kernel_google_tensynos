@@ -21,7 +21,7 @@ struct damon_sysfs_ul_range *damon_sysfs_ul_range_alloc(
 		unsigned long max);
 void damon_sysfs_ul_range_release(struct kobject *kobj);
 
-extern struct kobj_type damon_sysfs_ul_range_ktype;
+extern const struct kobj_type damon_sysfs_ul_range_ktype;
 
 /*
  * schemes directory
@@ -36,9 +36,9 @@ struct damon_sysfs_schemes {
 struct damon_sysfs_schemes *damon_sysfs_schemes_alloc(void);
 void damon_sysfs_schemes_rm_dirs(struct damon_sysfs_schemes *schemes);
 
-extern struct kobj_type damon_sysfs_schemes_ktype;
+extern const struct kobj_type damon_sysfs_schemes_ktype;
 
-int damon_sysfs_set_schemes(struct damon_ctx *ctx,
+int damon_sysfs_add_schemes(struct damon_ctx *ctx,
 		struct damon_sysfs_schemes *sysfs_schemes);
 
 void damon_sysfs_schemes_update_stats(
@@ -49,10 +49,19 @@ int damon_sysfs_schemes_update_regions_start(
 		struct damon_sysfs_schemes *sysfs_schemes,
 		struct damon_ctx *ctx, bool total_bytes_only);
 
+void damos_sysfs_mark_finished_regions_updates(struct damon_ctx *ctx);
+
 bool damos_sysfs_regions_upd_done(void);
 
 int damon_sysfs_schemes_update_regions_stop(struct damon_ctx *ctx);
 
 int damon_sysfs_schemes_clear_regions(
+		struct damon_sysfs_schemes *sysfs_schemes,
+		struct damon_ctx *ctx);
+
+int damos_sysfs_set_quota_scores(struct damon_sysfs_schemes *sysfs_schemes,
+		struct damon_ctx *ctx);
+
+void damos_sysfs_update_effective_quotas(
 		struct damon_sysfs_schemes *sysfs_schemes,
 		struct damon_ctx *ctx);

@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2023 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/perf/google,gem.yaml#
+$schema: http://devicetree.org/meta-schemas/base.yaml#
+
+title: Google GEM Controller
+
+maintainers:
+  - Woody Lin <woodylin@google.com>
+
+description:
+  The Google GEM Controller which accesses GDMC service 'GEM_CTRL' and
+  exposes the GEM function to userspace as debugfs file nodes.
+
+properties:
+  compatible:
+    enum:
+      - google,gem
+
+  memory-region:
+    type: object
+    description: phandle to a reserved-memory subnode to allocate memory
+      buffer from the specified address-range. The address-range is
+      limited to the range that is accessible to GDMC, so the memory
+      allocated from it can be used to send data to GDMC with the
+      mailbox IPC.
+
+  gdmc-iface:
+    type: object
+    description: phandle to `google,mba-gdmc-iface` device node.
+      This points to the GDMC MBA interface over which GDMC
+      GEM talks to the GDMC.
+
+required:
+  - compatible
+  - memory-region
+  - gdmc-iface
+
+additionalProperties: false
+
+examples:
+  - |
+    google_gem {
+        compatible = "google,gem";
+        memory-region = <&gdmc_shared>;
+        gdmc-iface = <&goog_mba_gdmc_iface>;
+    };

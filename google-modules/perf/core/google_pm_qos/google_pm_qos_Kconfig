@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_PM_QOS
+	tristate "Google PM QOS"
+	help
+	  Enable support for Google PM QOS module
+	  The driver provides interfaces to monitor which driver
+	  is registering frequency votes against pm_qos domains.

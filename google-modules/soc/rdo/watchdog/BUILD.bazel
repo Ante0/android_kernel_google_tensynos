@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "google_wdt",
+    out = "google_wdt.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_WDT": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "google_wdt.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:google_timestamp_sync",
+    ],
+)
+
+ddk_module(
+    name = "google_wdt_test_",  # The additional '_' is to solve the error: Error in _kernel_module: _kernel_module rule 'google_wdt_test' conflicts with existing hermetic_test rule
+    out = "google_wdt_test.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_WDT_TEST": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "google_wdt_test.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+    ],
+)

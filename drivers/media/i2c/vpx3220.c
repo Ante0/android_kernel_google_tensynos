@@ -456,8 +456,7 @@ static const struct v4l2_subdev_ops vpx3220_ops = {
  * Client management code
  */
 
-static int vpx3220_probe(struct i2c_client *client,
-			const struct i2c_device_id *id)
+static int vpx3220_probe(struct i2c_client *client)
 {
 	struct vpx3220 *decoder;
 	struct v4l2_subdev *sd;
@@ -536,9 +535,9 @@ static void vpx3220_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id vpx3220_id[] = {
-	{ "vpx3220a", 0 },
-	{ "vpx3216b", 0 },
-	{ "vpx3214c", 0 },
+	{ "vpx3220a" },
+	{ "vpx3216b" },
+	{ "vpx3214c" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, vpx3220_id);

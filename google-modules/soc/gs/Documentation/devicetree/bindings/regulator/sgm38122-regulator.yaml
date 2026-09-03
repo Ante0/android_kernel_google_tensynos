@@ -1,0 +1,116 @@
+# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+%YAML 1.2
+---
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: SGMICRO SGM38122 Voltage Regulator
+
+maintainers:
+  - Xu Han <xuhanyz@google.com>
+  - Kamal Shafi <kamalshafi@google.com>
+
+properties:
+  compatible:
+    enum:
+      - sgm,sgm38122
+
+  reg:
+    maxItems: 3
+
+  enable-gpios:
+    description: A connection of the 'enable' gpio line.
+    maxItems: 1
+
+  enable-supply:
+    description:
+      A connection of the 'enable' pin.
+
+  vio-supply:
+    description:
+      Supply to enable device I/O.
+
+  in1-supply:
+    description:
+      Input supply for dvdd regulator.
+
+  in2-supply:
+    description:
+      Input supply for avdd1 and avdd2 regulator.
+
+  in3-supply:
+    description:
+      Input supply for avdd3 regulator.
+
+  google,enable-pin-can-restart:
+    description:
+      Used to indicate that the enable supply/pin may restart on its own.
+    type: boolean
+
+  regulators:
+    type: object
+    additionalProperties: false
+
+    patternProperties:
+      "^dvdd$":
+        type: object
+        $ref: /schemas/regulator/regulator.yaml#
+        unevaluatedProperties: false
+
+        required:
+          - regulator-name
+
+      "^avdd[1-3]$":
+        type: object
+        $ref: /schemas/regulator/regulator.yaml#
+        unevaluatedProperties: false
+
+        required:
+          - regulator-name
+
+required:
+  - compatible
+  - reg
+  - regulators
+
+additionalProperties: false
+
+examples:
+  - |
+    i2c {
+      sgm38122@29 {
+        compatible = "sgm,sgm38122";
+        reg = <0x29>;
+        enable-supply = <&enable_reg>;
+        status = "ok";
+
+        regulators {
+          dvdd {
+            regulator-name = "dvdd";
+            regulator-min-microvolt = <528000>;
+            regulator-max-microvolt = <1800000>;
+            in1-supply = <&reg1>;
+          };
+
+          avdd1 {
+            regulator-name = "avdd1";
+            regulator-min-microvolt = <1504000>;
+            regulator-max-microvolt = <3424000>;
+            in2-supply = <&reg2>;
+          };
+
+          avdd2 {
+            regulator-name = "avdd2";
+            regulator-min-microvolt = <1504000>;
+            regulator-max-microvolt = <3424000>;
+            in2-supply = <&reg2>;
+          };
+
+          avdd3 {
+            regulator-name = "avdd3";
+            regulator-min-microvolt = <1504000>;
+            regulator-max-microvolt = <3424000>;
+            in3-supply = <&reg3>;
+          };
+        };
+      };
+    };

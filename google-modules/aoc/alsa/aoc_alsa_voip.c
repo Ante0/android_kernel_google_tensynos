@@ -46,24 +46,23 @@ static bool aoc_voip_support_interrupt(uint8_t mbox_index)
 static enum hrtimer_restart aoc_voip_irq_process(struct aoc_alsa_stream *alsa_stream)
 {
 	struct aoc_service_dev *dev;
-	unsigned long consumed; /* TODO: uint64_t? */
-	struct snd_pcm_runtime *runtime;
+	unsigned long consumed;
 
-	/* The number of bytes read/writtien should be the bytes in the buffer
+	if (!alsa_stream || !alsa_stream->substream || !alsa_stream->substream->runtime ||
+	    !alsa_stream->dev)
+		return HRTIMER_NORESTART;
+
+	dev = alsa_stream->dev;
+
+	if (!alsa_stream->running)
+		return HRTIMER_RESTART;
+
+	/* The number of bytes read/written should be the bytes in the buffer
 	 * already played out in the case of playback. But this may not be true
 	 * in the AoC ring buffer implementation, since the reader pointer in
 	 * the playback case represents what has been read from the buffer,
 	 * not what already played out .
 	*/
-	runtime = alsa_stream->substream->runtime;
-	if (!runtime)
-		return HRTIMER_RESTART;
-
-	if (alsa_stream->dev == NULL ||
-		 runtime->status->state != SNDRV_PCM_STATE_RUNNING)
-		return HRTIMER_RESTART;
-
-	dev = alsa_stream->dev;
 	consumed = ((alsa_stream->substream->stream == SNDRV_PCM_STREAM_PLAYBACK) ?
 				  aoc_ring_bytes_read(dev->service, AOC_DOWN) :
 				  aoc_ring_bytes_written(dev->service, AOC_UP));
@@ -242,6 +241,7 @@ static int snd_aoc_pcm_open(struct snd_soc_component *component,
 
 	/* TODO: refactor needed on mapping between device number and entrypoint */
 	alsa_stream->entry_point_idx = (idx == 7) ? HAPTICS : idx;
+	update_google_cdd_audio_stat_ext(chip, CCD_AUDIO_VOIP, true);
 	mutex_unlock(&chip->audio_mutex);
 
 	return 0;
@@ -274,8 +274,11 @@ static int snd_aoc_pcm_close(struct snd_soc_component *component,
 	struct aoc_alsa_stream *alsa_stream = runtime->private_data;
 	struct aoc_chip *chip = alsa_stream->chip;
 	int err;
+	bool mutex_locked = true;
 
 	dev_dbg(component->dev, "name %s substream %pK", rtd->dai_link->name, substream);
+	// Wait for any active ISR to finish
+	synchronize_irq(alsa_stream->dev->irq);
 	aoc_timer_stop_sync(alsa_stream);
 	atomic_set(&alsa_stream->cancel_work_active, 1);
 	audio_free_isr(alsa_stream->dev);
@@ -288,7 +291,8 @@ static int snd_aoc_pcm_close(struct snd_soc_component *component,
 
 	if (mutex_lock_interruptible(&chip->audio_mutex)) {
 		dev_err(component->dev, "ERR: interrupted while waiting for lock\n");
-		return -EINTR;
+		mutex_locked = false;
+		/* b/480740542 don't return to cleanup the resource */
 	}
 
 	/* Stop voip call (Refactor needed) */
@@ -328,7 +332,9 @@ static int snd_aoc_pcm_close(struct snd_soc_component *component,
 	*/
 	chip->opened &= ~(1 << alsa_stream->idx);
 
-	mutex_unlock(&chip->audio_mutex);
+	update_google_cdd_audio_stat_ext(chip, CCD_AUDIO_VOIP, false);
+	if (mutex_locked)
+		mutex_unlock(&chip->audio_mutex);
 	return 0;
 }
 
@@ -348,7 +354,7 @@ static int snd_aoc_pcm_hw_params(struct snd_soc_component *component,
 		return err;
 	}
 
-	substream->wait_time = msecs_to_jiffies(chip->voice_pcm_wait_time_in_ms);
+	substream->wait_time = chip->voice_pcm_wait_time_in_ms;
 
 	alsa_stream->channels = params_channels(params);
 	alsa_stream->params_rate = params_rate(params);
@@ -490,9 +496,9 @@ static int snd_aoc_pcm_trigger(struct snd_soc_component *component,
 }
 
 /* Copy data from user space to hardware buffer  */
-static int snd_aoc_pcm_playback_copy_user(struct snd_soc_component *component,
+static int snd_aoc_pcm_playback_copy(struct snd_soc_component *component,
 					  struct snd_pcm_substream *substream, int channel,
-					  unsigned long pos, void __user *buf, unsigned long count)
+					  unsigned long pos, struct iov_iter *buf, unsigned long count)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct aoc_alsa_stream *alsa_stream = runtime->private_data;
@@ -506,9 +512,9 @@ static int snd_aoc_pcm_playback_copy_user(struct snd_soc_component *component,
 }
 
 /* Copy data from hardware buffer to user space */
-static int snd_aoc_pcm_capture_copy_user(struct snd_soc_component *component,
+static int snd_aoc_pcm_capture_copy(struct snd_soc_component *component,
 					 struct snd_pcm_substream *substream, int channel,
-					 unsigned long pos, void __user *buf, unsigned long count)
+					 unsigned long pos, struct iov_iter *buf, unsigned long count)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct aoc_alsa_stream *alsa_stream = runtime->private_data;
@@ -522,15 +528,15 @@ static int snd_aoc_pcm_capture_copy_user(struct snd_soc_component *component,
 }
 
 /* Copy data between hardware buffer and user space */
-static int snd_aoc_pcm_copy_user(struct snd_soc_component *component,
+static int snd_aoc_pcm_copy(struct snd_soc_component *component,
 				 struct snd_pcm_substream *substream, int channel,
-				 unsigned long pos, void __user *buf, unsigned long count)
+				 unsigned long pos, struct iov_iter *buf, unsigned long count)
 {
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		return snd_aoc_pcm_playback_copy_user(component, substream, channel, pos, buf,
+		return snd_aoc_pcm_playback_copy(component, substream, channel, pos, buf,
 						      count);
 	} else { /* Capture */
-		return snd_aoc_pcm_capture_copy_user(component, substream, channel, pos, buf,
+		return snd_aoc_pcm_capture_copy(component, substream, channel, pos, buf,
 						     count);
 	}
 }
@@ -598,7 +604,7 @@ static const struct snd_soc_component_driver aoc_pcm_component = {
 	.ioctl = snd_aoc_pcm_lib_ioctl,
 	.hw_params = snd_aoc_pcm_hw_params,
 	.hw_free = snd_aoc_pcm_hw_free,
-	.copy_user = snd_aoc_pcm_copy_user,
+	.copy = snd_aoc_pcm_copy,
 	.prepare = snd_aoc_pcm_prepare,
 	.trigger = snd_aoc_pcm_trigger,
 	.pointer = snd_aoc_pcm_pointer,

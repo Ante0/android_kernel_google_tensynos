@@ -158,10 +158,24 @@ struct stream_props {
 	struct stream_config *cfg;
 };
 
+struct samsung_sysmmu_domain {
+	struct iommu_domain domain;
+	struct iommu_group *group;
+	struct sysmmu_drvdata *vm_sysmmu; /* valid only if vid != 0 */
+	/* if vid != 0, domain is a pasid domain attached to exactly one device and sysmmu */
+	unsigned int vid;
+	sysmmu_pte_t *page_table;
+	atomic_t *lv2entcnt;
+	spinlock_t pgtablelock;	/* spinlock to access pagetable	*/
+	bool ap_read_implies_write;
+	bool ap_permissive;
+};
+
 struct sysmmu_drvdata {
 	struct list_head list;
 	struct iommu_device iommu;
 	struct device *dev;
+	struct samsung_sysmmu_domain *domain[MAX_VIDS];
 	struct iommu_group *group;
 	void __iomem *sfrbase;
 	struct clk *clk;

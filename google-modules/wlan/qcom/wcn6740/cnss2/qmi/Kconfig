@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+
+config QCOM_QMI_HELPERS
+	tristate "config QCOM_QMI_HELPERS"
+	help
+	  QCOM_QMI_HELPERS Support

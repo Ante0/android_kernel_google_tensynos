@@ -1,0 +1,76 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
+#ifndef _GOOGLE_QOS_BOX_REG_H
+#define _GOOGLE_QOS_BOX_REG_H
+
+#include <linux/bitfield.h>
+#include <linux/bitops.h>
+#include <linux/bits.h>
+
+#define	VC_MAP_CFG			0x0
+#define	QOS_POLICY_CFG			0x4
+#define	BW_MON_CFG			0x8
+#define	VC_FILTER_CFG			0xc
+
+#define NUM_QOS_POLICY			4
+#define ACTIVE_QOS_HW_POLICY_IDX	0
+
+#define QOS_POLICY_BASE			(VC_FILTER_CFG + 0x4)
+#define QOS_POLICY_BLOCK_NUM_WORD	25
+#define QOS_POLICY_BLOCK_SIZE		(QOS_POLICY_BLOCK_NUM_WORD * 4)
+#define QOS_POLICY_BLOCK(id)		(QOS_POLICY_BASE + (id) * QOS_POLICY_BLOCK_SIZE)
+#define QOS_BOX_REG_SIZE		(QOS_POLICY_BASE + 4 * QOS_POLICY_BLOCK_SIZE)
+
+#define QOS_POLICY_CFG_LOAD_EN		BIT(0)
+#define QOS_POLICY_CFG_INDEX_SEL_FIELD	GENMASK(5, 4)
+
+/* offset for single QOS_POLICY */
+#define QOS_OVRD_CFG			0x0
+#define QOS_LATMOD_CFG			0x4
+#define QOS_BWMOD_CFG			0x8
+#define QOS_URGOVRD_CFG			0xc
+#define URG_OVRD_CFG			0x10
+#define URG_LATMOD_CFG			0x14
+#define URG_BWMOD_CFG			0x18
+#define MO_LIMIT_CFG			0x1c
+#define RDMO_LIMIT_CFG			0x20
+#define WRMO_LIMIT_CFG			0x24
+#define BW_LIMIT_CFG			0x28
+#define RDBW_LIMIT_CTRL_0		0x2c
+#define RDBW_LIMIT_CTRL_1		0x30
+#define RDBW_LIMIT_CTRL_2		0x34
+#define RDBW_LIMIT_CTRL_3		0x38
+#define WRBW_LIMIT_CTRL_0		0x3c
+#define WRBW_LIMIT_CTRL_1		0x40
+#define WRBW_LIMIT_CTRL_2		0x44
+#define WRBW_LIMIT_CTRL_3		0x48
+#define RGLTR_RD_CFG			0x4c
+#define RGLTR_WR_CFG			0x50
+#define RGLTR_BW_CTRL_0			0x54
+#define RGLTR_BW_CTRL_1			0x58
+#define RGLTR_BW_CTRL_2			0x5c
+#define RGLTR_BW_CTRL_3			0x60
+
+#define QBOX_ARCH_CG_DIS_LGA		0x1a0
+#define QBOX_QACTIVE_LGA		0x1a4
+
+#define SECTION_QSTATUS			0x1000
+
+#define QOS_BOX_STATUS			(SECTION_QSTATUS + 0x0)
+#define QOS_BOX_URG_STATUS		(SECTION_QSTATUS + 0x4)
+
+#define NUM_BW_MON_STATUS_RDO		1
+#define BW_MON_STATUS_RD		(SECTION_QSTATUS + 0x8)
+#define BW_MON_STATUS_WR		(SECTION_QSTATUS + 0xc)
+#define LAT_MON_STATUS_RD		(SECTION_QSTATUS + 0x10)
+#define LAT_MON_STATUS_WR		(SECTION_QSTATUS + 0x14)
+
+#define NUM_BW_MON_STATUS_LGA		7
+#define BW_MON_STATUS_RD_LGA		(SECTION_QSTATUS + 0x8)
+#define BW_MON_STATUS_WR_LGA		(SECTION_QSTATUS + 0x24)
+#define LAT_MON_STATUS_RD_LGA		(SECTION_QSTATUS + 0x40)
+#define LAT_MON_STATUS_WR_LGA		(SECTION_QSTATUS + 0x44)
+
+#define QOS_BOX_NS_PER_CYCLE		38
+
+#endif /* _GOOGLE_QOS_BOX_REG_H */

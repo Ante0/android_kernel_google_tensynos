@@ -26,11 +26,6 @@ struct sharp_nt_panel {
 
 	struct regulator *supply;
 	struct gpio_desc *reset_gpio;
-
-	bool prepared;
-	bool enabled;
-
-	const struct drm_display_mode *mode;
 };
 
 static inline struct sharp_nt_panel *to_sharp_nt_panel(struct drm_panel *panel)
@@ -97,26 +92,10 @@ static int sharp_nt_panel_off(struct sharp_nt_panel *sharp_nt)
 	return 0;
 }
 
-
-static int sharp_nt_panel_disable(struct drm_panel *panel)
-{
-	struct sharp_nt_panel *sharp_nt = to_sharp_nt_panel(panel);
-
-	if (!sharp_nt->enabled)
-		return 0;
-
-	sharp_nt->enabled = false;
-
-	return 0;
-}
-
 static int sharp_nt_panel_unprepare(struct drm_panel *panel)
 {
 	struct sharp_nt_panel *sharp_nt = to_sharp_nt_panel(panel);
 	int ret;
-
-	if (!sharp_nt->prepared)
-		return 0;
 
 	ret = sharp_nt_panel_off(sharp_nt);
 	if (ret < 0) {
@@ -128,8 +107,6 @@ static int sharp_nt_panel_unprepare(struct drm_panel *panel)
 	if (sharp_nt->reset_gpio)
 		gpiod_set_value(sharp_nt->reset_gpio, 0);
 
-	sharp_nt->prepared = false;
-
 	return 0;
 }
 
@@ -137,9 +114,6 @@ static int sharp_nt_panel_prepare(struct drm_panel *panel)
 {
 	struct sharp_nt_panel *sharp_nt = to_sharp_nt_panel(panel);
 	int ret;
-
-	if (sharp_nt->prepared)
-		return 0;
 
 	ret = regulator_enable(sharp_nt->supply);
 	if (ret < 0)
@@ -168,8 +142,6 @@ static int sharp_nt_panel_prepare(struct drm_panel *panel)
 		goto poweroff;
 	}
 
-	sharp_nt->prepared = true;
-
 	return 0;
 
 poweroff:
@@ -177,18 +149,6 @@ poweroff:
 	if (sharp_nt->reset_gpio)
 		gpiod_set_value(sharp_nt->reset_gpio, 0);
 	return ret;
-}
-
-static int sharp_nt_panel_enable(struct drm_panel *panel)
-{
-	struct sharp_nt_panel *sharp_nt = to_sharp_nt_panel(panel);
-
-	if (sharp_nt->enabled)
-		return 0;
-
-	sharp_nt->enabled = true;
-
-	return 0;
 }
 
 static const struct drm_display_mode default_mode = {
@@ -227,10 +187,8 @@ static int sharp_nt_panel_get_modes(struct drm_panel *panel,
 }
 
 static const struct drm_panel_funcs sharp_nt_panel_funcs = {
-	.disable = sharp_nt_panel_disable,
 	.unprepare = sharp_nt_panel_unprepare,
 	.prepare = sharp_nt_panel_prepare,
-	.enable = sharp_nt_panel_enable,
 	.get_modes = sharp_nt_panel_get_modes,
 };
 
@@ -238,8 +196,6 @@ static int sharp_nt_panel_add(struct sharp_nt_panel *sharp_nt)
 {
 	struct device *dev = &sharp_nt->dsi->dev;
 	int ret;
-
-	sharp_nt->mode = &default_mode;
 
 	sharp_nt->supply = devm_regulator_get(dev, "avdd");
 	if (IS_ERR(sharp_nt->supply))
@@ -256,6 +212,7 @@ static int sharp_nt_panel_add(struct sharp_nt_panel *sharp_nt)
 
 	drm_panel_init(&sharp_nt->base, &sharp_nt->dsi->dev,
 		       &sharp_nt_panel_funcs, DRM_MODE_CONNECTOR_DSI);
+	sharp_nt->base.prepare_prev_first = true;
 
 	ret = drm_panel_of_backlight(&sharp_nt->base);
 	if (ret)
@@ -311,22 +268,11 @@ static void sharp_nt_panel_remove(struct mipi_dsi_device *dsi)
 	struct sharp_nt_panel *sharp_nt = mipi_dsi_get_drvdata(dsi);
 	int ret;
 
-	ret = drm_panel_disable(&sharp_nt->base);
-	if (ret < 0)
-		dev_err(&dsi->dev, "failed to disable panel: %d\n", ret);
-
 	ret = mipi_dsi_detach(dsi);
 	if (ret < 0)
 		dev_err(&dsi->dev, "failed to detach from DSI host: %d\n", ret);
 
 	sharp_nt_panel_del(sharp_nt);
-}
-
-static void sharp_nt_panel_shutdown(struct mipi_dsi_device *dsi)
-{
-	struct sharp_nt_panel *sharp_nt = mipi_dsi_get_drvdata(dsi);
-
-	drm_panel_disable(&sharp_nt->base);
 }
 
 static const struct of_device_id sharp_nt_of_match[] = {
@@ -342,7 +288,6 @@ static struct mipi_dsi_driver sharp_nt_panel_driver = {
 	},
 	.probe = sharp_nt_panel_probe,
 	.remove = sharp_nt_panel_remove,
-	.shutdown = sharp_nt_panel_shutdown,
 };
 module_mipi_dsi_driver(sharp_nt_panel_driver);
 

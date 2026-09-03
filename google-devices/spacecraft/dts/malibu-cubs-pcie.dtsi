@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Cubs PCIe configuration
+ *
+ * Copyright 2026 Google LLC
+ */
+
+&pcie0 {
+	/*
+	 * Each 4 bits:
+	 * - Upstream RX Preset hint: -6db
+	 * - Upstream TX Preset: P3
+	 * - Downstream RX Preset hint: -6db
+	 * - Downstream TX Preset: P3
+	 */
+	eq-presets-8gts = /bits/ 16 <0x0303>;
+	/*
+	 * Each 4 bits:
+	 * - Downstream TX Preset: P3
+	 * - Upstream TX Preset: P3
+	 */
+	eq-presets-16gts = /bits/ 8 <0x33>;
+};
+
+&pcie1 {
+	/* BCM4383 only supports GEN2. */
+	max-link-speed = <2>;
+
+	/*
+	 * We don't need to do the EQ setting for
+	 * GEN2 and GEN1, remove them.
+	 */
+};

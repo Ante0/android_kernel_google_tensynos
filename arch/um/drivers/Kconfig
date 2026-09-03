@@ -251,6 +251,7 @@ config UML_NET_VECTOR
 config UML_NET_VDE
 	bool "VDE transport (obsolete)"
 	depends on UML_NET
+	depends on !MODVERSIONS
 	select MAY_HAVE_RUNTIME_DEPS
 	help
 	  This User-Mode Linux network transport allows one or more running
@@ -290,25 +291,6 @@ config UML_NET_MCAST
 	  <http://user-mode-linux.sourceforge.net/old/networking.html>  That site
 	  has examples of the UML command line to use to enable Multicast
 	  networking, and notes about the security of this approach.
-
-	  NOTE: THIS TRANSPORT IS DEPRECATED AND WILL BE REMOVED SOON!!! Please
-	  migrate to UML_NET_VECTOR.
-
-	  If unsure, say N.
-
-config UML_NET_PCAP
-	bool "pcap transport (obsolete)"
-	depends on UML_NET
-	select MAY_HAVE_RUNTIME_DEPS
-	help
-	  The pcap transport makes a pcap packet stream on the host look
-	  like an ethernet device inside UML.  This is useful for making
-	  UML act as a network monitor for the host.  You must have libcap
-	  installed in order to build the pcap transport into UML.
-
-	  For more information, see
-	  <http://user-mode-linux.sourceforge.net/old/networking.html>  That site
-	  has examples of the UML command line to use to enable this option.
 
 	  NOTE: THIS TRANSPORT IS DEPRECATED AND WILL BE REMOVED SOON!!! Please
 	  migrate to UML_NET_VECTOR.
@@ -371,7 +353,6 @@ config UML_PCI_OVER_VIRTIO
 	select UML_IOMEM_EMULATION
 	select UML_DMA_EMULATION
 	select PCI_MSI
-	select PCI_MSI_IRQ_DOMAIN
 	select PCI_LOCKLESS_CONFIG
 
 config UML_PCI_OVER_VIRTIO_DEVICE_ID

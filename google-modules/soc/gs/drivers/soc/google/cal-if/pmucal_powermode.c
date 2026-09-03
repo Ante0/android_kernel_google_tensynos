@@ -19,7 +19,7 @@ void pmucal_powermode_hint(unsigned int mode)
 	set_priv_reg(pmucal_cpuinform_list[cpu].base_pa + pmucal_cpuinform_list[cpu].offset, mode);
 }
 
-u32 pmucal_get_powermode_hint(unsigned int cpu)
+static u32 pmucal_get_powermode_hint(unsigned int cpu)
 {
 	return __raw_readl(pmucal_cpuinform_list[cpu].base_va
 			+ pmucal_cpuinform_list[cpu].offset);

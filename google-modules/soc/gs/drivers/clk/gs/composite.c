@@ -967,8 +967,8 @@ struct dummy_gate_clk {
 static struct dummy_gate_clk **gate_clk_list;
 static unsigned int gate_clk_nr;
 
-int samsung_add_clk_gate_list(struct clk *clk, unsigned long offset,
-				u8 bit_idx, const char *name)
+static int samsung_add_clk_gate_list(struct clk *clk, unsigned long offset,
+				     u8 bit_idx, const char *name)
 {
 	struct dummy_gate_clk *tmp_clk;
 
@@ -988,22 +988,6 @@ int samsung_add_clk_gate_list(struct clk *clk, unsigned long offset,
 	gate_clk_list[gate_clk_nr] = tmp_clk;
 
 	gate_clk_nr++;
-
-	return 0;
-}
-
-struct clk *samsung_clk_get_by_reg(unsigned long offset, u8 bit_idx)
-{
-	unsigned int i;
-
-	for (i = 0; i < gate_clk_nr; i++) {
-		if (gate_clk_list[i]->offset == offset) {
-			if (gate_clk_list[i]->bit_idx == bit_idx)
-				return gate_clk_list[i]->clk;
-		}
-	}
-
-	pr_err("Failed to get clk by register offset\n");
 
 	return 0;
 }
@@ -1238,7 +1222,7 @@ void samsung_register_usermux(struct samsung_clk_provider *ctx,
  * Operations for virtual clock used in cal
  * When cal is used to set clocks, following operations will be executed.
  */
-int cal_vclk_enable(struct clk_hw *hw)
+static int cal_vclk_enable(struct clk_hw *hw)
 {
 	struct samsung_vclk *vclk = to_vclk(hw);
 	unsigned long flags = 0;
@@ -1273,7 +1257,7 @@ int cal_vclk_enable(struct clk_hw *hw)
 	return 0;
 }
 
-void cal_vclk_disable(struct clk_hw *hw)
+static void cal_vclk_disable(struct clk_hw *hw)
 {
 	struct samsung_vclk *vclk = to_vclk(hw);
 	unsigned long flags = 0;
@@ -1306,7 +1290,7 @@ void cal_vclk_disable(struct clk_hw *hw)
 		spin_unlock_irqrestore(vclk->lock, flags);
 }
 
-int cal_vclk_is_enabled(struct clk_hw *hw)
+static int cal_vclk_is_enabled(struct clk_hw *hw)
 {
 	struct samsung_vclk *vclk = to_vclk(hw);
 	int ret = 0;
@@ -1321,7 +1305,7 @@ int cal_vclk_is_enabled(struct clk_hw *hw)
 	return ret;
 }
 
-unsigned long cal_vclk_recalc_rate(struct clk_hw *hw, unsigned long parent_rate)
+static unsigned long cal_vclk_recalc_rate(struct clk_hw *hw, unsigned long parent_rate)
 {
 	struct samsung_vclk *vclk = to_vclk(hw);
 	unsigned long ret = 0;
@@ -1337,7 +1321,7 @@ unsigned long cal_vclk_recalc_rate(struct clk_hw *hw, unsigned long parent_rate)
 	return ret;
 }
 
-unsigned long cal_vclk_gate_recalc_rate(struct clk_hw *hw,
+static unsigned long cal_vclk_gate_recalc_rate(struct clk_hw *hw,
 					unsigned long parent_rate)
 {
 	struct samsung_vclk *vclk;
@@ -1362,15 +1346,15 @@ unsigned long cal_vclk_gate_recalc_rate(struct clk_hw *hw,
 	return ret;
 }
 
-long cal_vclk_round_rate(struct clk_hw *hw, unsigned long rate,
+static long cal_vclk_round_rate(struct clk_hw *hw, unsigned long rate,
 				unsigned long *prate)
 {
 	/* round_rate ops is not needed when using cal */
 	return (long)rate;
 }
 
-int cal_vclk_set_rate(struct clk_hw *hw, unsigned long rate,
-		unsigned long prate)
+static int cal_vclk_set_rate(struct clk_hw *hw, unsigned long rate,
+			     unsigned long prate)
 {
 	struct samsung_vclk *vclk = to_vclk(hw);
 	unsigned long flags = 0;
@@ -1403,8 +1387,8 @@ int cal_vclk_set_rate(struct clk_hw *hw, unsigned long rate,
 	return ret;
 }
 
-unsigned long cal_vclk_dfs_sw_recalc_rate(struct clk_hw *hw,
-		unsigned long parent_rate)
+static unsigned long cal_vclk_dfs_sw_recalc_rate(struct clk_hw *hw,
+						 unsigned long parent_rate)
 {
 	struct samsung_vclk *vclk = to_vclk(hw);
 	unsigned long ret = 0;
@@ -1414,8 +1398,8 @@ unsigned long cal_vclk_dfs_sw_recalc_rate(struct clk_hw *hw,
 
 	return ret;
 }
-unsigned long cal_vclk_dfs_recalc_rate(struct clk_hw *hw,
-		unsigned long parent_rate)
+static unsigned long cal_vclk_dfs_recalc_rate(struct clk_hw *hw,
+					      unsigned long parent_rate)
 {
 	struct samsung_vclk *vclk = to_vclk(hw);
 	unsigned long ret = 0;
@@ -1426,8 +1410,8 @@ unsigned long cal_vclk_dfs_recalc_rate(struct clk_hw *hw,
 	return ret;
 }
 
-int cal_vclk_dfs_set_rate(struct clk_hw *hw, unsigned long rate,
-		unsigned long prate)
+static int cal_vclk_dfs_set_rate(struct clk_hw *hw, unsigned long rate,
+				 unsigned long prate)
 {
 	struct samsung_vclk *vclk = to_vclk(hw);
 	unsigned long flags = 0;
@@ -1463,8 +1447,8 @@ int cal_vclk_dfs_set_rate(struct clk_hw *hw, unsigned long rate,
 	return ret;
 }
 
-int cal_vclk_dfs_set_rate_switch(struct clk_hw *hw, unsigned long rate,
-		unsigned long prate)
+static int cal_vclk_dfs_set_rate_switch(struct clk_hw *hw, unsigned long rate,
+					unsigned long prate)
 {
 	struct samsung_vclk *vclk = to_vclk(hw);
 	unsigned long flags = 0;
@@ -1504,7 +1488,7 @@ static int cal_vclk_qch_init(struct clk_hw *hw)
 	return ret;
 }
 
-int cal_vclk_qactive_enable(struct clk_hw *hw)
+static int cal_vclk_qactive_enable(struct clk_hw *hw)
 {
 	struct samsung_vclk *vclk = to_vclk(hw);
 	unsigned long flags = 0;
@@ -1536,7 +1520,7 @@ int cal_vclk_qactive_enable(struct clk_hw *hw)
 	return 0;
 }
 
-void cal_vclk_qactive_disable(struct clk_hw *hw)
+static void cal_vclk_qactive_disable(struct clk_hw *hw)
 {
 	struct samsung_vclk *vclk = to_vclk(hw);
 	unsigned long flags = 0;

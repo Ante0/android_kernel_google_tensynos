@@ -45,6 +45,7 @@ static const struct of_device_id of_match_clk_mt6779_ipe[] = {
 		/* sentinel */
 	}
 };
+MODULE_DEVICE_TABLE(of, of_match_clk_mt6779_ipe);
 
 static struct platform_driver clk_mt6779_ipe_drv = {
 	.probe = mtk_clk_simple_probe,
@@ -56,4 +57,6 @@ static struct platform_driver clk_mt6779_ipe_drv = {
 };
 
 module_platform_driver(clk_mt6779_ipe_drv);
+
+MODULE_DESCRIPTION("MediaTek MT6779 Image Processing Engine clocks driver");
 MODULE_LICENSE("GPL");

@@ -1,0 +1,518 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * AoC device tree source
+ *
+ * Copyright 2024 Google,LLC.
+ */
+
+/ {
+	aoc: aoc@a800000 {
+		compatible = "google,aoc";
+		reg = <0x0 0x0a800000 0x0 0x0500000>,
+			<0x0 0xd120000 0x0 0x20000>;
+		reg-names = "blk_aoc", "lpcm";
+		/*
+		 * Add padding SIDs (marked as Padding in the comment) such that there are no gaps.
+		 * SMMUv3 driver attempts to group SIDs into a continuous range to take advantage
+		 * of STE.CONT hint performance improvement.
+		 */
+		iommus = <&amb_smmu 0x8800>, /* AXI-AP */
+			 <&amb_smmu 0x8801>, /* Padding */
+			 <&amb_smmu 0x8802>, /* Padding */
+			 <&amb_smmu 0x8803>, /* Padding */
+			 <&amb_smmu 0x8804>, /* A32 */
+			 <&amb_smmu 0x8805>, /* Padding */
+			 <&amb_smmu 0x8806>, /* Padding */
+			 <&amb_smmu 0x8807>, /* Padding */
+			 <&amb_smmu 0x8808>, /* L2C M0 */
+			 <&amb_smmu 0x8809>, /* Padding */
+			 <&amb_smmu 0x880A>, /* Padding */
+			 <&amb_smmu 0x880B>, /* Padding */
+			 <&amb_smmu 0x880C>, /* L2C M1 */
+			 <&amb_smmu 0x880D>, /* Padding */
+			 <&amb_smmu 0x880E>, /* Padding */
+			 <&amb_smmu 0x880F>, /* Padding */
+			 <&amb_smmu 0x8810>, /* AMB_DSP0 */
+			 <&amb_smmu 0x8811>, /* Padding */
+			 <&amb_smmu 0x8812>, /* Padding */
+			 <&amb_smmu 0x8813>, /* Padding */
+			 <&amb_smmu 0x8814>, /* Padding */
+			 <&amb_smmu 0x8815>, /* Padding */
+			 <&amb_smmu 0x8816>, /* Padding */
+			 <&amb_smmu 0x8817>, /* Padding */
+			 <&amb_smmu 0x8818>, /* AMB_DSP1 */
+			 <&amb_smmu 0x8819>, /* Padding */
+			 <&amb_smmu 0x881A>, /* Padding */
+			 <&amb_smmu 0x881B>, /* Padding */
+			 <&amb_smmu 0x881C>, /* Padding */
+			 <&amb_smmu 0x881D>, /* Padding */
+			 <&amb_smmu 0x881E>, /* Padding */
+			 <&amb_smmu 0x881F>, /* Padding */
+			 <&amb_smmu 0x8820>, /* Sensor core */
+			 <&amb_smmu 0x8821>, /* Padding */
+			 <&amb_smmu 0x8822>, /* Padding */
+			 <&amb_smmu 0x8823>, /* Padding */
+			 <&amb_smmu 0x8824>, /* Padding */
+			 <&amb_smmu 0x8825>, /* Padding */
+			 <&amb_smmu 0x8826>, /* Padding */
+			 <&amb_smmu 0x8827>, /* Padding */
+			 <&amb_smmu 0x8828>, /* Smart DMA MCU */
+			 <&amb_smmu 0x8829>, /* Padding */
+			 <&amb_smmu 0x882A>, /* Padding */
+			 <&amb_smmu 0x882B>, /* Padding */
+			 <&amb_smmu 0x882C>, /* Padding */
+			 <&amb_smmu 0x882D>, /* Padding */
+			 <&amb_smmu 0x882E>, /* Padding */
+			 <&amb_smmu 0x882F>, /* Padding */
+			 <&amb_smmu 0x8830>, /* AON DSP */
+			 <&amb_smmu 0x8831>, /* Padding */
+			 <&amb_smmu 0x8832>, /* Padding */
+			 <&amb_smmu 0x8833>, /* Padding */
+			 <&amb_smmu 0x8834>, /* Padding */
+			 <&amb_smmu 0x8835>, /* Padding */
+			 <&amb_smmu 0x8836>, /* Padding */
+			 <&amb_smmu 0x8837>, /* Padding */
+			 <&amb_smmu 0x8838>, /* NanoTPU HIB Parameters */
+			 <&amb_smmu 0x8839>, /* Padding */
+			 <&amb_smmu 0x883A>, /* Padding */
+			 <&amb_smmu 0x883B>, /* Padding */
+			 <&amb_smmu 0x883C>, /* NanoTPU HIB Activations */
+			 <&amb_smmu 0x883D>, /* Padding */
+			 <&amb_smmu 0x883E>, /* Padding */
+			 <&amb_smmu 0x883F>, /* Padding */
+			 <&amb_smmu 0x8840>, /* Padding */
+			 <&amb_smmu 0x8841>, /* Padding */
+			 <&amb_smmu 0x8842>, /* Padding */
+			 <&amb_smmu 0x8843>, /* Padding */
+			 <&amb_smmu 0x8844>, /* Padding */
+			 <&amb_smmu 0x8845>, /* Padding */
+			 <&amb_smmu 0x8846>, /* Padding */
+			 <&amb_smmu 0x8847>, /* Padding */
+			 <&amb_smmu 0x8848>, /* Padding */
+			 <&amb_smmu 0x8849>, /* Padding */
+			 <&amb_smmu 0x884A>, /* Padding */
+			 <&amb_smmu 0x884B>, /* Padding */
+			 <&amb_smmu 0x884C>, /* Padding */
+			 <&amb_smmu 0x884D>, /* Padding */
+			 <&amb_smmu 0x884E>, /* Padding */
+			 <&amb_smmu 0x884F>, /* Padding */
+			 <&amb_smmu 0x8850>, /* Padding */
+			 <&amb_smmu 0x8851>, /* Padding */
+			 <&amb_smmu 0x8852>, /* Padding */
+			 <&amb_smmu 0x8853>, /* Padding */
+			 <&amb_smmu 0x8854>, /* Padding */
+			 <&amb_smmu 0x8855>, /* Padding */
+			 <&amb_smmu 0x8856>, /* Padding */
+			 <&amb_smmu 0x8857>, /* Padding */
+			 <&amb_smmu 0x8858>, /* Padding */
+			 <&amb_smmu 0x8859>, /* Padding */
+			 <&amb_smmu 0x885A>, /* Padding */
+			 <&amb_smmu 0x885B>, /* Padding */
+			 <&amb_smmu 0x885C>, /* Padding */
+			 <&amb_smmu 0x885D>, /* Padding */
+			 <&amb_smmu 0x885E>, /* Padding */
+			 <&amb_smmu 0x885F>, /* Padding */
+			 <&amb_smmu 0x8860>, /* Padding */
+			 <&amb_smmu 0x8861>, /* Padding */
+			 <&amb_smmu 0x8862>, /* Padding */
+			 <&amb_smmu 0x8863>, /* Padding */
+			 <&amb_smmu 0x8864>, /* Padding */
+			 <&amb_smmu 0x8865>, /* Padding */
+			 <&amb_smmu 0x8866>, /* Padding */
+			 <&amb_smmu 0x8867>, /* Padding */
+			 <&amb_smmu 0x8868>, /* Padding */
+			 <&amb_smmu 0x8869>, /* Padding */
+			 <&amb_smmu 0x886A>, /* Padding */
+			 <&amb_smmu 0x886B>, /* Padding */
+			 <&amb_smmu 0x886C>, /* Padding */
+			 <&amb_smmu 0x886D>, /* Padding */
+			 <&amb_smmu 0x886E>, /* Padding */
+			 <&amb_smmu 0x886F>, /* Padding */
+			 <&amb_smmu 0x8870>, /* Padding */
+			 <&amb_smmu 0x8871>, /* Padding */
+			 <&amb_smmu 0x8872>, /* Padding */
+			 <&amb_smmu 0x8873>, /* Padding */
+			 <&amb_smmu 0x8874>, /* Padding */
+			 <&amb_smmu 0x8875>, /* Padding */
+			 <&amb_smmu 0x8876>, /* Padding */
+			 <&amb_smmu 0x8877>, /* Padding */
+			 <&amb_smmu 0x8878>, /* NanoTPU DIVE */
+			 <&amb_smmu 0x8879>, /* Padding */
+			 <&amb_smmu 0x887A>, /* Padding */
+			 <&amb_smmu 0x887B>, /* Padding */
+			 <&amb_smmu 0x887C>, /* Padding */
+			 <&amb_smmu 0x887D>, /* Padding */
+			 <&amb_smmu 0x887E>, /* Padding */
+			 <&amb_smmu 0x887F>, /* Padding */
+			 <&amb_smmu 0x8880>, /* AON DMA I Channel x 0-8 */
+			 <&amb_smmu 0x8881>, /* Padding */
+			 <&amb_smmu 0x8882>, /* Padding */
+			 <&amb_smmu 0x8883>, /* Padding */
+			 <&amb_smmu 0x8884>,
+			 <&amb_smmu 0x8885>, /* Padding */
+			 <&amb_smmu 0x8886>, /* Padding */
+			 <&amb_smmu 0x8887>, /* Padding */
+			 <&amb_smmu 0x8888>,
+			 <&amb_smmu 0x8889>, /* Padding */
+			 <&amb_smmu 0x888A>, /* Padding */
+			 <&amb_smmu 0x888B>, /* Padding */
+			 <&amb_smmu 0x888C>,
+			 <&amb_smmu 0x888D>, /* Padding */
+			 <&amb_smmu 0x888E>, /* Padding */
+			 <&amb_smmu 0x888F>, /* Padding */
+			 <&amb_smmu 0x8890>,
+			 <&amb_smmu 0x8891>, /* Padding */
+			 <&amb_smmu 0x8892>, /* Padding */
+			 <&amb_smmu 0x8893>, /* Padding */
+			 <&amb_smmu 0x8894>,
+			 <&amb_smmu 0x8895>, /* Padding */
+			 <&amb_smmu 0x8896>, /* Padding */
+			 <&amb_smmu 0x8897>, /* Padding */
+			 <&amb_smmu 0x8898>,
+			 <&amb_smmu 0x8899>, /* Padding */
+			 <&amb_smmu 0x889A>, /* Padding */
+			 <&amb_smmu 0x889B>, /* Padding */
+			 <&amb_smmu 0x889C>,
+			 <&amb_smmu 0x889D>, /* Padding */
+			 <&amb_smmu 0x889E>, /* Padding */
+			 <&amb_smmu 0x889F>, /* Padding */
+			 <&amb_smmu 0x88A0>,
+			 <&amb_smmu 0x88A1>, /* Padding */
+			 <&amb_smmu 0x88A2>, /* Padding */
+			 <&amb_smmu 0x88A3>, /* Padding */
+			 <&amb_smmu 0x88A4>, /* AON DMA II Channel y 0-8 */
+			 <&amb_smmu 0x88A5>, /* Padding */
+			 <&amb_smmu 0x88A6>, /* Padding */
+			 <&amb_smmu 0x88A7>, /* Padding */
+			 <&amb_smmu 0x88A8>,
+			 <&amb_smmu 0x88A9>, /* Padding */
+			 <&amb_smmu 0x88AA>, /* Padding */
+			 <&amb_smmu 0x88AB>, /* Padding */
+			 <&amb_smmu 0x88AC>,
+			 <&amb_smmu 0x88AD>, /* Padding */
+			 <&amb_smmu 0x88AE>, /* Padding */
+			 <&amb_smmu 0x88AF>, /* Padding */
+			 <&amb_smmu 0x88B0>,
+			 <&amb_smmu 0x88B1>, /* Padding */
+			 <&amb_smmu 0x88B2>, /* Padding */
+			 <&amb_smmu 0x88B3>, /* Padding */
+			 <&amb_smmu 0x88B4>,
+			 <&amb_smmu 0x88B5>, /* Padding */
+			 <&amb_smmu 0x88B6>, /* Padding */
+			 <&amb_smmu 0x88B7>, /* Padding */
+			 <&amb_smmu 0x88B8>,
+			 <&amb_smmu 0x88B9>, /* Padding */
+			 <&amb_smmu 0x88BA>, /* Padding */
+			 <&amb_smmu 0x88BB>, /* Padding */
+			 <&amb_smmu 0x88BC>,
+			 <&amb_smmu 0x88BD>, /* Padding */
+			 <&amb_smmu 0x88BE>, /* Padding */
+			 <&amb_smmu 0x88BF>, /* Padding */
+			 <&amb_smmu 0x88C0>,
+			 <&amb_smmu 0x88C1>, /* Padding */
+			 <&amb_smmu 0x88C2>, /* Padding */
+			 <&amb_smmu 0x88C3>, /* Padding */
+			 <&amb_smmu 0x88C4>,
+			 <&amb_smmu 0x88C5>, /* Padding */
+			 <&amb_smmu 0x88C6>, /* Padding */
+			 <&amb_smmu 0x88C7>, /* Padding */
+			 <&amb_smmu 0x88C8>, /* AMB DMA Channel z 0-8 */
+			 <&amb_smmu 0x88C9>, /* Padding */
+			 <&amb_smmu 0x88CA>, /* Padding */
+			 <&amb_smmu 0x88CB>, /* Padding */
+			 <&amb_smmu 0x88CC>,
+			 <&amb_smmu 0x88CD>, /* Padding */
+			 <&amb_smmu 0x88CE>, /* Padding */
+			 <&amb_smmu 0x88CF>, /* Padding */
+			 <&amb_smmu 0x88D0>,
+			 <&amb_smmu 0x88D1>, /* Padding */
+			 <&amb_smmu 0x88D2>, /* Padding */
+			 <&amb_smmu 0x88D3>, /* Padding */
+			 <&amb_smmu 0x88D4>,
+			 <&amb_smmu 0x88D5>, /* Padding */
+			 <&amb_smmu 0x88D6>, /* Padding */
+			 <&amb_smmu 0x88D7>, /* Padding */
+			 <&amb_smmu 0x88D8>,
+			 <&amb_smmu 0x88D9>, /* Padding */
+			 <&amb_smmu 0x88DA>, /* Padding */
+			 <&amb_smmu 0x88DB>, /* Padding */
+			 <&amb_smmu 0x88DC>,
+			 <&amb_smmu 0x88DD>, /* Padding */
+			 <&amb_smmu 0x88DE>, /* Padding */
+			 <&amb_smmu 0x88DF>, /* Padding */
+			 <&amb_smmu 0x88E0>,
+			 <&amb_smmu 0x88E1>, /* Padding */
+			 <&amb_smmu 0x88E2>, /* Padding */
+			 <&amb_smmu 0x88E3>, /* Padding */
+			 <&amb_smmu 0x88E4>,
+			 <&amb_smmu 0x88E5>, /* Padding */
+			 <&amb_smmu 0x88E6>, /* Padding */
+			 <&amb_smmu 0x88E7>, /* Padding */
+			 <&amb_smmu 0x88E8>,
+			 <&amb_smmu 0x88E9>, /* Padding */
+			 <&amb_smmu 0x88EA>, /* Padding */
+			 <&amb_smmu 0x88EB>, /* Padding */
+			 <&amb_smmu 0x88EC>, /* Padding */
+			 <&amb_smmu 0x88ED>, /* Padding */
+			 <&amb_smmu 0x88EE>, /* Padding */
+			 <&amb_smmu 0x88EF>, /* Padding */
+			 <&amb_smmu 0x88F0>, /* Padding */
+			 <&amb_smmu 0x88F1>, /* Padding */
+			 <&amb_smmu 0x88F2>, /* Padding */
+			 <&amb_smmu 0x88F3>, /* Padding */
+			 <&amb_smmu 0x88F4>, /* Padding */
+			 <&amb_smmu 0x88F5>, /* Padding */
+			 <&amb_smmu 0x88F6>, /* Padding */
+			 <&amb_smmu 0x88F7>, /* Padding */
+			 <&amb_smmu 0x88F8>, /* Padding */
+			 <&amb_smmu 0x88F9>, /* Padding */
+			 <&amb_smmu 0x88FA>, /* Padding */
+			 <&amb_smmu 0x88FB>, /* Padding */
+			 <&amb_smmu 0x88FC>, /* Padding */
+			 <&amb_smmu 0x88FD>, /* Padding */
+			 <&amb_smmu 0x88FE>, /* Padding */
+			 <&amb_smmu 0x88FF>; /* Padding */
+
+		memory-region = <&aoc_reserve>;
+
+		coredump-region = <&abl_reserve>;
+
+		mbox-channels = <192>; /* 64 * 3 */
+		mbox-doorbell-mode-enabled;
+		mbox-non-waking = <
+			/* Mbox reg base address, offset and bitmask for mask reg */
+			&mba_ambss_cpu_mba_client_5 0x24 0x7FFF
+			&mba_aonss_sc_mba_client_3 0x24  0x7FFF
+			&mba_aonss_adsp_mba_client_3 0x24 0xFFFF
+			>;
+
+		mboxes = <
+			/* AONSS_SC_MBA */
+			&mba_aonss_sc_mba_client_0 0
+			&mba_aonss_sc_mba_client_0 1
+			&mba_aonss_sc_mba_client_0 2
+			&mba_aonss_sc_mba_client_0 3
+			&mba_aonss_sc_mba_client_0 4
+			&mba_aonss_sc_mba_client_0 5
+			&mba_aonss_sc_mba_client_0 6
+			&mba_aonss_sc_mba_client_0 7
+			&mba_aonss_sc_mba_client_0 8
+			&mba_aonss_sc_mba_client_0 9
+			&mba_aonss_sc_mba_client_0 10
+			&mba_aonss_sc_mba_client_0 11
+			&mba_aonss_sc_mba_client_0 12
+			&mba_aonss_sc_mba_client_0 13
+			&mba_aonss_sc_mba_client_0 14
+			&mba_aonss_sc_mba_client_0 15
+			&mba_aonss_sc_mba_client_1 0
+			&mba_aonss_sc_mba_client_1 1
+			&mba_aonss_sc_mba_client_1 2
+			&mba_aonss_sc_mba_client_1 3
+			&mba_aonss_sc_mba_client_1 4
+			&mba_aonss_sc_mba_client_1 5
+			&mba_aonss_sc_mba_client_1 6
+			&mba_aonss_sc_mba_client_1 7
+			&mba_aonss_sc_mba_client_1 8
+			&mba_aonss_sc_mba_client_1 9
+			&mba_aonss_sc_mba_client_1 10
+			&mba_aonss_sc_mba_client_1 11
+			&mba_aonss_sc_mba_client_1 12
+			&mba_aonss_sc_mba_client_1 13
+			&mba_aonss_sc_mba_client_1 14
+			&mba_aonss_sc_mba_client_1 15
+			&mba_aonss_sc_mba_client_2 0
+			&mba_aonss_sc_mba_client_2 1
+			&mba_aonss_sc_mba_client_2 2
+			&mba_aonss_sc_mba_client_2 3
+			&mba_aonss_sc_mba_client_2 4
+			&mba_aonss_sc_mba_client_2 5
+			&mba_aonss_sc_mba_client_2 6
+			&mba_aonss_sc_mba_client_2 7
+			&mba_aonss_sc_mba_client_2 8
+			&mba_aonss_sc_mba_client_2 9
+			&mba_aonss_sc_mba_client_2 10
+			&mba_aonss_sc_mba_client_2 11
+			&mba_aonss_sc_mba_client_2 12
+			&mba_aonss_sc_mba_client_2 13
+			&mba_aonss_sc_mba_client_2 14
+			&mba_aonss_sc_mba_client_2 15
+			&mba_aonss_sc_mba_client_3 0
+			&mba_aonss_sc_mba_client_3 1
+			&mba_aonss_sc_mba_client_3 2
+			&mba_aonss_sc_mba_client_3 3
+			&mba_aonss_sc_mba_client_3 4
+			&mba_aonss_sc_mba_client_3 5
+			&mba_aonss_sc_mba_client_3 6
+			&mba_aonss_sc_mba_client_3 7
+			&mba_aonss_sc_mba_client_3 8
+			&mba_aonss_sc_mba_client_3 9
+			&mba_aonss_sc_mba_client_3 10
+			&mba_aonss_sc_mba_client_3 11
+			&mba_aonss_sc_mba_client_3 12
+			&mba_aonss_sc_mba_client_3 13
+			&mba_aonss_sc_mba_client_3 14
+			&mba_aonss_sc_mba_client_3 15
+			/* AONSS_ADSP_MBA */
+			&mba_aonss_adsp_mba_client_0 0
+			&mba_aonss_adsp_mba_client_0 1
+			&mba_aonss_adsp_mba_client_0 2
+			&mba_aonss_adsp_mba_client_0 3
+			&mba_aonss_adsp_mba_client_0 4
+			&mba_aonss_adsp_mba_client_0 5
+			&mba_aonss_adsp_mba_client_0 6
+			&mba_aonss_adsp_mba_client_0 7
+			&mba_aonss_adsp_mba_client_0 8
+			&mba_aonss_adsp_mba_client_0 9
+			&mba_aonss_adsp_mba_client_0 10
+			&mba_aonss_adsp_mba_client_0 11
+			&mba_aonss_adsp_mba_client_0 12
+			&mba_aonss_adsp_mba_client_0 13
+			&mba_aonss_adsp_mba_client_0 14
+			&mba_aonss_adsp_mba_client_0 15
+			&mba_aonss_adsp_mba_client_1 0
+			&mba_aonss_adsp_mba_client_1 1
+			&mba_aonss_adsp_mba_client_1 2
+			&mba_aonss_adsp_mba_client_1 3
+			&mba_aonss_adsp_mba_client_1 4
+			&mba_aonss_adsp_mba_client_1 5
+			&mba_aonss_adsp_mba_client_1 6
+			&mba_aonss_adsp_mba_client_1 7
+			&mba_aonss_adsp_mba_client_1 8
+			&mba_aonss_adsp_mba_client_1 9
+			&mba_aonss_adsp_mba_client_1 10
+			&mba_aonss_adsp_mba_client_1 11
+			&mba_aonss_adsp_mba_client_1 12
+			&mba_aonss_adsp_mba_client_1 13
+			&mba_aonss_adsp_mba_client_1 14
+			&mba_aonss_adsp_mba_client_1 15
+			&mba_aonss_adsp_mba_client_2 0
+			&mba_aonss_adsp_mba_client_2 1
+			&mba_aonss_adsp_mba_client_2 2
+			&mba_aonss_adsp_mba_client_2 3
+			&mba_aonss_adsp_mba_client_2 4
+			&mba_aonss_adsp_mba_client_2 5
+			&mba_aonss_adsp_mba_client_2 6
+			&mba_aonss_adsp_mba_client_2 7
+			&mba_aonss_adsp_mba_client_2 8
+			&mba_aonss_adsp_mba_client_2 9
+			&mba_aonss_adsp_mba_client_2 10
+			&mba_aonss_adsp_mba_client_2 11
+			&mba_aonss_adsp_mba_client_2 12
+			&mba_aonss_adsp_mba_client_2 13
+			&mba_aonss_adsp_mba_client_2 14
+			&mba_aonss_adsp_mba_client_2 15
+			&mba_aonss_adsp_mba_client_3 0
+			&mba_aonss_adsp_mba_client_3 1
+			&mba_aonss_adsp_mba_client_3 2
+			&mba_aonss_adsp_mba_client_3 3
+			&mba_aonss_adsp_mba_client_3 4
+			&mba_aonss_adsp_mba_client_3 5
+			&mba_aonss_adsp_mba_client_3 6
+			&mba_aonss_adsp_mba_client_3 7
+			&mba_aonss_adsp_mba_client_3 8
+			&mba_aonss_adsp_mba_client_3 9
+			&mba_aonss_adsp_mba_client_3 10
+			&mba_aonss_adsp_mba_client_3 11
+			&mba_aonss_adsp_mba_client_3 12
+			&mba_aonss_adsp_mba_client_3 13
+			&mba_aonss_adsp_mba_client_3 14
+			&mba_aonss_adsp_mba_client_3 15
+			/* AMBSS_CPU_MBA */
+			&mba_ambss_cpu_mba_client_2 0
+			&mba_ambss_cpu_mba_client_2 1
+			&mba_ambss_cpu_mba_client_2 2
+			&mba_ambss_cpu_mba_client_2 3
+			&mba_ambss_cpu_mba_client_2 4
+			&mba_ambss_cpu_mba_client_2 5
+			&mba_ambss_cpu_mba_client_2 6
+			&mba_ambss_cpu_mba_client_2 7
+			&mba_ambss_cpu_mba_client_2 8
+			&mba_ambss_cpu_mba_client_2 9
+			&mba_ambss_cpu_mba_client_2 10
+			&mba_ambss_cpu_mba_client_2 11
+			&mba_ambss_cpu_mba_client_2 12
+			&mba_ambss_cpu_mba_client_2 13
+			&mba_ambss_cpu_mba_client_2 14
+			&mba_ambss_cpu_mba_client_2 15
+			&mba_ambss_cpu_mba_client_3 0
+			&mba_ambss_cpu_mba_client_3 1
+			&mba_ambss_cpu_mba_client_3 2
+			&mba_ambss_cpu_mba_client_3 3
+			&mba_ambss_cpu_mba_client_3 4
+			&mba_ambss_cpu_mba_client_3 5
+			&mba_ambss_cpu_mba_client_3 6
+			&mba_ambss_cpu_mba_client_3 7
+			&mba_ambss_cpu_mba_client_3 8
+			&mba_ambss_cpu_mba_client_3 9
+			&mba_ambss_cpu_mba_client_3 10
+			&mba_ambss_cpu_mba_client_3 11
+			&mba_ambss_cpu_mba_client_3 12
+			&mba_ambss_cpu_mba_client_3 13
+			&mba_ambss_cpu_mba_client_3 14
+			&mba_ambss_cpu_mba_client_3 15
+			&mba_ambss_cpu_mba_client_4 0
+			&mba_ambss_cpu_mba_client_4 1
+			&mba_ambss_cpu_mba_client_4 2
+			&mba_ambss_cpu_mba_client_4 3
+			&mba_ambss_cpu_mba_client_4 4
+			&mba_ambss_cpu_mba_client_4 5
+			&mba_ambss_cpu_mba_client_4 6
+			&mba_ambss_cpu_mba_client_4 7
+			&mba_ambss_cpu_mba_client_4 8
+			&mba_ambss_cpu_mba_client_4 9
+			&mba_ambss_cpu_mba_client_4 10
+			&mba_ambss_cpu_mba_client_4 11
+			&mba_ambss_cpu_mba_client_4 12
+			&mba_ambss_cpu_mba_client_4 13
+			&mba_ambss_cpu_mba_client_4 14
+			&mba_ambss_cpu_mba_client_4 15
+			&mba_ambss_cpu_mba_client_5 0
+			&mba_ambss_cpu_mba_client_5 1
+			&mba_ambss_cpu_mba_client_5 2
+			&mba_ambss_cpu_mba_client_5 3
+			&mba_ambss_cpu_mba_client_5 4
+			&mba_ambss_cpu_mba_client_5 5
+			&mba_ambss_cpu_mba_client_5 6
+			&mba_ambss_cpu_mba_client_5 7
+			&mba_ambss_cpu_mba_client_5 8
+			&mba_ambss_cpu_mba_client_5 9
+			&mba_ambss_cpu_mba_client_5 10
+			&mba_ambss_cpu_mba_client_5 11
+			&mba_ambss_cpu_mba_client_5 12
+			&mba_ambss_cpu_mba_client_5 13
+			&mba_ambss_cpu_mba_client_5 14
+			&mba_ambss_cpu_mba_client_5 15
+			/* CPM mbox iface */
+			&goog_mba_cpm_iface
+		>;
+
+		pcu-base = <0x1400000>;
+		gpio-base = <0x1C00000>;
+		pcu-db-set-offset = <0x1F004>;
+		pcu-db-clr-offset = <0x1F008>;
+		cp-aperture-start-offset = <0x7FDF80>;
+		cp-aperture-end-offset = <0x7FFFFF>;
+		clock-divider = <1>;
+
+		channel-max-pending-msgs = <128>;
+		block-channel-threshold = <64>;
+
+		hotword-supported;
+		chre-supported;
+		iommu-config-persistent;
+
+		boot-breadcrumbs-enabled;
+
+		aoc-coredump-mbox = <63>;
+		ramdump-header-offset = <0x3000000>;
+		carveout-paddr-from-aoc = <0x6000000>;
+		carveout-vaddr-from-aoc = <0xB6000000>;
+
+		notify-on-state-transition;
+
+		gsa-device = <&gsa>;
+		power-controller = <&power_controller>;
+
+		gdmc-iface = <&goog_mba_gdmc_iface>;
+	};
+};

@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "cs-ets.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules/soc/rdo:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "cs-ets",
+    out = "cs-ets.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_ETS": {
+            True: [
+                "coresight-ets-core.c",
+                "coresight-tmc-ets.c",
+                "coresight-tmc-ets.h",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+    ],
+)

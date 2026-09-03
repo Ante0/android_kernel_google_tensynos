@@ -21,6 +21,7 @@
 #include <linux/sched/cputime.h>
 #include <linux/sched/debug.h>
 #include <linux/sched/signal.h>
+#include <linux/vmalloc.h>
 
 #define NUM_BUSY_TASK_CHECK 5
 

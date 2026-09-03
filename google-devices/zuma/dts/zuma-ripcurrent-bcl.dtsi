@@ -24,7 +24,7 @@
 	fragment@battery {
 		target-path = "/";
 		__overlay__ {
-			google_mitigation: google,mitigation {
+			google_mitigation: google-mitigation {
 				compatible = "google,google-bcl";
 				#thermal-sensor-cells = <1>;
 				google,charger = <&max77759_chg>;
@@ -67,6 +67,8 @@
 				uvlo1_det = <0x0>;   /* 0us */
 				uvlo2_det = <0x0>;   /* 0us */
 				non_monitored_module_ids = <AUDIO_MITIGATION_ID HAPTICS_MITIGATION_ID>;
+
+				ifpmic_irq_drv_en;
 
 				irq_config {
 					irq,uvlo1;
@@ -217,53 +219,84 @@
 				};
 				freq_qos {
 					batoilo {
-						cpucl0 = <975000>;
-						cpucl1 = <1221000>;
-						cpucl2 = <1557000>;
-						gpu = <723000>;
-						tpu = <845000>;
+						cpucl0 = <975000 975000>;
+						cpucl1 = <1221000 1221000>;
+						cpucl2 = <1557000 1557000>;
+						gpu = <723000 723000>;
+						tpu = <845000 845000>;
 					};
 					vdroop1 {
-						cpucl0 = <1704000>;
-						cpucl1 = <1836000>;
-						cpucl2 = <2294000>;
-						gpu = <890000>;
-						tpu = <845000>;
+						cpucl0 = <1704000 1704000>;
+						cpucl1 = <1836000 1836000>;
+						cpucl2 = <2294000 2294000>;
+						gpu = <890000 890000>;
+						tpu = <845000 845000>;
 					};
 					vdroop2 {
-						cpucl0 = <1704000>;
-						cpucl1 = <1836000>;
-						cpucl2 = <2294000>;
-						gpu = <649000>;
-						tpu = <627000>;
+						cpucl0 = <1704000 1704000>;
+						cpucl1 = <1836000 1836000>;
+						cpucl2 = <2294000 2294000>;
+						gpu = <649000 649000>;
+						tpu = <627000 627000>;
 					};
 					smpl_gm {
-						cpucl0 = <1704000>;
-						cpucl1 = <1836000>;
-						cpucl2 = <2294000>;
-						gpu = <649000>;
-						tpu = <627000>;
+						cpucl0 = <1704000 1704000>;
+						cpucl1 = <1836000 1836000>;
+						cpucl2 = <2294000 2294000>;
+						gpu = <649000 649000>;
+						tpu = <627000 627000>;
 					};
 					ramp_lvl_1 {
-						cpucl0 = <1844000>;
-						cpucl1 = <1999000>;
-						cpucl2 = <2409000>;
-						gpu = <890000>;
-						tpu = <845000>;
+						cpucl0 = <1844000 1844000>;
+						cpucl1 = <1999000 1999000>;
+						cpucl2 = <2409000 2409000>;
+						gpu = <890000 890000>;
+						tpu = <845000 845000>;
 					};
 					ramp_lvl_2 {
-						cpucl0 = <2024000>;
-						cpucl1 = <2130000>;
-						cpucl2 = <2687000>;
-						gpu = <890000>;
-						tpu = <845000>;
+						cpucl0 = <2024000 2024000>;
+						cpucl1 = <2130000 2130000>;
+						cpucl2 = <2687000 2687000>;
+						gpu = <890000 890000>;
+						tpu = <845000 845000>;
 					};
 					ramp_lvl_3 {
-						cpucl0 = <2098000>;
-						cpucl1 = <2352000>;
-						cpucl2 = <2914000>;
-						gpu = <890000>;
-						tpu = <845000>;
+						cpucl0 = <2098000 2098000>;
+						cpucl1 = <2352000 2352000>;
+						cpucl2 = <2914000 2914000>;
+						gpu = <890000 890000>;
+						tpu = <845000 845000>;
+					};
+				};
+			};
+			max77759_bcl_irq: max77759-bcl-irq {
+				compatible = "max77759-bcl-irq";
+				status = "okay";
+
+				ifpmic = <&max77759_chg>;
+
+				gpios = <&gpa9 5 0>,
+					<&gpa9 6 0>;
+				max77759-bcl-interrupts {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					uvlo1: interrupt@0 {
+						reg = <0>;
+						label = "uvlo1";
+						interrupts-extended = <&gpa9 5 0
+							IRQ_TYPE_EDGE_RISING>;
+						interrupt-parent = <&gpa9>;
+						interrupt-name = "vd1";
+						irq-handler = "vdroop";
+					};
+					uvlo2: interrupt@1 {
+						reg = <1>;
+						label = "uvlo2";
+						interrupts-extended = <&gpa9 6 0
+							IRQ_TYPE_EDGE_RISING>;
+						interrupt-parent = <&gpa9>;
+						interrupt-name = "vd2";
+						irq-handler = "vdroop";
 					};
 				};
 			};

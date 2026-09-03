@@ -8,6 +8,7 @@
  */
 
 
+#include <linux/cleanup.h>
 #include <linux/err.h>
 #include <linux/init.h>
 #include <linux/version.h>
@@ -15,8 +16,11 @@
 #include <linux/dev_printk.h>
 #include <linux/of_device.h>
 
+#include <misc/logbuffer.h>
+
 #include "ln8411_regs.h"
 #include "ln8411_charger.h"
+#include "google_psy.h"
 
 /* Logging ----------------------------------------------------------------- */
 
@@ -33,17 +37,19 @@ static struct device_node *ln8411_find_config(struct device_node *node)
 
 	if (!node)
 		return node;
+
 	temp = of_parse_phandle(node, "ln8411,google_cpm", 0);
 	if (temp)
-		node = temp;
-	return node;
+		return temp;
+
+	return of_node_get(node);
 }
 
 int ln8411_probe_pps(struct ln8411_charger *ln8411_chg)
 {
 	const char *tmp_name = NULL;
 	bool pps_available = false;
-	struct device_node *node;
+	struct device_node *node __free(device_node);
 	int ret;
 
 	node = ln8411_find_config(ln8411_chg->dev->of_node);
@@ -121,7 +127,7 @@ int ln8411_usbpd_setup(struct ln8411_charger *ln8411)
 
 		ln8411->pd = tcpm_psy;
 	} else if (ln8411->tcpm_phandle) {
-		struct device_node *node;
+		struct device_node *node __free(device_node);
 
 		node = ln8411_find_config(ln8411->dev->of_node);
 		if (!node)
@@ -476,22 +482,85 @@ int ln8411_get_rx_max_power(struct ln8411_charger *ln8411)
 
 	ln8411->ta_max_vol = pro_val.intval;
 
-	/* Get the maximum current */
-	ret = power_supply_get_property(wlc_psy, POWER_SUPPLY_PROP_CURRENT_MAX,
-					&pro_val);
-	if (ret < 0) {
-		dev_err(ln8411->dev, "%s Cannot get the maximum RX current (%d)\n",
-			__func__, ret);
-		return ret;
+	if (!ln8411->mpp) {
+		/* Get the maximum current */
+		ret = power_supply_get_property(wlc_psy, POWER_SUPPLY_PROP_CURRENT_MAX,
+						&pro_val);
+		if (ret < 0) {
+			dev_err(ln8411->dev, "%s Cannot get the maximum RX current (%d)\n",
+				__func__, ret);
+			return ret;
+		}
+
+		ln8411->ta_max_cur = pro_val.intval;
 	}
 
-	ln8411->ta_max_cur = pro_val.intval;
 	ln8411->ta_max_pwr = (ln8411->ta_max_vol / 1000) *
 			      (ln8411->ta_max_cur / 1000);
 
 	logbuffer_prlog(ln8411, LOGLEVEL_INFO, "WLCDC: max_cur=%d max_pwr=%ld",
 			ln8411->ta_max_cur, ln8411->ta_max_pwr);
 	return 0;
+}
+
+int ln8411_get_rx_voltage(struct ln8411_charger *ln8411)
+{
+	union power_supply_propval pro_val;
+	struct power_supply *wlc_psy;
+	int ret = -EINVAL;
+
+	/* Vbus reset happened in the previous PD communication */
+	if (ln8411->mains_online == false)
+		return -ENODEV;
+
+	wlc_psy = ln8411_get_rx_psy(ln8411);
+	if (!wlc_psy)
+		return -ENODEV;
+
+	ret = power_supply_get_property(wlc_psy, POWER_SUPPLY_PROP_VOLTAGE_NOW,	&pro_val);
+	if (ret < 0) {
+		dev_err(ln8411->dev, "%s: Cannot get Rx voltage (%d)\n", __func__, ret);
+		return ret;
+	}
+
+	logbuffer_prlog(ln8411, LOGLEVEL_DEBUG, "WLCDC: rx_vol=%d\n", pro_val.intval);
+	return pro_val.intval;
+}
+
+int ln8411_send_rx_message(struct ln8411_charger *ln8411, int msg_type, int val)
+{
+	struct power_supply *wlc_psy;
+	enum gbms_property prop;
+	int ret = -EINVAL;
+
+	/* Vbus reset happened in the previous PD communication */
+	if (ln8411->mains_online == false)
+		return 0;
+
+	wlc_psy = ln8411_get_rx_psy(ln8411);
+	if (!wlc_psy)
+		return -ENODEV;
+
+	switch(msg_type) {
+	case WLC_CAL_DONE:
+	case WLC_CAL_ERROR:
+		prop = GBMS_PROP_MPP_DPLOSS_CALIBRATION_LIMIT;
+		break;
+
+	case WLC_SW_CAP_EN:
+		prop = GBMS_PROP_ENABLE_SWITCH_CAP;
+		break;
+	}
+
+	ret = GPSY_SET_PROP(wlc_psy, prop, val);
+	if (ret < 0)
+		dev_err(ln8411->dev, "%s: Cannot set prop %d to %d (%d)\n",
+			__func__, prop, val, ret);
+	else
+		dev_dbg(ln8411->dev, "%s: Send wlc msg msg: %d, prop: %d, val: %d\n",
+			__func__, msg_type, prop, val);
+
+	return ret;
 }
 
 /* called from start_direct_charging(), negative will abort */
@@ -543,6 +612,7 @@ int ln8411_get_charge_type(struct ln8411_charger *ln8411)
 	case DC_STATE_CC_MODE:
 	case DC_STATE_ADJUST_TAVOL:
 	case DC_STATE_ADJUST_TACUR:
+	case DC_STATE_CAL:
 		return POWER_SUPPLY_CHARGE_TYPE_FAST;
 	case DC_STATE_START_CV:
 	case DC_STATE_CV_MODE:

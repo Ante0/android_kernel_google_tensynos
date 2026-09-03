@@ -225,7 +225,7 @@ void gsa_tz_chan_ctx_init(struct gsa_tz_chan_ctx *ctx, const char *port,
 			  struct device *dev)
 {
 	ctx->dev = dev;
-	strlcpy(ctx->port, port, sizeof(ctx->port));
+	strscpy(ctx->port, port, sizeof(ctx->port));
 	mutex_init(&ctx->req_lock);
 	mutex_init(&ctx->rsp_lock);
 	init_completion(&ctx->reply_comp);

@@ -87,9 +87,9 @@ void mfc_slc_enable_more_partitions(struct mfc_core *core, struct mfc_ctx *ctx);
 void mfc_client_pt_register(struct mfc_core *core);
 void mfc_client_pt_unregister(struct mfc_core *core);
 #else
-#define mfc_slc_enable(core)	do {} while (0)
-#define mfc_slc_disable(core)	do {} while (0)
-#define mfc_slc_flush(core)	do {} while (0)
+#define mfc_slc_enable(core)		do {} while (0)
+#define mfc_slc_disable(core)		do {} while (0)
+#define mfc_slc_flush(core, ctx)	do {} while (0)
 
 #define mfc_client_pt_register(core) do {} while (0)
 #define mfc_client_pt_unregister(core) do {} while (0)

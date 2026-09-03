@@ -8,9 +8,10 @@
 #include <linux/clk.h>
 #include <linux/iopoll.h>
 #include <linux/module.h>
-#include <linux/of_device.h>
+#include <linux/of.h>
 #include <linux/of_dma.h>
 #include <linux/of_irq.h>
+#include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/slab.h>
 
@@ -152,6 +153,7 @@ struct tegra_adma {
 	void __iomem			*base_addr;
 	struct clk			*ahub_clk;
 	unsigned int			nr_channels;
+	unsigned long			*dma_chan_mask;
 	unsigned long			rx_requests_reserved;
 	unsigned long			tx_requests_reserved;
 
@@ -161,7 +163,7 @@ struct tegra_adma {
 	const struct tegra_adma_chip_data *cdata;
 
 	/* Last member of the structure */
-	struct tegra_adma_chan		channels[];
+	struct tegra_adma_chan		channels[] __counted_by(nr_channels);
 };
 
 static inline void tdma_write(struct tegra_adma *tdma, u32 reg, u32 val)
@@ -341,8 +343,15 @@ static void tegra_adma_stop(struct tegra_adma_chan *tdc)
 		return;
 	}
 
-	kfree(tdc->desc);
+	vchan_terminate_vdesc(&tdc->desc->vd);
 	tdc->desc = NULL;
+}
+
+static void tegra_adma_synchronize(struct dma_chan *dc)
+{
+	struct tegra_adma_chan *tdc = to_tegra_adma_chan(dc);
+
+	vchan_synchronize(&tdc->vc);
 }
 
 static void tegra_adma_start(struct tegra_adma_chan *tdc)
@@ -740,6 +749,10 @@ static int __maybe_unused tegra_adma_runtime_suspend(struct device *dev)
 
 	for (i = 0; i < tdma->nr_channels; i++) {
 		tdc = &tdma->channels[i];
+		/* skip for reserved channels */
+		if (!tdc->tdma)
+			continue;
+
 		ch_reg = &tdc->ch_regs;
 		ch_reg->cmd = tdma_ch_read(tdc, ADMA_CH_CMD);
 		/* skip if channel is not active */
@@ -778,6 +791,9 @@ static int __maybe_unused tegra_adma_runtime_resume(struct device *dev)
 
 	for (i = 0; i < tdma->nr_channels; i++) {
 		tdc = &tdma->channels[i];
+		/* skip for reserved channels */
+		if (!tdc->tdma)
+			continue;
 		ch_reg = &tdc->ch_regs;
 		/* skip if channel was not active earlier */
 		if (!ch_reg->cmd)
@@ -837,7 +853,6 @@ static int tegra_adma_probe(struct platform_device *pdev)
 {
 	const struct tegra_adma_chip_data *cdata;
 	struct tegra_adma *tdma;
-	struct resource	*res;
 	int ret, i;
 
 	cdata = of_device_get_match_data(&pdev->dev);
@@ -857,8 +872,7 @@ static int tegra_adma_probe(struct platform_device *pdev)
 	tdma->nr_channels = cdata->nr_channels;
 	platform_set_drvdata(pdev, tdma);
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	tdma->base_addr = devm_ioremap_resource(&pdev->dev, res);
+	tdma->base_addr = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(tdma->base_addr))
 		return PTR_ERR(tdma->base_addr);
 
@@ -868,9 +882,30 @@ static int tegra_adma_probe(struct platform_device *pdev)
 		return PTR_ERR(tdma->ahub_clk);
 	}
 
+	tdma->dma_chan_mask = devm_kzalloc(&pdev->dev,
+					   BITS_TO_LONGS(tdma->nr_channels) * sizeof(unsigned long),
+					   GFP_KERNEL);
+	if (!tdma->dma_chan_mask)
+		return -ENOMEM;
+
+	/* Enable all channels by default */
+	bitmap_fill(tdma->dma_chan_mask, tdma->nr_channels);
+
+	ret = of_property_read_u32_array(pdev->dev.of_node, "dma-channel-mask",
+					 (u32 *)tdma->dma_chan_mask,
+					 BITS_TO_U32(tdma->nr_channels));
+	if (ret < 0 && (ret != -EINVAL)) {
+		dev_err(&pdev->dev, "dma-channel-mask is not complete.\n");
+		return ret;
+	}
+
 	INIT_LIST_HEAD(&tdma->dma_dev.channels);
 	for (i = 0; i < tdma->nr_channels; i++) {
 		struct tegra_adma_chan *tdc = &tdma->channels[i];
+
+		/* skip for reserved channels */
+		if (!test_bit(i, tdma->dma_chan_mask))
+			continue;
 
 		tdc->chan_addr = tdma->base_addr + cdata->ch_base_offset
 				 + (cdata->ch_reg_size * i);
@@ -910,6 +945,7 @@ static int tegra_adma_probe(struct platform_device *pdev)
 	tdma->dma_dev.device_config = tegra_adma_slave_config;
 	tdma->dma_dev.device_tx_status = tegra_adma_tx_status;
 	tdma->dma_dev.device_terminate_all = tegra_adma_terminate_all;
+	tdma->dma_dev.device_synchronize = tegra_adma_synchronize;
 	tdma->dma_dev.src_addr_widths = BIT(DMA_SLAVE_BUSWIDTH_4_BYTES);
 	tdma->dma_dev.dst_addr_widths = BIT(DMA_SLAVE_BUSWIDTH_4_BYTES);
 	tdma->dma_dev.directions = BIT(DMA_DEV_TO_MEM) | BIT(DMA_MEM_TO_DEV);
@@ -950,7 +986,7 @@ irq_dispose:
 	return ret;
 }
 
-static int tegra_adma_remove(struct platform_device *pdev)
+static void tegra_adma_remove(struct platform_device *pdev)
 {
 	struct tegra_adma *tdma = platform_get_drvdata(pdev);
 	int i;
@@ -958,12 +994,12 @@ static int tegra_adma_remove(struct platform_device *pdev)
 	of_dma_controller_free(pdev->dev.of_node);
 	dma_async_device_unregister(&tdma->dma_dev);
 
-	for (i = 0; i < tdma->nr_channels; ++i)
-		irq_dispose_mapping(tdma->channels[i].irq);
+	for (i = 0; i < tdma->nr_channels; ++i) {
+		if (tdma->channels[i].irq)
+			irq_dispose_mapping(tdma->channels[i].irq);
+	}
 
 	pm_runtime_disable(&pdev->dev);
-
-	return 0;
 }
 
 static const struct dev_pm_ops tegra_adma_dev_pm_ops = {
@@ -980,7 +1016,7 @@ static struct platform_driver tegra_admac_driver = {
 		.of_match_table = tegra_adma_of_match,
 	},
 	.probe		= tegra_adma_probe,
-	.remove		= tegra_adma_remove,
+	.remove_new	= tegra_adma_remove,
 };
 
 module_platform_driver(tegra_admac_driver);

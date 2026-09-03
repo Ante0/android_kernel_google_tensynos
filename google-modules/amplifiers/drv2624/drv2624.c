@@ -1087,7 +1087,7 @@ static ssize_t mode_store(struct device *dev,
 	unsigned char new_mode;
 
 	mode_name[sizeof(mode_name) - 1] = '\0';
-	strlcpy(mode_name, buf, sizeof(mode_name) - 1);
+	strscpy(mode_name, buf, sizeof(mode_name) - 1);
 	len = strlen(mode_name);
 
 	if (len && mode_name[len - 1] == '\n')
@@ -1663,8 +1663,7 @@ static struct attribute_group drv2624_fs_attr_group = {
 	.attrs = drv2624_fs_attrs,
 };
 
-static int drv2624_i2c_probe(struct i2c_client *client,
-			     const struct i2c_device_id *id)
+static int drv2624_i2c_probe(struct i2c_client *client)
 {
 	struct drv2624_data *drv2624;
 	int err = 0;

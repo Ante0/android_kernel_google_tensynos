@@ -28,6 +28,7 @@
 
 #include <linux/list.h>
 #include <linux/mman.h>
+#include <linux/overflow.h>
 #include <linux/version_compat_defs.h>
 
 /**

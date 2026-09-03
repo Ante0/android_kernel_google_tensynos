@@ -1,0 +1,4 @@
+Refer to following documents for writing DT bindings and schema
+in linux kernel documentation:
+ - Documentation/devicetree/bindings/writing-bindings.rst
+ - Documentation/devicetree/bindings/writing-schema.rst

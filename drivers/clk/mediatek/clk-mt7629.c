@@ -8,8 +8,6 @@
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/of.h>
-#include <linux/of_address.h>
-#include <linux/of_device.h>
 #include <linux/platform_device.h>
 
 #include "clk-cpumux.h"
@@ -589,8 +587,8 @@ static int mtk_infrasys_init(struct platform_device *pdev)
 	mtk_clk_register_gates(&pdev->dev, node, infra_clks,
 			       ARRAY_SIZE(infra_clks), clk_data);
 
-	mtk_clk_register_cpumuxes(node, infra_muxes, ARRAY_SIZE(infra_muxes),
-				  clk_data);
+	mtk_clk_register_cpumuxes(&pdev->dev, node, infra_muxes,
+				  ARRAY_SIZE(infra_muxes), clk_data);
 
 	return of_clk_add_hw_provider(node, of_clk_hw_onecell_get,
 				      clk_data);
@@ -666,6 +664,7 @@ static const struct of_device_id of_match_clk_mt7629[] = {
 		/* sentinel */
 	}
 };
+MODULE_DEVICE_TABLE(of, of_match_clk_mt7629);
 
 static int clk_mt7629_probe(struct platform_device *pdev)
 {
@@ -699,4 +698,6 @@ static int clk_mt7629_init(void)
 }
 
 arch_initcall(clk_mt7629_init);
+
+MODULE_DESCRIPTION("MediaTek MT7629 main clocks driver");
 MODULE_LICENSE("GPL");

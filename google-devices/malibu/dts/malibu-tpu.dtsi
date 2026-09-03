@@ -1,0 +1,165 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+/*
+ * Device tree source for Malibu TPU.
+ *
+ * Copyright 2025 Google LLC
+ */
+
+#include <dt-bindings/interrupt-controller/mbu-gic.h>
+
+/ {
+	guest0_tpu_mailboxes_pd: guest0_tpu_mailboxes_pd {
+		compatible = "google,edgetpu-device-assignment-pd";
+		#power-domain-cells = <0>;
+	};
+
+	guest1_tpu_mailboxes_pd: guest1_tpu_mailboxes_pd {
+		compatible = "google,edgetpu-device-assignment-pd";
+		#power-domain-cells = <0>;
+	};
+
+	guest2_tpu_mailboxes_pd: guest2_tpu_mailboxes_pd {
+		compatible = "google,edgetpu-device-assignment-pd";
+		#power-domain-cells = <0>;
+	};
+
+	/*
+	 * Assignable devices must be at the root of the device-tree, so they're declared here
+	 * despite being part of sswrp_tpu.
+	 */
+	guest0_tpu_mailboxes: tpu_mailboxes@36514000 {
+		compatible = "google,edgetpu-device-assignment";
+		reg = <0x0 0x36514000 0x0 0x002000>,
+		      <0x0 0x36516000 0x0 0x002000>,
+		      <0x0 0xa0a00000 0x0 0x200000>;
+		reg-names = "kci_mailbox", "vii_mailbox", "iremap-carveout";
+		interrupts =
+			<GIC_SPI SSWRP_TPU_TPU_AP_INTR_NS_SSWRP_TPU_AP_NS_MBA_IRQ_4
+				IRQ_TYPE_LEVEL_HIGH 0>,
+			<GIC_SPI SSWRP_TPU_TPU_AP_INTR_NS_SSWRP_TPU_AP_NS_MBA_IRQ_5
+				IRQ_TYPE_LEVEL_HIGH 0>;
+		interrupt-names = "kci_mailbox", "vii_mailbox";
+		/* TLB classes used by the TPU come out as different streams */
+		iommus =
+			<&tpu_smmu 0x100>, /* Hib0ParameterRead */
+			<&tpu_smmu 0x110>, /* Hib0InputReadOutputWrite */
+			<&tpu_smmu 0x140>, /* DiveCluster0/TpuControlCore0 */
+			<&tpu_smmu 0x180>, /* Dma330A */
+			<&tpu_smmu 0x190>; /* Dma330B */
+		power-domains = <&guest0_tpu_mailboxes_pd>;
+	};
+
+	guest1_tpu_mailboxes: tpu_mailboxes@36518000 {
+		/* tpu_smmu only has 9 bits of SID enabled, so this device cannot be used. */
+		status = "disabled";
+		compatible = "google,edgetpu-device-assignment";
+		reg = <0x0 0x36518000 0x0 0x002000>,
+		      <0x0 0x3651a000 0x0 0x002000>,
+		      <0x0 0xa0c00000 0x0 0x200000>;
+		reg-names = "kci_mailbox", "vii_mailbox", "iremap-carveout";
+		interrupts =
+			<GIC_SPI SSWRP_TPU_TPU_AP_INTR_NS_SSWRP_TPU_AP_NS_MBA_IRQ_6
+				IRQ_TYPE_LEVEL_HIGH 0>,
+			<GIC_SPI SSWRP_TPU_TPU_AP_INTR_NS_SSWRP_TPU_AP_NS_MBA_IRQ_7
+				IRQ_TYPE_LEVEL_HIGH 0>;
+		interrupt-names = "kci_mailbox", "vii_mailbox";
+		/* TLB classes used by the TPU come out as different streams */
+		iommus =
+			<&tpu_smmu 0x200>, /* Hib0ParameterRead */
+			<&tpu_smmu 0x210>, /* Hib0InputReadOutputWrite */
+			<&tpu_smmu 0x240>, /* DiveCluster0/TpuControlCore0 */
+			<&tpu_smmu 0x280>, /* Dma330A */
+			<&tpu_smmu 0x290>; /* Dma330B */
+		power-domains = <&guest1_tpu_mailboxes_pd>;
+	};
+
+	guest2_tpu_mailboxes: tpu_mailboxes@3651c000 {
+		/* tpu_smmu only has 9 bits of SID enabled, so this device cannot be used. */
+		status = "disabled";
+		compatible = "google,edgetpu-device-assignment";
+		reg = <0x0 0x3651c000 0x0 0x002000>,
+		      <0x0 0x3651e000 0x0 0x002000>,
+		      <0x0 0xa0e00000 0x0 0x200000>;
+		reg-names = "kci_mailbox", "vii_mailbox", "iremap-carveout";
+		interrupts =
+			<GIC_SPI SSWRP_TPU_TPU_AP_INTR_NS_SSWRP_TPU_AP_NS_MBA_IRQ_8
+				IRQ_TYPE_LEVEL_HIGH 0>,
+			<GIC_SPI SSWRP_TPU_TPU_AP_INTR_NS_SSWRP_TPU_AP_NS_MBA_IRQ_9
+				IRQ_TYPE_LEVEL_HIGH 0>;
+		interrupt-names = "kci_mailbox", "vii_mailbox";
+		/* TLB classes used by the TPU come out as different streams */
+		iommus =
+			<&tpu_smmu 0x300>, /* Hib0ParameterRead */
+			<&tpu_smmu 0x310>, /* Hib0InputReadOutputWrite */
+			<&tpu_smmu 0x340>, /* DiveCluster0/TpuControlCore0 */
+			<&tpu_smmu 0x380>, /* Dma330A */
+			<&tpu_smmu 0x390>; /* Dma330B */
+		power-domains = <&guest2_tpu_mailboxes_pd>;
+	};
+
+	sswrp_tpu: sswrp_tpu@36000000 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x36000000 0x941000>;
+		edgetpu: santafe@500000 {
+			compatible = "google,edgetpu-malibu";
+			status = "okay";
+			#dma-address-cells = <1>;
+			#dma-size-cells = <2>;
+			pasid-num-bits = <4>;
+			/*
+			 * DIVE can only access IOVA > 2G (0x80000000),
+			 * From which the top 1MB is reserved for shared mappings.
+			 * An additional 64MB is reserved for the DIVE image.
+			 */
+			gcip-dma-window = <0x84000000 0xF 0x7BF00000>;
+			reg =
+				<0x558000 0x3e9000>,
+				<0x9000   0xd034>,
+				<0x50c000 0x2000>,
+				<0x50e000 0x2000>,
+				<0x510000 0x2000>;
+			reg-names = "top", "lpcm", "kci_mailbox", "vii_mailbox", "iif_mailbox";
+			interrupts =
+				<GIC_SPI SSWRP_TPU_TPU_AP_INTR_NS_SSWRP_TPU_AP_NS_MBA_IRQ_0
+					IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_TPU_TPU_AP_INTR_NS_SSWRP_TPU_AP_NS_MBA_IRQ_1
+					IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_TPU_TPU_AP_INTR_NS_SSWRP_TPU_AP_NS_MBA_IRQ_2
+					IRQ_TYPE_LEVEL_HIGH 0>;
+			interrupt-names = "kci_mailbox", "vii_mailbox", "iif_mailbox";
+			/* TLB classes used by the TPU come out as different streams */
+			iommus =
+				<&tpu_smmu 0x0>, /* Hib0ParameterRead */
+				<&tpu_smmu 0x10>, /* Hib0InputReadOutputWrite */
+				<&tpu_smmu 0x40>, /* DiveCluster0/TpuControlCore0 */
+				<&tpu_smmu 0x80>, /* Dma330A */
+				<&tpu_smmu 0x90>; /* Dma330B */
+			memory-region = <&tpu_fw_reserved>;
+			gcip-dvfs-table-size = <16 2>; /*<row col>*/
+			gcip-dvfs-table = <
+			/*      freq    power(mW) */
+				1286400 3808 /*  0 */
+				1190400 3462 /*  1 */
+				1113600 3171 /*  2 */
+				1036800 2863 /*  3 */
+				 960000 2581 /*  4 */
+				 883200 2255 /*  5 */
+				 825600 1872 /*  6 */
+				 768000 1515 /*  7 */
+				 691200 1335 /*  8 */
+				 595200 1230 /*  9 */
+				 480000 1017 /* 10 */
+				 403200  864 /* 11 */
+				 288000  718 /* 12 */
+				 192000  523 /* 13 */
+				 134400  399 /* 14 */
+				  38400  200 /* 15 */
+			>;
+			iif-device = <&iif>;
+			gsa-device = <&gsa>;
+			power-domains = <&sswrp_tpu_pd>;
+		};
+	};
+};

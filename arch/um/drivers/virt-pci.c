@@ -8,12 +8,13 @@
 #include <linux/virtio.h>
 #include <linux/virtio_config.h>
 #include <linux/logic_iomem.h>
+#include <linux/of_platform.h>
 #include <linux/irqdomain.h>
 #include <linux/virtio_pcidev.h>
 #include <linux/virtio-uml.h>
 #include <linux/delay.h>
 #include <linux/msi.h>
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 #include <irq_kern.h>
 
 #define MAX_DEVICES 8
@@ -39,6 +40,8 @@ struct um_pci_device {
 	unsigned long status;
 
 	int irq;
+
+	bool platform;
 };
 
 struct um_pci_device_reg {
@@ -48,13 +51,15 @@ struct um_pci_device_reg {
 
 static struct pci_host_bridge *bridge;
 static DEFINE_MUTEX(um_pci_mtx);
+static struct um_pci_device *um_pci_platform_device;
 static struct um_pci_device_reg um_pci_devices[MAX_DEVICES];
 static struct fwnode_handle *um_pci_fwnode;
 static struct irq_domain *um_pci_inner_domain;
 static struct irq_domain *um_pci_msi_domain;
 static unsigned long um_pci_msi_used[BITS_TO_LONGS(MAX_MSI_VECTORS)];
 
-#define UM_VIRT_PCI_MAXDELAY 40000
+static unsigned int um_pci_max_delay_us = 40000;
+module_param_named(max_delay_us, um_pci_max_delay_us, uint, 0644);
 
 struct um_pci_message_buffer {
 	struct virtio_pcidev_msg hdr;
@@ -158,7 +163,7 @@ static int um_pci_send_cmd(struct um_pci_device *dev,
 			kfree(completed);
 
 		if (WARN_ONCE(virtqueue_is_broken(dev->cmd_vq) ||
-			      ++delay_count > UM_VIRT_PCI_MAXDELAY,
+			      ++delay_count > um_pci_max_delay_us,
 			      "um virt-pci delay: %d", delay_count)) {
 			ret = -EIO;
 			break;
@@ -483,6 +488,9 @@ static void um_pci_handle_irq_message(struct virtqueue *vq,
 	struct virtio_device *vdev = vq->vdev;
 	struct um_pci_device *dev = vdev->priv;
 
+	if (!dev->irq)
+		return;
+
 	/* we should properly chain interrupts, but on ARCH=um we don't care */
 
 	switch (msg->op) {
@@ -536,14 +544,37 @@ static void um_pci_irq_vq_cb(struct virtqueue *vq)
 	}
 }
 
+#ifdef CONFIG_OF
+/* Copied from arch/x86/kernel/devicetree.c */
+struct device_node *pcibios_get_phb_of_node(struct pci_bus *bus)
+{
+	struct device_node *np;
+
+	for_each_node_by_type(np, "pci") {
+		const void *prop;
+		unsigned int bus_min;
+
+		prop = of_get_property(np, "bus-range", NULL);
+		if (!prop)
+			continue;
+		bus_min = be32_to_cpup(prop);
+		if (bus->number == bus_min)
+			return np;
+	}
+	return NULL;
+}
+#endif
+
 static int um_pci_init_vqs(struct um_pci_device *dev)
 {
+	struct virtqueue_info vqs_info[] = {
+		{ "cmd", um_pci_cmd_vq_cb },
+		{ "irq", um_pci_irq_vq_cb },
+	};
 	struct virtqueue *vqs[2];
-	static const char *const names[2] = { "cmd", "irq" };
-	vq_callback_t *cbs[2] = { um_pci_cmd_vq_cb, um_pci_irq_vq_cb };
 	int err, i;
 
-	err = virtio_find_vqs(dev->vdev, 2, vqs, cbs, names, NULL);
+	err = virtio_find_vqs(dev->vdev, 2, vqs, vqs_info, NULL);
 	if (err)
 		return err;
 
@@ -564,6 +595,55 @@ static int um_pci_init_vqs(struct um_pci_device *dev)
 	return 0;
 }
 
+static void __um_pci_virtio_platform_remove(struct virtio_device *vdev,
+					    struct um_pci_device *dev)
+{
+	virtio_reset_device(vdev);
+	vdev->config->del_vqs(vdev);
+
+	mutex_lock(&um_pci_mtx);
+	um_pci_platform_device = NULL;
+	mutex_unlock(&um_pci_mtx);
+
+	kfree(dev);
+}
+
+static int um_pci_virtio_platform_probe(struct virtio_device *vdev,
+					struct um_pci_device *dev)
+{
+	int ret;
+
+	dev->platform = true;
+
+	mutex_lock(&um_pci_mtx);
+
+	if (um_pci_platform_device) {
+		mutex_unlock(&um_pci_mtx);
+		ret = -EBUSY;
+		goto out_free;
+	}
+
+	ret = um_pci_init_vqs(dev);
+	if (ret) {
+		mutex_unlock(&um_pci_mtx);
+		goto out_free;
+	}
+
+	um_pci_platform_device = dev;
+
+	mutex_unlock(&um_pci_mtx);
+
+	ret = of_platform_default_populate(vdev->dev.of_node, NULL, &vdev->dev);
+	if (ret)
+		__um_pci_virtio_platform_remove(vdev, dev);
+
+	return ret;
+
+out_free:
+	kfree(dev);
+	return ret;
+}
+
 static int um_pci_virtio_probe(struct virtio_device *vdev)
 {
 	struct um_pci_device *dev;
@@ -576,6 +656,9 @@ static int um_pci_virtio_probe(struct virtio_device *vdev)
 
 	dev->vdev = vdev;
 	vdev->priv = dev;
+
+	if (of_device_is_compatible(vdev->dev.of_node, "simple-bus"))
+		return um_pci_virtio_platform_probe(vdev, dev);
 
 	mutex_lock(&um_pci_mtx);
 	for (i = 0; i < MAX_DEVICES; i++) {
@@ -626,6 +709,12 @@ static void um_pci_virtio_remove(struct virtio_device *vdev)
 	struct um_pci_device *dev = vdev->priv;
 	int i;
 
+	if (dev->platform) {
+		of_platform_depopulate(&vdev->dev);
+		__um_pci_virtio_platform_remove(vdev, dev);
+		return;
+	}
+
 	device_set_wakeup_enable(&vdev->dev, false);
 
 	mutex_lock(&um_pci_mtx);
@@ -665,7 +754,6 @@ MODULE_DEVICE_TABLE(virtio, id_table);
 
 static struct virtio_driver um_pci_virtio_driver = {
 	.driver.name = "virtio-pci",
-	.driver.owner = THIS_MODULE,
 	.id_table = id_table,
 	.probe = um_pci_virtio_probe,
 	.remove = um_pci_virtio_remove,
@@ -874,14 +962,45 @@ void *pci_root_bus_fwnode(struct pci_bus *bus)
 	return um_pci_fwnode;
 }
 
+static long um_pci_map_platform(unsigned long offset, size_t size,
+				const struct logic_iomem_ops **ops,
+				void **priv)
+{
+	if (!um_pci_platform_device)
+		return -ENOENT;
+
+	*ops = &um_pci_device_bar_ops;
+	*priv = &um_pci_platform_device->resptr[0];
+
+	return offset;
+}
+
+static const struct logic_iomem_region_ops um_pci_platform_ops = {
+	.map = um_pci_map_platform,
+};
+
+static struct resource virt_platform_resource = {
+	.name = "platform",
+	.start = 0x10000000,
+	.end = 0x1fffffff,
+	.flags = IORESOURCE_MEM,
+};
+
 static int __init um_pci_init(void)
 {
+	struct irq_domain_info inner_domain_info = {
+		.size		= MAX_MSI_VECTORS,
+		.hwirq_max	= MAX_MSI_VECTORS,
+		.ops		= &um_pci_inner_domain_ops,
+	};
 	int err, i;
 
 	WARN_ON(logic_iomem_add_region(&virt_cfgspace_resource,
 				       &um_pci_cfgspace_ops));
 	WARN_ON(logic_iomem_add_region(&virt_iomem_resource,
 				       &um_pci_iomem_ops));
+	WARN_ON(logic_iomem_add_region(&virt_platform_resource,
+				       &um_pci_platform_ops));
 
 	if (WARN(CONFIG_UML_PCI_OVER_VIRTIO_DEVICE_ID < 0,
 		 "No virtio device ID configured for PCI - no PCI support\n"))
@@ -903,11 +1022,10 @@ static int __init um_pci_init(void)
 		goto free;
 	}
 
-	um_pci_inner_domain = __irq_domain_add(um_pci_fwnode, MAX_MSI_VECTORS,
-					       MAX_MSI_VECTORS, 0,
-					       &um_pci_inner_domain_ops, NULL);
-	if (!um_pci_inner_domain) {
-		err = -ENOMEM;
+	inner_domain_info.fwnode = um_pci_fwnode;
+	um_pci_inner_domain = irq_domain_instantiate(&inner_domain_info);
+	if (IS_ERR(um_pci_inner_domain)) {
+		err = PTR_ERR(um_pci_inner_domain);
 		goto free;
 	}
 
@@ -944,7 +1062,7 @@ static int __init um_pci_init(void)
 		goto free;
 	return 0;
 free:
-	if (um_pci_inner_domain)
+	if (!IS_ERR_OR_NULL(um_pci_inner_domain))
 		irq_domain_remove(um_pci_inner_domain);
 	if (um_pci_fwnode)
 		irq_domain_free_fwnode(um_pci_fwnode);

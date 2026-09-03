@@ -24,6 +24,7 @@
 #include "uapi/aoc_channel_dev.h"
 
 #define AOCC_CHARDEV_NAME "aoc_chan"
+#define AOCC_WAKELOCK_NAME_LENGTH (AOC_SERVICE_NAME_LENGTH + 8)
 
 static int aocc_major = -1;
 static int aocc_major_dev;
@@ -69,6 +70,10 @@ static int aocc_remove(struct aoc_service_dev *dev);
 static const char * const channel_service_names[] = {
 	"com.google.usf",
 	"com.google.usf.non_wake_up",
+	"com.google.usf.a3",
+	"com.google.usf.a3.non_wake_up",
+	"com.google.usf.sc",
+	"com.google.usf.sc.non_wake_up",
 	"com.google.chre",
 	"com.google.chre.non_wake_up",
 	"com.google.bt",
@@ -211,9 +216,8 @@ static int aocc_demux_kthread(void *data)
 			if (channel == entry->channel_index) {
 				handler_found = 1;
 				if (!node->msg.non_wake_up &&
-				    (strcmp(dev_name(&service->dev),"com.google.usf") == 0 ||
-				     strcmp(dev_name(&service->dev),"com.google.chre") == 0 ||
-				     strcmp(dev_name(&service->dev),"com.google.bt") == 0)) {
+				    (strstr(dev_name(&service->dev), "non_wake_up") == NULL &&
+				     strcmp(dev_name(&service->dev), "usf_sh_mem_doorbell") != 0)) {
 					take_wake_lock = true;
 				}
 
@@ -357,7 +361,7 @@ static struct aocc_device_entry *aocc_device_entry_for_inode(struct inode *inode
 	return NULL;
 }
 
-static char *aocc_devnode(struct device *dev, umode_t *mode)
+static char *aocc_devnode(const struct device *dev, umode_t *mode)
 {
 	if (!mode || !dev)
 		return NULL;
@@ -401,6 +405,32 @@ err_device_create:
 	kfree(new_entry);
 err_kmalloc:
 	return rc;
+}
+
+static int destroy_character_device(struct aoc_service_dev *dev)
+{
+	struct aocc_device_entry *entry;
+	struct aocc_device_entry *tmp;
+
+	mutex_lock(&aocc_devices_lock);
+	list_for_each_entry_safe(entry, tmp, &aocc_devices_list, list) {
+		if (entry->aocc_device->parent == &dev->dev) {
+			/* Disable shared memory transport doorbell. */
+			if (entry == sh_mem_doorbell_channel_device)
+				sh_mem_doorbell_channel_device = NULL;
+			entry->sh_mem_doorbell_available = false;
+
+			list_del_init(&entry->list);
+			put_device(&entry->service->dev);
+			if (aocc_class)
+				device_destroy(aocc_class, entry->aocc_device->devt);
+			kref_put(&entry->refcount, aocc_device_entry_release);
+			break;
+		}
+	}
+	mutex_unlock(&aocc_devices_lock);
+
+	return 0;
 }
 
 static int aocc_open(struct inode *inode, struct file *file)
@@ -601,7 +631,7 @@ static ssize_t aocc_read(struct file *file, char __user *buf, size_t count,
 	retval = copy_to_user(buf, node->msg.payload, node->msg_size - sizeof(uint32_t));
 
 	/* copy_to_user returns bytes that couldn't be copied */
-	retval = node->msg_size - retval;
+	retval = node->msg_size - sizeof(uint32_t) - retval;
 
 	mutex_lock(&private->pending_msg_lock);
 	atomic_dec(&private->pending_msg_count);
@@ -781,37 +811,59 @@ static int aocc_probe(struct aoc_service_dev *dev)
 
 	aocc_max_pending_msgs = dt_property(dev->dev.parent->of_node, "channel-max-pending-msgs");
 	if (aocc_max_pending_msgs == DT_PROPERTY_NOT_FOUND) {
-		dev_err(&dev->dev, "AOC DT missing property channel-max-pending-msgs");
+		dev_err(&dev->dev, "AOC DT missing property channel-max-pending-msgs\n");
 		return -EINVAL;
 	}
 	aocc_block_channel_threshold = dt_property(dev->dev.parent->of_node,
 						"block-channel-threshold");
 	if (aocc_block_channel_threshold == DT_PROPERTY_NOT_FOUND) {
-		dev_err(&dev->dev, "AOC DT missing property block_channel_threshold");
+		dev_err(&dev->dev, "AOC DT missing property block_channel_threshold\n");
 		return -EINVAL;
 	}
 
 	if (strcmp(dev_name(&dev->dev), "usf_sh_mem_doorbell") != 0) {
+		char ws_name[AOCC_WAKELOCK_NAME_LENGTH];
+
 		ret = create_character_device(dev);
 		if (ret)
 			return ret;
-		prvdata->user_wakelock = wakeup_source_register(&dev->dev, dev_name(&dev->dev));
+
+		scnprintf(ws_name, sizeof(ws_name), "aocc_%s", dev_name(&dev->dev));
+		prvdata->user_wakelock = wakeup_source_register(&dev->dev, ws_name);
+		if (!prvdata->user_wakelock) {
+			ret = -ENOMEM;
+			goto err_ws;
+		}
+
 		dev->prvdata = prvdata;
 		prvdata->demux_task =  kthread_run(&aocc_demux_kthread, dev, dev_name(&dev->dev));
-		sched_setscheduler(prvdata->demux_task, SCHED_FIFO, &param);
-		if (IS_ERR(prvdata->demux_task))
+		if (IS_ERR(prvdata->demux_task)) {
 			ret = PTR_ERR(prvdata->demux_task);
+			goto err_thread;
+		}
+
+		ret = sched_setscheduler(prvdata->demux_task, SCHED_FIFO, &param);
+		if (ret)
+			goto err_sched_set;
 	}
 
 	aocc_sh_mem_doorbell_probe(dev);
+
+	return ret;
+
+err_sched_set:
+	kthread_stop(prvdata->demux_task);
+err_thread:
+	wakeup_source_unregister(prvdata->user_wakelock);
+	dev->prvdata = NULL;
+err_ws:
+	destroy_character_device(dev);
 
 	return ret;
 }
 
 static int aocc_remove(struct aoc_service_dev *dev)
 {
-	struct aocc_device_entry *entry;
-	struct aocc_device_entry *tmp;
 	struct chan_prvdata *prvdata;
 
 	/* Uninstall the shared memory doorbell service. */
@@ -827,27 +879,7 @@ static int aocc_remove(struct aoc_service_dev *dev)
 		}
 	}
 
-	mutex_lock(&aocc_devices_lock);
-	list_for_each_entry_safe(entry, tmp, &aocc_devices_list, list) {
-		if (entry->aocc_device->parent == &dev->dev) {
-			pr_debug("remove service with name %s\n",
-				 dev_name(&dev->dev));
-
-			/* Disable shared memory transport doorbell. */
-			if (entry == sh_mem_doorbell_channel_device) {
-				sh_mem_doorbell_channel_device = NULL;
-			}
-			entry->sh_mem_doorbell_available = false;
-
-			list_del_init(&entry->list);
-			put_device(&entry->service->dev);
-			device_destroy(aocc_class, entry->aocc_device->devt);
-			kref_put(&entry->refcount, aocc_device_entry_release);
-			break;
-		}
-	}
-	aocc_next_minor = 0;
-	mutex_unlock(&aocc_devices_lock);
+	destroy_character_device(dev);
 
 	return 0;
 }
@@ -865,6 +897,9 @@ static void cleanup_resources(void)
 		unregister_chrdev(aocc_major, AOCC_CHARDEV_NAME);
 		aocc_major = -1;
 	}
+	mutex_lock(&aocc_devices_lock);
+	aocc_next_minor = 0;
+	mutex_unlock(&aocc_devices_lock);
 }
 
 static int aocc_prepare(struct device *dev)
@@ -873,7 +908,9 @@ static int aocc_prepare(struct device *dev)
 	struct aoc_service_dev *service = container_of(parent, struct aoc_service_dev, dev);
 	int rc;
 
-	if (strcmp(dev_name(&service->dev), "com.google.usf") != 0)
+	if (strcmp(dev_name(&service->dev), "com.google.usf") != 0 &&
+	    strcmp(dev_name(&service->dev), "com.google.usf.a3") != 0 &&
+	    strcmp(dev_name(&service->dev), "com.google.usf.sc") != 0)
 		return 0;
 
 	rc = aocc_send_cmd_msg(service, AOCC_CMD_SUSPEND_PREPARE, 0);
@@ -889,7 +926,9 @@ static void aocc_complete(struct device *dev)
 	struct aoc_service_dev *service = container_of(parent, struct aoc_service_dev, dev);
 	int rc;
 
-	if (strcmp(dev_name(&service->dev), "com.google.usf") != 0)
+	if (strcmp(dev_name(&service->dev), "com.google.usf") != 0 &&
+	    strcmp(dev_name(&service->dev), "com.google.usf.a3") != 0 &&
+	    strcmp(dev_name(&service->dev), "com.google.usf.sc") != 0)
 		return;
 
 	rc = aocc_send_cmd_msg(service, AOCC_CMD_WAKEUP_COMPELTE, 0);
@@ -914,7 +953,7 @@ static int __init aocc_init(void)
 
 	aocc_major_dev = MKDEV(aocc_major, 0);
 
-	aocc_class = class_create(THIS_MODULE, AOCC_CHARDEV_NAME);
+	aocc_class = class_create(AOCC_CHARDEV_NAME);
 	if (!aocc_class) {
 		pr_err("Failed to create class\n");
 		goto fail;
@@ -942,4 +981,5 @@ static void __exit aocc_exit(void)
 module_init(aocc_init);
 module_exit(aocc_exit);
 
+MODULE_DESCRIPTION("Google AOC channel driver");
 MODULE_LICENSE("GPL v2");

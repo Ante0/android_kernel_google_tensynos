@@ -7,13 +7,13 @@
 
 #include <linux/delay.h>
 #include <linux/err.h>
+#include <linux/gpio/consumer.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/mfd/slg51002.h>
 #include <linux/module.h>
 #include <linux/of.h>
-#include <linux/of_gpio.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
@@ -300,7 +300,7 @@ static void slg51002_work_func(struct work_struct *work)
 		dev_info(chip->dev,
 			 "OTP has been read or OTP crc is not zero\n");
 
-	for (i = 0; i < SLG51002_MAX_EVT_REGISTER; i++) {
+	for (i = 0; i < SLG51002_MAX_REGULATORS; i++) {
 		if (!(evt[i][R2] & SLG51002_IRQ_ILIM_FLAG_MASK) &&
 		    (evt[i][R0] & SLG51002_EVT_ILIM_FLAG_MASK)) {
 			regulator_notifier_call_chain(chip->rdev[i],
@@ -314,7 +314,7 @@ static void slg51002_work_func(struct work_struct *work)
 
 	if (!(evt[SLG51002_SCTL_EVT][R2] & SLG51002_IRQ_HIGH_TEMP_WARN_MASK) &&
 	    (evt[SLG51002_SCTL_EVT][R0] & SLG51002_EVT_HIGH_TEMP_WARN_MASK)) {
-		for (i = 0; i < SLG51002_MAX_EVT_REGISTER; i++) {
+		for (i = 0; i < SLG51002_MAX_REGULATORS; i++) {
 			if (!(evt[i][R1] & SLG51002_STA_ILIM_FLAG_MASK) &&
 			    (evt[i][R1] & SLG51002_STA_VOUT_OK_FLAG_MASK)) {
 				regulator_notifier_call_chain(chip->rdev[i],
@@ -376,14 +376,12 @@ static int slg51002_regulator_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int slg51002_regulator_remove(struct platform_device *pdev)
+static void slg51002_regulator_remove(struct platform_device *pdev)
 {
 	struct slg51002_dev *chip = dev_get_drvdata(pdev->dev.parent);
 
 	flush_workqueue(chip->slg51002_wq);
 	destroy_workqueue(chip->slg51002_wq);
-
-	return 0;
 }
 
 static const struct platform_device_id slg51002_regulator_id[] = {

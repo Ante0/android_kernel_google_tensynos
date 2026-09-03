@@ -74,11 +74,29 @@
  */
 #define BASE_MEM_GROW_ON_GPF ((base_mem_alloc_flags)1 << 9)
 
-/* Page coherence Outer shareable, if available
+/* Page coherence Outer shareable, if available (Inner may be implied)
+ *
+ * This flag is treated as a suggestion: it will be honored only if
+ * the platform supports Outer shareable coherency, otherwise it will be
+ * silently ignored.
+ *
+ * The user may query the memory flags, if the allocation is successful,
+ * in order to verify whether the request has been honored and
+ * the property is set.
+ *
+ * This flag may or may not imply Inner shareable in addition to
+ * Outer shareable coherency, depending on how the HW decides
+ * to implement it.
  */
 #define BASE_MEM_COHERENT_SYSTEM ((base_mem_alloc_flags)1 << 10)
 
 /* Page coherence Inner shareable
+ *
+ * This flag enables Inner shareable coherency and is always honored.
+ *
+ * The user may query the memory flags, if the allocation is successful,
+ * in order to verify whether the request has been honored and
+ * the property is set.
  */
 #define BASE_MEM_COHERENT_LOCAL ((base_mem_alloc_flags)1 << 11)
 
@@ -99,6 +117,15 @@
 
 /* IN */
 /* Page coherence Outer shareable, required.
+ *
+ * This flag is treated as a mandatory request: it shall be honored.
+ * The memory allocation will succeed only if the platform supports
+ * Outer shareable coherency. In case of success, this flag is equivalent
+ * to BASE_MEM_COHERENT_SYSTEM.
+ *
+ * This flag may or may not imply Inner shareable in addition to
+ * Outer shareable coherency, depending on how the HW decides
+ * to implement it.
  */
 #define BASE_MEM_COHERENT_SYSTEM_REQUIRED ((base_mem_alloc_flags)1 << 15)
 

@@ -1,0 +1,231 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+&sswrp_cpu {
+	apc_funnel: funnel@13801000 {
+		compatible = "arm,coresight-dynamic-funnel", "arm,primecell";
+		reg = <0x13801000 0x1000>;
+
+		clocks = <&cpu_sswrp_tss_clk>;
+		clock-names = "apb_pclk";
+
+		in-ports {
+			port {
+				apc_funnel_in_port0: endpoint {
+					remote-endpoint = <&cluster_combo_funnel_out_port>;
+				};
+			};
+		};
+
+		out-ports {
+			port {
+				apc_funnel_out_port: endpoint {
+					remote-endpoint = <&apc_etf_in_port>;
+				};
+			};
+		};
+	};
+
+	apc_etf: etf@13802000 {
+		compatible = "arm,coresight-tmc", "arm,primecell";
+		reg = <0x13802000 0x1000>;
+
+		clocks = <&cpu_sswrp_tss_clk>;
+		clock-names = "apb_pclk";
+
+		in-ports {
+			port {
+				apc_etf_in_port: endpoint {
+					remote-endpoint = <&apc_funnel_out_port>;
+				};
+			};
+		};
+
+		out-ports {
+			port {
+				apc_etf_out_port: endpoint {
+					remote-endpoint = <&l2_funnel_in_port0>;
+				};
+			};
+		};
+	};
+
+	/* An invisible funnel combine cpu clusters trace */
+	cluster_combo_funnel: cluster-combo-funnel {
+		compatible = "arm,coresight-static-funnel";
+
+		clock = <&osc>;
+		clock-names = "apb_pclk";
+
+		in-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				cluster_combo_funnel_in_port0: endpoint {
+					remote-endpoint = <&ete0_out_port>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				cluster_combo_funnel_in_port1: endpoint {
+					remote-endpoint = <&ete1_out_port>;
+				};
+			};
+
+			port@2 {
+				reg = <2>;
+				cluster_combo_funnel_in_port2: endpoint {
+					remote-endpoint = <&ete2_out_port>;
+				};
+			};
+
+			port@3 {
+				reg = <3>;
+				cluster_combo_funnel_in_port3: endpoint {
+					remote-endpoint = <&ete3_out_port>;
+				};
+			};
+
+			port@4 {
+				reg = <4>;
+				cluster_combo_funnel_in_port4: endpoint {
+					remote-endpoint = <&ete4_out_port>;
+				};
+			};
+
+			port@5 {
+				reg = <5>;
+				cluster_combo_funnel_in_port5: endpoint {
+					remote-endpoint = <&ete5_out_port>;
+				};
+			};
+
+			cluster_combo_funnel_port6: port@6 {
+				reg = <6>;
+				cluster_combo_funnel_in_port6: endpoint {
+					remote-endpoint = <&ete6_out_port>;
+				};
+			};
+
+		};
+
+		out-ports {
+			port {
+				cluster_combo_funnel_out_port: endpoint {
+					remote-endpoint = <&apc_funnel_in_port0>;
+				};
+			};
+		};
+	};
+
+	/*
+	 * Since AP's ETEs belong to the same power domain as APC cores,
+	 * the register context might be lost after CPUidle flow.
+	 * Add `arm,coresight-loses-context-with-cpu` so that the driver
+	 * can store/restore the register context.
+	 */
+	ete0: ete0 {
+		compatible = "arm,embedded-trace-extension";
+		cpu = <&gelas_ll_0>;
+		arm,coresight-loses-context-with-cpu;
+
+		out-ports {
+			port {
+				ete0_out_port: endpoint {
+					remote-endpoint = <&cluster_combo_funnel_in_port0>;
+				};
+			};
+		};
+	};
+
+	ete1: ete1 {
+		compatible = "arm,embedded-trace-extension";
+		cpu = <&gelas_ll_1>;
+		arm,coresight-loses-context-with-cpu;
+
+		out-ports {
+			port {
+				ete1_out_port: endpoint {
+					remote-endpoint = <&cluster_combo_funnel_in_port1>;
+				};
+			};
+		};
+	};
+
+	ete2: ete2 {
+		compatible = "arm,embedded-trace-extension";
+		cpu = <&gelas_0>;
+		arm,coresight-loses-context-with-cpu;
+
+		out-ports {
+			port {
+				ete2_out_port: endpoint {
+					remote-endpoint = <&cluster_combo_funnel_in_port2>;
+				};
+			};
+		};
+	};
+
+	ete3: ete3 {
+		compatible = "arm,embedded-trace-extension";
+		cpu = <&gelas_1>;
+		arm,coresight-loses-context-with-cpu;
+
+		out-ports {
+			port {
+				ete3_out_port: endpoint {
+					remote-endpoint = <&cluster_combo_funnel_in_port3>;
+				};
+			};
+		};
+	};
+
+	ete4: ete4 {
+		compatible = "arm,embedded-trace-extension";
+		cpu = <&gelas_2>;
+		arm,coresight-loses-context-with-cpu;
+
+		out-ports {
+			port {
+				ete4_out_port: endpoint {
+					remote-endpoint = <&cluster_combo_funnel_in_port4>;
+				};
+			};
+		};
+	};
+
+	ete5: ete5 {
+		compatible = "arm,embedded-trace-extension";
+		cpu = <&gelas_3>;
+		arm,coresight-loses-context-with-cpu;
+
+		out-ports {
+			port {
+				ete5_out_port: endpoint {
+					remote-endpoint = <&cluster_combo_funnel_in_port5>;
+				};
+			};
+		};
+	};
+
+	ete6: ete6 {
+		compatible = "arm,embedded-trace-extension";
+		cpu = <&travis_0>;
+		arm,coresight-loses-context-with-cpu;
+
+		out-ports {
+			port {
+				ete6_out_port: endpoint {
+					remote-endpoint = <&cluster_combo_funnel_in_port6>;
+				};
+			};
+		};
+	};
+
+	trbe {
+		compatible = "arm,trace-buffer-extension";
+		interrupts = <GIC_PPI 2 IRQ_TYPE_LEVEL_HIGH 0>;
+	};
+};

@@ -1,0 +1,44 @@
+config BUILD_POWERVR_PIXEL
+	bool "PowerVR Pixel support"
+	default y
+	depends on POWERVR_ROGUE
+
+config POWERVR_RDO
+	bool "PowerVR Redondo support"
+	default n
+	depends on POWERVR_ROGUE && BUILD_POWERVR_PIXEL
+
+config POWERVR_LGA
+	bool "PowerVR Laguna support"
+	default n
+	depends on POWERVR_ROGUE && BUILD_POWERVR_PIXEL
+
+config POWERVR_MBU
+	bool "PowerVR Malibu support"
+	default n
+	depends on POWERVR_ROGUE && BUILD_POWERVR_PIXEL
+
+config POWERVR_PIXEL_SLC
+	bool "SoC SLC integration"
+	default y
+	depends on POWERVR_RDO || POWERVR_LGA
+
+config POWERVR_PIXEL_IIF
+	bool "SoC IIF integration"
+	default n
+	depends on POWERVR_RDO || POWERVR_LGA || POWERVR_MBU
+
+config POWERVR_BRINGUP_MODE
+	bool "Disable optional functionality (for bringup and testing purposes)"
+	default n
+	depends on POWERVR_RDO || POWERVR_LGA || POWERVR_MBU
+
+config POWERVR_DISABLE_PM_RUNTIME
+	bool "Disables PM runtime integration. Requires that GPU power is force-on"
+	default n
+	depends on POWERVR_BRINGUP_MODE
+
+config POWERVR_DISABLE_APM
+	bool "Disables Active Power Management"
+	default n
+	depends on POWERVR_BRINGUP_MODE

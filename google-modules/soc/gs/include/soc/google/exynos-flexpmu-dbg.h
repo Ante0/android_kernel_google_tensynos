@@ -6,10 +6,10 @@
 #ifndef EXYNOS_FLEXPMU_DEBUG_H
 #define EXYNOS_FLEXPMU_DEBUG_H
 
-#ifdef CONFIG_EXYNOS_FLEXPMU_DBG
-extern void exynos_flexpmu_dbg_log_stop(void);
+#if IS_ENABLED(CONFIG_ACPM_FLEXPMU_DBG)
+void exynos_flexpmu_dbg_log_stop(void);
 #else
-#define exynos_flexpmu_dbg_log_stop()		do { } while (0)
+static inline void exynos_flexpmu_dbg_log_stop(void) {}
 #endif
 
 #endif

@@ -683,6 +683,7 @@
 				      <2 TLB_CFG(BL1, PREFETCH_PREDICTION) DIR_RW   SYSMMU_ID_MASK(0x8, 0xC)>,
 				      <3 TLB_CFG(BL1, PREFETCH_PREDICTION) DIR_RW   SYSMMU_ID_MASK(0xC, 0xC)>;
 		sysmmu,async-fault;
+		pasid-num-bits = <3>;
 	};
 
 	/* Often referred to as "sysmmu_aur0" in documentation */
@@ -700,6 +701,7 @@
 		s2mpus = <&s2mpu_aur_idma>;
 		sysmmu,no-s2pf;
 		sysmmu,async-fault;
+		pasid-num-bits = <3>;
 	};
 
 	/* Often referred to as "sysmmu_aur1" in documentation */
@@ -717,5 +719,6 @@
 		s2mpus = <&s2mpu_aur_inst_data>;
 		sysmmu,no-s2pf;
 		sysmmu,async-fault;
+		pasid-num-bits = <3>;
 	};
 };

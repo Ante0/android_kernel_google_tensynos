@@ -53,7 +53,7 @@ struct km4_panel {
 #define to_spanel(ctx) container_of(ctx, struct km4_panel, base)
 
 /* DSCv1.2a 1344x2992 */
-static const struct drm_dsc_config wqhd_pps_config = {
+static struct drm_dsc_config wqhd_pps_config = {
 	.line_buf_depth = 9,
 	.bits_per_component = 8,
 	.convert_rgb = true,
@@ -118,7 +118,7 @@ static const struct drm_dsc_config wqhd_pps_config = {
 };
 
 /* DSCv1.2a 1008x2244 */
-static const struct drm_dsc_config fhd_pps_config = {
+static struct drm_dsc_config fhd_pps_config = {
 	.line_buf_depth = 9,
 	.bits_per_component = 8,
 	.convert_rgb = true,
@@ -352,7 +352,7 @@ static void km4_update_disp_therm(struct gs_panel *ctx)
 {
 	/* temperature*1000 in celsius */
 	int temp, ret;
-	const int offset = (ctx->panel_rev > PANEL_REV_PROTO1_1) ? COMP_TEMP_OFFSET : 0;
+	const int offset = (ctx->panel_rev_id.id > PANEL_REVID_PROTO1_1) ? COMP_TEMP_OFFSET : 0;
 	struct device *dev = ctx->dev;
 
 	if (!ctx->thermal || IS_ERR_OR_NULL(ctx->thermal->tz))
@@ -422,7 +422,7 @@ static void km4_te2_setting(struct gs_panel *ctx)
 	u8 option;
 
 	if (ctx->te2.option == TEX_OPT_FIXED && !spanel->force_changeable_te2)
-		option = (ctx->te2.rate_hz == 240) ? KM4_TE2_FIXED_240HZ :
+		option = (ctx->te2.freq_hz == 240) ? KM4_TE2_FIXED_240HZ :
 						     KM4_TE2_FIXED_120HZ;
 	else
 		option = KM4_TE2_CHANGEABLE;
@@ -449,55 +449,55 @@ static void km4_te2_setting(struct gs_panel *ctx)
 	GS_DCS_BUF_ADD_CMD(dev, 0xB9, 0x00, 0x21, 0x00, 0x37, 0x05, 0xB9);
 	GS_DCS_BUF_ADD_CMDLIST_AND_FLUSH(dev, lock_cmd_f0);
 
-	notify_panel_te2_rate_changed(ctx, 0);
+	notify_panel_te2_freq_changed(ctx, 0);
 	notify_panel_te2_option_changed(ctx);
 	dev_dbg(dev, "TE2 setting: option %s, rising=0x%X falling=0x%X\n",
 		(option == TEX_OPT_CHANGEABLE) ? "changeable" :
-		 ((ctx->te2.rate_hz == 240) ? "fixed:240" : "fixed:120"),
+		 ((ctx->te2.freq_hz == 240) ? "fixed:240" : "fixed:120"),
 		rising, falling);
 }
 
-static bool km4_set_te2_rate(struct gs_panel *ctx, u32 rate_hz)
+static bool km4_set_te2_freq(struct gs_panel *ctx, u32 freq_hz)
 {
 	struct device *dev = ctx->dev;
 
-	if (ctx->te2.rate_hz == rate_hz)
+	if (ctx->te2.freq_hz == freq_hz)
 		return false;
 
 	if (ctx->te2.option == TEX_OPT_FIXED) {
 		bool lp_mode = ctx->current_mode->gs_mode.is_lp_mode;
 
-		if ((!lp_mode && rate_hz != 120 && rate_hz != 240) ||
-		    (lp_mode && rate_hz != 30)) {
-			dev_warn(dev, "unsupported fixed TE2 rate (%u) in %s mode\n",
-				 rate_hz, lp_mode ? "lp" : "normal");
+		if ((!lp_mode && freq_hz != 120 && freq_hz != 240) ||
+		    (lp_mode && freq_hz != 30)) {
+			dev_warn(dev, "unsupported fixed TE2 freq (%u) in %s mode\n",
+				 freq_hz, lp_mode ? "lp" : "normal");
 			return false;
 		}
 
-		ctx->te2.rate_hz = rate_hz;
+		ctx->te2.freq_hz = freq_hz;
 		/**
-		 * Fixed TE2 rate will be limited at 30Hz automatically in AOD mode,
+		 * Fixed TE2 freq will be limited at 30Hz automatically in AOD mode,
 		 * so we don't need to send any commands.
 		 */
 		if (!lp_mode)
-			km4_update_te2_option(ctx, (rate_hz == 240) ? KM4_TE2_FIXED_240HZ :
+			km4_update_te2_option(ctx, (freq_hz == 240) ? KM4_TE2_FIXED_240HZ :
 								      KM4_TE2_FIXED_120HZ);
 	} else if (ctx->te2.option == TEX_OPT_CHANGEABLE) {
-		dev_dbg(dev, "set changeable TE2 rate %uhz\n", rate_hz);
-		ctx->te2.rate_hz = rate_hz;
+		dev_dbg(dev, "set changeable TE2 freq %uhz\n", freq_hz);
+		ctx->te2.freq_hz = freq_hz;
 	} else {
 		dev_warn(dev, "TE2 option is unsupported (%u)\n", ctx->te2.option);
 		return false;
 	}
 
-	PANEL_ATRACE_INT("te2_rate", ctx->te2.rate_hz);
+	PANEL_ATRACE_INT("te2_freq", ctx->te2.freq_hz);
 
 	return true;
 }
 
-static u32 km4_get_te2_rate(struct gs_panel *ctx)
+static u32 km4_get_te2_freq(struct gs_panel *ctx)
 {
-	return ctx->te2.rate_hz;
+	return ctx->te2.freq_hz;
 }
 
 static bool km4_set_te2_option(struct gs_panel *ctx, u32 option)
@@ -514,7 +514,7 @@ static bool km4_set_te2_option(struct gs_panel *ctx, u32 option)
 			dev_dbg(dev, "force changeable TE2 is set\n");
 			return false;
 		}
-		val = (ctx->te2.rate_hz == 240) ? KM4_TE2_FIXED_240HZ : KM4_TE2_FIXED_120HZ;
+		val = (ctx->te2.freq_hz == 240) ? KM4_TE2_FIXED_240HZ : KM4_TE2_FIXED_120HZ;
 	} else if (option == TEX_OPT_CHANGEABLE) {
 		val = KM4_TE2_CHANGEABLE;
 	} else {
@@ -674,7 +674,7 @@ static void km4_set_panel_feat_hbm_irc(struct gs_panel *ctx)
 	 * environment.
 	 */
 
-	if (ctx->panel_rev <= PANEL_REV_DVT1) {
+	if (ctx->panel_rev_id.id <= PANEL_REVID_DVT1) {
 		GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x01, 0x9B, 0x92);
 		if (unlikely(sw_status->irc_mode == IRC_OFF))
 			GS_DCS_BUF_ADD_CMD(dev, 0x92, 0x07);
@@ -683,12 +683,12 @@ static void km4_set_panel_feat_hbm_irc(struct gs_panel *ctx)
 	}
 
 	GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x02, 0x00, 0x92);
-	if (ctx->panel_rev == PANEL_REV_EVT1_1) {
+	if (ctx->panel_rev_id.id == PANEL_REVID_EVT1_1) {
 		if (sw_status->irc_mode == IRC_FLAT_Z)
 			GS_DCS_BUF_ADD_CMD(dev, 0x92, 0x78, 0x2D, 0xFF, 0xDC);
 		else /* IRC_FLAT_DEFAULT or IRC_OFF */
 			GS_DCS_BUF_ADD_CMD(dev, 0x92, 0x00, 0x00, 0xFF, 0xD0);
-	} else if (ctx->panel_rev <= PANEL_REV_DVT1) {
+	} else if (ctx->panel_rev_id.id <= PANEL_REVID_DVT1) {
 		if (sw_status->irc_mode == IRC_FLAT_Z)
 			GS_DCS_BUF_ADD_CMD(dev, 0x92, 0x70, 0x26, 0xFF, 0xDC);
 		else /* IRC_FLAT_DEFAULT or IRC_OFF */
@@ -701,9 +701,9 @@ static void km4_set_panel_feat_hbm_irc(struct gs_panel *ctx)
 	}
 
 	/* SP settings (burn-in compensation) */
-	if (ctx->panel_rev >= PANEL_REV_DVT1) {
+	if (ctx->panel_rev_id.id >= PANEL_REVID_DVT1) {
 		GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x02, 0xF3, 0x68);
-		if (ctx->panel_rev < PANEL_REV_PVT) {
+		if (ctx->panel_rev_id.id < PANEL_REVID_PVT) {
 			if (sw_status->irc_mode == IRC_FLAT_Z)
 				GS_DCS_BUF_ADD_CMD(dev, 0x68, 0x77, 0x77, 0x86, 0xE1, 0xE1, 0xF0);
 			else
@@ -1010,7 +1010,7 @@ static void km4_set_panel_feat(struct gs_panel *ctx, const struct gs_panel_mode 
 		irc_mode_changed = (sw_status->irc_mode != hw_status->irc_mode);
 		if (bitmap_empty(changed_feat, FEAT_MAX) && vrefresh == hw_status->vrefresh &&
 		    idle_vrefresh == hw_status->idle_vrefresh &&
-		    te_freq == hw_status->te.rate_hz &&
+		    te_freq == hw_status->te.freq_hz &&
 		    !irc_mode_changed) {
 			dev_dbg(dev, "%s: no changes, skip update\n", __func__);
 			return;
@@ -1029,9 +1029,9 @@ static void km4_set_panel_feat(struct gs_panel *ctx, const struct gs_panel_mode 
 	GS_DCS_BUF_ADD_CMDLIST(dev, unlock_cmd_f0);
 
 	/* TE setting */
-	sw_status->te.rate_hz = te_freq;
+	sw_status->te.freq_hz = te_freq;
 	if (test_bit(FEAT_EARLY_EXIT, changed_feat) || test_bit(FEAT_OP_NS, changed_feat) ||
-	    hw_status->te.rate_hz != te_freq)
+	    hw_status->te.freq_hz != te_freq)
 		km4_set_panel_feat_te(ctx, feat, pmode);
 
 	/*
@@ -1084,7 +1084,7 @@ static void km4_set_panel_feat(struct gs_panel *ctx, const struct gs_panel_mode 
 
 	hw_status->vrefresh = vrefresh;
 	hw_status->idle_vrefresh = idle_vrefresh;
-	hw_status->te.rate_hz = te_freq;
+	hw_status->te.freq_hz = te_freq;
 	bitmap_copy(hw_status->feat, feat, FEAT_MAX);
 }
 
@@ -1179,7 +1179,7 @@ static void km4_change_frequency(struct gs_panel *ctx, const struct gs_panel_mod
 		idle_vrefresh = ctx->sw_status.idle_vrefresh;
 
 	km4_update_refresh_mode(ctx, pmode, idle_vrefresh);
-	ctx->sw_status.te.rate_hz = gs_drm_mode_te_freq(&pmode->mode);
+	ctx->sw_status.te.freq_hz = gs_drm_mode_te_freq(&pmode->mode);
 
 	dev_dbg(ctx->dev, "change to %u hz\n", vrefresh);
 }
@@ -1238,11 +1238,11 @@ static bool km4_set_self_refresh(struct gs_panel *ctx, bool enable)
 		u32 vrefresh = drm_mode_vrefresh(&pmode->mode);
 
 		idle_vrefresh = ctx->sw_status.idle_vrefresh;
-		/* notify the changes of TE2 rate in case DPU enters/exits hibernation */
+		/* notify the changes of TE2 freq in case DPU enters/exits hibernation */
 		if (ctx->te2.option == TEX_OPT_CHANGEABLE && vrefresh != idle_vrefresh &&
 		    test_bit(FEAT_FRAME_AUTO, ctx->sw_status.feat) &&
-		    km4_set_te2_rate(ctx, enable ? idle_vrefresh : vrefresh))
-			notify_panel_te2_rate_changed(ctx, 0);
+		    km4_set_te2_freq(ctx, enable ? idle_vrefresh : vrefresh))
+			notify_panel_te2_freq_changed(ctx, 0);
 		return false;
 	}
 
@@ -1446,8 +1446,8 @@ static void km4_update_refresh_ctrl_feat(struct gs_panel *ctx, const struct gs_p
 	 */
 	if (ctx->te2.option == TEX_OPT_CHANGEABLE && vrefresh != ctx->sw_status.idle_vrefresh &&
 	    test_bit(FEAT_FRAME_AUTO, feat) && !ctx->idle_data.self_refresh_active &&
-	    km4_set_te2_rate(ctx, vrefresh))
-		notify_panel_te2_rate_changed(ctx, 0);
+	    km4_set_te2_freq(ctx, vrefresh))
+		notify_panel_te2_freq_changed(ctx, 0);
 
 	/**
 	 * The changes of idle vrefresh and frame auto could trigger a 120Hz frame.
@@ -1501,7 +1501,7 @@ static int km4_atomic_check(struct gs_panel *ctx, struct drm_atomic_state *state
 
 	new_crtc_state = drm_atomic_get_new_crtc_state(state, new_conn_state->crtc);
 	old_crtc_state = drm_atomic_get_old_crtc_state(state, new_conn_state->crtc);
-	if (!old_crtc_state || !new_crtc_state || !new_crtc_state->active)
+	if (!old_crtc_state || !new_crtc_state || !new_crtc_state->active || !state->allow_modeset)
 		return 0;
 
 	if ((ctx->sw_status.idle_vrefresh && old_crtc_state->self_refresh_active) ||
@@ -1599,7 +1599,6 @@ static u8 get_acl_mode_setting(enum gs_acl_mode acl_mode)
 	 */
 
 	switch (acl_mode) {
-	default:
 	case ACL_OFF:
 		return 0x00;
 	case ACL_NORMAL:
@@ -1777,8 +1776,8 @@ static void km4_set_lp_mode(struct gs_panel *ctx, const struct gs_panel_mode *pm
 	gs_panel_set_binned_lp_helper(ctx, brightness);
 
 	ctx->hw_status.vrefresh = 30;
-	ctx->hw_status.te.rate_hz = 30;
-	ctx->sw_status.te.rate_hz = 30;
+	ctx->hw_status.te.freq_hz = 30;
+	ctx->sw_status.te.freq_hz = 30;
 	ctx->sw_status.te.option = TEX_OPT_FIXED;
 
 	PANEL_ATRACE_END(__func__);
@@ -1935,10 +1934,8 @@ static int km4_disable(struct drm_panel *panel)
 	dev_info(dev, "%s\n", __func__);
 
 	/* skip disable sequence if going through RRS */
-	if (ctx->mode_in_progress == MODE_RES_IN_PROGRESS ||
-	    ctx->mode_in_progress == MODE_RR_IN_PROGRESS ||
-	    ctx->mode_in_progress == MODE_RES_AND_RR_IN_PROGRESS) {
-		dev_dbg(dev, "%s: RRS in progress, skip\n", __func__);
+	if (ctx->panel_state == GPANEL_STATE_MODESET) {
+		dev_dbg(dev, "%s: modeset in progress, skip\n", __func__);
 		return 0;
 	}
 
@@ -1949,8 +1946,8 @@ static int km4_disable(struct drm_panel *panel)
 	/* panel register state gets reset after disabling hardware */
 	bitmap_clear(ctx->hw_status.feat, 0, FEAT_MAX);
 	ctx->hw_status.vrefresh = 60;
-	ctx->sw_status.te.rate_hz = 60;
-	ctx->hw_status.te.rate_hz = 60;
+	ctx->sw_status.te.freq_hz = 60;
+	ctx->hw_status.te.freq_hz = 60;
 	ctx->hw_status.idle_vrefresh = 0;
 	ctx->hw_status.acl_mode = 0;
 	ctx->hw_status.dbv = 0;
@@ -2099,16 +2096,16 @@ static void km4_mode_set(struct gs_panel *ctx, const struct gs_panel_mode *pmode
 	/**
 	 * TODO(b/344478250): update the refresh rate change in the composer
 	 *
-	 * Notify the changes of TE2 rate while switching the modes with different vrefresh in
-	 * case we miss the refresh rate change report from the composer.
+	 * Notify the changes of TE2 frequency while switching the modes with different vrefresh
+	 * in case we miss the refresh rate change report from the composer.
 	 */
 	if (ctx->current_mode && ctx->te2.option == TEX_OPT_CHANGEABLE) {
 		u32 current_vrefresh = drm_mode_vrefresh(&ctx->current_mode->mode);
 		u32 target_vrefresh = drm_mode_vrefresh(&pmode->mode);
 
 		if (current_vrefresh != target_vrefresh && !ctx->idle_data.self_refresh_active &&
-		    km4_set_te2_rate(ctx, target_vrefresh))
-			notify_panel_te2_rate_changed(ctx, 0);
+		    km4_set_te2_freq(ctx, target_vrefresh))
+			notify_panel_te2_freq_changed(ctx, 0);
 	}
 }
 
@@ -2152,7 +2149,7 @@ static int km4_set_op_hz(struct gs_panel *ctx, unsigned int hz)
 	return 0;
 }
 
-static int km4_read_id(struct gs_panel *ctx)
+static int km4_read_serial(struct gs_panel *ctx)
 {
 	return gs_panel_read_slsi_ddic_id(ctx);
 }
@@ -2170,7 +2167,7 @@ static void km4_get_panel_rev(struct gs_panel *ctx, u32 id)
 	gs_panel_get_panel_rev(ctx, rev);
 }
 
-static void km4_normal_mode_work(struct gs_panel *ctx)
+static void km4_common_work(struct gs_panel *ctx)
 {
 	if (ctx->idle_data.self_refresh_active) {
 		km4_update_disp_therm(ctx);
@@ -2615,7 +2612,7 @@ static void km4_panel_init(struct gs_panel *ctx)
 	ctx->hw_status.irc_mode = IRC_FLAT_DEFAULT;
 	/* default fixed TE2 120Hz */
 	ctx->te2.option = TEX_OPT_FIXED;
-	ctx->te2.rate_hz = 120;
+	ctx->te2.freq_hz = 120;
 
 	if (!ctx->thermal) {
 		dev_err(ctx->dev, "%s: error retrieving thermal data\n", __func__);
@@ -2648,7 +2645,7 @@ static int km4_panel_probe(struct mipi_dsi_device *dsi)
 
 	ctx->op_hz = 120;
 	ctx->hw_status.vrefresh = 60;
-	ctx->hw_status.te.rate_hz = 60;
+	ctx->hw_status.te.freq_hz = 60;
 	ctx->hw_status.acl_mode = ACL_OFF;
 	ctx->hw_status.dbv = 0;
 	ctx->thermal = &km4_thermal_data;
@@ -2674,6 +2671,7 @@ static const struct gs_panel_funcs km4_gs_funcs = {
 	.set_lp_mode = km4_set_lp_mode,
 	.set_nolp_mode = km4_set_nolp_mode,
 	.set_binned_lp = gs_panel_set_binned_lp_helper,
+	.set_vddd_voltage = gs_panel_set_vddd_optional_gpio_helper,
 	.set_hbm_mode = km4_set_hbm_mode,
 	.set_dimming = km4_set_dimming,
 	.is_mode_seamless = km4_is_mode_seamless,
@@ -2692,15 +2690,15 @@ static const struct gs_panel_funcs km4_gs_funcs = {
 #endif
 	.set_frame_rate = km4_set_frame_rate,
 	.set_op_hz = km4_set_op_hz,
-	.read_id = km4_read_id,
+	.read_serial = km4_read_serial,
 	.get_te_usec = km4_get_te_usec,
 	.set_acl_mode = km4_set_acl_mode,
-	.run_normal_mode_work = km4_normal_mode_work,
+	.run_common_work = km4_common_work,
 	.pre_update_ffc = km4_pre_update_ffc,
 	.update_ffc = km4_update_ffc,
 	.set_ssc_en = km4_set_ssc_en,
-	.set_te2_rate = km4_set_te2_rate,
-	.get_te2_rate = km4_get_te2_rate,
+	.set_te2_freq = km4_set_te2_freq,
+	.get_te2_freq = km4_get_te2_freq,
 	.set_te2_option = km4_set_te2_option,
 	.get_te2_option = km4_get_te2_option,
 };
@@ -2853,7 +2851,7 @@ static struct gs_panel_desc gs_km4 = {
 	.gs_panel_func = &km4_gs_funcs,
 	.default_dsi_hs_clk_mbps = MIPI_DSI_FREQ_MBPS_DEFAULT,
 	.reset_timing_ms = { 1, 1, 5 },
-	.normal_mode_work_delay_ms = 30000,
+	.common_work_delay_ms = 30000,
 	/* TODO(b/335574896): delay time in NS mode */
 	/**
 	 * While the proximity is active, we will set the min vrefresh to 30Hz with auto
@@ -2862,7 +2860,7 @@ static struct gs_panel_desc gs_km4 = {
 	 * frame > 1x60Hz frame > 30Hz. With additional tolerance due to scheduler in the
 	 * kernel, the delay of notification is estimated to be ~50ms.
 	 */
-	.notify_te2_rate_changed_work_delay_ms = 50,
+	.notify_te2_freq_changed_work_delay_ms = 50,
 };
 
 static int km4_panel_config(struct gs_panel *ctx)
@@ -2870,7 +2868,7 @@ static int km4_panel_config(struct gs_panel *ctx)
 	gs_panel_model_init(ctx, PROJECT, 0);
 
 	return gs_panel_update_brightness_desc(&km4_brightness_desc, km4_btr_configs,
-					       ARRAY_SIZE(km4_btr_configs), ctx->panel_rev);
+					       ARRAY_SIZE(km4_btr_configs), ctx->panel_rev_bitmask);
 }
 
 static const struct of_device_id gs_panel_of_match[] = {

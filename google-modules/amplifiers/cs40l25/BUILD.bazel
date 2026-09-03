@@ -1,16 +1,48 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+# for misc devices that really don't fit anywhere else.
 
-kernel_module(
-    name = "cs40l25",
-    outs = [
-        "haptics-cs40l2x.ko",
-        "snd_soc_cs40l2x.ko",
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "headers",
+    hdrs = glob([
+        "include/**/*.h",
+    ]),
+    includes = [
+        "include",
     ],
+)
+
+ddk_module(
+    name = "haptics-cs40l2x",
+    srcs = [
+        "cs40l2x.c",
+        "cs40l2x-tables.c",
+    ],
+    out = "haptics-cs40l2x.ko",
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
+    ],
+)
+
+ddk_module(
+    name = "snd_soc_cs40l2x",
+    srcs = [
+        "snd-soc-codec-cs40l2x.c",
+    ],
+    out = "snd_soc_cs40l2x.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":haptics-cs40l2x",
+        ":headers",
+        "//common:all_headers_aarch64",
     ],
 )

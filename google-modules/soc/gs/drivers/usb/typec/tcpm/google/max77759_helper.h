@@ -20,6 +20,8 @@
 			      __LINE__,	val);				\
 }
 
+struct max77759_plat;
+
 int max77759_read16(struct regmap *regmap, unsigned int reg, u16 *val);
 int max77759_write16(struct regmap *regmap, unsigned int reg, u16 val);
 int max77759_read8(struct regmap *regmap, unsigned int reg, u8 *val);
@@ -28,4 +30,7 @@ int max77759_update_bits16(struct regmap *regmap, unsigned int reg,
 			   u16 mask, u16 val);
 int max77759_update_bits8(struct regmap *regmap, unsigned int reg, u8 mask,
 			  u8 val);
+struct max77759_plat *max777x9_get_drvdata(struct device *dev);
+void max777x9_set_drvdata(struct device *dev, struct max77759_plat *chip);
+
 #endif

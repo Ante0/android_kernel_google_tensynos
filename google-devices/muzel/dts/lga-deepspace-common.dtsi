@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Deepspace common device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+#include "lga-deepspace-camera-pmic.dtsi"
+#include "lga-deepspace-camera.dtsi"
+#include "lga-deepspace-pmic.dtsi"
+#include "lga-deepspace-odpm.dtsi"
+#include "lga-deepspace-display.dtsi"
+#include "lga-deepspace-touch.dtsi"
+#include "lga-deepspace-audio.dtsi"
+#include "google-base/platform/lga-platform-charging-ultra.dtsi"
+#include "lga-deepspace-battery.dtsi"
+#include "lga-deepspace-usecases.dtsi"
+#include "google-base/platform/lga-platform-uwb.dtsi"
+#include "lga-deepspace-sensors.dtsi"
+#include "lga-deepspace-lsio.dtsi"
+#include "lga-deepspace-h2omg.dtsi"
+#include "lga-ultrasonic-udfps-common.dtsi"
+#include "lga-muzel-ntc-thermal.dtsi"
+#include "lga-muzel-ntc-thermal-proto.dtsi"
+#include "lga-muzel-sbbm.dtsi"

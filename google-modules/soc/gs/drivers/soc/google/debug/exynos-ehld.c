@@ -22,7 +22,6 @@
 #include <linux/io.h>
 #include <linux/time64.h>
 #include <linux/irqchip/arm-gic-v3.h>
-#include <linux/perf/arm_pmuv3.h>
 
 #include <soc/google/acpm_ipc_ctrl.h>
 #include <soc/google/exynos-cpupm.h>
@@ -223,26 +222,18 @@ void exynos_ehld_do_policy(void)
 	}
 }
 
-/*
- * This implementation uses the code in `drivers/perf/arm_pmuv3.c` to access low-level ARMv8 PMU
- * events. The `ARMV8_IDX_TO_COUNTER` is cloned to convert the `event->hw.idx` to the corresponding
- * ARMv8 counter ID.
- */
-#define ARMV8_IDX_COUNTER0 1
-#define ARMV8_IDX_TO_COUNTER(x) (((x) - ARMV8_IDX_COUNTER0) & ARMV8_PMU_COUNTER_MASK)
-
 static u32 exynos_ehld_read_pmu_counter(void)
 {
 	unsigned int cpu = raw_smp_processor_id();
 	struct exynos_ehld_ctrl *ctrl = per_cpu_ptr(&ehld_ctrl, cpu);
 	struct perf_event *event = ctrl->event;
 
-	write_sysreg(ARMV8_IDX_TO_COUNTER(event->hw.idx), pmselr_el0);
+	write_sysreg(event->hw.idx, pmselr_el0);
 	isb();
 	return read_sysreg(pmxevcntr_el0);
 }
 
-void exynos_ehld_value_raw_update(unsigned int cpu)
+static void exynos_ehld_value_raw_update(unsigned int cpu)
 {
 	u32 val;
 	struct exynos_ehld_ctrl *ctrl = per_cpu_ptr(&ehld_ctrl, cpu);
@@ -354,7 +345,7 @@ static int exynos_ehld_start_cpu(unsigned int cpu)
 		ctrl->event = event;
 		perf_event_enable(event);
 
-		ret = adv_tracer_ehld_set_pmu_cntr_id(cpu, 1, ARMV8_IDX_TO_COUNTER(event->hw.idx));
+		ret = adv_tracer_ehld_set_pmu_cntr_id(cpu, 1, event->hw.idx);
 		if (ret) {
 			ehld_err(1, "@%s: cpu%u set_pmu_cntr_id failed: %d\n", __func__, cpu, ret);
 			ctrl->event = NULL;
@@ -419,21 +410,6 @@ static int exynos_ehld_stop_cpu(unsigned int cpu)
 	dbg_snapshot_set_core_pmu_val(EHLD_VAL_PM, cpu);
 
 	return 0;
-}
-
-unsigned long long exynos_ehld_event_read_cpu(unsigned int cpu)
-{
-	struct exynos_ehld_ctrl *ctrl = per_cpu_ptr(&ehld_ctrl, cpu);
-	struct perf_event *event = ctrl->event;
-	unsigned long long total = 0;
-	unsigned long long enabled, running;
-
-	if (!in_irq() && event) {
-		total = perf_event_read_value(event, &enabled, &running);
-		ehld_info(0, "%s: cpu%u - enabled: %llu, running: %llu, total: %llu\n",
-				__func__, cpu, enabled, running, total);
-	}
-	return total;
 }
 
 void exynos_ehld_event_raw_update(unsigned int cpu, bool update_val)
@@ -539,7 +515,7 @@ void exynos_ehld_event_raw_dump(unsigned int cpu, bool header)
 		if (i < NUM_TRACE_SKIP)
 			continue;
 		if (data->pmpcsr[count] == EHLD_PCSR_SELF) {
-			strlcpy(buf, "(self)", sizeof(buf));
+			strscpy(buf, "(self)", sizeof(buf));
 		} else {
 			snprintf(buf, sizeof(buf), "%#016llx(%pS)",
 				 data->pmpcsr[count], (void *)data->pmpcsr[count]);
@@ -928,8 +904,6 @@ static int exynos_ehld_init_dt(struct device *dev)
 	unsigned int cpu = 0, offset, base;
 	struct exynos_ehld_ctrl *ctrl;
 	u32 val, i;
-	struct property *prop;
-	const __be32 *cur;
 
 	if (of_property_read_u32(np, "cs_base", &base)) {
 		ehld_info(1, "ehld: no cs_base addr in device tree\n");
@@ -943,7 +917,7 @@ static int exynos_ehld_init_dt(struct device *dev)
 		return -ENOMEM;
 
 	i = 0;
-	of_property_for_each_u32(np, "sgi_base", prop, cur, val) {
+	of_property_for_each_u32(np, "sgi_base", val) {
 		if (i >= num_possible_cpus() || !val)
 			return -EINVAL;
 		ehld_main.sgi_base[i] = devm_ioremap(dev, val, SZ_4K);

@@ -911,7 +911,6 @@ static void cs42l42_resume(struct sub_codec *cs42l42)
 	cs42l42_enable_jack_detect(cs42l42);
 }
 
-#ifdef CONFIG_PM
 static void cs42l42_suspend(struct sub_codec *cs42l42)
 {
 	struct hda_codec *codec = cs42l42->codec;
@@ -950,7 +949,6 @@ static void cs42l42_suspend(struct sub_codec *cs42l42)
 	spec->gpio_data &= ~cs42l42->reset_gpio;
 	snd_hda_codec_write(codec, CS8409_PIN_AFG, 0, AC_VERB_SET_GPIO_DATA, spec->gpio_data);
 }
-#endif
 
 static void cs8409_free(struct hda_codec *codec)
 {
@@ -1005,7 +1003,6 @@ static void cs8409_cs42l42_jack_unsol_event(struct hda_codec *codec, unsigned in
 	}
 }
 
-#ifdef CONFIG_PM
 /* Manage PDREF, when transition to D3hot */
 static int cs8409_cs42l42_suspend(struct hda_codec *codec)
 {
@@ -1027,7 +1024,6 @@ static int cs8409_cs42l42_suspend(struct hda_codec *codec)
 
 	return 0;
 }
-#endif
 
 /* Vendor specific HW configuration
  * PLL, ASP, I2C, SPI, GPIOs, DMIC etc...
@@ -1082,9 +1078,7 @@ static const struct hda_codec_ops cs8409_cs42l42_patch_ops = {
 	.init = cs8409_init,
 	.free = cs8409_free,
 	.unsol_event = cs8409_cs42l42_jack_unsol_event,
-#ifdef CONFIG_PM
 	.suspend = cs8409_cs42l42_suspend,
-#endif
 };
 
 static int cs8409_cs42l42_exec_verb(struct hdac_device *dev, unsigned int cmd, unsigned int flags,
@@ -1312,9 +1306,7 @@ static const struct hda_codec_ops cs8409_dolphin_patch_ops = {
 	.init = cs8409_init,
 	.free = cs8409_free,
 	.unsol_event = dolphin_jack_unsol_event,
-#ifdef CONFIG_PM
 	.suspend = cs8409_cs42l42_suspend,
-#endif
 };
 
 static int dolphin_exec_verb(struct hdac_device *dev, unsigned int cmd, unsigned int flags,

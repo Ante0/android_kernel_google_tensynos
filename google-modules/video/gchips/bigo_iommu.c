@@ -11,15 +11,14 @@
 
 #include <linux/module.h>
 #include <linux/slab.h>
-#include <linux/samsung-dma-mapping.h>
 #include <uapi/linux/dma-buf.h>
 
 #include "bigo_iommu.h"
 
 static void bigo_unmap_one(struct bufinfo *binfo)
 {
-	dma_buf_unmap_attachment(binfo->attachment, binfo->sgt,
-				 DMA_BIDIRECTIONAL);
+	dma_buf_unmap_attachment_unlocked(binfo->attachment, binfo->sgt,
+					  DMA_BIDIRECTIONAL);
 	dma_buf_detach(binfo->dmabuf, binfo->attachment);
 	dma_buf_put(binfo->dmabuf);
 }
@@ -88,10 +87,11 @@ static int add_to_mapped_list(struct bigo_core *core, struct bigo_inst *inst,
 		binfo->attachment->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
 #endif
 
-	binfo->sgt = dma_buf_map_attachment(binfo->attachment, DMA_BIDIRECTIONAL);
+	binfo->sgt = dma_buf_map_attachment_unlocked(binfo->attachment,
+						     DMA_BIDIRECTIONAL);
 	if (IS_ERR(binfo->sgt)) {
 		rc = PTR_ERR(binfo->sgt);
-		pr_err("failed to dma_buf_map_attachment: %d\n", rc);
+		pr_err("failed to dma_buf_map_attachment_unlocked: %d\n", rc);
 		goto fail_map_attachment;
 	}
 	binfo->iova = sg_dma_address(binfo->sgt->sgl);
@@ -197,14 +197,15 @@ int bigo_dma_sync(struct bigo_buf_sync *sync)
 	return ret;
 }
 
-int bigo_iommu_fault_handler(struct iommu_fault *fault, void *param)
+int bigo_iommu_fault_handler(struct iommu_domain *domain,
+			     struct device *dev, unsigned long iova,
+			     int flags, void *token)
 {
-	struct bigo_core *core = (struct bigo_core*)param;
+	struct bigo_core *core = token;
 	struct bufinfo *binfo;
 	struct bigo_inst *inst;
 
-	/* Don't try to mutex_lock core->lock here since worker thread
-	 * already has the lock */
+	mutex_lock(&core->lock);
 	pr_info("mapped iova list:\n");
 	list_for_each_entry(inst, &core->instances, list) {
 		mutex_lock(&inst->lock);
@@ -212,7 +213,7 @@ int bigo_iommu_fault_handler(struct iommu_fault *fault, void *param)
 			pr_info("iova: 0x%llx size: %lu", binfo->iova, binfo->size);
 		mutex_unlock(&inst->lock);
 	}
-
+	mutex_unlock(&core->lock);
 	return NOTIFY_OK;
 }
 

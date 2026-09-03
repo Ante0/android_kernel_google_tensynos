@@ -44,7 +44,7 @@ void lwis_phy_list_free(struct lwis_phy_list *list)
 	kfree(list);
 }
 
-int lwis_phy_get(struct lwis_phy_list *list, char *name, struct device *dev)
+int lwis_phy_get(struct lwis_phy_list *list, const char *name, struct device *dev)
 {
 	struct phy *phy;
 	int i;

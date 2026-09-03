@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+# Visible to all devices and modules by default.
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "minimal",
+    srcs = [
+        # If the module consists of a single source file, it can share the module name (e.g.,
+        # minimal.c for minimal.ko). If there are multiple source files, none of them may match the
+        # module.
+        "minimal.c",
+        # Internal headers should be listed in srcs to ensure they remain private to this module and
+        # cannot be accessed externally.
+        "minimal_priv.h",
+    ],
+    # The output kernel module artifact. This also dictates the final module name.
+    out = "minimal.ko",
+    # Public headers that are exported for the dependent modules to include.
+    hdrs = ["include/minimal.h"],
+    # Module-specific defconfig fragments. Only applies to this module the dependent modules.
+    # Alternatively, these configurations can be set by device-level defconfig.
+    defconfig = "defconfig",
+    # Directories to be added to the include search path for this module and the dependent modules.
+    includes = ["include"],
+    # Module-specific Kconfig definitions. Only applies to this module the dependent modules.
+    # Alternatively, these can be sourced by device-level Kconfig files.
+    kconfig = "Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+    ],
+)

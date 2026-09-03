@@ -15,6 +15,7 @@
 #include <linux/dma-resv.h>
 #include <linux/err.h>
 #include <linux/gfp_types.h>
+#include <linux/iosys-map.h>
 #include <linux/math.h>
 #include <linux/mm.h>
 #include <linux/mm_types.h>
@@ -29,6 +30,8 @@
 #include <linux/swap.h>
 #include <linux/types.h>
 #include <linux/uaccess.h>
+#include <linux/vmalloc.h>
+#include <trace/events/gcip.h>
 
 #include <gcip/gcip-iommu.h>
 #include <gcip/gcip-mapping.h>
@@ -83,9 +86,10 @@ static unsigned int gcip_get_gup_flags(u64 host_addr, struct device *dev,
 	struct vm_area_struct *vma;
 	unsigned int gup_flags;
 	vm_flags_t vm_flags;
+	unsigned long untagged_host_addr = untagged_addr(host_addr);
 
 	mmap_read_lock(current->mm);
-	vma = vma_lookup(current->mm, host_addr & PAGE_MASK);
+	vma = vma_lookup(current->mm, untagged_host_addr & PAGE_MASK);
 	if (vma)
 		vm_flags = vma->vm_flags;
 	mmap_read_unlock(current->mm);
@@ -159,13 +163,8 @@ static int gcip_pin_user_pages(struct device *dev, struct page **pages, unsigned
 			       struct mutex *pin_user_pages_lock)
 {
 	int ret, i;
-	struct vm_area_struct **vmas = NULL;
 	int tried;
 
-	/* Allocate our own vmas array non-contiguous. */
-	vmas = kvmalloc((num_pages * sizeof(*vmas)), GFP_KERNEL | __GFP_NOWARN);
-	if (!vmas)
-		return -ENOMEM;
 	/*
 	 * pin_user_pages may fail due to temporary page reference counts held
 	 * in various areas. Retry under lru_cache_disable to release additional
@@ -178,7 +177,7 @@ static int gcip_pin_user_pages(struct device *dev, struct page **pages, unsigned
 			mutex_lock(pin_user_pages_lock);
 		mmap_read_lock(current->mm);
 
-		ret = pin_user_pages(start_addr, num_pages, gup_flags, pages, vmas);
+		ret = pin_user_pages(start_addr, num_pages, gup_flags, pages);
 
 		mmap_read_unlock(current->mm);
 		if (pin_user_pages_lock)
@@ -191,15 +190,15 @@ static int gcip_pin_user_pages(struct device *dev, struct page **pages, unsigned
 			break;
 
 		if (ret >= 0) {
-			dev_err(dev, "Can only pin %u of %u pages requested", ret, num_pages);
+			dev_warn(dev, "try #%d pinned %u of %u pages requested", tried + 1, ret,
+				 num_pages);
 			for (i = 0; i < ret; i++)
 				unpin_user_page(pages[i]);
 		}
 		ret = 0;
 	}
-	if (tried > 0)
-		dev_info(dev, "mapping required %d retries with LRU cache disabled", tried);
-	kvfree(vmas);
+	if (tried > 0 && (ret == num_pages))
+		dev_info(dev, "pinning required %d retries with LRU cache disabled", tried);
 
 	return ret;
 }
@@ -248,7 +247,7 @@ gcip_mapping_alloc_and_pin_user_pages(struct device *dev, u64 host_address, uint
 	if (!(*gup_flags & FOLL_WRITE))
 		goto err_free_pages;
 
-	dev_warn_ratelimited(dev, "pin failed (ret=%d), assuming buffer is read-only", ret);
+	dev_warn_ratelimited(dev, "writeable pin failed (ret=%d), retrying read-only", ret);
 	*gup_flags &= ~FOLL_WRITE;
 	*map_debug_flags |= GCIP_MAP_DEBUG_ASSUME_RDONLY;
 
@@ -372,7 +371,7 @@ err_unpin_page:
  * @dir: The DMA direction of the mapping.
  * @mm: The mm_struct to maintain pinned_vm.
  *
- * If the @sgt has never been mapped, pass DMA_NONE for @dir to skip set_page_dirty().
+ * If the @sgt has never been mapped, pass DMA_NONE for @dir to skip set_page_dirty_lock().
  */
 static void gcip_mapping_buffer_sgt_destroy(struct sg_table *sgt, enum dma_data_direction dir,
 					    struct mm_struct *mm)
@@ -384,7 +383,7 @@ static void gcip_mapping_buffer_sgt_destroy(struct sg_table *sgt, enum dma_data_
 	for_each_sg_page(sgt->sgl, &sg_iter, sgt->orig_nents, 0) {
 		page = sg_page_iter_page(&sg_iter);
 		if (dir == DMA_FROM_DEVICE || dir == DMA_BIDIRECTIONAL)
-			set_page_dirty(page);
+			set_page_dirty_lock(page);
 		unpin_user_page(page);
 		num_pages++;
 	}
@@ -705,6 +704,7 @@ static struct sg_table *gcip_mapping_dmabuf_sgt_create(struct device *dev, struc
 	struct sg_table *sgt_default;
 	int ret;
 
+	trace_gcip_map_dmabuf_attach(dev, dmabuf);
 	attachment = dma_buf_attach(dmabuf, dev);
 	if (IS_ERR(attachment)) {
 		dev_err(dev, "Failed to attach dma-buf (ret=%ld, name=%s)\n", PTR_ERR(attachment),
@@ -715,7 +715,11 @@ static struct sg_table *gcip_mapping_dmabuf_sgt_create(struct device *dev, struc
 	attachment->dma_map_attrs |= GCIP_MAP_FLAGS_GET_DMA_ATTR(gcip_map_flags);
 
 	/* Map the attachment into the default domain. */
+	dma_resv_lock(dmabuf->resv, NULL);
+	trace_gcip_map_dmabuf_map_attachment_start(dev, dmabuf);
 	sgt_default = dma_buf_map_attachment(attachment, dir);
+	trace_gcip_map_dmabuf_map_attachment_end(dev, dmabuf);
+	dma_resv_unlock(dmabuf->resv);
 	if (IS_ERR(sgt_default)) {
 		ret = PTR_ERR(sgt_default);
 		dev_err(dev, "Failed to get sgt from attachment (ret=%d, name=%s, size=%lu)\n", ret,
@@ -745,7 +749,9 @@ static void gcip_mapping_dmabuf_sgt_destroy(struct sg_table *sgt_default, struct
 					    struct dma_buf_attachment *attachment,
 					    enum dma_data_direction dir)
 {
+	dma_resv_lock(dmabuf->resv, NULL);
 	dma_buf_unmap_attachment(attachment, sgt_default, dir);
+	dma_resv_unlock(dmabuf->resv);
 
 	dma_buf_detach(dmabuf, attachment);
 }
@@ -815,6 +821,7 @@ static struct sg_table *gcip_mapping_dmabuf_map_sgt_to_iova(struct gcip_iommu_do
 	u64 gcip_map_flags = *map_flags_ptr;
 	struct dma_buf_attachment *attachment;
 	struct sg_table *sgt_default, *sgt_ret;
+	u64 client_context_map_flags;
 	int nents_mapped;
 	int ret;
 
@@ -838,7 +845,32 @@ static struct sg_table *gcip_mapping_dmabuf_map_sgt_to_iova(struct gcip_iommu_do
 		goto err_destroy_sgt;
 	}
 
-	nents_mapped = gcip_iommu_domain_map_sgt_to_iova(domain, sgt_ret, iova, &gcip_map_flags);
+	/*
+	 * If DMA_ATTR_PRIVILEGED or DMA_ATTR_NO_CACHE are set in the attrs provided by the heap
+	 * exporter then this mapping is from the system-uncached heap. That attr signalled the
+	 * SysMMU/SMMU driver to remove shareability/IOMMU_CACHE from the default domain mapping
+	 * (if it was requested), since this is invalid (and tends to hit bogus AP cache lines).
+	 * Also turn off coherency/IOMMU_CACHE in our per-context mapping.
+	 */
+#if defined(DMA_ATTR_NO_CACHE)
+	if (attachment->dma_map_attrs & (DMA_ATTR_NO_CACHE | DMA_ATTR_PRIVILEGED))
+#else
+	if (attachment->dma_map_attrs & DMA_ATTR_PRIVILEGED)
+#endif
+		gcip_map_flags &= ~BIT(GCIP_MAP_FLAGS_DMA_COHERENT_OFFSET);
+
+	/*
+	 * Force SKIP_CPU_SYNC for the per-context mapping.  If SKIP_CPU_SYNC was set by the dma-buf
+	 * exporter, or requested by IP client, then we don't need CMOs for our client context
+	 * mapping here.  If SKIP_CPU_SYNC isn't set then the associated CMOs were performed for the
+	 * default domain mapping by the dma-buf exporter during the dma_buf_map_attachment call; we
+	 * don't need a second sync here.  We make a copy of the gcip_map_flags to avoid modifying
+	 * the flags reported via debugfs, which could be confusing.
+	 */
+	client_context_map_flags = gcip_map_flags |
+				   (DMA_ATTR_SKIP_CPU_SYNC << GCIP_MAP_FLAGS_DMA_ATTR_OFFSET);
+	nents_mapped =
+		gcip_iommu_domain_map_sgt_to_iova(domain, sgt_ret, iova, &client_context_map_flags);
 	if (!nents_mapped) {
 		ret = -ENOSPC;
 		dev_err(domain->dev, "Failed to map dmabuf to IOMMU domain (ret=%d)\n", ret);
@@ -912,6 +944,106 @@ struct gcip_mapping *gcip_mapping_dmabuf_map(struct gcip_iommu_domain *domain,
 	return gcip_mapping_dmabuf_map_to_iova(domain, dmabuf, 0, gcip_map_flags);
 }
 
+static int gcip_mapping_dmabuf_vmap(struct gcip_mapping *mapping, struct iosys_map *map)
+{
+	struct gcip_dmabuf_mapping *dmabuf_mapping = to_dmabuf_mapping(mapping);
+
+	return dma_buf_vmap_unlocked(dmabuf_mapping->dma_buf, map);
+}
+
+static int gcip_mapping_buffer_vmap(struct gcip_mapping *mapping, struct iosys_map *map)
+{
+	unsigned int npages, page_idx = 0;
+	struct sg_page_iter sg_iter;
+	struct page **pages;
+	void *vaddr;
+	int ret;
+
+	if (!mapping->sgt)
+		return -EINVAL;
+
+	/*
+	 * Calculate the number of pages represented by the mapping. Using mapping->size directly
+	 * to get the count of continuous pages for the overall footprint.
+	 */
+	npages = mapping->size >> PAGE_SHIFT;
+	if (npages == 0)
+		return -EINVAL;
+
+	pages = kvmalloc_array(npages, sizeof(*pages), GFP_KERNEL);
+	if (!pages)
+		return -ENOMEM;
+
+	for_each_sg_page(mapping->sgt->sgl, &sg_iter, mapping->sgt->orig_nents, 0) {
+		if (WARN_ON_ONCE(page_idx >= npages)) {
+			ret = -EFAULT;
+			goto err_free_pages;
+		}
+		pages[page_idx++] = sg_page_iter_page(&sg_iter);
+	}
+
+	if (WARN_ON_ONCE(page_idx != npages)) {
+		ret = -EFAULT;
+		goto err_free_pages;
+	}
+
+	vaddr = vmap(pages, npages, VM_MAP, PAGE_KERNEL);
+	if (!vaddr) {
+		ret = -ENOMEM;
+		goto err_free_pages;
+	}
+
+	kvfree(pages);
+	iosys_map_set_vaddr(map, vaddr + offset_in_page(mapping->device_address));
+	return 0;
+
+err_free_pages:
+	kvfree(pages);
+	return ret;
+}
+
+int gcip_mapping_vmap(struct gcip_mapping *mapping, struct iosys_map *map)
+{
+	iosys_map_clear(map);
+
+	if (mapping->type == GCIP_MAPPING_TYPE_DMABUF)
+		return gcip_mapping_dmabuf_vmap(mapping, map);
+	else if (mapping->type == GCIP_MAPPING_TYPE_BUFFER)
+		return gcip_mapping_buffer_vmap(mapping, map);
+
+	return -EINVAL;
+}
+
+static void gcip_mapping_dmabuf_vunmap(struct gcip_mapping *mapping, struct iosys_map *map)
+{
+	struct gcip_dmabuf_mapping *dmabuf_mapping = to_dmabuf_mapping(mapping);
+
+	if (iosys_map_is_null(map))
+		return;
+
+	dma_buf_vunmap_unlocked(dmabuf_mapping->dma_buf, map);
+	iosys_map_clear(map);
+}
+
+static void gcip_mapping_buffer_vunmap(struct gcip_mapping *mapping, struct iosys_map *map)
+{
+	if (iosys_map_is_null(map))
+		return;
+
+	vunmap(PTR_ALIGN_DOWN(map->vaddr, PAGE_SIZE));
+	iosys_map_clear(map);
+}
+
+void gcip_mapping_vunmap(struct gcip_mapping *mapping, struct iosys_map *map)
+{
+	if (mapping->type == GCIP_MAPPING_TYPE_DMABUF)
+		gcip_mapping_dmabuf_vunmap(mapping, map);
+	else if (mapping->type == GCIP_MAPPING_TYPE_BUFFER)
+		gcip_mapping_buffer_vunmap(mapping, map);
+	else
+		iosys_map_clear(map);
+}
+
 /**
  * gcip_mapping_dmabuf_unmap() - Unmaps the dma buf mapping.
  * @mapping: The pointer of the mapping instance to be unmapped.
@@ -921,14 +1053,26 @@ struct gcip_mapping *gcip_mapping_dmabuf_map(struct gcip_iommu_domain *domain,
 static void gcip_mapping_dmabuf_unmap(struct gcip_mapping *mapping)
 {
 	struct gcip_dmabuf_mapping *dmabuf_mapping = to_dmabuf_mapping(mapping);
+	u64 client_context_map_flags;
 
 	if (!mapping->domain->default_domain) {
+		/*
+		 * Force SKIP_CPU_SYNC for unmap of the per-context mapping.  If SKIP_CPU_SYNC was
+		 * set by the dma-buf exporter then we don't need CMOs for our client context
+		 * mapping here.  If SKIP_CPU_SYNC isn't set then the associated CMOs will be
+		 * performed for the default domain mapping by the dma-buf exporter during the
+		 * dma_buf_unmap_attachment call; we don't need a duplicate sync here.
+		 */
+		client_context_map_flags =
+			mapping->gcip_map_flags |
+			(DMA_ATTR_SKIP_CPU_SYNC << GCIP_MAP_FLAGS_DMA_ATTR_OFFSET);
+
 		if (mapping->user_specified_daddr)
 			gcip_iommu_domain_unmap_sgt_from_iova(mapping->domain, mapping->sgt,
-							      mapping->gcip_map_flags);
+							      client_context_map_flags);
 		else
 			gcip_iommu_domain_unmap_sgt(mapping->domain, mapping->sgt,
-						    mapping->gcip_map_flags);
+						    client_context_map_flags);
 		sg_free_table(mapping->sgt);
 		kfree(mapping->sgt);
 	}
@@ -957,19 +1101,24 @@ static void entry_show_dma_addrs(struct gcip_mapping *mapping, struct seq_file *
 		}
 		seq_puts(s, "]");
 	}
-	seq_puts(s, "\n");
 }
 
 void gcip_mapping_dmabuf_show(struct gcip_mapping *mapping, struct seq_file *s)
 {
 	static const char *dma_dir_tbl[4] = { "rw", "r", "w", "?" };
 	struct gcip_dmabuf_mapping *dmabuf_mapping = to_dmabuf_mapping(mapping);
+	phys_addr_t pa = sg_phys(mapping->sgt->sgl);
+	unsigned long attrs = GCIP_MAP_FLAGS_GET_DMA_ATTR(mapping->gcip_map_flags);
 
 	seq_printf(s, "  %pad %lu %s %s %pad", &mapping->device_address,
 		   DIV_ROUND_UP(mapping->size, PAGE_SIZE), dma_dir_tbl[mapping->dir],
 		   dmabuf_mapping->dma_buf->exp_name,
 		   &sg_dma_address(dmabuf_mapping->sgt_default->sgl));
 	entry_show_dma_addrs(mapping, s);
+	seq_printf(s, " %pap", &pa);
+	seq_printf(s, " %c%c\n",
+		   GCIP_MAP_FLAGS_GET_DMA_COHERENT(mapping->gcip_map_flags) ? 'C' : '.',
+		   attrs & DMA_ATTR_SKIP_CPU_SYNC ? 'S' : '.');
 }
 
 size_t gcip_mapping_dmabuf_hiorder_size(struct gcip_mapping *mapping)

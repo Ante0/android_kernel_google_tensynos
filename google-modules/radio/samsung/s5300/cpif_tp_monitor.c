@@ -4,8 +4,11 @@
  *
  */
 
+#include <linux/cleanup.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
+#include <net/netdev_rx_queue.h>
+#include <net/rps.h>
 #include "modem_prj.h"
 #include "modem_utils.h"
 #include "modem_ctrl.h"
@@ -1530,9 +1533,7 @@ static int tpmon_set_target(struct tpmon_data *data)
 
 static int tpmon_parse_dt(struct device_node *np, struct cpif_tpmon *tpmon)
 {
-	struct device_node *tpmon_np = NULL;
-	struct device_node *child_np = NULL;
-	struct device_node *boost_np = NULL;
+	struct device_node *tpmon_np __free(device_node);
 	struct tpmon_data *data = NULL;
 	int ret = 0;
 	u32 count = 0;
@@ -1562,7 +1563,7 @@ static int tpmon_parse_dt(struct device_node *np, struct cpif_tpmon *tpmon)
 	mif_dt_read_u32(tpmon_np, "boost_hold_msec", tpmon->boost_hold_msec);
 	mif_info("boost hold:%dmsec\n", tpmon->boost_hold_msec);
 
-	for_each_child_of_node(tpmon_np, child_np) {
+	for_each_child_of_node_scoped(tpmon_np, child_np) {
 		struct tpmon_data child_data = {};
 
 		mif_dt_read_string(child_np, "boost_name", child_data.name);
@@ -1572,32 +1573,8 @@ static int tpmon_parse_dt(struct device_node *np, struct cpif_tpmon *tpmon)
 		mif_dt_count_u32_array(child_np, "level",
 			child_data.level, child_data.num_level);
 
-		/*
-		 * Block specific tpmon features without modifying DTBO. Add a
-		 * build-time assertion to catch when a new tpmon target is
-		 * added, so we'll know about it and block it too if needed.
-		 */
-		BUILD_BUG_ON(MAX_TPMON_TARGET != 17);
-		switch (child_data.target) {
-		case TPMON_TARGET_RPS:
-		case TPMON_TARGET_MIF:
-		case TPMON_TARGET_IRQ_MBOX:
-		case TPMON_TARGET_IRQ_PCIE:
-		case TPMON_TARGET_IRQ_DIT:
-		case TPMON_TARGET_INT_FREQ:
-		case TPMON_TARGET_CPU_CL0:
-		case TPMON_TARGET_CPU_CL1:
-		case TPMON_TARGET_CPU_CL2:
-		case TPMON_TARGET_MIF_MAX:
-		case TPMON_TARGET_INT_FREQ_MAX:
-		case TPMON_TARGET_CPU_CL0_MAX:
-		case TPMON_TARGET_CPU_CL1_MAX:
-		case TPMON_TARGET_CPU_CL2_MAX:
-			continue;
-		}
-
 		/* boost */
-		for_each_child_of_node(child_np, boost_np) {
+		for_each_child_of_node_scoped(child_np, boost_np) {
 			if (count >= MAX_TPMON_DATA) {
 				mif_err("count is full:%d\n", count);
 				return -EINVAL;

@@ -1,0 +1,2003 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+
+/*
+ * Malibu camera ISP device tree source
+ *
+ * Copyright 2024 Google LLC.
+ */
+
+#include <dt-bindings/interconnect/google,mbu.h>
+#include <dt-bindings/iis/google,mbu.h>
+
+#include "malibu-isp-event-info.dtsi"
+#include "malibu-gia-isp.dtsi"
+
+/ {
+	lwis_top: lwis_top {
+		compatible = "google,lwis-top-device";
+
+		/* Device node name */
+		node-name = "top";
+
+		/* Thread priority */
+		transaction-thread-priority = <99>;
+	};
+
+	lwis_top_ccu: lwis_top_ccu {
+		compatible = "google,lwis-top-device";
+
+		/* Device node name */
+		node-name = "top-ccu";
+	};
+
+	lwis_dpm: lwis_dpm@0 {
+		compatible = "google,lwis-dpm-device";
+
+		/* Device node name */
+		node-name = "dpm";
+	};
+
+	lwis_test: lwis_test@0 {
+		compatible = "google,lwis-test-device";
+
+		/* Device node name */
+		node-name = "test";
+
+		/* Register space */
+		reg = <0x0 0x0 0x0 0x20>;
+		reg-names = "test";
+		interrupt-names = "test_event_inj";
+		interrupt-event-infos = <&test_event_inj>;
+	};
+
+	sswrp_ispfe: sswrp_ispfe@3E000000 {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x0 0x3E000000 0x1000000>;
+
+		lwis_ispfe_top: lwis_ispfe_top@0 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "ispfe-top";
+
+			/* Register space */
+			reg = <0x0 0x0 0x1000000>;
+			reg-names = "ispfe";
+			reg-valid-ranges =
+				<0x0 0x9000 0x1c424>,		/* lpcm_ispfe_csr */
+				<0x0 0x240000 0xfc14>,		/* ispfe_gpcsr */
+				<0x0 0x280000 0x20000>,		/* fe_lite_core_sec0 */
+				<0x0 0x2a0000 0x20000>,		/* fe_lite_core_sec1 */
+				<0x0 0x2c0000 0x20000>, 	/* fe_core_sec0 */
+				<0x0 0x2e0000 0x20000>, 	/* fe_core_sec1 */
+				<0x0 0x300000 0x20000>, 	/* fe_core_sec2 */
+				<0x0 0x340000 0x1118>,		/* tbu_wrapper_core_csr_0 */
+				<0x0 0x360000 0x1118>,		/* tbu_wrapper_core_csr_1 */
+				<0x0 0x380000 0x1118>,		/* tbu_wrapper_core_csr_2 */
+				<0x0 0x800000 0x100000>,	/* fe_lite_core_0 */
+				<0x0 0x900000 0x100000>;	/* fe_lite_core_1 */
+
+			power-domains = <&sswrp_ispfe_pd>;
+
+			device-group = <1>;
+
+			interrupts-extended =
+				<&ispfe_lite_core_0_level_aggr_0 14>,
+				<&ispfe_lite_core_0_level_aggr_0 0>,
+				<&ispfe_lite_core_0_level_aggr_0 1>,
+				<&ispfe_lite_core_0_level_aggr_0 2>,
+				<&ispfe_lite_core_0_level_aggr_0 8>,
+				<&ispfe_lite_core_0_level_aggr_0 9>,
+				<&ispfe_lite_core_0_level_aggr_0 10>,
+				<&ispfe_lite_core_1_level_aggr_0 14>,
+				<&ispfe_lite_core_1_level_aggr_0 0>,
+				<&ispfe_lite_core_1_level_aggr_0 1>,
+				<&ispfe_lite_core_1_level_aggr_0 2>,
+				<&ispfe_lite_core_1_level_aggr_0 8>,
+				<&ispfe_lite_core_1_level_aggr_0 9>,
+				<&ispfe_lite_core_1_level_aggr_0 10>;
+			interrupt-names =
+				"isp_fe_core0_lite_core_top",
+				"isp_fe_core0_lite_core_error_0",
+				"isp_fe_core0_lite_core_error_1",
+				"isp_fe_core0_lite_core_error_2",
+				"isp_fe_core0_lite_core_misc_0",
+				"isp_fe_core0_lite_core_misc_1",
+				"isp_fe_core0_lite_core_rstctl",
+				"isp_fe_core1_lite_core_top",
+				"isp_fe_core1_lite_core_error_0",
+				"isp_fe_core1_lite_core_error_1",
+				"isp_fe_core1_lite_core_error_2",
+				"isp_fe_core1_lite_core_misc_0",
+				"isp_fe_core1_lite_core_misc_1",
+				"isp_fe_core1_lite_core_rstctl";
+			interrupt-event-infos =
+				<&isp_fe_core0_lite_core_top>,
+				<&isp_fe_core0_lite_core_error_0>,
+				<&isp_fe_core0_lite_core_error_1>,
+				<&isp_fe_core0_lite_core_error_2>,
+				<&isp_fe_core0_lite_core_misc_0>,
+				<&isp_fe_core0_lite_core_misc_1>,
+				<&isp_fe_core0_lite_core_rstctl>,
+				<&isp_fe_core1_lite_core_top>,
+				<&isp_fe_core1_lite_core_error_0>,
+				<&isp_fe_core1_lite_core_error_1>,
+				<&isp_fe_core1_lite_core_error_2>,
+				<&isp_fe_core1_lite_core_misc_0>,
+				<&isp_fe_core1_lite_core_misc_1>,
+				<&isp_fe_core1_lite_core_rstctl>;
+
+			iommus =
+				/* SEQ_ID 0 for Sensor IF #0 */
+				<&med_smmu 0x9000>,
+				<&med_smmu 0x9001>,
+				<&med_smmu 0x9002>,
+				<&med_smmu 0x9003>,
+				<&med_smmu 0x9004>,
+				<&med_smmu 0x9005>,
+				<&med_smmu 0x9006>,
+				<&med_smmu 0x9007>,
+				<&med_smmu 0x9008>,
+				<&med_smmu 0x9009>,
+				<&med_smmu 0x900a>,
+				<&med_smmu 0x900b>,
+				<&med_smmu 0x9100>,
+				<&med_smmu 0x9101>,
+				<&med_smmu 0x9102>,
+				<&med_smmu 0x9103>,
+				<&med_smmu 0x9104>,
+				<&med_smmu 0x9105>,
+				<&med_smmu 0x9106>,
+				<&med_smmu 0x9107>,
+				<&med_smmu 0x9108>,
+				<&med_smmu 0x9109>,
+				<&med_smmu 0x910a>,
+				<&med_smmu 0x910b>,
+				<&med_smmu 0x910c>,
+				<&med_smmu 0x910d>,
+				<&med_smmu 0x910e>,
+				<&med_smmu 0x910f>,
+				<&med_smmu 0x9200>,
+				<&med_smmu 0x9201>,
+				<&med_smmu 0x9202>,
+				<&med_smmu 0x9203>,
+				<&med_smmu 0x9204>,
+				<&med_smmu 0x9205>,
+				<&med_smmu 0x9206>,
+				<&med_smmu 0x9207>,
+				<&med_smmu 0x9208>,
+				<&med_smmu 0x9209>,
+				<&med_smmu 0x920a>,
+				<&med_smmu 0x920b>,
+				<&med_smmu 0x920c>,
+				<&med_smmu 0x920d>,
+				/* SEQ_ID 1 for Sensor IF #1 */
+				<&med_smmu 0x9010>,
+				<&med_smmu 0x9011>,
+				<&med_smmu 0x9012>,
+				<&med_smmu 0x9013>,
+				<&med_smmu 0x9014>,
+				<&med_smmu 0x9015>,
+				<&med_smmu 0x9016>,
+				<&med_smmu 0x9017>,
+				<&med_smmu 0x9018>,
+				<&med_smmu 0x9019>,
+				<&med_smmu 0x901a>,
+				<&med_smmu 0x901b>,
+				<&med_smmu 0x9110>,
+				<&med_smmu 0x9111>,
+				<&med_smmu 0x9112>,
+				<&med_smmu 0x9113>,
+				<&med_smmu 0x9114>,
+				<&med_smmu 0x9115>,
+				<&med_smmu 0x9116>,
+				<&med_smmu 0x9117>,
+				<&med_smmu 0x9118>,
+				<&med_smmu 0x9119>,
+				<&med_smmu 0x911a>,
+				<&med_smmu 0x911b>,
+				<&med_smmu 0x911c>,
+				<&med_smmu 0x911d>,
+				<&med_smmu 0x911e>,
+				<&med_smmu 0x911f>,
+				<&med_smmu 0x9210>,
+				<&med_smmu 0x9211>,
+				<&med_smmu 0x9212>,
+				<&med_smmu 0x9213>,
+				<&med_smmu 0x9214>,
+				<&med_smmu 0x9215>,
+				<&med_smmu 0x9216>,
+				<&med_smmu 0x9217>,
+				<&med_smmu 0x9218>,
+				<&med_smmu 0x9219>,
+				<&med_smmu 0x921a>,
+				<&med_smmu 0x921b>,
+				<&med_smmu 0x921c>,
+				<&med_smmu 0x921d>,
+				/* SEQ_ID 2 for Sensor IF #2 */
+				<&med_smmu 0x9020>,
+				<&med_smmu 0x9021>,
+				<&med_smmu 0x9022>,
+				<&med_smmu 0x9023>,
+				<&med_smmu 0x9024>,
+				<&med_smmu 0x9025>,
+				<&med_smmu 0x9026>,
+				<&med_smmu 0x9027>,
+				<&med_smmu 0x9028>,
+				<&med_smmu 0x9029>,
+				<&med_smmu 0x902a>,
+				<&med_smmu 0x902b>,
+				<&med_smmu 0x9120>,
+				<&med_smmu 0x9121>,
+				<&med_smmu 0x9122>,
+				<&med_smmu 0x9123>,
+				<&med_smmu 0x9124>,
+				<&med_smmu 0x9125>,
+				<&med_smmu 0x9126>,
+				<&med_smmu 0x9127>,
+				<&med_smmu 0x9128>,
+				<&med_smmu 0x9129>,
+				<&med_smmu 0x912a>,
+				<&med_smmu 0x912b>,
+				<&med_smmu 0x912c>,
+				<&med_smmu 0x912d>,
+				<&med_smmu 0x912e>,
+				<&med_smmu 0x912f>,
+				<&med_smmu 0x9220>,
+				<&med_smmu 0x9221>,
+				<&med_smmu 0x9222>,
+				<&med_smmu 0x9223>,
+				<&med_smmu 0x9224>,
+				<&med_smmu 0x9225>,
+				<&med_smmu 0x9226>,
+				<&med_smmu 0x9227>,
+				<&med_smmu 0x9228>,
+				<&med_smmu 0x9229>,
+				<&med_smmu 0x922a>,
+				<&med_smmu 0x922b>,
+				<&med_smmu 0x922c>,
+				<&med_smmu 0x922d>,
+				/* SEQ_ID 3 for Sensor IF #3 */
+				<&med_smmu 0x9030>,
+				<&med_smmu 0x9031>,
+				<&med_smmu 0x9032>,
+				<&med_smmu 0x9033>,
+				<&med_smmu 0x9034>,
+				<&med_smmu 0x9035>,
+				<&med_smmu 0x9036>,
+				<&med_smmu 0x9037>,
+				<&med_smmu 0x9038>,
+				<&med_smmu 0x9039>,
+				<&med_smmu 0x903a>,
+				<&med_smmu 0x903b>,
+				<&med_smmu 0x9130>,
+				<&med_smmu 0x9131>,
+				<&med_smmu 0x9132>,
+				<&med_smmu 0x9133>,
+				<&med_smmu 0x9134>,
+				<&med_smmu 0x9135>,
+				<&med_smmu 0x9136>,
+				<&med_smmu 0x9137>,
+				<&med_smmu 0x9138>,
+				<&med_smmu 0x9139>,
+				<&med_smmu 0x913a>,
+				<&med_smmu 0x913b>,
+				<&med_smmu 0x913c>,
+				<&med_smmu 0x913d>,
+				<&med_smmu 0x913e>,
+				<&med_smmu 0x913f>,
+				<&med_smmu 0x9230>,
+				<&med_smmu 0x9231>,
+				<&med_smmu 0x9232>,
+				<&med_smmu 0x9233>,
+				<&med_smmu 0x9234>,
+				<&med_smmu 0x9235>,
+				<&med_smmu 0x9236>,
+				<&med_smmu 0x9237>,
+				<&med_smmu 0x9238>,
+				<&med_smmu 0x9239>,
+				<&med_smmu 0x923a>,
+				<&med_smmu 0x923b>,
+				<&med_smmu 0x923c>,
+				<&med_smmu 0x923d>,
+				/* SEQ_ID 4 for Sensor IF #4 */
+				<&med_smmu 0x9040>,
+				<&med_smmu 0x9041>,
+				<&med_smmu 0x9042>,
+				<&med_smmu 0x9043>,
+				<&med_smmu 0x9044>,
+				<&med_smmu 0x9045>,
+				<&med_smmu 0x9046>,
+				<&med_smmu 0x9047>,
+				<&med_smmu 0x9048>,
+				<&med_smmu 0x9049>,
+				<&med_smmu 0x904a>,
+				<&med_smmu 0x904b>,
+				<&med_smmu 0x9140>,
+				<&med_smmu 0x9141>,
+				<&med_smmu 0x9142>,
+				<&med_smmu 0x9143>,
+				<&med_smmu 0x9144>,
+				<&med_smmu 0x9145>,
+				<&med_smmu 0x9146>,
+				<&med_smmu 0x9147>,
+				<&med_smmu 0x9148>,
+				<&med_smmu 0x9149>,
+				<&med_smmu 0x914a>,
+				<&med_smmu 0x914b>,
+				<&med_smmu 0x914c>,
+				<&med_smmu 0x914d>,
+				<&med_smmu 0x914e>,
+				<&med_smmu 0x914f>,
+				<&med_smmu 0x9240>,
+				<&med_smmu 0x9241>,
+				<&med_smmu 0x9242>,
+				<&med_smmu 0x9243>,
+				<&med_smmu 0x9244>,
+				<&med_smmu 0x9245>,
+				<&med_smmu 0x9246>,
+				<&med_smmu 0x9247>,
+				<&med_smmu 0x9248>,
+				<&med_smmu 0x9249>,
+				<&med_smmu 0x924a>,
+				<&med_smmu 0x924b>,
+				<&med_smmu 0x924c>,
+				<&med_smmu 0x924d>,
+				/* SEQ_ID 5 for Sensor IF #5 */
+				<&med_smmu 0x9050>,
+				<&med_smmu 0x9051>,
+				<&med_smmu 0x9052>,
+				<&med_smmu 0x9053>,
+				<&med_smmu 0x9054>,
+				<&med_smmu 0x9055>,
+				<&med_smmu 0x9056>,
+				<&med_smmu 0x9057>,
+				<&med_smmu 0x9058>,
+				<&med_smmu 0x9059>,
+				<&med_smmu 0x905a>,
+				<&med_smmu 0x905b>,
+				<&med_smmu 0x9150>,
+				<&med_smmu 0x9151>,
+				<&med_smmu 0x9152>,
+				<&med_smmu 0x9153>,
+				<&med_smmu 0x9154>,
+				<&med_smmu 0x9155>,
+				<&med_smmu 0x9156>,
+				<&med_smmu 0x9157>,
+				<&med_smmu 0x9158>,
+				<&med_smmu 0x9159>,
+				<&med_smmu 0x915a>,
+				<&med_smmu 0x915b>,
+				<&med_smmu 0x915c>,
+				<&med_smmu 0x915d>,
+				<&med_smmu 0x915e>,
+				<&med_smmu 0x915f>,
+				<&med_smmu 0x9250>,
+				<&med_smmu 0x9251>,
+				<&med_smmu 0x9252>,
+				<&med_smmu 0x9253>,
+				<&med_smmu 0x9254>,
+				<&med_smmu 0x9255>,
+				<&med_smmu 0x9256>,
+				<&med_smmu 0x9257>,
+				<&med_smmu 0x9258>,
+				<&med_smmu 0x9259>,
+				<&med_smmu 0x925a>,
+				<&med_smmu 0x925b>,
+				<&med_smmu 0x925c>,
+				<&med_smmu 0x925d>,
+				/* SEQ_ID 6 for Sensor IF #6 */
+				<&med_smmu 0x9060>,
+				<&med_smmu 0x9061>,
+				<&med_smmu 0x9062>,
+				<&med_smmu 0x9063>,
+				<&med_smmu 0x9064>,
+				<&med_smmu 0x9065>,
+				<&med_smmu 0x9066>,
+				<&med_smmu 0x9067>,
+				<&med_smmu 0x9068>,
+				<&med_smmu 0x9069>,
+				<&med_smmu 0x906a>,
+				<&med_smmu 0x906b>,
+				<&med_smmu 0x9160>,
+				<&med_smmu 0x9161>,
+				<&med_smmu 0x9162>,
+				<&med_smmu 0x9163>,
+				<&med_smmu 0x9164>,
+				<&med_smmu 0x9165>,
+				<&med_smmu 0x9166>,
+				<&med_smmu 0x9167>,
+				<&med_smmu 0x9168>,
+				<&med_smmu 0x9169>,
+				<&med_smmu 0x916a>,
+				<&med_smmu 0x916b>,
+				<&med_smmu 0x916c>,
+				<&med_smmu 0x916d>,
+				<&med_smmu 0x916e>,
+				<&med_smmu 0x916f>,
+				<&med_smmu 0x9260>,
+				<&med_smmu 0x9261>,
+				<&med_smmu 0x9262>,
+				<&med_smmu 0x9263>,
+				<&med_smmu 0x9264>,
+				<&med_smmu 0x9265>,
+				<&med_smmu 0x9266>,
+				<&med_smmu 0x9267>,
+				<&med_smmu 0x9268>,
+				<&med_smmu 0x9269>,
+				<&med_smmu 0x926a>,
+				<&med_smmu 0x926b>,
+				<&med_smmu 0x926c>,
+				<&med_smmu 0x926d>,
+				/* SEQ_ID 7 for Sensor IF #7 */
+				<&med_smmu 0x9070>,
+				<&med_smmu 0x9071>,
+				<&med_smmu 0x9072>,
+				<&med_smmu 0x9073>,
+				<&med_smmu 0x9074>,
+				<&med_smmu 0x9075>,
+				<&med_smmu 0x9076>,
+				<&med_smmu 0x9077>,
+				<&med_smmu 0x9078>,
+				<&med_smmu 0x9079>,
+				<&med_smmu 0x907a>,
+				<&med_smmu 0x907b>,
+				<&med_smmu 0x9170>,
+				<&med_smmu 0x9171>,
+				<&med_smmu 0x9172>,
+				<&med_smmu 0x9173>,
+				<&med_smmu 0x9174>,
+				<&med_smmu 0x9175>,
+				<&med_smmu 0x9176>,
+				<&med_smmu 0x9177>,
+				<&med_smmu 0x9178>,
+				<&med_smmu 0x9179>,
+				<&med_smmu 0x917a>,
+				<&med_smmu 0x917b>,
+				<&med_smmu 0x917c>,
+				<&med_smmu 0x917d>,
+				<&med_smmu 0x917e>,
+				<&med_smmu 0x917f>,
+				<&med_smmu 0x9270>,
+				<&med_smmu 0x9271>,
+				<&med_smmu 0x9272>,
+				<&med_smmu 0x9273>,
+				<&med_smmu 0x9274>,
+				<&med_smmu 0x9275>,
+				<&med_smmu 0x9276>,
+				<&med_smmu 0x9277>,
+				<&med_smmu 0x9278>,
+				<&med_smmu 0x9279>,
+				<&med_smmu 0x927a>,
+				<&med_smmu 0x927b>,
+				<&med_smmu 0x927c>,
+				<&med_smmu 0x927d>,
+				/* SEQ_ID 14 for TPG */
+				<&med_smmu 0x90e0>,
+				<&med_smmu 0x90e1>,
+				<&med_smmu 0x90e2>,
+				<&med_smmu 0x90e3>,
+				<&med_smmu 0x90e4>,
+				<&med_smmu 0x90e5>,
+				<&med_smmu 0x90e6>,
+				<&med_smmu 0x90e7>,
+				<&med_smmu 0x90e8>,
+				<&med_smmu 0x90e9>,
+				<&med_smmu 0x90ea>,
+				<&med_smmu 0x90eb>,
+				<&med_smmu 0x91e0>,
+				<&med_smmu 0x91e1>,
+				<&med_smmu 0x91e2>,
+				<&med_smmu 0x91e3>,
+				<&med_smmu 0x91e4>,
+				<&med_smmu 0x91e5>,
+				<&med_smmu 0x91e6>,
+				<&med_smmu 0x91e7>,
+				<&med_smmu 0x91e8>,
+				<&med_smmu 0x91e9>,
+				<&med_smmu 0x91ea>,
+				<&med_smmu 0x91eb>,
+				<&med_smmu 0x91ec>,
+				<&med_smmu 0x91ed>,
+				<&med_smmu 0x91ee>,
+				<&med_smmu 0x91ef>,
+				<&med_smmu 0x92e0>,
+				<&med_smmu 0x92e1>,
+				<&med_smmu 0x92e2>,
+				<&med_smmu 0x92e3>,
+				<&med_smmu 0x92e4>,
+				<&med_smmu 0x92e5>,
+				<&med_smmu 0x92e6>,
+				<&med_smmu 0x92e7>,
+				<&med_smmu 0x92e8>,
+				<&med_smmu 0x92e9>,
+				<&med_smmu 0x92ea>,
+				<&med_smmu 0x92eb>,
+				<&med_smmu 0x92ec>,
+				<&med_smmu 0x92ed>,
+				/* SEQ_ID 15 for No input selected */
+				<&med_smmu 0x90f0>,
+				<&med_smmu 0x90f1>,
+				<&med_smmu 0x90f2>,
+				<&med_smmu 0x90f3>,
+				<&med_smmu 0x90f4>,
+				<&med_smmu 0x90f5>,
+				<&med_smmu 0x90f6>,
+				<&med_smmu 0x90f7>,
+				<&med_smmu 0x90f8>,
+				<&med_smmu 0x90f9>,
+				<&med_smmu 0x90fa>,
+				<&med_smmu 0x90fb>,
+				<&med_smmu 0x91f0>,
+				<&med_smmu 0x91f1>,
+				<&med_smmu 0x91f2>,
+				<&med_smmu 0x91f3>,
+				<&med_smmu 0x91f4>,
+				<&med_smmu 0x91f5>,
+				<&med_smmu 0x91f6>,
+				<&med_smmu 0x91f7>,
+				<&med_smmu 0x91f8>,
+				<&med_smmu 0x91f9>,
+				<&med_smmu 0x91fa>,
+				<&med_smmu 0x91fb>,
+				<&med_smmu 0x91fc>,
+				<&med_smmu 0x91fd>,
+				<&med_smmu 0x91fe>,
+				<&med_smmu 0x91ff>,
+				<&med_smmu 0x92f0>,
+				<&med_smmu 0x92f1>,
+				<&med_smmu 0x92f2>,
+				<&med_smmu 0x92f3>,
+				<&med_smmu 0x92f4>,
+				<&med_smmu 0x92f5>,
+				<&med_smmu 0x92f6>,
+				<&med_smmu 0x92f7>,
+				<&med_smmu 0x92f8>,
+				<&med_smmu 0x92f9>,
+				<&med_smmu 0x92fa>,
+				<&med_smmu 0x92fb>,
+				<&med_smmu 0x92fc>,
+				<&med_smmu 0x92fd>;
+			iommu-single-page-size;
+
+			interconnects =
+				<&icc_ispfe ISPFE_TOP &icc_gmc SSWRP_ISP_SET_0>,
+				<&icc_gmc SSWRP_ISP_SET_0 &icc_gmc GMC>;
+
+			interconnect-names =
+				"ispfe-top",
+				"ispfe-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_ispfe_csisfe: lwis_ispfe_csisfe@400000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "ispfe-csisfe";
+
+			/* Register space */
+			reg = <0x0 0x400000 0x340000>;
+			reg-names = "ispfe";
+			reg-valid-ranges =
+				<0x0 0x0 0x3f000>,	/* ispfe_csisfe_csis1_1 */
+				<0x0 0x100000 0x3f000>,	/* ispfe_csisfe_csis1_2 */
+				<0x0 0x200000 0x3f000>,	/* ispfe_csisfe_csis2_1 */
+				<0x0 0x300000 0x3f000>;	/* ispfe_csisfe_csis2_2 */
+
+			device-group = <1>;
+
+			interrupts-extended =
+				<&ispfe_multicast_aggr_3 0>,
+				<&ispfe_multicast_aggr_3 1>,
+				<&ispfe_multicast_aggr_3 2>,
+				<&ispfe_multicast_aggr_3 3>,
+				<&ispfe_multicast_aggr_3 4>,
+				<&ispfe_multicast_aggr_3 5>,
+				<&ispfe_multicast_aggr_3 6>,
+				<&ispfe_multicast_aggr_3 7>,
+				<&ispfe_multicast_aggr_3 0>,
+				<&ispfe_multicast_aggr_3 1>,
+				<&ispfe_multicast_aggr_3 2>,
+				<&ispfe_multicast_aggr_3 3>,
+				<&ispfe_multicast_aggr_3 4>,
+				<&ispfe_multicast_aggr_3 5>,
+				<&ispfe_multicast_aggr_3 6>,
+				<&ispfe_multicast_aggr_3 7>,
+				<&ispfe_multicast_aggr_3 0>,
+				<&ispfe_multicast_aggr_3 1>,
+				<&ispfe_multicast_aggr_3 2>,
+				<&ispfe_multicast_aggr_3 3>,
+				<&ispfe_multicast_aggr_3 4>,
+				<&ispfe_multicast_aggr_3 5>,
+				<&ispfe_multicast_aggr_3 6>,
+				<&ispfe_multicast_aggr_3 7>,
+				<&ispfe_multicast_aggr_3 0>,
+				<&ispfe_multicast_aggr_3 1>,
+				<&ispfe_multicast_aggr_3 2>,
+				<&ispfe_multicast_aggr_3 3>,
+				<&ispfe_multicast_aggr_3 4>,
+				<&ispfe_multicast_aggr_3 5>,
+				<&ispfe_multicast_aggr_3 6>,
+				<&ispfe_multicast_aggr_3 7>,
+				<&ispfe_multicast_aggr_3 0>,
+				<&ispfe_multicast_aggr_3 1>,
+				<&ispfe_multicast_aggr_3 2>,
+				<&ispfe_multicast_aggr_3 3>,
+				<&ispfe_multicast_aggr_3 4>,
+				<&ispfe_multicast_aggr_3 5>,
+				<&ispfe_multicast_aggr_3 6>,
+				<&ispfe_multicast_aggr_3 7>,
+				<&ispfe_multicast_aggr_3 0>,
+				<&ispfe_multicast_aggr_3 1>,
+				<&ispfe_multicast_aggr_3 2>,
+				<&ispfe_multicast_aggr_3 3>,
+				<&ispfe_multicast_aggr_3 4>,
+				<&ispfe_multicast_aggr_3 5>,
+				<&ispfe_multicast_aggr_3 6>,
+				<&ispfe_multicast_aggr_3 7>,
+				<&ispfe_multicast_aggr_3 0>,
+				<&ispfe_multicast_aggr_3 1>,
+				<&ispfe_multicast_aggr_3 2>,
+				<&ispfe_multicast_aggr_3 3>,
+				<&ispfe_multicast_aggr_3 4>,
+				<&ispfe_multicast_aggr_3 5>,
+				<&ispfe_multicast_aggr_3 6>,
+				<&ispfe_multicast_aggr_3 7>,
+				<&ispfe_multicast_aggr_3 0>,
+				<&ispfe_multicast_aggr_3 1>,
+				<&ispfe_multicast_aggr_3 2>,
+				<&ispfe_multicast_aggr_3 3>,
+				<&ispfe_multicast_aggr_3 4>,
+				<&ispfe_multicast_aggr_3 5>,
+				<&ispfe_multicast_aggr_3 6>,
+				<&ispfe_multicast_aggr_3 7>,
+				<&ispfe_multicast_aggr_3 0>,
+				<&ispfe_multicast_aggr_3 1>,
+				<&ispfe_multicast_aggr_3 2>,
+				<&ispfe_multicast_aggr_3 3>,
+				<&ispfe_multicast_aggr_3 4>,
+				<&ispfe_multicast_aggr_3 5>,
+				<&ispfe_multicast_aggr_3 6>,
+				<&ispfe_multicast_aggr_3 7>,
+				<&ispfe_multicast_aggr_3 0>,
+				<&ispfe_multicast_aggr_3 1>,
+				<&ispfe_multicast_aggr_3 2>,
+				<&ispfe_multicast_aggr_3 3>,
+				<&ispfe_multicast_aggr_3 4>,
+				<&ispfe_multicast_aggr_3 5>,
+				<&ispfe_multicast_aggr_3 6>,
+				<&ispfe_multicast_aggr_3 7>;
+			interrupt-names =
+				"isp_fe_ctx0_csisfe_int_st_rx",
+				"isp_fe_ctx1_csisfe_int_st_rx",
+				"isp_fe_ctx2_csisfe_int_st_rx",
+				"isp_fe_ctx3_csisfe_int_st_rx",
+				"isp_fe_ctx4_csisfe_int_st_rx",
+				"isp_fe_ctx5_csisfe_int_st_rx",
+				"isp_fe_ctx6_csisfe_int_st_rx",
+				"isp_fe_ctx7_csisfe_int_st_rx",
+				"isp_fe_ctx0_csisfe_int_st_deskew",
+				"isp_fe_ctx1_csisfe_int_st_deskew",
+				"isp_fe_ctx2_csisfe_int_st_deskew",
+				"isp_fe_ctx3_csisfe_int_st_deskew",
+				"isp_fe_ctx4_csisfe_int_st_deskew",
+				"isp_fe_ctx5_csisfe_int_st_deskew",
+				"isp_fe_ctx6_csisfe_int_st_deskew",
+				"isp_fe_ctx7_csisfe_int_st_deskew",
+				"isp_fe_ctx0_csisfe_int_st_timeout",
+				"isp_fe_ctx1_csisfe_int_st_timeout",
+				"isp_fe_ctx2_csisfe_int_st_timeout",
+				"isp_fe_ctx3_csisfe_int_st_timeout",
+				"isp_fe_ctx4_csisfe_int_st_timeout",
+				"isp_fe_ctx5_csisfe_int_st_timeout",
+				"isp_fe_ctx6_csisfe_int_st_timeout",
+				"isp_fe_ctx7_csisfe_int_st_timeout",
+				"isp_fe_ctx0_csisfe_int_st_phy01",
+				"isp_fe_ctx1_csisfe_int_st_phy01",
+				"isp_fe_ctx2_csisfe_int_st_phy01",
+				"isp_fe_ctx3_csisfe_int_st_phy01",
+				"isp_fe_ctx4_csisfe_int_st_phy01",
+				"isp_fe_ctx5_csisfe_int_st_phy01",
+				"isp_fe_ctx6_csisfe_int_st_phy01",
+				"isp_fe_ctx7_csisfe_int_st_phy01",
+				"isp_fe_ctx0_csisfe_int_st_phy23",
+				"isp_fe_ctx1_csisfe_int_st_phy23",
+				"isp_fe_ctx2_csisfe_int_st_phy23",
+				"isp_fe_ctx3_csisfe_int_st_phy23",
+				"isp_fe_ctx4_csisfe_int_st_phy23",
+				"isp_fe_ctx5_csisfe_int_st_phy23",
+				"isp_fe_ctx6_csisfe_int_st_phy23",
+				"isp_fe_ctx7_csisfe_int_st_phy23",
+				"isp_fe_ctx0_csisfe_int_st_sdi",
+				"isp_fe_ctx1_csisfe_int_st_sdi",
+				"isp_fe_ctx2_csisfe_int_st_sdi",
+				"isp_fe_ctx3_csisfe_int_st_sdi",
+				"isp_fe_ctx4_csisfe_int_st_sdi",
+				"isp_fe_ctx5_csisfe_int_st_sdi",
+				"isp_fe_ctx6_csisfe_int_st_sdi",
+				"isp_fe_ctx7_csisfe_int_st_sdi",
+				"isp_fe_ctx0_csisfe_int_st_csi2",
+				"isp_fe_ctx1_csisfe_int_st_csi2",
+				"isp_fe_ctx2_csisfe_int_st_csi2",
+				"isp_fe_ctx3_csisfe_int_st_csi2",
+				"isp_fe_ctx4_csisfe_int_st_csi2",
+				"isp_fe_ctx5_csisfe_int_st_csi2",
+				"isp_fe_ctx6_csisfe_int_st_csi2",
+				"isp_fe_ctx7_csisfe_int_st_csi2",
+				"isp_fe_ctx0_csisfe_int_st_frame",
+				"isp_fe_ctx1_csisfe_int_st_frame",
+				"isp_fe_ctx2_csisfe_int_st_frame",
+				"isp_fe_ctx3_csisfe_int_st_frame",
+				"isp_fe_ctx4_csisfe_int_st_frame",
+				"isp_fe_ctx5_csisfe_int_st_frame",
+				"isp_fe_ctx6_csisfe_int_st_frame",
+				"isp_fe_ctx7_csisfe_int_st_frame",
+				"isp_fe_ctx0_csisfe_int_st_line",
+				"isp_fe_ctx1_csisfe_int_st_line",
+				"isp_fe_ctx2_csisfe_int_st_line",
+				"isp_fe_ctx3_csisfe_int_st_line",
+				"isp_fe_ctx4_csisfe_int_st_line",
+				"isp_fe_ctx5_csisfe_int_st_line",
+				"isp_fe_ctx6_csisfe_int_st_line",
+				"isp_fe_ctx7_csisfe_int_st_line",
+				"isp_fe_ctx0_csisfe_int_st_main_aggr",
+				"isp_fe_ctx1_csisfe_int_st_main_aggr",
+				"isp_fe_ctx2_csisfe_int_st_main_aggr",
+				"isp_fe_ctx3_csisfe_int_st_main_aggr",
+				"isp_fe_ctx4_csisfe_int_st_main_aggr",
+				"isp_fe_ctx5_csisfe_int_st_main_aggr",
+				"isp_fe_ctx6_csisfe_int_st_main_aggr",
+				"isp_fe_ctx7_csisfe_int_st_main_aggr";
+			interrupt-event-infos =
+				<&isp_fe_ctx0_csisfe_int_st_rx>,
+				<&isp_fe_ctx1_csisfe_int_st_rx>,
+				<&isp_fe_ctx2_csisfe_int_st_rx>,
+				<&isp_fe_ctx3_csisfe_int_st_rx>,
+				<&isp_fe_ctx4_csisfe_int_st_rx>,
+				<&isp_fe_ctx5_csisfe_int_st_rx>,
+				<&isp_fe_ctx6_csisfe_int_st_rx>,
+				<&isp_fe_ctx7_csisfe_int_st_rx>,
+				<&isp_fe_ctx0_csisfe_int_st_deskew>,
+				<&isp_fe_ctx1_csisfe_int_st_deskew>,
+				<&isp_fe_ctx2_csisfe_int_st_deskew>,
+				<&isp_fe_ctx3_csisfe_int_st_deskew>,
+				<&isp_fe_ctx4_csisfe_int_st_deskew>,
+				<&isp_fe_ctx5_csisfe_int_st_deskew>,
+				<&isp_fe_ctx6_csisfe_int_st_deskew>,
+				<&isp_fe_ctx7_csisfe_int_st_deskew>,
+				<&isp_fe_ctx0_csisfe_int_st_timeout>,
+				<&isp_fe_ctx1_csisfe_int_st_timeout>,
+				<&isp_fe_ctx2_csisfe_int_st_timeout>,
+				<&isp_fe_ctx3_csisfe_int_st_timeout>,
+				<&isp_fe_ctx4_csisfe_int_st_timeout>,
+				<&isp_fe_ctx5_csisfe_int_st_timeout>,
+				<&isp_fe_ctx6_csisfe_int_st_timeout>,
+				<&isp_fe_ctx7_csisfe_int_st_timeout>,
+				<&isp_fe_ctx0_csisfe_int_st_phy01>,
+				<&isp_fe_ctx1_csisfe_int_st_phy01>,
+				<&isp_fe_ctx2_csisfe_int_st_phy01>,
+				<&isp_fe_ctx3_csisfe_int_st_phy01>,
+				<&isp_fe_ctx4_csisfe_int_st_phy01>,
+				<&isp_fe_ctx5_csisfe_int_st_phy01>,
+				<&isp_fe_ctx6_csisfe_int_st_phy01>,
+				<&isp_fe_ctx7_csisfe_int_st_phy01>,
+				<&isp_fe_ctx0_csisfe_int_st_phy23>,
+				<&isp_fe_ctx1_csisfe_int_st_phy23>,
+				<&isp_fe_ctx2_csisfe_int_st_phy23>,
+				<&isp_fe_ctx3_csisfe_int_st_phy23>,
+				<&isp_fe_ctx4_csisfe_int_st_phy23>,
+				<&isp_fe_ctx5_csisfe_int_st_phy23>,
+				<&isp_fe_ctx6_csisfe_int_st_phy23>,
+				<&isp_fe_ctx7_csisfe_int_st_phy23>,
+				<&isp_fe_ctx0_csisfe_int_st_sdi>,
+				<&isp_fe_ctx1_csisfe_int_st_sdi>,
+				<&isp_fe_ctx2_csisfe_int_st_sdi>,
+				<&isp_fe_ctx3_csisfe_int_st_sdi>,
+				<&isp_fe_ctx4_csisfe_int_st_sdi>,
+				<&isp_fe_ctx5_csisfe_int_st_sdi>,
+				<&isp_fe_ctx6_csisfe_int_st_sdi>,
+				<&isp_fe_ctx7_csisfe_int_st_sdi>,
+				<&isp_fe_ctx0_csisfe_int_st_csi2>,
+				<&isp_fe_ctx1_csisfe_int_st_csi2>,
+				<&isp_fe_ctx2_csisfe_int_st_csi2>,
+				<&isp_fe_ctx3_csisfe_int_st_csi2>,
+				<&isp_fe_ctx4_csisfe_int_st_csi2>,
+				<&isp_fe_ctx5_csisfe_int_st_csi2>,
+				<&isp_fe_ctx6_csisfe_int_st_csi2>,
+				<&isp_fe_ctx7_csisfe_int_st_csi2>,
+				<&isp_fe_ctx0_csisfe_int_st_frame>,
+				<&isp_fe_ctx1_csisfe_int_st_frame>,
+				<&isp_fe_ctx2_csisfe_int_st_frame>,
+				<&isp_fe_ctx3_csisfe_int_st_frame>,
+				<&isp_fe_ctx4_csisfe_int_st_frame>,
+				<&isp_fe_ctx5_csisfe_int_st_frame>,
+				<&isp_fe_ctx6_csisfe_int_st_frame>,
+				<&isp_fe_ctx7_csisfe_int_st_frame>,
+				<&isp_fe_ctx0_csisfe_int_st_line>,
+				<&isp_fe_ctx1_csisfe_int_st_line>,
+				<&isp_fe_ctx2_csisfe_int_st_line>,
+				<&isp_fe_ctx3_csisfe_int_st_line>,
+				<&isp_fe_ctx4_csisfe_int_st_line>,
+				<&isp_fe_ctx5_csisfe_int_st_line>,
+				<&isp_fe_ctx6_csisfe_int_st_line>,
+				<&isp_fe_ctx7_csisfe_int_st_line>,
+				<&isp_fe_ctx0_csisfe_int_st_main_aggr>,
+				<&isp_fe_ctx1_csisfe_int_st_main_aggr>,
+				<&isp_fe_ctx2_csisfe_int_st_main_aggr>,
+				<&isp_fe_ctx3_csisfe_int_st_main_aggr>,
+				<&isp_fe_ctx4_csisfe_int_st_main_aggr>,
+				<&isp_fe_ctx5_csisfe_int_st_main_aggr>,
+				<&isp_fe_ctx6_csisfe_int_st_main_aggr>,
+				<&isp_fe_ctx7_csisfe_int_st_main_aggr>;
+			power-domains =
+				<&ispfe_csis_pd>;
+
+			interconnects =
+				<&icc_ispfe ISPFE_CSISFE &icc_gmc SSWRP_ISP_SET_0>,
+				<&icc_gmc SSWRP_ISP_SET_0 &icc_gmc GMC>;
+
+			interconnect-names =
+				"ispfe-csisfe",
+				"ispfe-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_ispfe_core0: lwis_ispfe_core0@A00000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "ispfe-core0";
+
+			/* Register space */
+			reg = <0x0 0x0 0x1000000>;
+			reg-names = "ispfe";
+			reg-valid-ranges =
+				<0x0 0x240000 0xfc14>,		/* ispfe_gpcsr */
+				<0x0 0x2c0000 0x20000>,		/* fe_core_sec0 */
+				<0x0 0x340000 0x1118>,		/* tbu_wrapper_core_csr_0 */
+				<0x0 0x360000 0x1118>,		/* tbu_wrapper_core_csr_1 */
+				<0x0 0x380000 0x1118>,		/* tbu_wrapper_core_csr_2 */
+				<0x0 0xa00000 0x100000>;	/* fe_core_0 */
+
+			device-group = <1>;
+
+			interrupts-extended =
+				<&ispfe_core_0_level_aggr_0 14>,
+				<&ispfe_core_0_level_aggr_0 0>,
+				<&ispfe_core_0_level_aggr_0 1>,
+				<&ispfe_core_0_level_aggr_0 2>,
+				<&ispfe_core_0_level_aggr_0 8>,
+				<&ispfe_core_0_level_aggr_0 9>,
+				<&ispfe_core_0_level_aggr_0 10>,
+				<&ispfe_core_0_level_aggr_0 13>,
+				<&ispfe_core_0_level_aggr_0 13>,
+				<&ispfe_core_0_level_aggr_0 13>,
+				<&ispfe_core_0_level_aggr_0 0>;
+			interrupt-names =
+				"isp_fe_core0_core_top",
+				"isp_fe_core0_core_error_0",
+				"isp_fe_core0_core_error_1",
+				"isp_fe_core0_core_error_2",
+				"isp_fe_core0_core_misc_0",
+				"isp_fe_core0_core_misc_1",
+				"isp_fe_core0_core_rstctl",
+				"isp_fe_core0_pdma_leaf",
+				"isp_fe_core0_pdma_leaf_err",
+				"isp_fe_core0_pdma_leaf_rstctl",
+				"isp_fe_core0_pdma_top";
+			interrupt-event-infos =
+				<&isp_fe_core0_core_top>,
+				<&isp_fe_core0_core_error_0>,
+				<&isp_fe_core0_core_error_1>,
+				<&isp_fe_core0_core_error_2>,
+				<&isp_fe_core0_core_misc_0>,
+				<&isp_fe_core0_core_misc_1>,
+				<&isp_fe_core0_core_rstctl>,
+				<&isp_fe_core0_pdma_leaf>,
+				<&isp_fe_core0_pdma_leaf_err>,
+				<&isp_fe_core0_pdma_leaf_rstctl>,
+				<&isp_fe_core0_pdma_top>;
+
+			power-domains = <&ispfe_core0_pd>;
+
+			interconnects =
+				<&icc_ispfe ISPFE_CORE0 &icc_gmc SSWRP_ISP_SET_0>,
+				<&icc_gmc SSWRP_ISP_SET_0 &icc_gmc GMC>;
+
+			interconnect-names =
+				"ispfe-core0",
+				"ispfe-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_ispfe_core1: lwis_ispfe_core1@B00000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "ispfe-core1";
+
+			/* Register space */
+			reg = <0x0 0x0 0x1000000>;
+			reg-names = "ispfe";
+			reg-valid-ranges =
+				<0x0 0x240000 0xfc14>,		/* ispfe_gpcsr */
+				<0x0 0x2e0000 0x20000>,		/* fe_core_sec1 */
+				<0x0 0x340000 0x1118>,		/* tbu_wrapper_core_csr_0 */
+				<0x0 0x360000 0x1118>,		/* tbu_wrapper_core_csr_1 */
+				<0x0 0x380000 0x1118>,		/* tbu_wrapper_core_csr_2 */
+				<0x0 0xb00000 0x100000>;	/* fe_core_1 */
+
+			device-group = <1>;
+
+			interrupts-extended =
+				<&ispfe_core_1_level_aggr_0 14>,
+				<&ispfe_core_1_level_aggr_0 0>,
+				<&ispfe_core_1_level_aggr_0 1>,
+				<&ispfe_core_1_level_aggr_0 2>,
+				<&ispfe_core_1_level_aggr_0 8>,
+				<&ispfe_core_1_level_aggr_0 9>,
+				<&ispfe_core_1_level_aggr_0 10>,
+				<&ispfe_core_1_level_aggr_0 13>,
+				<&ispfe_core_1_level_aggr_0 13>,
+				<&ispfe_core_1_level_aggr_0 13>,
+				<&ispfe_core_1_level_aggr_0 0>;
+			interrupt-names =
+				"isp_fe_core1_core_top",
+				"isp_fe_core1_core_error_0",
+				"isp_fe_core1_core_error_1",
+				"isp_fe_core1_core_error_2",
+				"isp_fe_core1_core_misc_0",
+				"isp_fe_core1_core_misc_1",
+				"isp_fe_core1_core_rstctl",
+				"isp_fe_core1_pdma_leaf",
+				"isp_fe_core1_pdma_leaf_err",
+				"isp_fe_core1_pdma_leaf_rstctl",
+				"isp_fe_core1_pdma_top";
+			interrupt-event-infos =
+				<&isp_fe_core1_core_top>,
+				<&isp_fe_core1_core_error_0>,
+				<&isp_fe_core1_core_error_1>,
+				<&isp_fe_core1_core_error_2>,
+				<&isp_fe_core1_core_misc_0>,
+				<&isp_fe_core1_core_misc_1>,
+				<&isp_fe_core1_core_rstctl>,
+				<&isp_fe_core1_pdma_leaf>,
+				<&isp_fe_core1_pdma_leaf_err>,
+				<&isp_fe_core1_pdma_leaf_rstctl>,
+				<&isp_fe_core1_pdma_top>;
+
+			power-domains = <&ispfe_core1_pd>;
+
+			interconnects =
+				<&icc_ispfe ISPFE_CORE1 &icc_gmc SSWRP_ISP_SET_0>,
+				<&icc_gmc SSWRP_ISP_SET_0 &icc_gmc GMC>;
+
+			interconnect-names =
+				"ispfe-core1",
+				"ispfe-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_ispfe_core2: lwis_ispfe_core2@C00000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "ispfe-core2";
+
+			/* Register space */
+			reg = <0x0 0x0 0x1000000>;
+			reg-names = "ispfe";
+			reg-valid-ranges =
+				<0x0 0x240000 0xfc14>,		/* ispfe_gpcsr */
+				<0x0 0x300000 0x20000>,		/* fe_core_sec2 */
+				<0x0 0x340000 0x1118>,		/* tbu_wrapper_core_csr_0 */
+				<0x0 0x360000 0x1118>,		/* tbu_wrapper_core_csr_1 */
+				<0x0 0x380000 0x1118>,		/* tbu_wrapper_core_csr_2 */
+				<0x0 0xc00000 0x100000>;	/* fe_core_2 */
+
+			device-group = <1>;
+
+			interrupts-extended =
+				<&ispfe_core_2_level_aggr_0 14>,
+				<&ispfe_core_2_level_aggr_0 0>,
+				<&ispfe_core_2_level_aggr_0 1>,
+				<&ispfe_core_2_level_aggr_0 2>,
+				<&ispfe_core_2_level_aggr_0 8>,
+				<&ispfe_core_2_level_aggr_0 9>,
+				<&ispfe_core_2_level_aggr_0 10>,
+				<&ispfe_core_2_level_aggr_0 13>,
+				<&ispfe_core_2_level_aggr_0 13>,
+				<&ispfe_core_2_level_aggr_0 13>,
+				<&ispfe_core_2_level_aggr_0 0>;
+			interrupt-names =
+				"isp_fe_core2_core_top",
+				"isp_fe_core2_core_error_0",
+				"isp_fe_core2_core_error_1",
+				"isp_fe_core2_core_error_2",
+				"isp_fe_core2_core_misc_0",
+				"isp_fe_core2_core_misc_1",
+				"isp_fe_core2_core_rstctl",
+				"isp_fe_core2_pdma_leaf",
+				"isp_fe_core2_pdma_leaf_err",
+				"isp_fe_core2_pdma_leaf_rstctl",
+				"isp_fe_core2_pdma_top";
+			interrupt-event-infos =
+				<&isp_fe_core2_core_top>,
+				<&isp_fe_core2_core_error_0>,
+				<&isp_fe_core2_core_error_1>,
+				<&isp_fe_core2_core_error_2>,
+				<&isp_fe_core2_core_misc_0>,
+				<&isp_fe_core2_core_misc_1>,
+				<&isp_fe_core2_core_rstctl>,
+				<&isp_fe_core2_pdma_leaf>,
+				<&isp_fe_core2_pdma_leaf_err>,
+				<&isp_fe_core2_pdma_leaf_rstctl>,
+				<&isp_fe_core2_pdma_top>;
+
+			power-domains = <&ispfe_core2_pd>;
+
+			interconnects =
+				<&icc_ispfe ISPFE_CORE2 &icc_gmc SSWRP_ISP_SET_0>,
+				<&icc_gmc SSWRP_ISP_SET_0 &icc_gmc GMC>;
+
+			interconnect-names =
+				"ispfe-core2",
+				"ispfe-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+	};
+
+	sswrp_ispbe: sswrp_ispbe@3D400000 {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x0 0x3D400000 0x39F07C>;
+
+		lwis_ispbe_msa_tnr: lwis_ispbe_msa_tnr@340000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "ispbe-msa-tnr";
+
+			/* Register space */
+			reg = <0x0 0x0 0x39F07C>;
+			reg-names = "ispbe";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* IP Core */
+				<0x0 0x340000 0x1f07c>;	/* msa_tnr_qchwrap_csr */
+
+			power-domains = <&sswrp_ispbe_pd>;
+
+			device-group = <2>;
+
+			interrupts-extended =
+				<&ispbe_msa_tnr_qchwrap_level_aggr_0 0>,
+				<&ispbe_msa_tnr_qchwrap_level_aggr_0 1>;
+			interrupt-names =
+				"isp_be_msa_tnr_rstctl_ap_irq",
+				"isp_be_msa_tnr_framectl_ap_irq";
+			interrupt-event-infos =
+				<&isp_be_msa_tnr_rstctl_ap_irq>,
+				<&isp_be_msa_tnr_framectl_ap_irq>;
+
+			iommus =
+				<&med_smmu 0x8e0d>,
+				<&med_smmu 0x8e0e>,
+				<&med_smmu 0x8e0f>;
+
+			interconnects =
+				<&icc_ispbe ISPBE_MSA_TNR &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_gmc SSWRP_ISP_SET_1 &icc_gmc GMC>;
+
+			interconnect-names =
+				"ispbe-msa-tnr",
+				"ispbe-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_ispbe_msa_hdr: lwis_ispbe_msa_hdr@380000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "ispbe-msa-hdr";
+
+			/* Register space */
+			reg = <0x0 0x0 0x39F07C>;
+			reg-names = "ispbe";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* IP Core */
+				<0x0 0x380000 0x1f07c>;	/* msa_hdr_qchwrap_csr */
+
+			power-domains = <&sswrp_ispbe_pd>;
+
+			device-group = <2>;
+
+			interrupts-extended =
+				<&ispbe_msa_hdr_qchwrap_level_aggr_0 0>,
+				<&ispbe_msa_hdr_qchwrap_level_aggr_0 1>;
+			interrupt-names =
+				"isp_be_msa_hdr_rstctl_ap_irq",
+				"isp_be_msa_hdr_framectl_ap_irq";
+			interrupt-event-infos =
+				<&isp_be_msa_hdr_rstctl_ap_irq>,
+				<&isp_be_msa_hdr_framectl_ap_irq>;
+
+			iommus =
+				<&med_smmu 0x8f0d>,
+				<&med_smmu 0x8f0e>,
+				<&med_smmu 0x8f0f>;
+
+			interconnects =
+				<&icc_ispbe ISPBE_MSA_HDR &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_gmc SSWRP_ISP_SET_1 &icc_gmc GMC>;
+
+			interconnect-names =
+				"ispbe-msa-hdr",
+				"ispbe-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_ispbe_btr: lwis_ispbe_btr@2A0000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "ispbe-btr";
+
+			/* Register space */
+			reg = <0x0 0x0 0x39F07C>;
+			reg-names = "ispbe";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* IP Core */
+				<0x0 0x2A0000 0x1f07c>,	/* btr0_qchwrp_csr */
+				<0x0 0x2C0000 0x1f07c>,	/* btr1_qchwrp_csr */
+				<0x0 0x2E0000 0x1f07c>;	/* btr2_qchwrp_csr */
+
+			power-domains = <&sswrp_ispbe_pd>;
+
+			device-group = <2>;
+
+			interrupts-extended =
+				<&ispbe_btr0_level_aggr_0 0>,
+				<&ispbe_btr0_level_aggr_0 1>,
+				<&ispbe_btr1_level_aggr_0 0>,
+				<&ispbe_btr1_level_aggr_0 1>,
+				<&ispbe_btr2_level_aggr_0 10>,
+				<&ispbe_btr2_level_aggr_0 11>;
+			interrupt-names =
+				"isp_be_btr_btr0_rstctl_ap_irq",
+				"isp_be_btr_btr0_framectl_ap_irq",
+				"isp_be_btr_btr1_rstctl_ap_irq",
+				"isp_be_btr_btr1_framectl_ap_irq",
+				"isp_be_btr_btr2_rstctl_ap_irq",
+				"isp_be_btr_btr2_framectl_ap_irq";
+			interrupt-event-infos =
+				<&isp_be_btr_btr0_rstctl_ap_irq>,
+				<&isp_be_btr_btr0_framectl_ap_irq>,
+				<&isp_be_btr_btr1_rstctl_ap_irq>,
+				<&isp_be_btr_btr1_framectl_ap_irq>,
+				<&isp_be_btr_btr2_rstctl_ap_irq>,
+				<&isp_be_btr_btr2_framectl_ap_irq>;
+
+			iommus =
+				<&med_smmu 0x8c00>,
+				<&med_smmu 0x8c01>,
+				<&med_smmu 0x8c02>,
+				<&med_smmu 0x8c03>,
+				<&med_smmu 0x8c08>,
+				<&med_smmu 0x8c09>,
+				<&med_smmu 0x8c0a>,
+				<&med_smmu 0x8c0b>,
+				<&med_smmu 0x8c0d>,
+				<&med_smmu 0x8d00>,
+				<&med_smmu 0x8d01>,
+				<&med_smmu 0x8d02>,
+				<&med_smmu 0x8d03>,
+				<&med_smmu 0x8e00>,
+				<&med_smmu 0x8e01>,
+				<&med_smmu 0x8e02>,
+				<&med_smmu 0x8e03>,
+				<&med_smmu 0x8e08>,
+				<&med_smmu 0x8e09>,
+				<&med_smmu 0x8f00>,
+				<&med_smmu 0x8f01>,
+				<&med_smmu 0x8f02>,
+				<&med_smmu 0x8f03>,
+				<&med_smmu 0x8f04>,
+				<&med_smmu 0x8f05>,
+				<&med_smmu 0x8f06>,
+				<&med_smmu 0x8f07>,
+				<&med_smmu 0x8f08>,
+				<&med_smmu 0x8f09>,
+				<&med_smmu 0x8f0a>;
+
+			interconnects =
+				<&icc_ispbe ISPBE_BTR &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_gmc SSWRP_ISP_SET_1 &icc_gmc GMC>;
+
+			interconnect-names =
+				"ispbe-btr",
+				"ispbe-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_ispbe_itcc: lwis_ispbe_itcc@2FB000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "ispbe-itcc";
+
+			/* Register space */
+			reg = <0x0 0x0 0x39F07C>;
+			reg-names = "ispbe";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* IP Core */
+				<0x0 0x2E0000 0x1f07c>,	/* btr2_qchwrp_csr */
+				<0x0 0x300000 0x1f07c>;	/* yuv_qchwrap_csr */
+
+			power-domains = <&sswrp_ispbe_pd>;
+
+			device-group = <2>;
+
+			interrupts-extended =
+				<&ispbe_btr2_level_aggr_0 9>,
+				<&ispbe_btr2_level_aggr_0 8>,
+				<&ispbe_btr2_level_aggr_0 7>,
+				<&ispbe_btr2_level_aggr_0 6>,
+				<&ispbe_btr2_level_aggr_0 4>,
+				<&ispbe_btr2_level_aggr_0 5>,
+				<&ispbe_btr2_level_aggr_0 2>,
+				<&ispbe_btr2_level_aggr_0 3>,
+				<&ispbe_btr2_level_aggr_0 1>,
+				<&ispbe_btr2_level_aggr_0 0>,
+				<&ispbe_yuv_level_aggr_0 8>,
+				<&ispbe_yuv_level_aggr_0 9>,
+				<&ispbe_yuv_level_aggr_0 7>,
+				<&ispbe_yuv_level_aggr_0 6>,
+				<&ispbe_yuv_level_aggr_0 5>,
+				<&ispbe_yuv_level_aggr_0 3>,
+				<&ispbe_yuv_level_aggr_0 4>,
+				<&ispbe_yuv_level_aggr_0 2>,
+				<&ispbe_yuv_level_aggr_0 1>,
+				<&ispbe_yuv_level_aggr_0 0>;
+			interrupt-names =
+				"isp_be_itcc_btr2_pfrp_o_y_l2_wdma_producer_itcc_0_ap_irq",
+				"isp_be_itcc_btr2_tnr_o_var_l2_wdma_producer_itcc_0_ap_irq",
+				"isp_be_itcc_btr2_tnr_o_var_l3_wdma_producer_itcc_0_ap_irq",
+				"isp_be_itcc_btr2_tnr_o_var_l4_wdma_producer_itcc_0_ap_irq",
+				"isp_be_itcc_btr2_tnr_o_y_gl0_wdma_producer_itcc_0_ap_irq",
+				"isp_be_itcc_btr2_tnr_o_y_gl0_wdma_producer_itcc_1_ap_irq",
+				"isp_be_itcc_btr2_tnr_o_yuv_gl2_wdma_producer_itcc_0_ap_irq",
+				"isp_be_itcc_btr2_tnr_o_yuv_gl2_wdma_producer_itcc_1_ap_irq",
+				"isp_be_itcc_btr2_tnr_o_yuv_gl3_wdma_producer_itcc_0_ap_irq",
+				"isp_be_itcc_btr2_tnr_o_yuv_gl4_wdma_producer_itcc_0_ap_irq",
+				"isp_be_itcc_yuv_gu_i_y_gl0_rdma_consumer_itcc_0_ap_irq",
+				"isp_be_itcc_yuv_gu_i_y_gl0_rdma_consumer_itcc_1_ap_irq",
+				"isp_be_itcc_yuv_lfnr_i_var_l2_rdma_consumer_itcc_0_ap_irq",
+				"isp_be_itcc_yuv_lfnr_i_var_l3_rdma_consumer_itcc_0_ap_irq",
+				"isp_be_itcc_yuv_lfnr_i_var_l4_rdma_consumer_itcc_0_ap_irq",
+				"isp_be_itcc_yuv_lfnr_i_yuv_gl2_rdma_consumer_itcc_0_ap_irq",
+				"isp_be_itcc_yuv_lfnr_i_yuv_gl2_rdma_consumer_itcc_1_ap_irq",
+				"isp_be_itcc_yuv_lfnr_i_yuv_gl3_rdma_consumer_itcc_0_ap_irq",
+				"isp_be_itcc_yuv_lfnr_i_yuv_gl4_rdma_consumer_itcc_0_ap_irq",
+				"isp_be_itcc_yuv_pfr_i_y_l2_rdma_consumer_itcc_0_ap_irq";
+			interrupt-event-infos =
+				<&isp_be_itcc_btr2_pfrp_o_y_l2_wdma_producer_itcc_0_ap_irq>,
+				<&isp_be_itcc_btr2_tnr_o_var_l2_wdma_producer_itcc_0_ap_irq>,
+				<&isp_be_itcc_btr2_tnr_o_var_l3_wdma_producer_itcc_0_ap_irq>,
+				<&isp_be_itcc_btr2_tnr_o_var_l4_wdma_producer_itcc_0_ap_irq>,
+				<&isp_be_itcc_btr2_tnr_o_y_gl0_wdma_producer_itcc_0_ap_irq>,
+				<&isp_be_itcc_btr2_tnr_o_y_gl0_wdma_producer_itcc_1_ap_irq>,
+				<&isp_be_itcc_btr2_tnr_o_yuv_gl2_wdma_producer_itcc_0_ap_irq>,
+				<&isp_be_itcc_btr2_tnr_o_yuv_gl2_wdma_producer_itcc_1_ap_irq>,
+				<&isp_be_itcc_btr2_tnr_o_yuv_gl3_wdma_producer_itcc_0_ap_irq>,
+				<&isp_be_itcc_btr2_tnr_o_yuv_gl4_wdma_producer_itcc_0_ap_irq>,
+				<&isp_be_itcc_yuv_gu_i_y_gl0_rdma_consumer_itcc_0_ap_irq>,
+				<&isp_be_itcc_yuv_gu_i_y_gl0_rdma_consumer_itcc_1_ap_irq>,
+				<&isp_be_itcc_yuv_lfnr_i_var_l2_rdma_consumer_itcc_0_ap_irq>,
+				<&isp_be_itcc_yuv_lfnr_i_var_l3_rdma_consumer_itcc_0_ap_irq>,
+				<&isp_be_itcc_yuv_lfnr_i_var_l4_rdma_consumer_itcc_0_ap_irq>,
+				<&isp_be_itcc_yuv_lfnr_i_yuv_gl2_rdma_consumer_itcc_0_ap_irq>,
+				<&isp_be_itcc_yuv_lfnr_i_yuv_gl2_rdma_consumer_itcc_1_ap_irq>,
+				<&isp_be_itcc_yuv_lfnr_i_yuv_gl3_rdma_consumer_itcc_0_ap_irq>,
+				<&isp_be_itcc_yuv_lfnr_i_yuv_gl4_rdma_consumer_itcc_0_ap_irq>,
+				<&isp_be_itcc_yuv_pfr_i_y_l2_rdma_consumer_itcc_0_ap_irq>;
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_ispbe_yuv: lwis_ispbe_yuv@300000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "ispbe-yuv";
+
+			/* Register space */
+			reg = <0x0 0x0 0x39F07C>;
+			reg-names = "ispbe";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* IP core */
+				<0x0 0x300000 0x1f07c>;	/* yuv_qchwrap_csr */
+
+			power-domains = <&sswrp_ispbe_pd>;
+
+			device-group = <2>;
+
+			interrupts-extended =
+				<&ispbe_yuv_level_aggr_0 10>,
+				<&ispbe_yuv_level_aggr_0 11>;
+			interrupt-names =
+				"isp_be_yuv_rstctl_ap_irq",
+				"isp_be_yuv_framectl_ap_irq";
+			interrupt-event-infos =
+				<&isp_be_yuv_rstctl_ap_irq>,
+				<&isp_be_yuv_framectl_ap_irq>;
+
+			iommus =
+			<&med_smmu 0x8c04>,
+			<&med_smmu 0x8c05>,
+			<&med_smmu 0x8c06>,
+			<&med_smmu 0x8c07>,
+			<&med_smmu 0x8c0c>,
+			<&med_smmu 0x8d04>,
+			<&med_smmu 0x8d05>,
+			<&med_smmu 0x8d06>,
+			<&med_smmu 0x8d07>,
+			<&med_smmu 0x8e04>,
+			<&med_smmu 0x8e05>,
+			<&med_smmu 0x8e06>,
+			<&med_smmu 0x8e07>,
+			<&med_smmu 0x8e0a>,
+			<&med_smmu 0x8e0b>;
+
+			interconnects =
+				<&icc_ispbe ISPBE_YUV &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_gmc SSWRP_ISP_SET_1 &icc_gmc GMC>;
+
+			interconnect-names =
+				"ispbe-yuv",
+				"ispbe-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_ispbe_pdma: lwis_ispbe_pdma@280000 {
+			compatible = "google,lwis-ioreg-device";
+
+			access-controllers = <&ispbe_pdma_iis>;
+
+			/* Device node name */
+			node-name = "ispbe-pdma";
+
+			/* Register space */
+			reg = <0x0 0x0 0x39F07C>;
+			reg-names = "ispbe";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* GIA */
+				<0x0 0x291000 0x814>,	/* gia_2pdma_ispbe_pipe */
+				/* PDMA core */
+				<0x0 0x280000 0xf040>,	/* ispbe_isp_pdma_qchwrap_csr */
+				/* IP cores */
+				<0x0 0x2A0000 0x1f07c>,	/* btr0_qchwrp_csr */
+				<0x0 0x2C0000 0x1f07c>,	/* btr1_qchwrp_csr */
+				<0x0 0x2E0000 0x1f07c>,	/* btr2_qchwrp_csr */
+				<0x0 0x300000 0x1f07c>;	/* yuv_qchwrap_csr */
+
+			power-domains = <&sswrp_ispbe_pd>;
+
+			device-group = <2>;
+
+			interrupts-extended =
+				<&ispbe_pipe_level_aggr_0 2>,
+				<&ispbe_pipe_level_aggr_0 2>,
+				<&ispbe_pipe_level_aggr_0 2>;
+			interrupt-names =
+				"isp_be_pdma_ispbe_pdma_rstctl_irq",
+				"isp_be_pdma_ispbe_pdma_irq",
+				"isp_be_pdma_ispbe_pdma_err_irq";
+			interrupt-event-infos =
+				<&isp_be_pdma_ispbe_pdma_rstctl_irq>,
+				<&isp_be_pdma_ispbe_pdma_irq>,
+				<&isp_be_pdma_ispbe_pdma_err_irq>;
+
+			iommus =
+				<&med_smmu 0x8c0e>;
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		ispbe_pdma_iis: ispbe-pdma-iis {
+			compatible = "google,iis";
+			google,ta-iis-id = <TA_IIS_DEV_ISPBE_PDMA>;
+			power-domains = <&sswrp_ispbe_pd>;
+			#access-controller-cells = <0>;
+		};
+
+		lwis_ispbe_msa_tnr_pdma: lwis_ispbe_msa_tnr_pdma@320000 {
+			compatible = "google,lwis-ioreg-device";
+
+			access-controllers = <&msa_tnr_pdma_iis>;
+
+			/* Device node name */
+			node-name = "ispbe-msa-tnr-pdma";
+
+			/* Register space */
+			reg = <0x0 0x0 0x39F07C>;
+			reg-names = "ispbe";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* GIA */
+				<0x0 0x331000 0x814>,	/* gia_2pdma_msa_tnr_pipe */
+				/* PDMA core */
+				<0x0 0x320000 0xf040>,	/* msa_tnr_isp_pdma_qchwrap_csr */
+				/* IP core */
+				<0x0 0x340000 0x1f07c>;	/* msa_tnr_qchwrap_csr */
+
+			power-domains = <&sswrp_ispbe_pd>;
+
+			device-group = <2>;
+
+			interrupts-extended =
+				<&ispbe_msa_tnr_pipe_level_aggr_0 2>,
+				<&ispbe_msa_tnr_pipe_level_aggr_0 2>,
+				<&ispbe_msa_tnr_pipe_level_aggr_0 2>;
+			interrupt-names =
+				"isp_be_pdma_msa_tnr_pdma_rstctl_irq",
+				"isp_be_pdma_msa_tnr_pdma_irq",
+				"isp_be_pdma_msa_tnr_pdma_err_irq";
+			interrupt-event-infos =
+				<&isp_be_pdma_msa_tnr_pdma_rstctl_irq>,
+				<&isp_be_pdma_msa_tnr_pdma_irq>,
+				<&isp_be_pdma_msa_tnr_pdma_err_irq>;
+
+			iommus =
+				<&med_smmu 0x8f0b>;
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		msa_tnr_pdma_iis: msa-tnr-pdma-iis {
+			compatible = "google,iis";
+			google,ta-iis-id = <TA_IIS_DEV_MSA_TNR_PDMA>;
+			power-domains = <&sswrp_ispbe_pd>;
+			#access-controller-cells = <0>;
+		};
+
+		lwis_ispbe_msa_hdr_pdma: lwis_ispbe_msa_hdr_pdma@360000 {
+			compatible = "google,lwis-ioreg-device";
+
+			access-controllers = <&msa_hdr_pdma_iis>;
+
+			/* Device node name */
+			node-name = "ispbe-msa-hdr-pdma";
+
+			/* Register space */
+			reg = <0x0 0x0 0x39F07C>;
+			reg-names = "ispbe";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* GIA */
+				<0x0 0x371000 0x814>,	/* gia_2pdma_msa_hdr_pipe */
+				/* PDMA core */
+				<0x0 0x360000 0xf040>,	/* msa_hdr_isp_pdma_qchwrap_csr */
+				/* IP core */
+				<0x0 0x380000 0x1f07c>;	/* msa_hdr_qchwrap_csr */
+
+			power-domains = <&sswrp_ispbe_pd>;
+
+			device-group = <2>;
+
+			interrupts-extended =
+				<&ispbe_msa_hdr_pipe_level_aggr_0 2>,
+				<&ispbe_msa_hdr_pipe_level_aggr_0 2>,
+				<&ispbe_msa_hdr_pipe_level_aggr_0 2>;
+			interrupt-names =
+				"isp_be_pdma_msa_hdr_pdma_rstctl_irq",
+				"isp_be_pdma_msa_hdr_pdma_irq",
+				"isp_be_pdma_msa_hdr_pdma_err_irq";
+			interrupt-event-infos =
+				<&isp_be_pdma_msa_hdr_pdma_rstctl_irq>,
+				<&isp_be_pdma_msa_hdr_pdma_irq>,
+				<&isp_be_pdma_msa_hdr_pdma_err_irq>;
+
+			iommus =
+				<&med_smmu 0x8f0c>;
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		msa_hdr_pdma_iis: msa-hdr-pdma-iis {
+			compatible = "google,iis";
+			google,ta-iis-id = <TA_IIS_DEV_MSA_HDR_PDMA>;
+			power-domains = <&sswrp_ispbe_pd>;
+			#access-controller-cells = <0>;
+		};
+
+		lwis_ispbe_pipe: lwis_ispbe_pipe@290000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "ispbe-pipe";
+
+			/* Register space */
+			reg = <0x0 0x0 0x39F07C>;
+			reg-names = "ispbe";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* Pipe IRQs */
+				<0x0 0x295000 0x14>,	/* ispbe_pipe_batch_done_irq_leaf_csr */
+				<0x0 0x296000 0x14>;	/* ispbe_pipe_reset_done_irq_leaf_csr */
+
+			power-domains = <&sswrp_ispbe_pd>;
+
+			device-group = <2>;
+
+			interrupts-extended =
+				<&ispbe_pipe_level_aggr_0 7>,
+				<&ispbe_pipe_level_aggr_0 8>;
+			interrupt-names =
+				"isp_be_pipe_ispbe_pipe_batch_done_irq",
+				"isp_be_pipe_ispbe_pipe_reset_done_irq";
+			interrupt-event-infos =
+				<&isp_be_pipe_ispbe_pipe_batch_done_irq>,
+				<&isp_be_pipe_ispbe_pipe_reset_done_irq>;
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_ispbe_msa_tnr_pipe: lwis_ispbe_msa_tnr_pipe@330000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "ispbe-msa-tnr-pipe";
+
+			/* Register space */
+			reg = <0x0 0x0 0x39F07C>;
+			reg-names = "ispbe";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* Pipe IRQs */
+				<0x0 0x335000 0x14>,	/* msa_tnr_pipe_batch_done_irq_leaf_csr */
+				<0x0 0x336000 0x14>;	/* msa_tnr_pipe_reset_done_irq_leaf_csr */
+
+			power-domains = <&sswrp_ispbe_pd>;
+
+			device-group = <2>;
+
+			interrupts-extended =
+				<&ispbe_msa_tnr_pipe_level_aggr_0 4>,
+				<&ispbe_msa_tnr_pipe_level_aggr_0 5>;
+			interrupt-names =
+				"isp_be_pipe_msa_tnr_pipe_batch_done_irq",
+				"isp_be_pipe_msa_tnr_pipe_reset_done_irq";
+			interrupt-event-infos =
+				<&isp_be_pipe_msa_tnr_pipe_batch_done_irq>,
+				<&isp_be_pipe_msa_tnr_pipe_reset_done_irq>;
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_ispbe_msa_hdr_pipe: lwis_ispbe_msa_hdr_pipe@370000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "ispbe-msa-hdr-pipe";
+
+			/* Register space */
+			reg = <0x0 0x0 0x39F07C>;
+			reg-names = "ispbe";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* Pipe IRQs */
+				<0x0 0x375000 0x14>,	/* msa_hdr_pipe_batch_done_irq_leaf_csr */
+				<0x0 0x376000 0x14>;	/* msa_hdr_pipe_reset_done_irq_leaf_csr */
+
+			power-domains = <&sswrp_ispbe_pd>;
+
+			device-group = <2>;
+
+			interrupts-extended =
+				<&ispbe_msa_hdr_pipe_level_aggr_0 4>,
+				<&ispbe_msa_hdr_pipe_level_aggr_0 5>;
+			interrupt-names =
+				"isp_be_pipe_msa_hdr_pipe_batch_done_irq",
+				"isp_be_pipe_msa_hdr_pipe_reset_done_irq";
+			interrupt-event-infos =
+				<&isp_be_pipe_msa_hdr_pipe_batch_done_irq>,
+				<&isp_be_pipe_msa_hdr_pipe_reset_done_irq>;
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+	};
+
+	sswrp_gcv: sswrp_gcv@3D800000 {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x0 0x3D800000 0x19F07C>;
+
+		lwis_gcv_gse: lwis_gcv_gse@120000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "gcv-gse";
+
+			/* Register space */
+			reg = <0x0 0x0 0x19F07C>;
+			reg-names = "gcv";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* IP core */
+				<0x0 0x120000 0x1f07c>;	/* gse_qchwrap_csr */
+
+			power-domains = <&sswrp_gcv_pd>;
+
+			device-group = <3>;
+
+			interrupts-extended =
+				<&gcv_gse_level_aggr_0 0>,
+				<&gcv_gse_level_aggr_0 1>;
+			interrupt-names =
+				"isp_gcv_gse_rstctl_ap_irq",
+				"isp_gcv_gse_framectl_ap_irq";
+			interrupt-event-infos =
+				<&isp_gcv_gse_rstctl_ap_irq>,
+				<&isp_gcv_gse_framectl_ap_irq>;
+
+			iommus =
+				<&med_smmu 0x8600>,
+				<&med_smmu 0x8601>,
+				<&med_smmu 0x8602>,
+				<&med_smmu 0x8603>,
+				<&med_smmu 0x8604>,
+				<&med_smmu 0x8605>,
+				<&med_smmu 0x8606>,
+				<&med_smmu 0x8607>,
+				<&med_smmu 0x8608>,
+				<&med_smmu 0x8609>,
+				<&med_smmu 0x860a>,
+				<&med_smmu 0x860b>,
+				<&med_smmu 0x860d>;
+
+			interconnects =
+				<&icc_gcv GCV_GSE &icc_gmc SSWRP_GCV>,
+				<&icc_gmc SSWRP_GCV &icc_gmc GMC>;
+
+			interconnect-names =
+				"gcv-gse",
+				"gcv-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_gcv_gwe: lwis_gcv_gwe@140000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "gcv-gwe";
+
+			/* Register space */
+			reg = <0x0 0x0 0x19F07C>;
+			reg-names = "gcv";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* IP core */
+				<0x0 0x140000 0x1f07c>;	/* gwe_qchwrap_csr */
+
+			power-domains = <&sswrp_gcv_pd>;
+
+			device-group = <3>;
+
+			interrupts-extended =
+				<&gcv_gwe_level_aggr_0 0>,
+				<&gcv_gwe_core_level_aggr_0 0>;
+			interrupt-names =
+				"isp_gcv_gwe_rstctl_ap_irq",
+				"isp_gcv_gwe_framectl_ap_irq";
+			interrupt-event-infos =
+				<&isp_gcv_gwe_rstctl_ap_irq>,
+				<&isp_gcv_gwe_framectl_ap_irq>;
+
+			iommus =
+				<&med_smmu 0x8700>,
+				<&med_smmu 0x8701>,
+				<&med_smmu 0x8702>,
+				<&med_smmu 0x8703>,
+				<&med_smmu 0x8708>,
+				<&med_smmu 0x8709>,
+				<&med_smmu 0x870a>,
+				<&med_smmu 0x870b>,
+				<&med_smmu 0x870c>,
+				<&med_smmu 0x870d>,
+				<&med_smmu 0x870e>;
+
+			interconnects =
+				<&icc_gcv GCV_GWE &icc_gmc SSWRP_GCV>,
+				<&icc_gmc SSWRP_GCV &icc_gmc GMC>;
+
+			interconnect-names =
+				"gcv-gwe",
+				"gcv-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_gcv_cre: lwis_gcv_cre@180000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "gcv-cre";
+
+			/* Register space */
+			reg = <0x0 0x0 0x19F07C>;
+			reg-names = "gcv";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* IP core */
+				<0x0 0x180000 0x1f07c>;	/* cre_qchwrap_csr */
+
+			power-domains = <&sswrp_gcv_pd>;
+
+			device-group = <3>;
+
+			interrupts-extended =
+				<&gcv_cre_qchwrap_level_aggr_0 0>,
+				<&gcv_cre_qchwrap_level_aggr_0 1>;
+			interrupt-names =
+				"isp_gcv_cre_rstctl_ap_irq",
+				"isp_gcv_cre_framectl_ap_irq";
+			interrupt-event-infos =
+				<&isp_gcv_cre_rstctl_ap_irq>,
+				<&isp_gcv_cre_framectl_ap_irq>;
+
+			iommus =
+				<&med_smmu 0x8801>,
+				<&med_smmu 0x8802>,
+				<&med_smmu 0x8803>,
+				<&med_smmu 0x8804>,
+				<&med_smmu 0x8805>,
+				<&med_smmu 0x8806>,
+				<&med_smmu 0x8807>,
+				<&med_smmu 0x8808>,
+				<&med_smmu 0x8809>,
+				<&med_smmu 0x880a>,
+				<&med_smmu 0x880b>,
+				<&med_smmu 0x880c>,
+				<&med_smmu 0x880d>,
+				<&med_smmu 0x880e>,
+				<&med_smmu 0x880f>;
+
+			interconnects =
+				<&icc_gcv GCV_CRE &icc_gmc SSWRP_GCV>,
+				<&icc_gmc SSWRP_GCV &icc_gmc GMC>;
+
+			interconnect-names =
+				"gcv-cre",
+				"gcv-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_gcv_gsw_pdma: lwis_gcv_gsw_pdma@F0000 {
+			compatible = "google,lwis-ioreg-device";
+
+			access-controllers = <&gsw_pdma_iis>;
+
+			/* Device node name */
+			node-name = "gcv-gsw-pdma";
+
+			/* Register space */
+			reg = <0x0 0x0 0x19F07C>;
+			reg-names = "gcv";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* GIA */
+				<0x0 0x101000 0x814>,	/* gia_2pdma_gsw_pipe */
+				/* PDMA core */
+				<0x0 0xf0000 0xf040>,	/* gsw_isp_pdma_qchwrap_csr */
+				/* IP cores */
+				<0x0 0x120000 0x1f07c>,	/* gse_qchwrap_csr */
+				<0x0 0x140000 0x1f07c>;	/* gwe_qchwrap_csr */
+
+			power-domains = <&sswrp_gcv_pd>;
+
+			device-group = <3>;
+
+			interrupts-extended =
+				<&gcv_gsw_level_aggr_0 2>,
+				<&gcv_gsw_level_aggr_0 2>,
+				<&gcv_gsw_level_aggr_0 2>;
+			interrupt-names =
+				"isp_gcv_pdma_gsw_pdma_rstctl_irq",
+				"isp_gcv_pdma_gsw_pdma_irq",
+				"isp_gcv_pdma_gsw_pdma_err_irq";
+			interrupt-event-infos =
+				<&isp_gcv_pdma_gsw_pdma_rstctl_irq>,
+				<&isp_gcv_pdma_gsw_pdma_irq>,
+				<&isp_gcv_pdma_gsw_pdma_err_irq>;
+
+			iommus =
+				<&med_smmu 0x860e>;
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		gsw_pdma_iis: gsw-pdma-iis {
+			compatible = "google,iis";
+			google,ta-iis-id = <TA_IIS_DEV_GSW_PDMA>;
+			power-domains = <&sswrp_gcv_pd>;
+			#access-controller-cells = <0>;
+		};
+
+		lwis_gcv_cre_pdma: lwis_gcv_cre_pdma@160000 {
+			compatible = "google,lwis-ioreg-device";
+
+			access-controllers = <&cre_pdma_iis>;
+
+			/* Device node name */
+			node-name = "gcv-cre-pdma";
+
+			/* Register space */
+			reg = <0x0 0x0 0x19F07C>;
+			reg-names = "gcv";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* GIA */
+				<0x0 0x171000 0x814>,	/* gia_2pdma_cre_pipe */
+				/* PDMA core */
+				<0x0 0x160000 0xf040>,	/* cre_isp_pdma_qchwrap_csr */
+				/* IP core */
+				<0x0 0x180000 0x1f07c>;	/* cre_qchwrap_csr */
+
+			power-domains = <&sswrp_gcv_pd>;
+
+			device-group = <3>;
+
+			interrupts-extended =
+				<&gcv_cre_pipe_level_aggr_0 2>,
+				<&gcv_cre_pipe_level_aggr_0 2>,
+				<&gcv_cre_pipe_level_aggr_0 2>;
+			interrupt-names =
+				"isp_gcv_pdma_cre_pdma_rstctl_irq",
+				"isp_gcv_pdma_cre_pdma_irq",
+				"isp_gcv_pdma_cre_pdma_err_irq";
+			interrupt-event-infos =
+				<&isp_gcv_pdma_cre_pdma_rstctl_irq>,
+				<&isp_gcv_pdma_cre_pdma_irq>,
+				<&isp_gcv_pdma_cre_pdma_err_irq>;
+
+			iommus =
+				<&med_smmu 0x8800>;
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		cre_pdma_iis: cre-pdma-iis {
+			compatible = "google,iis";
+			google,ta-iis-id = <TA_IIS_DEV_CRE_PDMA>;
+			power-domains = <&sswrp_gcv_pd>;
+			#access-controller-cells = <0>;
+		};
+
+		lwis_gcv_gsw_pipe: lwis_gcv_gsw_pipe@100000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "gcv-gsw-pipe";
+
+			/* Register space */
+			reg = <0x0 0x0 0x19F07C>;
+			reg-names = "gcv";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* Pipe IRQs */
+				<0x0 0x105000 0x14>,	/* gsw_pipe_batch_done_irq_leaf_csr */
+				<0x0 0x106000 0x14>;	/* gsw_pipe_reset_done_irq_leaf_csr */
+
+			power-domains = <&sswrp_gcv_pd>;
+
+			device-group = <3>;
+
+			interrupts-extended =
+				<&gcv_gsw_level_aggr_0 5>,
+				<&gcv_gsw_level_aggr_0 6>;
+			interrupt-names =
+				"isp_gcv_pipe_gsw_pipe_batch_done_irq",
+				"isp_gcv_pipe_gsw_pipe_reset_done_irq";
+			interrupt-event-infos =
+				<&isp_gcv_pipe_gsw_pipe_batch_done_irq>,
+				<&isp_gcv_pipe_gsw_pipe_reset_done_irq>;
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_gcv_cre_pipe: lwis_gcv_cre_pipe@170000 {
+			compatible = "google,lwis-ioreg-device";
+
+			/* Device node name */
+			node-name = "gcv-cre-pipe";
+
+			/* Register space */
+			reg = <0x0 0x0 0x19F07C>;
+			reg-names = "gcv";
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* Pipe IRQs */
+				<0x0 0x175000 0x14>,	/* cre_pipe_batch_done_irq_leaf_csr */
+				<0x0 0x176000 0x14>;	/* cre_pipe_reset_done_irq_leaf_csr */
+
+			power-domains = <&sswrp_gcv_pd>;
+
+			device-group = <3>;
+
+			interrupts-extended =
+				<&gcv_cre_pipe_level_aggr_0 4>,
+				<&gcv_cre_pipe_level_aggr_0 5>;
+			interrupt-names =
+				"isp_gcv_pipe_cre_pipe_batch_done_irq",
+				"isp_gcv_pipe_cre_pipe_reset_done_irq";
+			interrupt-event-infos =
+				<&isp_gcv_pipe_cre_pipe_batch_done_irq>,
+				<&isp_gcv_pipe_cre_pipe_reset_done_irq>;
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+	};
+};

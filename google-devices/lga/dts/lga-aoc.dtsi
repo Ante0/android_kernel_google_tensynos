@@ -1,0 +1,222 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * AoC device tree source
+ *
+ * Copyright 2023 Google,LLC.
+ */
+
+#include <dt-bindings/interrupt-controller/irq-cpm-google.h>
+
+/ {
+	aoc: aoc@9000000 {
+		compatible = "google,aoc";
+		reg = <0x0 0x09000000 0x0 0x02000000>,
+			<0x0 0xB4C0000 0x0 0x000be28>;
+		reg-names = "blk_aoc", "lcpm";
+		wakeup-source;
+		interrupt-parent = <&cpm_irq>;
+		interrupts = <7 IRQ_TYPE_NONE>,
+					<8 IRQ_TYPE_NONE>,
+					<9 IRQ_TYPE_NONE>,
+					<10 IRQ_TYPE_NONE>,
+					<11 IRQ_TYPE_NONE>,
+					<12 IRQ_TYPE_NONE>,
+					<13 IRQ_TYPE_NONE>,
+					<14 IRQ_TYPE_NONE>,
+					<15 IRQ_TYPE_NONE>,
+					<16 IRQ_TYPE_NONE>,
+					<17 IRQ_TYPE_NONE>,
+					<18 IRQ_TYPE_NONE>,
+					<19 IRQ_TYPE_NONE>,
+					<20 IRQ_TYPE_NONE>,
+					<21 IRQ_TYPE_NONE>,
+					<22 IRQ_TYPE_NONE>,
+					<23 IRQ_TYPE_NONE>,
+					<24 IRQ_TYPE_NONE>,
+					<25 IRQ_TYPE_NONE>,
+					<26 IRQ_TYPE_NONE>,
+					<27 IRQ_TYPE_NONE>,
+					<28 IRQ_TYPE_NONE>,
+					<29 IRQ_TYPE_NONE>,
+					<30 IRQ_TYPE_NONE>,
+					<31 IRQ_TYPE_NONE>,
+					<32 IRQ_TYPE_NONE>,
+					<33 IRQ_TYPE_NONE>,
+					<34 IRQ_TYPE_NONE>,
+					<35 IRQ_TYPE_NONE>,
+					<36 IRQ_TYPE_NONE>,
+					<37 IRQ_TYPE_NONE>,
+					<38 IRQ_TYPE_NONE>,
+					<39 IRQ_TYPE_NONE>,
+					<40 IRQ_TYPE_NONE>,
+					<41 IRQ_TYPE_NONE>,
+					<42 IRQ_TYPE_NONE>,
+					<43 IRQ_TYPE_NONE>,
+					<44 IRQ_TYPE_NONE>,
+					<45 IRQ_TYPE_NONE>,
+					<46 IRQ_TYPE_NONE>,
+					<47 IRQ_TYPE_NONE>,
+					<48 IRQ_TYPE_NONE>,
+					<49 IRQ_TYPE_NONE>,
+					<50 IRQ_TYPE_NONE>,
+					<51 IRQ_TYPE_NONE>,
+					<52 IRQ_TYPE_NONE>,
+					<53 IRQ_TYPE_NONE>,
+					<54 IRQ_TYPE_NONE>,
+					<55 IRQ_TYPE_NONE>,
+					<56 IRQ_TYPE_NONE>,
+					<57 IRQ_TYPE_NONE>,
+					<58 IRQ_TYPE_NONE>,
+					<59 IRQ_TYPE_NONE>,
+					<60 IRQ_TYPE_NONE>,
+					<61 IRQ_TYPE_NONE>,
+					<62 IRQ_TYPE_NONE>,
+					<63 IRQ_TYPE_NONE>,
+					<64 IRQ_TYPE_NONE>,
+					<65 IRQ_TYPE_NONE>,
+					<66 IRQ_TYPE_NONE>,
+					<67 IRQ_TYPE_NONE>,
+					<68 IRQ_TYPE_NONE>,
+					<69 IRQ_TYPE_NONE>,
+					<70 IRQ_TYPE_NONE>,
+					<71 IRQ_TYPE_NONE>,
+					<72 IRQ_TYPE_NONE>,
+					<73 IRQ_TYPE_NONE>,
+					<74 IRQ_TYPE_NONE>,
+					<75 IRQ_TYPE_NONE>,
+					<76 IRQ_TYPE_NONE>,
+					<77 IRQ_TYPE_NONE>,
+					<78 IRQ_TYPE_NONE>,
+					<79 IRQ_TYPE_NONE>,
+					<80 IRQ_TYPE_NONE>,
+					<81 IRQ_TYPE_NONE>,
+					<82 IRQ_TYPE_NONE>,
+					<83 IRQ_TYPE_NONE>,
+					<84 IRQ_TYPE_NONE>,
+					<85 IRQ_TYPE_NONE>,
+					<86 IRQ_TYPE_NONE>,
+					<87 IRQ_TYPE_NONE>,
+					<88 IRQ_TYPE_NONE>,
+					<89 IRQ_TYPE_NONE>,
+					<90 IRQ_TYPE_NONE>,
+					<91 IRQ_TYPE_NONE>,
+					<92 IRQ_TYPE_NONE>,
+					<93 IRQ_TYPE_NONE>,
+					<94 IRQ_TYPE_NONE>,
+					<95 IRQ_TYPE_NONE>,
+					<96 IRQ_TYPE_NONE>,
+					<97 IRQ_TYPE_NONE>,
+					<98 IRQ_TYPE_NONE>,
+					<99 IRQ_TYPE_NONE>,
+					<100 IRQ_TYPE_NONE>,
+					<101 IRQ_TYPE_NONE>,
+					<102 IRQ_TYPE_NONE>,
+					<103 IRQ_TYPE_NONE>,
+					<104 IRQ_TYPE_NONE>,
+					<105 IRQ_TYPE_NONE>,
+					<106 IRQ_TYPE_NONE>,
+					<107 IRQ_TYPE_NONE>,
+					<108 IRQ_TYPE_NONE>,
+					<109 IRQ_TYPE_NONE>,
+					<110 IRQ_TYPE_NONE>,
+					<111 IRQ_TYPE_NONE>,
+					<112 IRQ_TYPE_NONE>,
+					<113 IRQ_TYPE_NONE>,
+					<114 IRQ_TYPE_NONE>,
+					<115 IRQ_TYPE_NONE>,
+					<116 IRQ_TYPE_NONE>,
+					<117 IRQ_TYPE_NONE>,
+					<118 IRQ_TYPE_NONE>,
+					<119 IRQ_TYPE_NONE>,
+					<120 IRQ_TYPE_NONE>,
+					<121 IRQ_TYPE_NONE>,
+					<122 IRQ_TYPE_NONE>,
+					<123 IRQ_TYPE_NONE>,
+					<124 IRQ_TYPE_NONE>,
+					<125 IRQ_TYPE_NONE>,
+					<126 IRQ_TYPE_NONE>,
+					<127 IRQ_TYPE_NONE>,
+					<128 IRQ_TYPE_NONE>,
+					<129 IRQ_TYPE_NONE>,
+					<130 IRQ_TYPE_NONE>,
+					<131 IRQ_TYPE_NONE>,
+					<132 IRQ_TYPE_NONE>,
+					<133 IRQ_TYPE_NONE>,
+					<134 IRQ_TYPE_NONE>,
+					<135 IRQ_TYPE_NONE>,
+					<136 IRQ_TYPE_NONE>,
+					<137 IRQ_TYPE_NONE>,
+					<138 IRQ_TYPE_NONE>,
+					<139 IRQ_TYPE_NONE>,
+					<140 IRQ_TYPE_NONE>,
+					<141 IRQ_TYPE_NONE>,
+					<142 IRQ_TYPE_NONE>,
+					<143 IRQ_TYPE_NONE>,
+					<144 IRQ_TYPE_NONE>,
+					<145 IRQ_TYPE_NONE>,
+					<146 IRQ_TYPE_NONE>,
+					<147 IRQ_TYPE_NONE>,
+					<148 IRQ_TYPE_NONE>,
+					<149 IRQ_TYPE_NONE>,
+					<150 IRQ_TYPE_NONE>,
+					<151 IRQ_TYPE_NONE>,
+					<152 IRQ_TYPE_NONE>,
+					<153 IRQ_TYPE_NONE>,
+					<154 IRQ_TYPE_NONE>,
+					<155 IRQ_TYPE_NONE>,
+					<156 IRQ_TYPE_NONE>,
+					<157 IRQ_TYPE_NONE>;
+
+		iommus = <&amb_smmu 0x8300>,  <&amb_smmu 0x8309>;
+
+		memory-region = <&aoc_reserve>;
+
+		mboxes = <
+			&aoc_ap_0_mba_client_0 0
+			&aoc_ap_1_mba_client_1 0
+			&aoc_ap_2_mba_client_2 0
+			&aoc_ap_3_mba_client_3 0
+			&aoc_ap_4_mba_client_4 0
+			&aoc_ap_5_mba_client_5 0
+			&aoc_ap_6_mba_client_6 0
+			&aoc_ap_7_mba_client_7 0
+			&aoc_ap_8_mba_client_8 0
+			&aoc_ap_9_mba_client_9 0
+			&aoc_ap_10_mba_client_10 0
+			&aoc_ap_11_mba_client_11 0
+			&aoc_ap_12_mba_client_12 0
+			&aoc_ap_13_mba_client_13 0
+			&aoc_ap_14_mba_client_14 0
+			&aoc_ap_15_mba_client_15 0
+			&aoc_ap_16_mba_client_16 0
+			&aoc_ap_17_mba_client_17 0
+			&aoc_ap_18_mba_client_18 0
+			&aoc_ap_19_mba_client_19 0
+		>;
+
+		power-domains = <&sswrp_aoc_pd>, <&aoc_core_pd>;
+		power-domain-names = "sswrp_aoc_pd", "aoc_core_pd";
+
+		mbox-channels = <20>;
+
+		clock-divider = <1>;
+
+		channel-max-pending-msgs = <128>;
+		block-channel-threshold = <64>;
+
+		hotword-supported;
+		chre-supported;
+		iommu-config-persistent;
+		mmap-use-kernel-heap;
+
+		aoc-coredump-mbox = <19>;
+
+		notify-on-state-transition;
+
+		gdmc-iface = <&goog_mba_gdmc_iface>;
+
+		gsa-device = <&gsa>;
+		gsa-enabled;
+		iif-device = <&iif>;
+	};
+};

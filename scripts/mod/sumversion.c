@@ -8,6 +8,8 @@
 #include <errno.h>
 #include <string.h>
 #include <limits.h>
+
+#include <xalloc.h>
 #include "modpost.h"
 
 /*
@@ -153,7 +155,7 @@ static void md4_transform(uint32_t *hash, uint32_t const *in)
 
 static inline void md4_transform_helper(struct md4_ctx *ctx)
 {
-	le32_to_cpu_array(ctx->block, sizeof(ctx->block) / sizeof(uint32_t));
+	le32_to_cpu_array(ctx->block, ARRAY_SIZE(ctx->block));
 	md4_transform(ctx->hash, ctx->block);
 }
 
@@ -216,7 +218,7 @@ static void md4_final_ascii(struct md4_ctx *mctx, char *out, unsigned int len)
 	le32_to_cpu_array(mctx->block, (sizeof(mctx->block) -
 			  sizeof(uint64_t)) / sizeof(uint32_t));
 	md4_transform(mctx->hash, mctx->block);
-	cpu_to_le32_array(mctx->hash, sizeof(mctx->hash) / sizeof(uint32_t));
+	cpu_to_le32_array(mctx->hash, ARRAY_SIZE(mctx->hash));
 
 	snprintf(out, len, "%08X%08X%08X%08X",
 		 mctx->hash[0], mctx->hash[1], mctx->hash[2], mctx->hash[3]);
@@ -305,7 +307,7 @@ static int parse_source_files(const char *objfile, struct md4_ctx *md)
 	const char *base;
 	int dirlen, ret = 0, check_files = 0;
 
-	cmd = NOFAIL(malloc(strlen(objfile) + sizeof("..cmd")));
+	cmd = xmalloc(strlen(objfile) + sizeof("..cmd"));
 
 	base = strrchr(objfile, '/');
 	if (base) {
@@ -316,7 +318,7 @@ static int parse_source_files(const char *objfile, struct md4_ctx *md)
 		dirlen = 0;
 		sprintf(cmd, ".%s.cmd", objfile);
 	}
-	dir = NOFAIL(malloc(dirlen + 1));
+	dir = xmalloc(dirlen + 1);
 	strncpy(dir, objfile, dirlen);
 	dir[dirlen] = '\0';
 
@@ -390,7 +392,7 @@ out_file:
 /* Calc and record src checksum. */
 void get_src_version(const char *modname, char sum[], unsigned sumlen)
 {
-	char *buf;
+	char *buf, *pos;
 	struct md4_ctx md;
 	char *fname;
 	char filelist[PATH_MAX + 1];
@@ -399,9 +401,10 @@ void get_src_version(const char *modname, char sum[], unsigned sumlen)
 	snprintf(filelist, sizeof(filelist), "%s.mod", modname);
 
 	buf = read_text_file(filelist);
+	pos = buf;
 
 	md4_init(&md);
-	while ((fname = strsep(&buf, "\n"))) {
+	while ((fname = strsep(&pos, "\n"))) {
 		if (!*fname)
 			continue;
 		if (!(is_static_library(fname)) &&

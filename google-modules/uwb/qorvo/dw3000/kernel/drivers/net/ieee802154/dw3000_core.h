@@ -182,9 +182,9 @@ enum spi_modes {
 /* Toggle double buffer pointer */
 #define DW3000_CMD_DB_TOGGLE 0x13
 /* Write to the Semaphore and try to reserve access (if it hasn't already been
-   reserved by the other master) */
+   reserved by the other controller) */
 #define DW3000_CMD_SEMA_REQ 0x14
-/* Release the semaphore if it is currently reserved by this master. */
+/* Release the semaphore if it is currently reserved by this controller. */
 #define DW3000_CMD_SEMA_REL 0x15
 /* Only SPI 2 can issue this command. Force access regardless of current
    semaphore value. */

@@ -2,7 +2,7 @@
 /*
  * Kernel Control Interface, implements the protocol between AP kernel and GCIP firmware.
  *
- * Copyright (C) 2022 Google LLC
+ * Copyright (C) 2022-2026 Google LLC
  */
 
 #include <linux/circ_buf.h>
@@ -120,13 +120,6 @@ static u64 gcip_kci_get_resp_elem_seq(struct gcip_mailbox *mailbox, void *resp)
 	struct gcip_kci_response_element *elem = resp;
 
 	return elem->seq;
-}
-
-static void gcip_kci_set_resp_elem_seq(struct gcip_mailbox *mailbox, void *resp, u64 seq)
-{
-	struct gcip_kci_response_element *elem = resp;
-
-	elem->seq = seq;
 }
 
 static int gcip_kci_wait_for_cmd_queue_not_full(struct gcip_mailbox *mailbox)
@@ -248,7 +241,6 @@ static const struct gcip_mailbox_ops gcip_mailbox_ops = {
 	.acquire_rx_queue_lock = gcip_kci_acquire_resp_queue_lock,
 	.release_rx_queue_lock = gcip_kci_release_resp_queue_lock,
 	.get_resp_elem_seq = gcip_kci_get_resp_elem_seq,
-	.set_resp_elem_seq = gcip_kci_set_resp_elem_seq,
 	.wait_for_tx_queue_not_full = gcip_kci_wait_for_cmd_queue_not_full,
 	.is_rx_elem_reversed = gcip_kci_is_rx_elem_reversed,
 	.handle_reversed_command = gcip_kci_handle_reversed_command,

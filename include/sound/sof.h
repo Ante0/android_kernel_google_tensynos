@@ -3,7 +3,7 @@
  * This file is provided under a dual BSD/GPLv2 license.  When using or
  * redistributing this file, you may do so under either license.
  *
- * Copyright(c) 2018 Intel Corporation. All rights reserved.
+ * Copyright(c) 2018 Intel Corporation
  *
  * Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
  */
@@ -21,6 +21,7 @@ struct snd_sof_dev;
 /**
  * enum sof_fw_state - DSP firmware state definitions
  * @SOF_FW_BOOT_NOT_STARTED:	firmware boot is not yet started
+ * @SOF_DSPLESS_MODE:		DSP is not used
  * @SOF_FW_BOOT_PREPARE:	preparing for boot (firmware loading for exaqmple)
  * @SOF_FW_BOOT_IN_PROGRESS:	firmware boot is in progress
  * @SOF_FW_BOOT_FAILED:		firmware boot failed
@@ -31,6 +32,7 @@ struct snd_sof_dev;
  */
 enum sof_fw_state {
 	SOF_FW_BOOT_NOT_STARTED = 0,
+	SOF_DSPLESS_MODE,
 	SOF_FW_BOOT_PREPARE,
 	SOF_FW_BOOT_IN_PROGRESS,
 	SOF_FW_BOOT_FAILED,
@@ -50,16 +52,27 @@ enum sof_dsp_power_states {
 
 /* Definitions for multiple IPCs */
 enum sof_ipc_type {
-	SOF_IPC,
-	SOF_INTEL_IPC4,
+	SOF_IPC_TYPE_3,
+	SOF_IPC_TYPE_4,
 	SOF_IPC_TYPE_COUNT
+};
+
+struct sof_loadable_file_profile {
+	enum sof_ipc_type ipc_type;
+
+	const char *fw_path;
+	const char *fw_path_postfix;
+	const char *fw_name;
+	const char *fw_lib_path;
+	const char *fw_lib_path_postfix;
+	const char *tplg_path;
+	const char *tplg_name;
 };
 
 /*
  * SOF Platform data.
  */
 struct snd_sof_pdata {
-	const struct firmware *fw;
 	const char *name;
 	const char *platform;
 
@@ -73,9 +86,6 @@ struct snd_sof_pdata {
 
 	struct device *dev;
 
-	/* indicate how many first bytes shouldn't be loaded into DSP memory. */
-	size_t fw_offset;
-
 	/*
 	 * notification callback used if the hardware initialization
 	 * can take time or is handled in a workqueue. This callback
@@ -88,11 +98,17 @@ struct snd_sof_pdata {
 	/* descriptor */
 	const struct sof_dev_desc *desc;
 
+	/* platform's preferred IPC type and path overrides */
+	struct sof_loadable_file_profile ipc_file_profile_base;
+
 	/* firmware and topology filenames */
 	const char *fw_filename_prefix;
 	const char *fw_filename;
 	const char *tplg_filename_prefix;
 	const char *tplg_filename;
+
+	/* loadable external libraries available under this directory */
+	const char *fw_lib_prefix;
 
 	/* machine */
 	struct platform_device *pdev_mach;
@@ -139,19 +155,24 @@ struct sof_dev_desc {
 	unsigned int ipc_supported_mask;
 	enum sof_ipc_type ipc_default;
 
-	/* defaults paths for firmware and topology files */
+	/* The platform supports DSPless mode */
+	bool dspless_mode_supported;
+
+	/* defaults paths for firmware, library and topology files */
 	const char *default_fw_path[SOF_IPC_TYPE_COUNT];
+	const char *default_lib_path[SOF_IPC_TYPE_COUNT];
 	const char *default_tplg_path[SOF_IPC_TYPE_COUNT];
 
 	/* default firmware name */
 	const char *default_fw_filename[SOF_IPC_TYPE_COUNT];
 
-	struct snd_sof_dsp_ops *ops;
+	const struct snd_sof_dsp_ops *ops;
 	int (*ops_init)(struct snd_sof_dev *sdev);
 	void (*ops_free)(struct snd_sof_dev *sdev);
 };
 
 int sof_dai_get_mclk(struct snd_soc_pcm_runtime *rtd);
 int sof_dai_get_bclk(struct snd_soc_pcm_runtime *rtd);
+int sof_dai_get_tdm_slots(struct snd_soc_pcm_runtime *rtd);
 
 #endif

@@ -44,7 +44,8 @@ void lwis_clock_list_free(struct lwis_clock_list *list)
 	kfree(list);
 }
 
-int lwis_clock_get(struct lwis_clock_list *list, char *name, struct device *dev, uint32_t rate)
+int lwis_clock_get(struct lwis_clock_list *list, const char *name, struct device *dev,
+		   uint32_t rate)
 {
 	struct clk *clk;
 	int i;

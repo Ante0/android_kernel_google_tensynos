@@ -7,8 +7,6 @@
  * This work is licensed under the terms of the GNU GPL, version 2.
  *
  */
-
-#define _GNU_SOURCE /* for program_invocation_short_name */
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -133,9 +131,6 @@ int main(int argc, char *argv[])
 	struct kvm_vm *vm;
 	const struct kvm_cpuid2 *hv_cpuid_entries;
 	struct kvm_vcpu *vcpu;
-
-	/* Tell stdout not to buffer its content */
-	setbuf(stdout, NULL);
 
 	TEST_REQUIRE(kvm_has_cap(KVM_CAP_HYPERV_CPUID));
 

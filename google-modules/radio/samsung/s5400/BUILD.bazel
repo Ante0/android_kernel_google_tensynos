@@ -1,6 +1,16 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
 
 filegroup(
     name = "cpif.kconfig",
@@ -12,30 +22,328 @@ filegroup(
     ],
 )
 
-kernel_module(
-    name = "cpif",
+ddk_module(
+    name = "mcu_ipc",
     srcs = glob([
-        "**/*.c",
         "**/*.h",
     ]) + [
-        "Kbuild",
-        "//private/google-modules/bms/misc:headers",
-        "//private/google-modules/soc/gs:gs_soc_headers",
+        "mcu_ipc.c",
     ],
-    outs = [
-        "cp_pmic.ko",
-        "cp_thermal_zone.ko",
-        "cpif.ko",
-        "cpif_page.ko",
-        "shm_ipc.ko",
+    out = "mcu_ipc.ko",
+    copts = [
+        "-Wformat",
+        "-Wformat-zero-length",
+        "-Wno-missing-prototypes",
     ],
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules:__subpackages__",
+    local_defines = [
+        "CONFIG_OPTION_REGION=\"$(PROJECT_REGION)\"",
+        "CPIF_WAKEPKT_SET_MARK=0x80000000",
     ],
     deps = [
-        "//private/google-modules/bms/misc:bms-misc",
-        "//private/google-modules/soc/gs:gs_soc_module",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "shm_ipc",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "shm_ipc.c",
+    ],
+    out = "shm_ipc.ko",
+    copts = [
+        "-Wformat",
+        "-Wformat-zero-length",
+        "-Wno-missing-prototypes",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "CONFIG_OPTION_REGION=\"$(PROJECT_REGION)\"",
+        "CPIF_WAKEPKT_SET_MARK=0x80000000",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "boot_device_spi",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "boot_device_spi.c",
+    ],
+    out = "boot_device_spi.ko",
+    copts = [
+        "-Wformat",
+        "-Wformat-zero-length",
+        "-Wno-missing-prototypes",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "CONFIG_OPTION_REGION=\"$(PROJECT_REGION)\"",
+        "CPIF_WAKEPKT_SET_MARK=0x80000000",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "cpif_page",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "cpif_page.c",
+    ],
+    out = "cpif_page.ko",
+    copts = [
+        "-Wformat",
+        "-Wformat-zero-length",
+        "-Wno-missing-prototypes",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "CONFIG_OPTION_REGION=\"$(PROJECT_REGION)\"",
+        "CPIF_WAKEPKT_SET_MARK=0x80000000",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "direct_dm",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "direct_dm.c",
+    ],
+    out = "direct_dm.ko",
+    copts = [
+        "-Wformat",
+        "-Wformat-zero-length",
+        "-Wno-missing-prototypes",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "CONFIG_OPTION_REGION=\"$(PROJECT_REGION)\"",
+        "CPIF_WAKEPKT_SET_MARK=0x80000000",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "hook",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "hook.c",
+    ],
+    out = "hook.ko",
+    copts = [
+        "-Wformat",
+        "-Wformat-zero-length",
+        "-Wno-missing-prototypes",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "CONFIG_OPTION_REGION=\"$(PROJECT_REGION)\"",
+        "CPIF_WAKEPKT_SET_MARK=0x80000000",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "cpif_ko",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "bootdump_io_device.c",
+        "ipc_io_device.c",
+        "link_device.c",
+        "link_device_memory_debug.c",
+        "link_device_memory_flow_control.c",
+        "link_device_memory_legacy.c",
+        "link_device_memory_snapshot.c",
+        "modem_dump.c",
+        "modem_io_device.c",
+        "modem_main.c",
+        "modem_toe_device.c",
+        "modem_utils.c",
+        "modem_variation.c",
+        "net_io_device.c",
+    ],
+    out = "cpif.ko",
+    conditional_srcs = {
+        "CONFIG_CPIF_TP_MONITOR": {
+            True: [
+                "cpif_tp_monitor.c",
+            ],
+        },
+        "CONFIG_CP_BTL": {
+            True: [
+                "cp_btl.c",
+            ],
+        },
+        "CONFIG_CP_PKTPROC": {
+            True: [
+                "link_rx_pktproc.c",
+            ],
+        },
+        "CONFIG_CP_PKTPROC_UL": {
+            True: [
+                "link_tx_pktproc.c",
+            ],
+        },
+        "CONFIG_EXYNOS_CPIF_IOMMU": {
+            True: [
+                "cpif_netrx_mng.c",
+                "cpif_vmapper.c",
+            ],
+        },
+        "CONFIG_LINK_DEVICE_PCIE": {
+            True: [
+                "s51xx_pcie.c",
+            ],
+        },
+        "CONFIG_LINK_DEVICE_PCIE_IOMMU": {
+            True: [
+                "link_device_pcie_iommu.c",
+            ],
+        },
+        "CONFIG_LINK_DEVICE_PCIE_SOC_GOOGLE": {
+            True: [
+                "link_device_pcie_google.c",
+            ],
+        },
+        "CONFIG_LINK_DEVICE_WITH_SBD_ARCH": {
+            True: [
+                "link_device_memory_sbd.c",
+            ],
+        },
+        "CONFIG_MODEM_IF_LEGACY_QOS": {
+            True: [
+                "cpif_qos_info.c",
+            ],
+        },
+        "CONFIG_SEC_MODEM_S5000AP": {
+            True: [
+                "modem_ctrl.c",
+                "modem_ctrl_s5000ap.c",
+            ],
+        },
+        "CONFIG_SEC_MODEM_S5100": {
+            True: [
+                "modem_ctrl.c",
+                "modem_ctrl_s5100.c",
+            ],
+        },
+    },
+    copts = [
+        "-Wformat",
+        "-Wformat-zero-length",
+        "-Wno-missing-prototypes",
+    ],
+    includes = ["."],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "CONFIG_OPTION_REGION=\"$(PROJECT_REGION)\"",
+        "CPIF_WAKEPKT_SET_MARK=0x80000000",
+    ],
+    deps = [
+        ":cp_pmic",
+        ":shm_ipc",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/radio/common/metrics_collection",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/misc/s5910",
+        "//private/google-modules/soc/gs/drivers/misc/sbb-mux",
+        "//private/google-modules/soc/gs/drivers/soc/google/modemctl:google_modemctl",
+    ] + select({
+        "//private/devices/google/common:soc_is_laguna_or_later": [
+            "//private/google-modules/soc/rdo:rdo_soc_headers",
+            "//private/google-modules/soc/rdo/drivers/soc/google/cdd:gcdd",
+            "//private/google-modules/soc/rdo/pci:google-pcie",
+        ],
+        "//private/devices/google/common:soc_is_zumapro_or_before": [
+            "//private/google-modules/soc/gs/drivers/bts",
+            "//private/google-modules/soc/gs/drivers/iommu:exynos-pcie-iommu",
+            "//private/google-modules/soc/gs/drivers/pci/controller/dwc:pcie-exynos-gs",
+            "//private/google-modules/soc/gs/drivers/soc/google:ect_parser",
+            "//private/google-modules/soc/gs/drivers/soc/google:exynos_pm_qos",
+            "//private/google-modules/soc/gs/drivers/soc/google/cal-if:cmupmucal",
+        ],
+        "//conditions:default": [
+        ],
+    }),
+)
+
+ddk_module(
+    name = "cp_thermal_zone",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "cp_thermal_zone.c",
+    ],
+    out = "cp_thermal_zone.ko",
+    copts = [
+        "-Wformat",
+        "-Wformat-zero-length",
+        "-Wno-missing-prototypes",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "CONFIG_OPTION_REGION=\"$(PROJECT_REGION)\"",
+        "CPIF_WAKEPKT_SET_MARK=0x80000000",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "cp_pmic",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "cp_pmic.c",
+    ],
+    out = "cp_pmic.ko",
+    copts = [
+        "-Wformat",
+        "-Wformat-zero-length",
+        "-Wno-missing-prototypes",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "CONFIG_OPTION_REGION=\"$(PROJECT_REGION)\"",
+        "CPIF_WAKEPKT_SET_MARK=0x80000000",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
     ],
 )

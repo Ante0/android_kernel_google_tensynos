@@ -149,6 +149,6 @@ extern void acpm_fw_set_retry_log_ctrl(bool enable);
 extern unsigned int acpm_fw_get_retry_log_ctrl(void);
 extern void acpm_ipc_set_waiting_mode(bool mode);
 
-extern int acpm_ipc_remove(struct platform_device *pdev);
+extern void acpm_ipc_remove(struct platform_device *pdev);
 extern int acpm_ipc_probe(struct platform_device *pdev);
 #endif

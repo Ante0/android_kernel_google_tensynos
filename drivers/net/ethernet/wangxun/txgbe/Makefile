@@ -6,4 +6,9 @@
 
 obj-$(CONFIG_TXGBE) += txgbe.o
 
-txgbe-objs := txgbe_main.o
+txgbe-objs := txgbe_main.o \
+              txgbe_hw.o \
+              txgbe_phy.o \
+              txgbe_irq.o \
+              txgbe_fdir.o \
+              txgbe_ethtool.o

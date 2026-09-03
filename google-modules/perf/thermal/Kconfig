@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# thermal modules configuration
+
+config GOOGLE_THERMAL_SENSOR
+	tristate "Google LLC thermal sensor driver"
+	depends on THERMAL && GOOGLE_THERMAL && PIXEL_METRICS
+	help
+	  This driver configures and enables the NTC thermistors. The
+	  configuration includes enabling the NTC channel, configuring the
+	  polling rate and setting the thresholds for software monitoring
+	  and hardware protection.
+
+config GOOGLE_THERMAL_CPM_MBOX
+	tristate "Google LLC thermal cpm mailbox driver"
+	help
+	  This driver provide mailbox interface for different thermal
+	  functionalities. It provide send message and send request to
+	  CPM, and it also provide RX callback when CPM send a message
+	  to thermal service.
+
+config GOOGLE_POWERCAP
+	tristate "Google LLc powercap framework"
+	depends on POWERCAP && OF
+	help
+	  This driver provides the infrastructure for building the powertree
+	  for pixel devices. The tree nodes can be real power consuming devices
+	  like CPU, GPU, etc. and virtual nodes, which will manage the power
+	  between the child nodes. Enable this framework for thermal monitoring
+	  in userspace to provide a power budget for the powertree to control
+	  thermal.
+
+config GOOGLE_THERMAL_UCLAMP
+	tristate "Google LLC thermal sensor driver"
+	depends on THERMAL && PIXEL_EM && OF
+	depends on VH_SCHED || !VH_SCHED
+	help
+	  This module will register cooling device to place thermal auto uclamp max
+	  for each cluster. There will be one cooling device per cluster and thermal
+	  governors can use these cooling device to mitigate CPU to selectively allow
+	  ADPF tasks to use the max CPU capacity.
+
+config GOOGLE_THERMAL_SENSOR_STATS
+	tristate "Google LLC thermal sensor stats driver"
+	depends on GOOGLE_THERMAL_CPM_MBOX && PIXEL_METRICS
+	help
+	  This driver registers CPM HW thermal zone to the Pixel metrics
+	  framework. It also provides callback functions to access CPM shared
+	  memory for data and configuration of thermal stats, including
+	  temperature residency and daily max/min temperature.
+
+config GOOGLE_THERMAL_PRESSURE_TJ
+	tristate "Google LLC tj thermal pressure driver"
+	depends on GOOGLE_THERMAL_CPM_MBOX && GOOGLE_CPU_FREQ
+	help
+	  This driver reads tj thermal pressure from shared memory and applies
+	  thermal pressure to scheduler using exported API from cpufreq. Thermal
+	  pressure indicates the frequency capping applied by tj loops to control
+	  junction temperature. Such frequency capping would result in change in
+	  CPU capacity. Applying thermal pressure lets the scheduler be aware of
+	  change in CPU capacity.

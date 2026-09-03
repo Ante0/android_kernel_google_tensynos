@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+/*
+ * Wingboard overlay for charging. Disable PPS, WLC, and all chargers except Sequoia
+ *
+ * Copyright 2025 Google LLC
+ */
+
+&google_wlc {
+	status = "disabled";
+};
+
+&google_cpm {
+	status = "okay";
+	/*
+	 * Override wireless power supply dependency to "main-charger" to satisfy
+	 * CPM initialization and prevent deadlock, without using /delete-property/.
+	 */
+	google,wlc_dc-power-supply = "main-charger";
+
+	chargers {
+		pe26100-buck {
+			status = "disabled";
+		};
+		pe26100-cp {
+			status = "disabled";
+		};
+	};
+};
+
+&pe26100 {
+	status = "disabled";
+};
+
+&max77779_usecase {
+	max77779,usecase-version = <1>;
+};

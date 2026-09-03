@@ -51,11 +51,11 @@ static void mlx5e_handle_tx_dim(struct mlx5e_txqsq *sq)
 	struct mlx5e_sq_stats *stats = sq->stats;
 	struct dim_sample dim_sample = {};
 
-	if (unlikely(!test_bit(MLX5E_SQ_STATE_AM, &sq->state)))
+	if (unlikely(!test_bit(MLX5E_SQ_STATE_DIM, &sq->state)))
 		return;
 
 	dim_update_sample(sq->cq.event_ctr, stats->packets, stats->bytes, &dim_sample);
-	net_dim(&sq->dim, dim_sample);
+	net_dim(sq->dim, dim_sample);
 }
 
 static void mlx5e_handle_rx_dim(struct mlx5e_rq *rq)
@@ -63,11 +63,11 @@ static void mlx5e_handle_rx_dim(struct mlx5e_rq *rq)
 	struct mlx5e_rq_stats *stats = rq->stats;
 	struct dim_sample dim_sample = {};
 
-	if (unlikely(!test_bit(MLX5E_RQ_STATE_AM, &rq->state)))
+	if (unlikely(!test_bit(MLX5E_RQ_STATE_DIM, &rq->state)))
 		return;
 
 	dim_update_sample(rq->cq.event_ctr, stats->packets, stats->bytes, &dim_sample);
-	net_dim(&rq->dim, dim_sample);
+	net_dim(rq->dim, dim_sample);
 }
 
 void mlx5e_trigger_irq(struct mlx5e_icosq *sq)
@@ -207,7 +207,7 @@ int mlx5e_napi_poll(struct napi_struct *napi, int budget)
 		}
 		ch_stats->aff_change++;
 		aff_change = true;
-		if (budget && work_done == budget)
+		if (work_done == budget)
 			work_done--;
 	}
 

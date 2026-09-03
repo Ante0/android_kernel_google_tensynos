@@ -1,0 +1,214 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * LGA platform common QoS box device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+&qos_box_aoc {
+	status = "okay";
+};
+
+&qos_box_aurdsp_core_0 {
+	status = "okay";
+};
+
+&qos_box_aurdsp_core_1 {
+	status = "okay";
+};
+
+&qos_box_aurdsp_core_2 {
+	status = "okay";
+};
+
+&qos_box_aurdsp_mcu {
+	status = "okay";
+};
+
+&qos_box_aurdsp_tcu {
+	status = "okay";
+};
+
+&qos_box_codec_3p_axi0 {
+	status = "okay";
+};
+
+&qos_box_codec_3p_axi1 {
+	status = "okay";
+};
+
+&qos_box_cpu_0 {
+	status = "okay";
+};
+
+&qos_box_cpu_1 {
+	status = "okay";
+};
+
+&qos_box_cpu_2 {
+	status = "okay";
+};
+
+&qos_box_cpu_3 {
+	status = "okay";
+};
+
+&qos_box_cpuacc_tcu {
+	status = "okay";
+};
+
+&qos_box_cpuacc_gic {
+	status = "okay";
+};
+
+&qos_box_dpu_0 {
+	status = "okay";
+};
+
+&qos_box_dpu_1 {
+	status = "okay";
+};
+
+&qos_box_dpu_2 {
+	status = "okay";
+};
+
+&qos_box_dpu_3 {
+	status = "okay";
+};
+
+&qos_box_dpu_4 {
+	status = "okay";
+};
+
+&qos_box_dpu_5 {
+	status = "okay";
+};
+
+&qos_box_eh {
+	status = "okay";
+};
+
+&qos_box_g2d {
+	status = "okay";
+};
+
+&qos_box_gpdma {
+	status = "okay";
+};
+
+&qos_box_gpu_m0 {
+	status = "okay";
+};
+
+&qos_box_gpu_m1 {
+	status = "okay";
+};
+
+&qos_box_gpu_m2 {
+	status = "okay";
+};
+
+&qos_box_gpu_mmu {
+	status = "okay";
+};
+
+&qos_box_gsw_0 {
+	status = "okay";
+};
+
+&qos_box_gsw_1 {
+	status = "okay";
+};
+
+&qos_box_hsio_n_pcie {
+	status = "okay";
+};
+
+&qos_box_hsio_n_usbm {
+	status = "okay";
+};
+
+&qos_box_hsio_s_sd {
+	status = "okay";
+};
+
+&qos_box_hsio_s_pcie {
+	status = "okay";
+};
+
+&qos_box_hsio_s_ufs {
+	status = "okay";
+};
+
+&qos_box_inf_tcu {
+	status = "okay";
+};
+
+&qos_box_ispbe_axi0 {
+	status = "okay";
+};
+
+&qos_box_ispbe_axi1 {
+	status = "okay";
+};
+
+&qos_box_ispbe_axi2 {
+	status = "okay";
+};
+
+&qos_box_ispbe_axi3 {
+	status = "okay";
+};
+
+&qos_box_ispbe_axi4 {
+	status = "okay";
+};
+
+&qos_box_ispbe_axi5 {
+	status = "okay";
+};
+
+&qos_box_ispbe_axi6 {
+	status = "okay";
+};
+
+&qos_box_ispfe_0 {
+	status = "okay";
+};
+
+&qos_box_ispfe_1 {
+	status = "okay";
+};
+
+&qos_box_ispfe_2 {
+	status = "okay";
+};
+
+&qos_box_ispfe_3 {
+	status = "okay";
+};
+
+&qos_box_ispfe_tcu {
+	status = "okay";
+};
+
+&qos_box_tpu_tcu {
+	status = "okay";
+};
+
+&qos_box_tpu_0 {
+	status = "okay";
+};
+
+&qos_box_tpu_1 {
+	status = "okay";
+};
+
+&qos_box_tpu_2 {
+	status = "okay";
+};
+
+&qos_box_tpu_3 {
+	status = "okay";
+};

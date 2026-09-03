@@ -42,7 +42,7 @@ enum tg4a_lhbm_brt {
 #define LHBM_RGB_RATIO_SIZE 3
 
 /* DSC1.2 */
-static const struct drm_dsc_config pps_config = {
+static struct drm_dsc_config pps_config = {
 	.line_buf_depth = 9,
 	.bits_per_component = 8,
 	.convert_rgb = true,
@@ -556,12 +556,12 @@ static void tg4a_set_hbm_mode(struct gs_panel *ctx,
 
 		if (GS_IS_HBM_ON_IRC_OFF(ctx->hbm_mode)) {
 			/* FGZ Mode ON */
-			if (ctx->panel_rev == PANEL_REV_PROTO1_1)
-				GS_DCS_BUF_ADD_CMD(dev, 0x68, 0xB0, 0x2C, 0x6A,
-							0x80, 0x00, 0x00, 0xF5, 0xC4);
-			else if (ctx->panel_rev == PANEL_REV_EVT1)
-				GS_DCS_BUF_ADD_CMD(dev, 0x68, 0xB0, 0x2C, 0x6A,
-							0x80, 0x00, 0x00, 0xE4, 0xB6);
+			if (ctx->panel_rev_id.id == PANEL_REVID_PROTO1_1)
+				GS_DCS_BUF_ADD_CMD(dev, 0x68, 0xB0, 0x2C, 0x6A, 0x80, 0x00, 0x00,
+						   0xF5, 0xC4);
+			else if (ctx->panel_rev_id.id == PANEL_REVID_EVT1)
+				GS_DCS_BUF_ADD_CMD(dev, 0x68, 0xB0, 0x2C, 0x6A, 0x80, 0x00, 0x00,
+						   0xE4, 0xB6);
 			else
 				GS_DCS_BUF_ADD_CMD(dev, 0x68, 0xB4, 0x2C, 0x6A,
 							0x80, 0x00, 0x00, 0x00, 0xCD);
@@ -576,7 +576,7 @@ static void tg4a_set_hbm_mode(struct gs_panel *ctx,
 						0x00, 0x00, 0x00, 0x00);
 	}
 
-	if (ctx->panel_rev == PANEL_REV_PROTO1_1) {
+	if (ctx->panel_rev_id.id == PANEL_REVID_PROTO1_1) {
 		GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x00, 0x01, 0xBD);
 		GS_DCS_BUF_ADD_CMD(dev, 0xBD, ctx->hbm_mode ? 0x80 : 0x81);
 		GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x00, 0x2E, 0xBD);
@@ -694,12 +694,12 @@ static void tg4a_set_local_hbm_mode(struct gs_panel *ctx, bool local_hbm_en)
 		gs_panel_send_cmdset(ctx, &tg4a_lhbm_on_cmdset);
 	} else {
 		GS_DCS_BUF_ADD_CMD(dev, MIPI_DCS_WRITE_CONTROL_DISPLAY, 0x20);
-		if (ctx->panel_rev == PANEL_REV_PROTO1_1) {
+		if (ctx->panel_rev_id.id == PANEL_REVID_PROTO1_1) {
 			GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x00, 0x01, 0xBD);
 			GS_DCS_BUF_ADD_CMD(dev, 0xBD, (GS_IS_HBM_ON(ctx->hbm_mode)) ? 0x80 : 0x81);
 			GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x00, 0x2E, 0xBD);
 			GS_DCS_BUF_ADD_CMD(dev, 0xBD, 0x00,
-						(GS_IS_HBM_ON(ctx->hbm_mode)) ? 0x01 : 0x02);
+					   (GS_IS_HBM_ON(ctx->hbm_mode)) ? 0x01 : 0x02);
 			GS_DCS_BUF_ADD_CMD(dev, 0xF7, 0x2F);
 		}
 	}
@@ -895,7 +895,7 @@ static int tg4a_enable(struct drm_panel *panel)
 	gs_panel_send_cmdset(ctx, &tg4a_init_cmdset);
 
 	/* IC Trim Pre Check, only for EVT1.0 */
-	if (ctx->panel_rev == PANEL_REV_EVT1) {
+	if (ctx->panel_rev_id.id == PANEL_REVID_EVT1) {
 		GS_DCS_BUF_ADD_CMDLIST_AND_FLUSH(dev, test_key_enable);
 		if (mipi_dsi_dcs_read(dsi, 0xFA, ic_trim_pre_check, 2) == 2) {
 			if (ic_trim_pre_check[0] == 0x31 && ic_trim_pre_check[1] == 0x00) {
@@ -1051,7 +1051,7 @@ static const struct gs_panel_mode_array tg4a_modes = {
 	.modes = {
 		{
 			.mode = {
-				.name = "1080x2424@60:60",
+				.name = "1080x2424x60@60",
 				DRM_MODE_TIMING(60, HDISPLAY, HFP, HSA, HBP,
 							VDISPLAY, VFP, VSA, VBP),
 				.flags = 0,
@@ -1069,7 +1069,7 @@ static const struct gs_panel_mode_array tg4a_modes = {
 		},
 		{
 			.mode = {
-				.name = "1080x2424@120:120",
+				.name = "1080x2424x120@120",
 				DRM_MODE_TIMING(120, HDISPLAY, HFP, HSA, HBP,
 							VDISPLAY, VFP, VSA, VBP),
 				.flags = 0,
@@ -1124,7 +1124,7 @@ static const struct gs_panel_mode_array tg4a_lp_modes = {
 	.modes = {
 		{
 			.mode = {
-				.name = "1080x2424@30:30",
+				.name = "1080x2424x30@30",
 				DRM_MODE_TIMING(30, HDISPLAY, HFP, HSA, HBP,
 								VDISPLAY, VFP, VSA, VBP),
 				.flags = 0,
@@ -1166,7 +1166,7 @@ static const struct gs_panel_funcs tg4a_gs_funcs = {
 	.mode_set = tg4a_mode_set,
 	.panel_init = tg4a_panel_init,
 	.get_panel_rev = tg4a_get_panel_rev,
-	.read_id = gs_panel_read_slsi_ddic_id,
+	.read_serial = gs_panel_read_slsi_ddic_id,
 	.atomic_check = tg4a_atomic_check,
 	.pre_update_ffc = tg4a_pre_update_ffc,
 	.update_ffc = tg4a_update_ffc,

@@ -99,15 +99,17 @@ extern void ufs_put_cylinder (struct super_block *, unsigned);
 
 /* dir.c */
 extern const struct inode_operations ufs_dir_inode_operations;
-extern int ufs_add_link (struct dentry *, struct inode *);
-extern ino_t ufs_inode_by_name(struct inode *, const struct qstr *);
-extern int ufs_make_empty(struct inode *, struct inode *);
-extern struct ufs_dir_entry *ufs_find_entry(struct inode *, const struct qstr *, struct page **);
-extern int ufs_delete_entry(struct inode *, struct ufs_dir_entry *, struct page *);
-extern int ufs_empty_dir (struct inode *);
-extern struct ufs_dir_entry *ufs_dotdot(struct inode *, struct page **);
-extern void ufs_set_link(struct inode *dir, struct ufs_dir_entry *de,
-			 struct page *page, struct inode *inode, bool update_times);
+
+int ufs_add_link(struct dentry *, struct inode *);
+ino_t ufs_inode_by_name(struct inode *, const struct qstr *);
+int ufs_make_empty(struct inode *, struct inode *);
+struct ufs_dir_entry *ufs_find_entry(struct inode *, const struct qstr *,
+		struct folio **);
+int ufs_delete_entry(struct inode *, struct ufs_dir_entry *, struct folio *);
+int ufs_empty_dir(struct inode *);
+struct ufs_dir_entry *ufs_dotdot(struct inode *, struct folio **);
+void ufs_set_link(struct inode *dir, struct ufs_dir_entry *de,
+		struct folio *folio, struct inode *inode, bool update_times);
 
 /* file.c */
 extern const struct inode_operations ufs_file_inode_operations;
@@ -123,7 +125,7 @@ extern struct inode *ufs_iget(struct super_block *, unsigned long);
 extern int ufs_write_inode (struct inode *, struct writeback_control *);
 extern int ufs_sync_inode (struct inode *);
 extern void ufs_evict_inode (struct inode *);
-extern int ufs_setattr(struct user_namespace *mnt_userns, struct dentry *dentry,
+extern int ufs_setattr(struct mnt_idmap *idmap, struct dentry *dentry,
 		       struct iattr *attr);
 
 /* namei.c */

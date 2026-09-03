@@ -11,3 +11,9 @@ config BIGWAVE
 	select PM
 	help
 	Driver for BigWave video codec
+
+config BIGWAVE_ENABLE_SLC
+	bool "BigWave enable SLC"
+	depends on BIGWAVE
+	help
+	Enable SLC for BigWave video codec

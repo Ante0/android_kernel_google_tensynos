@@ -5,7 +5,7 @@
  * s390 implementation of the AES Cipher Algorithm with protected keys.
  *
  * s390 Version:
- *   Copyright IBM Corp. 2017,2020
+ *   Copyright IBM Corp. 2017, 2023
  *   Author(s): Martin Schwidefsky <schwidefsky@de.ibm.com>
  *		Harald Freudenberger <freude@de.ibm.com>
  */
@@ -103,7 +103,7 @@ static inline void _free_kb_keybuf(struct key_blob *kb)
 {
 	if (kb->key && kb->key != kb->keybuf
 	    && kb->keylen > sizeof(kb->keybuf)) {
-		kfree(kb->key);
+		kfree_sensitive(kb->key);
 		kb->key = NULL;
 	}
 }
@@ -125,16 +125,16 @@ struct s390_pxts_ctx {
 static inline int __paes_keyblob2pkey(struct key_blob *kb,
 				     struct pkey_protkey *pk)
 {
-	int i, ret;
+	int i, ret = -EIO;
 
-	/* try three times in case of failure */
-	for (i = 0; i < 3; i++) {
-		if (i > 0 && ret == -EAGAIN && in_task())
+	/* try three times in case of busy card */
+	for (i = 0; ret && i < 3; i++) {
+		if (ret == -EBUSY && in_task()) {
 			if (msleep_interruptible(1000))
 				return -EINTR;
-		ret = pkey_keyblob2pkey(kb->key, kb->keylen, pk);
-		if (ret == 0)
-			break;
+		}
+		ret = pkey_key2protkey(kb->key, kb->keylen,
+				       pk->protkey, &pk->len, &pk->type);
 	}
 
 	return ret;
@@ -145,6 +145,7 @@ static inline int __paes_convert_key(struct s390_paes_ctx *ctx)
 	int ret;
 	struct pkey_protkey pkey;
 
+	pkey.len = sizeof(pkey.protkey);
 	ret = __paes_keyblob2pkey(&ctx->kb, &pkey);
 	if (ret)
 		return ret;
@@ -414,6 +415,9 @@ static inline int __xts_paes_convert_key(struct s390_pxts_ctx *ctx)
 {
 	struct pkey_protkey pkey0, pkey1;
 
+	pkey0.len = sizeof(pkey0.protkey);
+	pkey1.len = sizeof(pkey1.protkey);
+
 	if (__paes_keyblob2pkey(&ctx->kb[0], &pkey0) ||
 	    __paes_keyblob2pkey(&ctx->kb[1], &pkey1))
 		return -EINVAL;
@@ -474,7 +478,7 @@ static int xts_paes_set_key(struct crypto_skcipher *tfm, const u8 *in_key,
 		return rc;
 
 	/*
-	 * xts_check_key verifies the key length is not odd and makes
+	 * xts_verify_key verifies the key length is not odd and makes
 	 * sure that the two keys are not the same. This can be done
 	 * on the two protected keys as well
 	 */
@@ -798,7 +802,10 @@ out_err:
 module_init(paes_s390_init);
 module_exit(paes_s390_fini);
 
-MODULE_ALIAS_CRYPTO("paes");
+MODULE_ALIAS_CRYPTO("ecb(paes)");
+MODULE_ALIAS_CRYPTO("cbc(paes)");
+MODULE_ALIAS_CRYPTO("ctr(paes)");
+MODULE_ALIAS_CRYPTO("xts(paes)");
 
 MODULE_DESCRIPTION("Rijndael (AES) Cipher Algorithm with protected keys");
 MODULE_LICENSE("GPL");

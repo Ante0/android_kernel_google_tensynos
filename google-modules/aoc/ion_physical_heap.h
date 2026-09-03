@@ -3,7 +3,7 @@
  * Copyright (c) 2020 Google LLC
  */
 
-#include <samsung/samsung-dma-heap.h>
+#include <samsung-dma-heap.h>
 #include <linux/genalloc.h>
 
 typedef void(ion_physical_heap_allocate_callback)(struct samsung_dma_buffer *buffer,

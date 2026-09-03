@@ -239,6 +239,7 @@ static int samsung_abox_adaptation_probe(struct platform_device *pdev)
 	}
 
 	data->pdev_abox = of_find_device_by_node(np_abox);
+	of_node_put(np_abox);
 	if (!data->pdev_abox) {
 		dev_err(dev, "Failed to get abox platform device\n");
 		return -EPROBE_DEFER;
@@ -253,10 +254,9 @@ static int samsung_abox_adaptation_probe(struct platform_device *pdev)
 	return snd_soc_register_platform(&pdev->dev, &abox_adaptation);
 }
 
-static int samsung_abox_adaptation_remove(struct platform_device *pdev)
+static void samsung_abox_adaptation_remove(struct platform_device *pdev)
 {
 	snd_soc_unregister_platform(&pdev->dev);
-	return 0;
 }
 
 static const struct of_device_id samsung_abox_adaptation_match[] = {

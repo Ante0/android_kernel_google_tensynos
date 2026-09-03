@@ -717,6 +717,16 @@ static int parse_perf_counters(struct device *dev, struct device_node *counter_t
 	if (ret)
 		dev_dbg(dev, "l3-cachemiss-ev not specified. Skipping.\n");
 
+	ret = parse_perf_event(counter_type, &cpu_events[PERF_MEM_RD_INST_IDX], unit_id,
+			       PERF_MEM_RD_INST_IDX, "mem-rd-inst-ev");
+	if (ret)
+		dev_dbg(dev, "mem-rd-inst-ev not specified. Skipping.\n");
+
+	ret = parse_perf_event(counter_type, &cpu_events[PERF_MEM_WR_INST_IDX], unit_id,
+			       PERF_MEM_WR_INST_IDX, "mem-wr-inst-ev");
+	if (ret)
+		dev_dbg(dev, "mem-wr-inst-ev not specified. Skipping.\n");
+
 	return 0;
 }
 
@@ -884,7 +894,7 @@ static int perf_mon_task(void *data)
 }
 
 /* Driver initialization code. */
-int gs_perf_mon_driver_probe(struct platform_device *pdev)
+static int gs_perf_mon_driver_probe(struct platform_device *pdev)
 {
 	unsigned int cpu;
 	struct device *dev = &pdev->dev;
@@ -937,6 +947,7 @@ int gs_perf_mon_driver_probe(struct platform_device *pdev)
 		dev_err(dev, "gs_perf_mon could not stop with error code %d\n", ret);
 		goto err_cpuhp_init;
 	}
+	wake_up_process(perf_mon_metadata.perf_mon_task);
 	perf_mon_metadata.perf_monitor_initialized = true;
 
 	/* Create the procfs files. */

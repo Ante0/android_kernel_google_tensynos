@@ -259,7 +259,7 @@ static void ct3d_update_irc(struct gs_panel *ctx,
 	const u16 level = gs_panel_get_brightness(ctx);
 
 	if (GS_IS_HBM_ON_IRC_OFF(hbm_mode)) {
-		/* sync from bigSurf panel_rev >= PANEL_REV_EVT */
+		/* sync from bigSurf panel_rev_id.id >= PANEL_REVID_EVT */
 		if (level == ctx->desc->brightness_desc->brt_capability->hbm.level.max) {
 			/* set brightness to hbm2 */
 			GS_DCS_BUF_ADD_CMD(dev, MIPI_DCS_SET_DISPLAY_BRIGHTNESS, 0x0F, 0xFF);
@@ -284,7 +284,7 @@ static void ct3d_update_irc(struct gs_panel *ctx,
 		if (vrefresh == 120) {
 			GS_DCS_BUF_ADD_CMD(dev, 0x2F, 0x00);
 			GS_DCS_BUF_ADD_CMD(dev, MIPI_DCS_SET_GAMMA_CURVE, 0x02);
-			if (ctx->panel_rev < PANEL_REV_PVT) {
+			if (ctx->panel_rev_id.id < PANEL_REVID_PVT) {
 				GS_DCS_BUF_ADD_CMD(dev, 0xF0, 0x55, 0xAA, 0x52, 0x08, 0x00);
 				GS_DCS_BUF_ADD_CMD(dev, 0x6F, 0x03);
 				GS_DCS_BUF_ADD_CMD(dev, 0xC0, 0x40);
@@ -303,7 +303,7 @@ static void ct3d_update_irc(struct gs_panel *ctx,
 		if (vrefresh == 120) {
 			GS_DCS_BUF_ADD_CMD(dev, 0x2F, 0x00);
 			GS_DCS_BUF_ADD_CMD(dev, MIPI_DCS_SET_GAMMA_CURVE, 0x00);
-			if (ctx->panel_rev < PANEL_REV_PVT) {
+			if (ctx->panel_rev_id.id < PANEL_REVID_PVT) {
 				GS_DCS_BUF_ADD_CMD(dev, 0xF0, 0x55, 0xAA, 0x52, 0x08, 0x00);
 				GS_DCS_BUF_ADD_CMD(dev, 0x6F, 0x03);
 				GS_DCS_BUF_ADD_CMD(dev, 0xC0, 0x10);
@@ -314,7 +314,7 @@ static void ct3d_update_irc(struct gs_panel *ctx,
 			GS_DCS_BUF_ADD_CMD(dev, 0x6F, 0x03);
 			GS_DCS_BUF_ADD_CMD(dev, 0xC0, 0x10);
 		}
-		/* sync from bigSurf panel_rev >= PANEL_REV_EVT */
+		/* sync from bigSurf panel_rev_id.id >= PANEL_REVID_EVT */
 		GS_DCS_BUF_ADD_CMD(dev, MIPI_DCS_SET_DISPLAY_BRIGHTNESS, val1, val2);
 	}
 	/* Empty command is for flush */
@@ -625,7 +625,7 @@ static void ct3d_get_panel_rev(struct gs_panel *ctx, u32 id)
 	gs_panel_get_panel_rev(ctx, main | sub);
 }
 
-static int ct3d_read_id(struct gs_panel *ctx)
+static int ct3d_read_serial(struct gs_panel *ctx)
 {
 	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
 	struct device *dev = ctx->dev;
@@ -641,7 +641,7 @@ static int ct3d_read_id(struct gs_panel *ctx)
 		ret = 0;
 	}
 
-	bin2hex(ctx->panel_id, buf, CT3D_DDIC_ID_LEN);
+	bin2hex(ctx->panel_serial_number, buf, CT3D_DDIC_ID_LEN);
 done:
 	GS_DCS_WRITE_CMD(dev, 0xFF, 0xAA, 0x55, 0xA5, 0x00);
 	return ret;
@@ -655,7 +655,7 @@ static const struct gs_display_underrun_param underrun_param = {
 /* Truncate 8-bit signed value to 6-bit signed value */
 #define TO_6BIT_SIGNED(v) ((v) & 0x3F)
 
-static const struct drm_dsc_config ct3d_dsc_cfg = {
+static struct drm_dsc_config ct3d_dsc_cfg = {
 	.first_line_bpg_offset = 13,
 	.rc_range_params = {
 		{0, 0, 0},
@@ -823,7 +823,7 @@ static const struct gs_panel_funcs ct3d_gs_funcs = {
 	.get_te2_edges = gs_panel_get_te2_edges_helper,
 	.set_te2_edges = gs_panel_set_te2_edges_helper,
 	.update_te2 = ct3d_update_te2,
-	.read_id = ct3d_read_id,
+	.read_serial = ct3d_read_serial,
 	.atomic_check = ct3d_atomic_check,
 	.pre_update_ffc = ct3d_pre_update_ffc,
 	.update_ffc = ct3d_update_ffc,
@@ -914,7 +914,7 @@ static int ct3d_panel_config(struct gs_panel *ctx)
 	/* gs_panel_model_init(ctx, PROJECT, 0); */
 
 	ret = gs_panel_update_brightness_desc(&ct3d_brightness_desc, ct3d_btr_configs,
-				  ARRAY_SIZE(ct3d_btr_configs), ctx->panel_rev);
+				  ARRAY_SIZE(ct3d_btr_configs), ctx->panel_rev_bitmask);
 
 	return ret;
 }

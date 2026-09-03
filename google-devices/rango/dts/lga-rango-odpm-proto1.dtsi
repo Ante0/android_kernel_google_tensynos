@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Rango pmic device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+// ODPM
+&m_ext2_rail {
+	google,schematic-name = "VSYS_PWR_VBATT";
+	google,subsystem-name = "Battery";
+	google,shunt-res-uohm = <5000>;
+};
+
+&m_ext4_rail {
+	google,schematic-name = "VSYS_PWR_VBATT_CHARGE";
+	google,subsystem-name = "Battery_Charge";
+	google,shunt-res-uohm = <5000>;
+};

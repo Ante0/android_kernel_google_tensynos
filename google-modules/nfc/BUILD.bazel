@@ -1,28 +1,43 @@
-# SPDX-License-Identifier: GPL-2.0
+# SPDX-License-Identifier: GPL-2.0-only
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module")
 
-kernel_module(
-    name = "nfc",
-    srcs = glob([
-        "**/*.c",
-        "**/*.h",
-    ]) + [
-        "Kbuild",
-        "ese/Kbuild",
-        "//private/google-modules/soc/gs:gs_soc_headers",
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_headers(
+    name = "headers",
+    hdrs = [
+        "st21nfc.h",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
     ],
-    outs = [
-        "ese/st33spi.ko",
-        "ese/st54spi.ko",
-        "st21nfc.ko",
-    ],
-    kernel_build = "//private/devices/google/common:kernel",
+    includes = ["."],
     visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
+        ":__subpackages__",
     ],
+)
+
+ddk_module(
+    name = "st21nfc",
+    srcs = [
+        "st21nfc.c",
+    ],
+    out = "st21nfc.ko",
+    kernel_build = "//private/devices/google/common:kernel",
     deps = [
-        "//private/google-modules/soc/gs:gs_soc_module",
-    ],
+        ":headers",
+    ] + select({
+        "//private/devices/google/common:soc_is_zumapro_or_before": [
+            "//private/google-modules/soc/gs/drivers/soc/google:exynos-pmu-if",
+        ],
+        "//conditions:default": [],
+    }),
 )

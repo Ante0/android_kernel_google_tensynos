@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -2468,17 +2468,48 @@ static vm_fault_t kbase_cpu_vm_fault(struct vm_fault *vmf)
 	i = map_start_pgoff;
 	addr = (pgoff_t)(vma->vm_start >> PAGE_SHIFT);
 	mgm_dev = map->kctx->kbdev->mgm_dev;
-	while (i < nents && (addr < vma->vm_end >> PAGE_SHIFT)) {
-		ret = mgm_dev->ops.mgm_vmf_insert_pfn_prot(mgm_dev, map->alloc->group_id, vma,
-							   addr << PAGE_SHIFT,
-							   PFN_DOWN(as_phys_addr_t(pages[i])),
-							   vma->vm_page_prot);
 
-		if (ret != VM_FAULT_NOPAGE)
-			goto exit;
+	/* If page migration is enabled, these pages might have metadata:
+	 * in that case, we need synchronization because migration could
+	 * happen while the page is being remapped.
+	 */
+	if (kbase_is_page_migration_enabled()) {
+		while (i < nents && (addr < vma->vm_end >> PAGE_SHIFT)) {
+			struct kbase_page_metadata *page_md = NULL;
 
-		i++;
-		addr++;
+			if (!is_huge(pages[i]) && !is_partial(pages[i])) {
+				struct page *p = as_page(pages[i]);
+
+				page_md = kbase_page_private(p);
+			}
+
+			if (page_md)
+				down(&page_md->cpu_map_lock);
+
+			ret = mgm_dev->ops.mgm_vmf_insert_pfn_prot(
+				mgm_dev, map->alloc->group_id, vma, addr << PAGE_SHIFT,
+				PFN_DOWN(as_phys_addr_t(pages[i])), vma->vm_page_prot);
+			if (page_md)
+				up(&page_md->cpu_map_lock);
+
+			if (ret != VM_FAULT_NOPAGE)
+				goto exit;
+
+			i++;
+			addr++;
+		}
+	} else {
+		while (i < nents && (addr < vma->vm_end >> PAGE_SHIFT)) {
+			ret = mgm_dev->ops.mgm_vmf_insert_pfn_prot(
+				mgm_dev, map->alloc->group_id, vma, addr << PAGE_SHIFT,
+				PFN_DOWN(as_phys_addr_t(pages[i])), vma->vm_page_prot);
+
+			if (ret != VM_FAULT_NOPAGE)
+				goto exit;
+
+			i++;
+			addr++;
+		}
 	}
 
 exit:
@@ -3406,7 +3437,8 @@ static vm_fault_t kbase_csf_user_io_pages_vm_fault(struct vm_fault *vmf)
 #endif
 	struct kbase_queue *queue = vma->vm_private_data;
 	unsigned long doorbell_cpu_addr, input_cpu_addr, output_cpu_addr;
-	unsigned long doorbell_page_pfn, input_page_pfn, output_page_pfn;
+	unsigned long input_page_pfn, output_page_pfn;
+	struct tagged_addr input_page_ta, output_page_ta;
 	pgprot_t doorbell_pgprot, input_page_pgprot, output_page_pgprot;
 	size_t nr_pages = PFN_DOWN(vma->vm_end - vma->vm_start);
 	vm_fault_t ret;
@@ -3444,26 +3476,79 @@ static vm_fault_t kbase_csf_user_io_pages_vm_fault(struct vm_fault *vmf)
 #else
 	if (vmf->address == doorbell_cpu_addr) {
 #endif
-		doorbell_page_pfn = get_queue_doorbell_pfn(kbdev, queue);
+		/* Even if page migration is enabled, this page does not have
+		 * migration metadata because it's not movable, therefore no
+		 * synchronization is required.
+		 */
+		unsigned long doorbell_page_pfn = get_queue_doorbell_pfn(kbdev, queue);
 		ret = mgm_dev->ops.mgm_vmf_insert_pfn_prot(mgm_dev, KBASE_MEM_GROUP_CSF_IO, vma,
 							   doorbell_cpu_addr, doorbell_page_pfn,
 							   doorbell_pgprot);
 	} else {
-		/* Map the Input page */
 		input_cpu_addr = doorbell_cpu_addr + PAGE_SIZE;
-		input_page_pfn = PFN_DOWN(as_phys_addr_t(queue->phys[0]));
-		ret = mgm_dev->ops.mgm_vmf_insert_pfn_prot(mgm_dev, KBASE_MEM_GROUP_CSF_IO, vma,
-							   input_cpu_addr, input_page_pfn,
-							   input_page_pgprot);
-		if (ret != VM_FAULT_NOPAGE)
-			goto exit;
-
-		/* Map the Output page */
 		output_cpu_addr = input_cpu_addr + PAGE_SIZE;
-		output_page_pfn = PFN_DOWN(as_phys_addr_t(queue->phys[1]));
-		ret = mgm_dev->ops.mgm_vmf_insert_pfn_prot(mgm_dev, KBASE_MEM_GROUP_CSF_IO, vma,
-							   output_cpu_addr, output_page_pfn,
-							   output_page_pgprot);
+
+		input_page_ta = queue->phys[0];
+		output_page_ta = queue->phys[1];
+
+		input_page_pfn = PFN_DOWN(as_phys_addr_t(input_page_ta));
+		output_page_pfn = PFN_DOWN(as_phys_addr_t(output_page_ta));
+
+		/* Map the Input and Output pages.
+		 * If page migration is enabled, these pages might have metadata:
+		 * in that case, we need synchronization because migration could
+		 * happen while the page is being remapped.
+		 */
+		if (kbase_is_page_migration_enabled()) {
+			struct kbase_page_metadata *input_page_md = NULL;
+			struct kbase_page_metadata *output_page_md = NULL;
+
+			if (!is_huge(input_page_ta) && !is_partial(input_page_ta)) {
+				struct page *input_p = pfn_to_page(input_page_pfn);
+
+				input_page_md = kbase_page_private(input_p);
+			}
+
+			if (input_page_md)
+				down(&input_page_md->cpu_map_lock);
+			ret = mgm_dev->ops.mgm_vmf_insert_pfn_prot(mgm_dev, KBASE_MEM_GROUP_CSF_IO,
+								   vma, input_cpu_addr,
+								   input_page_pfn,
+								   input_page_pgprot);
+			if (input_page_md)
+				up(&input_page_md->cpu_map_lock);
+
+			if (ret != VM_FAULT_NOPAGE)
+				goto exit;
+
+			if (!is_huge(output_page_ta) && !is_partial(output_page_ta)) {
+				struct page *output_p = pfn_to_page(output_page_pfn);
+
+				output_page_md = kbase_page_private(output_p);
+			}
+
+			if (output_page_md)
+				down(&output_page_md->cpu_map_lock);
+			ret = mgm_dev->ops.mgm_vmf_insert_pfn_prot(mgm_dev, KBASE_MEM_GROUP_CSF_IO,
+								   vma, output_cpu_addr,
+								   output_page_pfn,
+								   output_page_pgprot);
+			if (output_page_md)
+				up(&output_page_md->cpu_map_lock);
+		} else {
+			ret = mgm_dev->ops.mgm_vmf_insert_pfn_prot(mgm_dev, KBASE_MEM_GROUP_CSF_IO,
+								   vma, input_cpu_addr,
+								   input_page_pfn,
+								   input_page_pgprot);
+
+			if (ret != VM_FAULT_NOPAGE)
+				goto exit;
+
+			ret = mgm_dev->ops.mgm_vmf_insert_pfn_prot(mgm_dev, KBASE_MEM_GROUP_CSF_IO,
+								   vma, output_cpu_addr,
+								   output_page_pfn,
+								   output_page_pgprot);
+		}
 	}
 
 exit:

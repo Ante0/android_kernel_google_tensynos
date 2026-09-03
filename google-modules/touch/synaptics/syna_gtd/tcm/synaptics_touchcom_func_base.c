@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0-only
 /*
- * Synaptics TouchCom touchscreen driver
+ * Synaptics TouchComm C library
  *
- * Copyright (C) 2017-2020 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2024 Synaptics Incorporated. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,65 +29,158 @@
  * DOLLARS.
  */
 
-/*
+/**
  * @file synaptics_touchcom_func_base.c
  *
- * This file implements generic and foundational functions supported in
- * Synaptics TouchComm communication protocol.
- *
- * The declarations are in synaptics_touchcom_func_base.h.
+ * This file implements foundational APIs for the use of TouchComm core library
+ * and also all foundational APIs supported in the Synaptics TouchComm protocol.
  */
 
 #include "synaptics_touchcom_func_base.h"
-#include "synaptics_touchcom_func_touch.h"
 
 
-/*
- * syna_tcm_change_resp_read()
- *
- * Helper to change the default method to read the response packet.
+ /**
+  * Default timings for command processing
+  *
+  *    CMD_RESPONSE_TIMEOUT_MS         : Timeout for a command processing
+  *    RETRY_US                        : Time period for next try of read/write
+  *    DELAY_TURNAROUND_US             : Bus turnaround time
+  *    DEFAULT_FW_MODE_SWITCH_DELAY_MS : Time period for fw mode switching
+  *    DEFAULT_RESET_DELAY_MS          : Default delay after reset in case of improper settings
+  */
+
+#define CMD_RESPONSE_TIMEOUT_MS (3000)
+
+#define RETRY_US_MIN (5000)
+#define RETRY_US_MAX (10000)
+
+#define DELAY_TURNAROUND_US_MIN (50)
+#define DELAY_TURNAROUND_US_MAX (100)
+
+#define DEFAULT_FW_MODE_SWITCH_DELAY_MS (100)
+
+#define DEFAULT_RESET_DELAY_MS (100)
+
+
+/**
+ * @brief   Set up the specific timing for the command processing
  *
  * @param
- *    [in] tcm_dev: the device handle
- *    [in] request: resp reading method to change
- *                  set '0' or 'RESP_IN_ATTN' for ATTN-driven; otherwise,
- *                  assign a positive value standing for the polling time
+ *    [ in] tcm_msg: handle of message wrapper
+ *    [ in] product: the required timing settings for products
+ *                   an essential in case of the followings
+ *                       TIMINGS_ALL
+ *                       TIMINGS_TURNAROUND
+ *                       TIMINGS_CMD_RETRY
+ *                   otherwise, could be NULL and then do setup through the argument 'setting'
+ *    [ in] setting: '0' if using 'product' to update
+ *                   otherwise, a positive value to change a particular setting
+ *    [ in] type:    target to change
+ *                       TIMINGS_ALL         - set up all timings
+ *                       TIMINGS_CMD_TIMEOUT - update the command timeout time
+ *                       TIMINGS_CMD_POLLING - update the response polling time
+ *                       TIMINGS_TURNAROUND  - update the command turnaround time
+ *                       TIMINGS_CMD_RETRY   - update the command retry periods
+ *                       TIMINGS_FW_SWITCH   - update the firmware switching time
+ *                       TIMINGS_RESET_DELAY - update the delay time after reset
  * @return
- *    none.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-void syna_tcm_change_resp_read(struct tcm_dev *tcm_dev, unsigned int request)
+int syna_tcm_config_timings(struct tcm_dev *tcm_dev, struct tcm_timings *product,
+	unsigned int setting, unsigned int type)
 {
-	if (request == RESP_IN_ATTN) {
-		tcm_dev->msg_data.default_resp_reading = RESP_IN_ATTN;
+	struct tcm_message_data_blob *tcm_msg = &tcm_dev->msg_data;
+	unsigned int time = setting;
 
-		LOGI("Change default resp reading method by attn\n");
-	} else {
-		if (request < RESP_IN_POLLING)
-			request = RESP_IN_POLLING;
-
-		tcm_dev->msg_data.default_resp_reading = request;
-
-		LOGI("Change default resp reading method by polling (%dms)\n",
-			tcm_dev->msg_data.default_resp_reading);
+	if (!tcm_msg) {
+		LOGE("Invalid parameter of tcm_msg\n");
+		return -ERR_INVAL;
 	}
+
+	if (!product && (type == TIMINGS_ALL)) {
+		LOGE("Invalid timing settings of product\n");
+		return -ERR_INVAL;
+	}
+
+	if ((type & TIMINGS_TURNAROUND) == TIMINGS_TURNAROUND) {
+		if (product) {
+			time = product->cmd_turnaround_us[0];
+			if (time != 0)
+				tcm_msg->turnaround_time[0] = product->cmd_turnaround_us[0];
+			time = product->cmd_turnaround_us[1];
+			if (time != 0)
+				tcm_msg->turnaround_time[1] = product->cmd_turnaround_us[1];
+
+			LOGD("Set timing: Turnaround time(%d %d)\n",
+				tcm_msg->turnaround_time[0], tcm_msg->turnaround_time[1]);
+		}
+	}
+	if ((type & TIMINGS_CMD_TIMEOUT) == TIMINGS_CMD_TIMEOUT) {
+		if (product && (product->cmd_timeout_ms != 0))
+			time = product->cmd_timeout_ms;
+		if (time != 0) {
+			tcm_msg->command_timeout_time = time;
+			LOGD("Set timing: Command timeout(%d)\n", tcm_msg->command_timeout_time);
+		}
+	}
+	if ((type & TIMINGS_CMD_POLLING) == TIMINGS_CMD_POLLING) {
+		if (product && (product->cmd_polling_ms != 0))
+			time = product->cmd_polling_ms;
+		if (time != 0) {
+			tcm_msg->command_polling_time = time;
+			LOGD("Set timing: Command timeout(%d)\n", tcm_msg->command_polling_time);
+		}
+	}
+	if ((type & TIMINGS_CMD_RETRY) == TIMINGS_CMD_RETRY) {
+		if (product) {
+			time = product->cmd_retry_us[0];
+			if (time != 0)
+				tcm_msg->retry_time[0] = product->cmd_retry_us[0];
+			time = product->cmd_retry_us[1];
+			if (time != 0)
+				tcm_msg->retry_time[1] = product->cmd_retry_us[1];
+
+			LOGD("Set timing: Command retry time(%d %d)\n",
+				tcm_msg->retry_time[0], tcm_msg->retry_time[1]);
+		}
+	}
+	if ((type & TIMINGS_FW_SWITCH) == TIMINGS_FW_SWITCH) {
+		if (product && (product->fw_switch_delay_ms != 0))
+			time = product->fw_switch_delay_ms;
+		if (time != 0) {
+			tcm_dev->fw_mode_switching_time = time;
+			LOGD("Set timing: Firmware switch(%d)\n", tcm_dev->fw_mode_switching_time);
+		}
+	}
+	if ((type & TIMINGS_RESET_DELAY) == TIMINGS_RESET_DELAY) {
+		if (product && (product->reset_delay_ms != 0))
+			time = product->reset_delay_ms;
+		if (time != 0) {
+			tcm_dev->reset_delay_time = time;
+			LOGD("Set timing: Firmware reset(%d)\n", tcm_dev->reset_delay_time);
+		}
+	}
+
+	return 0;
 }
 
-/*
- * syna_tcm_init_message_wrap()
- *
- * Initialize the TouchComm message wrapper interface.
- * Setup internal buffers and the relevant structures for command processing.
+/**
+ * @brief   Initialize the TouchComm message wrapper.
+ *          Setup internal buffers and the relevant structures for command processing.
  *
  * @param
- *    [in] tcm_msg: message wrapper structure
- *    [in] resp_reading: default method to retrieve the resp data
+ *    [ in] tcm_msg: handle of message wrapper
  *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-static int syna_tcm_init_message_wrap(struct tcm_message_data_blob *tcm_msg,
-		unsigned int resp_reading)
+static int syna_tcm_init_message_handler(struct tcm_message_data_blob *tcm_msg)
 {
+	if (!tcm_msg) {
+		LOGE("Invalid parameter of tcm_msg\n");
+		return -ERR_INVAL;
+	}
+
 	/* initialize internal buffers */
 	syna_tcm_buf_init(&tcm_msg->in);
 	syna_tcm_buf_init(&tcm_msg->out);
@@ -116,8 +209,6 @@ static int syna_tcm_init_message_wrap(struct tcm_message_data_blob *tcm_msg,
 	tcm_msg->command = CMD_NONE;
 	tcm_msg->status_report_code = STATUS_IDLE;
 	tcm_msg->payload_length = 0;
-	tcm_msg->response_code = 0;
-	tcm_msg->report_code = 0;
 	tcm_msg->seq_toggle = 0;
 
 	/* allocate the internal buffer.in at first */
@@ -135,11 +226,6 @@ static int syna_tcm_init_message_wrap(struct tcm_message_data_blob *tcm_msg,
 
 	syna_tcm_buf_unlock(&tcm_msg->in);
 
-	tcm_msg->default_resp_reading = resp_reading;
-
-	LOGI("Set default resp. reading method in %s\n",
-		(resp_reading == RESP_IN_ATTN) ? "ATTN" : "Polling");
-
 	/* initialize the features of message handling */
 	tcm_msg->predict_reads = false;
 	tcm_msg->predict_length = 0;
@@ -148,22 +234,28 @@ static int syna_tcm_init_message_wrap(struct tcm_message_data_blob *tcm_msg,
 	tcm_msg->has_extra_rc = false;
 	tcm_msg->rc_byte = 0;
 
+	/* initialize the timings for message handling */
+	tcm_msg->command_timeout_time = CMD_RESPONSE_TIMEOUT_MS;
+	tcm_msg->command_polling_time = CMD_RESPONSE_DEFAULT_POLLING_DELAY_MS;
+	tcm_msg->turnaround_time[0] = DELAY_TURNAROUND_US_MIN;
+	tcm_msg->turnaround_time[1] = DELAY_TURNAROUND_US_MAX;
+	tcm_msg->retry_time[0] = RETRY_US_MIN;
+	tcm_msg->retry_time[1] = RETRY_US_MAX;
+
 	return 0;
 }
 
-/*
- * syna_tcm_del_message_wrap()
- *
- * Remove message wrapper interface and internal buffers.
- * Call the function once the message wrapper is no longer needed.
+/**
+ * @brief   Remove message wrapper interface as well as internal buffers.
+ *          Call the function once the message wrapper is no longer needed.
  *
  * @param
  *    [in] tcm_msg: message wrapper structure
  *
  * @return
- *    none.
+ *    void.
  */
-static void syna_tcm_del_message_wrap(struct tcm_message_data_blob *tcm_msg)
+static void syna_tcm_del_message_handler(struct tcm_message_data_blob *tcm_msg)
 {
 	/* release the mutex */
 	syna_pal_mutex_free(&tcm_msg->rw_mutex);
@@ -178,41 +270,39 @@ static void syna_tcm_del_message_wrap(struct tcm_message_data_blob *tcm_msg)
 	syna_tcm_buf_release(&tcm_msg->in);
 }
 
-/*
- * syna_tcm_allocate_device()
+/**
+ * @brief   Allocate and initialize the TouchCom core device module.
+ *          This function must be called in order to allocate the main device handle,
+ *          structure syna_tcm_dev, which will be passed to all other functions within
+ *          the entire source code.
  *
- * Create the TouchCom core device handle.
- * This function must be called in order to allocate the main device handle,
- * structure syna_tcm_dev, which will be passed to all other operations and
- * functions within the entire source code.
- *
- * Meanwhile, caller has to prepare specific syna_tcm_hw_interface structure,
- * so that all the implemented functions can access hardware components
- * through syna_tcm_hw_interface.
+ *          The hardware platform interface is must to provide.
  *
  * @param
- *    [out] ptcm_dev_ptr: a pointer to the device handle returned
- *    [ in] hw_if:        hardware-specific data on target platform
- *    [ in] resp_reading: default resp reading method
- *                        set 'RESP_IN_ATTN' to apply ATTN-driven method;
- *                        set 'RESP_IN_POLLING' to read in resp by polling
+ *    [out] ptcm_dev_ptr: a pointer to the TouchComm device handle
+ *    [ in] hw:           hardware platform interface
+ *    [ in] parent_ptr:   data structure representing the parent device
  *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 int syna_tcm_allocate_device(struct tcm_dev **ptcm_dev_ptr,
-		struct syna_hw_interface *hw_if, unsigned int resp_reading)
+	struct tcm_hw_platform *hw, void *parent_ptr)
 {
 	int retval = 0;
 	struct tcm_dev *tcm_dev = NULL;
 
-	if (!hw_if) {
-		LOGE("Invalid parameter of hw_if\n");
+	if (!hw) {
+		LOGE("Invalid hardware interface\n");
 		return -ERR_INVAL;
 	}
 
-	if ((!hw_if->ops_read_data) || (!hw_if->ops_write_data)) {
-		LOGE("Invalid hw read write operation\n");
+	if (!hw->ops_read_data) {
+		LOGE("Invalid hw read operation\n");
+		return -ERR_INVAL;
+	}
+	if (!hw->ops_write_data) {
+		LOGE("Invalid hw write operation\n");
 		return -ERR_INVAL;
 	}
 
@@ -229,72 +319,84 @@ int syna_tcm_allocate_device(struct tcm_dev **ptcm_dev_ptr,
 		return -ERR_NOMEM;
 	}
 
-	/* link to the given hardware data */
-	tcm_dev->hw_if = hw_if;
-
-	/* initialize the default setup */
-	tcm_dev->max_rd_size = hw_if->bdata_io.rd_chunk_size;
-	tcm_dev->max_wr_size = hw_if->bdata_io.wr_chunk_size;
+	/* points to the shell implementations */
+	tcm_dev->parent = parent_ptr;
+	tcm_dev->hw = hw;
 
 	tcm_dev->write_message = NULL;
 	tcm_dev->read_message = NULL;
+	tcm_dev->terminate = NULL;
+	tcm_dev->set_max_rw_size = NULL;
 
-	tcm_dev->cb_custom_touch_entity = NULL;
-	tcm_dev->cbdata_touch_entity = NULL;
-	tcm_dev->cb_custom_gesture = NULL;
-	tcm_dev->cbdata_gesture = NULL;
-	tcm_dev->cb_reset_occurrence = NULL;
-	tcm_dev->cbdata_reset = NULL;
+	/* initialize the capability of read write
+	 * these values may be updated after the start-up packet
+	 */
+	tcm_dev->max_rd_size = hw->rd_chunk_size;
+	tcm_dev->max_wr_size = hw->wr_chunk_size;
 
-	tcm_dev->dev_mode = MODE_UNKNOWN;
+	/* initialize the mutex */
+	if (syna_pal_mutex_alloc(&tcm_dev->irq_en_mutex) < 0) {
+		LOGE("Fail to allocate irq_en_mutex\n");
+		goto err_init_mutex;
+	}
 
 	/* allocate internal buffers */
 	syna_tcm_buf_init(&tcm_dev->report_buf);
 	syna_tcm_buf_init(&tcm_dev->resp_buf);
-	syna_tcm_buf_init(&tcm_dev->external_buf);
 	syna_tcm_buf_init(&tcm_dev->touch_config);
 
 	/* initialize the command wrapper interface */
-	retval = syna_tcm_init_message_wrap(&tcm_dev->msg_data,
-			resp_reading);
+	retval = syna_tcm_init_message_handler(&tcm_dev->msg_data);
 	if (retval < 0) {
 		LOGE("Fail to initialize command interface\n");
-		goto err_init_message_wrap;
+		goto err_init_message_handler;
 	}
+
+	tcm_dev->fw_mode_switching_time = DEFAULT_FW_MODE_SWITCH_DELAY_MS;
+	tcm_dev->reset_delay_time = DEFAULT_RESET_DELAY_MS;
+
+	/* initialize the default running mode */
+	tcm_dev->dev_mode = MODE_UNKNOWN;
 
 	/* return the created device handle */
 	*ptcm_dev_ptr = tcm_dev;
 
-	LOGI("TouchComm core module created, ver.: %d.%02d\n",
+	LOGI("TouchComm core module created, ver.: %d.%02d.%02d\n",
 		(unsigned char)(SYNA_TCM_CORE_LIB_VERSION >> 8),
-		(unsigned char)SYNA_TCM_CORE_LIB_VERSION & 0xff);
+		(unsigned char)SYNA_TCM_CORE_LIB_VERSION & 0xff,
+		SYNA_TCM_CORE_LIB_CUSTOM_CODE);
+	LOGI("Platform capability: support_attn(%s)\n",
+		(hw->support_attn) ? "yes" : "no");
+#ifdef DATA_ALIGNMENT
+	LOGI("Platform capability: data alignment(yes), base(%d), boundary(%d)\n",
+		hw->alignment_base, hw->alignment_boundary);
+#endif
 
 	return 0;
 
-err_init_message_wrap:
+err_init_message_handler:
 	syna_tcm_buf_release(&tcm_dev->touch_config);
-	syna_tcm_buf_release(&tcm_dev->external_buf);
 	syna_tcm_buf_release(&tcm_dev->report_buf);
 	syna_tcm_buf_release(&tcm_dev->resp_buf);
 
-	tcm_dev->hw_if = NULL;
+err_init_mutex:
+	syna_pal_mutex_free(&tcm_dev->irq_en_mutex);
+	tcm_dev->hw = NULL;
 
 	syna_pal_mem_free((void *)tcm_dev);
 
 	return retval;
 }
 
-/*
- * syna_tcm_remove_device()
- *
- * Remove the TouchCom core device handler.
- * This function must be invoked when the device is no longer needed.
+/**
+ * @brief   Remove the TouchCom core device module.
+ *          This function must be invoked when the library is no longer needed.
  *
  * @param
- *    [ in] tcm_dev: the device handle
+ *    [ in] tcm_dev: the TouchComm device handle
  *
  * @return
- *    none.
+ *    void.
  */
 void syna_tcm_remove_device(struct tcm_dev *tcm_dev)
 {
@@ -304,50 +406,47 @@ void syna_tcm_remove_device(struct tcm_dev *tcm_dev)
 	}
 
 	/* release the command interface */
-	syna_tcm_del_message_wrap(&tcm_dev->msg_data);
+	syna_tcm_del_message_handler(&tcm_dev->msg_data);
 
-	/* release buffers */
+	/* release resources */
 	syna_tcm_buf_release(&tcm_dev->touch_config);
-	syna_tcm_buf_release(&tcm_dev->external_buf);
 	syna_tcm_buf_release(&tcm_dev->report_buf);
 	syna_tcm_buf_release(&tcm_dev->resp_buf);
 
-	tcm_dev->hw_if = NULL;
+	syna_pal_mutex_free(&tcm_dev->irq_en_mutex);
 
-	/* release the device handle */
+	tcm_dev->parent = NULL;
+	tcm_dev->hw = NULL;
+
+	/* release the TouchComm device handle */
 	syna_pal_mem_free((void *)tcm_dev);
 
 	LOGI("TouchComm core module removed\n");
 }
-/*
- * syna_tcm_detect_device()
+/**
+ * @brief   Determine the type of device being connected, and distinguish which
+ *          version of TouchCom firmware running on the device.
  *
- * Determine the type of device being connected, and distinguish which
- * version of TouchCom firmware running on the device.
- *
- * This function should be called as the first step of initialization.
- *
- * The start-up packet has an important data to identify the attached device
- * so it's recommended to process the startup packet in default.
+ *          This function should be called to communicate with the specific sensor device.
  *
  * @param
- *    [ in] tcm_dev:  the device handle
- *    [ in] protocol: protocol to detect
- *                    0 - auto detection (default)
- *                    1 - TouchComm version 1
- *                    2 - TouchComm version 1
- *    [ in] startup:  request to handle the startup packet
- *                    set to 'True' if uncertainty
+ *    [ in] tcm_dev:          the TouchComm device handle
+ *    [ in] mode:             mode for the protocol detection
+ *                            [0:3] x0 DETECT_AUTO      - auto detection
+ *                                  x1 DETECT_VERSION_1 - detect TouchComm version 1 only
+ *                                  x2 DETECT_VERSION_2 - detect TouchComm version 2 only
+ *                            [4:7] x8 FORCE_ASSIGNMENT - direct assign the protocol without the detection
+ *
+ *    [ in] reset_to_detect:  set if willing to use 'reset' command for the detection
  *
  * @return
- *    on success, the current mode running on the device is returned;
- *    otherwise, negative value on error.
+ *    the current mode running on the device in case of success, a negative value otherwise.
  */
-int syna_tcm_detect_device(struct tcm_dev *tcm_dev, int protocol,
-		bool startup)
+int syna_tcm_detect_device(struct tcm_dev *tcm_dev, unsigned int mode, bool reset_to_detect)
 {
-	int retval = 0;
-	unsigned char data[4] = { 0 };
+	int retval = -ERR_NODEV;
+	bool do_detect = ((mode & PROTOCOL_FORCE_ASSIGNMENT) == 0);
+	int protocol = (mode & 0xF);
 
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
@@ -357,77 +456,80 @@ int syna_tcm_detect_device(struct tcm_dev *tcm_dev, int protocol,
 	tcm_dev->dev_mode = MODE_UNKNOWN;
 	tcm_dev->protocol = 0;
 
-	/* read in the bare data once willing to handle the startup packet */
-	if (startup) {
-		data[0] = 0x02;
-		retval = syna_tcm_write(tcm_dev, &data[0], 1);
-		if (retval < 0) {
-			LOGE("Fail to write magic to bus\n");
-			return retval;
-		}
-
-		retval = syna_tcm_read(tcm_dev,
-				data, (unsigned int)sizeof(data));
-		if (retval < 0) {
-			LOGE("Fail to retrieve 4-byte data from bus\n");
-			return retval;
-		}
-
-		LOGD("start-up data: %02x %02x %02x %02x\n",
-				data[0], data[1], data[2], data[3]);
-	}
-
 	switch (protocol) {
-	case 1: /* force to use v1 operations */
-		if (startup)
-			retval = syna_tcm_v1_detect(tcm_dev, data,
-				(unsigned int)sizeof(data));
-		else
-			syna_tcm_v1_set_ops(tcm_dev);
-		LOGI("Communicate to TouchComm ver.1 forcibly\n");
+	case PROTOCOL_DETECT_VERSION_1:
+#ifdef HAS_VERSION_1_SUPPORT
+		if (syna_tcm_v1_detect(tcm_dev, !do_detect, reset_to_detect) < 0) {
+			if (tcm_dev->msg_data.in.buf_size > 0) {
+				LOGE("Fail to detect TouchCom v1 device, %02x %02x %02x %02x ...\n",
+					tcm_dev->msg_data.in.buf[0], tcm_dev->msg_data.in.buf[1],
+					tcm_dev->msg_data.in.buf[2], tcm_dev->msg_data.in.buf[3]);
+			}
+			return -ERR_NODEV;
+		}
+#else
+		LOGE("Implementations of Touchcomm v%d is not built in\n", PROTOCOL_DETECT_VERSION_1);
+		return -ERR_INVAL;
+#endif
 		break;
-	case 2: /* force to use v2 operations */
-		if (startup)
-			retval = syna_tcm_v2_detect(tcm_dev, data,
-				(unsigned int)sizeof(data));
-		else
-			syna_tcm_v2_set_ops(tcm_dev);
-		LOGI("Communicate to TouchComm ver.2 forcibly\n");
+	case PROTOCOL_DETECT_VERSION_2:
+#ifdef HAS_VERSION_2_SUPPORT
+		if (syna_tcm_v2_detect(tcm_dev, !do_detect, reset_to_detect) < 0) {
+			if (tcm_dev->msg_data.in.buf_size > 0) {
+				LOGE("Fail to detect TouchCom v2 device, %02x %02x %02x %02x ...\n",
+					tcm_dev->msg_data.in.buf[0], tcm_dev->msg_data.in.buf[1],
+					tcm_dev->msg_data.in.buf[2], tcm_dev->msg_data.in.buf[3]);
+			}
+			return -ERR_NODEV;
+		}
+#else
+		LOGE("Implementations of Touchcomm v%d is not built in\n", PROTOCOL_DETECT_VERSION_2);
+		return -ERR_INVAL;
+#endif
 		break;
-
 	default:
-		if (!startup) {
+		if (!do_detect) {
 			LOGE("Fail to detect device without startup packet\n");
 			return -ERR_INVAL;
 		}
 		/* perform the protocol detection */
-		retval = syna_tcm_v2_detect(tcm_dev,
-			data, (unsigned int)sizeof(data));
+#ifdef HAS_VERSION_1_SUPPORT
+		retval = syna_tcm_v1_detect(tcm_dev, false, reset_to_detect);
+#endif
+#ifdef HAS_VERSION_2_SUPPORT
 		if (retval < 0)
-			retval = syna_tcm_v1_detect(tcm_dev,
-				data, (unsigned int)sizeof(data));
+			retval = syna_tcm_v2_detect(tcm_dev, false, reset_to_detect);
+#endif
 		if (retval < 0) {
-			LOGE("Fail to detect TouchCom device, %02x %02x %02x %02x\n",
-				data[0], data[1], data[2], data[3]);
-			return retval;
+			if (tcm_dev->msg_data.in.buf_size > 0) {
+				LOGE("Fail to detect TouchCom device, %02x %02x %02x %02x ...\n",
+					tcm_dev->msg_data.in.buf[0], tcm_dev->msg_data.in.buf[1],
+					tcm_dev->msg_data.in.buf[2], tcm_dev->msg_data.in.buf[3]);
+			}
+			return -ERR_NODEV;
 		}
-
 		break;
 	}
 
 	if ((!tcm_dev->write_message) || (!tcm_dev->read_message)) {
 		LOGE("Invalid TouchCom R/W operations\n");
-		return -ERR_NODEV;
+		LOGE("Fail to allocate the handler for TouchComm device\n");
+		return retval;
 	}
 
-	/* skip the recognition of device mode for some specific scenarios */
-	if (!startup)
-		return 0;
+	/* skip the mode dispatching if no needs to detect the protocol */
+	if (!do_detect)
+		return protocol;
 
 	/* check the running mode */
 	switch (tcm_dev->dev_mode) {
 	case MODE_APPLICATION_FIRMWARE:
-		LOGI("Device in Application FW, build id: %d, %s\n",
+		LOGI("Device in Application FW, build id: %d, %*pE\n",
+			tcm_dev->packrat_number,
+			(int)sizeof(tcm_dev->id_info.part_number), tcm_dev->id_info.part_number);
+		break;
+	case MODE_DISPLAY_APPLICATION_FIRMWARE:
+		LOGI("Device in Display Application FW, build id: %d, %s\n",
 			tcm_dev->packrat_number,
 			tcm_dev->id_info.part_number);
 		break;
@@ -436,10 +538,13 @@ int syna_tcm_detect_device(struct tcm_dev *tcm_dev, int protocol,
 		LOGI("Device in Bootloader\n");
 		break;
 	case MODE_ROMBOOTLOADER:
-		LOGI("Device in ROMBoot Bootloader\n");
+		LOGI("Device in ROM Bootloader\n");
 		break;
 	case MODE_MULTICHIP_TDDI_BOOTLOADER:
 		LOGI("Device in multi-chip TDDI Bootloader\n");
+		break;
+	case MODE_DISPLAY_ROMBOOTLOADER:
+		LOGI("Device in Display ROM Bootloader\n");
 		break;
 	default:
 		LOGW("Found TouchCom device, but unknown mode:0x%02x detected\n",
@@ -447,29 +552,26 @@ int syna_tcm_detect_device(struct tcm_dev *tcm_dev, int protocol,
 		break;
 	}
 
-	retval = tcm_dev->dev_mode;
-	return retval;
+	return tcm_dev->dev_mode;
 }
 
-/*
- * syna_tcm_get_event_data()
+/**
+ * @brief   Helper to read out TouchComm messages when ATTN is asserted.
+ *          After returning, the ATTN signal should be no longer asserted.
  *
- * Helper to read TouchComm messages when ATTN signal is asserted.
- * After returning, the ATTN signal should be no longer asserted.
- *
- * The 'code' returned will guide the caller on the next action.
- * For example, do touch reporting once returned code is equal to REPORT_TOUCH.
+ *          The 'code' returned will guide the caller on the next action.
+ *          For example, do touch reporting if the returned code belongs to REPORT_TOUCH.
  *
  * @param
- *    [ in] tcm_dev: the device handle
+ *    [ in] tcm_dev: the TouchComm device handle
  *    [out] code:    received report code
  *    [out] data:    a user buffer for data returned
  *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_get_event_data(struct tcm_dev *tcm_dev,
-		unsigned char *code, struct tcm_buffer *data)
+int syna_tcm_get_event_data(struct tcm_dev *tcm_dev, unsigned char *code,
+	struct tcm_buffer *data)
 {
 	int retval = 0;
 
@@ -484,8 +586,7 @@ int syna_tcm_get_event_data(struct tcm_dev *tcm_dev,
 	}
 
 	/* retrieve the event data */
-	retval = tcm_dev->read_message(tcm_dev,
-			code);
+	retval = tcm_dev->read_message(tcm_dev, code);
 	if (retval < 0) {
 		LOGE("Fail to read messages\n");
 		return retval;
@@ -533,43 +634,53 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_identify()
- *
- * Implement the standard command code to request an IDENTIFY report.
+/**
+ * @brief   Request an IDENTIFY report from device.
  *
  * @param
- *    [ in] tcm_dev: the device handle
- *    [out] id_info: the identification info packet returned
- *
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [out] id_info:       the identification info packet returned
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 int syna_tcm_identify(struct tcm_dev *tcm_dev,
-		struct tcm_identification_info *id_info)
+	struct tcm_identification_info *id_info, unsigned int resp_reading)
 {
 	int retval = 0;
-	unsigned char resp_code;
 
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
 		return -ERR_INVAL;
 	}
 
+	if (resp_reading == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			resp_reading = tcm_dev->msg_data.command_polling_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
+
 	retval = tcm_dev->write_message(tcm_dev,
 			CMD_IDENTIFY,
 			NULL,
 			0,
-			0,
-			&resp_code,
-			tcm_dev->msg_data.default_resp_reading);
+			NULL,
+			resp_reading);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%02x\n", CMD_IDENTIFY);
 		goto exit;
 	}
 
+	tcm_dev->dev_mode = tcm_dev->id_info.mode;
+
+	LOGI("TCM Fw mode: 0x%02x, TCM ver.: %d\n",
+		tcm_dev->id_info.mode, tcm_dev->id_info.version);
+
 	if (id_info == NULL)
-		goto show_info;
+		goto exit;
 
 	/* copy identify info to caller */
 	retval = syna_pal_mem_cpy((unsigned char *)id_info,
@@ -582,58 +693,45 @@ int syna_tcm_identify(struct tcm_dev *tcm_dev,
 		goto exit;
 	}
 
-show_info:
-	LOGI("TCM Fw mode: 0x%02x, TCM ver.: %d\n",
-		tcm_dev->id_info.mode, tcm_dev->id_info.version);
-
-	tcm_dev->dev_mode = tcm_dev->id_info.mode;
-
 exit:
 	return retval;
 }
 
-/*
- * syna_tcm_reset()
+/**
+ * @brief   Perform a soft reset.
+ *          At the end of a successful reset, an IDENTIFY report shall be received.
  *
- * Implement the standard command code, which is used to perform a sw reset
- * immediately. After a successful reset, an IDENTIFY report is received to
- * indicate that device is ready.
- *
- * Caller shall be aware that the firmware will be reloaded after reset.
- * Therefore, if expecting that a different firmware version is loaded, please
- * do app firmware setup after reset.
+ *          Caller shall be aware that the firmware will be reloaded after reset.
  *
  * @param
- *    [ in] tcm_dev: the device handle
- *
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_reset(struct tcm_dev *tcm_dev)
+int syna_tcm_reset(struct tcm_dev *tcm_dev, unsigned int resp_reading)
 {
 	int retval = 0;
-	unsigned char resp_code;
-	unsigned int board_setting;
-	unsigned int resp_handling;
 
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
 		return -ERR_INVAL;
 	}
 
-	resp_handling = tcm_dev->msg_data.default_resp_reading;
+	if (resp_reading == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			resp_reading = tcm_dev->reset_delay_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
 
-	/* gather the board settings of reset delay time */
-	board_setting = tcm_dev->hw_if->bdata_rst.reset_delay_ms;
-	if (board_setting == 0)
-		board_setting = RESET_DELAY_MS;
-
-	/* select the proper period to handle the resp of reset */
-	if (resp_handling != RESP_IN_ATTN) {
-		if (board_setting > resp_handling) {
-			resp_handling = board_setting;
-			LOGI("Use board settings %dms to poll resp of reset\n",
-				resp_handling);
+	/* select the proper period to handle the resp of reset, if in polling */
+	if (resp_reading != CMD_RESPONSE_IN_ATTN) {
+		if (tcm_dev->reset_delay_time > resp_reading) {
+			resp_reading = tcm_dev->reset_delay_time;
+			LOGD("Apply the default settings %dms in resp polling\n", resp_reading);
 		}
 	}
 
@@ -641,9 +739,8 @@ int syna_tcm_reset(struct tcm_dev *tcm_dev)
 			CMD_RESET,
 			NULL,
 			0,
-			0,
-			&resp_code,
-			resp_handling);
+			NULL,
+			resp_reading);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%02x\n", CMD_RESET);
 		goto exit;
@@ -663,28 +760,23 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_enable_report()
- *
- * Implement the application fw command code to enable or disable the
- * specific TouchComm report.
+/**
+ * @brief   Enable or disable the requested TouchComm report.
  *
  * @param
- *    [ in] tcm_dev:      the device handle
- *    [ in] report_code:  the requested report code being generated
- *    [ in] en:           '1' for enabling; '0' for disabling
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] report_code:   the requested report code being generated
+ *    [ in] en:            '1' for enabling; '0' for disabling
  *    [ in] resp_reading:  method to read in the response
- *                         a positive value presents the ms time delay for polling;
- *                         or, set '0' or 'RESP_IN_ATTN' for ATTN driven
- *
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 int syna_tcm_enable_report(struct tcm_dev *tcm_dev, unsigned char report_code,
 	bool en, unsigned int resp_reading)
 {
 	int retval = 0;
-	unsigned char resp_code;
 	unsigned char command;
 
 	if (!tcm_dev) {
@@ -698,14 +790,20 @@ int syna_tcm_enable_report(struct tcm_dev *tcm_dev, unsigned char report_code,
 		return -ERR_INVAL;
 	}
 
+	if (resp_reading == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			resp_reading = tcm_dev->msg_data.command_polling_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
+
 	command = (en) ? CMD_ENABLE_REPORT : CMD_DISABLE_REPORT;
 
 	retval = tcm_dev->write_message(tcm_dev,
 			command,
 			&report_code,
 			1,
-			1,
-			&resp_code,
+			NULL,
 			resp_reading);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%02x to %s 0x%02x report\n",
@@ -713,50 +811,110 @@ int syna_tcm_enable_report(struct tcm_dev *tcm_dev, unsigned char report_code,
 		goto exit;
 	}
 
-	if (resp_code != STATUS_OK) {
-		LOGE("Fail to %s 0x%02x report, resp_code:%x\n",
-			(en) ? "enable" : "disable", report_code, resp_code);
-	} else {
-		LOGD("Report 0x%x %s\n", report_code,
-			(en) ? "enabled" : "disabled");
-	}
+	LOGI("Report 0x%x %s\n", report_code, (en) ? "enabled" : "disabled");
 
 exit:
 	return retval;
 }
-
-/*
- * syna_tcm_run_display_rom_bootloader_fw()
- *
- * Requests to run the display rombootloader firmware.
- * Once the completion of switching display rombootloader firmware, an
- * IDENTIFY report will be received.
+/**
+ * @brief   Helper to acquire one report data in polling
  *
  * @param
- *    [ in] tcm_dev: the device handle
- *    [ in] fw_switch_delay: delay time for fw mode switching.
- *                           a positive value presents the time for polling;
- *                           or, set '0' or 'RESP_IN_ATTN' for ATTN driven
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] report_code:   the requested report code waiting for
+ *    [out] buffer:        buffer stored the report data
+ *    [ in] polling_ms:    the period to attempt acquiring the report data
+ *    [ in] timeout:       timeout time in ms to wait for a report data
+ *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-static int syna_tcm_run_display_rom_bootloader_fw(struct tcm_dev *tcm_dev,
-		unsigned int fw_switch_delay)
+int syna_tcm_wait_for_report(struct tcm_dev *tcm_dev, unsigned char report_code,
+	struct tcm_buffer *buffer, unsigned int polling_ms, unsigned int timeout_ms)
 {
 	int retval = 0;
-	unsigned char resp_code;
+	unsigned char code = 0;
+	unsigned int time = 0;
+	bool irq_disabled = false;
 
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
 		return -ERR_INVAL;
 	}
 
+	if (!buffer) {
+		LOGE("Invalid data buffer being used to store the report data\n");
+		return -ERR_INVAL;
+	}
+
+	if (IS_NOT_APP_FW_MODE(tcm_dev->dev_mode)) {
+		LOGE("Device is not in application fw mode, mode: %x\n",
+			tcm_dev->dev_mode);
+		return -ERR_INVAL;
+	}
+
+	/* indicate which mode is used */
+	irq_disabled = (syna_tcm_enable_irq(tcm_dev, false) > 0);
+
+	do {
+		time += polling_ms;
+		syna_pal_sleep_ms(polling_ms);
+
+		retval = syna_tcm_get_event_data(tcm_dev, &code, buffer);
+		if (retval < 0)
+			continue;
+
+		if ((report_code == code) && (buffer->data_length > 0))
+			break;
+
+	} while (time < timeout_ms);
+
+	/* recovery the irq only when running in polling mode
+	 * and irq has been disabled previously
+	 */
+	if (irq_disabled)
+		syna_tcm_enable_irq(tcm_dev, true);
+
+	if ((time >= timeout_ms) && ((report_code != code) || (buffer->data_length == 0)))
+		retval = -ERR_TIMEDOUT;
+
+	return retval;
+}
+
+/**
+ * @brief   Requests to run the display rombootloader firmware.
+ *          Once the completion of firmware switching, an IDENTIFY report shall be received.
+ *
+ * @param
+ *    [ in] tcm_dev:         the TouchComm device handle
+ *    [ in] fw_switch_delay: delay time for fw mode switching.
+ *                           a positive value presents the time for polling;
+ *                           or, set '0' or 'RESP_IN_ATTN' for ATTN driven
+ * @return
+ *    0 or positive value in case of success, a negative value otherwise.
+ */
+static int syna_tcm_run_display_rom_bootloader_fw(struct tcm_dev *tcm_dev,
+	unsigned int fw_switch_delay)
+{
+	int retval = 0;
+
+	if (!tcm_dev) {
+		LOGE("Invalid tcm device handle\n");
+		return -ERR_INVAL;
+	}
+
+	if (fw_switch_delay == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			fw_switch_delay = tcm_dev->fw_mode_switching_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
+
 	retval = tcm_dev->write_message(tcm_dev,
 			CMD_REBOOT_TO_DISPLAY_ROM_BOOTLOADER,
 			NULL,
 			0,
-			0,
-			&resp_code,
+			NULL,
 			fw_switch_delay);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%02x\n",
@@ -780,38 +938,40 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_run_rom_bootloader_fw()
- *
- * Requests to run the rombootloader firmware.
- * Once the completion of switching rombootloader firmware, an IDENTIFY report
- * will be received.
+/**
+ * @brief   Requests to run the rombootloader firmware.
+ *          Once the completion of firmware switching, an IDENTIFY report shall be received.
  *
  * @param
- *    [ in] tcm_dev: the device handle
+ *    [ in] tcm_dev:         the TouchComm device handle
  *    [ in] fw_switch_delay: delay time for fw mode switching.
  *                           a positive value presents the time for polling;
  *                           or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_tcm_run_rom_bootloader_fw(struct tcm_dev *tcm_dev,
-		unsigned int fw_switch_delay)
+	unsigned int fw_switch_delay)
 {
 	int retval = 0;
-	unsigned char resp_code;
 
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
 		return -ERR_INVAL;
 	}
 
+	if (fw_switch_delay == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			fw_switch_delay = tcm_dev->fw_mode_switching_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
+
 	retval = tcm_dev->write_message(tcm_dev,
 			CMD_REBOOT_TO_ROM_BOOTLOADER,
 			NULL,
 			0,
-			0,
-			&resp_code,
+			NULL,
 			fw_switch_delay);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%02x\n",
@@ -835,38 +995,40 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_run_bootloader_fw()
- *
- * Requests to run the bootloader firmware.
- * Once the completion of switching bootloader firmware, an IDENTIFY report
- * will be received.
+/**
+ * @brief   Requests to run the bootloader firmware.
+ *          Once the completion of firmware switching, an IDENTIFY report shall be received.
  *
  * @param
- *    [ in] tcm_dev: the device handle
+ *    [ in] tcm_dev:         the TouchComm device handle
  *    [ in] fw_switch_delay: delay time for fw mode switching.
  *                           a positive value presents the time for polling;
  *                           or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_tcm_run_bootloader_fw(struct tcm_dev *tcm_dev,
-		unsigned int fw_switch_delay)
+	unsigned int fw_switch_delay)
 {
 	int retval = 0;
-	unsigned char resp_code;
 
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
 		return -ERR_INVAL;
 	}
 
+	if (fw_switch_delay == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			fw_switch_delay = tcm_dev->fw_mode_switching_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
+
 	retval = tcm_dev->write_message(tcm_dev,
 			CMD_RUN_BOOTLOADER_FIRMWARE,
 			NULL,
 			0,
-			0,
-			&resp_code,
+			NULL,
 			fw_switch_delay);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%02x\n",
@@ -890,38 +1052,40 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_run_application_fw()
- *
- * Requests to run the application firmware.
- * Once the completion of switching application firmware, an IDENTIFY report
- * will be received.
+/**
+ * @brief   Requests to run the application firmware.
+ *          Once the completion of firmware switching, an IDENTIFY report shall be received.
  *
  * @param
- *    [ in] tcm_dev: the device handle
+ *    [ in] tcm_dev:         the TouchComm device handle
  *    [ in] fw_switch_delay: delay time for fw mode switching.
  *                           a positive value presents the time for polling;
  *                           or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_tcm_run_application_fw(struct tcm_dev *tcm_dev,
-		unsigned int fw_switch_delay)
+	unsigned int fw_switch_delay)
 {
 	int retval = 0;
-	unsigned char resp_code;
 
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
 		return -ERR_INVAL;
 	}
 
+	if (fw_switch_delay == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			fw_switch_delay = tcm_dev->fw_mode_switching_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
+
 	retval = tcm_dev->write_message(tcm_dev,
 			CMD_RUN_APPLICATION_FIRMWARE,
 			NULL,
 			0,
-			0,
-			&resp_code,
+			NULL,
 			fw_switch_delay);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%02x\n",
@@ -945,28 +1109,39 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_switch_fw_mode()
- *
- * Request to switch the firmware mode running on.
+/**
+ * @brief   Request to switch the firmware mode running on.
  *
  * @param
- *    [ in] tcm_dev: the device handle
- *    [ in] mode:    target firmware mode
+ *    [ in] tcm_dev:         the TouchComm device handle
+ *    [ in] mode:            target firmware mode
  *    [ in] fw_switch_delay: delay time for fw mode switching.
  *                           a positive value presents the time for polling;
  *                           or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_switch_fw_mode(struct tcm_dev *tcm_dev,
-		unsigned char mode, unsigned int fw_switch_delay)
+int syna_tcm_switch_fw_mode(struct tcm_dev *tcm_dev, unsigned char mode,
+	unsigned int fw_switch_delay)
 {
 	int retval = 0;
 
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
 		return -ERR_INVAL;
+	}
+
+	if (fw_switch_delay == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			fw_switch_delay = tcm_dev->fw_mode_switching_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
+
+	if (fw_switch_delay != CMD_RESPONSE_IN_ATTN) {
+		if (fw_switch_delay < tcm_dev->fw_mode_switching_time)
+			fw_switch_delay = tcm_dev->fw_mode_switching_time;
+			LOGD("Apply the default settings %dms in resp polling\n", fw_switch_delay);
 	}
 
 	switch (mode) {
@@ -1017,24 +1192,23 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_get_boot_info()
- *
- * Implement the bootloader command code to request the bootloader
- * information.
+/**
+ * @brief   Request the bootloader information.
  *
  * @param
- *    [ in] tcm_dev:   the device handle
- *    [out] boot_info: the boot info packet returned
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [out] boot_info:     the boot info packet returned
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 int syna_tcm_get_boot_info(struct tcm_dev *tcm_dev,
-		struct tcm_boot_info *boot_info)
+	struct tcm_boot_info *boot_info, unsigned int resp_reading)
 {
 	int retval = 0;
-	unsigned char resp_code;
 	unsigned int resp_data_len = 0;
 	unsigned int copy_size;
 
@@ -1043,13 +1217,25 @@ int syna_tcm_get_boot_info(struct tcm_dev *tcm_dev,
 		return -ERR_INVAL;
 	}
 
+	if (!IS_BOOTLOADER_MODE(tcm_dev->dev_mode)) {
+		LOGE("Device is not in bootloader mode, mode: %x\n",
+			tcm_dev->dev_mode);
+		return -ERR_INVAL;
+	}
+
+	if (resp_reading == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			resp_reading = tcm_dev->msg_data.command_polling_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
+
 	retval = tcm_dev->write_message(tcm_dev,
 			CMD_GET_BOOT_INFO,
 			NULL,
 			0,
-			0,
-			&resp_code,
-			tcm_dev->msg_data.default_resp_reading);
+			NULL,
+			resp_reading);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%02x\n",
 			CMD_GET_BOOT_INFO);
@@ -1088,24 +1274,23 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_get_app_info()
- *
- * Implement the application fw command code to request an application
- * information from device.
+/**
+ * @brief   Request the application information.
  *
  * @param
- *    [ in] tcm_dev:  the device handle
- *    [out] app_info: the application info packet returned
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [out] app_info:      the application info packet returned
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 int syna_tcm_get_app_info(struct tcm_dev *tcm_dev,
-		struct tcm_application_info *app_info)
+	struct tcm_application_info *app_info, unsigned int resp_reading)
 {
 	int retval = 0;
-	unsigned char resp_code;
 	unsigned int app_status;
 	unsigned int resp_data_len = 0;
 	unsigned int copy_size;
@@ -1122,13 +1307,19 @@ int syna_tcm_get_app_info(struct tcm_dev *tcm_dev,
 		return -ERR_INVAL;
 	}
 
+	if (resp_reading == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			resp_reading = tcm_dev->msg_data.command_polling_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
+
 	retval = tcm_dev->write_message(tcm_dev,
 			CMD_GET_APPLICATION_INFO,
 			NULL,
 			0,
-			0,
-			&resp_code,
-			tcm_dev->msg_data.default_resp_reading);
+			NULL,
+			resp_reading);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%02x\n",
 			CMD_GET_APPLICATION_INFO);
@@ -1151,21 +1342,19 @@ int syna_tcm_get_app_info(struct tcm_dev *tcm_dev,
 		goto exit;
 	}
 
-	if (app_info == NULL)
-		goto show_info;
-
 	/* copy app_info to caller */
-	retval = syna_pal_mem_cpy((unsigned char *)app_info,
-			sizeof(struct tcm_application_info),
-			tcm_dev->resp_buf.buf,
-			tcm_dev->resp_buf.buf_size,
-			copy_size);
-	if (retval < 0) {
-		LOGE("Fail to copy application info to caller\n");
-		goto exit;
+	if (app_info) {
+		retval = syna_pal_mem_cpy((unsigned char *)app_info,
+				sizeof(struct tcm_application_info),
+				tcm_dev->resp_buf.buf,
+				tcm_dev->resp_buf.buf_size,
+				copy_size);
+		if (retval < 0) {
+			LOGE("Fail to copy application info to caller\n");
+			goto exit;
+		}
 	}
 
-show_info:
 	app_status = syna_pal_le2_to_uint(tcm_dev->app_info.status);
 
 	if (app_status == APP_STATUS_BAD_APP_CONFIG) {
@@ -1190,6 +1379,11 @@ show_info:
 			MAX_SIZE_CONFIG_ID,
 			MAX_SIZE_CONFIG_ID);
 
+	if (tcm_dev->max_objects > MAX_NUM_OBJECTS) {
+		LOGE("Abnormal max_objects %d", tcm_dev->max_objects);
+		tcm_dev->max_objects = MAX_NUM_OBJECTS;
+	}
+
 	LOGD("App info version: %d, status: %d\n",
 		syna_pal_le2_to_uint(info->version), app_status);
 	LOGD("App info: max_objs: %d, max_x:%d, max_y: %d, trx: %dx%d\n",
@@ -1200,27 +1394,25 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_get_static_config()
- *
- * Implement the application fw command code to retrieve the contents of
- * the static configuration.
- *
- * The size of static configuration is available from the app info.
+/**
+ * @brief   Request the static configuration.
+ *          The size of static configuration is available from the app info.
  *
  * @param
- *    [ in] tcm_dev:   the device handle
- *    [out] buf:       buffer stored the static configuration
- *    [ in] buf_size:  the size of given buffer
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [out] buf:           buffer stored the static configuration
+ *    [ in] buf_size:      the size of given buffer
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_get_static_config(struct tcm_dev *tcm_dev,
-		unsigned char *buf, unsigned int buf_size)
+int syna_tcm_get_static_config(struct tcm_dev *tcm_dev, unsigned char *buf,
+	unsigned int buf_size, unsigned int resp_reading)
 {
 	int retval = 0;
-	unsigned char resp_code;
 	unsigned int size;
 	struct tcm_application_info *app_info;
 
@@ -1233,6 +1425,13 @@ int syna_tcm_get_static_config(struct tcm_dev *tcm_dev,
 		LOGE("Device is not in application fw mode, mode: %x\n",
 			tcm_dev->dev_mode);
 		return -ERR_INVAL;
+	}
+
+	if (resp_reading == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			resp_reading = tcm_dev->msg_data.command_polling_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
 	}
 
 	app_info = &tcm_dev->app_info;
@@ -1249,9 +1448,8 @@ int syna_tcm_get_static_config(struct tcm_dev *tcm_dev,
 			CMD_GET_STATIC_CONFIG,
 			NULL,
 			0,
-			0,
-			&resp_code,
-			tcm_dev->msg_data.default_resp_reading);
+			NULL,
+			resp_reading);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%02x\n",
 			CMD_GET_STATIC_CONFIG);
@@ -1276,28 +1474,25 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_set_static_config()
- *
- * Implement the application fw command code to set the contents of
- * the static configuration. When the write is completed, the device will
- * restart touch sensing with the new settings.
- *
- * The size of static configuration is available from the app info.
+/**
+ * @brief   Update the static configuration.
+ *          The size of static configuration is available from the app info.
  *
  * @param
- *    [ in] tcm_dev:          the device handle
+ *    [ in] tcm_dev:          the TouchComm device handle
  *    [ in] config_data:      the data of static configuration
  *    [ in] config_data_size: the size of given data
+ *    [ in] resp_reading:     method to read in the response
+ *                            a positive value presents the ms time delay for polling;
+ *                            or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_set_static_config(struct tcm_dev *tcm_dev,
-		unsigned char *config_data, unsigned int config_data_size)
+int syna_tcm_set_static_config(struct tcm_dev *tcm_dev, unsigned char *config_data,
+	unsigned int config_data_size, unsigned int resp_reading)
 {
 	int retval = 0;
-	unsigned char resp_code;
 	unsigned int size;
 	struct tcm_application_info *app_info;
 
@@ -1310,6 +1505,13 @@ int syna_tcm_set_static_config(struct tcm_dev *tcm_dev,
 		LOGE("Device is not in application fw mode, mode: %x\n",
 			tcm_dev->dev_mode);
 		return -ERR_INVAL;
+	}
+
+	if (resp_reading == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			resp_reading = tcm_dev->msg_data.command_polling_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
 	}
 
 	app_info = &tcm_dev->app_info;
@@ -1326,9 +1528,8 @@ int syna_tcm_set_static_config(struct tcm_dev *tcm_dev,
 			CMD_SET_STATIC_CONFIG,
 			config_data,
 			config_data_size,
-			config_data_size,
-			&resp_code,
-			tcm_dev->msg_data.default_resp_reading);
+			NULL,
+			resp_reading);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%02x\n",
 			CMD_SET_STATIC_CONFIG);
@@ -1340,30 +1541,24 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_get_dynamic_config()
- *
- * Implement the application fw command code to get the value from the a single
- * field of the dynamic configuration.
+/**
+ * @brief   Get the value from the a single field of the dynamic configuration.
  *
  * @param
- *    [ in] tcm_dev:  the device handle
- *    [ in] id:       target field id
- *    [out] value:    the value returned
- *    [ in] delay_ms_resp: delay time for response reading.
- *                         a positive value presents the time for polling;
- *                         or, set '0' or 'RESP_IN_ATTN' for ATTN driven
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] id:            target field id
+ *    [out] value:         the value returned
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_get_dynamic_config(struct tcm_dev *tcm_dev,
-		unsigned char id, unsigned short *value,
-		unsigned int delay_ms_resp)
+int syna_tcm_get_dynamic_config(struct tcm_dev *tcm_dev, unsigned char id,
+	unsigned short *value, unsigned int resp_reading)
 {
 	int retval = 0;
 	unsigned char out;
-	unsigned char resp_code;
-	unsigned int resp_handling;
 
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
@@ -1376,9 +1571,12 @@ int syna_tcm_get_dynamic_config(struct tcm_dev *tcm_dev,
 		return -ERR_INVAL;
 	}
 
-	resp_handling = tcm_dev->msg_data.default_resp_reading;
-	if (resp_handling != delay_ms_resp)
-		resp_handling = delay_ms_resp;
+	if (resp_reading == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			resp_reading = tcm_dev->msg_data.command_polling_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
 
 	out = (unsigned char)id;
 
@@ -1386,9 +1584,8 @@ int syna_tcm_get_dynamic_config(struct tcm_dev *tcm_dev,
 			CMD_GET_DYNAMIC_CONFIG,
 			&out,
 			sizeof(out),
-			sizeof(out),
-			&resp_code,
-			resp_handling);
+			NULL,
+			resp_reading);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%02x to get dynamic field 0x%x\n",
 			CMD_GET_DYNAMIC_CONFIG, (unsigned char)id);
@@ -1399,7 +1596,6 @@ int syna_tcm_get_dynamic_config(struct tcm_dev *tcm_dev,
 	if (tcm_dev->resp_buf.data_length < 2) {
 		LOGE("Invalid resp data size, %d\n",
 			tcm_dev->resp_buf.data_length);
-		retval = -ERR_INVAL;
 		goto exit;
 	}
 
@@ -1413,30 +1609,24 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_set_dynamic_config()
- *
- * Implement the application fw command code to set the specified value to
- * the selected field of the dynamic configuration.
+/**
+ * @brief   Update the value to the selected field of the dynamic configuration.
  *
  * @param
- *    [ in] tcm_dev:  the device handle
- *    [ in] id:       target field id
- *    [ in] value:    the value to the selected field
- *    [ in] delay_ms_resp: delay time for response reading.
- *                          a positive value presents the time for polling;
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] id:            target field id
+ *    [ in] value:         the value to the selected field
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
  *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_set_dynamic_config(struct tcm_dev *tcm_dev,
-		unsigned char id, unsigned short value,
-		unsigned int delay_ms_resp)
+int syna_tcm_set_dynamic_config(struct tcm_dev *tcm_dev, unsigned char id,
+	unsigned short value, unsigned int resp_reading)
 {
 	int retval = 0;
 	unsigned char out[3];
-	unsigned char resp_code;
-	unsigned int resp_handling;
 
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
@@ -1449,9 +1639,12 @@ int syna_tcm_set_dynamic_config(struct tcm_dev *tcm_dev,
 		return -ERR_INVAL;
 	}
 
-	resp_handling = tcm_dev->msg_data.default_resp_reading;
-	if (resp_handling != delay_ms_resp)
-		resp_handling = delay_ms_resp;
+	if (resp_reading == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			resp_reading = tcm_dev->msg_data.command_polling_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
 
 	LOGD("Set %d to dynamic field 0x%x\n", value, id);
 
@@ -1463,9 +1656,8 @@ int syna_tcm_set_dynamic_config(struct tcm_dev *tcm_dev,
 			CMD_SET_DYNAMIC_CONFIG,
 			out,
 			sizeof(out),
-			sizeof(out),
-			&resp_code,
-			resp_handling);
+			NULL,
+			resp_reading);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%02x to set %d to field 0x%x\n",
 			CMD_SET_DYNAMIC_CONFIG, value, (unsigned char)id);
@@ -1478,22 +1670,21 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_rezero()
- *
- * Implement the application fw command code to force the device to rezero its
- * baseline estimate.
+/**
+ * @brief   Request to rezero the baseline estimate.
  *
  * @param
- *    [ in] tcm_dev: the device handle
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_rezero(struct tcm_dev *tcm_dev)
+int syna_tcm_rezero(struct tcm_dev *tcm_dev, unsigned int resp_reading)
 {
 	int retval = 0;
-	unsigned char resp_code;
 
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
@@ -1506,13 +1697,19 @@ int syna_tcm_rezero(struct tcm_dev *tcm_dev)
 		return -ERR_INVAL;
 	}
 
+	if (resp_reading == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			resp_reading = tcm_dev->msg_data.command_polling_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
+
 	retval = tcm_dev->write_message(tcm_dev,
 			CMD_REZERO,
 			NULL,
 			0,
-			0,
-			&resp_code,
-			tcm_dev->msg_data.default_resp_reading);
+			NULL,
+			resp_reading);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%02x\n",
 			CMD_REZERO);
@@ -1524,86 +1721,33 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_set_config_id()
- *
- * Implement the application fw command code to set the 16-byte config id
- * defined in the app info.
+/**
+ * @brief   Config the device into low power sleep mode or the normal active mode.
  *
  * @param
- *    [ in] tcm_dev:   the device handle
- *    [ in] config_id: config id to be set
- *    [ in] size:      size of input data
- *
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] en:            '1' to low power deep sleep mode; '0' to active mode
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_set_config_id(struct tcm_dev *tcm_dev,
-		unsigned char *config_id, unsigned int size)
+int syna_tcm_sleep(struct tcm_dev *tcm_dev, bool en, unsigned int resp_reading)
 {
 	int retval = 0;
-	unsigned char resp_code;
-	unsigned int config_id_len = 0;
-
-	if (!tcm_dev) {
-		LOGE("Invalid tcm device handle\n");
-		return -ERR_INVAL;
-	}
-
-	if (IS_NOT_APP_FW_MODE(tcm_dev->dev_mode)) {
-		LOGE("Device is not in application fw mode, mode: %x\n",
-			tcm_dev->dev_mode);
-		return -ERR_INVAL;
-	}
-
-	config_id_len = sizeof(tcm_dev->app_info.customer_config_id);
-
-	if (size != config_id_len) {
-		LOGE("Invalid config id input, given size: %d (%d)\n",
-			size, config_id_len);
-		return -ERR_INVAL;
-	}
-
-	retval = tcm_dev->write_message(tcm_dev,
-			CMD_SET_CONFIG_ID,
-			config_id,
-			size,
-			size,
-			&resp_code,
-			tcm_dev->msg_data.default_resp_reading);
-	if (retval < 0) {
-		LOGE("Fail to send command 0x%02x\n",
-			CMD_SET_CONFIG_ID);
-		goto exit;
-	}
-
-	retval = 0;
-exit:
-	return retval;
-}
-
-/*
- * syna_tcm_sleep()
- *
- * Implement the application fw command code to put the device into low power
- * deep sleep mode or the normal active mode.
- *
- * @param
- *    [ in] tcm_dev: the device handle
- *    [ in] en:      '1' to low power deep sleep mode; '0' to active mode
- *
- * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
- */
-int syna_tcm_sleep(struct tcm_dev *tcm_dev, bool en)
-{
-	int retval = 0;
-	unsigned char resp_code;
 	unsigned char command;
 
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
 		return -ERR_INVAL;
+	}
+
+	if (resp_reading == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			resp_reading = tcm_dev->msg_data.command_polling_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
 	}
 
 	command = (en) ? CMD_ENTER_DEEP_SLEEP : CMD_EXIT_DEEP_SLEEP;
@@ -1612,9 +1756,8 @@ int syna_tcm_sleep(struct tcm_dev *tcm_dev, bool en)
 			command,
 			NULL,
 			0,
-			0,
-			&resp_code,
-			tcm_dev->msg_data.default_resp_reading);
+			NULL,
+			resp_reading);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%x\n", command);
 		goto exit;
@@ -1625,23 +1768,22 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_get_features()
- *
- * Implement the application fw command code to query the supported features.
+/**
+ * @brief   Query the supported features in firmware.
  *
  * @param
- *    [ in] tcm_dev: the device handle
- *    [out] info:    the features description packet returned
- *
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [out] info:          the features description packet returned
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_get_features(struct tcm_dev *tcm_dev,
-		struct tcm_features_info *info)
+int syna_tcm_get_features(struct tcm_dev *tcm_dev, struct tcm_features_info *info,
+	unsigned int resp_reading)
 {
 	int retval = 0;
-	unsigned char resp_code;
 
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
@@ -1654,13 +1796,19 @@ int syna_tcm_get_features(struct tcm_dev *tcm_dev,
 		return -ERR_INVAL;
 	}
 
+	if (resp_reading == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			resp_reading = tcm_dev->msg_data.command_polling_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
+
 	retval = tcm_dev->write_message(tcm_dev,
 			CMD_GET_FEATURES,
 			NULL,
 			0,
-			0,
-			&resp_code,
-			tcm_dev->msg_data.default_resp_reading);
+			NULL,
+			resp_reading);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%02x\n",
 			CMD_GET_FEATURES);
@@ -1685,27 +1833,24 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_run_production_test()
- *
- * Implement the application fw command code to request the device to run
- * the production test.
- *
- * Production tests are listed at enum test_code (PID$).
+/**
+ * @brief   Request to run a specified production test.
+ *          Items are listed at enum test_code (PID$).
  *
  * @param
- *    [ in] tcm_dev:    the device handle
- *    [ in] test_item:  the requested testing item
- *    [out] tdata:      testing data returned
- *
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] test_item:     the requested testing item
+ *    [out] tdata:         testing data returned
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_run_production_test(struct tcm_dev *tcm_dev,
-		unsigned char test_item, struct tcm_buffer *tdata)
+int syna_tcm_run_production_test(struct tcm_dev *tcm_dev, unsigned char test_item,
+	struct tcm_buffer *tdata, unsigned int resp_reading)
 {
 	int retval = 0;
-	unsigned char resp_code;
 	unsigned char test_code;
 
 	if (!tcm_dev) {
@@ -1719,15 +1864,21 @@ int syna_tcm_run_production_test(struct tcm_dev *tcm_dev,
 		return -ERR_INVAL;
 	}
 
+	if (resp_reading == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			resp_reading = tcm_dev->msg_data.command_polling_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
+
 	test_code = (unsigned char)test_item;
 
 	retval = tcm_dev->write_message(tcm_dev,
 			CMD_PRODUCTION_TEST,
 			&test_code,
 			1,
-			1,
-			&resp_code,
-			tcm_dev->msg_data.default_resp_reading);
+			NULL,
+			resp_reading);
 	if (retval < 0) {
 		LOGE("Fail to send command 0x%02x\n",
 			CMD_PRODUCTION_TEST);
@@ -1746,29 +1897,74 @@ int syna_tcm_run_production_test(struct tcm_dev *tcm_dev,
 exit:
 	return retval;
 }
-/*
- * syna_tcm_send_command()
- *
- * Helper to execute the custom command.
+/**
+ * @brief   Request to reset the smart bridge product.
  *
  * @param
- *    [ in] tcm_dev:        the device handle
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
+ * @return
+ *    0 or positive value in case of success, a negative value otherwise.
+ */
+int syna_tcm_reset_smart_bridge(struct tcm_dev *tcm_dev, unsigned int resp_reading)
+{
+	int retval = 0;
+
+	if (!tcm_dev) {
+		LOGE("Invalid tcm device handle\n");
+		return -ERR_INVAL;
+	}
+
+	if (resp_reading == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			resp_reading = tcm_dev->reset_delay_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
+
+	/* select the proper period to handle the resp of reset, if in polling */
+	if (resp_reading != CMD_RESPONSE_IN_ATTN) {
+		if (tcm_dev->reset_delay_time > resp_reading) {
+			resp_reading = tcm_dev->reset_delay_time;
+			LOGD("Apply the board settings %dms in resp polling\n", resp_reading);
+		}
+	}
+
+	retval = tcm_dev->write_message(tcm_dev,
+			CMD_SMART_BRIDGE_RESET,
+			NULL,
+			0,
+			NULL,
+			resp_reading);
+	if (retval < 0) {
+		LOGE("Fail to send command 0x%02x\n", CMD_RESET);
+		goto exit;
+	}
+
+exit:
+	return retval;
+}
+/**
+ * @brief   Helper to process the custom command.
+ *
+ * @param
+ *    [ in] tcm_dev:        the TouchComm device handle
  *    [ in] command:        TouchComm command
  *    [ in] payload:        data payload, if any
  *    [ in] payload_length: length of data payload, if any
- *    [ in] total_length:   length of total payload
  *    [out] resp_code:      response code returned
  *    [out] resp:           buffer to store the response data
- *    [ in] delay_ms_resp: delay time for response reading.
- *                          a positive value presents the time for polling;
- *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
+ *    [ in] resp_reading:   method to read in the response
+ *                           a positive value presents the ms time delay for polling;
+ *                           or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 int syna_tcm_send_command(struct tcm_dev *tcm_dev, unsigned char command,
-		unsigned char *payload, unsigned int payload_length,
-		unsigned int total_length, unsigned char *code,
-		struct tcm_buffer *resp, unsigned int delay_ms_resp)
+	unsigned char *payload, unsigned int payload_length, unsigned char *code,
+	struct tcm_buffer *resp, unsigned int resp_reading)
 {
 	int retval = 0;
 
@@ -1782,17 +1978,21 @@ int syna_tcm_send_command(struct tcm_dev *tcm_dev, unsigned char command,
 		return -ERR_INVAL;
 	}
 
+	if (resp_reading == CMD_RESPONSE_IN_ATTN) {
+		if (!tcm_dev->hw->support_attn) {
+			resp_reading = tcm_dev->msg_data.command_polling_time;
+			LOGN("No support of IRQ control, use polling mode instead\n");
+		}
+	}
+
 	retval = tcm_dev->write_message(tcm_dev,
 			command,
 			payload,
-			total_length,
 			payload_length,
 			code,
-			delay_ms_resp);
+			resp_reading);
 	if (retval < 0)
 		LOGE("Fail to run command 0x%02x\n", command);
-
-	LOGD("Status code returned: 0x%02x\n", *code);
 
 	/* exit if no buffer provided */
 	if (!resp)
@@ -1838,21 +2038,19 @@ exit:
 	return retval;
 }
 
-/*
- * syna_tcm_enable_predict_reading()
+/**
+ * @brief   Enable the feature of predict reading.
  *
- * Helper to enable the feature of predict reading.
- *
- * This feature aims to read in all data at one bus transferring.
- * In contrast to the predict reading, standard reads require two transfers
- * to separately read the header and the payload data.
+ *          This feature aims to read in all data in one transaction.
+ *          In contrast to the predict reading, standard reads typically require two
+ *          transfers for the header and the payload data.
  *
  * @param
- *    [ in] tcm_dev: the device handle
+ *    [ in] tcm_dev: the TouchComm device handle
  *    [ in] en:      '1' to low power deep sleep mode; '0' to active mode
  *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 int syna_tcm_enable_predict_reading(struct tcm_dev *tcm_dev, bool en)
 {
@@ -1864,101 +2062,108 @@ int syna_tcm_enable_predict_reading(struct tcm_dev *tcm_dev, bool en)
 	tcm_dev->msg_data.predict_reads = en;
 	tcm_dev->msg_data.predict_length = 0;
 
-	LOGI("Predicted reading is %s\n",
-		(en) ? "enabled":"disabled");
+	LOGI("Predicted reading is %s\n", (en) ? "enabled":"disabled");
 
 	return 0;
 }
 
-/*
- * syna_tcm_set_reset_occurrence_callback()
- *
- * Set up callback function once an unexpected identify report is received.
- *
- * This callback can help the shell implementations to handle unexpected event.
+/**
+ * @brief   Register callback function to handle the particular report.
  *
  * @param
- *    [ in] tcm_dev:  the device handle
- *    [ in] p_cb:     the pointer of callback function
- *    [ in] p_cbdata: pointer to caller data
+ *    [ in] tcm_dev:  the TouchComm device handle
+ *    [ in] code:     the target report code to register
+ *    [ in] p_cb:     the function pointer to the callback
+ *    [ in] data:     private data to pass to the callback
  *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_set_reset_occurrence_callback(struct tcm_dev *tcm_dev,
-		tcm_reset_occurrence_callback_t p_cb, void *p_cbdata)
+int syna_tcm_set_report_dispatcher(struct tcm_dev *tcm_dev,
+		unsigned char code, tcm_message_callback_t p_cb, void *private_data)
 {
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
 		return -ERR_INVAL;
 	}
 
-	tcm_dev->cb_reset_occurrence = p_cb;
-	tcm_dev->cbdata_reset = p_cbdata;
+	if (code < 0x10)
+		LOGW("The given code 0x%X may not belongs to report\n", code);
 
-	LOGI("reset callback enabled\n");
+	tcm_dev->cb_report_dispatcher[code].cb = p_cb;
+	tcm_dev->cb_report_dispatcher[code].private_data = private_data;
+
+	LOGI("Dispatcher for report 0x%02X is registered\n", code);
 
 	return 0;
 }
 
-/*
- * syna_tcm_smart_bridge_reset()
- *
- * Implement the specific command code to reset the smart bride entirely.
- * After a successful reset, wait at least 200 ms before reading the IDENTIFY
- * report.
+/**
+ * @brief   Register callback function to duplicate the data.
  *
  * @param
- *    [ in] tcm_dev: the device handle
- *    [ in] delay:   specific delay time to read in the response
- *                   set '0' to apply the default delay time which is 200 ms
+ *    [ in] tcm_dev:  the TouchComm device handle
+ *    [ in] code:     the target report to handle
+ *    [ in] p_cb:     the function pointer to callback
+ *    [ in] data:     private data to pass to the callback
  *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_smart_bridge_reset(struct tcm_dev *tcm_dev, int delay)
+int syna_tcm_set_data_duplicator(struct tcm_dev *tcm_dev,
+		unsigned char code, tcm_message_callback_t p_cb, void *private_data)
 {
-	int retval = 0;
-	unsigned char resp_code;
-	unsigned int resp_handling;
+	if (!tcm_dev) {
+		LOGE("Invalid tcm device handle\n");
+		return -ERR_INVAL;
+	}
+
+	tcm_dev->cb_data_duplicator[code].cb = p_cb;
+	tcm_dev->cb_data_duplicator[code].private_data = private_data;
+
+	return 0;
+}
+
+/**
+ * @brief   Clear the callback of data duplicator registered previously.
+ *
+ * @param
+ *    [ in] tcm_dev:  the TouchComm device handle
+ *
+ * @return
+ *    0 or positive value in case of success, a negative value otherwise.
+ */
+int syna_tcm_clear_data_duplicator(struct tcm_dev *tcm_dev)
+{
+	int idx;
 
 	if (!tcm_dev) {
 		LOGE("Invalid tcm device handle\n");
 		return -ERR_INVAL;
 	}
 
-	resp_handling = tcm_dev->msg_data.default_resp_reading;
-
-	/* select the proper period to handle the resp of reset */
-	if ((resp_handling != RESP_IN_ATTN) && (delay != RESP_IN_ATTN)) {
-		resp_handling = delay;
-		if (resp_handling < 200)
-			resp_handling = 200;
+	for (idx = 0; idx < MAX_REPORT_TYPES; idx++) {
+		tcm_dev->cb_data_duplicator[idx].cb = NULL;
+		tcm_dev->cb_data_duplicator[idx].private_data = NULL;
 	}
 
-	retval = tcm_dev->write_message(tcm_dev,
-			CMD_SMART_BRIDGE_RESET,
-			NULL,
-			0,
-			0,
-			&resp_code,
-			resp_handling);
-	if (retval < 0) {
-		LOGE("Fail to send command 0x%02x\n", CMD_SMART_BRIDGE_RESET);
-		goto exit;
-	}
+	return 0;
+}
 
-	/* current device mode is expected to be updated
-	 * because identification report will be received after reset
-	 */
-	tcm_dev->dev_mode = tcm_dev->id_info.mode;
-	if (IS_NOT_APP_FW_MODE(tcm_dev->dev_mode)) {
-		LOGI("Device mode 0x%02X running after reset\n",
-			tcm_dev->dev_mode);
-	}
+/**
+ * @brief   Terminate the command processing.
+ *
+ * @param
+ *    [ in] tcm_dev: the TouchComm device handle
+ *
+ * @return
+ *    none
+ */
+void syna_tcm_clear_command_processing(struct tcm_dev *tcm_dev)
+{
+	if ((!tcm_dev) || (!tcm_dev->terminate))
+		return;
 
-	retval = 0;
-exit:
-	return retval;
+	tcm_dev->terminate(tcm_dev);
 }
 

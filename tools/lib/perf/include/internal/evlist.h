@@ -17,7 +17,6 @@ struct perf_mmap_param;
 struct perf_evlist {
 	struct list_head	 entries;
 	int			 nr_entries;
-	int			 nr_groups;
 	bool			 has_user_cpus;
 	bool			 needs_map_propagation;
 	/**
@@ -136,4 +135,6 @@ int perf_evlist__id_add_fd(struct perf_evlist *evlist,
 void perf_evlist__reset_id_hash(struct perf_evlist *evlist);
 
 void __perf_evlist__set_leader(struct list_head *list, struct perf_evsel *leader);
+
+void perf_evlist__go_system_wide(struct perf_evlist *evlist, struct perf_evsel *evsel);
 #endif /* __LIBPERF_INTERNAL_EVLIST_H */

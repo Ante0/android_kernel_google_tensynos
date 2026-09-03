@@ -921,7 +921,7 @@ static ssize_t fts_driver_test_write(struct file *file, const char __user *buf,
 
 		/* FW/LIMITS path */
 		if (path_token && strlen(path_token)) {
-			strlcpy(path, path_token, sizeof(path));
+			strscpy(path, path_token, sizeof(path));
 			numberParam++;
 		}
 

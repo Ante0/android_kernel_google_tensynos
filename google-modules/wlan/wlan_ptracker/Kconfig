@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# WiFi Performance Tracker Driver
+#
+
+config WLAN_PTRACKER
+	tristate "WiFi performance tracker driver"
+	help
+		Module for wlan performance tracker.
+
+config DYNAMIC_TWT_SETUP
+	bool "dynamic twt setup"
+	depends on WLAN_PTRACKER
+	help
+		dynamic twt setup

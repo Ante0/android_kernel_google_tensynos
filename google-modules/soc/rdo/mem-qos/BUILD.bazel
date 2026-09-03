@@ -1,0 +1,106 @@
+# SPDX-License-Identifier: GPL-2.0-only
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "google-mem-qos.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules/soc/rdo:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "google-mem-qos_api",
+    hdrs = [
+        "include/mem-qos/google_mem_qos_scenario.h",
+        "include/mem-qos/google_qos_box_reg_api.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:private"],
+)
+
+# The stub module when the device does not need this module.
+ddk_headers(
+    name = "google-mem-qos_stub",
+    # Export the API
+    hdrs = [":google-mem-qos_api"],
+    visibility = ["//visibility:private"],
+)
+
+ddk_module(
+    name = "google-mem-qos_real",
+    out = "google-mem-qos.ko",
+    hdrs = [
+        ":google-mem-qos_api",
+    ],
+    conditional_srcs = {
+        "CONFIG_GOOGLE_MEM_QOS": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "google_mem_qos.c",
+                "google_mem_qos_debugfs.c",
+                "google_qos_box.c",
+                "google_qos_box_debugfs.c",
+                "google_qos_box_of.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+bool_flag(
+    name = "enable_google-mem-qos",
+    build_setting_default = True,
+    visibility = ["//visibility:private"],
+)
+
+# Helper target to `select()` based on the flag.
+config_setting(
+    name = "google-mem-qos_enabled",
+    flag_values = {":enable_google-mem-qos": "1"},
+    visibility = ["//visibility:private"],
+)
+
+# The exposed target that switches between the real and stub implementation based on the flag.
+alias(
+    name = "google-mem-qos",
+    actual = select({
+        ":google-mem-qos_enabled": ":google-mem-qos_real",
+        "//conditions:default": ":google-mem-qos_stub",
+    }),
+)
+
+ddk_module(
+    name = "google-mem-qos-mock-client",
+    out = "google-mem-qos-mock-client.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_MEM_QOS_MOCK_CLIENT": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "google_mem_qos_mock_client.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":google-mem-qos",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)

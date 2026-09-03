@@ -968,7 +968,7 @@ struct acpi_device *acpi_add_power_resource(acpi_handle handle)
 	if (acpi_power_get_state(resource, &state_dummy))
 		__acpi_power_on(resource);
 
-	pr_info("%s [%s]\n", acpi_device_name(device), acpi_device_bid(device));
+	acpi_handle_info(handle, "New power resource\n");
 
 	result = acpi_tie_acpi_dev(device);
 	if (result)
@@ -986,7 +986,7 @@ struct acpi_device *acpi_add_power_resource(acpi_handle handle)
 	return device;
 
  err:
-	acpi_release_power_resource(&device->dev);
+	acpi_dev_put(device);
 	return NULL;
 }
 
@@ -1034,6 +1034,19 @@ static const struct dmi_system_id dmi_leave_unused_power_resources_on[] = {
 			DMI_MATCH(DMI_SYS_VENDOR, "TOSHIBA"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "SATELLITE Click Mini L9W-B"),
 		},
+	},
+	{
+		/*
+		 * THUNDEROBOT ZERO laptop: Due to its SSDT table bug, power
+		 * resource 'PXP' will be shut down on initialization, making
+		 * the NVMe #2 and the NVIDIA dGPU both unavailable (they're
+		 * both controlled by 'PXP').
+		 */
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "THUNDEROBOT"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "ZERO"),
+		}
+
 	},
 	{}
 };

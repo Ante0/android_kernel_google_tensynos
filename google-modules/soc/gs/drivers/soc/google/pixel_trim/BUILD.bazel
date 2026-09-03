@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: MIT
+load(
+    "@kleaf//build/kernel/kleaf:kernel.bzl",
+    "ddk_headers",
+    "ddk_module",
+)
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "pixel_trim_local_headers",
+    hdrs = glob([
+        "*.h",
+    ]),
+)
+
+ddk_headers(
+    name = "pixel_trim_headers",
+    hdrs = glob([
+        "include/*.h",
+    ]),
+    includes = [
+        "include",
+    ],
+    visibility = [
+        "//private/google-modules:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "pixel_trim",
+    srcs = [
+        "pixel_trim_core.c",
+        "pixel_trim_sysfs.c",
+    ],
+    out = "pixel_trim.ko",
+    defconfig = "defconfig",
+    includes = ["include"],
+    kconfig = "Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":pixel_trim_headers",
+        ":pixel_trim_local_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/mm:vh_mm",
+    ],
+)

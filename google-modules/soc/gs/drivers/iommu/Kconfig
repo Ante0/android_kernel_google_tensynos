@@ -46,6 +46,13 @@ config PCIE_IOMMU_HISTORY_LOG
 
 	  Say Y to enable this feature.
 
+config PIXEL_IOMMU_MAP_BENCHMARK
+	tristate "Enable benchmarking of Setting up/Removing IOMMU mappings"
+	depends on DEBUG_FS
+	help
+	  Provides /sys/kernel/debug/iommu_map_benchmark that helps with testing
+	  performance of iommu_(un)map.
+
 config IOVAD_VENDOR_HOOKS
 	tristate "Enable Pixel IOVA allocator optimizations"
 	help

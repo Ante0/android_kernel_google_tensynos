@@ -4,15 +4,19 @@
 #ifndef __MLX5E_KTLS_H__
 #define __MLX5E_KTLS_H__
 
+#include <linux/debugfs.h>
 #include <linux/tls.h>
 #include <net/tls.h>
 #include "en.h"
 
 #ifdef CONFIG_MLX5_EN_TLS
-int mlx5_ktls_create_key(struct mlx5_core_dev *mdev,
-			 struct tls_crypto_info *crypto_info,
-			 u32 *p_key_id);
-void mlx5_ktls_destroy_key(struct mlx5_core_dev *mdev, u32 key_id);
+#include "lib/crypto.h"
+#include "lib/mlx5.h"
+
+struct mlx5_crypto_dek *mlx5_ktls_create_key(struct mlx5_crypto_dek_pool *dek_pool,
+					     struct tls_crypto_info *crypto_info);
+void mlx5_ktls_destroy_key(struct mlx5_crypto_dek_pool *dek_pool,
+			   struct mlx5_crypto_dek *dek);
 
 static inline bool mlx5e_is_ktls_device(struct mlx5_core_dev *mdev)
 {
@@ -58,7 +62,8 @@ void mlx5e_ktls_rx_resync_destroy_resp_list(struct mlx5e_ktls_resync_resp *resp_
 
 static inline bool mlx5e_is_ktls_tx(struct mlx5_core_dev *mdev)
 {
-	return !is_kdump_kernel() && MLX5_CAP_GEN(mdev, tls_tx);
+	return !is_kdump_kernel() && MLX5_CAP_GEN(mdev, tls_tx) &&
+		!mlx5_get_sd(mdev);
 }
 
 bool mlx5e_is_ktls_rx(struct mlx5_core_dev *mdev);
@@ -72,18 +77,26 @@ struct mlx5e_tls_sw_stats {
 	atomic64_t rx_tls_del;
 };
 
+struct mlx5e_tls_debugfs {
+	struct dentry *dfs;
+	struct dentry *dfs_tx;
+};
+
 struct mlx5e_tls {
+	struct mlx5_core_dev *mdev;
 	struct mlx5e_tls_sw_stats sw_stats;
 	struct workqueue_struct *rx_wq;
 	struct mlx5e_tls_tx_pool *tx_pool;
+	struct mlx5_crypto_dek_pool *dek_pool;
+	struct mlx5e_tls_debugfs debugfs;
 };
 
 int mlx5e_ktls_init(struct mlx5e_priv *priv);
 void mlx5e_ktls_cleanup(struct mlx5e_priv *priv);
 
 int mlx5e_ktls_get_count(struct mlx5e_priv *priv);
-int mlx5e_ktls_get_strings(struct mlx5e_priv *priv, uint8_t *data);
-int mlx5e_ktls_get_stats(struct mlx5e_priv *priv, u64 *data);
+void mlx5e_ktls_get_strings(struct mlx5e_priv *priv, u8 **data);
+void mlx5e_ktls_get_stats(struct mlx5e_priv *priv, u64 **data);
 
 #else
 static inline void mlx5e_ktls_build_netdev(struct mlx5e_priv *priv)
@@ -131,15 +144,9 @@ static inline bool mlx5e_is_ktls_rx(struct mlx5_core_dev *mdev)
 static inline int mlx5e_ktls_init(struct mlx5e_priv *priv) { return 0; }
 static inline void mlx5e_ktls_cleanup(struct mlx5e_priv *priv) { }
 static inline int mlx5e_ktls_get_count(struct mlx5e_priv *priv) { return 0; }
-static inline int mlx5e_ktls_get_strings(struct mlx5e_priv *priv, uint8_t *data)
-{
-	return 0;
-}
+static inline void mlx5e_ktls_get_strings(struct mlx5e_priv *priv, u8 **data) { }
 
-static inline int mlx5e_ktls_get_stats(struct mlx5e_priv *priv, u64 *data)
-{
-	return 0;
-}
+static inline void mlx5e_ktls_get_stats(struct mlx5e_priv *priv, u64 **data) { }
 #endif
 
 #endif /* __MLX5E_TLS_H__ */

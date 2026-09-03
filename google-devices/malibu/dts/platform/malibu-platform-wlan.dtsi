@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+&pcie1_port0 {
+	#address-cells = <3>;
+	#size-cells = <2>;
+	wifi: wifi@0 {
+		compatible = "pciclass,0280";
+		reg = <0x0000 0x0 0x0 0x0 0x0>;
+	};
+};

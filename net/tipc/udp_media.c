@@ -177,7 +177,7 @@ static int tipc_udp_xmit(struct net *net, struct sk_buff *skb,
 	local_bh_disable();
 	ndst = dst_cache_get(cache);
 	if (dst->proto == htons(ETH_P_IP)) {
-		struct rtable *rt = (struct rtable *)ndst;
+		struct rtable *rt = dst_rtable(ndst);
 
 		if (!rt) {
 			struct flowi4 fl = {
@@ -468,7 +468,7 @@ int tipc_udp_nl_dump_remoteip(struct sk_buff *skb, struct netlink_callback *cb)
 	int i;
 
 	if (!bid && !skip_cnt) {
-		struct nlattr **attrs = genl_dumpit_info(cb)->attrs;
+		struct nlattr **attrs = genl_dumpit_info(cb)->info.attrs;
 		struct net *net = sock_net(skb->sk);
 		struct nlattr *battrs[TIPC_NLA_BEARER_MAX + 1];
 		char *bname;
@@ -742,10 +742,6 @@ static int tipc_udp_enable(struct net *net, struct tipc_bearer *b,
 		udp_conf.use_udp_checksums = false;
 		ub->ifindex = dev->ifindex;
 		b->encap_hlen = sizeof(struct iphdr) + sizeof(struct udphdr);
-		if (tipc_mtu_bad(dev, b->encap_hlen)) {
-			err = -EINVAL;
-			goto err;
-		}
 		b->mtu = b->media->mtu;
 #if IS_ENABLED(CONFIG_IPV6)
 	} else if (local.proto == htons(ETH_P_IPV6)) {

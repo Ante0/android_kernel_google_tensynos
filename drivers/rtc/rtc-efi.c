@@ -164,7 +164,7 @@ static int efi_read_time(struct device *dev, struct rtc_time *tm)
 
 	if (status != EFI_SUCCESS) {
 		/* should never happen */
-		dev_err(dev, "can't read time\n");
+		dev_err_once(dev, "can't read time\n");
 		return -EINVAL;
 	}
 
@@ -227,7 +227,7 @@ static int efi_procfs(struct device *dev, struct seq_file *seq)
 			   enabled == 1 ? "yes" : "no",
 			   pending == 1 ? "yes" : "no");
 
-		if (eft.timezone == EFI_UNSPECIFIED_TIMEZONE)
+		if (alm.timezone == EFI_UNSPECIFIED_TIMEZONE)
 			seq_puts(seq, "Timezone\t: unspecified\n");
 		else
 			/* XXX fixme: convert to string? */
@@ -276,6 +276,8 @@ static int __init efi_rtc_probe(struct platform_device *dev)
 		set_bit(RTC_FEATURE_ALARM_WAKEUP_ONLY, rtc->features);
 	else
 		clear_bit(RTC_FEATURE_ALARM, rtc->features);
+
+	device_init_wakeup(&dev->dev, true);
 
 	return devm_rtc_register_device(rtc);
 }

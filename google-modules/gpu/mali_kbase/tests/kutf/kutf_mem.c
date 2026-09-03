@@ -34,7 +34,7 @@
  */
 struct kutf_alloc_entry {
 	struct list_head node;
-	u8 data[0];
+	u8 data[];
 };
 
 int kutf_mempool_init(struct kutf_mempool *pool)

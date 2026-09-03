@@ -45,7 +45,7 @@ void exynos_drm_gem_free_object(struct drm_gem_object *obj)
 		dma_buf = obj->import_attach->dmabuf;
 		if (dma_buf && exynos_gem_obj->vaddr) {
 			struct iosys_map map = IOSYS_MAP_INIT_VADDR(exynos_gem_obj->vaddr);
-			dma_buf_vunmap(dma_buf, &map);
+			dma_buf_vunmap_unlocked(dma_buf, &map);
 		}
 
 		drm_prime_gem_destroy(obj, exynos_gem_obj->sgt);
@@ -65,7 +65,7 @@ void *exynos_drm_gem_get_vaddr(struct exynos_drm_gem *exynos_gem_obj)
 		return NULL;
 
 	if (!exynos_gem_obj->vaddr) {
-		ret = dma_buf_vmap(attach->dmabuf, &map);
+		ret = dma_buf_vmap_unlocked(attach->dmabuf, &map);
 		if (ret) {
 			pr_err("Failed to map virtual address\n");
 			return NULL;

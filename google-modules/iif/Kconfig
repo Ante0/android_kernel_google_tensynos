@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config IIF
+	tristate "IIF framework"
+	help
+		This driver supports the Inter-IP fence framework. Say Y if you want to include this
+		driver in the kernel.

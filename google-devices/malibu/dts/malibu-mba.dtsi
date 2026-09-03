@@ -1,0 +1,401 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+
+/*
+ * Malibu mailbox controller/channel device tree source
+ *
+ * Copyright 2024 Google LLC.
+ */
+/ {
+	cpm_mba_syscon: cpm_mba_syscon@ea50000{
+		compatible = "google,cpm-mba-global", "syscon";
+		reg = <0x0 0x0ea50000 0x0 0x50>;
+	};
+
+	mba_aonss_sc_syscon: mba_aonss_sc_syscon@b9d0000 {
+		compatible = "google,mba-aonss-sc-global", "syscon";
+		reg = <0x0 0xb9d0000 0x0 0x1000>;
+	};
+
+	gdmc_mba_syscon: mba_cep_syscon@6250000 {
+		compatible = "google,gdmc-mba-global", "syscon";
+		reg = <0x0 0x6250000 0x0 0x1000>;
+	};
+
+	mba_aonss_sc_mba_client_0: mba_aonss_sc_mba_client_0@b9e0000 {
+		compatible = "google,mba-ctrl";
+		doorbell-mode;
+		reg = <0x0 0xb9e0000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOSS_AOSS_AP_INTR_MBOX_0 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&mba_aonss_sc_syscon 0>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	mba_aonss_sc_mba_client_1: mba_aonss_sc_mba_client_1@b9e1000 {
+		compatible = "google,mba-ctrl";
+		doorbell-mode;
+		reg = <0x0 0xb9e1000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOSS_AOSS_AP_INTR_MBOX_1 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&mba_aonss_sc_syscon 1>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	mba_aonss_sc_mba_client_2: mba_aonss_sc_mba_client_2@b9e2000 {
+		compatible = "google,mba-ctrl";
+		doorbell-mode;
+		reg = <0x0 0xb9e2000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOSS_AOSS_AP_INTR_MBOX_2 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&mba_aonss_sc_syscon 2>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	mba_aonss_sc_mba_client_3: mba_aonss_sc_mba_client_3@b9e3000 {
+		compatible = "google,mba-ctrl";
+		doorbell-mode;
+		reg = <0x0 0xb9e3000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOSS_AOSS_AP_INTR_MBOX_3 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		#non-waking-cells = <2>;
+		google,syscon-phandle = <&mba_aonss_sc_syscon 3>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	mba_aonss_adsp_syscon: mba_aonss_adsp_syscon@ba10000 {
+		compatible = "google,mba-aonss-adsp-global", "syscon";
+		reg = <0x0 0xba10000 0x0 0x1000>;
+	};
+
+	mba_aonss_adsp_mba_client_0: mba_aonss_adsp_mba_client_0@ba20000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xba20000 0x0 0x1000>;
+		doorbell-mode;
+		interrupts = <GIC_SPI SSWRP_AOSS_AOSS_AP_INTR_MBOX_4 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&mba_aonss_adsp_syscon 0>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	mba_aonss_adsp_mba_client_1: mba_aonss_adsp_mba_client_1@ba21000 {
+		compatible = "google,mba-ctrl";
+		doorbell-mode;
+		reg = <0x0 0xba21000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOSS_AOSS_AP_INTR_MBOX_5 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&mba_aonss_adsp_syscon 1>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	mba_aonss_adsp_mba_client_2: mba_aonss_adsp_mba_client_2@ba22000 {
+		compatible = "google,mba-ctrl";
+		doorbell-mode;
+		reg = <0x0 0xba22000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOSS_AOSS_AP_INTR_MBOX_6 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&mba_aonss_adsp_syscon 2>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	mba_aonss_adsp_mba_client_3: mba_aonss_adsp_mba_client_3@ba23000 {
+		compatible = "google,mba-ctrl";
+		doorbell-mode;
+		reg = <0x0 0xba23000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOSS_AOSS_AP_INTR_MBOX_7 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		#non-waking-cells = <2>;
+		google,syscon-phandle = <&mba_aonss_adsp_syscon 3>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	mba_ambss_cpu_syscon: mba_ambss_cpu_syscon@d010000 {
+		compatible = "google,mba-ambss-cpu-global", "syscon";
+		reg = <0x0 0xd010000 0x0 0x1000>;
+	};
+
+	mba_ambss_cpu_mba_client_2: mba_ambss_cpu_mba_client_2@d022000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xd022000 0x0 0x1000>;
+		doorbell-mode;
+		interrupts = <GIC_SPI SSWRP_AOSS_AOSS_AP_INTR_MBOX_8 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&mba_ambss_cpu_syscon 2>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	mba_ambss_cpu_mba_client_3: mba_ambss_cpu_mba_client_3@d023000 {
+		compatible = "google,mba-ctrl";
+		doorbell-mode;
+		reg = <0x0 0xd023000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOSS_AOSS_AP_INTR_MBOX_9 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&mba_ambss_cpu_syscon 3>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	mba_ambss_cpu_mba_client_4: mba_ambss_cpu_mba_client_4@d024000 {
+		compatible = "google,mba-ctrl";
+		doorbell-mode;
+		reg = <0x0 0xd024000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOSS_AOSS_AP_INTR_MBOX_10 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&mba_ambss_cpu_syscon 4>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	mba_ambss_cpu_mba_client_5: mba_ambss_cpu_mba_client_5@d025000 {
+		compatible = "google,mba-ctrl";
+		doorbell-mode;
+		reg = <0x0 0xd025000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOSS_AOSS_AP_INTR_MBOX_11 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		#non-waking-cells = <2>;
+		google,syscon-phandle = <&mba_ambss_cpu_syscon 5>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	cpm_ap_ns_req_mba_client_0: cpm_ap_ns_req_mba_client_0@ea60000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x0ea60000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOSS_AOSS_AP_INTR_NS_CPM_REQ IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&cpm_mba_syscon 0>;
+		queue-mode;
+		payload-size = <4>;
+		mba-ip-version = <3 0>;
+		status = "disabled";
+	};
+
+	cpm_ap_ns_resp_mba_client_1: cpm_ap_ns_resp_mba_client_1@ea61000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x0ea61000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOSS_AOSS_AP_INTR_NS_CPM_RESP IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&cpm_mba_syscon 1>;
+		queue-mode;
+		payload-size = <4>;
+		mba-ip-version = <3 0>;
+		status = "disabled";
+	};
+
+	goog_mba_cpm_iface: goog_mba_cpm_iface {
+		compatible = "google,mba-cpm-iface";
+		mboxes = <&cpm_ap_ns_req_mba_client_0 0
+			  &cpm_ap_ns_req_mba_client_0 1
+			  &cpm_ap_ns_req_mba_client_0 2
+			  &cpm_ap_ns_req_mba_client_0 3
+			  &cpm_ap_ns_req_mba_client_0 4
+			  &cpm_ap_ns_req_mba_client_0 5
+			  &cpm_ap_ns_req_mba_client_0 6
+			  &cpm_ap_ns_req_mba_client_0 7
+			  &cpm_ap_ns_resp_mba_client_1 0
+			  &cpm_ap_ns_resp_mba_client_1 1
+			  &cpm_ap_ns_resp_mba_client_1 2
+			  &cpm_ap_ns_resp_mba_client_1 3>;
+		#mbox-cells = <0>;
+		req-mboxes-idx = <0 1 2 3 4 5 6 7>;
+		resp-mboxes-idx = <8 9 10 11>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	goog_mba_cpm_iface_test: goog_mba_cpm_iface_test {
+		compatible = "google,mba-cpm-iface-test";
+		mboxes = <&goog_mba_cpm_iface>;
+		status = "disabled";
+	};
+
+	gdmc_ap_non_secure_req_mba_client_2: gdmc_ap_non_secure_req_mba_client_2@6262000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x6262000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_AP_INTR_NS_GDMC_AP_NON_SECURE_REQ
+			      IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 2>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	gdmc_ap_non_secure_resp_mba_client_3: gdmc_ap_non_secure_resp_mba_client_3@6263000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x6263000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_AP_INTR_NS_GDMC_AP_NON_SECURE_RESP
+			      IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 3>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	gdmc_ap_critical_req_mba_client_4: gdmc_ap_critical_req_mba_client_4@6264000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x6264000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_AP_INTR_NS_GDMC_AP_CRITICAL_REQ
+			      IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 4>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	gdmc_ap_critical_resp_mba_client_5: gdmc_ap_critical_resp_mba_client_5@6265000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x6265000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_AP_INTR_NS_GDMC_AP_CRITICAL_RESP
+			      IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 5>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	gdmc_ap1_req_mba_client_6: gdmc_ap1_req_mba_client_6@6266000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x6266000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_AP_INTR_NS_GDMC_AP1_REQ
+			      IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 6>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	gdmc_ap1_resp_mba_client_7: gdmc_ap1_resp_mba_client_7@6267000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x6267000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_AP_INTR_NS_GDMC_AP1_RESP
+			      IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 7>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	gdmc_ap2_req_mba_client_8: gdmc_ap2_req_mba_client_8@6268000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x6268000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_AP_INTR_NS_GDMC_AP2_REQ
+			      IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 8>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	gdmc_ap2_resp_mba_client_9: gdmc_ap2_resp_mba_client_9@6269000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x6269000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_AP_INTR_NS_GDMC_AP2_RESP
+			      IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 9>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	gdmc_ap3_req_mba_client_10: gdmc_ap3_req_mba_client_10@626a000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x626a000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_AP_INTR_NS_GDMC_AP3_REQ
+			      IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 10>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	gdmc_ap3_resp_mba_client_11: gdmc_ap3_resp_mba_client_11@626b000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x626b000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_AP_INTR_NS_GDMC_AP3_RESP
+			      IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 11>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	goog_mba_aggr_gdmc: goog_mba_aggr_gdmc {
+		compatible = "google,mba-aggr";
+		service-name = "gdmc-normal";
+		mboxes = <&gdmc_ap_non_secure_req_mba_client_2 0
+			  &gdmc_ap1_req_mba_client_6 0
+			  &gdmc_ap2_req_mba_client_8 0
+			  &gdmc_ap3_req_mba_client_10 0
+			  &gdmc_ap_non_secure_resp_mba_client_3 0
+			  &gdmc_ap1_resp_mba_client_7 0
+			  &gdmc_ap2_resp_mba_client_9 0
+			  &gdmc_ap3_resp_mba_client_11 0>;
+		req-mboxes-idx = <0 1 2 3>;
+		resp-mboxes-idx = <4 5 6 7>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	goog_mba_aggr_gdmc_crit: goog_mba_aggr_gdmc_crit {
+		compatible = "google,mba-aggr";
+		service-name = "gdmc-critical";
+		mboxes = <&gdmc_ap_critical_req_mba_client_4 0
+			  &gdmc_ap_critical_resp_mba_client_5 0>;
+		req-mboxes-idx = <0>;
+		resp-mboxes-idx = <1>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	goog_mba_gdmc_iface: goog_mba_gdmc_iface {
+		compatible = "google,mba-gdmc-iface";
+		memory-region = <&goog_mba_gdmc_iface_dma_region>;
+		goog-mba-aggrs = <&goog_mba_aggr_gdmc &goog_mba_aggr_gdmc_crit>;
+		status = "disabled";
+	};
+
+	goog_mba_gdmc_iface_test: goog_mba_gdmc_iface_test {
+		compatible = "google,mba-gdmc-iface-test";
+		gdmc-iface = <&goog_mba_gdmc_iface>;
+		status = "disabled";
+	};
+
+	mba_gsa_syscon: mba_gsa_syscon@5a00000 {
+		compatible = "google,mba-gsa-client-csr-global", "syscon";
+		reg = <0x0 0x5a00000 0x0 0x1000>;
+	};
+
+	mba_gsa_client_0_syscon: mba_gsa_client_0_syscon@5a10000 {
+		compatible = "google,mba-gsa-client-csr", "syscon";
+		reg = <0x0 0x5a10000 0x0 0x1000>;
+	};
+
+	mba_gsa_client_0: mba_gsa_client_0 {
+		compatible = "google,mba-ctrl";
+		interrupts = <GIC_SPI SSWRP_GSA_GSA_AP_INTR_MAILBOX_AP_CLIENT_IRQ_0
+			      IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&mba_gsa_syscon 0>;
+		google,syscon-client-phandle = <&mba_gsa_client_0_syscon>;
+		status = "disabled";
+	};
+
+	mba_gsa_client_0_doorbell: mba_gsa_client_0_doorbell {
+		compatible = "google,mba-ctrl";
+		interrupts = <GIC_SPI SSWRP_GSA_GSA_AP_INTR_MAILBOX_AP_CLIENT_IRQ_1
+			      IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&mba_gsa_syscon 0>;
+		google,syscon-client-phandle = <&mba_gsa_client_0_syscon>;
+		doorbell-mode;
+		status = "disabled";
+	};
+};

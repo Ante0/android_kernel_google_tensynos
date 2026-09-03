@@ -1,19 +1,99 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
 
-kernel_module(
-    name = "cs35l45",
-    outs = [
-        "cs35l45-cs-dsp.ko",
-        "snd-soc-cs35l45.ko",
-        "snd-soc-cs35l45-i2c.ko",
-        "snd-soc-cs35l45-spi.ko",
-        "snd-soc-cs35l45-wm-adsp.ko",
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "headers",
+    hdrs = [
+        "include/sound/cs35l45.h",
     ],
+    includes = [
+        "include",
+    ],
+)
+
+ddk_module(
+    name = "snd-soc-cs35l45",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "cs35l45.c",
+        "cs35l45-tables.c",
+    ],
+    out = "snd-soc-cs35l45.ko",
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
+    deps = [
+        ":cs35l45-cs-dsp",
+        ":headers",
+        ":snd-soc-cs35l45-wm-adsp",
+        "//common:all_headers_aarch64",
+    ],
+)
+
+ddk_module(
+    name = "snd-soc-cs35l45-spi",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "cs35l45-spi.c",
+    ],
+    out = "snd-soc-cs35l45-spi.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        ":snd-soc-cs35l45",
+        "//common:all_headers_aarch64",
+    ],
+)
+
+ddk_module(
+    name = "snd-soc-cs35l45-i2c",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "cs35l45-i2c.c",
+    ],
+    out = "snd-soc-cs35l45-i2c.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        ":snd-soc-cs35l45",
+        "//common:all_headers_aarch64",
+    ],
+)
+
+ddk_module(
+    name = "snd-soc-cs35l45-wm-adsp",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "wm_adsp.c",
+    ],
+    out = "snd-soc-cs35l45-wm-adsp.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":cs35l45-cs-dsp",
+        ":headers",
+        "//common:all_headers_aarch64",
+    ],
+)
+
+ddk_module(
+    name = "cs35l45-cs-dsp",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "cs_dsp.c",
+    ],
+    out = "cs35l45-cs-dsp.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
     ],
 )

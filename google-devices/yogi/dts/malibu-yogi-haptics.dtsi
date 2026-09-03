@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Haptics device tree entries specific to the malibu paltform
+ *
+ * Copyright 2025 Google LLC
+ */
+
+#include "google-base/platform/malibu-platform-haptics.dtsi"
+
+&lsioe_i2c3 {
+	cs40l27b@43 {
+		cirrus,f0-default = <0x298000>;		/* 166 Hz */
+	};
+};

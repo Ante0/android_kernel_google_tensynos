@@ -13,4 +13,5 @@ ARM
    pkvm
    pvtime
    ptp_kvm
+   vcpu-features
    mmio-guard

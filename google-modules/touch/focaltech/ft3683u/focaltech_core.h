@@ -249,11 +249,8 @@ struct fw_status_ts {
       unsigned char B3_b4_continus_reg:1;
       unsigned char B3_b5_reserved:1;
       unsigned char B3_b6_heatmap_status:2;
-
-      unsigned char B4_b0_int2_register:2;
-      unsigned char B4_b2_reserved:6;
     } __attribute__((packed));
-    unsigned char data[5];
+    unsigned char data[4];
   };
 };
 
@@ -528,6 +525,7 @@ void goog_gti_probe(struct fts_ts_data *ts_data);
 void goog_gti_remove(struct fts_ts_data *ts_data);
 void goog_fts_input_report_b(struct fts_ts_data *data);
 int goog_parse_dt(struct device_node *np, struct fts_ts_platform_data *pdata);
+size_t goog_internal_sttw_setting_read(char *buf, size_t buf_size);
 #endif // IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
 
 

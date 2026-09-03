@@ -1,0 +1,134 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2023 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/lcm/google,google-lcm.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google Local Clock Manager
+
+maintainers:
+  - Aniket <aniketmaurya@google.com>
+
+description:
+  The Google LCM consists of programmable clock gates, multiplexer and divider.
+  Gates without reset are referred here as gate_nr and gate_r otherwise.
+  This supports gating and ungating of the clock, and static setting of clock
+  frequency through mux and div values specified in DT. Dynamic frequency
+  scaling is not supported.
+  This driver implements both clock provider and reset provider operations.
+  Use macros from linux_drivers/include/dt-bindings/lcm/google,rdo.h
+
+properties:
+  compatible:
+    const: google,google-lcm
+
+  reg:
+    minItems: 3
+    maxItems: 4
+    description:
+      This is an array describing the physical addresses and sizes of the various
+      LCM hardware blocks register area e.g. gates , mux, etc.
+
+  reg-names:
+    minItems: 3
+    items:
+      - const: gate
+      - const: gate_nr
+      - const: mux
+      - const: div
+    description:
+      The register area name.
+      Gate, mux and div are always present.
+
+  "#clock-cells":
+    const: 3
+    description: |
+      The client needs to specify three integers along
+      with the clock phandle. Those are:
+      1. hw_type: LCM_GATE_R, LCM_GATE_NR, LCM_MUX or LCM_DIV.
+      2. hw index: index within the hw_type.
+      3. hw_val:
+          For LCM_GATE_R, LCM_GATE_NR: can be left 0 or set to the
+            clock frequency expected by the client. Remember that
+            the actual frequency depends upon settings of the mux
+            and div of the clock. Setting this frequency does not
+            change the actual frequency.
+          For LCM_MUX: mux select,
+          For LCM_DIV: divider value.
+
+  "#reset-cells":
+    const: 1
+    description:
+      Only gate_r hw has reset, so reset index should not
+      exceed number of gate_r in a sswrp.
+
+  clocks:
+    description:
+      Some devices may need some clocks to be configured at bootup,
+      specify them here. So these clocks would be auto enabled and
+      consumers do not need to handle them. The clocks are enabled
+      in the order they are specified.
+
+  resets:
+    description:
+      Describes a set of resets the driver should assert and deassert
+      while initializing itself. This may be useful for devices that
+      do not handle the reset explicitly but need to do so outside of the driver.
+
+required:
+  - compatible
+  - reg
+  - reg-names
+  - "#clock-cells"
+  - "#reset-cells"
+
+additionalProperties: true
+
+examples:
+    -  |
+      /* clock provider node for LSIO_S */
+      lsios_lcm: lsios_lcm@3bc0d600 {
+          compatible = "google,google-lcm";
+          reg = <0 0x3bc0d600 0 0x680>,
+                <0 0x3bc0dca0 0 0x040>,
+                <0 0x3bc0dd00 0 0x070>,
+                <0 0x3bc0df00 0 0x100>;
+          reg-names = "gate_r","gate_nr","mux","div";
+
+          #clock-cells = <3>;
+          #reset-cells = <1>;
+
+          /* These clocks are auto enabled during probe of this node */
+          clocks = <&lsios_lcm LCM_MUX 4 1>,
+                   <&lsios_lcm LCM_MUX 2 1>,
+                   <&lsios_lcm LCM_DIV 13 1>,
+                   <&lsios_lcm LCM_DIV 3 2>,
+                   <&lsios_lcm LCM_GATE_R 48 0>;
+          clock-names = <"mux_lsio_s_cfg_clk">,
+                        <"mux_lsio_s_ic_clk">,
+                        <"div_lsio_s_cfg_clk">,
+                        <"div_lsio_s_ic_clk">,
+                        <"cg_lsio_s_cfg_clk">;
+
+          /* These resets are auto asserted and deasserted */
+          resets = <&lsios_lcm 48>,
+                   <&lsios_lcm 27>;
+          reset-names = <"rst_lsio_s_cfg_clk">,
+                        <"rst_lsio_s_cli3_cfg_clk">;
+      };
+
+      /* clock consumer/client node for CLI3 */
+      i2c0: i2c@3bf40000 {
+          compatible = "google,i2c";
+          reg = <0x0 0x3bf40000 0x0 0x100>;
+
+          /* clocks and resets in clients are handled by respective client drivers*/
+
+          clocks = <&lsios_lcm LCM_GATE_R 23 200000000>, /* cg_lsio_s_cli3_i2c_clk, 200Mhz */
+                   <&lsios_lcm LCM_GATE_R 27 300000000>; /* cg_lsio_s_cli3_cfg_clk, 300Mhz */
+          clock-names = "ic_clk","pclk";
+
+          resets = <&lsios_lcm 23>;  /* rst_lsio_s_cli3_cfg_clk */
+          reset-names = "ic_rst";
+      };

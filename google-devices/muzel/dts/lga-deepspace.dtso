@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * deepspace device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+/dts-v1/;
+/plugin/;
+
+#define BATTERY_EEPROM_1K
+
+/* define board-specific  GPIO macros before other devicetrees */
+#include "lga-deepspace-pinctrl.dtsi"
+#include "google-base/platform/lga-platform-common.dtsi"
+#include "lga-deepspace-common.dtsi"
+#include "lga-deepspace-usecases.dtsi"
+#include "lga-deepspace-bcl.dtsi"
+#include "lga-deepspace-charging.dtsi"
+
+/ {
+	board_id = <0x70101>;
+	board_rev = <0x00010000>;
+	fragment@boardbase {
+		target-path = "/";
+		__overlay__ {
+			model = "Deepspace board based on LGA";
+			compatible = "google,lga-deepspace", "google,lga";
+		};
+	};
+};

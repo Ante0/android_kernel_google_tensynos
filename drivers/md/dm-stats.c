@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0-only
 #include <linux/errno.h>
 #include <linux/numa.h>
 #include <linux/slab.h>
@@ -56,7 +56,7 @@ struct dm_stat {
 	size_t percpu_alloc_size;
 	size_t histogram_alloc_size;
 	struct dm_stat_percpu *stat_percpu[NR_CPUS];
-	struct dm_stat_shared stat_shared[];
+	struct dm_stat_shared stat_shared[] __counted_by(n_entries);
 };
 
 #define STAT_PRECISE_TIMESTAMPS		1
@@ -65,6 +65,9 @@ struct dm_stats_last_position {
 	sector_t last_sector;
 	unsigned int last_rw;
 };
+
+#define DM_STAT_MAX_ENTRIES		8388608
+#define DM_STAT_MAX_HISTOGRAM_ENTRIES	134217728
 
 /*
  * A typo on the command line could possibly make the kernel run out of memory
@@ -285,6 +288,9 @@ static int dm_stats_create(struct dm_stats *stats, sector_t start, sector_t end,
 	if (n_entries != (size_t)n_entries || !(size_t)(n_entries + 1))
 		return -EOVERFLOW;
 
+	if (n_entries > DM_STAT_MAX_ENTRIES)
+		return -EOVERFLOW;
+
 	shared_alloc_size = struct_size(s, stat_shared, n_entries);
 	if ((shared_alloc_size - sizeof(struct dm_stat)) / sizeof(struct dm_stat_shared) != n_entries)
 		return -EOVERFLOW;
@@ -295,6 +301,9 @@ static int dm_stats_create(struct dm_stats *stats, sector_t start, sector_t end,
 
 	histogram_alloc_size = (n_histogram_entries + 1) * (size_t)n_entries * sizeof(unsigned long long);
 	if (histogram_alloc_size / (n_histogram_entries + 1) != (size_t)n_entries * sizeof(unsigned long long))
+		return -EOVERFLOW;
+
+	if ((n_histogram_entries + 1) * (size_t)n_entries > DM_STAT_MAX_HISTOGRAM_ENTRIES)
 		return -EOVERFLOW;
 
 	if (!check_shared_memory(shared_alloc_size + histogram_alloc_size +
@@ -341,6 +350,7 @@ static int dm_stats_create(struct dm_stats *stats, sector_t start, sector_t end,
 
 	if (s->n_histogram_entries) {
 		unsigned long long *hi;
+
 		hi = dm_kvzalloc(s->histogram_alloc_size, NUMA_NO_NODE);
 		if (!hi) {
 			r = -ENOMEM;
@@ -362,6 +372,7 @@ static int dm_stats_create(struct dm_stats *stats, sector_t start, sector_t end,
 		s->stat_percpu[cpu] = p;
 		if (s->n_histogram_entries) {
 			unsigned long long *hi;
+
 			hi = dm_kvzalloc(s->histogram_alloc_size, cpu_to_node(cpu));
 			if (!hi) {
 				r = -ENOMEM;
@@ -500,6 +511,7 @@ static int dm_stats_list(struct dm_stats *stats, const char *program,
 				DMEMIT(" precise_timestamps");
 			if (s->n_histogram_entries) {
 				unsigned int i;
+
 				DMEMIT(" histogram:");
 				for (i = 0; i < s->n_histogram_entries; i++) {
 					if (i)
@@ -572,6 +584,7 @@ static void dm_stat_for_entry(struct dm_stat *s, size_t entry,
 	 */
 #if BITS_PER_LONG == 32
 	unsigned long flags;
+
 	local_irq_save(flags);
 #else
 	preempt_disable();
@@ -583,6 +596,7 @@ static void dm_stat_for_entry(struct dm_stat *s, size_t entry,
 		atomic_inc(&shared->in_flight[idx]);
 	} else {
 		unsigned long long duration;
+
 		dm_stat_round(s, shared, p);
 		atomic_dec(&shared->in_flight[idx]);
 		p->sectors[idx] += len;
@@ -597,14 +611,14 @@ static void dm_stat_for_entry(struct dm_stat *s, size_t entry,
 		}
 		if (s->n_histogram_entries) {
 			unsigned int lo = 0, hi = s->n_histogram_entries + 1;
+
 			while (lo + 1 < hi) {
 				unsigned int mid = (lo + hi) / 2;
-				if (s->histogram_boundaries[mid - 1] > duration) {
-					hi = mid;
-				} else {
-					lo = mid;
-				}
 
+				if (s->histogram_boundaries[mid - 1] > duration)
+					hi = mid;
+				else
+					lo = mid;
 			}
 			p->histogram[lo]++;
 		}
@@ -746,6 +760,7 @@ static void __dm_stat_init_temporary_percpu_totals(struct dm_stat_shared *shared
 		shared->tmp.time_in_queue += READ_ONCE(p->time_in_queue);
 		if (s->n_histogram_entries) {
 			unsigned int i;
+
 			for (i = 0; i < s->n_histogram_entries + 1; i++)
 				shared->tmp.histogram[i] += READ_ONCE(p->histogram[i]);
 		}
@@ -780,6 +795,7 @@ static void __dm_stat_clear(struct dm_stat *s, size_t idx_start, size_t idx_end,
 		local_irq_enable();
 		if (s->n_histogram_entries) {
 			unsigned int i;
+
 			for (i = 0; i < s->n_histogram_entries + 1; i++) {
 				local_irq_disable();
 				p = &s->stat_percpu[smp_processor_id()][x];
@@ -895,9 +911,9 @@ static int dm_stats_print(struct dm_stats *stats, int id,
 		       dm_jiffies_to_msec64(s, shared->tmp.io_ticks[WRITE]));
 		if (s->n_histogram_entries) {
 			unsigned int i;
-			for (i = 0; i < s->n_histogram_entries + 1; i++) {
+
+			for (i = 0; i < s->n_histogram_entries + 1; i++)
 				DMEMIT("%s%llu", !i ? " " : ":", shared->tmp.histogram[i]);
-			}
 		}
 		DMEMIT("\n");
 
@@ -967,6 +983,7 @@ static int parse_histogram(const char *h, unsigned int *n_histogram_entries,
 		unsigned long long hi;
 		int s;
 		char ch;
+
 		s = sscanf(h, "%llu%c", &hi, &ch);
 		if (!s || (s == 2 && ch != ','))
 			return -EINVAL;
@@ -992,10 +1009,8 @@ static int message_stats_create(struct mapped_device *md,
 	unsigned int divisor;
 	const char *program_id, *aux_data;
 	unsigned int stat_flags = 0;
-
 	unsigned int n_histogram_entries = 0;
 	unsigned long long *histogram_boundaries = NULL;
-
 	struct dm_arg_set as, as_backup;
 	const char *a;
 	unsigned int feature_args;
@@ -1051,7 +1066,8 @@ static int message_stats_create(struct mapped_device *md,
 			else if (!strncasecmp(a, "histogram:", 10)) {
 				if (n_histogram_entries)
 					goto ret_einval;
-				if ((r = parse_histogram(a + 10, &n_histogram_entries, &histogram_boundaries)))
+				r = parse_histogram(a + 10, &n_histogram_entries, &histogram_boundaries);
+				if (r)
 					goto ret;
 			} else
 				goto ret_einval;
@@ -1245,5 +1261,5 @@ void dm_statistics_exit(void)
 		DMCRIT("shared_memory_amount leaked: %lu", shared_memory_amount);
 }
 
-module_param_named(stats_current_allocated_bytes, shared_memory_amount, ulong, S_IRUGO);
+module_param_named(stats_current_allocated_bytes, shared_memory_amount, ulong, 0444);
 MODULE_PARM_DESC(stats_current_allocated_bytes, "Memory currently used by statistics");

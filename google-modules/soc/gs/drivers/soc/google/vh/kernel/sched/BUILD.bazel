@@ -1,0 +1,134 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+# vendor sched module
+
+ddk_module(
+    name = "vh_sched",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "vh_sched.ko",
+    conditional_srcs = {
+        "CONFIG_RVH_SCHED_LIB": {
+            True: [
+                "sched_lib.c",
+            ],
+        },
+        "CONFIG_VH_SCHED": {
+            True: [
+                "core.c",
+                "cpufreq_gov.c",
+                "fair.c",
+                "fork.c",
+                "futex.c",
+                "init.c",
+                "pelt.c",
+                "procfs_node.c",
+                "rt.c",
+                "sched_netlink.c",
+                "topology.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":sched_tp",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/gs_domain_idle:headers",
+        "//private/google-modules/perf/core/lat_govs:gs_governor_dsulat",
+        "//private/google-modules/perf/core/lat_govs:gs_governor_memlat",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/devfreq/google:governor_memlat_header",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/pixel_em",
+    ] + select({
+        "//private/devices/google/common:soc_is_laguna_or_later": [
+            "//private/google-modules/perf/core/gs_domain_idle",
+            "//private/google-modules/perf/core/gs_perf_mon",
+            "//private/google-modules/perf/core/gs_perf_mon:headers",
+        ],
+        "//conditions:default": [
+            "//private/google-modules/soc/gs/drivers/performance/gs_perf_mon",
+        ],
+    }),
+)
+
+# vendor sched tracing module
+
+ddk_headers(
+    name = "sched_events_headers",
+    hdrs = [
+        "sched_events.h",
+    ],
+    includes = ["."],
+)
+
+ddk_module(
+    name = "sched_tp",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "sched_tp.ko",
+    conditional_srcs = {
+        "CONFIG_VH_SCHED": {
+            True: [
+                "sched_tp.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":sched_events_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh:headers",
+    ],
+)
+
+ddk_headers(
+    name = "vh_preemptirq_long_headers",
+    hdrs = [
+        "trace_preemptirq_long.h",
+    ],
+    includes = ["."],
+)
+
+ddk_module(
+    name = "vh_preemptirq_long",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "vh_preemptirq_long.ko",
+    conditional_srcs = {
+        "CONFIG_VH_PREEMPTIRQ_TRACEPOINTS": {
+            True: [
+                "init_preemptirq_long.c",
+                "preemptirq_long.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":vh_preemptirq_long_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh:headers",
+    ],
+)

@@ -25,8 +25,8 @@
 #include <net/xfrm.h>
 #if IS_ENABLED(CONFIG_ECT)
 #include <soc/google/ect_parser.h>
-#endif
 #include <soc/google/cal-if.h>
+#endif
 #include <soc/google/modem_notifier.h>
 #include <linux/soc/samsung/exynos-smc.h>
 #include <trace/events/napi.h>
@@ -43,6 +43,9 @@
 #include "dit.h"
 #endif
 #include "direct_dm.h"
+#if IS_ENABLED(CONFIG_METRICS_COLLECTION_FRAMEWORK)
+#include "metrics_collection.h"
+#endif /* CONFIG_METRICS_COLLECTION_FRAMEWORK */
 
 #define MIF_TX_QUOTA 64
 
@@ -231,7 +234,8 @@ static void link_trigger_cp_crash(struct mem_link_device *mld, u32 crash_type,
 	}
 
 	if (!reason_done && reason && reason[0] != '\0') {
-		strlcpy(ld->crash_reason.string, reason, CP_CRASH_INFO_SIZE);
+		strscpy(ld->crash_reason.string, reason,
+			sizeof(ld->crash_reason.string));
 		reason_done = true;
 	}
 
@@ -1180,6 +1184,9 @@ static enum hrtimer_restart pktproc_tx_timer_func(struct hrtimer *timer)
 	unsigned long flags;
 	unsigned int count;
 	int ret, i;
+
+	if (mc->device_suspended)
+		return HRTIMER_NORESTART;
 
 	for (i = 0; i < ppa_ul->num_queue; i++) {
 		struct pktproc_queue_ul *q = ppa_ul->q[i];
@@ -2176,6 +2183,7 @@ static int link_load_gnss_image(struct link_device *ld,
 
 	int ret = 0;
 	struct mem_link_device *mld = to_mem_link_device(ld);
+	size_t gnss_region_size = cp_shmem_get_size(0, SHMEM_GNSS_FW);
 
 	memset(&img, 0, sizeof(struct gnss_image));
 
@@ -2190,6 +2198,23 @@ static int link_load_gnss_image(struct link_device *ld,
 	if (ret) {
 		mif_err("copy_from_user() fail:%d\n", ret);
 		return ret;
+	}
+
+	if (!img.firmware_bin) {
+		mif_err("firmware_bin is NULL!\n");
+		return -EINVAL;
+	}
+
+	if (img.firmware_size == 0) {
+		mif_err("firmware_size is zero!\n");
+		return -EINVAL;
+	}
+
+	if (img.firmware_size > gnss_region_size ||
+			img.offset > gnss_region_size - img.firmware_size) {
+		mif_err("Invalid GNSS image parameters (offset=%u, size=%u)!\n",
+				img.offset, img.firmware_size);
+		return -EFAULT;
 	}
 
 	dst = (void __iomem *)(mld->gnss_v_base + img.offset);
@@ -2209,6 +2234,7 @@ static int link_read_gnss_image(struct link_device *ld,
 	struct gnss_image img;
 	int err = 0;
 	struct mem_link_device *mld = to_mem_link_device(ld);
+	size_t gnss_region_size = cp_shmem_get_size(0, SHMEM_GNSS_FW);
 
 	memset(&img, 0, sizeof(struct gnss_image));
 
@@ -2224,8 +2250,19 @@ static int link_read_gnss_image(struct link_device *ld,
 		return err;
 	}
 
-	if (img.offset + img.firmware_size > cp_shmem_get_size(0, SHMEM_GNSS_FW)) {
-		mif_err("offset:%d size:%d error\n",
+	if (!img.firmware_bin) {
+		mif_err("firmware_bin is NULL!\n");
+		return -EINVAL;
+	}
+
+	if (img.firmware_size == 0) {
+		mif_err("firmware_size is zero!\n");
+		return -EINVAL;
+	}
+
+	if (img.firmware_size > gnss_region_size ||
+		(img.offset > gnss_region_size - img.firmware_size)) {
+		mif_err("offset:%u size:%u error\n",
 			img.offset, img.firmware_size);
 		return -EFAULT;
 	}
@@ -2775,17 +2812,21 @@ static void pcie_send_ap2cp_irq(struct mem_link_device *mld, u16 mask)
 	spin_lock_irqsave(&mc->pcie_tx_lock, flags);
 
 	if (mutex_is_locked(&mc->pcie_onoff_lock)) {
-		mif_debug("Reserve doorbell interrupt: PCI on/off working\n");
+		mif_info_limited("Reserve doorbell interrupt: PCI on/off working\n");
 		set_ctrl_msg(&mld->ap2cp_msg, mask);
 		mc->reserve_doorbell_int = true;
 		goto exit;
 	}
 
 	if (!mc->pcie_powered_on) {
-		mif_debug("Reserve doorbell interrupt: PCI not powered on\n");
+		mif_info_limited("Reserve doorbell interrupt: PCI not powered on\n");
 		set_ctrl_msg(&mld->ap2cp_msg, mask);
 		mc->reserve_doorbell_int = true;
+#if IS_ENABLED(CONFIG_SOC_LGA)
+		queue_work(mc->ap2cp_wakeup_wq, &mc->ap2cp_wakeup_work);
+#else
 		s5100_try_gpio_cp_wakeup(mc);
+#endif
 		goto exit;
 	}
 
@@ -2809,7 +2850,7 @@ static inline u16 pcie_read_ap2cp_irq(struct mem_link_device *mld)
 
 struct shmem_srinfo {
 	unsigned int size;
-	char buf[0];
+	char buf[];
 };
 
 /* not in use */
@@ -3408,7 +3449,7 @@ static ssize_t rx_int_count_store(struct device *dev,
 		mif_err("kstrtouint() failed, rc:%d\n", ret);
 	}
 
-	if (val == 0)
+	if (ret == 0 && val == 0)
 		modem->mld->rx_int_count = 0;
 	return count;
 }
@@ -3462,7 +3503,7 @@ static ssize_t rx_int_disabled_time_store(struct device *dev,
 		mif_err("kstrtouint() failed, rc:%d", ret);
 	}
 
-	if (val == 0)
+	if (ret == 0 && val == 0)
 		modem->mld->rx_int_disabled_time = 0;
 	return count;
 }
@@ -3519,6 +3560,21 @@ static struct attribute *wakeup_attrs[] = {
 static const struct attribute_group wakeup_group = {
 	.attrs = wakeup_attrs,
 };
+
+#if IS_ENABLED(CONFIG_METRICS_COLLECTION_FRAMEWORK)
+static int mcf_pull_modem_wakeup_ap_statistics(
+		struct mcf_modem_wakeup_ap_stats *data, void *priv)
+{
+	struct modem_data *modem = priv;
+	struct mem_link_device *mld = modem->mld;
+
+	data->counts[WAKEUP_SRC_ID_NETWORK] = atomic_read(&mld->net_wakeup_count);
+	data->counts[WAKEUP_SRC_ID_MISC] = atomic_read(&mld->misc_wakeup_count);
+
+	return 0;
+}
+#endif /* CONFIG_METRICS_COLLECTION_FRAMEWORK */
+
 #endif
 
 #if IS_ENABLED(CONFIG_CP_PKTPROC_CLAT)
@@ -3920,6 +3976,7 @@ static int init_shmem_maps(u32 link_type, struct modem_data *modem,
 
 		of_property_read_u32(np_acpm, "dump-size", &mld->acpm_size);
 		of_property_read_u32(np_acpm, "dump-base", &acpm_addr);
+		of_node_put(np_acpm);
 		mld->acpm_base = cp_shmem_get_nc_region(acpm_addr, mld->acpm_size);
 		if (!mld->acpm_base) {
 			mif_err("Failed to vmap acpm_region\n");
@@ -4176,7 +4233,7 @@ static int parse_ect_tables(struct platform_device *pdev,
 	return 0;
 }
 
-struct link_device *s5400_create_link_device(struct platform_device *pdev, u32 link_type)
+struct link_device *create_link_device(struct platform_device *pdev, u32 link_type)
 {
 	struct modem_data *modem;
 	struct mem_link_device *mld;
@@ -4212,11 +4269,8 @@ struct link_device *s5400_create_link_device(struct platform_device *pdev, u32 l
 	 * Alloc an instance of mem_link_device structure
 	 */
 	mld = kzalloc(sizeof(struct mem_link_device), GFP_KERNEL);
-	if (!mld) {
-		mif_err("%s<->%s: ERR! mld kzalloc fail\n",
-			modem->link_name, modem->name);
+	if (!mld)
 		return NULL;
-	}
 
 	/*
 	 * Retrieve modem-specific attributes value
@@ -4427,6 +4481,12 @@ struct link_device *s5400_create_link_device(struct platform_device *pdev, u32 l
 #if defined(CPIF_WAKEPKT_SET_MARK)
 	if (sysfs_create_group(&pdev->dev.kobj, &wakeup_group))
 		mif_err("failed to create sysfs node for wakeup events\n");
+
+#if IS_ENABLED(CONFIG_METRICS_COLLECTION_FRAMEWORK)
+	if (mcf_register_modem_wakeup_ap(mcf_pull_modem_wakeup_ap_statistics, modem))
+		mif_err("failed to register wakeup events to mcf\n");
+#endif /* CONFIG_METRICS_COLLECTION_FRAMEWORK */
+
 #endif
 
 #if IS_ENABLED(CONFIG_CP_PKTPROC_CLAT)

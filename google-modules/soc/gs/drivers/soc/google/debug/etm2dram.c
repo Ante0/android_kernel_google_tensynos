@@ -20,6 +20,7 @@
 #include <linux/suspend.h>
 #include <linux/types.h>
 
+#include <soc/google/etm2dram.h>
 #include <soc/google/exynos-adv-tracer.h>
 
 #define INVALID_ID (-1)
@@ -340,7 +341,7 @@ arm_store(struct device *dev, struct device_attribute *attr,
 	int ret;
 	struct etm2dram_private *data = dev_get_drvdata(dev);
 
-	ret = strtobool(buf, &new_value);
+	ret = kstrtobool(buf, &new_value);
 	if (ret < 0)
 		return ret;
 
@@ -420,9 +421,9 @@ static int etm2dram_probe(struct platform_device *pdev)
 	return etm2dram_set_databuf(data->dbuf_base, data->dbuf_size);
 }
 
-static int etm2dram_remove(struct platform_device *pdev)
+static void etm2dram_remove(struct platform_device *pdev)
 {
-	return etm2dram_set_databuf(0, 0);
+	etm2dram_set_databuf(0, 0);
 }
 
 static const struct of_device_id etm2dram_matches[] = {

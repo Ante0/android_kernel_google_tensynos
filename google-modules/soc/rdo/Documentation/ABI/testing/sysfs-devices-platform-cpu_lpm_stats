@@ -1,0 +1,80 @@
+What:		/sys/devices/platform/cpu_lpm_stats/collect
+Date:		December 2024
+Contact:	"Mariano Marciello" <mmarciello@google.com>
+Description:
+		Control node for statistics gathering. Echo 1 to turn on, 0 to
+		turn off.
+
+		On read returns whether collection is currently on or off.
+
+		Default value: off.
+
+What:		/sys/devices/platform/cpu_lpm_stats/reset
+Date:		December 2024
+Contact:	"Mariano Marciello" <mmarciello@google.com>
+Description:
+		Control node to reset statistics. Echo anything to perform reset.
+
+What:		/sys/devices/platform/cpu_lpm_stats/<power_domain>/residency_data/
+Date:		December 2024
+Contact:	"Mariano Marciello" <mmarciello@google.com>
+Description:
+		Each CPU power domain has a folder with statistics for its low power
+		mode. This data is read as a single raw value.
+
+		Currently available statistics are:
+		 - min 			- minimal recorded residency time
+		 - max  		- maximal recorded residency time
+		 - average  - average residency time
+		 - count		- number of power domain switches recorded
+		 - total_residency		- total recorded residency time
+
+		All statistics above, apart from count, are measured in GTC ticks.
+
+		Example usage:
+		 cd /sys/devices/platform/cpu_lpm_stats/power-domain-cpu0/residency_data/
+		 cat max
+		 cat min
+		 cat count
+		 cat average
+		 cat total_residency
+
+What: 		/sys/devices/platform/cpu_lpm_stats/<power_domain>/latency_data/<latency_type>/
+Date: 		December 2024
+Contact:	"Marcin Wasowicz" <mkwasowicz@google.com>
+Description:
+		Each CPU power domain has a folder with subfolders with statistics for its
+		low power latencies. This data is read as a single row value.
+
+		Currently available latency types:
+		 - fw_entry		- low power mode entry firmware latency
+		 - fw_exit		- low power mode exit firmware latency
+		 - fw_sched_entry	- low power mode entry firmware scheduling latency
+		 - fw_sched_exit	- low power mode exit firmware scheduling latency
+		 - fw_entry_transition	- low power mode entry firmware transiton latency
+		 - fw_exit_transition	- low power mode exit firmware transiton latency
+		 - tf_a_entry		- low power mode entry trusted firmware latency
+		 - tf_a_exit		- low power mode exit trusted firmware latency
+		 - tf_a_boot 		- low power mode trusted firmware boot on exit latency
+		 - e2e_entry		- low power mode entry end-to-end latency
+		 - e2e_exit		- low power mode exit end-to-end latency
+
+		Hardware latencies are not available for CPU power domain referring to single CPU.
+
+		Currently available statistics for particular latency type:
+		 - avg 			- average latency
+		 - max			- maximal latency
+		 - min			- minimal latency
+		 - count		- number of power domain switches recorded
+
+		All statistics, apart from count, above are measured in GTC ticks. The count
+		statistic is the same for all latency types and equals count statistic from
+		residency_data directory.
+
+		Example usage:
+		 cd /sys/devices/platform/cpu_lpm_stats/power-domain-cpu0/latency_data/e2e_entry
+		 cat avg
+		 cat max
+		 cat min
+		 cat count
+

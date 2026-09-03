@@ -21,10 +21,12 @@
 #include <linux/workqueue.h>
 #include <linux/pm.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/mutex.h>
 #include <linux/atomic.h>
 #include <linux/gpio/consumer.h>
 #include <linux/kfifo.h>
+#include <linux/pm_runtime.h>
 #include <linux/poll.h>
 #include <linux/input.h>
 #include <linux/pm_wakeup.h>
@@ -137,6 +139,7 @@ struct qbt_drvdata {
 	struct timed_wakelock touch_wakelock;
 	struct timed_wakelock gpio_wakelock;
 	struct timed_wakelock ipc_irq_wakelock;
+	struct platform_device *spi_pinctrl_pdev;
 };
 /**
  * @timed_wakelock_acquire - Acquire the wakelock if it was not yet acquired,
@@ -682,6 +685,7 @@ static long qbt_ioctl(
 	case QBT_ACQUIRE_WAKELOCK:
 	{
 		struct qbt_wakelock_timeout timeout;
+		int rpm_res;
 
 		if (copy_from_user(&timeout, priv_arg, sizeof(timeout)) != 0) {
 			rc = -EFAULT;
@@ -691,12 +695,20 @@ static long qbt_ioctl(
 		}
 		pr_debug("QBT_ACQUIRE_WAKELOCK\n");
 		timed_wakelock_acquire(&drvdata->ioctl_wakelock, timeout.timeout_ms);
+
+		if (drvdata->spi_pinctrl_pdev) {
+			rpm_res = pm_runtime_resume_and_get(&drvdata->spi_pinctrl_pdev->dev);
+			if (rpm_res < 0)
+				pr_info("pm_runtime_resume_and_get failed: %d\n", rpm_res);
+		}
 		break;
 	}
 	case QBT_RELEASE_WAKELOCK:
 	{
 		pr_debug("QBT_RELEASE_WAKELOCK\n");
 		timed_wakelock_release(&drvdata->ioctl_wakelock, false);
+		if (drvdata->spi_pinctrl_pdev)
+			pm_runtime_put(&drvdata->spi_pinctrl_pdev->dev);
 		break;
 	}
 	case QBT_GET_TOUCH_FD_VERSION:
@@ -1008,8 +1020,7 @@ static int qbt_dev_register(struct qbt_drvdata *drvdata)
 		pr_err("cdev_add failed for ipc %d\n", ret);
 		goto err_cdev_add;
 	}
-	drvdata->qbt_class = class_create(THIS_MODULE,
-		drvdata->qbt_node);
+	drvdata->qbt_class = class_create(drvdata->qbt_node);
 	if (IS_ERR(drvdata->qbt_class)) {
 		ret = PTR_ERR(drvdata->qbt_class);
 		pr_err("class_create failed %d\n", ret);
@@ -1269,6 +1280,7 @@ static int qbt_read_device_tree(struct platform_device *pdev,
 {
 	int rc = 0;
 	struct gpio_desc *gpio;
+	struct device_node *pinctrl_np;
 
 	drvdata->intr2_gpio = devm_gpiod_get_optional(&pdev->dev, "qcom,intr2",
 									GPIOD_OUT_LOW);
@@ -1301,6 +1313,21 @@ static int qbt_read_device_tree(struct platform_device *pdev,
 		drvdata->is_wuhb_connected = 0;
 		pr_warn("fd gpio not found\n");
 	}
+
+	pinctrl_np = of_parse_phandle(pdev->dev.of_node, "spi-gpio-provider", 0);
+	if (!pinctrl_np) {
+		dev_warn(&pdev->dev, "no spi-gpio-provider phandle\n");
+		drvdata->spi_pinctrl_pdev = NULL;
+	} else {
+		drvdata->spi_pinctrl_pdev = of_find_device_by_node(pinctrl_np);
+		of_node_put(pinctrl_np);
+		if (!drvdata->spi_pinctrl_pdev) {
+			dev_err(&pdev->dev, "Failed to find spi pinctrl platform device\n");
+			rc = -EPROBE_DEFER;
+		} else {
+			dev_dbg(&pdev->dev, "spi pinctrl platform device found\n");
+		}
+	}
 end:
 	return rc;
 }
@@ -1319,7 +1346,6 @@ static int qbt_probe(struct platform_device *pdev)
 	int rc = 0;
 	int slot = 0;
 
-	pr_debug("entry\n");
 	drvdata = devm_kzalloc(dev, sizeof(*drvdata), GFP_KERNEL);
 	if (!drvdata)
 		return -ENOMEM;
@@ -1372,7 +1398,7 @@ end:
 	pr_debug("exit : %d\n", rc);
 	return rc;
 }
-static int qbt_remove(struct platform_device *pdev)
+static void qbt_remove(struct platform_device *pdev)
 {
 	pr_debug("entry\n");
 	struct qbt_drvdata *drvdata = platform_get_drvdata(pdev);
@@ -1396,7 +1422,8 @@ static int qbt_remove(struct platform_device *pdev)
 	cleanup_timed_wakelock(&drvdata->gpio_wakelock);
 	cleanup_timed_wakelock(&drvdata->ipc_irq_wakelock);
 	input_unregister_handler(&qbt_touch_handler);
-	return 0;
+	if (drvdata->spi_pinctrl_pdev)
+		put_device(&drvdata->spi_pinctrl_pdev->dev);
 }
 static int qbt_suspend(struct platform_device *pdev, pm_message_t state)
 {

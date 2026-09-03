@@ -1,0 +1,112 @@
+What:		/sys/devices/platform/powerdashboard/sampling_rate
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		Get the microsecond sampling period value for powerdashboard.
+
+What:		/sys/devices/platform/powerdashboard/thermal_residency
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		Get state residency data per thermal throttle level.
+
+What:		/sys/devices/platform/powerdashboard/thermal_tmss
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		Get readings from thermal monitoring subsystem (TMSS).
+		The data grouped per probe (rows)
+		and is filled with the probes' buffer values (columns).
+
+What:		/sys/devices/platform/powerdashboard/platform_power_residency
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		Get residency data for all power states (MISSION, DORMANT, AMBIENT, ...).
+
+What:		/sys/devices/platform/powerdashboard/platform_power_state
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		Get a string representing current power state.
+
+What:		/sys/devices/platform/powerdashboard/rail_voltage
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		Get current rail voltage on every rail (VDD_CPU, VDD_INFRA, ...).
+
+What:		/sys/devices/platform/powerdashboard/clavs_gpu_current
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		Get the closed-loop adaptive voltage scaling voltage on gpu.
+
+What:		/sys/devices/platform/powerdashboard/curr_volt_buck_ldo
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		Get the OCP (over-current protection) data per buck/ldo regulator.
+
+What:		/sys/devices/platform/powerdashboard/curr_volt_vsys_droop_count
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		Get the number of heavy load voltage droops recorded.
+
+What:		/sys/devices/platform/powerdashboard/apc_power_ppu
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		Get apc ppu power data. It consists of per core power state information.
+
+What:		/sys/devices/platform/powerdashboard/cpm_m55_power
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		Track current cpm m55 power state (ACTIVE, WFI, PG)
+		and record each power state residency data.
+
+What:		/sys/devices/platform/powerdashboard/force_refresh
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		Forcefully refresh the powerdashboard data.
+
+What:		/sys/devices/platform/powerdashboard/pwrblk_*
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		Track SSWRP each psm current power state
+		and power state residency (STATE_OFF, STATE_CG, STATE_PG, STATE_ON).
+
+What:		/sys/devices/platform/powerdashboard/lpcm_*
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		Track current SSWRP pf state
+		and record each DVFS operating point residency (PF-state).
+
+What:		/sys/devices/platform/powerdashboard/blockers_dormant_suspend
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		List dormant-suspend state kernel and sswrp blockers.
+
+What:		/sys/devices/platform/powerdashboard/blockers_ambient_suspend
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		List ambient-suspend state kernel and sswrp blockers.
+
+What:		/sys/devices/platform/powerdashboard/blockers_ambinent_sec_acc
+Date:		March 2024
+Contact:	"Konrad Korczynski" <kkorczynski@google.com>
+Description:
+		List ambient-sec-acc state kernel and sswrp blockers.
+
+What:		/sys/devices/platform/powerdashboard/csr_*
+Date:		September 2025
+Contact:	"Pranav Prasad" <pranavpp@google.com>
+Description:
+		Each node displays the value of a specific CSR register,

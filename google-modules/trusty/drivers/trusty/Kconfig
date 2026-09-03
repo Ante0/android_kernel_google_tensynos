@@ -59,6 +59,7 @@ config TRUSTY_TEST
 config TRUSTY_VIRTIO
 	tristate "Trusty virtio support"
 	select VIRTIO
+	depends on ARCH_HAS_DMA_OPS
 	default y
 	help
 	  Enable the Trusty virtio driver, which is responsible for management
@@ -76,6 +77,17 @@ config TRUSTY_VIRTIO_IPC
 	  Enable support for communicating with Trusty services.
 
 	  If you build this as a module, it will be called trusty-ipc.
+
+config TRUSTY_WAKELOCK
+	tristate "Trusty Wakelock support"
+	depends on TRUSTY_VIRTIO_IPC
+	default n
+	help
+	  Enable support for Trusty Wakelocks.  This driver connects to TZ
+	  via TIPC and provides a proxy to managing a kernel wakelock via
+	  __pm_stay_awake() and __pm_relax().
+
+	  If you build this as a module, it will be called trusty-wakelock.
 
 config TRUSTY_DMA_BUF_FFA_TAG
 	bool "Availability of trusty_dma_buf_get_ffa_tag"

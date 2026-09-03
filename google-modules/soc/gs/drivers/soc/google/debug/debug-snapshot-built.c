@@ -166,6 +166,7 @@ static int dbg_snapshot_built_probe(struct platform_device *pdev)
 	}
 
 	rmem = of_reserved_mem_lookup(rmem_np);
+	of_node_put(rmem_np);
 	if (!rmem) {
 		dev_err(&pdev->dev, "no such reserved mem of node name %s\n",
 				&pdev->dev.of_node->name);

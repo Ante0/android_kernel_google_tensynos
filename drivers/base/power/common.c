@@ -279,6 +279,51 @@ free_pds:
 EXPORT_SYMBOL_GPL(dev_pm_domain_attach_list);
 
 /**
+ * devm_pm_domain_detach_list - devres-enabled version of dev_pm_domain_detach_list.
+ * @_list: The list of PM domains to detach.
+ *
+ * This function reverse the actions from devm_pm_domain_attach_list().
+ * it will be invoked during the remove phase from drivers implicitly if driver
+ * uses devm_pm_domain_attach_list() to attach the PM domains.
+ */
+static void devm_pm_domain_detach_list(void *_list)
+{
+	struct dev_pm_domain_list *list = _list;
+
+	dev_pm_domain_detach_list(list);
+}
+
+/**
+ * devm_pm_domain_attach_list - devres-enabled version of dev_pm_domain_attach_list
+ * @dev: The device used to lookup the PM domains for.
+ * @data: The data used for attaching to the PM domains.
+ * @list: An out-parameter with an allocated list of attached PM domains.
+ *
+ * NOTE: this will also handle calling devm_pm_domain_detach_list() for
+ * you during remove phase.
+ *
+ * Returns the number of attached PM domains or a negative error code in case of
+ * a failure.
+ */
+int devm_pm_domain_attach_list(struct device *dev,
+			       const struct dev_pm_domain_attach_data *data,
+			       struct dev_pm_domain_list **list)
+{
+	int ret, num_pds;
+
+	num_pds = dev_pm_domain_attach_list(dev, data, list);
+	if (num_pds <= 0)
+		return num_pds;
+
+	ret = devm_add_action_or_reset(dev, devm_pm_domain_detach_list, *list);
+	if (ret)
+		return ret;
+
+	return num_pds;
+}
+EXPORT_SYMBOL_GPL(devm_pm_domain_attach_list);
+
+/**
  * dev_pm_domain_detach - Detach a device from its PM domain.
  * @dev: Device to detach.
  * @power_off: Used to indicate whether we should power off the device.
@@ -367,3 +412,24 @@ void dev_pm_domain_set(struct device *dev, struct dev_pm_domain *pd)
 	device_pm_check_callbacks(dev);
 }
 EXPORT_SYMBOL_GPL(dev_pm_domain_set);
+
+/**
+ * dev_pm_domain_set_performance_state - Request a new performance state.
+ * @dev: The device to make the request for.
+ * @state: Target performance state for the device.
+ *
+ * This function should be called when a new performance state needs to be
+ * requested for a device that is attached to a PM domain. Note that, the
+ * support for performance scaling for PM domains is optional.
+ *
+ * Returns 0 on success and when performance scaling isn't supported, negative
+ * error code on failure.
+ */
+int dev_pm_domain_set_performance_state(struct device *dev, unsigned int state)
+{
+	if (dev->pm_domain && dev->pm_domain->set_performance_state)
+		return dev->pm_domain->set_performance_state(dev, state);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(dev_pm_domain_set_performance_state);

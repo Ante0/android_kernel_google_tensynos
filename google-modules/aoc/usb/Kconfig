@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# AoC USB configuration
+#
+
+# TODO(b/342294228): Default to y after required vendor hooks are ported to the current ACK.
+config AOC_USB_AUDIO_OFFLOAD
+	bool "AoC USB audio offload support"
+	depends on AOC_DRIVER
+	default n
+	help
+		Say yes here to support USB audio offload

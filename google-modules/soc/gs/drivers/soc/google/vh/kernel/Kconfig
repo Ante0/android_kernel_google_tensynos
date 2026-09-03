@@ -39,7 +39,23 @@ config PIXEL_EM_FREQUENCY_SCALING
 config PIXEL_METRICS
         tristate "Enable PIXEL METRICS driver"
         depends on VH_KERNEL
+        depends on VH_SCHED
         default n
+
+config THERMAL_METRICS
+	bool "Use thermal metrics module"
+	depends on PIXEL_METRICS
+	default n
+
+config PERF_METRICS
+	bool "Use perf metrics module"
+	depends on PIXEL_METRICS
+	default n
+
+config CPUIDLE_METRICS
+	bool "Use cpu idle metrics module"
+	depends on PIXEL_METRICS
+	default n
 
 config VH_FS
 	tristate "Vendor hooks for filesystem"

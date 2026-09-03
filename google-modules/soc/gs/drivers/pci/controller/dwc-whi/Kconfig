@@ -4,7 +4,7 @@ config PCI_EXYNOS_GS
 	tristate "Exynos GS PCIe controller"
 	depends on PCI
 	depends on OF
-	depends on PCI_MSI_IRQ_DOMAIN
+	depends on PCI_MSI
 	select PCIEPORTBUS
 	select PCIE_DW_HOST
 
@@ -12,7 +12,7 @@ config PCI_EXYNOS_CAL_GS201
 	tristate "Samsung Exynos PCIe PHY CAL for GS201"
 	depends on PCI
 	depends on OF
-	depends on PCI_MSI_IRQ_DOMAIN
+	depends on PCI_MSI
 	select PCIE_DW_HOST
 	help
 	  Enables support for the PCIe controller in the Samsung Exynos SoCs
@@ -24,6 +24,6 @@ config PCI_EXYNOS_CAL_GS101
 	tristate "Samsung Exynos PCIe PHY CAL for GS101"
 	depends on PCI
 	depends on OF
-	depends on PCI_MSI_IRQ_DOMAIN
+	depends on PCI_MSI
 	select PCIE_DW_HOST
 

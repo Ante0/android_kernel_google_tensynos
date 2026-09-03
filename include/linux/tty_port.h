@@ -16,8 +16,8 @@ struct tty_struct;
 
 /**
  * struct tty_port_operations -- operations on tty_port
- * @carrier_raised: return 1 if the carrier is raised on @port
- * @dtr_rts: raise the DTR line if @raise is nonzero, otherwise lower DTR
+ * @carrier_raised: return true if the carrier is raised on @port
+ * @dtr_rts: raise the DTR line if @active is true, otherwise lower DTR
  * @shutdown: called when the last close completes or a hangup finishes IFF the
  *	port was initialized. Do not use to free resources. Turn off the device
  *	only. Called under the port mutex to serialize against @activate and
@@ -32,8 +32,8 @@ struct tty_struct;
  *	the port itself.
  */
 struct tty_port_operations {
-	int (*carrier_raised)(struct tty_port *port);
-	void (*dtr_rts)(struct tty_port *port, int raise);
+	bool (*carrier_raised)(struct tty_port *port);
+	void (*dtr_rts)(struct tty_port *port, bool active);
 	void (*shutdown)(struct tty_port *port);
 	int (*activate)(struct tty_port *port, struct tty_struct *tty);
 	void (*destruct)(struct tty_port *port);
@@ -42,9 +42,10 @@ struct tty_port_operations {
 };
 
 struct tty_port_client_operations {
-	int (*receive_buf)(struct tty_port *port, const unsigned char *, const unsigned char *, size_t);
-	void (*lookahead_buf)(struct tty_port *port, const unsigned char *cp,
-			      const unsigned char *fp, unsigned int count);
+	size_t (*receive_buf)(struct tty_port *port, const u8 *cp, const u8 *fp,
+			      size_t count);
+	void (*lookahead_buf)(struct tty_port *port, const u8 *cp,
+			      const u8 *fp, size_t count);
 	void (*write_wakeup)(struct tty_port *port);
 };
 
@@ -116,8 +117,8 @@ struct tty_port {
 	unsigned char		console:1;
 	struct mutex		mutex;
 	struct mutex		buf_mutex;
-	unsigned char		*xmit_buf;
-	DECLARE_KFIFO_PTR(xmit_fifo, unsigned char);
+	u8			*xmit_buf;
+	DECLARE_KFIFO_PTR(xmit_fifo, u8);
 	unsigned int		close_delay;
 	unsigned int		closing_wait;
 	int			drain_delay;
@@ -153,10 +154,10 @@ struct device *tty_port_register_device_attr(struct tty_port *port,
 		const struct attribute_group **attr_grp);
 struct device *tty_port_register_device_serdev(struct tty_port *port,
 		struct tty_driver *driver, unsigned index,
-		struct device *device);
+		struct device *host, struct device *parent);
 struct device *tty_port_register_device_attr_serdev(struct tty_port *port,
 		struct tty_driver *driver, unsigned index,
-		struct device *device, void *drvdata,
+		struct device *host, struct device *parent, void *drvdata,
 		const struct attribute_group **attr_grp);
 void tty_port_unregister_device(struct tty_port *port,
 		struct tty_driver *driver, unsigned index);
@@ -235,11 +236,11 @@ static inline void tty_port_set_kopened(struct tty_port *port, bool val)
 
 struct tty_struct *tty_port_tty_get(struct tty_port *port);
 void tty_port_tty_set(struct tty_port *port, struct tty_struct *tty);
-int tty_port_carrier_raised(struct tty_port *port);
+bool tty_port_carrier_raised(struct tty_port *port);
 void tty_port_raise_dtr_rts(struct tty_port *port);
 void tty_port_lower_dtr_rts(struct tty_port *port);
 void tty_port_hangup(struct tty_port *port);
-void tty_port_tty_hangup(struct tty_port *port, bool check_clocal);
+void __tty_port_tty_hangup(struct tty_port *port, bool check_clocal, bool async);
 void tty_port_tty_wakeup(struct tty_port *port);
 int tty_port_block_til_ready(struct tty_port *port, struct tty_struct *tty,
 		struct file *filp);
@@ -256,6 +257,22 @@ int tty_port_open(struct tty_port *port, struct tty_struct *tty,
 static inline int tty_port_users(struct tty_port *port)
 {
 	return port->count + port->blocked_open;
+}
+
+/**
+ * tty_port_tty_hangup - helper to hang up a tty asynchronously
+ * @port: tty port
+ * @check_clocal: hang only ttys with %CLOCAL unset?
+ */
+void tty_port_tty_hangup(struct tty_port *port, bool check_clocal);
+
+/**
+ * tty_port_tty_vhangup - helper to hang up a tty synchronously
+ * @port: tty port
+ */
+static inline void tty_port_tty_vhangup(struct tty_port *port)
+{
+	__tty_port_tty_hangup(port, false, false);
 }
 
 #endif

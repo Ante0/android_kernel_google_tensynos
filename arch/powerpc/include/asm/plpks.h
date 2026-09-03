@@ -68,6 +68,11 @@ struct plpks_var_name_list {
 };
 
 /**
+ * Updates the authenticated variable. It expects NULL as the component.
+ */
+int plpks_signed_update_var(struct plpks_var *var, u64 flags);
+
+/**
  * Writes the specified var and its data to PKS.
  * Any caller of PKS driver should present a valid component type for
  * their variable.
@@ -82,16 +87,28 @@ int plpks_remove_var(char *component, u8 varos,
 
 /**
  * Returns the data for the specified os variable.
+ *
+ * Caller must allocate a buffer in var->data with length in var->datalen.
+ * If no buffer is provided, var->datalen will be populated with the object's
+ * size.
  */
 int plpks_read_os_var(struct plpks_var *var);
 
 /**
  * Returns the data for the specified firmware variable.
+ *
+ * Caller must allocate a buffer in var->data with length in var->datalen.
+ * If no buffer is provided, var->datalen will be populated with the object's
+ * size.
  */
 int plpks_read_fw_var(struct plpks_var *var);
 
 /**
  * Returns the data for the specified bootloader variable.
+ *
+ * Caller must allocate a buffer in var->data with length in var->datalen.
+ * If no buffer is provided, var->datalen will be populated with the object's
+ * size.
  */
 int plpks_read_bootloader_var(struct plpks_var *var);
 
@@ -158,6 +175,20 @@ u64 plpks_get_signedupdatealgorithms(void);
  */
 u16 plpks_get_passwordlen(void);
 
+/**
+ * Called in early init to retrieve and clear the PLPKS password from the DT.
+ */
+void plpks_early_init_devtree(void);
+
+/**
+ * Populates the FDT with the PLPKS password to prepare for kexec.
+ */
+int plpks_populate_fdt(void *fdt);
+#else // CONFIG_PSERIES_PLPKS
+static inline bool plpks_is_available(void) { return false; }
+static inline u16 plpks_get_passwordlen(void) { BUILD_BUG(); }
+static inline void plpks_early_init_devtree(void) { }
+static inline int plpks_populate_fdt(void *fdt) { BUILD_BUG(); }
 #endif // CONFIG_PSERIES_PLPKS
 
 #endif // _ASM_POWERPC_PLPKS_H

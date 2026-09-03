@@ -26,8 +26,12 @@
 #include <trace/hooks/sched.h>
 #include "perf_metrics.h"
 #include <trace/hooks/systrace.h>
-#include "../../include/sched.h"
+#include "sched.h"
 #include <kernel/sched/sched.h>
+
+#define CREATE_TRACE_POINTS
+#include "perf_metrics_events.h"
+
 
 struct irq_storm_data {
 	atomic64_t storm_count;
@@ -131,8 +135,8 @@ static void update_min_latency(struct task_struct *prev, struct task_struct *nex
 	if (!in_arr){
 		rt_runnable = &trr->rt_runnable[trr->min_idx];
 		rt_runnable->latency = latency;
-		strlcpy(rt_runnable->comm, next->comm, TASK_COMM_LEN);
-		strlcpy(rt_runnable->prev_comm, prev->comm, TASK_COMM_LEN);
+		strscpy(rt_runnable->comm, next->comm, sizeof(rt_runnable->comm));
+		strscpy(rt_runnable->prev_comm, prev->comm, sizeof(rt_runnable->prev_comm));
 		rt_runnable->pid = next->pid;
 	}
 
@@ -241,14 +245,11 @@ static void hook_softirq_end(void *data, unsigned int vec_nr)
 						vec_nr, cpu_num);
 		atomic64_inc(&(long_irq_stat.long_softirq_count));
 		atomic64_inc(&(long_irq_stat.long_softirq_count_arr[cpu_num]));
-		if (trace_clock_set_rate_enabled()) {
-			char trace_name[32] = {0};
-			scnprintf(trace_name, sizeof(trace_name), "long_softirq_count_cpu%d",
-							cpu_num);
-			trace_clock_set_rate(trace_name,
+
+		if (trace_long_softirq_enabled()) {
+			trace_long_softirq(vec_nr, (unsigned int)irq_usec,
 				(unsigned int)
-				atomic64_read(&long_irq_stat.long_softirq_count_arr[cpu_num]),
-				cpu_num);
+				atomic64_read(&long_irq_stat.long_softirq_count_arr[cpu_num]));
 		}
 	}
 	do {
@@ -267,10 +268,13 @@ static void hook_irq_begin(void *data, int irq, struct irqaction *action)
 	s64 irq_start_diff_usec;
 	s64 curr_storm_count;
 	s64 curr_max_storm_count;
+
+	if (in_nmi())
+		return;
 	if (irq >= MAX_IRQ_NUM)
 		return;
-	cpu_num = raw_smp_processor_id();
 
+	cpu_num = raw_smp_processor_id();
 
 	prev_irq_start = atomic64_read(&(long_irq_stat.irq_storms[irq].irq_storm_start));
 
@@ -307,8 +311,12 @@ static void hook_irq_end(void *data, int irq, struct irqaction *action, int ret)
 	int cpu_num;
 	ktime_t irq_end;
 	s64 curr_max_irq;
+
+	if (in_nmi())
+		return;
 	if (irq >= MAX_IRQ_NUM)
 		return;
+
 	cpu_num = raw_smp_processor_id();
 	irq_end = ktime_get();
 	irq_usec = ktime_to_us(ktime_sub(irq_end,
@@ -321,16 +329,11 @@ static void hook_irq_end(void *data, int irq, struct irqaction *action, int ret)
 			WARN(1, "Got a long running hardirq: IRQ %d in cpu: %d\n", irq, cpu_num);
 		atomic64_inc(&(long_irq_stat.long_irq_count));
 		atomic64_inc(&(long_irq_stat.long_irq_count_arr[cpu_num]));
-		if (trace_clock_set_rate_enabled()) {
-			char trace_name[32] = {0};
-			scnprintf(trace_name, sizeof(trace_name), "long_irq_count_cpu%d",
-							cpu_num);
-			trace_clock_set_rate(trace_name,
+
+		if (trace_long_irq_enabled()) {
+			trace_long_irq(irq, (unsigned int)irq_usec,
 				(unsigned int)
-				atomic64_read(&long_irq_stat.long_irq_count_arr[cpu_num]),
-				cpu_num);
-			scnprintf(trace_name, sizeof(trace_name), "irq_%d_last_dur", irq);
-			trace_clock_set_rate(trace_name, (unsigned int)irq_usec, cpu_num);
+				atomic64_read(&long_irq_stat.long_irq_count_arr[cpu_num]));
 		}
 	}
 	do {
@@ -341,26 +344,26 @@ static void hook_irq_end(void *data, int irq, struct irqaction *action, int ret)
 						curr_max_irq, irq_usec) != curr_max_irq);
 }
 
-void vh_sched_wakeup_pixel_mod(void *data, struct task_struct *p)
+static void vh_sched_wakeup_pixel_mod(void *data, struct task_struct *p)
 {
 	struct vendor_task_struct *vp;
 
 	if (!rt_task(p))
 		return;
-	vp = get_vendor_task_struct(p);
+	vp = sched_get_vendor_task_struct(p);
 	vp->runnable_start_ns = sched_clock();
 }
 
-void vh_sched_switch_pixel_mod(void *data, bool preempt,
-		struct task_struct *prev,
-		struct task_struct *next,
-		unsigned int prev_state)
+static void vh_sched_switch_pixel_mod(void *data, bool preempt,
+				      struct task_struct *prev,
+				      struct task_struct *next,
+				      unsigned int prev_state)
 {
 	struct vendor_task_struct *vnext, *vprev;
 	u64 now, runnable_delta;
 
 	now = sched_clock();
-	vprev = get_vendor_task_struct(prev);
+	vprev = sched_get_vendor_task_struct(prev);
 
 	if (vprev->adpf_adj) {
 		update_task_real_cap(prev);
@@ -376,7 +379,7 @@ void vh_sched_switch_pixel_mod(void *data, bool preempt,
 	else
 		vprev->runnable_start_ns = -1;
 
-	vnext = get_vendor_task_struct(next);
+	vnext = sched_get_vendor_task_struct(next);
 
 	if (vnext->adpf_adj) {
 		raw_spin_lock(&vnext->lock);
@@ -723,9 +726,10 @@ static ssize_t long_runnable_metrics_show(struct kobject *kobj,
 
 		for (i = 0; i < RT_RUNNABLE_ARR_SIZE; i++) {
 			long_rt_runnable = trr.rt_runnable[i];
-			strlcpy(sorted_trr[i].comm, long_rt_runnable.comm, TASK_COMM_LEN);
-			strlcpy(sorted_trr[i].prev_comm, long_rt_runnable.prev_comm,
-				TASK_COMM_LEN);
+			strscpy(sorted_trr[i].comm, long_rt_runnable.comm,
+				sizeof(sorted_trr[i].comm));
+			strscpy(sorted_trr[i].prev_comm, long_rt_runnable.prev_comm,
+				sizeof(sorted_trr[i].prev_comm));
 			sorted_trr[i].latency = long_rt_runnable.latency;
 		}
 		sort(sorted_trr, RT_RUNNABLE_ARR_SIZE, sizeof(struct rt_runnable),
@@ -962,4 +966,3 @@ int perf_metrics_init(struct kobject *metrics_kobj)
 	pr_info("perf_metrics driver initialized! :D\n");
 	return ret;
 }
-

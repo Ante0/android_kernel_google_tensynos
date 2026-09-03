@@ -1,0 +1,122 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_MFD_DA9186
+	tristate "Google DA9186 AP-PMIC MFD support"
+	depends on ARCH_GOOGLE
+	depends on GOOGLE_MBA_CPM_INTERFACE
+	select MFD_CORE
+	select REGULATOR
+	select RTC_CLASS
+	help
+	  Support for the DA9186 AP-PMIC MFD.
+	  This driver provide the common support for accessing the device,
+	  additional drivers must be enabled in order to use the functionality
+	  of the device.
+
+config GOOGLE_DA9186_REGULATOR
+	tristate "Google DA9186 Regulator driver"
+	depends on GOOGLE_MFD_DA9186
+	help
+	  Enable support for the DA9186 AP-PMIC regulator driver.
+	  This driver provide the regulator instance for the other device driver
+	  to use as their power supplies. The regulator binding is specified in
+	  the DTS. Also it provides a debugfs directory to read / write PMIC
+	  registers, under /sys/kernel/debug/pmic/.
+
+config GOOGLE_DA9186_RTC
+	tristate "Google DA9186 RTC driver"
+	depends on GOOGLE_MFD_DA9186
+	help
+	  Enable support for the DA9186 AP-PMIC RTC driver.
+	  The driver would create a system RTC instance, and the system time will be
+	  set upon module loaded.
+	  HW only support time starting from 2020-01-01 00:00:00 UTC.
+
+config GOOGLE_DA9186_GPIO
+	tristate "Google DA9186 pin control and GPIO driver"
+	depends on GOOGLE_MFD_DA9186
+	depends on PINCTRL
+	select PINMUX
+	select GPIOLIB
+	select GENERIC_PINCONF
+	help
+	  Enable support for the DA9186 AP-PMIC pin control and GPIO driver.
+	  Some PMIC GPIOs are used to control external regulator enable pins, or
+	  connect to peripherals as the control signal.
+	  The GPIO pin binding is specified in the DTS.
+
+config GOOGLE_DA9186_VGPIO
+	tristate "Google DA9186 vGPIO driver"
+	depends on GOOGLE_MFD_DA9186
+	select GPIOLIB
+	help
+	  Enable support for the DA9186 AP-PMIC vGPIO driver.
+	  The vGPIO are used to control certain PMIC features, normally it is not
+	  used as standard output pins. Use this driver with caution.
+	  The vGPIO pin binding is specified in the DTS.
+
+config GOOGLE_MFD_DA9188
+	tristate "Google DA9188 AP-PMIC MFD support"
+	depends on ARCH_GOOGLE
+	depends on GOOGLE_MBA_CPM_INTERFACE
+	select MFD_CORE
+	select REGULATOR
+	select RTC_CLASS
+	help
+	  Support for the DA9188 AP-PMIC MFD.
+	  This driver provide the common support for accessing the device,
+	  additional drivers must be enabled in order to use the functionality
+	  of the device.
+
+config GOOGLE_DA9188_REGULATOR
+	tristate "Google DA9188 Regulator driver"
+	depends on GOOGLE_MFD_DA9188
+	help
+	  Enable support for the DA9188 AP-PMIC regulator driver.
+	  This driver provide the regulator instance for the other device driver
+	  to use as their power supplies. The regulator binding is specified in
+	  the DTS.
+	  Select Y if you have such device.
+
+config GOOGLE_DA9188_REGULATOR_REGISTER_ACCESS
+	bool "Debugfs PMIC register access support"
+	depends on GOOGLE_DA9188_REGULATOR
+	depends on DEBUG_FS
+	help
+	  Enable direct PMIC register access support via debugfs.
+	  It provides a debugfs directory to read / write PMIC
+	  registers, under /sys/kernel/debug/pmic/.
+	  Select Y if you need to use it for debugging.
+	  If unsure select "N".
+
+config GOOGLE_DA9188_RTC
+	tristate "Google DA9188 RTC driver"
+	depends on GOOGLE_MFD_DA9188
+	help
+	  Enable support for the DA9188 AP-PMIC RTC driver.
+	  The driver would create a system RTC instance, and the system time will be
+	  set upon module loaded.
+	  The RTC HW only support time starting from 2020-01-01 00:00:00 UTC.
+
+config GOOGLE_DA9188_GPIO
+	tristate "Google DA9188 pin control and GPIO driver"
+	depends on GOOGLE_MFD_DA9188
+	depends on PINCTRL
+	select PINMUX
+	select GPIOLIB
+	select GENERIC_PINCONF
+	help
+	  Enable support for the DA9188 AP-PMIC pin control and GPIO driver.
+	  Some PMIC GPIOs are used to control external regulator enable pins, or
+	  connect to peripherals as the control signal.
+	  The GPIO pin binding is specified in the DTS.
+
+config GOOGLE_DA9188_VGPIO
+	tristate "Google DA9188 vGPIO driver"
+	depends on GOOGLE_MFD_DA9188
+	select GPIOLIB
+	help
+	  Enable support for the DA9188 AP-PMIC vGPIO driver.
+	  The vGPIO are used to control certain PMIC features, normally it is not
+	  used as standard output pins. Use this driver with caution.
+	  The vGPIO pin binding is specified in the DTS.

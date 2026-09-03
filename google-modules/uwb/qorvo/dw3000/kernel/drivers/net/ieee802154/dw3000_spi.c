@@ -107,7 +107,7 @@ static int dw3000_spi_probe(struct spi_device *spi)
 	dw->spi_pid = spi->controller->kworker.task->pid;
 #endif
 #else
-	dw->spi_pid = spi->master->kworker.task->pid;
+	dw->spi_pid = spi->controller->kworker.task->pid;
 #endif
 	dw->auto_sleep_margin_us = DW3000_AUTO_DEEP_SLEEP_MARGIN_US;
 	dw->current_operational_state = DW3000_OP_STATE_OFF;
@@ -123,7 +123,7 @@ static int dw3000_spi_probe(struct spi_device *spi)
 	dev_info(dw->dev, "setup mode: %d, %u bits/w, %u Hz max\n",
 		 (int)(spi->mode & (SPI_CPOL | SPI_CPHA)), spi->bits_per_word,
 		 spi->max_speed_hz);
-	dev_info(dw->dev, "can_dma: %d\n", spi->master->can_dma != NULL);
+	dev_info(dw->dev, "can_dma: %d\n", spi->controller->can_dma != NULL);
 	spi->bits_per_word = 8;
 #if (KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE)
 	spi->rt = 1;
@@ -181,7 +181,9 @@ static int dw3000_spi_probe(struct spi_device *spi)
 		goto err_state_start;
 
 	/* Debugfs interface */
-	dw3000_debugsfs_init(dw);
+	rc = dw3000_debugsfs_init(dw);
+	if (rc != 0)
+		goto err_debugfs;
 
 	/* Register MCPS 802.15.4 device */
 	rc = dw3000_mcps_register(dw);
@@ -195,6 +197,7 @@ static int dw3000_spi_probe(struct spi_device *spi)
 
 err_register_hw:
 	dw3000_debugfs_remove(dw);
+err_debugfs:
 err_state_start:
 	dw3000_pm_qos_remove_request(dw);
 err_setup_irq:

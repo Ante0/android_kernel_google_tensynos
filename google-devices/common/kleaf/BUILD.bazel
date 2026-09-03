@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+package(
+    default_visibility = [
+        "//visibility:public",
+    ],
+)
+
+config_setting(
+    name = "is_base_kernel_ignored",
+    flag_values = {
+        "@kleaf//build/kernel/kleaf/impl:force_ignore_base_kernel": "1",
+    },
+)

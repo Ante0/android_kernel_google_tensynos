@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Spacecraft odpm device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+&m_ext1_rail {
+	google,schematic-name = "VSYS_PWR_VBATT";
+	google,subsystem-name = "Battery";
+	google,shunt-res-uohm = <5000>;
+};
+
+&m_ext2_rail {
+	google,schematic-name = "VSYS_PWR_DISPLAY";
+	google,subsystem-name = "Display";
+	google,shunt-res-uohm = <10000>;
+};
+
+&m_ext3_rail {
+	google,schematic-name = "VSYS_PWR_CAMERA";
+	google,subsystem-name = "Camera";
+	google,shunt-res-uohm = <10000>;
+};
+
+&m_ext4_rail {
+	google,schematic-name = "VSYS_PWR_RFFE";
+	google,subsystem-name = "Cellular";
+	google,shunt-res-uohm = <5000>;
+};
+
+&s_ext5_rail {
+	google,schematic-name = "VSYS_PWR_IFPMIC";
+	google,subsystem-name = "PMIC";
+	google,shunt-res-uohm = <5000>;
+};
+
+&s_ext6_rail {
+	google,schematic-name = "VSYS_PWR_MODEM";
+	google,subsystem-name = "Modem";
+	google,shunt-res-uohm = <5000>;
+};
+
+&s_ext7_rail {
+	google,schematic-name = "VSYS_PWR_WLAN_BT";
+	google,subsystem-name = "WLAN-BT";
+	google,shunt-res-uohm = <10000>;
+};
+
+&s_ext8_rail {
+	google,schematic-name = "VSYS_PWR_MMWAVE";
+	google,subsystem-name = "Cellular";
+	google,shunt-res-uohm = <10000>;
+};

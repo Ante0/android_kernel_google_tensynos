@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# core modules configuration
+#
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/perf/core/gs_perf_mon/Kconfig"
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/perf/core/gs_domain_idle/Kconfig"
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/perf/core/irm_devfreq/Kconfig"
+

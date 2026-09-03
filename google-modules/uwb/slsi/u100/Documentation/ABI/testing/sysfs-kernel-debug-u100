@@ -1,0 +1,13 @@
+What:			/sys/kernel/debug/u100/gpio
+Date:			September 2025
+KernelVersion:	6.6.77
+Contact:		Jingbiao Nan <jingbiao.nan@samsung.com>
+Description:	This node provides GPIO control functionalities.
+		The following strings will be accepted:
+			'poweron'	: U100 power on
+			'poweroff'	: U100 power off
+			'reset'		: U100 reset
+			'syncreset'	: U100 reset and waiting for the ATR
+			'ldswon'	: Load switch on
+			'ldswoff'	: Load switch off
+			'ldswreset'	: Load switch reset (load switch off and on)

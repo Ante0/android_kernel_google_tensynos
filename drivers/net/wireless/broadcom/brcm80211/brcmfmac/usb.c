@@ -117,13 +117,6 @@ struct bootrom_id_le {
 	__le32 boardrev;	/* Board revision */
 };
 
-struct brcmf_usb_image {
-	struct list_head list;
-	s8 *fwname;
-	u8 *image;
-	int image_len;
-};
-
 struct brcmf_usbdev_info {
 	struct brcmf_usbdev bus_pub; /* MUST BE FIRST */
 	spinlock_t qlock;
@@ -1242,10 +1235,11 @@ brcmf_usb_prepare_fw_request(struct brcmf_usbdev_info *devinfo)
 	return fwreq;
 }
 
-static int brcmf_usb_probe_cb(struct brcmf_usbdev_info *devinfo)
+static int brcmf_usb_probe_cb(struct brcmf_usbdev_info *devinfo,
+			      enum brcmf_fwvendor fwvid)
 {
-	struct brcmf_bus *bus = NULL;
-	struct brcmf_usbdev *bus_pub = NULL;
+	struct brcmf_bus *bus;
+	struct brcmf_usbdev *bus_pub;
 	struct device *dev = devinfo->dev;
 	struct brcmf_fw_request *fwreq;
 	int ret;
@@ -1255,7 +1249,7 @@ static int brcmf_usb_probe_cb(struct brcmf_usbdev_info *devinfo)
 	if (!bus_pub)
 		return -ENODEV;
 
-	bus = kzalloc(sizeof(struct brcmf_bus), GFP_ATOMIC);
+	bus = kzalloc(sizeof(*bus), GFP_ATOMIC);
 	if (!bus) {
 		ret = -ENOMEM;
 		goto fail;
@@ -1267,6 +1261,7 @@ static int brcmf_usb_probe_cb(struct brcmf_usbdev_info *devinfo)
 	dev_set_drvdata(dev, bus);
 	bus->ops = &brcmf_usb_bus_ops;
 	bus->proto_type = BRCMF_PROTO_BCDC;
+	bus->fwvid = fwvid;
 	bus->always_use_fws_queue = true;
 #ifdef CONFIG_PM
 	bus->wowl_supported = true;
@@ -1331,6 +1326,9 @@ brcmf_usb_disconnect_cb(struct brcmf_usbdev_info *devinfo)
 	brcmf_usb_detach(devinfo);
 }
 
+/* Forward declaration for usb_match_id() call */
+static const struct usb_device_id brcmf_usb_devid_table[];
+
 static int
 brcmf_usb_probe(struct usb_interface *intf, const struct usb_device_id *id)
 {
@@ -1341,6 +1339,14 @@ brcmf_usb_probe(struct usb_interface *intf, const struct usb_device_id *id)
 	int ret = 0;
 	u32 num_of_eps;
 	u8 endpoint_num, ep;
+
+	if (!id) {
+		id = usb_match_id(intf, brcmf_usb_devid_table);
+		if (!id) {
+			dev_err(&intf->dev, "Error could not find matching usb_device_id\n");
+			return -ENODEV;
+		}
+	}
 
 	brcmf_dbg(USB, "Enter 0x%04x:0x%04x\n", id->idVendor, id->idProduct);
 
@@ -1425,7 +1431,7 @@ brcmf_usb_probe(struct usb_interface *intf, const struct usb_device_id *id)
 	else
 		brcmf_dbg(USB, "Broadcom full speed USB WLAN interface detected\n");
 
-	ret = brcmf_usb_probe_cb(devinfo);
+	ret = brcmf_usb_probe_cb(devinfo, id->driver_info);
 	if (ret)
 		goto fail;
 
@@ -1513,14 +1519,23 @@ static int brcmf_usb_reset_resume(struct usb_interface *intf)
 	return ret;
 }
 
-#define BRCMF_USB_DEVICE(dev_id)	\
-	{ USB_DEVICE(BRCM_USB_VENDOR_ID_BROADCOM, dev_id) }
+#define BRCMF_USB_DEVICE(dev_id) \
+	{ \
+		USB_DEVICE(BRCM_USB_VENDOR_ID_BROADCOM, dev_id), \
+		.driver_info = BRCMF_FWVENDOR_WCC \
+	}
 
-#define LINKSYS_USB_DEVICE(dev_id)	\
-	{ USB_DEVICE(BRCM_USB_VENDOR_ID_LINKSYS, dev_id) }
+#define LINKSYS_USB_DEVICE(dev_id) \
+	{ \
+		USB_DEVICE(BRCM_USB_VENDOR_ID_LINKSYS, dev_id), \
+		.driver_info = BRCMF_FWVENDOR_WCC \
+	}
 
-#define CYPRESS_USB_DEVICE(dev_id)	\
-	{ USB_DEVICE(CY_USB_VENDOR_ID_CYPRESS, dev_id) }
+#define CYPRESS_USB_DEVICE(dev_id) \
+	{ \
+		USB_DEVICE(CY_USB_VENDOR_ID_CYPRESS, dev_id), \
+		.driver_info = BRCMF_FWVENDOR_WCC \
+	}
 
 static const struct usb_device_id brcmf_usb_devid_table[] = {
 	BRCMF_USB_DEVICE(BRCM_USB_43143_DEVICE_ID),
@@ -1561,7 +1576,7 @@ static int brcmf_usb_reset_device(struct device *dev, void *notused)
 
 void brcmf_usb_exit(void)
 {
-	struct device_driver *drv = &brcmf_usbdrvr.drvwrap.driver;
+	struct device_driver *drv = &brcmf_usbdrvr.driver;
 	int ret;
 
 	brcmf_dbg(USB, "Enter\n");

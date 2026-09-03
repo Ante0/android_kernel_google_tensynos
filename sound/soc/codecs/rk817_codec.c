@@ -10,7 +10,6 @@
 #include <linux/mfd/rk808.h>
 #include <linux/module.h>
 #include <linux/of.h>
-#include <linux/of_gpio.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <sound/core.h>
@@ -518,13 +517,11 @@ err_:
 	return ret;
 }
 
-static int rk817_platform_remove(struct platform_device *pdev)
+static void rk817_platform_remove(struct platform_device *pdev)
 {
 	struct rk817_codec_priv *rk817 = platform_get_drvdata(pdev);
 
 	clk_disable_unprepare(rk817->mclk);
-
-	return 0;
 }
 
 static struct platform_driver rk817_codec_driver = {

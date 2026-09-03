@@ -127,47 +127,6 @@ ATOMIC_OPS(xor, xor, "", K)
 #undef ATOMIC_OP_RETURN_RELAXED
 #undef ATOMIC_OP
 
-#define arch_atomic_cmpxchg(v, o, n) \
-	(arch_cmpxchg(&((v)->counter), (o), (n)))
-#define arch_atomic_cmpxchg_relaxed(v, o, n) \
-	arch_cmpxchg_relaxed(&((v)->counter), (o), (n))
-#define arch_atomic_cmpxchg_acquire(v, o, n) \
-	arch_cmpxchg_acquire(&((v)->counter), (o), (n))
-
-#define arch_atomic_xchg(v, new) \
-	(arch_xchg(&((v)->counter), new))
-#define arch_atomic_xchg_relaxed(v, new) \
-	arch_xchg_relaxed(&((v)->counter), (new))
-
-/*
- * Don't want to override the generic atomic_try_cmpxchg_acquire, because
- * we add a lock hint to the lwarx, which may not be wanted for the
- * _acquire case (and is not used by the other _acquire variants so it
- * would be a surprise).
- */
-static __always_inline bool
-arch_atomic_try_cmpxchg_lock(atomic_t *v, int *old, int new)
-{
-	int r, o = *old;
-	unsigned int eh = IS_ENABLED(CONFIG_PPC64);
-
-	__asm__ __volatile__ (
-"1:	lwarx	%0,0,%2,%[eh]	# atomic_try_cmpxchg_acquire		\n"
-"	cmpw	0,%0,%3							\n"
-"	bne-	2f							\n"
-"	stwcx.	%4,0,%2							\n"
-"	bne-	1b							\n"
-"\t"	PPC_ACQUIRE_BARRIER "						\n"
-"2:									\n"
-	: "=&r" (r), "+m" (v->counter)
-	: "r" (&v->counter), "r" (o), "r" (new), [eh] "n" (eh)
-	: "cr0", "memory");
-
-	if (unlikely(r != o))
-		*old = r;
-	return likely(r == o);
-}
-
 /**
  * atomic_fetch_add_unless - add unless the number is a given value
  * @v: pointer of type atomic_t
@@ -425,18 +384,6 @@ static __inline__ s64 arch_atomic64_dec_if_positive(atomic64_t *v)
 	return t;
 }
 #define arch_atomic64_dec_if_positive arch_atomic64_dec_if_positive
-
-#define arch_atomic64_cmpxchg(v, o, n) \
-	(arch_cmpxchg(&((v)->counter), (o), (n)))
-#define arch_atomic64_cmpxchg_relaxed(v, o, n) \
-	arch_cmpxchg_relaxed(&((v)->counter), (o), (n))
-#define arch_atomic64_cmpxchg_acquire(v, o, n) \
-	arch_cmpxchg_acquire(&((v)->counter), (o), (n))
-
-#define arch_atomic64_xchg(v, new) \
-	(arch_xchg(&((v)->counter), new))
-#define arch_atomic64_xchg_relaxed(v, new) \
-	arch_xchg_relaxed(&((v)->counter), (new))
 
 /**
  * atomic64_fetch_add_unless - add unless the number is a given value

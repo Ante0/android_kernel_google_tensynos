@@ -39,9 +39,10 @@
 
 static int compare_rprime(void)
 {
-	uint8_t bstatus, ri_retry_cnt = 0;
 	uint16_t rprime;
 	int ret;
+	uint8_t bstatus = 0;
+	uint8_t ri_retry_cnt = 0;
 
 	usleep_range(RI_DELAY * 1000, RI_DELAY * 1000 + 1);
 
@@ -254,7 +255,7 @@ int run_hdcp1_auth(void) {
 
 int hdcp13_dplink_handle_irq(void)
 {
-	uint8_t bstatus;
+	uint8_t bstatus = 0;
 
 	if (hdcp_get_auth_state() != HDCP1_AUTH_DONE) {
 		hdcp_err("Ignoring IRQ during auth\n");

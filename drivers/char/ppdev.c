@@ -780,11 +780,12 @@ static __poll_t pp_poll(struct file *file, poll_table *wait)
 	return mask;
 }
 
-static struct class *ppdev_class;
+static const struct class ppdev_class = {
+	.name = CHRDEV,
+};
 
 static const struct file_operations pp_fops = {
 	.owner		= THIS_MODULE,
-	.llseek		= no_llseek,
 	.read		= pp_read,
 	.write		= pp_write,
 	.poll		= pp_poll,
@@ -801,7 +802,7 @@ static void pp_attach(struct parport *port)
 	if (devices[port->number])
 		return;
 
-	ret = device_create(ppdev_class, port->dev,
+	ret = device_create(&ppdev_class, port->dev,
 			    MKDEV(PP_MAJOR, port->number), NULL,
 			    "parport%d", port->number);
 	if (IS_ERR(ret)) {
@@ -817,7 +818,7 @@ static void pp_detach(struct parport *port)
 	if (!devices[port->number])
 		return;
 
-	device_destroy(ppdev_class, MKDEV(PP_MAJOR, port->number));
+	device_destroy(&ppdev_class, MKDEV(PP_MAJOR, port->number));
 	devices[port->number] = NULL;
 }
 
@@ -837,7 +838,6 @@ static struct parport_driver pp_driver = {
 	.probe		= pp_probe,
 	.match_port	= pp_attach,
 	.detach		= pp_detach,
-	.devmodel	= true,
 };
 
 static int __init ppdev_init(void)
@@ -848,11 +848,10 @@ static int __init ppdev_init(void)
 		pr_warn(CHRDEV ": unable to get major %d\n", PP_MAJOR);
 		return -EIO;
 	}
-	ppdev_class = class_create(THIS_MODULE, CHRDEV);
-	if (IS_ERR(ppdev_class)) {
-		err = PTR_ERR(ppdev_class);
+	err = class_register(&ppdev_class);
+	if (err)
 		goto out_chrdev;
-	}
+
 	err = parport_register_driver(&pp_driver);
 	if (err < 0) {
 		pr_warn(CHRDEV ": unable to register with parport\n");
@@ -863,7 +862,7 @@ static int __init ppdev_init(void)
 	goto out;
 
 out_class:
-	class_destroy(ppdev_class);
+	class_unregister(&ppdev_class);
 out_chrdev:
 	unregister_chrdev(PP_MAJOR, CHRDEV);
 out:
@@ -874,12 +873,13 @@ static void __exit ppdev_cleanup(void)
 {
 	/* Clean up all parport stuff */
 	parport_unregister_driver(&pp_driver);
-	class_destroy(ppdev_class);
+	class_unregister(&ppdev_class);
 	unregister_chrdev(PP_MAJOR, CHRDEV);
 }
 
 module_init(ppdev_init);
 module_exit(ppdev_cleanup);
 
+MODULE_DESCRIPTION("Support for user-space parallel port device drivers");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS_CHARDEV_MAJOR(PP_MAJOR);

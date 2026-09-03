@@ -11,6 +11,6 @@
 
 /* Macros to check the availability of features and APIs */
 
-#define GCIP_IOMMU_MAP_HAS_GFP 0
+#define GCIP_IOMMU_MAP_HAS_GFP 1
 
 #endif /* __GCIP_CONFIG_H__ */

@@ -2,8 +2,11 @@
 #include <linux/nfs_fs.h>
 #include <linux/nfs_mount.h>
 #include <linux/sunrpc/addr.h>
+#include <net/handshake.h>
 #include "internal.h"
 #include "nfs3_fs.h"
+#include "netns.h"
+#include "sysfs.h"
 
 #ifdef CONFIG_NFS_V3_ACL
 static struct rpc_stat		nfsacl_rpcstat = { &nfsacl_program };
@@ -30,6 +33,8 @@ static void nfs_init_server_aclclient(struct nfs_server *server)
 	server->client_acl = rpc_bind_new_program(server->client, &nfsacl_program, 3);
 	if (IS_ERR(server->client_acl))
 		goto out_noacl;
+
+	nfs_sysfs_link_rpc_client(server, server->client_acl, NULL);
 
 	/* No errors! Assume that Sun nfsacls are supported */
 	server->caps |= NFS_CAP_ACLS;
@@ -82,6 +87,7 @@ struct nfs_client *nfs3_set_ds_client(struct nfs_server *mds_srv,
 		int ds_proto, unsigned int ds_timeo, unsigned int ds_retrans)
 {
 	struct rpc_timeout ds_timeout;
+	unsigned long connect_timeout = ds_timeo * (ds_retrans + 1) * HZ / 10;
 	struct nfs_client *mds_clp = mds_srv->nfs_client;
 	struct nfs_client_initdata cl_init = {
 		.addr = ds_addr,
@@ -93,6 +99,13 @@ struct nfs_client *nfs3_set_ds_client(struct nfs_server *mds_srv,
 		.net = mds_clp->cl_net,
 		.timeparms = &ds_timeout,
 		.cred = mds_srv->cred,
+		.xprtsec = {
+			.policy = RPC_XPRTSEC_NONE,
+			.cert_serial = TLS_NO_CERT,
+			.privkey_serial = TLS_NO_PRIVKEY,
+		},
+		.connect_timeout = connect_timeout,
+		.reconnect_timeout = connect_timeout,
 	};
 	struct nfs_client *clp;
 	char buf[INET6_ADDRSTRLEN + 1];
@@ -102,8 +115,18 @@ struct nfs_client *nfs3_set_ds_client(struct nfs_server *mds_srv,
 		return ERR_PTR(-EINVAL);
 	cl_init.hostname = buf;
 
-	if (mds_clp->cl_nconnect > 1 && ds_proto == XPRT_TRANSPORT_TCP)
-		cl_init.nconnect = mds_clp->cl_nconnect;
+	switch (ds_proto) {
+	case XPRT_TRANSPORT_TCP_TLS:
+		if (mds_clp->cl_xprtsec.policy != RPC_XPRTSEC_NONE)
+			cl_init.xprtsec = mds_clp->cl_xprtsec;
+		else
+			ds_proto = XPRT_TRANSPORT_TCP;
+		fallthrough;
+	case XPRT_TRANSPORT_RDMA:
+	case XPRT_TRANSPORT_TCP:
+		if (mds_clp->cl_nconnect > 1)
+			cl_init.nconnect = mds_clp->cl_nconnect;
+	}
 
 	if (mds_srv->flags & NFS_MOUNT_NORESVPORT)
 		__set_bit(NFS_CS_NORESVPORT, &cl_init.init_flags);

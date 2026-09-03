@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Deespace h2omg definition
+ *
+ * Copyright 2024 Google LLC
+ *
+ */
+
+&max77779_i2cm {
+	h2omg: h2omg@70 {
+		reg = <0x70>;
+
+		compatible = "google,h2omg";
+		status = "disabled";
+
+		control = /bits/ 8 <0x4f>;
+
+		/* USING XCPM_EINT_15 */
+		pinctrl-names = "default";
+		pinctrl-0 = <&bg_cpm_alrt_od_l>;
+		h2omg_irq-gpios = <BG_CPM_ALRT_OD_L(GPIO_ACTIVE_LOW)>;
+	};
+};

@@ -31,15 +31,15 @@ However, except for filenames, fscrypt does not encrypt filesystem
 metadata.
 
 Unlike eCryptfs, which is a stacked filesystem, fscrypt is integrated
-directly into supported filesystems --- currently ext4, F2FS, and
-UBIFS.  This allows encrypted files to be read and written without
-caching both the decrypted and encrypted pages in the pagecache,
-thereby nearly halving the memory used and bringing it in line with
-unencrypted files.  Similarly, half as many dentries and inodes are
-needed.  eCryptfs also limits encrypted filenames to 143 bytes,
-causing application compatibility issues; fscrypt allows the full 255
-bytes (NAME_MAX).  Finally, unlike eCryptfs, the fscrypt API can be
-used by unprivileged users, with no need to mount anything.
+directly into supported filesystems --- currently ext4, F2FS, UBIFS,
+and CephFS.  This allows encrypted files to be read and written
+without caching both the decrypted and encrypted pages in the
+pagecache, thereby nearly halving the memory used and bringing it in
+line with unencrypted files.  Similarly, half as many dentries and
+inodes are needed.  eCryptfs also limits encrypted filenames to 143
+bytes, causing application compatibility issues; fscrypt allows the
+full 255 bytes (NAME_MAX).  Finally, unlike eCryptfs, the fscrypt API
+can be used by unprivileged users, with no need to mount anything.
 
 fscrypt does not support encrypting files in-place.  Instead, it
 supports marking an empty directory as encrypted.  Then, after
@@ -141,9 +141,8 @@ However, these ioctls have some limitations:
   CONFIG_PAGE_POISONING=y in your kernel config and add page_poison=1
   to your kernel command line.  However, this has a performance cost.
 
-- Secret keys might still exist in CPU registers, in crypto
-  accelerator hardware (if used by the crypto API to implement any of
-  the algorithms), or in other places not explicitly considered here.
+- Secret keys might still exist in CPU registers or in other places
+  not explicitly considered here.
 
 Limitations of v1 policies
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -332,54 +331,127 @@ Encryption modes and usage
 fscrypt allows one encryption mode to be specified for file contents
 and one encryption mode to be specified for filenames.  Different
 directory trees are permitted to use different encryption modes.
+
+Supported modes
+---------------
+
 Currently, the following pairs of encryption modes are supported:
 
-- AES-256-XTS for contents and AES-256-CTS-CBC for filenames
-- AES-128-CBC for contents and AES-128-CTS-CBC for filenames
+- AES-256-XTS for contents and AES-256-CBC-CTS for filenames
+- AES-256-XTS for contents and AES-256-HCTR2 for filenames
 - Adiantum for both contents and filenames
-- AES-256-XTS for contents and AES-256-HCTR2 for filenames (v2 policies only)
-- SM4-XTS for contents and SM4-CTS-CBC for filenames (v2 policies only)
+- AES-128-CBC-ESSIV for contents and AES-128-CBC-CTS for filenames
+- SM4-XTS for contents and SM4-CBC-CTS for filenames
 
-If unsure, you should use the (AES-256-XTS, AES-256-CTS-CBC) pair.
+Note: in the API, "CBC" means CBC-ESSIV, and "CTS" means CBC-CTS.
+So, for example, FSCRYPT_MODE_AES_256_CTS means AES-256-CBC-CTS.
 
-AES-128-CBC was added only for low-powered embedded devices with
-crypto accelerators such as CAAM or CESA that do not support XTS.  To
-use AES-128-CBC, CONFIG_CRYPTO_ESSIV and CONFIG_CRYPTO_SHA256 (or
-another SHA-256 implementation) must be enabled so that ESSIV can be
-used.
+Authenticated encryption modes are not currently supported because of
+the difficulty of dealing with ciphertext expansion.  Therefore,
+contents encryption uses a block cipher in `XTS mode
+<https://en.wikipedia.org/wiki/Disk_encryption_theory#XTS>`_ or
+`CBC-ESSIV mode
+<https://en.wikipedia.org/wiki/Disk_encryption_theory#Encrypted_salt-sector_initialization_vector_(ESSIV)>`_,
+or a wide-block cipher.  Filenames encryption uses a
+block cipher in `CBC-CTS mode
+<https://en.wikipedia.org/wiki/Ciphertext_stealing>`_ or a wide-block
+cipher.
 
-Adiantum is a (primarily) stream cipher-based mode that is fast even
-on CPUs without dedicated crypto instructions.  It's also a true
-wide-block mode, unlike XTS.  It can also eliminate the need to derive
-per-file encryption keys.  However, it depends on the security of two
-primitives, XChaCha12 and AES-256, rather than just one.  See the
-paper "Adiantum: length-preserving encryption for entry-level
-processors" (https://eprint.iacr.org/2018/720.pdf) for more details.
-To use Adiantum, CONFIG_CRYPTO_ADIANTUM must be enabled.  Also, fast
-implementations of ChaCha and NHPoly1305 should be enabled, e.g.
-CONFIG_CRYPTO_CHACHA20_NEON and CONFIG_CRYPTO_NHPOLY1305_NEON for ARM.
+The (AES-256-XTS, AES-256-CBC-CTS) pair is the recommended default.
+It is also the only option that is *guaranteed* to always be supported
+if the kernel supports fscrypt at all; see `Kernel config options`_.
 
-AES-256-HCTR2 is another true wide-block encryption mode that is intended for
-use on CPUs with dedicated crypto instructions.  AES-256-HCTR2 has the property
-that a bitflip in the plaintext changes the entire ciphertext.  This property
-makes it desirable for filename encryption since initialization vectors are
-reused within a directory.  For more details on AES-256-HCTR2, see the paper
-"Length-preserving encryption with HCTR2"
-(https://eprint.iacr.org/2021/1441.pdf).  To use AES-256-HCTR2,
-CONFIG_CRYPTO_HCTR2 must be enabled.  Also, fast implementations of XCTR and
-POLYVAL should be enabled, e.g. CRYPTO_POLYVAL_ARM64_CE and
-CRYPTO_AES_ARM64_CE_BLK for ARM64.
+The (AES-256-XTS, AES-256-HCTR2) pair is also a good choice that
+upgrades the filenames encryption to use a wide-block cipher.  (A
+*wide-block cipher*, also called a tweakable super-pseudorandom
+permutation, has the property that changing one bit scrambles the
+entire result.)  As described in `Filenames encryption`_, a wide-block
+cipher is the ideal mode for the problem domain, though CBC-CTS is the
+"least bad" choice among the alternatives.  For more information about
+HCTR2, see `the HCTR2 paper <https://eprint.iacr.org/2021/1441.pdf>`_.
 
-SM4 is a Chinese block cipher that is an alternative to AES.  It has
-not seen as much security review as AES, and it only has a 128-bit key
-size.  It may be useful in cases where its use is mandated.
-Otherwise, it should not be used.  For SM4 support to be available, it
-also needs to be enabled in the kernel crypto API.
+Adiantum is recommended on systems where AES is too slow due to lack
+of hardware acceleration for AES.  Adiantum is a wide-block cipher
+that uses XChaCha12 and AES-256 as its underlying components.  Most of
+the work is done by XChaCha12, which is much faster than AES when AES
+acceleration is unavailable.  For more information about Adiantum, see
+`the Adiantum paper <https://eprint.iacr.org/2018/720.pdf>`_.
 
-New encryption modes can be added relatively easily, without changes
-to individual filesystems.  However, authenticated encryption (AE)
-modes are not currently supported because of the difficulty of dealing
-with ciphertext expansion.
+The (AES-128-CBC-ESSIV, AES-128-CBC-CTS) pair was added to try to
+provide a more efficient option for systems that lack AES instructions
+in the CPU but do have a non-inline crypto engine such as CAAM or CESA
+that supports AES-CBC (and not AES-XTS).  This is deprecated.  It has
+been shown that just doing AES on the CPU is actually faster.
+Moreover, Adiantum is faster still and is recommended on such systems.
+
+The remaining mode pairs are the "national pride ciphers":
+
+- (SM4-XTS, SM4-CBC-CTS)
+
+Generally speaking, these ciphers aren't "bad" per se, but they
+receive limited security review compared to the usual choices such as
+AES and ChaCha.  They also don't bring much new to the table.  It is
+suggested to only use these ciphers where their use is mandated.
+
+Kernel config options
+---------------------
+
+Enabling fscrypt support (CONFIG_FS_ENCRYPTION) automatically pulls in
+only the basic support from the crypto API needed to use AES-256-XTS
+and AES-256-CBC-CTS encryption.  For optimal performance, it is
+strongly recommended to also enable any available platform-specific
+kconfig options that provide acceleration for the algorithm(s) you
+wish to use.  Support for any "non-default" encryption modes typically
+requires extra kconfig options as well.
+
+Below, some relevant options are listed by encryption mode.  Note,
+acceleration options not listed below may be available for your
+platform; refer to the kconfig menus.  File contents encryption can
+also be configured to use inline encryption hardware instead of the
+kernel crypto API (see `Inline encryption support`_); in that case,
+the file contents mode doesn't need to supported in the kernel crypto
+API, but the filenames mode still does.
+
+- AES-256-XTS and AES-256-CBC-CTS
+    - Recommended:
+        - arm64: CONFIG_CRYPTO_AES_ARM64_CE_BLK
+        - x86: CONFIG_CRYPTO_AES_NI_INTEL
+
+- AES-256-HCTR2
+    - Mandatory:
+        - CONFIG_CRYPTO_HCTR2
+    - Recommended:
+        - arm64: CONFIG_CRYPTO_AES_ARM64_CE_BLK
+        - arm64: CONFIG_CRYPTO_POLYVAL_ARM64_CE
+        - x86: CONFIG_CRYPTO_AES_NI_INTEL
+        - x86: CONFIG_CRYPTO_POLYVAL_CLMUL_NI
+
+- Adiantum
+    - Mandatory:
+        - CONFIG_CRYPTO_ADIANTUM
+    - Recommended:
+        - arm32: CONFIG_CRYPTO_CHACHA20_NEON
+        - arm32: CONFIG_CRYPTO_NHPOLY1305_NEON
+        - arm64: CONFIG_CRYPTO_CHACHA20_NEON
+        - arm64: CONFIG_CRYPTO_NHPOLY1305_NEON
+        - x86: CONFIG_CRYPTO_CHACHA20_X86_64
+        - x86: CONFIG_CRYPTO_NHPOLY1305_SSE2
+        - x86: CONFIG_CRYPTO_NHPOLY1305_AVX2
+
+- AES-128-CBC-ESSIV and AES-128-CBC-CTS:
+    - Mandatory:
+        - CONFIG_CRYPTO_ESSIV
+        - CONFIG_CRYPTO_SHA256 or another SHA-256 implementation
+    - Recommended:
+        - AES-CBC acceleration
+
+fscrypt also uses HMAC-SHA512 for key derivation, so enabling SHA-512
+acceleration is recommended:
+
+- SHA-512
+    - Recommended:
+        - arm64: CONFIG_CRYPTO_SHA512_ARM64_CE
+        - x86: CONFIG_CRYPTO_SHA512_SSSE3
 
 Contents encryption
 -------------------
@@ -454,7 +526,7 @@ alternatively has the file's nonce (for `DIRECT_KEY policies`_) or
 inode number (for `IV_INO_LBLK_64 policies`_) included in the IVs.
 Thus, IV reuse is limited to within a single directory.
 
-With CTS-CBC, the IV reuse means that when the plaintext filenames share a
+With CBC-CTS, the IV reuse means that when the plaintext filenames share a
 common prefix at least as long as the cipher block size (16 bytes for AES), the
 corresponding encrypted filenames will also share a common prefix.  This is
 undesirable.  Adiantum and HCTR2 do not have this weakness, as they are
@@ -525,7 +597,14 @@ This structure must be initialized as follows:
   be set to constants from ``<linux/fscrypt.h>`` which identify the
   encryption modes to use.  If unsure, use FSCRYPT_MODE_AES_256_XTS
   (1) for ``contents_encryption_mode`` and FSCRYPT_MODE_AES_256_CTS
-  (4) for ``filenames_encryption_mode``.
+  (4) for ``filenames_encryption_mode``.  For details, see `Encryption
+  modes and usage`_.
+
+  v1 encryption policies only support three combinations of modes:
+  (FSCRYPT_MODE_AES_256_XTS, FSCRYPT_MODE_AES_256_CTS),
+  (FSCRYPT_MODE_AES_128_CBC, FSCRYPT_MODE_AES_128_CTS), and
+  (FSCRYPT_MODE_ADIANTUM, FSCRYPT_MODE_ADIANTUM).  v2 policies support
+  all combinations documented in `Supported modes`_.
 
 - ``flags`` contains optional flags from ``<linux/fscrypt.h>``:
 
@@ -1060,8 +1139,8 @@ The caller must zero all input fields, then fill in ``key_spec``:
 On success, 0 is returned and the kernel fills in the output fields:
 
 - ``status`` indicates whether the key is absent, present, or
-  incompletely removed.  Incompletely removed means that the master
-  secret has been removed, but some files are still in use; i.e.,
+  incompletely removed.  Incompletely removed means that removal has
+  been initiated, but some files are still in use; i.e.,
   `FS_IOC_REMOVE_ENCRYPTION_KEY`_ returned 0 but set the informational
   status flag FSCRYPT_KEY_REMOVAL_STATUS_FLAG_FILES_BUSY.
 
@@ -1212,22 +1291,13 @@ this by validating all top-level encryption policies prior to access.
 Inline encryption support
 =========================
 
-By default, fscrypt uses the kernel crypto API for all cryptographic
-operations (other than HKDF, which fscrypt partially implements
-itself).  The kernel crypto API supports hardware crypto accelerators,
-but only ones that work in the traditional way where all inputs and
-outputs (e.g. plaintexts and ciphertexts) are in memory.  fscrypt can
-take advantage of such hardware, but the traditional acceleration
-model isn't particularly efficient and fscrypt hasn't been optimized
-for it.
-
-Instead, many newer systems (especially mobile SoCs) have *inline
-encryption hardware* that can encrypt/decrypt data while it is on its
-way to/from the storage device.  Linux supports inline encryption
-through a set of extensions to the block layer called *blk-crypto*.
-blk-crypto allows filesystems to attach encryption contexts to bios
-(I/O requests) to specify how the data will be encrypted or decrypted
-in-line.  For more information about blk-crypto, see
+Many newer systems (especially mobile SoCs) have *inline encryption
+hardware* that can encrypt/decrypt data while it is on its way to/from
+the storage device.  Linux supports inline encryption through a set of
+extensions to the block layer called *blk-crypto*.  blk-crypto allows
+filesystems to attach encryption contexts to bios (I/O requests) to
+specify how the data will be encrypted or decrypted in-line.  For more
+information about blk-crypto, see
 :ref:`Documentation/block/inline-encryption.rst <inline_encryption>`.
 
 On supported filesystems (currently ext4 and f2fs), fscrypt can use
@@ -1308,7 +1378,8 @@ directory.)  These structs are defined as follows::
             u8 contents_encryption_mode;
             u8 filenames_encryption_mode;
             u8 flags;
-            u8 __reserved[4];
+            u8 log2_data_unit_size;
+            u8 __reserved[3];
             u8 master_key_identifier[FSCRYPT_KEY_IDENTIFIER_SIZE];
             u8 nonce[FSCRYPT_FILE_NONCE_SIZE];
     };

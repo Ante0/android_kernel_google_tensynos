@@ -12,8 +12,95 @@
 #include <asm/msr-index.h>
 #include <asm/unwind_hints.h>
 #include <asm/percpu.h>
+#include <asm/current.h>
 
-#define RETPOLINE_THUNK_SIZE	32
+/*
+ * Call depth tracking for Intel SKL CPUs to address the RSB underflow
+ * issue in software.
+ *
+ * The tracking does not use a counter. It uses uses arithmetic shift
+ * right on call entry and logical shift left on return.
+ *
+ * The depth tracking variable is initialized to 0x8000.... when the call
+ * depth is zero. The arithmetic shift right sign extends the MSB and
+ * saturates after the 12th call. The shift count is 5 for both directions
+ * so the tracking covers 12 nested calls.
+ *
+ *  Call
+ *  0: 0x8000000000000000	0x0000000000000000
+ *  1: 0xfc00000000000000	0xf000000000000000
+ * ...
+ * 11: 0xfffffffffffffff8	0xfffffffffffffc00
+ * 12: 0xffffffffffffffff	0xffffffffffffffe0
+ *
+ * After a return buffer fill the depth is credited 12 calls before the
+ * next stuffing has to take place.
+ *
+ * There is a inaccuracy for situations like this:
+ *
+ *  10 calls
+ *   5 returns
+ *   3 calls
+ *   4 returns
+ *   3 calls
+ *   ....
+ *
+ * The shift count might cause this to be off by one in either direction,
+ * but there is still a cushion vs. the RSB depth. The algorithm does not
+ * claim to be perfect and it can be speculated around by the CPU, but it
+ * is considered that it obfuscates the problem enough to make exploitation
+ * extremely difficult.
+ */
+#define RET_DEPTH_SHIFT			5
+#define RSB_RET_STUFF_LOOPS		16
+#define RET_DEPTH_INIT			0x8000000000000000ULL
+#define RET_DEPTH_INIT_FROM_CALL	0xfc00000000000000ULL
+#define RET_DEPTH_CREDIT		0xffffffffffffffffULL
+
+#ifdef CONFIG_CALL_THUNKS_DEBUG
+# define CALL_THUNKS_DEBUG_INC_CALLS				\
+	incq	PER_CPU_VAR(__x86_call_count);
+# define CALL_THUNKS_DEBUG_INC_RETS				\
+	incq	PER_CPU_VAR(__x86_ret_count);
+# define CALL_THUNKS_DEBUG_INC_STUFFS				\
+	incq	PER_CPU_VAR(__x86_stuffs_count);
+# define CALL_THUNKS_DEBUG_INC_CTXSW				\
+	incq	PER_CPU_VAR(__x86_ctxsw_count);
+#else
+# define CALL_THUNKS_DEBUG_INC_CALLS
+# define CALL_THUNKS_DEBUG_INC_RETS
+# define CALL_THUNKS_DEBUG_INC_STUFFS
+# define CALL_THUNKS_DEBUG_INC_CTXSW
+#endif
+
+#if defined(CONFIG_MITIGATION_CALL_DEPTH_TRACKING) && !defined(COMPILE_OFFSETS)
+
+#include <asm/asm-offsets.h>
+
+#define CREDIT_CALL_DEPTH					\
+	movq	$-1, PER_CPU_VAR(pcpu_hot + X86_call_depth);
+
+#define RESET_CALL_DEPTH					\
+	xor	%eax, %eax;					\
+	bts	$63, %rax;					\
+	movq	%rax, PER_CPU_VAR(pcpu_hot + X86_call_depth);
+
+#define RESET_CALL_DEPTH_FROM_CALL				\
+	movb	$0xfc, %al;					\
+	shl	$56, %rax;					\
+	movq	%rax, PER_CPU_VAR(pcpu_hot + X86_call_depth);	\
+	CALL_THUNKS_DEBUG_INC_CALLS
+
+#define INCREMENT_CALL_DEPTH					\
+	sarq	$5, PER_CPU_VAR(pcpu_hot + X86_call_depth);	\
+	CALL_THUNKS_DEBUG_INC_CALLS
+
+#else
+#define CREDIT_CALL_DEPTH
+#define RESET_CALL_DEPTH
+#define RESET_CALL_DEPTH_FROM_CALL
+#define INCREMENT_CALL_DEPTH
+#endif
 
 /*
  * Fill the CPU return stack buffer.
@@ -32,6 +119,7 @@
  * from C via asm(".include <asm/nospec-branch.h>") but let's not go there.
  */
 
+#define RETPOLINE_THUNK_SIZE	32
 #define RSB_CLEAR_LOOPS		32	/* To forcibly overwrite all entries */
 
 /*
@@ -60,7 +148,9 @@
 	dec	reg;					\
 	jnz	771b;					\
 	/* barrier for jnz misprediction */		\
-	lfence;
+	lfence;						\
+	CREDIT_CALL_DEPTH				\
+	CALL_THUNKS_DEBUG_INC_CTXSW
 #else
 /*
  * i386 doesn't unconditionally have LFENCE, as such it can't
@@ -95,9 +185,9 @@
  * builds.
  */
 .macro ANNOTATE_RETPOLINE_SAFE
-	.Lannotate_\@:
+.Lhere_\@:
 	.pushsection .discard.retpoline_safe
-	_ASM_PTR .Lannotate_\@
+	.long .Lhere_\@
 	.popsection
 .endm
 
@@ -109,10 +199,11 @@
 
 /*
  * Abuse ANNOTATE_RETPOLINE_SAFE on a NOP to indicate UNRET_END, should
- * eventually turn into it's own annotation.
+ * eventually turn into its own annotation.
  */
-.macro ANNOTATE_UNRET_END
-#if (defined(CONFIG_CPU_UNRET_ENTRY) || defined(CONFIG_CPU_SRSO))
+.macro VALIDATE_UNRET_END
+#if defined(CONFIG_NOINSTR_VALIDATION) && \
+	(defined(CONFIG_MITIGATION_UNRET_ENTRY) || defined(CONFIG_MITIGATION_SRSO))
 	ANNOTATE_RETPOLINE_SAFE
 	nop
 #endif
@@ -134,9 +225,13 @@
  * JMP_NOSPEC and CALL_NOSPEC macros can be used instead of a simple
  * indirect jmp/call which may be susceptible to the Spectre variant 2
  * attack.
+ *
+ * NOTE: these do not take kCFI into account and are thus not comparable to C
+ * indirect calls, take care when using. The target of these should be an ENDBR
+ * instruction irrespective of kCFI.
  */
 .macro JMP_NOSPEC reg:req
-#ifdef CONFIG_RETPOLINE
+#ifdef CONFIG_MITIGATION_RETPOLINE
 	__CS_PREFIX \reg
 	jmp	__x86_indirect_thunk_\reg
 #else
@@ -146,7 +241,7 @@
 .endm
 
 .macro CALL_NOSPEC reg:req
-#ifdef CONFIG_RETPOLINE
+#ifdef CONFIG_MITIGATION_RETPOLINE
 	__CS_PREFIX \reg
 	call	__x86_indirect_thunk_\reg
 #else
@@ -161,7 +256,7 @@
 .macro FILL_RETURN_BUFFER reg:req nr:req ftr:req ftr2=ALT_NOT(X86_FEATURE_ALWAYS)
 	ALTERNATIVE_2 "jmp .Lskip_rsb_\@", \
 		__stringify(__FILL_RETURN_BUFFER(\reg,\nr)), \ftr, \
-		__stringify(__FILL_ONE_RETURN), \ftr2
+		__stringify(nop;nop;__FILL_ONE_RETURN), \ftr2
 
 .Lskip_rsb_\@:
 .endm
@@ -175,7 +270,7 @@
  * kernel can support nested alternatives with arbitrary nesting.
  */
 .macro CALL_UNTRAIN_RET
-#ifdef CONFIG_CPU_UNRET_ENTRY
+#if defined(CONFIG_MITIGATION_UNRET_ENTRY) || defined(CONFIG_MITIGATION_SRSO)
 	ALTERNATIVE_2 "", "call entry_untrain_ret", X86_FEATURE_UNRET, \
 		          "call srso_alias_untrain_ret", X86_FEATURE_SRSO_ALIAS
 #endif
@@ -192,12 +287,30 @@
  * As such, this must be placed after every *SWITCH_TO_KERNEL_CR3 at a point
  * where we have a stack but before any RET instruction.
  */
-.macro UNTRAIN_RET
-#if defined(CONFIG_CPU_UNRET_ENTRY) || defined(CONFIG_CPU_IBPB_ENTRY) || \
-	defined(CONFIG_CPU_SRSO)
-	ANNOTATE_UNRET_END
+.macro __UNTRAIN_RET ibpb_feature, call_depth_insns
+#if defined(CONFIG_MITIGATION_RETHUNK) || defined(CONFIG_MITIGATION_IBPB_ENTRY)
+	VALIDATE_UNRET_END
 	CALL_UNTRAIN_RET
-	ALTERNATIVE "", "call entry_ibpb", X86_FEATURE_ENTRY_IBPB
+	ALTERNATIVE_2 "",						\
+		      "call entry_ibpb", \ibpb_feature,			\
+		     __stringify(\call_depth_insns), X86_FEATURE_CALL_DEPTH
+#endif
+.endm
+
+#define UNTRAIN_RET \
+	__UNTRAIN_RET X86_FEATURE_ENTRY_IBPB, __stringify(RESET_CALL_DEPTH)
+
+#define UNTRAIN_RET_VM \
+	__UNTRAIN_RET X86_FEATURE_IBPB_ON_VMEXIT, __stringify(RESET_CALL_DEPTH)
+
+#define UNTRAIN_RET_FROM_CALL \
+	__UNTRAIN_RET X86_FEATURE_ENTRY_IBPB, __stringify(RESET_CALL_DEPTH_FROM_CALL)
+
+
+.macro CALL_DEPTH_ACCOUNT
+#ifdef CONFIG_MITIGATION_CALL_DEPTH_TRACKING
+	ALTERNATIVE "",							\
+		    __stringify(INCREMENT_CALL_DEPTH), X86_FEATURE_CALL_DEPTH
 #endif
 .endm
 
@@ -209,18 +322,16 @@
  * Note: Only the memory operand variant of VERW clears the CPU buffers.
  */
 .macro __CLEAR_CPU_BUFFERS feature
-	ALTERNATIVE "jmp .Lskip_verw_\@", "", \feature
 #ifdef CONFIG_X86_64
-	verw x86_verw_sel(%rip)
+	ALTERNATIVE "", "verw x86_verw_sel(%rip)", \feature
 #else
 	/*
 	 * In 32bit mode, the memory operand must be a %cs reference. The data
 	 * segments may not be usable (vm86 mode), and the stack segment may not
 	 * be flat (ESPFIX32).
 	 */
-	verw %cs:x86_verw_sel
+	ALTERNATIVE "", "verw %cs:x86_verw_sel", \feature
 #endif
-.Lskip_verw_\@:
 .endm
 
 #define CLEAR_CPU_BUFFERS \
@@ -247,7 +358,7 @@
 #define ANNOTATE_RETPOLINE_SAFE					\
 	"999:\n\t"						\
 	".pushsection .discard.retpoline_safe\n\t"		\
-	_ASM_PTR " 999b\n\t"					\
+	".long 999b\n\t"					\
 	".popsection\n\t"
 
 #define ITS_THUNK_SIZE	64
@@ -255,12 +366,30 @@
 typedef u8 retpoline_thunk_t[RETPOLINE_THUNK_SIZE];
 typedef u8 its_thunk_t[ITS_THUNK_SIZE];
 extern retpoline_thunk_t __x86_indirect_thunk_array[];
+extern retpoline_thunk_t __x86_indirect_call_thunk_array[];
+extern retpoline_thunk_t __x86_indirect_jump_thunk_array[];
 extern its_thunk_t	 __x86_indirect_its_thunk_array[];
 
-#ifdef CONFIG_RETHUNK
+#ifdef CONFIG_MITIGATION_RETHUNK
 extern void __x86_return_thunk(void);
 #else
 static inline void __x86_return_thunk(void) {}
+#endif
+
+#ifdef CONFIG_MITIGATION_UNRET_ENTRY
+extern void retbleed_return_thunk(void);
+#else
+static inline void retbleed_return_thunk(void) {}
+#endif
+
+extern void srso_alias_untrain_ret(void);
+
+#ifdef CONFIG_MITIGATION_SRSO
+extern void srso_return_thunk(void);
+extern void srso_alias_return_thunk(void);
+#else
+static inline void srso_return_thunk(void) {}
+static inline void srso_alias_return_thunk(void) {}
 #endif
 
 #ifdef CONFIG_MITIGATION_ITS
@@ -273,10 +402,6 @@ extern void retbleed_return_thunk(void);
 extern void srso_return_thunk(void);
 extern void srso_alias_return_thunk(void);
 
-extern void retbleed_untrain_ret(void);
-extern void srso_untrain_ret(void);
-extern void srso_alias_untrain_ret(void);
-
 extern void entry_untrain_ret(void);
 extern void entry_ibpb(void);
 
@@ -286,10 +411,43 @@ extern void clear_bhb_loop(void);
 
 extern void (*x86_return_thunk)(void);
 
-#ifdef CONFIG_RETPOLINE
+extern void __warn_thunk(void);
+
+#ifdef CONFIG_MITIGATION_CALL_DEPTH_TRACKING
+extern void call_depth_return_thunk(void);
+
+#define CALL_DEPTH_ACCOUNT					\
+	ALTERNATIVE("",						\
+		    __stringify(INCREMENT_CALL_DEPTH),		\
+		    X86_FEATURE_CALL_DEPTH)
+
+#ifdef CONFIG_CALL_THUNKS_DEBUG
+DECLARE_PER_CPU(u64, __x86_call_count);
+DECLARE_PER_CPU(u64, __x86_ret_count);
+DECLARE_PER_CPU(u64, __x86_stuffs_count);
+DECLARE_PER_CPU(u64, __x86_ctxsw_count);
+#endif
+#else /* !CONFIG_MITIGATION_CALL_DEPTH_TRACKING */
+
+static inline void call_depth_return_thunk(void) {}
+#define CALL_DEPTH_ACCOUNT ""
+
+#endif /* CONFIG_MITIGATION_CALL_DEPTH_TRACKING */
+
+#ifdef CONFIG_MITIGATION_RETPOLINE
 
 #define GEN(reg) \
 	extern retpoline_thunk_t __x86_indirect_thunk_ ## reg;
+#include <asm/GEN-for-each-reg.h>
+#undef GEN
+
+#define GEN(reg)						\
+	extern retpoline_thunk_t __x86_indirect_call_thunk_ ## reg;
+#include <asm/GEN-for-each-reg.h>
+#undef GEN
+
+#define GEN(reg)						\
+	extern retpoline_thunk_t __x86_indirect_jump_thunk_ ## reg;
 #include <asm/GEN-for-each-reg.h>
 #undef GEN
 
@@ -308,7 +466,7 @@ extern void (*x86_return_thunk)(void);
 
 /*
  * Inline asm uses the %V modifier which is only in newer GCC
- * which is ensured when CONFIG_RETPOLINE is defined.
+ * which is ensured when CONFIG_MITIGATION_RETPOLINE is defined.
  */
 #define CALL_NOSPEC	__CS_PREFIX("%V[thunk_target]")	\
 			"call __x86_indirect_thunk_%V[thunk_target]\n"
@@ -378,9 +536,6 @@ enum ssb_mitigation {
 	SPEC_STORE_BYPASS_SECCOMP,
 };
 
-extern char __indirect_thunk_start[];
-extern char __indirect_thunk_end[];
-
 static __always_inline
 void alternative_msr_write(unsigned int msr, u64 val, unsigned int feature)
 {
@@ -393,6 +548,8 @@ void alternative_msr_write(unsigned int msr, u64 val, unsigned int feature)
 }
 
 extern u64 x86_pred_cmd;
+
+DECLARE_PER_CPU(bool, x86_ibpb_exit_to_user);
 
 static inline void indirect_branch_prediction_barrier(void)
 {

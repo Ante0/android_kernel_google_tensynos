@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_GENPD_TEST_CONSUMER
+	tristate "Genpd test consumer driver"
+	help
+	  This driver consumes a power domain defined in device
+	  tree.
+	  It is useful for testing power-related functionalities.
+	  As this is for verification purpose, select "N" if unsure.

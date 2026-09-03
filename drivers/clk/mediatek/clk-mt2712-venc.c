@@ -40,6 +40,7 @@ static const struct of_device_id of_match_clk_mt2712_venc[] = {
 		/* sentinel */
 	}
 };
+MODULE_DEVICE_TABLE(of, of_match_clk_mt2712_venc);
 
 static struct platform_driver clk_mt2712_venc_drv = {
 	.probe = mtk_clk_simple_probe,
@@ -50,4 +51,6 @@ static struct platform_driver clk_mt2712_venc_drv = {
 	},
 };
 module_platform_driver(clk_mt2712_venc_drv);
+
+MODULE_DESCRIPTION("MediaTek MT2712 Video Encoders clocks driver");
 MODULE_LICENSE("GPL");

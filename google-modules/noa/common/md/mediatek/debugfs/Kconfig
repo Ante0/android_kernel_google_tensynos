@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Debug features for NOA modem driver
+#
+
+menuconfig NOA_MD_DEBUG_SUPPORT
+	bool "NOA Mediatek modem debug support"
+	depends on NOA_MD_MEDIATEK_SUPPORT
+	depends on NOA_MD_MEDIATEK_DEBUG_FS
+	depends on NOA_MD_MEDIATEK_T900_SUPPORT
+	depends on DEBUG_FS
+	default n
+	help
+	  Enables debugfs support for the MediaTek modem, creating files in
+	  /sys/kernel/debug/noa_md/ for inspecting internal states and
+	  triggering tests.
+
+	  This adds overhead and should be disabled in production builds.
+
+if NOA_MD_DEBUG_SUPPORT
+
+config NOA_MD_DEBUG_DISABLE_DPMAIF_SW_INIT
+	bool "Disable DPMAIF SW_INIT for debugging"
+	default n
+	help
+	  This option stops the DPMAIF software setup process.
+	  It is only for special, low-level hardware tests.
+
+config NOA_MD_DEBUG_ENABLE_NOA_PATH
+	bool "Enable NOA path for debugging"
+	default n
+	help
+	  This option turns on the NOA data path completely.
+	  This is useful for testing the control path by itself.
+
+config NOA_MD_DEBUG_DISABLE_DYNAMIC_SWITCH
+	bool "Disable dynamic data path switching by default"
+	default n
+	help
+	  This option disables the dynamic data path switching event handling by
+	  default upon driver load. When disabled dynamic switch, the data path
+	  defaults to the NOA (offload) path, and the corresponding PCIe MSI
+	  controls for the AP will be turned off.
+
+	  It can still be re-enabled at runtime via the
+	  /sys/kernel/debug/noa_md/control/dynamic_switch_disabled interface
+	  This is useful for debugging scenarios where you want to prevent path
+	  switches from occurring until manually re-enabled.
+
+endif

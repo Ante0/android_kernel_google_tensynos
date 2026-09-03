@@ -1,0 +1,152 @@
+/* SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause */
+/*
+ * Copyright (c) 2024 Google LLC.
+ *
+ * Device Tree binding constants for RDO BCL
+ */
+
+#ifndef _DT_BINDINGS_RDO_BCL_H
+#define _DT_BINDINGS_RDO_BCL_H
+
+/* Indexing */
+#define PRE_UVLO 0
+#define PRE_OCP_CPU1 1
+#define PRE_OCP_CPU2 2
+#define SOFT_PRE_OCP_CPU1 3
+#define SOFT_PRE_OCP_CPU2 4
+#define PRE_OCP_TPU 5
+#define SOFT_PRE_OCP_TPU 6
+#define PRE_OCP_GPU 7
+#define SOFT_PRE_OCP_GPU 8
+#define PMIC_SOC 9
+#define UVLO1 10
+#define UVLO2 11
+#define BATOILO1 12
+#define BATOILO2 13
+#define PMIC_120C	14
+#define PMIC_140C	15
+#define PMIC_OVERHEAT	16
+#define PRE_OCP_AUR 17
+#define SOFT_PRE_OCP_AUR 18
+#define PRE_OCP_MM 19
+#define SOFT_PRE_OCP_MM 20
+#define PRE_OCP_INFRA 21
+#define SOFT_PRE_OCP_INFRA 22
+#define PRE_OCP_INFRA_GPU 23
+#define SOFT_PRE_OCP_INFRA_GPU 24
+#define BATOILO BATOILO1
+#define SMPL_WARN BATOILO1
+#define USERSPACE 25
+#define TRIGGERED_SOURCE_MAX 26
+
+/* Current Limit */
+#define CPU1_UPPER_LIMIT 8000
+#define CPU1_LOWER_LIMIT 2688
+#define CPU1_STEP 166
+#define CPU2_UPPER_LIMIT 13500
+#define CPU2_LOWER_LIMIT 4000
+#define CPU2_STEP 250
+#define TPU_UPPER_LIMIT 18000
+#define TPU_LOWER_LIMIT 9600
+#define TPU_SOFT_UPPER_LIMIT 12925
+#define TPU_SOFT_LOWER_LIMIT 4500
+#define TPU_STEP 250
+#define GPU_UPPER_LIMIT 9000
+#define GPU_LOWER_LIMIT 4000
+#define GPU_STEP 250
+#define BO_LIMIT 5000
+#define BO_UPPER_LIMIT 6800
+#define BO_LOWER_LIMIT 3800
+#define BO_STEP 200
+#define BO_BAT_OPEN_TO_DEFAULT 1
+#define BO_INT_REL_DEFAULT 3
+#define BO_INT_DET_DEFAULT 3
+#define UV_INT_REL_DEFAULT 2
+#define UV_INT_DET_DEFAULT 1
+
+#define LPF_CURRENT_SHIFT 4
+/* Thermal Limit */
+#define THERMAL_DELAY_INIT_MS 1000
+
+/* Voltage Limit */
+#define PRE_UVLO_BATTERY_VOLTAGE 4200
+#define PRE_UVLO_UPPER_LIMIT 3300
+#define PRE_UVLO_LOWER_LIMIT 2600
+#define PRE_UVLO_STEP 100
+#define PRE_UVLO_NUM_LVL 32
+#define VD_BATTERY_VOLTAGE 4200
+#define VD_UPPER_LIMIT 3350
+#define VD_LOWER_LIMIT 2600
+#define VD_STEP 50
+#define VD_DELAY 300
+#define HYST_UPPER_LIMIT 200
+#define HYST_LOWER_LIMIT 50
+#define HYST_STEP 50
+#define UVLO1_LIMIT 1100
+#define UVLO2_LIMIT 1000
+#define SMPL_LIMIT 1200
+#define SOC_LIMIT 80
+#define THERMAL_HYST_LEVEL 100
+
+#define PRE_UVLO_CTRL 0
+#define PRE_UVLO_SHIFT 1
+#define PRE_OCP_LVL_SHIFT 2
+#define MAIN_CHIPID 0
+#define SUB_CHIPID 1
+
+#define CORE_PMIC_MAIN 0
+#define CORE_PMIC_SUB 1
+
+#define CPU0_CLUSTER_MIN 0
+#define CPU1_CLUSTER_MIN 4
+#define CPU2_CLUSTER_MIN 7
+
+/* Event Counter */
+#define EVT_CNT_ENABLE_DEFAULT 1
+#define EVT_CNT_RATE_DEFAULT 0
+
+/* IFPMIC */
+#define M77759 0
+#define M77779 1
+#define IF_INTB 0
+#define IF_VDROOP1 1
+#define IF_VDROOP2 2
+#define IF_SHARED 3
+
+#define CLKOUT 0
+#define MBA_CLIENT_TX_TOUT 3000
+#define MBA_REQUEST_TIMEOUT 3000
+
+/* Mitigation Module ID need to be sync with the UAPI header.
+ * google-modules/power/mitigation/uapi/brownout_stats.h
+ */
+#define AUDIO_MITIGATION_ID		0 /* ODPM non monitored */
+#define CELLULAR_MITIGATION_ID		1
+#define DISPLAY_MITIGATION_ID		2
+#define HAPTICS_MITIGATION_ID		3 /* ODPM non monitored */
+#define MODEM_MITIGATION_ID		4
+#define WLAN_MITIGATION_ID		5
+#define CPU_LITTLE_MITIGATION_ID	6
+#define CPU_MID_MITIGATION_ID		7
+#define CPU_BIG_MITIGATION_ID		8
+#define GPU_MITIGATION_ID		9
+#define TPU_MITIGATION_ID		10
+#define DDR_MITIGATION_ID		11
+#define CAMERA_MITIGATION_ID		12
+#define MIF_MITIGATION_ID		13
+#define INT_MITIGATION_ID		14
+#define LDO_MITIGATION_ID		15
+#define GNSS_MITIGATION_ID		16
+#define AOC_MITIGATION_ID		17
+#define UFS_MITIGATION_ID		18
+#define AMB_MITIGATION_ID		19
+#define AUR_MITIGATION_ID		20
+#define BATT_MITIGATION_ID		21
+#define MM_MITIGATION_ID		22
+#define GMC_MITIGATION_ID		23
+#define INFRA_MITIGATION_ID		24
+#define MIX_MITIGATION_ID		25
+#define MAX_MITIGATION_MODULE		26
+
+#endif /* _DT_BINDINGS_RDO_BCL_H */
+

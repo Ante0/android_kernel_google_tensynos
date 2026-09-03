@@ -43,7 +43,7 @@ static int start_up_test;
 #define exyrng_debug(args...)
 #endif
 
-void exynos_swd_test_fail(void)
+static void exynos_swd_test_fail(void)
 {
 	panic("[ExyRNG] It failed to health tests. It means that it detects the malfunction of TRNG(HW) which generates random numbers. If it doesn't offer enough entropy, it should not be used. The system reset could be a way to solve it. The health tests are designed to have the false positive rate of approximately once per billion based on min-entropy of TRNG.\n");
 }
@@ -261,11 +261,9 @@ static int exyswd_rng_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int exyswd_rng_remove(struct platform_device *pdev)
+static void exyswd_rng_remove(struct platform_device *pdev)
 {
 	hwrng_unregister(&rng);
-
-	return 0;
 }
 
 #if defined(CONFIG_PM_SLEEP) || defined(CONFIG_PM_RUNTIME)

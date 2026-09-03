@@ -490,12 +490,17 @@ static int syna_spi_parse_dt(struct syna_hw_interface *hw_if,
 
 	prop = of_find_property(np, "synaptics,irq-gpio", NULL);
 	if (prop && prop->length) {
-		attn->irq_gpio = of_get_named_gpio_flags(np,
-				"synaptics,irq-gpio", 0,
-				(enum of_gpio_flags *)&attn->irq_flags);
+		attn->irq_gpio = of_get_named_gpio(np,
+				"synaptics,irq-gpio", 0);
 	} else {
 		attn->irq_gpio = -1;
 	}
+
+	retval = of_property_read_u32(np, "synaptics,irq-flags", &value);
+	if (retval < 0)
+		attn->irq_flags = 0;
+	else
+		attn->irq_flags = value;
 
 	retval = of_property_read_u32(np, "synaptics,irq-on-state", &value);
 	if (retval < 0)
@@ -517,16 +522,15 @@ static int syna_spi_parse_dt(struct syna_hw_interface *hw_if,
 
 	prop = of_find_property(np, "synaptics,vdd-gpio", NULL);
 	if (prop && prop->length) {
-		pwr->vdd_gpio = of_get_named_gpio_flags(np,
-				"synaptics,vdd-gpio", 0, NULL);
+		pwr->vdd_gpio = of_get_named_gpio(np, "synaptics,vdd-gpio", 0);
 	} else {
 		pwr->vdd_gpio = -1;
 	}
 
 	prop = of_find_property(np, "synaptics,avdd-gpio", NULL);
 	if (prop && prop->length) {
-		pwr->avdd_gpio = of_get_named_gpio_flags(np,
-				"synaptics,avdd-gpio", 0, NULL);
+		pwr->avdd_gpio = of_get_named_gpio(np,
+				"synaptics,avdd-gpio", 0);
 	} else {
 		pwr->avdd_gpio = -1;
 	}
@@ -563,8 +567,8 @@ static int syna_spi_parse_dt(struct syna_hw_interface *hw_if,
 
 	prop = of_find_property(np, "synaptics,reset-gpio", NULL);
 	if (prop && prop->length) {
-		rst->reset_gpio = of_get_named_gpio_flags(np,
-				"synaptics,reset-gpio", 0, NULL);
+		rst->reset_gpio = of_get_named_gpio(np,
+				"synaptics,reset-gpio", 0);
 	} else {
 		rst->reset_gpio = -1;
 	}
@@ -1011,7 +1015,7 @@ static int syna_spi_probe(struct spi_device *spi)
 	struct syna_hw_attn_data *attn = &syna_spi_hw_if.bdata_attn;
 	struct syna_hw_bus_data *bus = &syna_spi_hw_if.bdata_io;
 
-	if (spi->master->flags & SPI_MASTER_HALF_DUPLEX) {
+	if (spi->controller->flags & SPI_CONTROLLER_HALF_DUPLEX) {
 		LOGE("Full duplex not supported by host\n");
 		return -EIO;
 	}

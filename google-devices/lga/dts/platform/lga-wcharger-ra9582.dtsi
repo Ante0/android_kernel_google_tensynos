@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Wireless Charger config for RA9582.
+ * Intended to be included into the approriate I2C bus.
+ *
+ * Copyright 2024 Google LLC
+ */
+
+google_wlc: ra9582@3b {
+	compatible = "renesas,ra9582";
+	reg = <0x3b>;
+
+	google,fg-power-supply = <&google_battery>;
+	google,wcin_inlim_en-gpio = <&max77779_gpio 0 GPIO_ACTIVE_HIGH>;
+
+	google,eoc_soc_thresholds = <75 80 90>;
+	google,eoc_mw_thresholds = <7500 5000 2500>;
+
+	google_wlc_gpio: google_wlc_gpio {
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <16>;
+	};
+
+};

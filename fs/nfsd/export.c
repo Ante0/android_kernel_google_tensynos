@@ -97,7 +97,7 @@ static int expkey_parse(struct cache_detail *cd, char *mesg, int mlen)
 		goto out;
 
 	err = -EINVAL;
-	if ((len=qword_get(&mesg, buf, PAGE_SIZE)) <= 0)
+	if (qword_get(&mesg, buf, PAGE_SIZE) <= 0)
 		goto out;
 
 	err = -ENOENT;
@@ -107,7 +107,7 @@ static int expkey_parse(struct cache_detail *cd, char *mesg, int mlen)
 	dprintk("found domain %s\n", buf);
 
 	err = -EINVAL;
-	if ((len=qword_get(&mesg, buf, PAGE_SIZE)) <= 0)
+	if (qword_get(&mesg, buf, PAGE_SIZE) <= 0)
 		goto out;
 	fsidtype = simple_strtoul(buf, &ep, 10);
 	if (*ep)
@@ -123,11 +123,11 @@ static int expkey_parse(struct cache_detail *cd, char *mesg, int mlen)
 
 	/* OK, we seem to have a valid key */
 	key.h.flags = 0;
-	key.h.expiry_time = get_expiry(&mesg);
-	if (key.h.expiry_time == 0)
+	err = get_expiry(&mesg, &key.h.expiry_time);
+	if (err)
 		goto out;
 
-	key.ek_client = dom;	
+	key.ek_client = dom;
 	key.ek_fsidtype = fsidtype;
 	memcpy(key.ek_fsid, buf, len);
 
@@ -334,21 +334,25 @@ static void nfsd4_fslocs_free(struct nfsd4_fs_locations *fsloc)
 static int export_stats_init(struct export_stats *stats)
 {
 	stats->start_time = ktime_get_seconds();
-	return nfsd_percpu_counters_init(stats->counter, EXP_STATS_COUNTERS_NUM);
+	return percpu_counter_init_many(stats->counter, 0, GFP_KERNEL,
+					EXP_STATS_COUNTERS_NUM);
 }
 
 static void export_stats_reset(struct export_stats *stats)
 {
-	if (stats)
-		nfsd_percpu_counters_reset(stats->counter,
-					   EXP_STATS_COUNTERS_NUM);
+	if (stats) {
+		int i;
+
+		for (i = 0; i < EXP_STATS_COUNTERS_NUM; i++)
+			percpu_counter_set(&stats->counter[i], 0);
+	}
 }
 
 static void export_stats_destroy(struct export_stats *stats)
 {
 	if (stats)
-		nfsd_percpu_counters_destroy(stats->counter,
-					     EXP_STATS_COUNTERS_NUM);
+		percpu_counter_destroy_many(stats->counter,
+					    EXP_STATS_COUNTERS_NUM);
 }
 
 static void svc_export_put(struct kref *ref)
@@ -426,8 +430,7 @@ static int check_export(struct path *path, int *flags, unsigned char *uuid)
 		return -EINVAL;
 	}
 
-	if (!inode->i_sb->s_export_op ||
-	    !inode->i_sb->s_export_op->fh_to_dentry) {
+	if (!exportfs_can_decode_fh(inode->i_sb->s_export_op)) {
 		dprintk("exp_export: export of invalid fs type.\n");
 		return -EINVAL;
 	}
@@ -444,7 +447,6 @@ static int check_export(struct path *path, int *flags, unsigned char *uuid)
 		return -EINVAL;
 	}
 	return 0;
-
 }
 
 #ifdef CONFIG_NFSD_V4
@@ -551,6 +553,29 @@ static inline int
 secinfo_parse(char **mesg, char *buf, struct svc_export *exp) { return 0; }
 #endif
 
+static int xprtsec_parse(char **mesg, char *buf, struct svc_export *exp)
+{
+	unsigned int i, mode, listsize;
+	int err;
+
+	err = get_uint(mesg, &listsize);
+	if (err)
+		return err;
+	if (listsize > NFSEXP_XPRTSEC_NUM)
+		return -EINVAL;
+
+	exp->ex_xprtsec_modes = 0;
+	for (i = 0; i < listsize; i++) {
+		err = get_uint(mesg, &mode);
+		if (err)
+			return err;
+		if (mode > NFSEXP_XPRTSEC_MTLS)
+			return -EINVAL;
+		exp->ex_xprtsec_modes |= mode;
+	}
+	return 0;
+}
+
 static inline int
 nfsd_uuid_parse(char **mesg, char *buf, unsigned char **puuid)
 {
@@ -576,7 +601,6 @@ static int svc_export_parse(struct cache_detail *cd, char *mesg, int mlen)
 {
 	/* client path expiry [flags anonuid anongid fsid] */
 	char *buf;
-	int len;
 	int err;
 	struct auth_domain *dom = NULL;
 	struct svc_export exp = {}, *expp;
@@ -592,8 +616,7 @@ static int svc_export_parse(struct cache_detail *cd, char *mesg, int mlen)
 
 	/* client */
 	err = -EINVAL;
-	len = qword_get(&mesg, buf, PAGE_SIZE);
-	if (len <= 0)
+	if (qword_get(&mesg, buf, PAGE_SIZE) <= 0)
 		goto out;
 
 	err = -ENOENT;
@@ -603,7 +626,7 @@ static int svc_export_parse(struct cache_detail *cd, char *mesg, int mlen)
 
 	/* path */
 	err = -EINVAL;
-	if ((len = qword_get(&mesg, buf, PAGE_SIZE)) <= 0)
+	if (qword_get(&mesg, buf, PAGE_SIZE) <= 0)
 		goto out1;
 
 	err = kern_path(buf, 0, &exp.ex_path);
@@ -613,11 +636,11 @@ static int svc_export_parse(struct cache_detail *cd, char *mesg, int mlen)
 	exp.ex_client = dom;
 	exp.cd = cd;
 	exp.ex_devid_map = NULL;
+	exp.ex_xprtsec_modes = NFSEXP_XPRTSEC_ALL;
 
 	/* expiry */
-	err = -EINVAL;
-	exp.h.expiry_time = get_expiry(&mesg);
-	if (exp.h.expiry_time == 0)
+	err = get_expiry(&mesg, &exp.h.expiry_time);
+	if (err)
 		goto out3;
 
 	/* flags */
@@ -629,7 +652,7 @@ static int svc_export_parse(struct cache_detail *cd, char *mesg, int mlen)
 		if (err || an_int < 0)
 			goto out3;
 		exp.ex_flags= an_int;
-	
+
 		/* anon uid */
 		err = get_int(&mesg, &an_int);
 		if (err)
@@ -648,13 +671,15 @@ static int svc_export_parse(struct cache_detail *cd, char *mesg, int mlen)
 			goto out3;
 		exp.ex_fsid = an_int;
 
-		while ((len = qword_get(&mesg, buf, PAGE_SIZE)) > 0) {
+		while (qword_get(&mesg, buf, PAGE_SIZE) > 0) {
 			if (strcmp(buf, "fsloc") == 0)
 				err = fsloc_parse(&mesg, buf, &exp.ex_fslocs);
 			else if (strcmp(buf, "uuid") == 0)
 				err = nfsd_uuid_parse(&mesg, buf, &exp.ex_uuid);
 			else if (strcmp(buf, "secinfo") == 0)
 				err = secinfo_parse(&mesg, buf, &exp);
+			else if (strcmp(buf, "xprtsec") == 0)
+				err = xprtsec_parse(&mesg, buf, &exp);
 			else
 				/* quietly ignore unknown words and anything
 				 * following. Newer user-space can try to set
@@ -668,6 +693,7 @@ static int svc_export_parse(struct cache_detail *cd, char *mesg, int mlen)
 		err = check_export(&exp.ex_path, &exp.ex_flags, exp.ex_uuid);
 		if (err)
 			goto out4;
+
 		/*
 		 * No point caching this if it would immediately expire.
 		 * Also, this protects exportfs's dummy export from the
@@ -831,6 +857,7 @@ static void export_update(struct cache_head *cnew, struct cache_head *citem)
 	for (i = 0; i < MAX_SECINFO_LIST; i++) {
 		new->ex_flavors[i] = item->ex_flavors[i];
 	}
+	new->ex_xprtsec_modes = item->ex_xprtsec_modes;
 }
 
 static struct cache_head *svc_export_alloc(void)
@@ -990,7 +1017,7 @@ exp_rootfh(struct net *net, struct auth_domain *clp, char *name,
 {
 	struct svc_export	*exp;
 	struct path		path;
-	struct inode		*inode;
+	struct inode		*inode __maybe_unused;
 	struct svc_fh		fh;
 	int			err;
 	struct nfsd_net		*nn = net_generic(net, nfsd_net_id);
@@ -1047,24 +1074,76 @@ static struct svc_export *exp_find(struct cache_detail *cd,
 	return exp;
 }
 
-__be32 check_nfsd_access(struct svc_export *exp, struct svc_rqst *rqstp)
+/**
+ * check_xprtsec_policy - check if access to export is allowed by the
+ *			  xprtsec policy
+ * @exp: svc_export that is being accessed.
+ * @rqstp: svc_rqst attempting to access @exp.
+ *
+ * Helper function for check_nfsd_access().  Note that callers should be
+ * using check_nfsd_access() instead of calling this function directly.  The
+ * one exception is __fh_verify() since it has logic that may result in one
+ * or both of the helpers being skipped.
+ *
+ * Return values:
+ *   %nfs_ok if access is granted, or
+ *   %nfserr_wrongsec if access is denied
+ */
+__be32 check_xprtsec_policy(struct svc_export *exp, struct svc_rqst *rqstp)
 {
-	struct exp_flavor_info *f;
-	struct exp_flavor_info *end = exp->ex_flavors + exp->ex_nflavors;
+	struct svc_xprt *xprt = rqstp->rq_xprt;
+
+	if (exp->ex_xprtsec_modes & NFSEXP_XPRTSEC_NONE) {
+		if (!test_bit(XPT_TLS_SESSION, &xprt->xpt_flags))
+			return nfs_ok;
+	}
+	if (exp->ex_xprtsec_modes & NFSEXP_XPRTSEC_TLS) {
+		if (test_bit(XPT_TLS_SESSION, &xprt->xpt_flags) &&
+		    !test_bit(XPT_PEER_AUTH, &xprt->xpt_flags))
+			return nfs_ok;
+	}
+	if (exp->ex_xprtsec_modes & NFSEXP_XPRTSEC_MTLS) {
+		if (test_bit(XPT_TLS_SESSION, &xprt->xpt_flags) &&
+		    test_bit(XPT_PEER_AUTH, &xprt->xpt_flags))
+			return nfs_ok;
+	}
+	return nfserr_wrongsec;
+}
+
+/**
+ * check_security_flavor - check if access to export is allowed by the
+ *			   security flavor
+ * @exp: svc_export that is being accessed.
+ * @rqstp: svc_rqst attempting to access @exp.
+ * @may_bypass_gss: reduce strictness of authorization check
+ *
+ * Helper function for check_nfsd_access().  Note that callers should be
+ * using check_nfsd_access() instead of calling this function directly.  The
+ * one exception is __fh_verify() since it has logic that may result in one
+ * or both of the helpers being skipped.
+ *
+ * Return values:
+ *   %nfs_ok if access is granted, or
+ *   %nfserr_wrongsec if access is denied
+ */
+__be32 check_security_flavor(struct svc_export *exp, struct svc_rqst *rqstp,
+			     bool may_bypass_gss)
+{
+	struct exp_flavor_info *f, *end = exp->ex_flavors + exp->ex_nflavors;
 
 	/* legacy gss-only clients are always OK: */
 	if (exp->ex_client == rqstp->rq_gssclient)
-		return 0;
+		return nfs_ok;
 	/* ip-address based client; check sec= export option: */
 	for (f = exp->ex_flavors; f < end; f++) {
 		if (f->pseudoflavor == rqstp->rq_cred.cr_flavor)
-			return 0;
+			return nfs_ok;
 	}
 	/* defaults in absence of sec= options: */
 	if (exp->ex_nflavors == 0) {
 		if (rqstp->rq_cred.cr_flavor == RPC_AUTH_NULL ||
 		    rqstp->rq_cred.cr_flavor == RPC_AUTH_UNIX)
-			return 0;
+			return nfs_ok;
 	}
 
 	/* If the compound op contains a spo_must_allowed op,
@@ -1074,9 +1153,47 @@ __be32 check_nfsd_access(struct svc_export *exp, struct svc_rqst *rqstp)
 	 */
 
 	if (nfsd4_spo_must_allow(rqstp))
-		return 0;
+		return nfs_ok;
 
-	return rqstp->rq_vers < 4 ? nfserr_acces : nfserr_wrongsec;
+	/* Some calls may be processed without authentication
+	 * on GSS exports. For example NFS2/3 calls on root
+	 * directory, see section 2.3.2 of rfc 2623.
+	 * For "may_bypass_gss" check that export has really
+	 * enabled some flavor with authentication (GSS or any
+	 * other) and also check that the used auth flavor is
+	 * without authentication (none or sys).
+	 */
+	if (may_bypass_gss && (
+	     rqstp->rq_cred.cr_flavor == RPC_AUTH_NULL ||
+	     rqstp->rq_cred.cr_flavor == RPC_AUTH_UNIX)) {
+		for (f = exp->ex_flavors; f < end; f++) {
+			if (f->pseudoflavor >= RPC_AUTH_DES)
+				return 0;
+		}
+	}
+
+	return nfserr_wrongsec;
+}
+
+/**
+ * check_nfsd_access - check if access to export is allowed.
+ * @exp: svc_export that is being accessed.
+ * @rqstp: svc_rqst attempting to access @exp.
+ * @may_bypass_gss: reduce strictness of authorization check
+ *
+ * Return values:
+ *   %nfs_ok if access is granted, or
+ *   %nfserr_wrongsec if access is denied
+ */
+__be32 check_nfsd_access(struct svc_export *exp, struct svc_rqst *rqstp,
+			 bool may_bypass_gss)
+{
+	__be32 status;
+
+	status = check_xprtsec_policy(exp, rqstp);
+	if (status != nfs_ok)
+		return status;
+	return check_security_flavor(exp, rqstp, may_bypass_gss);
 }
 
 /*
@@ -1119,19 +1236,35 @@ gss:
 	return gssexp;
 }
 
+/**
+ * rqst_exp_find - Find an svc_export in the context of a rqst or similar
+ * @reqp:	The handle to be used to suspend the request if a cache-upcall is needed
+ *		If NULL, missing in-cache information will result in failure.
+ * @net:	The network namespace in which the request exists
+ * @cl:		default auth_domain to use for looking up the export
+ * @gsscl:	an alternate auth_domain defined using deprecated gss/krb5 format.
+ * @fsid_type:	The type of fsid to look for
+ * @fsidv:	The actual fsid to look up in the context of either client.
+ *
+ * Perform a lookup for @cl/@fsidv in the given @net for an export.  If
+ * none found and @gsscl specified, repeat the lookup.
+ *
+ * Returns an export, or an error pointer.
+ */
 struct svc_export *
-rqst_exp_find(struct svc_rqst *rqstp, int fsid_type, u32 *fsidv)
+rqst_exp_find(struct cache_req *reqp, struct net *net,
+	      struct auth_domain *cl, struct auth_domain *gsscl,
+	      int fsid_type, u32 *fsidv)
 {
+	struct nfsd_net *nn = net_generic(net, nfsd_net_id);
 	struct svc_export *gssexp, *exp = ERR_PTR(-ENOENT);
-	struct nfsd_net *nn = net_generic(SVC_NET(rqstp), nfsd_net_id);
 	struct cache_detail *cd = nn->svc_export_cache;
 
-	if (rqstp->rq_client == NULL)
+	if (!cl)
 		goto gss;
 
 	/* First try the auth_unix client: */
-	exp = exp_find(cd, rqstp->rq_client, fsid_type,
-		       fsidv, &rqstp->rq_chandle);
+	exp = exp_find(cd, cl, fsid_type, fsidv, reqp);
 	if (PTR_ERR(exp) == -ENOENT)
 		goto gss;
 	if (IS_ERR(exp))
@@ -1141,10 +1274,9 @@ rqst_exp_find(struct svc_rqst *rqstp, int fsid_type, u32 *fsidv)
 		return exp;
 gss:
 	/* Otherwise, try falling back on gss client */
-	if (rqstp->rq_gssclient == NULL)
+	if (!gsscl)
 		return exp;
-	gssexp = exp_find(cd, rqstp->rq_gssclient, fsid_type, fsidv,
-						&rqstp->rq_chandle);
+	gssexp = exp_find(cd, gsscl, fsid_type, fsidv, reqp);
 	if (PTR_ERR(gssexp) == -ENOENT)
 		return exp;
 	if (!IS_ERR(exp))
@@ -1175,7 +1307,9 @@ struct svc_export *rqst_find_fsidzero_export(struct svc_rqst *rqstp)
 
 	mk_fsid(FSID_NUM, fsidv, 0, 0, 0, NULL);
 
-	return rqst_exp_find(rqstp, FSID_NUM, fsidv);
+	return rqst_exp_find(&rqstp->rq_chandle, SVC_NET(rqstp),
+			     rqstp->rq_client, rqstp->rq_gssclient,
+			     FSID_NUM, fsidv);
 }
 
 /*

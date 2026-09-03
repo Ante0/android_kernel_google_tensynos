@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+)
+
+ddk_headers(
+    name = "headers",
+    hdrs = glob([
+        "*.h",
+    ]) + [
+        "//private/google-modules/soc/gs/drivers/dma-buf/heaps:headers",
+    ],
+    includes = ["."],
+    visibility = [
+        "//private/google-modules/aoc:__subpackages__",
+        "//private/google-modules/soc/gs/drivers/soc/google/pixel_stat/mm:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "dmabuf_heap_trace_headers",
+    hdrs = [
+        "dmabuf_heap_trace.h",
+    ],
+    includes = ["."],
+)
+
+ddk_module(
+    name = "samsung_dma_heap",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "samsung_dma_heap.ko",
+    conditional_srcs = {
+        "CONFIG_DMABUF_HEAPS_GOOGLE_GCMA": {
+            True: [
+                "gcma_heap_core.c",
+                "gcma_heap_nonsecure.c",
+                "gcma_heap_trusty.c",
+                "gcma_heap_sysfs.c",
+                "gcma_arbitrator.c",
+                "gcma_arbitrator_sysfs.c",
+            ],
+        },
+        "CONFIG_DMABUF_HEAPS_SAMSUNG_CARVEOUT": {
+            True: [
+                "carveout_heap.c",
+            ],
+        },
+        "CONFIG_DMABUF_HEAPS_SAMSUNG_CHUNK": {
+            True: [
+                "chunk_heap.c",
+            ],
+        },
+        "CONFIG_DMABUF_HEAPS_SAMSUNG_CMA": {
+            True: [
+                "cma_heap.c",
+            ],
+        },
+        "CONFIG_DMABUF_HEAPS_SAMSUNG_SYSTEM": {
+            True: [
+                "system_heap.c",
+            ],
+        },
+        "CONFIG_DMABUF_SAMSUNG_HEAPS": {
+            True: [
+                "heap_dma_buf.c",
+                "samsung_heap.c",
+            ],
+        },
+        "CONFIG_EXYNOS_CONTENT_PATH_PROTECTION": {
+            True: [
+                "secure_buffer.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":dmabuf_heap_trace_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/dma-buf/heaps:deferred-free-helper",
+        "//private/google-modules/soc/gs/drivers/dma-buf/heaps:headers",
+        "//private/google-modules/soc/gs/drivers/dma-buf/heaps:page_pool",
+        "//private/google-modules/soc/gs/drivers/iommu:samsung-secure-iova",
+        "//private/google-modules/soc/gs/drivers/soc/google/pixel_stat/mm:pixel_stat_mm",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/mm:vh_mm",
+        "//private/google-modules/trusty:trusty-core",
+        "//private/google-modules/trusty:trusty-ipc",
+        "//private/google-modules/trusty:trusty_headers",
+    ] + select({
+        "//private/devices/google/common:soc_is_laguna_or_later": [
+            "//private/google-modules/soc/gs/drivers/soc/google/gcma",
+        ],
+        "//private/devices/google/common:soc_is_zuma_or_zumapro": [
+            "//private/google-modules/soc/gs/drivers/soc/google/gcma",
+        ],
+        "//conditions:default": [
+        ],
+    }),
+)

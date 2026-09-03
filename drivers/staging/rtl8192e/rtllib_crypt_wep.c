@@ -27,7 +27,6 @@ struct prism2_wep_data {
 	struct arc4_ctx tx_ctx_arc4;
 };
 
-
 static void *prism2_wep_init(int keyidx)
 {
 	struct prism2_wep_data *priv;
@@ -36,7 +35,7 @@ static void *prism2_wep_init(int keyidx)
 		return NULL;
 
 	priv = kzalloc(sizeof(*priv), GFP_ATOMIC);
-	if (priv == NULL)
+	if (!priv)
 		return NULL;
 	priv->key_idx = keyidx;
 
@@ -45,7 +44,6 @@ static void *prism2_wep_init(int keyidx)
 
 	return priv;
 }
-
 
 static void prism2_wep_deinit(void *priv)
 {
@@ -104,7 +102,7 @@ static int prism2_wep_encrypt(struct sk_buff *skb, int hdr_len, void *priv)
 	/* Copy rest of the WEP key (the secret part) */
 	memcpy(key + 3, wep->key, wep->key_len);
 
-	if (!tcb_desc->bHwSec) {
+	if (!tcb_desc->hw_sec) {
 		/* Append little-endian CRC32 and encrypt it to produce ICV */
 		crc = ~crc32_le(~0, pos, len);
 		icv = skb_put(skb, 4);
@@ -119,7 +117,6 @@ static int prism2_wep_encrypt(struct sk_buff *skb, int hdr_len, void *priv)
 
 	return 0;
 }
-
 
 /* Perform WEP decryption on given struct buffer. Buffer includes whole WEP
  * part of the frame: IV (4 bytes), encrypted payload (including SNAP header),
@@ -158,7 +155,7 @@ static int prism2_wep_decrypt(struct sk_buff *skb, int hdr_len, void *priv)
 	/* Apply RC4 to data and compute CRC32 over decrypted data */
 	plen = skb->len - hdr_len - 8;
 
-	if (!tcb_desc->bHwSec) {
+	if (!tcb_desc->hw_sec) {
 		arc4_setkey(&wep->rx_ctx_arc4, key, klen);
 		arc4_crypt(&wep->rx_ctx_arc4, pos, pos, plen + 4);
 
@@ -180,7 +177,6 @@ static int prism2_wep_decrypt(struct sk_buff *skb, int hdr_len, void *priv)
 	return 0;
 }
 
-
 static int prism2_wep_set_key(void *key, int len, u8 *seq, void *priv)
 {
 	struct prism2_wep_data *wep = priv;
@@ -194,7 +190,6 @@ static int prism2_wep_set_key(void *key, int len, u8 *seq, void *priv)
 	return 0;
 }
 
-
 static int prism2_wep_get_key(void *key, int len, u8 *seq, void *priv)
 {
 	struct prism2_wep_data *wep = priv;
@@ -207,7 +202,6 @@ static int prism2_wep_get_key(void *key, int len, u8 *seq, void *priv)
 	return wep->key_len;
 }
 
-
 static void prism2_wep_print_stats(struct seq_file *m, void *priv)
 {
 	struct prism2_wep_data *wep = priv;
@@ -215,7 +209,7 @@ static void prism2_wep_print_stats(struct seq_file *m, void *priv)
 	seq_printf(m, "key[%d] alg=WEP len=%d\n", wep->key_idx, wep->key_len);
 }
 
-static struct lib80211_crypto_ops rtllib_crypt_wep = {
+static const struct lib80211_crypto_ops rtllib_crypt_wep = {
 	.name			= "R-WEP",
 	.init			= prism2_wep_init,
 	.deinit			= prism2_wep_deinit,
@@ -231,12 +225,10 @@ static struct lib80211_crypto_ops rtllib_crypt_wep = {
 	.owner			= THIS_MODULE,
 };
 
-
 static int __init rtllib_crypto_wep_init(void)
 {
 	return lib80211_register_crypto_ops(&rtllib_crypt_wep);
 }
-
 
 static void __exit rtllib_crypto_wep_exit(void)
 {
@@ -246,4 +238,5 @@ static void __exit rtllib_crypto_wep_exit(void)
 module_init(rtllib_crypto_wep_init);
 module_exit(rtllib_crypto_wep_exit);
 
+MODULE_DESCRIPTION("Support module for rtllib WEP crypto");
 MODULE_LICENSE("GPL");

@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Mustang common device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+#include "google-base/platform/lga-platform-common.dtsi"
+#include "google-base/lga-16kb.dtsi"
+#include "lga-rango-pmic.dtsi"
+#include "lga-rango-odpm.dtsi"
+#include "lga-rango-display.dtsi"
+#include "lga-rango-touch.dtsi"
+#include "lga-rango-outer-touch.dtsi"
+#include "google-base/platform/lga-platform-charging-premium.dtsi"
+#include "lga-rango-camera-pmic.dtsi"
+#include "lga-rango-audio.dtsi"
+#include "lga-rango-hall.dtsi"
+#include "lga-rango-haptics.dtsi"
+#include "lga-rango-lsio.dtsi"
+#include "lga-rango-usb.dtsi"
+#include "lga-rango-ntc-thermal.dtsi"
+#include "google-base/platform/lga-platform-uwb.dtsi"
+#include "lga-rango-wcharger.dtsi"
+#include "lga-rango-sensors.dtsi"
+#include "lga-rango-sfps.dtsi"
+#include "lga-rango-usecases.dtsi"
+#include "lga-rango-bcl.dtsi"
+#include "google-base/platform/lga-cp-s5400-thermal-zone.dtsi"
+#include "lga-rango-sbbm.dtsi"
+#include "lga-rango-usbdp-phy.dtsi"
+#include "lga-rango-usb.dtsi"

@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config USB_DWC3_GOOGLE
+	tristate "Google DWC3 USB"
+	depends on ARCH_GOOGLE
+	depends on USB_DWC3 && GOOGLE_IRM
+	help
+	  Google's Glue driver for the Synopsys DWC3 USB controller.
+	  If unsure select "N".
+
+config USB_DWC3_GOOGLE_AUX
+	tristate "Google DWC3 Aux USB Driver"
+	depends on ARCH_GOOGLE
+	depends on USB_DWC3 && GOOGLE_IRM
+	help
+	  Google's Glue driver for the Synopsys DWC3 host only auxilary
+	  USB controller. This driver is used to provide a second USB
+	  controller on a system.
+	  If unsure select "N".
+

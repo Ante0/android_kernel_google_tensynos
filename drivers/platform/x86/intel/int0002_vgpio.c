@@ -23,7 +23,7 @@
  * ACPI mechanisms, this is not a real GPIO at all.
  *
  * This driver will bind to the INT0002 device, and register as a GPIO
- * controller, letting gpiolib-acpi.c call the _L02 handler as it would
+ * controller, letting gpiolib-acpi call the _L02 handler as it would
  * for a real GPIO controller.
  */
 
@@ -195,8 +195,8 @@ static int int0002_probe(struct platform_device *pdev)
 	 * FIXME: augment this if we managed to pull handling of shared
 	 * IRQs into gpiolib.
 	 */
-	ret = devm_request_irq(dev, irq, int0002_irq,
-			       IRQF_SHARED, "INT0002", chip);
+	ret = devm_request_irq(dev, irq, int0002_irq, IRQF_SHARED, "INT0002",
+			       chip);
 	if (ret) {
 		dev_err(dev, "Error requesting IRQ %d: %d\n", irq, ret);
 		return ret;
@@ -223,11 +223,10 @@ static int int0002_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int int0002_remove(struct platform_device *pdev)
+static void int0002_remove(struct platform_device *pdev)
 {
 	device_init_wakeup(&pdev->dev, false);
 	acpi_unregister_wakeup_handler(int0002_check_wake, NULL);
-	return 0;
 }
 
 static int int0002_suspend(struct device *dev)
@@ -273,7 +272,7 @@ static struct platform_driver int0002_driver = {
 		.pm			= &int0002_pm_ops,
 	},
 	.probe	= int0002_probe,
-	.remove	= int0002_remove,
+	.remove_new = int0002_remove,
 };
 
 module_platform_driver(int0002_driver);

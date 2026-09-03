@@ -146,14 +146,12 @@ int lwis_gpios_list_add_info_by_name(struct device *dev, struct list_head *list,
 
 void lwis_gpios_list_free(struct list_head *list)
 {
-	struct lwis_gpios_info *gpio_node;
-	struct list_head *it_node, *it_tmp;
+	struct lwis_gpios_info *gpio_node, *gpio_node_tmp;
 
 	if (!list || list_empty(list))
 		return;
 
-	list_for_each_safe(it_node, it_tmp, list) {
-		gpio_node = list_entry(it_node, struct lwis_gpios_info, node);
+	list_for_each_entry_safe(gpio_node, gpio_node_tmp, list, node) {
 		list_del(&gpio_node->node);
 		if (gpio_node->irq_list)
 			lwis_interrupt_list_free(gpio_node->irq_list);
@@ -163,14 +161,12 @@ void lwis_gpios_list_free(struct list_head *list)
 
 struct lwis_gpios_info *lwis_gpios_get_info_by_name(struct list_head *list, const char *name)
 {
-	struct lwis_gpios_info *gpio_node;
-	struct list_head *it_node, *it_tmp;
+	struct lwis_gpios_info *gpio_node, *gpio_node_tmp;
 
 	if (!list || !name || list_empty(list))
 		return ERR_PTR(-EINVAL);
 
-	list_for_each_safe(it_node, it_tmp, list) {
-		gpio_node = list_entry(it_node, struct lwis_gpios_info, node);
+	list_for_each_entry_safe(gpio_node, gpio_node_tmp, list, node) {
 		if (!strcmp(gpio_node->name, name))
 			return gpio_node;
 	}

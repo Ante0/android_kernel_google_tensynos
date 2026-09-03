@@ -19,7 +19,7 @@
 #include <linux/mutex.h>
 #include <linux/sched.h>
 #include <linux/completion.h>
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 
 struct rtsx_usb_ms {
 	struct platform_device	*pdev;
@@ -805,13 +805,14 @@ err_out:
 	return err;
 }
 
-static int rtsx_usb_ms_drv_remove(struct platform_device *pdev)
+static void rtsx_usb_ms_drv_remove(struct platform_device *pdev)
 {
 	struct rtsx_usb_ms *host = platform_get_drvdata(pdev);
 	struct memstick_host *msh = host->msh;
 	int err;
 
 	host->eject = true;
+	msh->removing = true;
 	cancel_work_sync(&host->handle_req);
 	cancel_delayed_work_sync(&host->poll_card);
 
@@ -841,8 +842,6 @@ static int rtsx_usb_ms_drv_remove(struct platform_device *pdev)
 		": Realtek USB Memstick controller has been removed\n");
 	memstick_free_host(msh);
 	platform_set_drvdata(pdev, NULL);
-
-	return 0;
 }
 
 static struct platform_device_id rtsx_usb_ms_ids[] = {
@@ -856,7 +855,7 @@ MODULE_DEVICE_TABLE(platform, rtsx_usb_ms_ids);
 
 static struct platform_driver rtsx_usb_ms_driver = {
 	.probe		= rtsx_usb_ms_drv_probe,
-	.remove		= rtsx_usb_ms_drv_remove,
+	.remove_new	= rtsx_usb_ms_drv_remove,
 	.id_table       = rtsx_usb_ms_ids,
 	.driver		= {
 		.name	= "rtsx_usb_ms",

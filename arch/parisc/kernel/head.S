@@ -56,6 +56,7 @@ ENTRY(parisc_kernel_start)
 
 	.import __bss_start,data
 	.import __bss_stop,data
+	.import __end,data
 
 	load32		PA(__bss_start),%r3
 	load32		PA(__bss_stop),%r4
@@ -149,7 +150,11 @@ $cpu_ok:
 	 * everything ... it will get remapped correctly later */
 	ldo		0+_PAGE_KERNEL_RWX(%r0),%r3 /* Hardwired 0 phys addr start */
 	load32		(1<<(KERNEL_INITIAL_ORDER-PAGE_SHIFT)),%r11 /* PFN count */
-	load32		PA(pg0),%r1
+	load32		PA(_end),%r1
+	SHRREG		%r1,PAGE_SHIFT,%r1  /* %r1 is PFN count for _end symbol */
+	cmpb,<<,n	%r11,%r1,1f
+	copy		%r1,%r11	/* %r1 PFN count smaller than %r11 */
+1:	load32		PA(pg0),%r1
 
 $pgt_fill_loop:
 	STREGM          %r3,ASM_PTE_ENTRY_SIZE(%r1)
@@ -179,10 +184,10 @@ $pgt_fill_loop:
 	std		%dp,0x18(%r10)
 #endif
 
-#ifdef CONFIG_64BIT
-	/* Get PDCE_PROC for monarch CPU. */
 #define MEM_PDC_LO 0x388
 #define MEM_PDC_HI 0x35C
+#ifdef CONFIG_64BIT
+	/* Get PDCE_PROC for monarch CPU. */
 	ldw             MEM_PDC_LO(%r0),%r3
 	ldw             MEM_PDC_HI(%r0),%r10
 	depd            %r10, 31, 32, %r3        /* move to upper word */
@@ -268,7 +273,17 @@ stext_pdc_ret:
 	tovirt_r1	%r6
 	mtctl		%r6,%cr30		/* restore task thread info */
 #endif
-	
+
+#ifndef CONFIG_64BIT
+	/* clear all BTLBs */
+	ldi		PDC_BLOCK_TLB,%arg0
+	load32          PA(stext_pdc_btlb_ret), %rp
+	ldw             MEM_PDC_LO(%r0),%r3
+	bv              (%r3)
+	ldi		PDC_BTLB_PURGE_ALL,%arg1
+stext_pdc_btlb_ret:
+#endif
+
 	/* PARANOID: clear user scratch/user space SR's */
 	mtsp	%r0,%sr0
 	mtsp	%r0,%sr1

@@ -1,0 +1,344 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Copyright 2024 Google LLC
+#include <linux/interrupt.h>
+#include <linux/io.h>
+#include <linux/limits.h>
+#include <linux/module.h>
+#include <linux/of_device.h>
+#include <linux/of.h>
+#include <linux/platform_device.h>
+#include <linux/pm_wakeirq.h>
+#include <linux/rtc.h>
+#include <linux/time64.h>
+#include <linux/types.h>
+
+#include <ap-pmic/da9188.h>
+#include <mailbox/protocols/mba/cpm/common/pmic/pmic_service.h>
+#include <soc/google/goog_cpm_service_ids.h>
+
+#define MB_RTC_ID_NOT_ALARM (0)
+
+/*
+ * Seconds since 1970-01-01 to 2020-01-01 (Epoch time when RTC count = 0).
+ * PMIC datasheet specify the 32 bit RTC counter is representing the
+ * seconds elapsed since 2020-01-01 00:00:00 UTC, not the common epoch
+ * time (1970) that linux uses. This is the minimum time for RTC.
+ */
+#define RTC_TIMESTAMP_BEGIN_2020 1577836800ULL
+
+enum pmic_rtc_alarm_ids {
+	/*
+	 * The linux RTC interface only support single alarm per RTC instance.
+	 * Only use Alarm ID 0 in this driver.
+	 */
+	RTC_ALARM_0,
+	RTC_ALARM_1,
+	/* 2 and 3 are fixed timer alarms. */
+	RTC_ALARM_2,
+	RTC_ALARM_3,
+	RTC_ALARM_MAX,
+};
+
+struct da9188_rtc {
+	struct device *dev;
+	struct rtc_device *rtc;
+	struct pmic_mfd_mbox mbox;
+	/* DTS configurable parameters. */
+	u32 mb_dest_channel;
+};
+
+static irqreturn_t da9188_rtc_interrupt(int irq, void *dev)
+{
+	struct da9188_rtc *priv = dev;
+
+	rtc_update_irq(priv->rtc, 1, RTC_IRQF | RTC_AF);
+	return IRQ_HANDLED;
+}
+
+static bool da9188_rtc_get_is_nonce_valid(struct device *dev)
+{
+	struct da9188_rtc *priv = dev_get_drvdata(dev);
+	struct mailbox_data req_data = { 0 };
+	struct mailbox_data resp_data;
+	int ret;
+
+	ret = da9188_mfd_mbox_send_req_blocking_read(priv->dev, &priv->mbox,
+						     priv->mb_dest_channel,
+						     MB_PMIC_TARGET_RTC,
+						     MB_RTC_CMD_GET_NONCE_VALID,
+						     MB_RTC_ID_NOT_ALARM,
+						     req_data, &resp_data);
+	if (unlikely(ret))
+		return ret;
+
+	return (resp_data.data[0] == 1);
+}
+
+static int da9188_rtc_set_nonce_to_valid(struct device *dev)
+{
+	struct da9188_rtc *priv = dev_get_drvdata(dev);
+	struct mailbox_data req_data = { 0 };
+	int ret;
+
+	ret = da9188_mfd_mbox_send_req_blocking(priv->dev, &priv->mbox,
+						priv->mb_dest_channel,
+						MB_PMIC_TARGET_RTC,
+						MB_RTC_CMD_SET_NONCE_VALID,
+						MB_RTC_ID_NOT_ALARM, req_data);
+	if (unlikely(ret))
+		return ret;
+
+	return ret;
+}
+
+/* Read the current time from the RTC hardware */
+static int da9188_rtc_read_time(struct device *dev, struct rtc_time *tm)
+{
+	struct da9188_rtc *priv = dev_get_drvdata(dev);
+	struct mailbox_data req_data = { 0 };
+	struct mailbox_data resp_data;
+	u64 time;
+	int ret;
+
+	ret = da9188_mfd_mbox_send_req_blocking_read(priv->dev, &priv->mbox,
+						     priv->mb_dest_channel,
+						     MB_PMIC_TARGET_RTC,
+						     MB_RTC_CMD_GET_RTC_TIME,
+						     MB_RTC_ID_NOT_ALARM,
+						     req_data, &resp_data);
+	if (unlikely(ret))
+		return ret;
+
+	time = resp_data.data[0] + RTC_TIMESTAMP_BEGIN_2020;
+	rtc_time64_to_tm(time, tm);
+
+	return 0;
+}
+
+/* Set the current time in the RTC hardware */
+static int da9188_rtc_set_time(struct device *dev, struct rtc_time *tm)
+{
+	struct da9188_rtc *priv = dev_get_drvdata(dev);
+	time64_t time = rtc_tm_to_time64(tm);
+	struct mailbox_data req_data = { 0 };
+
+	if (time < RTC_TIMESTAMP_BEGIN_2020) {
+		dev_err(dev, "Time before 2020-01-01 is impossible for RTC.\n");
+		return -EINVAL;
+	}
+
+	req_data.data[0] = time - RTC_TIMESTAMP_BEGIN_2020;
+
+	return da9188_mfd_mbox_send_req_blocking(priv->dev, &priv->mbox,
+						 priv->mb_dest_channel,
+						 MB_PMIC_TARGET_RTC,
+						 MB_RTC_CMD_SET_RTC_TIME,
+						 MB_RTC_ID_NOT_ALARM, req_data);
+}
+
+static int da9188_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alarm)
+{
+	struct da9188_rtc *priv = dev_get_drvdata(dev);
+	struct mailbox_data req_data = { 0 };
+	struct mailbox_data resp_data;
+	u64 alarm_time;
+	int ret;
+
+	ret = da9188_mfd_mbox_send_req_blocking_read(priv->dev, &priv->mbox,
+						     priv->mb_dest_channel,
+						     MB_PMIC_TARGET_RTC,
+						     MB_RTC_CMD_GET_ALARM,
+						     RTC_ALARM_0, req_data,
+						     &resp_data);
+	if (unlikely(ret))
+		return ret;
+
+	alarm->enabled = resp_data.data[0] ? 1 : 0;
+	alarm_time = resp_data.data[1] + RTC_TIMESTAMP_BEGIN_2020;
+	rtc_time64_to_tm(alarm_time, &alarm->time);
+
+	return 0;
+}
+
+static int da9188_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alarm)
+{
+	struct da9188_rtc *priv = dev_get_drvdata(dev);
+	u64 alarm_time = rtc_tm_to_time64(&alarm->time);
+	struct mailbox_data req_data = { 0 };
+
+	if (alarm_time < RTC_TIMESTAMP_BEGIN_2020) {
+		dev_err(dev, "Time before 2020-01-01 is impossible for RTC.\n");
+		return -EINVAL;
+	}
+
+	req_data.data[0] = alarm->enabled ? 1 : 0;
+	req_data.data[1] = (u32)(alarm_time - RTC_TIMESTAMP_BEGIN_2020);
+
+	return da9188_mfd_mbox_send_req_blocking(priv->dev, &priv->mbox,
+						 priv->mb_dest_channel,
+						 MB_PMIC_TARGET_RTC,
+						 MB_RTC_CMD_SET_ALARM,
+						 RTC_ALARM_0, req_data);
+}
+
+static int da9188_rtc_alarm_irq_enable(struct device *dev, unsigned int enabled)
+{
+	struct da9188_rtc *priv = dev_get_drvdata(dev);
+	struct mailbox_data req_data = { 0 };
+
+	req_data.data[0] = enabled ? 1 : 0;
+
+	return da9188_mfd_mbox_send_req_blocking(priv->dev, &priv->mbox,
+						 priv->mb_dest_channel,
+						 MB_PMIC_TARGET_RTC,
+						 MB_RTC_CMD_SET_ALARM_ENABLE_DISABLE,
+						 RTC_ALARM_0, req_data);
+}
+
+static const struct rtc_class_ops da9188_rtc_ops = {
+	.read_time = da9188_rtc_read_time,
+	.set_time = da9188_rtc_set_time,
+	.read_alarm = da9188_rtc_read_alarm,
+	.set_alarm = da9188_rtc_set_alarm,
+	.alarm_irq_enable = da9188_rtc_alarm_irq_enable,
+};
+
+static int da9188_rtc_probe(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct da9188_rtc *priv;
+	struct rtc_time tm;
+	int irq;
+	int ret;
+
+	if (!dev->of_node)
+		return -ENODEV;
+
+	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
+	if (!priv)
+		return -ENOMEM;
+
+	platform_set_drvdata(pdev, priv);
+
+	priv->dev = dev;
+	priv->mb_dest_channel = CPM_COMMON_PMIC_SERVICE;
+
+	dev_info(dev, "Init mailbox client\n");
+	ret = da9188_mfd_mbox_request(dev, &priv->mbox);
+	if (ret < 0)
+		return ret;
+
+	priv->rtc = devm_rtc_allocate_device(dev);
+	if (IS_ERR(priv->rtc)) {
+		dev_err(dev, "RTC device creation failed\n");
+		ret = PTR_ERR(priv->rtc);
+		goto free_mbox;
+	}
+
+	priv->rtc->ops = &da9188_rtc_ops;
+	priv->rtc->range_min = RTC_TIMESTAMP_BEGIN_2020;
+	priv->rtc->range_max = U32_MAX;
+
+	ret = da9188_rtc_read_time(dev, &tm);
+	if (ret) {
+		dev_err(dev, "Failed to read RTC time, err: %d\n", ret);
+		goto free_mbox;
+	}
+
+	if (!da9188_rtc_get_is_nonce_valid(dev)) {
+		/* If nonce is not valid, default RTC time to 2020 (zero) */
+		rtc_time64_to_tm(RTC_TIMESTAMP_BEGIN_2020, &tm);
+	}
+	/*
+	 * Re-write time back to RTC to update counts in both Main and BBAT power
+	 * domain. This guarantees they will be in-sync and start ticking new time.
+	 */
+	ret = da9188_rtc_set_time(dev, &tm);
+	if (ret < 0) {
+		dev_err(dev, "Failed to init RTC time, err: %d\n", ret);
+		goto free_mbox;
+	}
+
+	/* In the end, write to write-once nonce to lock it. */
+	ret = da9188_rtc_set_nonce_to_valid(dev);
+	if (ret < 0) {
+		dev_err(dev, "Failed set nonce valid, err: %d\n", ret);
+		goto free_mbox;
+	}
+
+	irq = platform_get_irq(pdev, 0);
+	if (irq < 0) {
+		ret = irq;
+		goto free_mbox;
+	}
+
+	ret = devm_request_irq(dev, irq, da9188_rtc_interrupt, 0, dev_name(dev), priv);
+	if (ret < 0) {
+		dev_err(dev, "Failed to request irq, err: %d\n", ret);
+		goto free_mbox;
+	}
+
+	ret = device_init_wakeup(dev, of_property_read_bool(dev->of_node, "wakeup-source"));
+	if (ret < 0) {
+		dev_err(dev, "Failed to init wakeup, err: %d\n", ret);
+		goto free_mbox;
+	}
+
+	ret = dev_pm_set_wake_irq(dev, irq);
+	if (ret < 0) {
+		dev_err(dev, "Failed to set wake irq, err: %d\n", ret);
+		goto disable_wakeup;
+	}
+
+	ret = devm_rtc_register_device(priv->rtc);
+	if (ret < 0) {
+		dev_err(dev, "Failed to register RTC device, err: %d\n", ret);
+		goto clear_wake_irq;
+	}
+
+	return ret;
+
+clear_wake_irq:
+	dev_pm_clear_wake_irq(dev);
+
+disable_wakeup:
+	device_init_wakeup(dev, false);
+
+free_mbox:
+	da9188_mfd_mbox_release(&priv->mbox);
+
+	return ret;
+}
+
+static void da9188_rtc_remove(struct platform_device *pdev)
+{
+	struct da9188_rtc *priv = platform_get_drvdata(pdev);
+
+	if (IS_ERR_OR_NULL(priv))
+		return;
+
+	dev_pm_clear_wake_irq(&pdev->dev);
+	device_init_wakeup(&pdev->dev, false);
+	da9188_mfd_mbox_release(&priv->mbox);
+}
+
+static const struct platform_device_id da9188_rtc_id[] = {
+	{ "da9188-rtc", 0 },
+	{},
+};
+MODULE_DEVICE_TABLE(platform, da9188_rtc_id);
+
+static struct platform_driver da9188_rtc_driver = {
+	.probe = da9188_rtc_probe,
+	.remove = da9188_rtc_remove,
+	.driver = {
+		.name = "da9188-rtc",
+		.owner = THIS_MODULE,
+	},
+	.id_table = da9188_rtc_id,
+};
+module_platform_driver(da9188_rtc_driver);
+
+MODULE_AUTHOR("Ryan Chu <cychu@google.com>");
+MODULE_DESCRIPTION("DA9188 PMIC RTC Driver");
+MODULE_LICENSE("GPL");

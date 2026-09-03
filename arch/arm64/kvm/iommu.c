@@ -1,73 +1,514 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (C) 2022 - Google LLC
- * Author: David Brazdil <dbrazdil@google.com>
+ * Copyright (C) 2023 Google LLC
+ * Author: Mostafa Saleh <smostafa@google.com>
  */
 
+#include <asm/kvm_mmu.h>
+#include <asm/kvm_pkvm.h>
+
+#include <linux/cma.h>
+#include <linux/of_reserved_mem.h>
+#include <kvm/iommu.h>
+
+#include <linux/arm-smccc.h>
 #include <linux/kvm_host.h>
 
-/* Did all IOMMUs register as expected. */
-static bool finalised;
+#define kvm_call_hyp_nvhe_mc(...)					\
+({									\
+	struct arm_smccc_res __res;					\
+	do {								\
+		__res = kvm_call_hyp_nvhe_smccc(__VA_ARGS__);		\
+	} while (__res.a1 && !kvm_iommu_topup_memcache(&__res, GFP_KERNEL));\
+	__res.a1;							\
+})
 
-static unsigned long dev_to_id(struct device *dev)
+#ifdef CONFIG_CMA
+static phys_addr_t __topup_virt_to_phys(void *virt)
 {
-	/* Use the struct device pointer as a unique identifier. */
-	return (unsigned long)dev;
+	return __pa(virt);
 }
 
-int pkvm_iommu_driver_init(u64 drv, void *data, size_t size)
+static struct page *__kvm_iommu_alloc_from_cma(gfp_t gfp)
 {
-	return kvm_call_hyp_nvhe(__pkvm_iommu_driver_init, drv, data, size);
-}
-EXPORT_SYMBOL(pkvm_iommu_driver_init);
+	bool from_spare = (gfp & GFP_ATOMIC) == GFP_ATOMIC;
+	static atomic64_t spare_p;
+	struct page *p = NULL;
 
-int pkvm_iommu_register(struct device *dev, u64 drv, phys_addr_t pa,
-			size_t size, struct device *parent, u8 flags)
-{
-	void *mem;
-	int ret;
+again:
+	if (from_spare)
+		return (struct page *)atomic64_cmpxchg(&spare_p, atomic64_read(&spare_p), 0);
+
+	p = kvm_iommu_cma_alloc();
+	if (!p) {
+		from_spare = true;
+		goto again;
+	}
 
 	/*
-	 * Hypcall to register the device. It will return -ENOMEM if it needs
-	 * more memory. In that case allocate a page and retry.
-	 * We assume that hyp never allocates more than a page per hypcall.
+	 * Top-up the spare block if necessary. If we failed to update spare_p
+	 * then someone did it already and we can proceed with that page.
 	 */
-	ret = kvm_call_hyp_nvhe(__pkvm_iommu_register, dev_to_id(dev),
-				drv, pa, size, dev_to_id(parent), flags, NULL);
-	if (ret == -ENOMEM) {
-		mem = (void *)__get_free_page(GFP_KERNEL);
-		if (!mem)
+	if (!atomic64_read(&spare_p)) {
+		if (!atomic64_cmpxchg(&spare_p, 0, (u64)p))
+			goto again;
+	}
+
+	return p;
+}
+
+static int __kvm_iommu_topup_memcache_from_cma(size_t size, gfp_t gfp, size_t *allocated)
+{
+	*allocated = 0;
+
+	while (*allocated < size) {
+		struct page *p = __kvm_iommu_alloc_from_cma(gfp);
+		struct kvm_hyp_memcache mc;
+
+		if (!p)
 			return -ENOMEM;
 
-		ret = kvm_call_hyp_nvhe(__pkvm_iommu_register, dev_to_id(dev),
-					drv, pa, size, dev_to_id(parent), flags, mem);
+		init_hyp_memcache(&mc);
+		push_hyp_memcache(&mc, page_to_virt(p), __topup_virt_to_phys,
+				  PMD_SHIFT - PAGE_SHIFT);
+
+		if (__pkvm_topup_hyp_alloc_mgt_mc(HYP_ALLOC_MGT_IOMMU_ID, &mc)) {
+			kvm_iommu_cma_release(p);
+			return -EINVAL;
+		}
+
+		*allocated += PMD_SIZE;
 	}
-	return ret;
+
+	return 0;
 }
-EXPORT_SYMBOL(pkvm_iommu_register);
+#else
+static int __kvm_iommu_topup_memcache_from_cma(size_t size, gfp_t gfp, size_t *allocated)
+{
+	return -ENOMEM;
+}
+#endif /* CONFIG_CMA */
+
+static int kvm_iommu_topup_memcache(struct arm_smccc_res *res, gfp_t gfp)
+{
+	struct kvm_hyp_req req;
+
+	hyp_reqs_smccc_decode(res, &req);
+
+	if ((res->a1 == -ENOMEM) && (req.type != KVM_HYP_REQ_TYPE_MEM)) {
+		/*
+		 * There is no way for drivers to populate hyp_alloc requests,
+		 * so -ENOMEM + no request indicates that.
+		 */
+		return __pkvm_topup_hyp_alloc(1);
+	} else if (req.type != KVM_HYP_REQ_TYPE_MEM) {
+		return -EBADE;
+	}
+
+	if (req.mem.dest == REQ_MEM_DEST_HYP_IOMMU) {
+		size_t nr_pages, from_cma = 0;
+		int ret;
+
+		nr_pages = req.mem.nr_pages;
+
+		if (req.mem.sz_alloc < PMD_SIZE) {
+			size_t size = req.mem.sz_alloc * nr_pages;
+
+			ret = __kvm_iommu_topup_memcache_from_cma(size, gfp, &from_cma);
+			if (!ret)
+				return 0;
+
+			nr_pages -= from_cma / req.mem.sz_alloc;
+		}
+
+		return __pkvm_topup_hyp_alloc_mgt_gfp(HYP_ALLOC_MGT_IOMMU_ID,
+						      nr_pages,
+						      req.mem.sz_alloc,
+						      gfp);
+	} else if (req.mem.dest == REQ_MEM_DEST_HYP_ALLOC) {
+		/* Fill hyp alloc*/
+		return __pkvm_topup_hyp_alloc(req.mem.nr_pages);
+	}
+
+	pr_err("Bogus mem request");
+	return -EBADE;
+}
+
+struct kvm_iommu_driver *iommu_driver;
+extern struct kvm_iommu_ops *kvm_nvhe_sym(kvm_iommu_ops);
+
+#ifdef CONFIG_CMA
+static struct cma *kvm_iommu_cma;
+extern phys_addr_t kvm_nvhe_sym(cma_base);
+extern size_t kvm_nvhe_sym(cma_size);
+#endif /* CONFIG_CMA */
+
+int kvm_iommu_register_driver(struct kvm_iommu_driver *kern_ops)
+{
+	if (WARN_ON(!kern_ops))
+		return -EINVAL;
+
+	/*
+	 * Paired with smp_load_acquire(&iommu_driver)
+	 * Ensure memory stores happening during a driver
+	 * init are observed before executing kvm iommu callbacks.
+	 */
+	return cmpxchg_release(&iommu_driver, NULL, kern_ops) ? -EBUSY : 0;
+}
+EXPORT_SYMBOL(kvm_iommu_register_driver);
+
+int kvm_iommu_init_hyp(struct kvm_iommu_ops *hyp_ops,
+		       struct kvm_hyp_memcache *atomic_mc)
+{
+	if (!hyp_ops)
+		return -EINVAL;
+
+	return kvm_call_hyp_nvhe(__pkvm_iommu_init, hyp_ops,
+				 atomic_mc->head, atomic_mc->nr_pages);
+}
+EXPORT_SYMBOL(kvm_iommu_init_hyp);
+
+#ifdef CONFIG_CMA
+static int __init pkvm_iommu_cma_setup(struct reserved_mem *rmem)
+{
+	int err;
+
+	if (!IS_ALIGNED(rmem->base | rmem->size, PMD_SIZE))
+		kvm_info("pKVM IOMMU reserved memory not PMD-aligned\n");
+
+	err = cma_init_reserved_mem(rmem->base, rmem->size, 0, rmem->name,
+				    &kvm_iommu_cma, false);
+	if (err) {
+		kvm_err("Failed to init pKVM IOMMU reserved memory\n");
+		kvm_iommu_cma = NULL;
+		return err;
+	}
+
+	kvm_nvhe_sym(cma_base) = cma_get_base(kvm_iommu_cma);
+	kvm_nvhe_sym(cma_size) = cma_get_size(kvm_iommu_cma);
+
+	return 0;
+}
+RESERVEDMEM_OF_DECLARE(pkvm_cma, "pkvm,cma", pkvm_iommu_cma_setup);
+
+static const u8 pmd_order = PMD_SHIFT - PAGE_SHIFT;
+
+struct page *kvm_iommu_cma_alloc(void)
+{
+	if (!kvm_iommu_cma)
+		return NULL;
+
+	return cma_alloc(kvm_iommu_cma, (1 << pmd_order), pmd_order, true);
+}
+EXPORT_SYMBOL(kvm_iommu_cma_alloc);
+
+bool kvm_iommu_cma_release(struct page *p)
+{
+	if (!kvm_iommu_cma || !p)
+		return false;
+
+	return cma_release(kvm_iommu_cma, p, 1 << pmd_order);
+}
+EXPORT_SYMBOL(kvm_iommu_cma_release);
+#else
+struct page *kvm_iommu_cma_alloc(void)
+{
+	return NULL;
+}
+EXPORT_SYMBOL(kvm_iommu_cma_alloc);
+
+bool kvm_iommu_cma_release(struct page *p)
+{
+	return false;
+}
+EXPORT_SYMBOL(kvm_iommu_cma_release);
+#endif /* CONFIG_CMA */
+
+int kvm_iommu_init_driver(void)
+{
+	if (!smp_load_acquire(&iommu_driver) || !iommu_driver->get_iommu_id_by_of) {
+		kvm_err("pKVM enabled without an IOMMU driver, do not run confidential workloads in virtual machines\n");
+		return -ENODEV;
+	}
+
+	kvm_hyp_iommu_domains = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO,
+				get_order(KVM_IOMMU_DOMAINS_ROOT_SIZE));
+	if (!kvm_hyp_iommu_domains)
+		return -ENOMEM;
+
+	kvm_hyp_iommu_domains = kern_hyp_va(kvm_hyp_iommu_domains);
+
+	return iommu_driver->init_driver();
+}
+EXPORT_SYMBOL(kvm_iommu_init_driver);
+
+void kvm_iommu_remove_driver(void)
+{
+	if (smp_load_acquire(&iommu_driver))
+		iommu_driver->remove_driver();
+}
+
+
+pkvm_handle_t kvm_get_iommu_id_by_of(struct device_node *np)
+{
+	if (!iommu_driver)
+		return 0;
+
+	return iommu_driver->get_iommu_id_by_of(np);
+}
+
+static pkvm_handle_t kvm_get_iommu_id(struct device *dev)
+{
+	return kvm_get_iommu_id_by_of(dev_of_node(dev));
+}
 
 int pkvm_iommu_suspend(struct device *dev)
 {
-	return kvm_call_hyp_nvhe(__pkvm_iommu_pm_notify, dev_to_id(dev),
-				 PKVM_IOMMU_PM_SUSPEND);
+	int device_id = kvm_get_iommu_id(dev);
+
+	return kvm_call_hyp_nvhe(__pkvm_host_hvc_pd, device_id, 0);
 }
 EXPORT_SYMBOL(pkvm_iommu_suspend);
 
 int pkvm_iommu_resume(struct device *dev)
 {
-	return kvm_call_hyp_nvhe(__pkvm_iommu_pm_notify, dev_to_id(dev),
-				 PKVM_IOMMU_PM_RESUME);
+	int device_id = kvm_get_iommu_id(dev);
+
+	return kvm_call_hyp_nvhe(__pkvm_host_hvc_pd, device_id, 1);
 }
 EXPORT_SYMBOL(pkvm_iommu_resume);
 
-int pkvm_iommu_finalize(int err)
+int kvm_iommu_share_hyp_sg(struct kvm_iommu_sg *sg, unsigned int nents)
 {
-	finalised = !err;
-	return kvm_call_hyp_nvhe(__pkvm_iommu_finalize, 0);
-}
-EXPORT_SYMBOL_GPL(pkvm_iommu_finalize);
+	size_t nr_pages = PAGE_ALIGN(sizeof(*sg) * nents) >> PAGE_SHIFT;
+	phys_addr_t sg_pfn = virt_to_phys(sg) >> PAGE_SHIFT;
+	int i;
+	int ret;
 
-bool pkvm_iommu_finalized(void)
-{
-	return finalised;
+	for (i = 0 ; i < nr_pages ; ++i) {
+		ret = kvm_call_hyp_nvhe(__pkvm_host_share_hyp, sg_pfn + i);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
 }
+EXPORT_SYMBOL(kvm_iommu_share_hyp_sg);
+
+int kvm_iommu_unshare_hyp_sg(struct kvm_iommu_sg *sg, unsigned int nents)
+{
+	size_t nr_pages = PAGE_ALIGN(sizeof(*sg) * nents) >> PAGE_SHIFT;
+	phys_addr_t sg_pfn = virt_to_phys(sg) >> PAGE_SHIFT;
+	int i;
+	int ret;
+
+	for (i = 0 ; i < nr_pages ; ++i) {
+		ret = kvm_call_hyp_nvhe(__pkvm_host_unshare_hyp, sg_pfn + i);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(kvm_iommu_unshare_hyp_sg);
+
+int kvm_iommu_device_num_ids(struct device *dev)
+{
+	if (iommu_driver->get_device_iommu_num_ids)
+		return iommu_driver->get_device_iommu_num_ids(dev);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(kvm_iommu_device_num_ids);
+
+int kvm_iommu_device_id(struct device *dev, u32 idx,
+			pkvm_handle_t *out_iommu, u32 *out_sid)
+{
+	if (iommu_driver->get_device_iommu_id)
+		return iommu_driver->get_device_iommu_id(dev, idx, out_iommu, out_sid);
+	return -ENODEV;
+}
+EXPORT_SYMBOL_GPL(kvm_iommu_device_id);
+
+int kvm_iommu_guest_alloc_mc(struct kvm_hyp_memcache *mc, u32 pgsize, u32 nr_pages)
+{
+	u8 order = get_order(pgsize);
+
+	/* Driver might have dedicated allocator especially if it needs large pages. */
+	if (iommu_driver && iommu_driver->guest_alloc && iommu_driver->guest_free)
+		return __topup_hyp_memcache(mc, nr_pages, iommu_driver->guest_alloc,
+					    kvm_host_pa, 0, order);
+
+	return topup_hyp_memcache(mc, nr_pages, order);
+}
+
+void kvm_iommu_guest_free_mc(struct kvm_hyp_memcache *mc)
+{
+	if (iommu_driver && iommu_driver->guest_alloc && iommu_driver->guest_free)
+		__free_hyp_memcache(mc, iommu_driver->guest_free,
+				    kvm_host_va, 0);
+	else
+		free_hyp_memcache(mc);
+}
+
+/* Hypercall abstractions exposed to kernel IOMMU drivers */
+int kvm_iommu_attach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
+			 unsigned int endpoint, unsigned int pasid,
+			 unsigned int ssid_bits, unsigned long flags)
+{
+	return kvm_call_hyp_nvhe_mc(__pkvm_host_iommu_attach_dev, iommu_id, domain_id,
+				    endpoint, pasid, ssid_bits, flags);
+}
+EXPORT_SYMBOL(kvm_iommu_attach_dev);
+
+int kvm_iommu_attach_dev_nested(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
+				unsigned int endpoint, unsigned int pasid,
+				unsigned long flags, void *s1_desc_hva, size_t s1_desc_size)
+{
+	return kvm_call_hyp_nvhe_mc(__pkvm_host_iommu_attach_dev_nested, iommu_id, domain_id,
+				    endpoint, pasid, flags, s1_desc_hva, s1_desc_size);
+}
+EXPORT_SYMBOL(kvm_iommu_attach_dev_nested);
+
+int kvm_iommu_detach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
+			 unsigned int endpoint, unsigned int pasid)
+{
+	return kvm_call_hyp_nvhe(__pkvm_host_iommu_detach_dev, iommu_id, domain_id,
+				endpoint, pasid);
+}
+EXPORT_SYMBOL(kvm_iommu_detach_dev);
+
+int kvm_iommu_detach_dev_nested(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
+			 unsigned int endpoint, unsigned int pasid)
+{
+	return kvm_call_hyp_nvhe(__pkvm_host_iommu_detach_dev_nested, iommu_id, domain_id,
+				endpoint, pasid);
+}
+EXPORT_SYMBOL(kvm_iommu_detach_dev_nested);
+
+int kvm_iommu_iotlb_inv_nested_domain(pkvm_handle_t domain_id, unsigned long iova,
+				      size_t size, size_t granule, bool leaf)
+{
+	return kvm_call_hyp_nvhe(__pkvm_host_iommu_iotlb_inv_nested_domain, domain_id, iova, size,
+				 granule, leaf);
+}
+EXPORT_SYMBOL(kvm_iommu_iotlb_inv_nested_domain);
+
+int kvm_iommu_nested_cfg_sync(pkvm_handle_t iommu_id, void *cmd_desc_hva, size_t cmd_desc_size)
+{
+	return kvm_call_hyp_nvhe(__pkvm_host_iommu_nested_cfg_sync, iommu_id, cmd_desc_hva,
+				 cmd_desc_size);
+}
+EXPORT_SYMBOL(kvm_iommu_nested_cfg_sync);
+
+int kvm_iommu_alloc_domain(pkvm_handle_t domain_id, int type)
+{
+	return kvm_call_hyp_nvhe_mc(__pkvm_host_iommu_alloc_domain,
+				    domain_id, type);
+}
+EXPORT_SYMBOL(kvm_iommu_alloc_domain);
+
+int kvm_iommu_free_domain(pkvm_handle_t domain_id)
+{
+	return kvm_call_hyp_nvhe(__pkvm_host_iommu_free_domain, domain_id);
+}
+EXPORT_SYMBOL(kvm_iommu_free_domain);
+
+int kvm_iommu_map_pages(pkvm_handle_t domain_id, unsigned long iova,
+			phys_addr_t paddr, size_t pgsize, size_t pgcount,
+			int prot, gfp_t gfp, size_t *total_mapped)
+{
+	size_t mapped;
+	size_t size = pgsize * pgcount;
+	struct arm_smccc_res res;
+
+	do {
+		res = kvm_call_hyp_nvhe_smccc(__pkvm_host_iommu_map_pages, domain_id,
+					      iova, paddr, pgsize, pgcount, prot);
+		mapped = res.a1;
+		iova += mapped;
+		paddr += mapped;
+		WARN_ON(mapped % pgsize);
+		WARN_ON(mapped > pgcount * pgsize);
+		pgcount -= mapped / pgsize;
+		*total_mapped += mapped;
+	} while (*total_mapped < size && !kvm_iommu_topup_memcache(&res, gfp));
+	if (*total_mapped < size)
+		return -EINVAL;
+	return 0;
+}
+EXPORT_SYMBOL(kvm_iommu_map_pages);
+
+size_t kvm_iommu_unmap_pages(pkvm_handle_t domain_id, unsigned long iova,
+			     size_t pgsize, size_t pgcount)
+{
+	size_t unmapped;
+	size_t total_unmapped = 0;
+	size_t size = pgsize * pgcount;
+	struct arm_smccc_res res;
+
+	do {
+		res = kvm_call_hyp_nvhe_smccc(__pkvm_host_iommu_unmap_pages,
+					      domain_id, iova, pgsize, pgcount);
+		unmapped = res.a1;
+		total_unmapped += unmapped;
+		iova += unmapped;
+		WARN_ON(unmapped % pgsize);
+		pgcount -= unmapped / pgsize;
+
+		/*
+		 * The page table driver can unmap less than we asked for. If it
+		 * didn't unmap anything at all, then it either reached the end
+		 * of the range, or it needs a page in the memcache to break a
+		 * block mapping.
+		 */
+	} while (total_unmapped < size &&
+		 (unmapped || !kvm_iommu_topup_memcache(&res, GFP_ATOMIC)));
+
+	return total_unmapped;
+
+}
+EXPORT_SYMBOL(kvm_iommu_unmap_pages);
+
+phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t domain_id, unsigned long iova)
+{
+	return kvm_call_hyp_nvhe(__pkvm_host_iommu_iova_to_phys, domain_id, iova);
+}
+EXPORT_SYMBOL(kvm_iommu_iova_to_phys);
+
+int kvm_iommu_iotlb_sync_map(pkvm_handle_t domain_id, unsigned long iova, size_t size)
+{
+	return kvm_call_hyp_nvhe(__pkvm_host_iommu_iotlb_sync_map, domain_id, iova, size);
+}
+EXPORT_SYMBOL(kvm_iommu_iotlb_sync_map);
+
+size_t kvm_iommu_map_sg(pkvm_handle_t domain_id, struct kvm_iommu_sg *sg,
+			unsigned long iova, unsigned int nent,
+			unsigned int prot, gfp_t gfp)
+{
+	size_t mapped, total_mapped = 0;
+	struct arm_smccc_res res;
+
+	do {
+		res = kvm_call_hyp_nvhe_smccc(__pkvm_host_iommu_map_sg,
+					      domain_id, iova, sg, nent, prot);
+		mapped = res.a1;
+		iova += mapped;
+		total_mapped += mapped;
+		/* Skip mapped */
+		while (mapped) {
+			if (mapped < (sg->pgsize * sg->pgcount)) {
+				sg->phys += mapped;
+				sg->pgcount -= mapped / sg->pgsize;
+				mapped = 0;
+			} else {
+				mapped -= sg->pgsize * sg->pgcount;
+				sg++;
+				nent--;
+			}
+		}
+
+	} while (nent && !kvm_iommu_topup_memcache(&res, gfp));
+
+	return total_mapped;
+}
+EXPORT_SYMBOL(kvm_iommu_map_sg);

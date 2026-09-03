@@ -7,11 +7,9 @@
 #include <linux/err.h>
 #include <linux/pm.h>
 #include <linux/i2c.h>
-#include <linux/gpio.h>
 #include <linux/gpio/consumer.h>
 #include <linux/regmap.h>
 #include <linux/of.h>
-#include <linux/of_gpio.h>
 #include <sound/soc.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -71,7 +69,7 @@ static int tas2780_codec_resume(struct snd_soc_component *component)
 {
 	struct tas2780_priv *tas2780 =
 		snd_soc_component_get_drvdata(component);
-	int ret = 0;
+	int ret;
 
 	ret = snd_soc_component_update_bits(component, TAS2780_PWR_CTRL,
 		TAS2780_PWR_CTRL_MASK, TAS2780_PWR_CTRL_ACTIVE);
@@ -81,7 +79,6 @@ static int tas2780_codec_resume(struct snd_soc_component *component)
 			__func__, ret);
 		goto err;
 	}
-	ret = 0;
 	regcache_cache_only(tas2780->regmap, false);
 	ret = regcache_sync(tas2780->regmap);
 err:
@@ -591,8 +588,7 @@ static int tas2780_parse_dt(struct device *dev, struct tas2780_priv *tas2780)
 	return 0;
 }
 
-static int tas2780_i2c_probe(struct i2c_client *client,
-			const struct i2c_device_id *id)
+static int tas2780_i2c_probe(struct i2c_client *client)
 {
 	struct tas2780_priv *tas2780;
 	int result;
@@ -628,7 +624,7 @@ static int tas2780_i2c_probe(struct i2c_client *client,
 }
 
 static const struct i2c_device_id tas2780_i2c_id[] = {
-	{ "tas2780", 0},
+	{ "tas2780"},
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, tas2780_i2c_id);
@@ -646,7 +642,7 @@ static struct i2c_driver tas2780_i2c_driver = {
 		.name   = "tas2780",
 		.of_match_table = of_match_ptr(tas2780_of_match),
 	},
-	.probe  = tas2780_i2c_probe,
+	.probe      = tas2780_i2c_probe,
 	.id_table   = tas2780_i2c_id,
 };
 module_i2c_driver(tas2780_i2c_driver);

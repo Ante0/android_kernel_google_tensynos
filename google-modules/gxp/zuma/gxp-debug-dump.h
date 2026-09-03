@@ -410,19 +410,14 @@ int gxp_debug_dump_init(struct gxp_dev *gxp, void *sscd_dev, void *sscd_pdata);
 void gxp_debug_dump_exit(struct gxp_dev *gxp);
 struct work_struct *gxp_debug_dump_get_notification_handler(struct gxp_dev *gxp,
 							    uint core);
-bool gxp_debug_dump_is_enabled(void);
 
 /**
- * gxp_debug_dump_invalidate_core_segments() - Invalidate core dump segments to enable core
- *                                             firmware to populate them on next debug dump
- *                                             trigger.
+ * gxp_debug_dump_is_enabled() - Check if debug dump module is enabled.
+ * @gxp: The GXP device to check.
  *
- * This function is not thread safe. Caller should take the necessary precautions.
- *
- * @gxp: The GXP device to obtain the handler for
- * @core_id: physical id of the DSP core whose dump segments need to be invalidated.
+ * Return: True if debug dump is enabled, false otherwise.
  */
-void gxp_debug_dump_invalidate_core_segments(struct gxp_dev *gxp, uint32_t core_id);
+bool gxp_debug_dump_is_enabled(struct gxp_dev *gxp);
 
 /**
  * gxp_debug_dump_send_forced_debug_dump_request() - Sends the forced debug dump request to the

@@ -14,7 +14,6 @@
 struct max77779_pmic_info {
 	struct device		*dev;
 	struct regmap		*regmap;
-	struct mutex		reg_dump_lock;
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct dentry		*de;
 	unsigned int		addr;

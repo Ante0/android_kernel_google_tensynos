@@ -17,7 +17,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/spi/spi.h>
-#ifdef CONFIG_GOOG_TOUCH_INTERFACE
+#if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
 #include <goog_touch_interface.h>
 #endif
 
@@ -376,7 +376,7 @@ static int goodix_spi_probe(struct spi_device *spi)
 	mutex_init(&dev_res->bus.mutex);
 
 	dev_res->bus.dma_mode_enabled = false;
-#ifdef CONFIG_GOOG_TOUCH_INTERFACE
+#if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
 	dev_res->bus.dma_mode_enabled = goog_check_spi_dma_enabled(spi);
 	ts_info("dma_mode: %s\n", dev_res->bus.dma_mode_enabled ? "enabled" : "disabled");
 #endif
@@ -421,7 +421,7 @@ static int goodix_spi_remove(struct spi_device *spi)
 }
 #endif
 
-#ifdef CONFIG_OF
+#if IS_ENABLED(CONFIG_OF)
 static const struct of_device_id spi_matches[] = {
 	{
 		.compatible = "goodix,brl-a",

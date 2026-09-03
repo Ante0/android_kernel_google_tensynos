@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Charging device tree entries specific to Kodiak devices
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+
+&ln8411_dc {
+	/* need to synchronize with google,chg-aact-ecc */
+	ln8411,burst-threshold = <600>;
+};

@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config PIXEL_CME
+	bool "Support Compute Matrix Engine (CME) block"
+	help
+	  Select Y if the SOC support CME block to run
+	  Scalable Matrix Extension (SME) and Streaming
+	  Scalable Vector Extension (SSVE) instructions.
+	  Those instructions accelerate matrix operations.
+
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/perf/core/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/perf/thermal/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/perf/memory/Kconfig"

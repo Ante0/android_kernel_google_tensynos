@@ -81,7 +81,8 @@ struct aoc_ramdump_header {
 	char magic[8]; /* "AOCDUMP" */
 	u32 valid;
 	u32 num_sections;
-	u32 time_taken[5]; /* Time taken for ramdump to complete per core, in AoC timer ticks */
+	 /* Time taken for ramdump to complete per core, in AoC timer ticks */
+	u32 time_taken[5];
 	struct aoc_section_header sections[RAMDUMP_NUM_SECTIONS];
 	enum RamdumpPlatform platform;
 	uint32_t version;
@@ -89,12 +90,22 @@ struct aoc_ramdump_header {
 	uint8_t debug_authorized;
 };
 
+struct aoc_ramdump_header_v2 {
+	char magic[8]; /* "AOCDUMP" */
+	uint32_t valid;
+	uint32_t num_sections;
+	/* Time taken for ramdump to complete per core, in AoC timer ticks */
+	uint32_t time_taken[5];
+	enum RamdumpPlatform platform;
+	uint32_t version;
+	uint32_t breadcrumbs[16];
+	uint8_t debug_authorized;
+	struct aoc_section_header sections[RAMDUMP_NUM_SECTIONS];
+};
+
 #define RAMDUMP_MAGIC "AOCDUMP"
 
-#define RAMDUMP_HEADER_OFFSET 0x2000000 /* 32 MiB offset from start of DRAM carveout */
-#define RAMDUMP_HEADER_ADDR (0x98000000 + RAMDUMP_HEADER_OFFSET) /* Start of DRAM carveout + offset */
-
-#define RAMDUMP_SECTION_SRAM_OFFSET 0x1000
+#define ABL_SECTION_ADDR 0xBE000000
 
 #define RAMDUMP_SECTION_CRASH_INFO_SIZE 256
 

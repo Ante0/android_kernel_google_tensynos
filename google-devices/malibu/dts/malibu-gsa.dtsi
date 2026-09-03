@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/ {
+	gsa: gsa-ns@e010000 {
+		compatible = "google,gs101-gsa-v1";
+		reg = <0x0 0x0e010000 0x0 0x1000>;
+
+		log-region = <&gsa_reserved_log>;
+
+		iommus = <&amb_smmu 0x8701>;
+
+		mboxes = <&mba_gsa_client_0 0>;
+
+		mbox-channels = <1>;
+		channel-max-pending-msgs = <1>;
+	};
+
+	tzprot: tzprot {
+		compatible = "google,gsoc-tzprot-v1";
+	};
+};

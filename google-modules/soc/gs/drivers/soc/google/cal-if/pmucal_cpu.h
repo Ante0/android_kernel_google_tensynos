@@ -3,8 +3,6 @@
 #include <soc/google/pmucal_common.h>
 #include <linux/fs.h>
 #include <linux/debugfs.h>
-#include <linux/of_address.h>
-#include <linux/of_platform.h>
 #include <linux/uaccess.h>
 #include <soc/google/exynos-pmu-if.h>
 #include <soc/google/pmucal_dbg.h>

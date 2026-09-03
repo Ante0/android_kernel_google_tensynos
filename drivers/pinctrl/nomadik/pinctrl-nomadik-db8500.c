@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0
 #include <linux/kernel.h>
+#include <linux/types.h>
+
 #include <linux/pinctrl/pinctrl.h>
-#include "pinctrl-nomadik.h"
+#include <linux/gpio/driver.h>
+
+#include <linux/gpio/gpio-nomadik.h>
 
 /* All the pins that can be used for GPIO and some other functions */
 #define _GPIO(offset)		(offset)

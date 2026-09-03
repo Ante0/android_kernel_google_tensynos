@@ -8,9 +8,7 @@
 
 #include <linux/module.h>
 #include <trace/hooks/fs.h>
-
-extern void vh_ep_create_wakeup_source_mod(void *data, char *name, int len);
-extern void vh_timerfd_create_mod(void *data, char *name, int len);
+#include "vh_fs.h"
 
 static int vh_fs_init(void)
 {

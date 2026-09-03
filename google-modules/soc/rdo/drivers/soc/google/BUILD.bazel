@@ -1,0 +1,361 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "soc_google.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "goog-mba-doorbell-iface",
+    out = "goog-mba-doorbell-iface.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_MBA_DOORBELL_INTERFACE": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "goog-mba-doorbell-iface.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "goog-mba-aggr",
+    out = "goog-mba-aggr.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_MBA_AGGREGATOR": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "goog-mba-aggr.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "goog-mba-gdmc-iface",
+    out = "goog-mba-gdmc-iface.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_MBA_GDMC_INTERFACE": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "goog-mba-gdmc-iface.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":goog-mba-aggr",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "goog-mba-gdmc-iface-test",
+    out = "goog-mba-gdmc-iface-test.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_MBA_GDMC_INTERFACE_TEST": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "goog-mba-gdmc-iface-test.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":goog-mba-gdmc-iface",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "goog-mba-cpm-iface",
+    out = "goog-mba-cpm-iface.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_MBA_CPM_INTERFACE": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "goog-mba-cpm-iface.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":google_gtc",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "goog-mba-cpm-iface-test",
+    out = "goog-mba-cpm-iface-test.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_MBA_CPM_INTERFACE_TEST": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "goog-mba-cpm-iface-test.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":goog-mba-cpm-iface",
+        ":google_gtc",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "goog-mba-ebu-iface",
+    out = "goog-mba-ebu-iface.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_MBA_EBU_INTERFACE": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "goog-mba-ebu-iface.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":goog-mba-aggr",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "google_gdmc_dhub",
+    out = "google_gdmc_dhub.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_GDMC_DHUB": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "google_gdmc_dhub.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":goog-mba-gdmc-iface",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "google_gdmc_dhub_test_",
+    out = "google_gdmc_dhub_test.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_GDMC_DHUB_TEST": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "google_gdmc_dhub_test.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":google_gdmc_dhub",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "pixel-debug-kinfo",
+    out = "pixel-debug-kinfo.ko",
+    conditional_srcs = {
+        "CONFIG_PIXEL_DEBUG_KINFO": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "pixel-debug-kinfo.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google/cdd:gcdd",
+    ],
+)
+
+ddk_module(
+    name = "gs-debug-test",
+    out = "gs-debug-test.ko",
+    conditional_srcs = {
+        "CONFIG_GS_DEBUG_TEST": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "gs-debug-test.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/debug:pixel-debug-test",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google/cdd:gcdd",
+    ],
+)
+
+ddk_module(
+    name = "goog-chip-info",
+    out = "goog-chip-info.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_CHIP_INFO": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "goog-chip-info.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "google_gtc",
+    out = "google_gtc.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_GTC": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "google_gtc.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "google_timestamp_sync",
+    out = "google_timestamp_sync.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_TIMESTAMP_SYNC": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "google_timestamp_sync.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":google_gtc",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "goog-aoss-wdt-handler",
+    out = "goog-aoss-wdt-handler.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_AOSS_WDT_HANDLER": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "goog_aoss_wdt_handler.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)

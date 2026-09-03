@@ -14,7 +14,5 @@ struct be_path_cache {
 	DECLARE_BITMAP(fe_put_mask, IDX_FE_MAX);
 	bool on;
 };
-bool aoc_alsa_usb_playback_enabled(void);
-bool aoc_alsa_usb_capture_enabled(void);
 
 #endif

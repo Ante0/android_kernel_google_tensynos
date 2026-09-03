@@ -1,0 +1,53 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * NFC device tree entries specific to the lga paltform
+ *
+ * Copyright 2024 Google LLC.
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+
+&cpm_pinctrl {
+	ap2nfc_clk_1v2_func: ap2nfc_clk_1v2_func {
+		/* Connectivity - NFC */
+		pins = "XCPM_CLKOUT0";
+		function = "cpm_clkout";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+	};
+	ap2nfc_clk_1v2_sleep: ap2nfc_clk_1v2_sleep {
+		/* Connectivity - NFC */
+		pins = "XCPM_CLKOUT0";
+		function = "cpm_int";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-low;
+	};
+};
+
+
+&lsioe_cli10_i2c {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	st21nfc@8 {
+		compatible = "st,st21nfc";
+		reg = <0x08>;
+		dev-name = "st21nfc";
+		interrupt-parent = <&gdmc_pinctrl>;
+		reset-gpios = <AP2NFC_CHIP_EN_1V2(GPIO_ACTIVE_HIGH)>;
+		irq-gpios = <NFC2AP_HOST_IRQ_1V2(GPIO_ACTIVE_HIGH)>;
+		pidle-gpios = <NFC2AP_PWR_STATE_1V2(GPIO_ACTIVE_HIGH)>;
+		st,pidle_active_check;
+		st,extpad_control_en;
+		st,clk_pinctrl_switch;
+		pinctrl-names = "default", "func";
+		pinctrl-0 = <&nfc2ap_clk_req_1v2_sleep>, <&ap2nfc_clk_1v2_sleep>;
+		pinctrl-1 = <&nfc2ap_clk_req_1v2>, <&ap2nfc_clk_1v2_func>;
+		status = "ok";
+	};
+};

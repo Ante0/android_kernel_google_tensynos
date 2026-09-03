@@ -1,0 +1,541 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+
+/*
+ * LGA mailbox controller/channel device tree source
+ *
+ * Copyright 2024 Google LLC.
+ */
+/ {
+
+	aoc_mba_syscon: aoc_mba_syscon@b490000{
+		compatible = "google,aoc-mba-global", "syscon";
+		reg = <0x0 0xb490000 0x0 0x80>;
+	};
+
+	gsa_mba_syscon: gsa_mba_syscon@e000000{
+		compatible = "google,gsa-mba-global", "syscon";
+		reg = <0x0 0xe000000 0x0 0x30>;
+	};
+
+	gdmc_mba_syscon: gdmc_mba_syscon@6250000{
+		compatible = "google,gdmc-mba-global", "syscon";
+		reg = <0x0 0x6250000 0x0 0x50>;
+	};
+
+	cpm_mba_syscon: cpm_mba_syscon@5250000{
+		compatible = "google,cpm-mba-global", "syscon";
+		reg = <0x0 0x05250000 0x0 0x50>;
+	};
+
+	aurora_mcu_0_mba_syscon: aurora_mcu_0_mba_syscon@38430000{
+		compatible = "google,aurora-mcu-0-mba-global", "syscon";
+		reg = <0x0 0x38430000 0x0 0x50>;
+	};
+
+	aurora_core_0_mba_syscon: aurora_core_0_mba_syscon@384b0000{
+		compatible = "google,aurora-core-0-mba-global", "syscon";
+		reg = <0x0 0x384b0000 0x0 0x50>;
+	};
+
+	aurora_core_1_mba_syscon: aurora_core_1_mba_syscon@384d3000{
+		compatible = "google,aurora-core-1-mba-global", "syscon";
+		reg = <0x0 0x384d3000 0x0 0x50>;
+	};
+
+	aurora_core_2_mba_syscon: aurora_core_2_mba_syscon@384f6000{
+		compatible = "google,aurora-core-2-mba-global", "syscon";
+		reg = <0x0 0x384f6000 0x0 0x50>;
+	};
+
+	aoc_ap_0_mba_client_0: aoc_ap_0_mba_client_0@b4a0000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4a0000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_0_0 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 0>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_1_mba_client_1: aoc_ap_1_mba_client_1@b4a1000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4a1000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_1_1 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 1>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_2_mba_client_2: aoc_ap_2_mba_client_2@b4a2000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4a2000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_2_2 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 2>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_3_mba_client_3: aoc_ap_3_mba_client_3@b4a3000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4a3000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_3_3 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 3>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_4_mba_client_4: aoc_ap_4_mba_client_4@b4a4000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4a4000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_4_4 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 4>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_5_mba_client_5: aoc_ap_5_mba_client_5@b4a5000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4a5000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_5_5 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 5>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_6_mba_client_6: aoc_ap_6_mba_client_6@b4a6000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4a6000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_6_6 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 6>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_7_mba_client_7: aoc_ap_7_mba_client_7@b4a7000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4a7000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_7_7 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 7>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_8_mba_client_8: aoc_ap_8_mba_client_8@b4a8000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4a8000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_8_8 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 8>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_9_mba_client_9: aoc_ap_9_mba_client_9@b4a9000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4a9000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_9_9 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 9>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_10_mba_client_10: aoc_ap_10_mba_client_10@b4aa000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4aa000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_10_10 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 10>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_11_mba_client_11: aoc_ap_11_mba_client_11@b4ab000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4ab000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_11_11 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 11>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_12_mba_client_12: aoc_ap_12_mba_client_12@b4ac000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4ac000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_12_12 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 12>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_13_mba_client_13: aoc_ap_13_mba_client_13@b4ad000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4ad000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_13_13 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 13>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_14_mba_client_14: aoc_ap_14_mba_client_14@b4ae000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4ae000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_14_14 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 14>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_15_mba_client_15: aoc_ap_15_mba_client_15@b4af000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4af000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_15_15 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 15>;
+		mba-ip-version = <2 0>;
+		/*
+		 * NOTE: this mailbox is sometimes used to trigger a ramdump
+		 * which is the only time the size needs to be 1. Other times
+		 * we don't transmit any data.
+		 */
+		payload-size = <1>;
+		status = "disabled";
+	};
+
+	aoc_ap_16_mba_client_16: aoc_ap_16_mba_client_16@b4b0000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4b0000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_16_16 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 16>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_17_mba_client_17: aoc_ap_17_mba_client_17@b4b1000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4b1000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_17_17 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 17>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_18_mba_client_18: aoc_ap_18_mba_client_18@b4b2000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4b2000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_18_18 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 18>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	aoc_ap_19_mba_client_19: aoc_ap_19_mba_client_19@b4b3000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xb4b3000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AOC_MBOX_APC_19_19 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aoc_mba_syscon 19>;
+		mba-ip-version = <2 0>;
+		payload-size = <0>;
+		status = "disabled";
+	};
+
+	gsa_ap_0_mba_client_0: gsa_ap_0_mba_client_0@e010000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0xe010000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_GSA_AP_0_CLIENT_MBA_IRQ IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gsa_mba_syscon 0>;
+		mba-ip-version = <2 0>;
+	};
+
+	gdmc_ap_non_secure_req_mba_client_2: gdmc_ap_non_secure_req_mba_client_2@6262000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x6262000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_APC_NONSEC_REQ_MB_IRQ IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 2>;
+		payload-size = <4>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	gdmc_ap_non_secure_resp_mba_client_3: gdmc_ap_non_secure_resp_mba_client_3@6263000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x6263000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_APC_NONSEC_RESP_MB_IRQ IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 3>;
+		payload-size = <4>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	gdmc_ap_critical_req_mba_client_4: gdmc_ap_critical_req_mba_client_4@6264000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x6264000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_APC_CRITICAL_REQ_MB_IRQ IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 4>;
+		payload-size = <4>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	gdmc_ap_critical_resp_mba_client_5: gdmc_ap_critical_resp_mba_client_5@6265000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x6265000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_APC_CRITICAL_RESP_MB_IRQ IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 5>;
+		payload-size = <4>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	gdmc_ap1_req_mba_client_6: gdmc_ap1_req_mba_client_6@6266000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x6266000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_APC_AP1_REQ_MB_IRQ IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 6>;
+		payload-size = <4>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	gdmc_ap1_resp_mba_client_7: gdmc_ap1_resp_mba_client_7@6267000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x6267000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_APC_AP1_RESP_MB_IRQ IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 7>;
+		payload-size = <4>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	gdmc_ap2_req_mba_client_8: gdmc_ap2_req_mba_client_8@6268000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x6268000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_APC_AP2_REQ_MB_IRQ IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 8>;
+		payload-size = <4>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	gdmc_ap2_resp_mba_client_9: gdmc_ap2_resp_mba_client_9@6269000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x6269000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_APC_AP2_RESP_MB_IRQ IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 9>;
+		payload-size = <4>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	gdmc_ap3_req_mba_client_10: gdmc_ap3_req_mba_client_10@626a000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x626a000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_APC_AP3_REQ_MB_IRQ IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 10>;
+		payload-size = <4>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	gdmc_ap3_resp_mba_client_11: gdmc_ap3_resp_mba_client_11@626b000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x626b000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_DTA_GDMC_APC_AP3_RESP_MB_IRQ IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&gdmc_mba_syscon 11>;
+		payload-size = <4>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	mba_sswrp_aur_mcu_0_client_0: mba_sswrp_aur_mcu_0_client_0@38440000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x38440000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AURORA_AURORA_AP_MCU_0_MBA_IRQ_0_118 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aurora_mcu_0_mba_syscon 0>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	mba_sswrp_aur_mcu_0_client_1: mba_sswrp_aur_mcu_0_client_1@38441000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x38441000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AURORA_AURORA_AP_MCU_0_MBA_IRQ_1_119 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aurora_mcu_0_mba_syscon 1>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	mba_sswrp_aur_core_0_client_0: mba_sswrp_aur_core_0_client_0@384c0000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x384c0000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AURORA_AURORA_AP_CORE_0_MBA_IRQ_0_112 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aurora_core_0_mba_syscon 0>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	mba_sswrp_aur_core_1_client_0: mba_sswrp_aur_core_1_client_0@384e3000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x384e3000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AURORA_AURORA_AP_CORE_1_MBA_IRQ_0_114 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aurora_core_1_mba_syscon 0>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	mba_sswrp_aur_core_2_client_0: mba_sswrp_aur_core_2_client_0@38506000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x38506000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_AURORA_AURORA_AP_CORE_2_MBA_IRQ_0_116 IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&aurora_core_2_mba_syscon 0>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	mba_ctrl_test: mba_ctrl_test {
+		compatible = "google,mba-ctrl-test";
+		mboxes = <&gdmc_ap_non_secure_req_mba_client_2 0
+			  &gdmc_ap_non_secure_resp_mba_client_3 0>;
+		status = "disabled";
+	};
+
+	goog_mba_aggr_gdmc: goog_mba_aggr_gdmc {
+		compatible = "google,mba-aggr";
+		service-name = "gdmc-normal";
+		mboxes = <&gdmc_ap_non_secure_req_mba_client_2 0
+			  &gdmc_ap1_req_mba_client_6 0
+			  &gdmc_ap2_req_mba_client_8 0
+			  &gdmc_ap3_req_mba_client_10 0
+			  &gdmc_ap_non_secure_resp_mba_client_3 0
+			  &gdmc_ap1_resp_mba_client_7 0
+			  &gdmc_ap2_resp_mba_client_9 0
+			  &gdmc_ap3_resp_mba_client_11 0>;
+		req-mboxes-idx = <0 1 2 3>;
+		resp-mboxes-idx = <4 5 6 7>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	goog_mba_aggr_gdmc_crit: goog_mba_aggr_gdmc_crit {
+		compatible = "google,mba-aggr";
+		service-name = "gdmc-critical";
+		mboxes = <&gdmc_ap_critical_req_mba_client_4 0
+			  &gdmc_ap_critical_resp_mba_client_5 0>;
+		req-mboxes-idx = <0>;
+		resp-mboxes-idx = <1>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	goog_mba_gdmc_iface: goog_mba_gdmc_iface {
+		compatible = "google,mba-gdmc-iface";
+		memory-region = <&goog_mba_gdmc_iface_dma_region>;
+		goog-mba-aggrs = <&goog_mba_aggr_gdmc &goog_mba_aggr_gdmc_crit>;
+		status = "disabled";
+	};
+
+	goog_mba_gdmc_iface_test: goog_mba_gdmc_iface_test {
+		compatible = "google,mba-gdmc-iface-test";
+		gdmc-iface = <&goog_mba_gdmc_iface>;
+		status = "disabled";
+	};
+
+	cpm_ap_ns_req_mba_client_0: cpm_ap_ns_req_mba_client_0@5260000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x05260000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_CPM_CPM_AP_NS_REQ_INT IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&cpm_mba_syscon 0>;
+		queue-mode;
+		payload-size = <4>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	cpm_ap_ns_resp_mba_client_1: cpm_ap_ns_resp_mba_client_1@5261000 {
+		compatible = "google,mba-ctrl";
+		reg = <0x0 0x05261000 0x0 0x1000>;
+		interrupts = <GIC_SPI SSWRP_CPM_CPM_AP_NS_RESP_INT IRQ_TYPE_LEVEL_HIGH 0>;
+		#mbox-cells = <1>;
+		google,syscon-phandle = <&cpm_mba_syscon 1>;
+		queue-mode;
+		payload-size = <4>;
+		mba-ip-version = <2 0>;
+		status = "disabled";
+	};
+
+	goog_mba_cpm_iface: goog_mba_cpm_iface {
+		compatible = "google,mba-cpm-iface";
+		mboxes = <&cpm_ap_ns_req_mba_client_0 0
+			  &cpm_ap_ns_req_mba_client_0 1
+			  &cpm_ap_ns_req_mba_client_0 2
+			  &cpm_ap_ns_req_mba_client_0 3
+			  &cpm_ap_ns_req_mba_client_0 4
+			  &cpm_ap_ns_req_mba_client_0 5
+			  &cpm_ap_ns_req_mba_client_0 6
+			  &cpm_ap_ns_req_mba_client_0 7
+			  &cpm_ap_ns_resp_mba_client_1 0
+			  &cpm_ap_ns_resp_mba_client_1 1
+			  &cpm_ap_ns_resp_mba_client_1 2
+			  &cpm_ap_ns_resp_mba_client_1 3>;
+		req-mboxes-idx = <0 1 2 3 4 5 6 7>;
+		resp-mboxes-idx = <8 9 10 11>;
+		payload-size = <4>;
+		status = "disabled";
+	};
+
+	goog_mba_cpm_iface_test: goog_mba_cpm_iface_test {
+		compatible = "google,mba-cpm-iface-test";
+		mboxes = <&goog_mba_cpm_iface>;
+		status = "disabled";
+	};
+};

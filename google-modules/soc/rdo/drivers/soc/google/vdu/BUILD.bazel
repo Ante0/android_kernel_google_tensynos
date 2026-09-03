@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "gvdu",
+    out = "gvdu.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_VOLATILE_DEBUG_UNLOCK": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "google-vdu.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-gdmc-iface",
+    ],
+)
+
+ddk_module(
+    name = "google-vdu-test",
+    out = "google-vdu-test.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_VOLATILE_DEBUG_UNLOCK_TEST": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "google-vdu-test.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":gvdu",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-gdmc-iface",
+    ],
+)

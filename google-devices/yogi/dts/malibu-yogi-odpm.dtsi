@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Yogi odpm device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+&m_ext2_rail {
+	google,schematic-name = "VSYS_MODEM";
+	google,shunt-res-uohm = <5000>;
+	google,subsystem-name = "Modem";
+};
+
+&m_ext3_rail {
+	google,schematic-name = "VSYS_DISP_INNER";
+	google,shunt-res-uohm = <5000>;
+	google,subsystem-name = "Inner Display";
+};
+
+&s_ext5_rail {
+	google,schematic-name = "VSYS_DISP_OUTER";
+	google,shunt-res-uohm = <5000>;
+	google,subsystem-name = "Outer Display";
+};

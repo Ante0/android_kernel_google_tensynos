@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config GOOGLE_PMU_EHLD
+	tristate "GOOGLE PMU EHLD Kernel driver"
+	help
+	  Enable support for detecting hardware hang
+
+	  This driver with the help of GDMC monitors CPU state.
+	  If GDMC detects lokcup or hang, it notifies this driver
+	  and the driver obtains necessary debugging information.
+	  Select Y if you have such device.
+
+	  If unsure select "N".
+
+config GOOGLE_EHLD_COREINSTR
+	tristate "Google Coreinstr EHLD Kernel driver"
+	help
+	  Enable support for detecting hardware hang
+
+	  This driver with the help of GDMC monitors CPU state.
+	  If GDMC detects lokcup or hang, it notifies this driver
+	  and the driver obtains necessary debugging information.
+	  Select Y if you have such device.
+
+	  If unsure select "N".
+
+config GOOGLE_SKIP_S2M_VOTER
+	tristate "Google Skip S2M Voter"
+	depends on INPUT_KEYDEBUG && GOOGLE_MBA_GDMC_INTERFACE
+	help
+	  Enable support for skipping scandump when a longkey
+	  is pressed. This speeds up execution time of crash
+	  reset so that ramdump prompt appears earlier and
+	  informs users when to release longkey.
+
+	  If unsure select "N".
+
+config TOWERCI
+	tristate "Tower-CI driver"
+	help
+	  This driver provides access to Tower-CI nodes configuration.
+	  This driver also detects interal errors and faults within
+	  Tower-CI
+	  Select Y if you have such device.
+
+	  If unsure select "N".
+
+config TOWERCI_TEST
+	tristate "KUnit test for Tower-CI driver" if !KUNIT_ALL_TESTS
+	default KUNIT_ALL_TESTS
+	depends on ARCH_GOOGLE
+	depends on KUNIT
+	help
+	  This option enables the KUnit test module for the Tower-CI Driver.
+	  The tests verify Tower-CI irq-handler.
+
+	  Select Y if you have such device.
+	  If unsure select "N".

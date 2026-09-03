@@ -4,6 +4,8 @@
 #include <network_helpers.h>
 #include <bpf/btf.h>
 #include "bind4_prog.skel.h"
+#include "freplace_progmap.skel.h"
+#include "xdp_dummy.skel.h"
 
 typedef int (*test_cb)(struct bpf_object *obj);
 
@@ -77,7 +79,7 @@ static void test_fexit_bpf2bpf_common(const char *obj_file,
 		return;
 
 	info_len = sizeof(prog_info);
-	err = bpf_obj_get_info_by_fd(tgt_fd, &prog_info, &info_len);
+	err = bpf_prog_get_info_by_fd(tgt_fd, &prog_info, &info_len);
 	if (!ASSERT_OK(err, "tgt_fd_get_info"))
 		goto close_prog;
 
@@ -134,8 +136,8 @@ static void test_fexit_bpf2bpf_common(const char *obj_file,
 
 		info_len = sizeof(link_info);
 		memset(&link_info, 0, sizeof(link_info));
-		err = bpf_obj_get_info_by_fd(bpf_link__fd(link[i]),
-					     &link_info, &info_len);
+		err = bpf_link_get_info_by_fd(bpf_link__fd(link[i]),
+					      &link_info, &info_len);
 		ASSERT_OK(err, "link_fd_get_info");
 		ASSERT_EQ(link_info.tracing.attach_type,
 			  bpf_program__expected_attach_type(prog[i]),
@@ -346,7 +348,8 @@ static void test_func_sockmap_update(void)
 }
 
 static void test_obj_load_failure_common(const char *obj_file,
-					 const char *target_obj_file)
+					 const char *target_obj_file,
+					 const char *exp_msg)
 {
 	/*
 	 * standalone test that asserts failure to load freplace prog
@@ -354,6 +357,7 @@ static void test_obj_load_failure_common(const char *obj_file,
 	 */
 	struct bpf_object *obj = NULL, *pkt_obj;
 	struct bpf_program *prog;
+	char log_buf[64 * 1024];
 	int err, pkt_fd;
 	__u32 duration = 0;
 
@@ -372,11 +376,21 @@ static void test_obj_load_failure_common(const char *obj_file,
 	err = bpf_program__set_attach_target(prog, pkt_fd, NULL);
 	ASSERT_OK(err, "set_attach_target");
 
+	log_buf[0] = '\0';
+	if (exp_msg)
+		bpf_program__set_log_buf(prog, log_buf, sizeof(log_buf));
+	if (env.verbosity > VERBOSE_NONE)
+		bpf_program__set_log_level(prog, 2);
+
 	/* It should fail to load the program */
 	err = bpf_object__load(obj);
+	if (env.verbosity > VERBOSE_NONE && exp_msg) /* we overtook log */
+		printf("VERIFIER LOG:\n================\n%s\n================\n", log_buf);
 	if (CHECK(!err, "bpf_obj_load should fail", "err %d\n", err))
 		goto close_prog;
 
+	if (exp_msg)
+		ASSERT_HAS_SUBSTR(log_buf, exp_msg, "fail_msg");
 close_prog:
 	bpf_object__close(obj);
 	bpf_object__close(pkt_obj);
@@ -386,14 +400,24 @@ static void test_func_replace_return_code(void)
 {
 	/* test invalid return code in the replaced program */
 	test_obj_load_failure_common("./freplace_connect_v4_prog.bpf.o",
-				     "./connect4_prog.bpf.o");
+				     "./connect4_prog.bpf.o", NULL);
 }
 
 static void test_func_map_prog_compatibility(void)
 {
 	/* test with spin lock map value in the replaced program */
 	test_obj_load_failure_common("./freplace_attach_probe.bpf.o",
-				     "./test_attach_probe.bpf.o");
+				     "./test_attach_probe.bpf.o", NULL);
+}
+
+static void test_func_replace_unreliable(void)
+{
+	/* freplace'ing unreliable main prog should fail with error
+	 * "Cannot replace static functions"
+	 */
+	test_obj_load_failure_common("freplace_unreliable_prog.bpf.o",
+				     "./verifier_btf_unreliable_prog.bpf.o",
+				     "Cannot replace static functions");
 }
 
 static void test_func_replace_global_func(void)
@@ -415,7 +439,7 @@ static int find_prog_btf_id(const char *name, __u32 attach_prog_fd)
 	struct btf *btf;
 	int ret;
 
-	ret = bpf_obj_get_info_by_fd(attach_prog_fd, &info, &info_len);
+	ret = bpf_prog_get_info_by_fd(attach_prog_fd, &info, &info_len);
 	if (ret)
 		return ret;
 
@@ -481,12 +505,12 @@ static void test_fentry_to_cgroup_bpf(void)
 	if (!ASSERT_GE(fentry_fd, 0, "load_fentry"))
 		goto cleanup;
 
-	/* Make sure bpf_obj_get_info_by_fd works correctly when attaching
+	/* Make sure bpf_prog_get_info_by_fd works correctly when attaching
 	 * to another BPF program.
 	 */
 
-	ASSERT_OK(bpf_obj_get_info_by_fd(fentry_fd, &info, &info_len),
-		  "bpf_obj_get_info_by_fd");
+	ASSERT_OK(bpf_prog_get_info_by_fd(fentry_fd, &info, &info_len),
+		  "bpf_prog_get_info_by_fd");
 
 	ASSERT_EQ(info.btf_id, 0, "info.btf_id");
 	ASSERT_EQ(info.attach_btf_id, btf_id, "info.attach_btf_id");
@@ -498,6 +522,50 @@ cleanup:
 	if (fentry_fd >= 0)
 		close(fentry_fd);
 	bind4_prog__destroy(skel);
+}
+
+static void test_func_replace_progmap(void)
+{
+	struct bpf_cpumap_val value = { .qsize = 1 };
+	struct freplace_progmap *skel = NULL;
+	struct xdp_dummy *tgt_skel = NULL;
+	__u32 key = 0;
+	int err;
+
+	skel = freplace_progmap__open();
+	if (!ASSERT_OK_PTR(skel, "prog_open"))
+		return;
+
+	tgt_skel = xdp_dummy__open_and_load();
+	if (!ASSERT_OK_PTR(tgt_skel, "tgt_prog_load"))
+		goto out;
+
+	err = bpf_program__set_attach_target(skel->progs.xdp_cpumap_prog,
+					     bpf_program__fd(tgt_skel->progs.xdp_dummy_prog),
+					     "xdp_dummy_prog");
+	if (!ASSERT_OK(err, "set_attach_target"))
+		goto out;
+
+	err = freplace_progmap__load(skel);
+	if (!ASSERT_OK(err, "obj_load"))
+		goto out;
+
+	/* Prior to fixing the kernel, loading the PROG_TYPE_EXT 'redirect'
+	 * program above will cause the map owner type of 'cpumap' to be set to
+	 * PROG_TYPE_EXT. This in turn will cause the bpf_map_update_elem()
+	 * below to fail, because the program we are inserting into the map is
+	 * of PROG_TYPE_XDP. After fixing the kernel, the initial ownership will
+	 * be correctly resolved to the *target* of the PROG_TYPE_EXT program
+	 * (i.e., PROG_TYPE_XDP) and the map update will succeed.
+	 */
+	value.bpf_prog.fd = bpf_program__fd(skel->progs.xdp_drop_prog);
+	err = bpf_map_update_elem(bpf_map__fd(skel->maps.cpu_map),
+				  &key, &value, 0);
+	ASSERT_OK(err, "map_update");
+
+out:
+	xdp_dummy__destroy(tgt_skel);
+	freplace_progmap__destroy(skel);
 }
 
 /* NOTE: affect other tests, must run in serial mode */
@@ -517,6 +585,8 @@ void serial_test_fexit_bpf2bpf(void)
 		test_func_replace_return_code();
 	if (test__start_subtest("func_map_prog_compatibility"))
 		test_func_map_prog_compatibility();
+	if (test__start_subtest("func_replace_unreliable"))
+		test_func_replace_unreliable();
 	if (test__start_subtest("func_replace_multi"))
 		test_func_replace_multi();
 	if (test__start_subtest("fmod_ret_freplace"))
@@ -525,4 +595,6 @@ void serial_test_fexit_bpf2bpf(void)
 		test_func_replace_global_func();
 	if (test__start_subtest("fentry_to_cgroup_bpf"))
 		test_fentry_to_cgroup_bpf();
+	if (test__start_subtest("func_replace_progmap"))
+		test_func_replace_progmap();
 }

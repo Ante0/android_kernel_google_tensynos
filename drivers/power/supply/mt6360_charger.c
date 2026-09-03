@@ -113,16 +113,13 @@ enum {
 	MT6360_RANGE_MAX,
 };
 
-#define MT6360_LINEAR_RANGE(idx, _min, _min_sel, _max_sel, _step) \
-	[idx] = REGULATOR_LINEAR_RANGE(_min, _min_sel, _max_sel, _step)
-
 static const struct linear_range mt6360_chg_range[MT6360_RANGE_MAX] = {
-	MT6360_LINEAR_RANGE(MT6360_RANGE_VMIVR, 3900000, 0, 0x5F, 100000),
-	MT6360_LINEAR_RANGE(MT6360_RANGE_ICHG, 100000, 0, 0x31, 100000),
-	MT6360_LINEAR_RANGE(MT6360_RANGE_VOREG, 3900000, 0, 0x51, 10000),
-	MT6360_LINEAR_RANGE(MT6360_RANGE_AICR, 100000, 0, 0x3F, 50000),
-	MT6360_LINEAR_RANGE(MT6360_RANGE_IPREC, 100000, 0, 0x0F, 50000),
-	MT6360_LINEAR_RANGE(MT6360_RANGE_IEOC, 100000, 0, 0x0F, 50000),
+	LINEAR_RANGE_IDX(MT6360_RANGE_VMIVR, 3900000, 0, 0x5F, 100000),
+	LINEAR_RANGE_IDX(MT6360_RANGE_ICHG, 100000, 0, 0x31, 100000),
+	LINEAR_RANGE_IDX(MT6360_RANGE_VOREG, 3900000, 0, 0x51, 10000),
+	LINEAR_RANGE_IDX(MT6360_RANGE_AICR, 100000, 0, 0x3F, 50000),
+	LINEAR_RANGE_IDX(MT6360_RANGE_IPREC, 100000, 0, 0x0F, 50000),
+	LINEAR_RANGE_IDX(MT6360_RANGE_IEOC, 100000, 0, 0x0F, 50000),
 };
 
 struct mt6360_chg_info {
@@ -155,13 +152,6 @@ enum mt6360_pmu_chg_type {
 	MT6360_CHG_TYPE_CDP,
 	MT6360_CHG_TYPE_DISABLE_BC12,
 	MT6360_CHG_TYPE_MAX,
-};
-
-static enum power_supply_usb_type mt6360_charger_usb_types[] = {
-	POWER_SUPPLY_USB_TYPE_UNKNOWN,
-	POWER_SUPPLY_USB_TYPE_SDP,
-	POWER_SUPPLY_USB_TYPE_DCP,
-	POWER_SUPPLY_USB_TYPE_CDP,
 };
 
 static int mt6360_get_chrdet_ext_stat(struct mt6360_chg_info *mci,
@@ -577,8 +567,10 @@ static const struct power_supply_desc mt6360_charger_desc = {
 	.get_property		= mt6360_charger_get_property,
 	.set_property		= mt6360_charger_set_property,
 	.property_is_writeable	= mt6360_charger_property_is_writeable,
-	.usb_types		= mt6360_charger_usb_types,
-	.num_usb_types		= ARRAY_SIZE(mt6360_charger_usb_types),
+	.usb_types		= BIT(POWER_SUPPLY_USB_TYPE_SDP) |
+				  BIT(POWER_SUPPLY_USB_TYPE_CDP) |
+				  BIT(POWER_SUPPLY_USB_TYPE_DCP) |
+				  BIT(POWER_SUPPLY_USB_TYPE_UNKNOWN),
 };
 
 static const struct regulator_ops mt6360_chg_otg_ops = {

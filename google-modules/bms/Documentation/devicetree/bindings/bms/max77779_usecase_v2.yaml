@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2024 Google LLC
+%YAML 1.2
+---
+
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: max77779 usecase V2 state machine driver
+
+maintainers:
+  - Daniel Okazaki <dtokazaki@google.com>
+  - Prasanna Prapancham <prapancham@google.com>
+  - Jack Wu <wjack@google.com>
+
+description: |
+  max77779 usecase v2 state machine driver.
+
+properties:
+  # A dictionary of DT properties for this binding schema
+  max77779,bst-on:
+    description: external boost enable gpio.
+
+  max77779,extbst-ctl:
+    description: external boost control gpio.
+
+  max77779,extbst-mode:
+    description: External boost mode gpio.
+
+  max77779,extbst-supply:
+    description: External Boost regulator control
+required:
+  - compatible
+

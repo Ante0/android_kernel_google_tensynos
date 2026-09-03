@@ -89,9 +89,7 @@ struct dwc3_exynos {
 	struct clk		**clocks;
 	struct clk		*bus_clock;
 
-	struct extcon_dev	*edev;
-	struct notifier_block	device_nb;
-	struct notifier_block	host_nb;
+	struct usb_role_switch *role_sw;
 
 	struct mutex		dotg_lock;
 
@@ -126,15 +124,16 @@ static inline void dwc3_exynos_writel(void __iomem *base, u32 offset, u32 value)
 	writel(value, base + offset - DWC3_GLOBALS_REGS_START);
 }
 
-int dwc3_exynos_host_event(struct device *dev, int action);
-int dwc3_exynos_device_event(struct device *dev, bool action);
+
 int dwc3_exynos_phy_enable(int owner, bool on);
-extern int dwc3_exynos_set_bus_clock(struct device *dev, int clk_level);
+int dwc3_exynos_set_bus_clock(struct device *dev, int clk_level);
 
 int dwc3_exynos_core_init(struct dwc3 *dwc, struct dwc3_exynos *exynos);
 int dwc3_exynos_host_init(struct dwc3_exynos *exynos);
 void dwc3_exynos_host_exit(struct dwc3_exynos *exynos);
 void dwc3_exynos_gadget_disconnect_proc(struct dwc3 *dwc);
 int dwc3_core_susphy_set(struct dwc3 *dwc, int on);
+u32 dwc3_otg_is_connect(void);
+int dwc3_otg_get_idle_ip_index(void);
 #endif /* __LINUX_USB_DWC3_EXYNOS_H */
 

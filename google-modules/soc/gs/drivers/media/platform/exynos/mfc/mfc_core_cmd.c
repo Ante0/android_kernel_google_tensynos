@@ -355,7 +355,7 @@ int mfc_core_cmd_enc_seq_header(struct mfc_core *core, struct mfc_ctx *ctx)
 	return 0;
 }
 
-
+#if IS_ENABLED(CONFIG_SLC_PARTITION_MANAGER)
 static void __mfc_core_set_slc_option(struct mfc_core *core, struct mfc_ctx *ctx)
 {
 	unsigned int reg = 0;
@@ -478,6 +478,7 @@ static void __mfc_core_set_slc_option(struct mfc_core *core, struct mfc_ctx *ctx
 		MFC_CORE_WRITEL(reg, mfc_reg_axi_rd_attr1_slc);
 	}
 }
+#endif
 
 int mfc_core_cmd_dec_init_buffers(struct mfc_core *core, struct mfc_ctx *ctx)
 {
@@ -512,10 +513,12 @@ int mfc_core_cmd_dec_init_buffers(struct mfc_core *core, struct mfc_ctx *ctx)
 		}
 	}
 
+#if IS_ENABLED(CONFIG_SLC_PARTITION_MANAGER)
 	if (core->has_slc && core->slc_on_status) {
 		mfc_slc_update_partition(core, ctx);
 		__mfc_core_set_slc_option(core, ctx);
 	}
+#endif
 
 	if (MFC_FEATURE_SUPPORT(dev, dev->pdata->metadata_interface) &&
 			ctx->metadata_buffer_allocated)
@@ -581,10 +584,12 @@ int mfc_core_cmd_enc_init_buffers(struct mfc_core *core, struct mfc_ctx *ctx)
 		}
 	}
 
+#if IS_ENABLED(CONFIG_SLC_PARTITION_MANAGER)
 	if (core->has_slc && core->slc_on_status) {
 		mfc_slc_update_partition(core, ctx);
 		__mfc_core_set_slc_option(core, ctx);
 	}
+#endif
 
 	MFC_CORE_WRITEL(core_ctx->inst_no, MFC_REG_INSTANCE_ID);
 
@@ -637,7 +642,7 @@ static int __mfc_set_scratch_dpb_buffer(struct mfc_core *core, struct mfc_ctx *c
 	/* set scratch buffers */
 	MFC_CORE_WRITEL(core_ctx->scratch_buf.daddr, MFC_REG_D_SCRATCH_BUFFER_ADDR);
 	MFC_CORE_WRITEL(ctx->scratch_buf_size, MFC_REG_D_SCRATCH_BUFFER_SIZE);
-	mfc_debug(2, "[FRAME] scratch buf addr: 0x%#llx size %ld\n",
+	mfc_core_info("[FRAME] scratch buf addr: 0x%#llx size %ld\n",
 			core_ctx->scratch_buf.daddr, ctx->scratch_buf_size);
 
 	return 0;

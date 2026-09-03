@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Spacecraft common device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+#include "malibu-spacecraft-lsio.dtsi"
+#include "malibu-spacecraft-pcie.dtsi"
+#include "malibu-spacecraft-pmic.dtsi"
+#include "malibu-spacecraft-odpm.dtsi"
+#include "malibu-spacecraft-camera-pmic.dtsi"
+#include "malibu-spacecraft-camera.dtsi"
+#include "malibu-spacecraft-battery.dtsi"
+#include "malibu-spacecraft-wcharger.dtsi"
+#include "google-base/malibu-dabears-spacecraft-charging.dtsi"
+#include "malibu-spacecraft-charging.dtsi"
+#include "malibu-spacecraft-eusb-repeater.dtsi"
+#include "malibu-spacecraft-sbbm.dtsi"
+#include "malibu-spacecraft-audio.dtsi"
+#include "malibu-spacecraft-haptics.dtsi"
+#include "malibu-spacecraft-usb.dtsi"
+#include "malibu-spacecraft-usb-aux.dtsi"
+#include "malibu-ntc-thermal.dtsi"
+#include "malibu-spacecraft-bcl.dtsi"
+#include "malibu-sensors.dtsi"
+#include "malibu-spacecraft-ese.dtsi"
+
+&dwc3 {
+	maximum-speed = "high-speed";
+};

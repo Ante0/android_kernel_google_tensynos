@@ -14,9 +14,11 @@
 #include <linux/err.h>
 #include <linux/errno.h>
 #include <linux/interrupt.h>
+#include <linux/mod_devicetable.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
+#include <linux/of_platform.h>
 #include <linux/slab.h>
 #include <linux/irq.h>
 #include <linux/cpu_pm.h>
@@ -27,7 +29,6 @@
 #include "governor_dsulat.h"
 #include "arm-memlat-mon.h"
 #include <linux/perf_event.h>
-#include <linux/of_device.h>
 #include <linux/mutex.h>
 #include <trace/hooks/cpuidle.h>
 #include <linux/spinlock.h>
@@ -670,6 +671,7 @@ static int get_mask_from_dev_handle(struct platform_device *pdev,
 				break;
 			}
 		}
+		of_node_put(dev_phandle);
 		dev_phandle = of_parse_phandle(dev->of_node,
 						"cpulist", i++);
 	}

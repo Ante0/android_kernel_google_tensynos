@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+filegroup(
+    name = "role-sw.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "google-role-sw",
+    srcs = [
+        "google-role-sw.c",
+    ],
+    out = "google-role-sw.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "google-role-sw-kunit",
+    srcs = [
+        "google-role-sw-kunit.c",
+    ],
+    out = "google-role-sw-kunit.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":google-role-sw",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

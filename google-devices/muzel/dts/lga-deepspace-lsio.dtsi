@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * deepspace LSIO device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+/* Camera OUTER FCAM */
+&lsios_cli0_i2c {
+	pinctrl-0 = <&xlsios_cli0_pin0>, <&xlsios_cli0_pin1>,
+		    <&cli0_i2c_conf>;
+	pinctrl-1 = <&xlsios_cli0_pin0_sleep>, <&xlsios_cli0_pin1_sleep>;
+
+	status = "okay";
+};
+
+/* UWB */
+&lsion_cli17_int0_spi {
+	pinctrl-0 = <&xaoc_spi0_sclk>, <&xaoc_spi0_miso>,
+		    <&xaoc_spi0_mosi>, <&cli17_int0_spi_cs_gpio_func>,
+		    <&cli_int0_spi_conf>;
+	pinctrl-1 = <&xaoc_spi0_sclk_sleep>, <&xaoc_spi0_miso_sleep>,
+		    <&xaoc_spi0_mosi_sleep>, <&cli17_int0_spi_cs_gpio_sleep>;
+
+	status = "okay";
+};

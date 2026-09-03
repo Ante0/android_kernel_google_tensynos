@@ -1,0 +1,170 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_library", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+)
+
+ddk_module(
+    name = "io-pgtable-pixel",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "io-pgtable-pixel.ko",
+    conditional_srcs = {
+        "CONFIG_IOMMU_IO_PGTABLE_PIXEL": {
+            True: [
+                "io-pgtable-arm-common.c",
+                "io-pgtable-arm.c",
+                "io-pgtable.c",
+            ],
+        },
+    },
+    copts = [
+        "-Wno-missing-prototypes",
+        "-Wno-unused-but-set-variable",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/iommu/arm-smmu-v3:headers",
+    ],
+)
+
+ddk_module(
+    name = "acfw-debug",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "acfw-debug.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_ACFW_DEBUG": {
+            True: [
+                "acfw-debug.c",
+            ],
+        },
+    },
+    copts = [
+        "-Wno-missing-prototypes",
+        "-Wno-unused-but-set-variable",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/iommu/arm-smmu-v3:headers",
+    ],
+)
+
+ddk_module(
+    name = "arm/arm-smmu-v3/arm_smmu_v3",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "arm_smmu_v3.ko",
+    conditional_srcs = {
+        "CONFIG_ARM_SMMU_V3_PIXEL": {
+            True: [
+                "arm/arm-smmu-v3/arm-smmu-v3-common-telemetry.c",
+                "arm/arm-smmu-v3/arm-smmu-v3-common.c",
+                "arm/arm-smmu-v3/arm-smmu-v3.c",
+            ],
+        },
+    },
+    copts = [
+        "-Wno-missing-prototypes",
+        "-Wno-unused-but-set-variable",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":io-pgtable-pixel",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/iommu/arm-smmu-v3:headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "arm/arm-smmu-v3/arm-smmu-v3-test",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "arm-smmu-v3-test.ko",
+    conditional_srcs = {
+        "CONFIG_ARM_SMMU_V3_KUNIT_TEST": {
+            True: [
+                "arm/arm-smmu-v3/arm-smmu-v3-test.c",
+            ],
+        },
+    },
+    copts = [
+        "-Wno-missing-prototypes",
+        "-Wno-unused-but-set-variable",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/iommu/arm-smmu-v3:headers",
+    ],
+)
+
+ddk_module(
+    name = "arm/arm-smmu-v3/arm_smmu_v3_kvm",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "arm_smmu_v3_kvm.ko",
+    conditional_srcs = {
+        "CONFIG_ARM_SMMU_V3_PKVM_PIXEL": {
+            True: [
+                "arm/arm-smmu-v3/arm-smmu-v3-common-telemetry.c",
+                "arm/arm-smmu-v3/arm-smmu-v3-common.c",
+                "arm/arm-smmu-v3/arm-smmu-v3-kvm.c",
+            ],
+        },
+    },
+    copts = [
+        "-Wno-missing-prototypes",
+        "-Wno-unused-but-set-variable",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":hyp",
+        ":io-pgtable-pixel",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/iommu/arm-smmu-v3:headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_library(
+    name = "hyp",  # Using the name arm/arm-smmu-v3/pkvm/hyp can't compile io-pgtable-arm-common.c
+    srcs = [
+        "arm/arm-smmu-v3/pkvm/arm-smmu-v3.c",
+        "arm/arm-smmu-v3/pkvm/arm-smmu-v3-module.h",
+        "arm/arm-smmu-v3/pkvm/arm_smmu_v3.h",
+        "arm/arm-smmu-v3/pkvm/hyp-arm-smmu-v3-common-telemetry.h",
+        "arm/arm-smmu-v3/pkvm/io-pgtable-arm.c",
+        "io-pgtable-arm-common.c",
+    ],
+    copts = [
+        "-Wno-missing-prototypes",
+        "-Wno-unused-but-set-variable",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "MODULE",
+    ],
+    pkvm_el2 = True,
+    deps = [
+        "//private/google-modules/iommu/arm-smmu-v3:headers",
+    ],
+)

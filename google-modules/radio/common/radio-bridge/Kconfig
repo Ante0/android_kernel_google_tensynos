@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_RADIO_BRIDGE
+	tristate "Google Radio Bridge Module"
+	depends on ARCH_GOOGLE
+	help
+	  This driver helps facilitate notifications between the radio kernel driver
+	  and other subsystems. Every client can register a callback to listen
+	  on events like modem reset, voice call termination etc.

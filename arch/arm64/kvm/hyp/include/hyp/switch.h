@@ -26,10 +26,11 @@
 #include <asm/kvm_emulate.h>
 #include <asm/kvm_hyp.h>
 #include <asm/kvm_mmu.h>
-#include <asm/kvm_pkvm.h>
+#include <asm/kvm_nested.h>
 #include <asm/fpsimd.h>
 #include <asm/debug-monitors.h>
 #include <asm/processor.h>
+#include <asm/traps.h>
 
 struct kvm_exception_table_entry {
 	int insn, fixup;
@@ -37,12 +38,6 @@ struct kvm_exception_table_entry {
 
 extern struct kvm_exception_table_entry __start___kvm_ex_table;
 extern struct kvm_exception_table_entry __stop___kvm_ex_table;
-
-/* Check whether the FP regs are owned by the guest */
-static inline bool guest_owns_fp_regs(struct kvm_vcpu *vcpu)
-{
-	return vcpu->arch.fp_state == FP_STATE_GUEST_OWNED;
-}
 
 /* Save the 32-bit only FPSIMD system register state */
 static inline void __fpsimd_save_fpexc32(struct kvm_vcpu *vcpu)
@@ -70,6 +65,174 @@ static inline void __activate_traps_fpsimd32(struct kvm_vcpu *vcpu)
 	}
 }
 
+#define compute_clr_set(vcpu, reg, clr, set)				\
+	do {								\
+		u64 hfg;						\
+		hfg = __vcpu_sys_reg(vcpu, reg) & ~__ ## reg ## _RES0;	\
+		set |= hfg & __ ## reg ## _MASK; 			\
+		clr |= ~hfg & __ ## reg ## _nMASK; 			\
+	} while(0)
+
+#define reg_to_fgt_group_id(reg)					\
+	({								\
+		enum fgt_group_id id;					\
+		switch(reg) {						\
+		case HFGRTR_EL2:					\
+		case HFGWTR_EL2:					\
+			id = HFGxTR_GROUP;				\
+			break;						\
+		case HFGITR_EL2:					\
+			id = HFGITR_GROUP;				\
+			break;						\
+		case HDFGRTR_EL2:					\
+		case HDFGWTR_EL2:					\
+			id = HDFGRTR_GROUP;				\
+			break;						\
+		case HAFGRTR_EL2:					\
+			id = HAFGRTR_GROUP;				\
+			break;						\
+		default:						\
+			BUILD_BUG_ON(1);				\
+		}							\
+									\
+		id;							\
+	})
+
+#define compute_undef_clr_set(vcpu, kvm, reg, clr, set)			\
+	do {								\
+		u64 hfg = kvm->arch.fgu[reg_to_fgt_group_id(reg)];	\
+		set |= hfg & __ ## reg ## _MASK;			\
+		clr |= hfg & __ ## reg ## _nMASK; 			\
+	} while(0)
+
+#define update_fgt_traps_cs(hctxt, vcpu, kvm, reg, clr, set)		\
+	do {								\
+		u64 c = 0, s = 0;					\
+									\
+		ctxt_sys_reg(hctxt, reg) = read_sysreg_s(SYS_ ## reg);	\
+		if (vcpu_has_nv(vcpu) && !is_hyp_ctxt(vcpu))		\
+			compute_clr_set(vcpu, reg, c, s);		\
+									\
+		compute_undef_clr_set(vcpu, kvm, reg, c, s);		\
+									\
+		s |= set;						\
+		c |= clr;						\
+		if (c || s) {						\
+			u64 val = __ ## reg ## _nMASK;			\
+			val |= s;					\
+			val &= ~c;					\
+			write_sysreg_s(val, SYS_ ## reg);		\
+		}							\
+	} while(0)
+
+#define update_fgt_traps(hctxt, vcpu, kvm, reg)		\
+	update_fgt_traps_cs(hctxt, vcpu, kvm, reg, 0, 0)
+
+/*
+ * Validate the fine grain trap masks.
+ * Check that the masks do not overlap and that all bits are accounted for.
+ */
+#define CHECK_FGT_MASKS(reg)							\
+	do {									\
+		BUILD_BUG_ON((__ ## reg ## _MASK) & (__ ## reg ## _nMASK));	\
+		BUILD_BUG_ON(~((__ ## reg ## _RES0) ^ (__ ## reg ## _MASK) ^	\
+			       (__ ## reg ## _nMASK)));				\
+	} while(0)
+
+static inline bool cpu_has_amu(void)
+{
+       u64 pfr0 = read_sysreg_s(SYS_ID_AA64PFR0_EL1);
+
+       return cpuid_feature_extract_unsigned_field(pfr0,
+               ID_AA64PFR0_EL1_AMU_SHIFT);
+}
+
+static inline void __activate_traps_hfgxtr(struct kvm_vcpu *vcpu)
+{
+	struct kvm_cpu_context *hctxt = host_data_ptr(host_ctxt);
+	struct kvm *kvm = kern_hyp_va(vcpu->kvm);
+
+	CHECK_FGT_MASKS(HFGRTR_EL2);
+	CHECK_FGT_MASKS(HFGWTR_EL2);
+	CHECK_FGT_MASKS(HFGITR_EL2);
+	CHECK_FGT_MASKS(HDFGRTR_EL2);
+	CHECK_FGT_MASKS(HDFGWTR_EL2);
+	CHECK_FGT_MASKS(HAFGRTR_EL2);
+	CHECK_FGT_MASKS(HCRX_EL2);
+
+	if (!cpus_have_final_cap(ARM64_HAS_FGT))
+		return;
+
+	update_fgt_traps(hctxt, vcpu, kvm, HFGRTR_EL2);
+	update_fgt_traps_cs(hctxt, vcpu, kvm, HFGWTR_EL2, 0,
+			    cpus_have_final_cap(ARM64_WORKAROUND_AMPERE_AC03_CPU_38) ?
+			    HFGxTR_EL2_TCR_EL1_MASK : 0);
+	update_fgt_traps(hctxt, vcpu, kvm, HFGITR_EL2);
+	update_fgt_traps(hctxt, vcpu, kvm, HDFGRTR_EL2);
+	update_fgt_traps(hctxt, vcpu, kvm, HDFGWTR_EL2);
+
+	if (cpu_has_amu())
+		update_fgt_traps(hctxt, vcpu, kvm, HAFGRTR_EL2);
+}
+
+#define __deactivate_fgt(htcxt, vcpu, kvm, reg)				\
+	do {								\
+		if ((vcpu_has_nv(vcpu) && !is_hyp_ctxt(vcpu)) ||	\
+		    kvm->arch.fgu[reg_to_fgt_group_id(reg)])		\
+			write_sysreg_s(ctxt_sys_reg(hctxt, reg),	\
+				       SYS_ ## reg);			\
+	} while(0)
+
+static inline void __deactivate_traps_hfgxtr(struct kvm_vcpu *vcpu)
+{
+	struct kvm_cpu_context *hctxt = host_data_ptr(host_ctxt);
+	struct kvm *kvm = kern_hyp_va(vcpu->kvm);
+
+	if (!cpus_have_final_cap(ARM64_HAS_FGT))
+		return;
+
+	__deactivate_fgt(hctxt, vcpu, kvm, HFGRTR_EL2);
+	if (cpus_have_final_cap(ARM64_WORKAROUND_AMPERE_AC03_CPU_38))
+		write_sysreg_s(ctxt_sys_reg(hctxt, HFGWTR_EL2), SYS_HFGWTR_EL2);
+	else
+		__deactivate_fgt(hctxt, vcpu, kvm, HFGWTR_EL2);
+	__deactivate_fgt(hctxt, vcpu, kvm, HFGITR_EL2);
+	__deactivate_fgt(hctxt, vcpu, kvm, HDFGRTR_EL2);
+	__deactivate_fgt(hctxt, vcpu, kvm, HDFGWTR_EL2);
+
+	if (cpu_has_amu())
+		__deactivate_fgt(hctxt, vcpu, kvm, HAFGRTR_EL2);
+}
+
+static inline void  __activate_traps_mpam(struct kvm_vcpu *vcpu)
+{
+	u64 r = MPAM2_EL2_TRAPMPAM0EL1 | MPAM2_EL2_TRAPMPAM1EL1;
+
+	if (!system_supports_mpam())
+		return;
+
+	/* trap guest access to MPAMIDR_EL1 */
+	if (system_supports_mpam_hcr()) {
+		write_sysreg_s(MPAMHCR_EL2_TRAP_MPAMIDR_EL1, SYS_MPAMHCR_EL2);
+	} else {
+		/* From v1.1 TIDR can trap MPAMIDR, set it unconditionally */
+		r |= MPAM2_EL2_TIDR;
+	}
+
+	write_sysreg_s(r, SYS_MPAM2_EL2);
+}
+
+static inline void __deactivate_traps_mpam(void)
+{
+	if (!system_supports_mpam())
+		return;
+
+	write_sysreg_s(MPAM2_HOST_FLAGS, SYS_MPAM2_EL2);
+
+	if (system_supports_mpam_hcr())
+		write_sysreg_s(MPAMHCR_HOST_FLAGS, SYS_MPAMHCR_EL2);
+}
+
 static inline void __activate_traps_common(struct kvm_vcpu *vcpu)
 {
 	/* Trap on AArch32 cp15 c15 (impdef sysregs) accesses (EL1 or EL0) */
@@ -86,52 +249,56 @@ static inline void __activate_traps_common(struct kvm_vcpu *vcpu)
 
 		write_sysreg(0, pmselr_el0);
 
-		hctxt = &this_cpu_ptr(&kvm_host_data)->host_ctxt;
+		hctxt = host_data_ptr(host_ctxt);
 		ctxt_sys_reg(hctxt, PMUSERENR_EL0) = read_sysreg(pmuserenr_el0);
 		write_sysreg(ARMV8_PMU_USERENR_MASK, pmuserenr_el0);
+		vcpu_set_flag(vcpu, PMUSERENR_ON_CPU);
 	}
 
-	vcpu->arch.mdcr_el2_host = read_sysreg(mdcr_el2);
+	*host_data_ptr(host_debug_state.mdcr_el2) = read_sysreg(mdcr_el2);
 	write_sysreg(vcpu->arch.mdcr_el2, mdcr_el2);
+}
 
-	if (cpus_have_final_cap(ARM64_SME)) {
-		sysreg_clear_set_s(SYS_HFGRTR_EL2,
-				   HFGxTR_EL2_nSMPRI_EL1_MASK |
-				   HFGxTR_EL2_nTPIDR2_EL0_MASK,
-				   0);
-		sysreg_clear_set_s(SYS_HFGWTR_EL2,
-				   HFGxTR_EL2_nSMPRI_EL1_MASK |
-				   HFGxTR_EL2_nTPIDR2_EL0_MASK,
-				   0);
+static inline void __activate_traps_hcrx(struct kvm_vcpu *vcpu)
+{
+	u64 hcrx = vcpu->arch.hcrx_el2;
+
+	if (!cpus_have_final_cap(ARM64_HAS_HCX))
+		return;
+
+	if (vcpu_has_nv(vcpu) && !is_hyp_ctxt(vcpu)) {
+		u64 clr = 0, set = 0;
+
+		compute_clr_set(vcpu, HCRX_EL2, clr, set);
+
+		hcrx |= set;
+		hcrx &= ~clr;
 	}
+
+	write_sysreg_s(hcrx, SYS_HCRX_EL2);
+	__activate_traps_mpam(vcpu);
 }
 
 static inline void __deactivate_traps_common(struct kvm_vcpu *vcpu)
 {
-	write_sysreg(vcpu->arch.mdcr_el2_host, mdcr_el2);
+	write_sysreg(*host_data_ptr(host_debug_state.mdcr_el2), mdcr_el2);
 
 	write_sysreg(0, hstr_el2);
 	if (kvm_arm_support_pmu_v3()) {
 		struct kvm_cpu_context *hctxt;
 
-		hctxt = &this_cpu_ptr(&kvm_host_data)->host_ctxt;
+		hctxt = host_data_ptr(host_ctxt);
 		write_sysreg(ctxt_sys_reg(hctxt, PMUSERENR_EL0), pmuserenr_el0);
+		vcpu_clear_flag(vcpu, PMUSERENR_ON_CPU);
 	}
 
-	if (cpus_have_final_cap(ARM64_SME)) {
-		sysreg_clear_set_s(SYS_HFGRTR_EL2, 0,
-				   HFGxTR_EL2_nSMPRI_EL1_MASK |
-				   HFGxTR_EL2_nTPIDR2_EL0_MASK);
-		sysreg_clear_set_s(SYS_HFGWTR_EL2, 0,
-				   HFGxTR_EL2_nSMPRI_EL1_MASK |
-				   HFGxTR_EL2_nTPIDR2_EL0_MASK);
-	}
+	if (cpus_have_final_cap(ARM64_HAS_HCX))
+		write_sysreg_s(HCRX_HOST_FLAGS, SYS_HCRX_EL2);
+	__deactivate_traps_mpam();
 }
 
-static inline void ___activate_traps(struct kvm_vcpu *vcpu)
+static inline void ___activate_traps(struct kvm_vcpu *vcpu, u64 hcr)
 {
-	u64 hcr = vcpu->arch.hcr_el2;
-
 	if (cpus_have_final_cap(ARM64_WORKAROUND_CAVIUM_TX2_219_TVM))
 		hcr |= HCR_TVM;
 
@@ -163,27 +330,72 @@ static inline bool __populate_fault_info(struct kvm_vcpu *vcpu)
 	return __get_fault_info(vcpu->arch.fault.esr_el2, &vcpu->arch.fault);
 }
 
+static inline bool kvm_hyp_handle_mops(struct kvm_vcpu *vcpu, u64 *exit_code)
+{
+	*vcpu_pc(vcpu) = read_sysreg_el2(SYS_ELR);
+	arm64_mops_reset_regs(vcpu_gp_regs(vcpu), vcpu->arch.fault.esr_el2);
+	write_sysreg_el2(*vcpu_pc(vcpu), SYS_ELR);
+
+	/*
+	 * Finish potential single step before executing the prologue
+	 * instruction.
+	 */
+	*vcpu_cpsr(vcpu) &= ~DBG_SPSR_SS;
+	write_sysreg_el2(*vcpu_cpsr(vcpu), SYS_SPSR);
+
+	return true;
+}
+
 static inline void __hyp_sve_restore_guest(struct kvm_vcpu *vcpu)
 {
+	/*
+	 * The vCPU's saved SVE state layout always matches the max VL of the
+	 * vCPU. Start off with the max VL so we can load the SVE state.
+	 */
 	sve_cond_update_zcr_vq(vcpu_sve_max_vq(vcpu) - 1, SYS_ZCR_EL2);
 	__sve_restore_state(vcpu_sve_pffr(vcpu),
-			    &vcpu->arch.ctxt.fp_regs.fpsr);
-	write_sysreg_el1(__vcpu_sys_reg(vcpu, ZCR_EL1), SYS_ZCR);
+			    &vcpu->arch.ctxt.fp_regs.fpsr,
+			    true);
+
+	/*
+	 * The effective VL for a VM could differ from the max VL when running a
+	 * nested guest, as the guest hypervisor could select a smaller VL. Slap
+	 * that into hardware before wrapping up.
+	 */
+	if (vcpu_has_nv(vcpu) && !is_hyp_ctxt(vcpu))
+		sve_cond_update_zcr_vq(__vcpu_sys_reg(vcpu, ZCR_EL2), SYS_ZCR_EL2);
+
+	write_sysreg_el1(__vcpu_sys_reg(vcpu, vcpu_sve_zcr_elx(vcpu)), SYS_ZCR);
+}
+
+static inline void __hyp_sve_save_host(void)
+{
+	struct cpu_sve_state *sve_state = *host_data_ptr(sve_state);
+
+	sve_state->zcr_el1 = read_sysreg_el1(SYS_ZCR);
+	write_sysreg_s(sve_vq_from_vl(kvm_host_sve_max_vl) - 1, SYS_ZCR_EL2);
+	__sve_save_state(sve_state->sve_regs + sve_ffr_offset(kvm_host_sve_max_vl),
+			 &sve_state->fpsr,
+			 true);
 }
 
 static inline void fpsimd_lazy_switch_to_guest(struct kvm_vcpu *vcpu)
 {
 	u64 zcr_el1, zcr_el2;
 
-	if (!guest_owns_fp_regs(vcpu))
+	if (!guest_owns_fp_regs())
 		return;
 
 	if (vcpu_has_sve(vcpu)) {
-		zcr_el2 = vcpu_sve_max_vq(vcpu) - 1;
+		/* A guest hypervisor may restrict the effective max VL. */
+		if (vcpu_has_nv(vcpu) && !is_hyp_ctxt(vcpu))
+			zcr_el2 = __vcpu_sys_reg(vcpu, ZCR_EL2);
+		else
+			zcr_el2 = vcpu_sve_max_vq(vcpu) - 1;
 
 		write_sysreg_el2(zcr_el2, SYS_ZCR);
 
-		zcr_el1 = __vcpu_sys_reg(vcpu, ZCR_EL1);
+		zcr_el1 = __vcpu_sys_reg(vcpu, vcpu_sve_zcr_elx(vcpu));
 		write_sysreg_el1(zcr_el1, SYS_ZCR);
 	}
 }
@@ -192,7 +404,7 @@ static inline void fpsimd_lazy_switch_to_host(struct kvm_vcpu *vcpu)
 {
 	u64 zcr_el1, zcr_el2;
 
-	if (!guest_owns_fp_regs(vcpu))
+	if (!guest_owns_fp_regs())
 		return;
 
 	/*
@@ -205,7 +417,7 @@ static inline void fpsimd_lazy_switch_to_host(struct kvm_vcpu *vcpu)
 	 */
 	if (vcpu_has_sve(vcpu)) {
 		zcr_el1 = read_sysreg_el1(SYS_ZCR);
-		__vcpu_sys_reg(vcpu, ZCR_EL1) = zcr_el1;
+		__vcpu_sys_reg(vcpu, vcpu_sve_zcr_elx(vcpu)) = zcr_el1;
 
 		/*
 		 * The guest's state is always saved using the guest's max VL.
@@ -226,7 +438,7 @@ static inline void fpsimd_lazy_switch_to_host(struct kvm_vcpu *vcpu)
 	}
 }
 
-static void kvm_hyp_handle_fpsimd_host(struct kvm_vcpu *vcpu)
+static void kvm_hyp_save_fpsimd_host(struct kvm_vcpu *vcpu)
 {
 	/*
 	 * Non-protected kvm relies on the host restoring its sve state.
@@ -234,43 +446,18 @@ static void kvm_hyp_handle_fpsimd_host(struct kvm_vcpu *vcpu)
 	 * fpsimd was used by a guest nor leak upper sve bits.
 	 */
 	if (system_supports_sve()) {
-		struct kvm_host_sve_state *sve_state = get_host_sve_state(vcpu);
+		__hyp_sve_save_host();
 
-		sve_state->zcr_el1 = read_sysreg_el1(SYS_ZCR);
-		sve_cond_update_zcr_vq(sve_vq_from_vl(kvm_host_sve_max_vl) - 1,
-				       SYS_ZCR_EL2);
-		__sve_save_state(sve_state->sve_regs +
-					 sve_ffr_offset(kvm_host_sve_max_vl),
-				 &sve_state->fpsr);
-
-		/* Still trap SVE since it's handled by hyp in pKVM. */
+		/* Re-enable SVE traps if not supported for the guest vcpu. */
 		if (!vcpu_has_sve(vcpu))
-			sysreg_clear_set(cptr_el2, 0, CPTR_EL2_TZ);
-	} else {
-		__fpsimd_save_state(get_host_fpsimd_state(vcpu));
-	}
-}
-
-static void __deactivate_fpsimd_traps(struct kvm_vcpu *vcpu)
-{
-	if (has_vhe()) {
-		u64 reg = CPACR_EL1_FPEN_EL0EN | CPACR_EL1_FPEN_EL1EN;
-
-		if (vcpu_has_sve(vcpu))
-			reg |= CPACR_EL1_ZEN_EL0EN | CPACR_EL1_ZEN_EL1EN;
-
-		sysreg_clear_set(cpacr_el1, 0, reg);
+			cpacr_clear_set(CPACR_ELx_ZEN, 0);
 
 	} else {
-		u64 reg = CPTR_EL2_TFP;
-
-		if (vcpu_has_sve(vcpu) ||
-		    (is_protected_kvm_enabled() && system_supports_sve())) {
-			reg |= CPTR_EL2_TZ;
-		}
-
-		sysreg_clear_set(cptr_el2, reg, 0);
+		__fpsimd_save_state(host_data_ptr(host_ctxt.fp_regs));
 	}
+
+	if (kvm_has_fpmr(kern_hyp_va(vcpu->kvm)))
+		*host_data_ptr(fpmr) = read_sysreg_s(SYS_FPMR);
 }
 
 /*
@@ -290,19 +477,39 @@ static inline bool kvm_hyp_handle_fpsimd(struct kvm_vcpu *vcpu, u64 *exit_code)
 	sve_guest = vcpu_has_sve(vcpu);
 	esr_ec = kvm_vcpu_trap_get_class(vcpu);
 
-	/* Don't handle SVE traps for non-SVE vcpus here: */
-	if (!sve_guest && esr_ec != ESR_ELx_EC_FP_ASIMD)
+	/* Only handle traps the vCPU can support here: */
+	switch (esr_ec) {
+	case ESR_ELx_EC_FP_ASIMD:
+		/* Forward traps to the guest hypervisor as required */
+		if (guest_hyp_fpsimd_traps_enabled(vcpu))
+			return false;
+		break;
+	case ESR_ELx_EC_SYS64:
+		if (WARN_ON_ONCE(!is_hyp_ctxt(vcpu)))
+			return false;
+		fallthrough;
+	case ESR_ELx_EC_SVE:
+		if (!sve_guest)
+			return false;
+		if (guest_hyp_sve_traps_enabled(vcpu))
+			return false;
+		break;
+	default:
 		return false;
+	}
 
 	/* Valid trap.  Switch the context: */
 
 	/* First disable enough traps to allow us to update the registers */
-	__deactivate_fpsimd_traps(vcpu);
+	if (sve_guest || (is_protected_kvm_enabled() && system_supports_sve()))
+		cpacr_clear_set(0, CPACR_ELx_FPEN | CPACR_ELx_ZEN);
+	else
+		cpacr_clear_set(0, CPACR_ELx_FPEN);
 	isb();
 
 	/* Write out the host state if it's in the registers */
-	if (is_protected_kvm_enabled() && vcpu->arch.fp_state == FP_STATE_HOST_OWNED)
-		kvm_hyp_handle_fpsimd_host(vcpu);
+	if (is_protected_kvm_enabled() && host_owns_fp_regs())
+		kvm_hyp_save_fpsimd_host(vcpu);
 
 	/* Restore the guest state */
 	if (sve_guest)
@@ -310,11 +517,14 @@ static inline bool kvm_hyp_handle_fpsimd(struct kvm_vcpu *vcpu, u64 *exit_code)
 	else
 		__fpsimd_restore_state(&vcpu->arch.ctxt.fp_regs);
 
+	if (kvm_has_fpmr(kern_hyp_va(vcpu->kvm)))
+		write_sysreg_s(__vcpu_sys_reg(vcpu, FPMR), SYS_FPMR);
+
 	/* Skip restoring fpexc32 for AArch64 guests */
 	if (!(read_sysreg(hcr_el2) & HCR_RW))
 		write_sysreg(__vcpu_sys_reg(vcpu, FPEXC32_EL2), fpexc32_el2);
 
-	vcpu->arch.fp_state = FP_STATE_GUEST_OWNED;
+	*host_data_ptr(fp_owner) = FP_STATE_GUEST_OWNED;
 
 	return true;
 }
@@ -374,57 +584,76 @@ static inline bool handle_tx2_tvm(struct kvm_vcpu *vcpu)
 	return true;
 }
 
-static inline bool esr_is_ptrauth_trap(u64 esr)
+static bool kvm_hyp_handle_cntpct(struct kvm_vcpu *vcpu)
 {
-	switch (esr_sys64_to_sysreg(esr)) {
-	case SYS_APIAKEYLO_EL1:
-	case SYS_APIAKEYHI_EL1:
-	case SYS_APIBKEYLO_EL1:
-	case SYS_APIBKEYHI_EL1:
-	case SYS_APDAKEYLO_EL1:
-	case SYS_APDAKEYHI_EL1:
-	case SYS_APDBKEYLO_EL1:
-	case SYS_APDBKEYHI_EL1:
-	case SYS_APGAKEYLO_EL1:
-	case SYS_APGAKEYHI_EL1:
-		return true;
-	}
-
-	return false;
-}
-
-#define __ptrauth_save_key(ctxt, key)					\
-	do {								\
-	u64 __val;                                                      \
-	__val = read_sysreg_s(SYS_ ## key ## KEYLO_EL1);                \
-	ctxt_sys_reg(ctxt, key ## KEYLO_EL1) = __val;                   \
-	__val = read_sysreg_s(SYS_ ## key ## KEYHI_EL1);                \
-	ctxt_sys_reg(ctxt, key ## KEYHI_EL1) = __val;                   \
-} while(0)
-
-DECLARE_PER_CPU(struct kvm_cpu_context, kvm_hyp_ctxt);
-
-static bool kvm_hyp_handle_ptrauth(struct kvm_vcpu *vcpu, u64 *exit_code)
-{
-	struct kvm_cpu_context *ctxt;
+	struct arch_timer_context *ctxt;
+	u32 sysreg;
 	u64 val;
 
-	if (!vcpu_has_ptrauth(vcpu))
+	/*
+	 * We only get here for 64bit guests, 32bit guests will hit
+	 * the long and winding road all the way to the standard
+	 * handling. Yes, it sucks to be irrelevant.
+	 */
+	sysreg = esr_sys64_to_sysreg(kvm_vcpu_get_esr(vcpu));
+
+	switch (sysreg) {
+	case SYS_CNTPCT_EL0:
+	case SYS_CNTPCTSS_EL0:
+		if (vcpu_has_nv(vcpu)) {
+			if (is_hyp_ctxt(vcpu)) {
+				ctxt = vcpu_hptimer(vcpu);
+				break;
+			}
+
+			/* Check for guest hypervisor trapping */
+			val = __vcpu_sys_reg(vcpu, CNTHCTL_EL2);
+			if (!vcpu_el2_e2h_is_set(vcpu))
+				val = (val & CNTHCTL_EL1PCTEN) << 10;
+
+			if (!(val & (CNTHCTL_EL1PCTEN << 10)))
+				return false;
+		}
+
+		ctxt = vcpu_ptimer(vcpu);
+		break;
+	default:
+		return false;
+	}
+
+	val = arch_timer_read_cntpct_el0();
+
+	if (ctxt->offset.vm_offset)
+		val -= *kern_hyp_va(ctxt->offset.vm_offset);
+	if (ctxt->offset.vcpu_offset)
+		val -= *kern_hyp_va(ctxt->offset.vcpu_offset);
+
+	vcpu_set_reg(vcpu, kvm_vcpu_sys_get_rt(vcpu), val);
+	__kvm_skip_instr(vcpu);
+	return true;
+}
+
+static bool handle_ampere1_tcr(struct kvm_vcpu *vcpu)
+{
+	u32 sysreg = esr_sys64_to_sysreg(kvm_vcpu_get_esr(vcpu));
+	int rt = kvm_vcpu_sys_get_rt(vcpu);
+	u64 val = vcpu_get_reg(vcpu, rt);
+
+	if (sysreg != SYS_TCR_EL1)
 		return false;
 
-	ctxt = this_cpu_ptr(&kvm_hyp_ctxt);
-	__ptrauth_save_key(ctxt, APIA);
-	__ptrauth_save_key(ctxt, APIB);
-	__ptrauth_save_key(ctxt, APDA);
-	__ptrauth_save_key(ctxt, APDB);
-	__ptrauth_save_key(ctxt, APGA);
-
-	vcpu_ptrauth_enable(vcpu);
-
-	val = read_sysreg(hcr_el2);
-	val |= (HCR_API | HCR_APK);
-	write_sysreg(val, hcr_el2);
-
+	/*
+	 * Affected parts do not advertise support for hardware Access Flag /
+	 * Dirty state management in ID_AA64MMFR1_EL1.HAFDBS, but the underlying
+	 * control bits are still functional. The architecture requires these be
+	 * RES0 on systems that do not implement FEAT_HAFDBS.
+	 *
+	 * Uphold the requirements of the architecture by masking guest writes
+	 * to TCR_EL1.{HA,HD} here.
+	 */
+	val &= ~(TCR_HD | TCR_HA);
+	write_sysreg_el1(val, SYS_TCR);
+	__kvm_skip_instr(vcpu);
 	return true;
 }
 
@@ -434,12 +663,16 @@ static inline bool kvm_hyp_handle_sysreg(struct kvm_vcpu *vcpu, u64 *exit_code)
 	    handle_tx2_tvm(vcpu))
 		return true;
 
+	if (cpus_have_final_cap(ARM64_WORKAROUND_AMPERE_AC03_CPU_38) &&
+	    handle_ampere1_tcr(vcpu))
+		return true;
+
 	if (static_branch_unlikely(&vgic_v3_cpuif_trap) &&
 	    __vgic_v3_perform_cpuif_access(vcpu) == 1)
 		return true;
 
-	if (esr_is_ptrauth_trap(kvm_vcpu_get_esr(vcpu)))
-		return kvm_hyp_handle_ptrauth(vcpu, exit_code);
+	if (kvm_hyp_handle_cntpct(vcpu))
+		return true;
 
 	return false;
 }
@@ -472,7 +705,7 @@ static inline bool kvm_hyp_handle_dabt_low(struct kvm_vcpu *vcpu, u64 *exit_code
 	if (static_branch_unlikely(&vgic_v2_cpuif_trap)) {
 		bool valid;
 
-		valid = kvm_vcpu_trap_get_fault_type(vcpu) == FSC_FAULT &&
+		valid = kvm_vcpu_trap_is_translation_fault(vcpu) &&
 			kvm_vcpu_dabt_isvalid(vcpu) &&
 			!kvm_vcpu_abt_issea(vcpu) &&
 			!kvm_vcpu_abt_iss1tw(vcpu);
@@ -579,7 +812,7 @@ guest:
 
 static inline void __kvm_unexpected_el2_exception(void)
 {
-	extern char __guest_exit_panic[];
+	extern char __guest_exit_restore_elr_and_panic[];
 	unsigned long addr, fixup;
 	struct kvm_exception_table_entry *entry, *end;
 	unsigned long elr_el2 = read_sysreg(elr_el2);
@@ -601,7 +834,8 @@ static inline void __kvm_unexpected_el2_exception(void)
 	}
 
 	/* Trigger a panic after restoring the hyp context. */
-	write_sysreg(__guest_exit_panic, elr_el2);
+	this_cpu_ptr(&kvm_hyp_ctxt)->sys_regs[ELR_EL2] = elr_el2;
+	write_sysreg(__guest_exit_restore_elr_and_panic, elr_el2);
 }
 
 #endif /* __ARM64_KVM_HYP_SWITCH_H__ */

@@ -59,13 +59,12 @@ void __iomem *dbg_snapshot_get_header_vaddr(void)
 }
 EXPORT_SYMBOL_GPL(dbg_snapshot_get_header_vaddr);
 
-unsigned long dbg_snapshot_get_header_paddr(void)
+static unsigned long dbg_snapshot_get_header_paddr(void)
 {
 	if (dbg_snapshot_get_item_enable(DSS_ITEM_HEADER))
 		return (unsigned long)dss_items[DSS_ITEM_HEADER_ID].entry.paddr;
 	return 0;
 }
-EXPORT_SYMBOL_GPL(dbg_snapshot_get_header_paddr);
 
 unsigned int dbg_snapshot_get_val_offset(unsigned int offset)
 {
@@ -117,6 +116,12 @@ bool dbg_snapshot_get_warm_status(void)
 	return dss_desc.in_warm;
 }
 EXPORT_SYMBOL_GPL(dbg_snapshot_get_warm_status);
+
+void dbg_snapshot_set_powerkey_status(bool val)
+{
+	dss_desc.long_press_power = val;
+}
+EXPORT_SYMBOL_GPL(dbg_snapshot_set_powerkey_status);
 
 void dbg_snapshot_scratch_reg(unsigned int val)
 {
@@ -453,14 +458,17 @@ static int dbg_snapshot_rmem_setup(struct device *dev)
 		if (!en) {
 			dev_err(dev, "%s item is disabled, Skip alloc reserved memory\n",
 					rmem_np->name);
+			of_node_put(rmem_np);
 			continue;
 		}
 
 		rmem = of_reserved_mem_lookup(rmem_np);
 		if (!rmem) {
 			dev_err(dev, "no such reserved mem of node name %s\n", rmem_np->name);
+			of_node_put(rmem_np);
 			continue;
 		}
+		of_node_put(rmem_np);
 
 		dbg_snapshot_set_item_enable(rmem->name, en);
 		item = dbg_snapshot_get_item(rmem->name);

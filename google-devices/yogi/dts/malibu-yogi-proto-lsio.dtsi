@@ -1,0 +1,92 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/*
+ * Board level low speed interfaces configuration
+ *
+ * Copyright 2025 Google LLC
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,mbu.h>
+
+/*
+ * I2C/I3C buses
+ * DISP0 PMIC
+ */
+&lsioe_i2c4 {
+	clock-frequency = <400000>;
+
+	pinctrl-0 = <&xlsioe_i23c9_scl>, <&xlsioe_i23c9_sda>;
+	pinctrl-1 = <&xlsioe_i23c9_scl_sleep>, <&xlsioe_i23c9_sda_sleep>;
+
+	status = "okay";
+};
+
+/*
+ * DISP1 PMIC
+ */
+&lsios_i2c4 {
+	clock-frequency = <400000>;
+	i2c-sda-hold-time-ns = <5>;
+
+	pinctrl-0 = <&xlsios_i23c4_scl>, <&xlsios_i23c4_sda>;
+	pinctrl-1 = <&xlsios_i23c4_scl_sleep>, <&xlsios_i23c4_sda_sleep>;
+
+	status = "okay";
+};
+
+/* Inner touch */
+&aoss_pg_aud_spi {
+	pinctrl-0 = <&xaoss_amb_spi1_sclk>, <&xaoss_amb_spi1_mosi>,
+			<&xaoss_amb_spi1_miso>, <&xaoss_amb_spi1_csn_e16>;
+	pinctrl-1 = <&xaoss_amb_spi1_sclk_sleep>, <&xaoss_amb_spi1_mosi_sleep>,
+			<&xaoss_amb_spi1_miso_sleep>, <&xaoss_amb_spi1_csn_e16_sleep>;
+	aoc-ssr-capable;
+
+	status = "okay";
+};
+
+/* Outer touch */
+&aoss_pg_spi2 {
+	pinctrl-0 = <&xaoss_amb_spi3_sclk>, <&xaoss_amb_spi3_mosi>,
+		    <&xaoss_amb_spi3_miso>, <&xaoss_amb_spi3_csn_e12>;
+	pinctrl-1 = <&xaoss_amb_spi3_sclk_sleep>, <&xaoss_amb_spi3_mosi_sleep>,
+		    <&xaoss_amb_spi3_miso_sleep>, <&xaoss_amb_spi3_csn_e12_sleep>;
+	aoc-ssr-capable;
+
+	status = "okay";
+};
+
+/* Camera OUTER FCAM */
+&lsios_i2c0 {
+	clock-frequency = <1000000>;
+	i2c-sda-falling-time-ns = <100>;
+	i2c-scl-falling-time-ns = <100>;
+
+	external-power-control;
+
+	pinctrl-0 = <&xlsios_i23c0_scl>, <&xlsios_i23c0_sda>;
+	pinctrl-1 = <&xlsios_i23c0_scl_sleep>, <&xlsios_i23c0_sda_sleep>;
+
+	status = "okay";
+};
+
+/* Camera RTCAM (CSIF) */
+&xlsios_i23c3_scl {
+	function = "lsios_i2c3";
+};
+&xlsios_i23c3_sda {
+	function = "lsios_i2c3";
+};
+&lsios_i2c3 {
+	clock-frequency = <1000000>;
+	i2c-sda-falling-time-ns = <100>;
+	i2c-scl-falling-time-ns = <100>;
+
+	hybrid-busy-wait-mode;
+	external-power-control;
+
+	pinctrl-0 = <&xlsios_i23c3_scl>, <&xlsios_i23c3_sda>;
+	pinctrl-1 = <&xlsios_i23c3_scl_sleep>, <&xlsios_i23c3_sda_sleep>;
+
+	status = "okay";
+};

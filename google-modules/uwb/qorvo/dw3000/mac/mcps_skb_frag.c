@@ -24,6 +24,7 @@
 #include <linux/skbuff.h>
 #include <linux/module.h>
 #include <linux/errno.h>
+#include <net/mcps_skb_frag.h>
 
 int mcps_skb_frags_len(struct sk_buff *skb)
 {

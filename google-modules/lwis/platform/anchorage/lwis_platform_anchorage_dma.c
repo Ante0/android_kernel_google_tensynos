@@ -51,8 +51,8 @@ dma_addr_t lwis_platform_dma_buffer_map(struct lwis_device *lwis_dev,
 }
 
 /*
- * We don't ever do dma_buf_vmap before. Instead, use the upstream dma-buf
- * interface to map ION buffers, so we don't need to do dma_buf_vunmap.
+ * We don't ever do dma_buf_vmap_unlocked before. Instead, use the upstream dma-buf
+ * interface to map ION buffers, so we don't need to do dma_buf_vunmap_unlocked.
  * Keep this function by defult return 0
  */
 int lwis_platform_dma_buffer_unmap(struct lwis_device *lwis_dev,

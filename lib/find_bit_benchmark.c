@@ -174,8 +174,8 @@ static int __init find_bit_test(void)
 	bitmap_zero(bitmap2, BITMAP_LEN);
 
 	while (nbits--) {
-		__set_bit(prandom_u32_max(BITMAP_LEN), bitmap);
-		__set_bit(prandom_u32_max(BITMAP_LEN), bitmap2);
+		__set_bit(get_random_u32_below(BITMAP_LEN), bitmap);
+		__set_bit(get_random_u32_below(BITMAP_LEN), bitmap2);
 	}
 
 	test_find_next_bit(bitmap, BITMAP_LEN);
@@ -194,4 +194,5 @@ static int __init find_bit_test(void)
 }
 module_init(find_bit_test);
 
+MODULE_DESCRIPTION("Test for find_*_bit functions");
 MODULE_LICENSE("GPL");

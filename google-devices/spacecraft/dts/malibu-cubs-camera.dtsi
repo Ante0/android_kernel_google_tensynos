@@ -1,0 +1,1172 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * camera lwis device tree for MBU device
+ *
+ * Copyright 2025 Google LLC.
+ *
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/lwis/platform/malibu/tof.h>
+
+&xlsioe_i23c7_scl {
+	function = "lsioe_i2c";
+};
+
+&xlsioe_i23c7_sda {
+	function = "lsioe_i2c";
+};
+
+/* FCAM: switch I2C/I3C explicitly */
+&xlsioe_i23c6_scl {
+	function = "lsioe_i2c";
+};
+
+&xlsioe_i23c6_sda {
+	function = "lsioe_i2c";
+};
+
+&lsioe_i2c1 {
+	status = "okay";
+};
+
+&lsioe_i3c1 {
+	status = "disabled";
+};
+
+/* RTCAM: switch I2C/I3C explicitly */
+&xlsios_i23c3_scl {
+	function = "lsios_i2c3";
+};
+
+&xlsios_i23c3_sda {
+	function = "lsios_i2c3";
+};
+
+&lsios_i2c3 {
+	status = "okay";
+};
+
+&lsios_i3c3 {
+	status = "disabled";
+};
+
+/* RCAM: switch I2C/I3C explicitly */
+&xlsios_i23c2_scl {
+	function = "lsios_i3c2";
+};
+&xlsios_i23c2_sda {
+	function = "lsios_i3c2";
+};
+&lsios_i2c2 {
+	status = "disabled";
+};
+&lsios_i3c2 {
+	#address-cells = <3>;
+	#size-cells = <0>;
+	status = "okay";
+
+	io-vreg-supply = <&ldo_22s_reg>;
+
+	i3c-scl-hz = <12000000>;
+
+	/* Lwis placeholder for RCAM */
+	chemosh_placeholder_i3c: chemosh_placeholder_i3c@0 {
+		compatible = "google,lwis-placeholder";
+		/* I2C */
+		reg = <0x56 0x0 0x20>;
+	};
+	cornerfolk_placeholder_i3c: cornerfolk_placeholder_i3c@0 {
+		compatible = "google,lwis-placeholder";
+		/* I2C */
+		reg = <0xC 0x0 0x20>;
+	};
+	vesta_placeholder_i3c: vesta_placeholder_i3c@0 {
+		compatible = "google,lwis-placeholder";
+		/* I2C */
+		reg = <0x3C 0x0 0x20>;
+	};
+	vesta_eeprom_placeholder_i3c: vesta_eeprom_placeholder_i3c@0 {
+		compatible = "google,lwis-placeholder";
+		/* I2C */
+		reg = <0x51 0x0 0x20>;
+	};
+};
+
+&sgm38122_dvdd_csia {
+	regulator-min-microvolt = <1200000>;
+	regulator-max-microvolt = <1200000>;
+};
+&sgm38122_avdd1_csia {
+	regulator-min-microvolt = <2904000>;
+	regulator-max-microvolt = <2904000>;
+};
+&sgm38122_avdd2_csia {
+	regulator-min-microvolt = <2256000>;
+	regulator-max-microvolt = <2256000>;
+};
+&sgm38122_avdd3_csia {
+	regulator-min-microvolt = <2856000>;
+	regulator-max-microvolt = <2856000>;
+};
+
+&sgm38122_dvdd_csie {
+	regulator-min-microvolt = <1104000>;
+	regulator-max-microvolt = <1104000>;
+};
+&sgm38122_avdd1_csie {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+};
+&sgm38122_avdd2_csie {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+};
+
+&sgm38122_dvdd_csif {
+	regulator-min-microvolt = <1104000>;
+	regulator-max-microvolt = <1104000>;
+};
+&sgm38122_avdd1_csif {
+	regulator-min-microvolt = <2856000>;
+	regulator-max-microvolt = <2856000>;
+};
+&sgm38122_avdd2_csif {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+};
+&sgm38122_avdd3_csif {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+};
+
+/ {
+	fragment@rcam_supply {
+		target-path = "/";
+		__overlay__ {
+			/* TPS7A20225PDQNR */
+			rcam_afvm: rcam_afvm_supply@0 {
+				compatible = "regulator-fixed";
+				status = "okay";
+				regulator-name = "PP3000_RCAM_AF_VM";
+				regulator-min-microvolt = <3000000>;
+				regulator-max-microvolt = <3000000>;
+				/* 1.15ms */
+				regulator-enable-ramp-delay = <1150>;
+				enable-active-high;
+				/* PMICM2RCAM_AF_VM_EN */
+				gpio = <&da9188_gpio 1 GPIO_ACTIVE_HIGH>;
+			};
+		};
+	};
+};
+
+&lsios_spi1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	google,spi-gpio-cs-with-cpol-high;
+	tof0: tof@0 {
+		compatible = "google,lwis-spi-device";
+
+		/* SPI_CONFIG */
+		reg = <0>;
+		spi-max-frequency = <20000000>;
+		spi-cpol;
+		spi-cpha;
+
+		/* Device node name */
+		node-name = "tof-tarasque";
+
+		/* Registers */
+		reg-addr-bitwidth = <16>;
+		reg-value-bitwidth = <8>;
+
+		/* MCLK Control */
+		/* LWIS DT parser explicitly requires mclk_on pinctrl */
+		pinctrl-names = "default", "mclk_on", "mclk_off";
+		pinctrl-0 = <&ldaf2aoss_irq_od_l_1v2>;
+		pinctrl-1 = <&ldaf2aoss_irq_od_l_1v2>;
+		pinctrl-2 = <>;
+
+		irq-gpios = <LDAF2AOSS_IRQ_OD_L_1V2(GPIO_ACTIVE_LOW)>;
+		irq-gpios-names = "tof-irq";
+		irq-gpios-events = <LWIS_PLATFORM_EVENT_ID_TOF_DATA_POLLING>;
+		irq-gpios-types = <IRQ_TYPE_EDGE_FALLING>;
+
+		/* Power supplies */
+		/* VADD 3.3V */
+		l27m-supply = <&ldo_27m_reg>;
+
+		/* Power up sequence */
+		power-up-seqs =
+			"l27m",
+			"mclk_on";
+		power-up-seq-types =
+			"regulator",
+			"pinctrl";
+		power-up-seq-delays-us =
+			<0
+			 0>;
+
+		/* Power down sequence */
+		power-down-seqs =
+			"mclk_off",
+			"l27m";
+		power-down-seq-types =
+			"pinctrl",
+			"regulator";
+		power-down-seq-delays-us =
+			<0
+			 0>;
+
+		/* Thread priority */
+		/* This is made to be lower than image sensor's thread */
+		/* thread priority to allow uninterrupted image sensor */
+		/* operation during periods of high CPU contention. */
+		transaction-thread-priority = <100>;
+	};
+};
+
+/ {
+	fragment@lwiscamera {
+		target-path = "/";
+		__overlay__ {
+			camera_base_pwrseq: camera_base_pwrseq@0 {
+				compatible = "google,lwis-pwrseq-device";
+
+				/* Device node name */
+				node-name = "pwrseq-base";
+				/* Power sequence target name */
+				target-name = "camera_base";
+
+				/* Power supplies */
+				bb_cam-supply = <&camera_buck_boost>;
+
+				/* power up sequence */
+				power-up-seqs =
+					"bb_cam",
+					"fast-bb_cam";
+				power-up-seq-types =
+					"regulator",
+					"regulator_mode";
+				power-up-seq-delays-us =
+					<0
+					 200>;
+
+				/* power down sequence */
+				power-down-seqs =
+					"normal-bb_cam",
+					"bb_cam";
+				power-down-seq-types =
+					"regulator_mode",
+					"regulator";
+				power-down-seq-delays-us =
+					<0
+					 0>;
+			};
+
+			rear_main_camera_pwrseq: rear_main_camera_pwrseq@0 {
+				compatible = "google,lwis-pwrseq-device";
+
+				/* Device node name */
+				node-name = "pwrseq-rmain";
+				/* Power sequence target name */
+				target-name = "rear_main_camera";
+
+				/* Sequencer sources */
+				sequencer-sources = <&camera_base_pwrseq>;
+
+				/* Power supplies */
+				mvbuck-supply = <&cam_pp1350_mvbuck>;
+				vio-supply = <&ldo_22s_reg>;
+				vana-supply = <&sgm38122_avdd2_csia>;
+				vdig-supply = <&rcam_lvbuck>;
+				ois_vana-supply = <&sgm38122_avdd1_csia>;
+				ois_vm-supply = <&ldo_26m_reg>;
+				af_vm-supply = <&rcam_afvm>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rcam_mclk_24mhz_sleep>;
+
+				/* Power up sequence */
+				power-up-seqs =
+					"camera_base",
+					"mvbuck",
+					"vio",
+					"vana",
+					"vdig",
+					"ois_vana",
+					"af_vm",
+					"ois_vm",
+					"mclk_on";
+				power-up-seq-types =
+					"pwrseq",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"pinctrl";
+				power-up-seq-delays-us =
+					<0
+					 0
+					 2500
+					 0
+					 1000
+					 0
+					 0
+					 1000
+					 /* AF need 7.1ms (rounded to 8ms) before I2C stable,
+					    added the remaining here */
+					 7000>;
+
+
+				power-down-seqs =
+					"mclk_off",
+					"ois_vm",
+					"af_vm",
+					"ois_vana",
+					"vdig",
+					"vana",
+					"vio",
+					"mvbuck",
+					"camera_base";
+				power-down-seq-types =
+					"pinctrl",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"pwrseq";
+				power-down-seq-delays-us =
+					<1000
+					 0
+					 1000
+					 1000
+					 0
+					 1000
+					 0
+					 200
+					 0>;
+			};
+
+			/* REAR CAMERA CHEMOSH CSIB */
+			sensor0: sensor@0 {
+				compatible = "google,lwis-i3c-proxy-device";
+
+				/* Device node name */
+				node-name = "sensor-chemosh";
+
+				/* I2C */
+				i2c-bus = <&lsios_i3c2>;
+				i2c-addr = <0x56>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <16>;
+
+				/* I3C */
+				i3c-enabled;
+				i3c-dcr = <130>;
+
+				/* I2C OTP settings (reg, val) */
+				lwis,i2c-otp;
+				i2c-otp-settings =
+					<0xFCFC 0x4000
+					 0x0000 0x0052
+					 0x0000 0x58E1
+					 0x6018 0x0001
+					 0xFFFF 1000
+
+					 0x7002 0x0008
+					 0x7004 0x1800
+					 0x70B8 0x0CEB
+					 0x6014 0x0001
+					 0xFFFF 20000>;
+				i2c-otp-settle-time = <0>;
+
+				/* I3C OTP settings (reg, val) */
+				i3c-otp-settings =
+					<0xFCFC 0x4000
+					 0x0000 0x0052
+					 0x0000 0x58E1
+					 0x6018 0x0001
+					 0xFFFF 1000
+
+					 0x7002 0x1008
+					 0x7004 0x1800
+					 0x70B8 0x0CEB
+					 0x6014 0x0001
+					 0xFFFF 20000>;
+				i3c-otp-settle-time = <0>;
+
+				/* I3C IBI */
+				ibi-max-payload-len = <3>;
+				ibi-num-slots = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m4_clk>;
+				clock-names = "MCLK4";
+				clock-rates = <24576000>;
+
+				/* Power sequence */
+				power-sequencer = <&rear_main_camera_pwrseq>;
+
+				power-up-seqs = "rear_main_camera", "resume";
+				power-up-seq-types = "pwrseq", "controller";
+				power-up-seq-delays-us = <0 0>;
+
+				power-down-seqs = "suspend", "rear_main_camera";
+				power-down-seq-types = "controller", "pwrseq";
+				power-down-seq-delays-us = <0 0>;
+
+				/* Power up mode */
+				lwis,power-up-to-suspend;
+
+				/* resume sequence */
+				resume-seqs = "reset";
+				resume-seq-types = "gpio";
+				resume-seq-delays-us = <10000>;
+
+				/* suspend sequence */
+				suspend-seqs = "reset";
+				suspend-seq-types = "gpio";
+				suspend-seq-delays-us = <1000>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <0>;
+				transaction-process-limit = <200>;
+			};
+
+			/* Actuator CORNERFOLK for CHEMOSH */
+			actuator0: actuator@0 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "act-cornerfolk";
+
+				/* I2C */
+				i2c-bus = <&lsios_i3c2>;
+				i2c-addr = <0xC>;
+
+				/* Registers */
+				reg-addr-bitwidth = <8>;
+				reg-value-bitwidth = <8>;
+
+				/* Power sequence */
+				power-sequencer = <&rear_main_camera_pwrseq>;
+
+				power-up-seqs = "rear_main_camera", "resume";
+				power-up-seq-types = "pwrseq", "controller";
+				power-up-seq-delays-us = <0 0>;
+
+				power-down-seqs = "suspend", "rear_main_camera";
+				power-down-seq-types = "controller", "pwrseq";
+				power-down-seq-delays-us = <0 0>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <0>;
+			};
+
+			/* OIS VESTA for CHEMOSH */
+			ois0: ois@0 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "ois-vesta";
+
+				/* I2C */
+				i2c-bus = <&lsios_i3c2>;
+				i2c-addr = <0x3C>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* Power sequence */
+				power-sequencer = <&rear_main_camera_pwrseq>;
+
+				power-up-seqs = "rear_main_camera", "resume";
+				power-up-seq-types = "pwrseq", "controller";
+				power-up-seq-delays-us = <0 0>;
+
+				power-down-seqs = "suspend", "rear_main_camera";
+				power-down-seq-types = "controller", "pwrseq";
+				power-down-seq-delays-us = <0 0>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <0>;
+			};
+
+			/* EEPROM VESTA for CHEMOSH */
+			eeprom0: eeprom@0 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "eeprom-vesta";
+
+				/* I2C */
+				i2c-bus = <&lsios_i3c2>;
+				i2c-addr = <0x51>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <32>;
+
+				/* Power sequence */
+				power-sequencer = <&rear_main_camera_pwrseq>;
+
+				power-up-seqs = "rear_main_camera", "resume";
+				power-up-seq-types = "pwrseq", "controller";
+				power-up-seq-delays-us = <0 0>;
+
+				power-down-seqs = "suspend", "rear_main_camera";
+				power-down-seq-types = "controller", "pwrseq";
+				power-down-seq-delays-us = <0 0>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <0>;
+			};
+
+			eeprom_cmd0: eeprom_cmd@0 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "eeprom-cmd-vesta";
+
+				/* I2C */
+				i2c-bus = <&lsios_i3c2>;
+				i2c-addr = <0x51>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* Power sequence */
+				power-sequencer = <&rear_main_camera_pwrseq>;
+
+				power-up-seqs = "rear_main_camera", "resume";
+				power-up-seq-types = "pwrseq", "controller";
+				power-up-seq-delays-us = <0 0>;
+
+				power-down-seqs = "suspend", "rear_main_camera";
+				power-down-seq-types = "controller", "pwrseq";
+				power-down-seq-delays-us = <0 0>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <0>;
+			};
+
+			rear_uw_camera_pwrseq: rear_uw_camera_pwrseq@0 {
+				compatible = "google,lwis-pwrseq-device";
+
+				/* Device node name */
+				node-name = "pwrseq-ruw";
+				/* Power sequence target name */
+				target-name = "rear_uw_camera";
+
+				/* Sequencer sources */
+				sequencer-sources = <&camera_base_pwrseq>;
+
+				/* Power supplies */
+				mvbuck-supply = <&cam_pp1350_mvbuck>;
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&sgm38122_dvdd_csia>;
+				vana-supply = <&sgm38122_avdd3_csia>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2ruwcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2ruwcam_mclk_24mhz_sleep>;
+
+				power-up-seqs =
+					"camera_base",
+					"mvbuck",
+					"vio",
+					"vana",
+					"vdig",
+					"mclk_on";
+				power-up-seq-types =
+					"pwrseq",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"pinctrl";
+				power-up-seq-delays-us =
+					<0
+					 0
+					 2500
+					 0
+					 1000
+					 10000>;
+
+				power-down-seqs =
+					"mclk_off",
+					"vdig",
+					"vana",
+					"vio",
+					"mvbuck",
+					"camera_base";
+				power-down-seq-types =
+					"pinctrl",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"pwrseq";
+				power-down-seq-delays-us =
+					<1000
+					 1000
+					 1000
+					 0
+					 200
+					 0>;
+			};
+
+			/* REAR ULTRA WIDE LESHEN CSIE */
+			sensor1: sensor@1 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "sensor-leshen-uw";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c2>;
+				i2c-addr = <0x1A>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RUWCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m2_clk>;
+				clock-names = "MCLK2";
+				clock-rates = <24576000>;
+
+				/* Power up sequence */
+				power-sequencer = <&rear_uw_camera_pwrseq>;
+
+				power-up-seqs = "rear_uw_camera", "resume";
+				power-up-seq-types = "pwrseq", "controller";
+				power-up-seq-delays-us = <0 0>;
+
+				power-down-seqs = "suspend", "rear_uw_camera";
+				power-down-seq-types = "controller", "pwrseq";
+				power-down-seq-delays-us = <0 0>;
+
+				/* resume sequence */
+				resume-seqs = "reset";
+				resume-seq-types = "gpio";
+				resume-seq-delays-us = <1000>;
+
+				/* suspend sequence */
+				suspend-seqs = "reset";
+				suspend-seq-types = "gpio";
+				suspend-seq-delays-us = <1000>;
+
+				/* Power up mode */
+				lwis,power-up-to-suspend;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <1>;
+			};
+
+			/* EEPROM SMAUG for LESHEN-UW */
+			eeprom1: eeprom@1 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "eeprom-smaug-leshen-uw";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c2>;
+				i2c-addr = <0x50>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* Power up sequence */
+				power-sequencer = <&rear_uw_camera_pwrseq>;
+
+				power-up-seqs = "rear_uw_camera", "resume";
+				power-up-seq-types = "pwrseq", "controller";
+				power-up-seq-delays-us = <0 0>;
+
+				power-down-seqs = "suspend", "rear_uw_camera";
+				power-down-seq-types = "controller", "pwrseq";
+				power-down-seq-delays-us = <0 0>;
+
+				/* Thread priority */
+				/* Match with other bus devices */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <1>;
+			};
+
+			front_camera_pwrseq: front_camera_pwrseq@0 {
+				compatible = "google,lwis-pwrseq-device";
+
+				/* Device node name */
+				node-name = "pwrseq-fmain";
+				/* Power sequence target name */
+				target-name = "front_camera";
+
+				/* Sequencer sources */
+				sequencer-sources = <&camera_base_pwrseq>;
+
+				/* GPIOs */
+				csimux-sel-gpios =
+					<AP2CSIMUX_SEL(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				pp1350_cam-supply = <&cam_pp1350_mvbuck>;
+				pp1850_vio-supply = <&ldo_22s_reg>;
+				pp3000_vana-supply = <&sgm38122_avdd2_csie>;
+				pp1100_vdig-supply = <&sgm38122_dvdd_csie>;
+				pp3000_af_vm-supply = <&sgm38122_avdd1_csie>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off",
+						"vsync_on", "vsync_off";
+				pinctrl-0 = <&ap2fcam0_mclk_24mhz>;
+				pinctrl-1 = <&ap2fcam0_mclk_24mhz_sleep>;
+				pinctrl-2 = <&fcam0_2_ap_vsync>;
+				pinctrl-3 = <&fcam0_2_ap_vsync_sleep>;
+
+				power-up-seqs =
+					"csimux-sel",
+					"camera_base",
+					"pp1350_cam",
+					"pp1850_vio",
+					"pp3000_vana",
+					"pp1100_vdig",
+					"pp3000_af_vm",
+					"mclk_on",
+					"vsync_on";
+				power-up-seq-types =
+					"gpio",
+					"pwrseq",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"pinctrl",
+					"pinctrl";
+				power-up-seq-delays-us =
+					<0
+					 0
+					 0
+					 2500
+					 0
+					 1000
+					 1000
+					 0
+					 /* AF need 7.1ms (rounded to 8ms) before I2C stable,
+					    added the remaining here */
+					 7000>;
+
+				power-down-seqs =
+					"vsync_off",
+					"mclk_off",
+					"pp3000_af_vm",
+					"pp1100_vdig",
+					"pp3000_vana",
+					"pp1850_vio",
+					"pp1350_cam",
+					"camera_base",
+					"csimux-sel";
+				power-down-seq-types =
+					"pinctrl",
+					"pinctrl",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"pwrseq",
+					"gpio";
+				power-down-seq-delays-us =
+					<0
+					 0
+					 1000
+					 0
+					 1000
+					 0
+					 0
+					 200
+					 0>;
+			};
+
+			/* FRONT DOKKAEBI CSIF*/
+			sensor2: sensor@2 {
+				compatible = "google,lwis-i2c-device";
+
+				node-name = "sensor-dokkaebi";
+
+				i2c-bus = <&lsioe_i2c1>;
+				i2c-addr = <0x10>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <16>;
+
+				lwis,i2c-otp;
+				i2c-otp-settings =
+					<0xFCFC 0x4000
+					 0x6010 0x0001>;
+				i2c-otp-settle-time = <3000>;
+
+				/* GPIOs */
+				reset-gpios = <AP2FCAM0_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m6_clk>;
+				clock-names = "MCLK6";
+				clock-rates = <24576000>;
+
+				/* Power sequence */
+				power-sequencer = <&front_camera_pwrseq>;
+
+				power-up-seqs = "front_camera", "resume";
+				power-up-seq-types = "pwrseq", "controller";
+				power-up-seq-delays-us = <0 0>;
+
+				power-down-seqs = "suspend", "front_camera";
+				power-down-seq-types = "controller", "pwrseq";
+				power-down-seq-delays-us = <0 0>;
+
+				lwis,power-up-to-suspend;
+
+				resume-seqs = "reset";
+				resume-seq-types = "gpio";
+				resume-seq-delays-us = <2000>;
+
+				suspend-seqs = "reset";
+				suspend-seq-types = "gpio";
+				suspend-seq-delays-us = <1000>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <2>;
+			};
+
+			/* EEPROM SMAUG for DOKKAEBI */
+			eeprom2: eeprom@2 {
+				compatible = "google,lwis-i2c-device";
+
+				node-name = "eeprom-smaug-dokkaebi";
+
+				i2c-bus = <&lsioe_i2c1>;
+				i2c-addr = <0x51>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* Power sequence */
+				power-sequencer = <&front_camera_pwrseq>;
+
+				power-up-seqs = "front_camera", "resume";
+				power-up-seq-types = "pwrseq", "controller";
+				power-up-seq-delays-us = <0 0>;
+
+				power-down-seqs = "suspend", "front_camera";
+				power-down-seq-types = "controller", "pwrseq";
+				power-down-seq-delays-us = <0 0>;
+
+				/* Thread priority */
+				/* Match with other bus devices */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <2>;
+			};
+
+			/* Actuator CORNERFOLK for DOKKAEBI */
+			actuator2: actuator@2 {
+				compatible = "google,lwis-i2c-device";
+
+				node-name = "act-cornerfolk-dokkaebi";
+
+				i2c-bus = <&lsioe_i2c1>;
+				i2c-addr = <0xC>;
+
+				/* Registers */
+				reg-addr-bitwidth = <8>;
+				reg-value-bitwidth = <8>;
+
+				/* Power sequence */
+				power-sequencer = <&front_camera_pwrseq>;
+
+				power-up-seqs = "front_camera", "resume";
+				power-up-seq-types = "pwrseq", "controller";
+				power-up-seq-delays-us = <0 0>;
+
+				power-down-seqs = "suspend", "front_camera";
+				power-down-seq-types = "controller", "pwrseq";
+				power-down-seq-delays-us = <0 0>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <2>;
+			};
+
+			rear_tele_camera_pwrseq: rear_tele_camera_pwrseq@0 {
+				compatible = "google,lwis-pwrseq-device";
+
+				/* Device node name */
+				node-name = "pwrseq-rtele";
+				/* Power sequence target name */
+				target-name = "rear_tele_camera";
+
+				/* Sequencer sources */
+				sequencer-sources = <&camera_base_pwrseq>;
+
+				/* GPIOs */
+				afois-reset-gpios =
+					<AP2RTCAM_AF_OIS_RST(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				pp1350_cam-supply = <&cam_pp1350_mvbuck>;
+				pp1850_vio-supply = <&ldo_22s_reg>;
+				pp2950_vana-supply = <&sgm38122_avdd2_csif>;
+				pp1100_vdig-supply = <&sgm38122_dvdd_csif>;
+				pp2850_afois_vana-supply =
+					<&sgm38122_avdd1_csif>;
+				pp2850_afois_vm-supply = <&sgm38122_avdd3_csif>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off",
+						"vsync_on", "vsync_off";
+				pinctrl-0 = <&ap2rtcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rtcam_mclk_24mhz_sleep>;
+				pinctrl-2 = <&rtcam2ap_vsync>;
+				pinctrl-3 = <&rtcam2ap_vsync_sleep>;
+
+				power-up-seqs =
+					"camera_base",
+					"pp1350_cam",
+					"pp1850_vio",
+					"pp2950_vana",
+					"pp1100_vdig",
+					"pp2850_afois_vana",
+					"pp2850_afois_vm",
+					"afois-reset",
+					"mclk_on",
+					"vsync_on";
+				power-up-seq-types =
+					"pwrseq",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"gpio",
+					"pinctrl",
+					"pinctrl";
+				power-up-seq-delays-us =
+					<0
+					 0
+					 2500
+					 0
+					 1000
+					 1000
+					 1000
+					 1000
+					 0
+					 1000>;
+
+				power-down-seqs =
+					"vsync_off",
+					"mclk_off",
+					"afois-reset",
+					"pp2850_afois_vm",
+					"pp2850_afois_vana",
+					"pp1100_vdig",
+					"pp2950_vana",
+					"pp1850_vio",
+					"pp1350_cam",
+					"camera_base";
+				power-down-seq-types =
+					"pinctrl",
+					"pinctrl",
+					"gpio",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"pwrseq";
+				power-down-seq-delays-us =
+					<0
+					 1000
+					 1000
+					 1000
+					 1000
+					 0
+					 1000
+					 0
+					 200
+					 0>;
+			};
+
+			/* REAR TELE DOKKAEBI CSIF */
+			sensor3: sensor@3 {
+				compatible = "google,lwis-i2c-device";
+
+				node-name = "sensor-dokkaebi-tele";
+
+				i2c-bus = <&lsios_i2c3>;
+				i2c-addr = <0x10>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <16>;
+
+				lwis,i2c-otp;
+				i2c-otp-settings =
+					<0xFCFC 0x4000
+					 0x6010 0x0001>;
+				i2c-otp-settle-time = <3000>;
+
+				/* GPIOs */
+				reset-gpios =
+					<AP2RTCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m5_clk>;
+				clock-names = "MCLK5";
+				clock-rates = <24576000>;
+
+				/* Power sequence */
+				power-sequencer = <&rear_tele_camera_pwrseq>;
+
+				power-up-seqs = "rear_tele_camera", "resume";
+				power-up-seq-types = "pwrseq", "controller";
+				power-up-seq-delays-us = <0 0>;
+
+				power-down-seqs = "suspend", "rear_tele_camera";
+				power-down-seq-types = "controller", "pwrseq";
+				power-down-seq-delays-us = <0 0>;
+
+				lwis,power-up-to-suspend;
+
+				resume-seqs = "reset";
+				resume-seq-types = "gpio";
+				resume-seq-delays-us = <2000>;
+
+				suspend-seqs = "reset";
+				suspend-seq-types = "gpio";
+				suspend-seq-delays-us = <1000>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <3>;
+			};
+
+			/* EEPROM HUMBABA for DOKKAEBI TELE */
+			eeprom3: eeprom@3 {
+				compatible = "google,lwis-i2c-device";
+
+				node-name = "eeprom-humbaba";
+
+				i2c-bus = <&lsios_i2c3>;
+				i2c-addr = <0x61>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* Power sequence */
+				power-sequencer = <&rear_tele_camera_pwrseq>;
+
+				power-up-seqs = "rear_tele_camera", "resume";
+				power-up-seq-types = "pwrseq", "controller";
+				power-up-seq-delays-us = <0 0>;
+
+				power-down-seqs = "suspend", "rear_tele_camera";
+				power-down-seq-types = "controller", "pwrseq";
+				power-down-seq-delays-us = <0 0>;
+
+				/* Thread priority */
+				/* Match with other bus devices */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <3>;
+				lwis,disable-group-transfer;
+			};
+
+			/* OIS HUMBABA for DOKKAEBI TELE */
+			ois3: ois@3  {
+				compatible = "google,lwis-i2c-device";
+
+				node-name = "ois-humbaba";
+
+				i2c-bus = <&lsios_i2c3>;
+				i2c-addr = <0x61>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* Power sequence */
+				power-sequencer = <&rear_tele_camera_pwrseq>;
+
+				power-up-seqs = "rear_tele_camera", "resume";
+				power-up-seq-types = "pwrseq", "controller";
+				power-up-seq-delays-us = <0 0>;
+
+				power-down-seqs = "suspend", "rear_tele_camera";
+				power-down-seq-types = "controller", "pwrseq";
+				power-down-seq-delays-us = <0 0>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <3>;
+				lwis,disable-group-transfer;
+			};
+		};
+	};
+};

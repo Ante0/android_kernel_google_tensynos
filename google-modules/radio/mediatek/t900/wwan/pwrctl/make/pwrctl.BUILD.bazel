@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: GPL-2.0-only
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_headers(
+    name = "wwan_gpio_pwrctl_headers",
+    hdrs = [
+        "common/mtk_pwrctl_common.h",
+        "device/m9xx/mtk_pwrctl.h",
+        "interface/pcie/mtk_pwrctl_interface.h",
+    ],
+    includes = [
+        "common",
+        "device/m9xx",
+        "interface/pcie",
+    ],
+)
+
+ddk_module(
+    name = "wwan_gpio_pwrctl",
+    srcs = [
+        "common/mtk_pwrctl_common.c",
+        "device/m9xx/mtk_pwrctl_device.c",
+        "interface/pcie/mtk_pwrctl_interface.c",
+    ],
+    out = "wwan_gpio_pwrctl.ko",
+    copts = [
+        "-mcmodel=large",
+        "-Werror",
+        "-fsanitize=integer-divide-by-zero",
+        "-include",
+        "wwan_defines.h",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":wwan_gpio_pwrctl_headers",
+        "//private/google-modules/radio/common/metrics_collection:headers",
+        "//private/google-modules/radio/common/metrics_collection:metrics_collection_enabled",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3:tmi3_headers",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/google:ddk_headers",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/google:radio_google",
+        "//private/google-modules/soc/rdo/pci:google-pcie-v2",
+    ],
+)
+
+filegroup(
+    name = "pwrctl_folders",
+    srcs = [
+        "BUILD.bazel",
+        "Makefile",
+        "common/OWNERS",
+        "common/mtk_pwrctl_common.c",
+        "common/mtk_pwrctl_common.h",
+        "device/m9xx/OWNERS",
+        "device/m9xx/init.wwan_drv_tmi3.rc",
+        "device/m9xx/mtk_pwrctl.h",
+        "device/m9xx/mtk_pwrctl_device.c",
+        "interface/pcie/OWNERS",
+        "interface/pcie/mtk_pwrctl_interface.c",
+        "interface/pcie/mtk_pwrctl_interface.h",
+    ],
+)

@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_DPA
+	tristate "Google DPA driver"
+	depends on ARCH_GOOGLE
+	default n
+	help
+	  Support for DPA (NOA) device.
+	  DPA device provides network offloading features. This driver provides
+	  features like booting DPA firmware.
+
+config GOOGLE_DPA_TEST
+	tristate "Test client driver for DPA"
+	depends on ARCH_GOOGLE
+	help
+	  DPA driver exposes APIs to client drivers.
+	  This driver is a client driver for testing APIs exported by DPA
+	  driver.
+	  As this is for verification purpose, select "N" if unsure.
+

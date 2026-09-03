@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# the input misc drivers.
+# Each configuration option enables a list of files.
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)

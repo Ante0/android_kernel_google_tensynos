@@ -74,14 +74,11 @@ static int ipcomp_decompress(struct xfrm_state *x, struct sk_buff *skb)
 		if (!page)
 			return -ENOMEM;
 
-		__skb_frag_set_page(frag, page);
-
 		len = PAGE_SIZE;
 		if (dlen < len)
 			len = dlen;
 
-		skb_frag_off_set(frag, 0);
-		skb_frag_size_set(frag, len);
+		skb_frag_fill_page_desc(frag, page, 0, len);
 		memcpy(skb_frag_address(frag), scratch, len);
 
 		skb->truesize += len;
@@ -318,7 +315,6 @@ void ipcomp_destroy(struct xfrm_state *x)
 	struct ipcomp_data *ipcd = x->data;
 	if (!ipcd)
 		return;
-	xfrm_state_delete_tunnel(x);
 	mutex_lock(&ipcomp_resource_mutex);
 	ipcomp_free_data(ipcd);
 	mutex_unlock(&ipcomp_resource_mutex);

@@ -9,7 +9,16 @@
 
 #include "link_device_memory.h"
 
-void cpif_pcie_iommu_enable_regions(struct mem_link_device *mld);
+#if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_SOC_EXYNOS)
+#include "cpif_pcie_shim_exynos.h"
+#elif IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_SOC_GOOGLE)
+#include "cpif_pcie_shim_google.h"
+#endif
+#include "s51xx_pcie.h"
+
+#ifdef EXYNOS_IOMMU
+void exynos_pcie_iommu_enable_regions(struct mem_link_device *mld);
+#endif
 int cpif_pcie_iommu_init(struct pktproc_queue *q);
 void cpif_pcie_iommu_reset(struct pktproc_queue *q);
 
@@ -18,5 +27,4 @@ void *cpif_pcie_iommu_map_va(struct pktproc_queue *q, unsigned long src_pa,
 void cpif_pcie_iommu_try_ummap_va(struct pktproc_queue *q, unsigned long src_pa,
 				  void *addr, u32 idx);
 
-extern bool exynos_pcie_is_sysmmu_enabled(int ch_num);
 #endif /* __LINK_DEVICE_PCIE_IOMMU_H__ */

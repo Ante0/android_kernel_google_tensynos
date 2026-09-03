@@ -1,13 +1,7 @@
-ARCH=arm
+echo 'WARNING: Do not source build.config.arm.
+    Instead, set kernel_build.make_goals.' >&2
+
 MAKE_GOALS="
 zImage
 modules
 "
-
-FILES="
-arch/arm/boot/zImage
-vmlinux
-System.map
-"
-
-NDK_TRIPLE=${ARM_NDK_TRIPLE}

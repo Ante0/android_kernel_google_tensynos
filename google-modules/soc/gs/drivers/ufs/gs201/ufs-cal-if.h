@@ -11,8 +11,7 @@
 #ifndef _GS201_UFS_CAL_IF_H
 #define _GS201_UFS_CAL_IF_H
 
-#undef BIT
-#define BIT(a)	(1U << (a))
+#include <linux/bits.h>
 
 struct uic_pwr_mode {
 	u8 lane;

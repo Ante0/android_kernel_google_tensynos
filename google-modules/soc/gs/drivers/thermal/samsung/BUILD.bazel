@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# Samsung thermal
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "gs_thermal",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "gs_thermal.ko",
+    conditional_srcs = {
+        "CONFIG_EXYNOS_CPU_THERMAL": {
+            True: [
+                "exynos_cpu_cooling.c",
+            ],
+        },
+        "CONFIG_GS_THERMAL_V3": {
+            True: [
+                "exynos_acpm_tmu.c",
+                "gs_tmu_v3.c",
+            ],
+        },
+        "CONFIG_ISP_THERMAL": {
+            True: [
+                "isp_cooling.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google:ect_parser",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-cpuhp",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos_pm_qos",
+        "//private/google-modules/soc/gs/drivers/soc/google/acpm:gs_acpm",
+        "//private/google-modules/soc/gs/drivers/soc/google/cal-if:cmupmucal",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/metrics:pixel_metrics",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/pixel_em",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/thermal:vh_thermal",
+    ],
+)
+
+ddk_module(
+    name = "gpu_cooling",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "gpu_cooling.ko",
+    conditional_srcs = {
+        "CONFIG_GPU_THERMAL": {
+            True: [
+                "gpu_cooling.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google:ect_parser",
+        "//private/google-modules/soc/gs/drivers/soc/google/cal-if:cmupmucal",
+    ],
+)

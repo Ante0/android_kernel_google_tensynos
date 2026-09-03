@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+&usb {
+	/* Work around for STAR-6887553 */
+	soft-reset-war;
+};
+
+&usb_phy {
+	/* Work around for STAR-6887553 */
+	soft-reset-war;
+};

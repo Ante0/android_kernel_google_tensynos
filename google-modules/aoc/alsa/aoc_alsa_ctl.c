@@ -786,8 +786,7 @@ static int hotword_tap_enable_ctl_set(struct snd_kcontrol *kcontrol,
 
 		mutex_unlock(&chip->audio_mutex);
 		return err;
-	}
-	 else {
+	} else {
 		pr_err("WARN:hotword is not supported on this device\n");
 		return 0;
 	}
@@ -971,7 +970,8 @@ static int audio_offload_decoder_position_ctl_get(struct snd_kcontrol *kcontrol,
 		err = aoc_compr_get_decoder_position(
 			chip->compr_offload_stream, &current_decoder_position);
 		if (err == 0)
-			memcpy(ucontrol->value.bytes.data, &current_decoder_position, sizeof(uint64_t));
+			memcpy(ucontrol->value.bytes.data, &current_decoder_position,
+				sizeof(uint64_t));
 	}
 
 	mutex_unlock(&chip->audio_mutex);
@@ -1255,6 +1255,37 @@ static int aoc_compr_offload_playback_rate_ctl_set(struct snd_kcontrol *kcontrol
 }
 #endif
 
+static int aoc_waiting_time_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct aoc_chip *chip = snd_kcontrol_chip(kcontrol);
+
+	if (mutex_lock_interruptible(&chip->audio_mutex))
+		return -EINTR;
+
+	ucontrol->value.integer.value[0] = chip->aoc_waiting_time_in_ms;
+
+	mutex_unlock(&chip->audio_mutex);
+	return 0;
+}
+
+static int aoc_waiting_time_set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+	struct aoc_chip *chip = snd_kcontrol_chip(kcontrol);
+	int val = ucontrol->value.integer.value[0];
+
+	if (val < 0 || val > MAX_AOC_WAITING_TIME_IN_MSECS)
+		return -EINVAL;
+
+	if (mutex_lock_interruptible(&chip->audio_mutex))
+		return -EINTR;
+
+	chip->aoc_waiting_time_in_ms = val;
+
+	mutex_unlock(&chip->audio_mutex);
+	return 0;
+}
+
 static int pcm_wait_time_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
 	struct aoc_chip *chip = snd_kcontrol_chip(kcontrol);
@@ -1349,7 +1380,7 @@ static int multichannel_processor_ctl_set(struct snd_kcontrol *kcontrol,
 	return err;
 }
 
-#if IS_ENABLED(CONFIG_SOC_ZUMA)
+#if !IS_ENABLED(CONFIG_SOC_GS101) && !IS_ENABLED(CONFIG_SOC_GS201)
 static int audio_mel_enable_ctl_get(struct snd_kcontrol *kcontrol,
 					       struct snd_ctl_elem_value *ucontrol)
 {
@@ -2040,7 +2071,7 @@ static int usb_cfg_v2_ctl_set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem
 		chip->usb_direction = val;
 		break;
 	case USB_MEM_CFG:
-		aoc_set_usb_mem_config(chip);
+		/* TODO: HAL still in use this ctrl, remove after b/402379515 migration */
 		break;
 	default:
 		err = -EINVAL;
@@ -2530,7 +2561,7 @@ static const char *audio_dsp_state_switch_texts[] = { "Ambient", "Record", "Tele
 static SOC_ENUM_SINGLE_DECL(audio_dsp_state_switch_enum, 1, 0, audio_dsp_state_switch_texts);
 
 /* incall capture stream state */
-static const char *incall_capture_stream_texts[] = { "Off", "UL", "DL", "UL_DL", "3MIC" };
+static const char * const incall_capture_stream_texts[] = { "Off", "UL", "DL", "UL_DL", "3MIC", "2MIC" };
 static SOC_ENUM_SINGLE_DECL(incall_capture_stream0_enum, 1, 0, incall_capture_stream_texts);
 static SOC_ENUM_SINGLE_DECL(incall_capture_stream1_enum, 1, 1, incall_capture_stream_texts);
 static SOC_ENUM_SINGLE_DECL(incall_capture_stream2_enum, 1, 2, incall_capture_stream_texts);
@@ -2555,6 +2586,9 @@ static SOC_ENUM_SINGLE_DECL(eraser_aec_ref_source_enum, 1, 0, eraser_aec_ref_sou
 static const char *ft_aec_ref_source_texts[NUM_AEC_REF_SOURCE] = { "Default", "SPEAKER", "USB",
 								   "BT" };
 static SOC_ENUM_SINGLE_DECL(ft_aec_ref_source_enum, 1, 0, ft_aec_ref_source_texts);
+
+static struct snd_kcontrol_new hac_amp_en_ctl =
+	SOC_SINGLE_EXT("HAC AMP EN", SND_SOC_NOPM, 0, 1, 0, hac_amp_en_get, hac_amp_en_set);
 
 static struct snd_kcontrol_new snd_aoc_ctl[] = {
 	{
@@ -2943,6 +2977,9 @@ static struct snd_kcontrol_new snd_aoc_ctl[] = {
 	SOC_SINGLE_EXT("Voice PCM Stream Wait Time in MSec", SND_SOC_NOPM, 0, 10000, 0,
 		voice_pcm_wait_time_get, voice_pcm_wait_time_set),
 
+	SOC_SINGLE_EXT("AoC Wait Time in MSec", SND_SOC_NOPM, 0, MAX_AOC_WAITING_TIME_IN_MSECS, 0,
+			aoc_waiting_time_get, aoc_waiting_time_set),
+
 	SOC_SINGLE_EXT("Displayport Audio Start Threshold", SND_SOC_NOPM, 0,
 			MAX_DP_START_THRESHOLD, 0,
 			dp_start_threshold_get, dp_start_threshold_set),
@@ -2950,7 +2987,7 @@ static struct snd_kcontrol_new snd_aoc_ctl[] = {
 	SOC_SINGLE_EXT("MultiChannel Processor Switch", SND_SOC_NOPM, 0, INT_MAX, 0,
 			multichannel_processor_ctl_get, multichannel_processor_ctl_set),
 
-#if IS_ENABLED(CONFIG_SOC_ZUMA)
+#if !IS_ENABLED(CONFIG_SOC_GS101) && !IS_ENABLED(CONFIG_SOC_GS201)
 	SOC_SINGLE_EXT("Mel Processor Enable", SND_SOC_NOPM, 0, 1, 0,
 		       audio_mel_enable_ctl_get, audio_mel_enable_ctl_set),
 	SOC_SINGLE_EXT("Mel Processor RS2", SND_SOC_NOPM, 0, INT_MAX, 0,
@@ -2986,9 +3023,6 @@ static struct snd_kcontrol_new snd_aoc_ctl[] = {
 	SOC_SINGLE_RANGE_EXT_TLV_modified("HD Mic gain (cB)", SND_SOC_NOPM,
 		0, -1280, 1280, 0, aoc_audio_hdmic_gain_get, aoc_audio_hdmic_gain_set, NULL),
 #endif
-
-	SOC_SINGLE_EXT("HAC AMP EN", SND_SOC_NOPM, 0, 1, 0,
-		       hac_amp_en_get, hac_amp_en_set),
 	{
 		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
 		.name = "BUILDIN_MIC_POWER_INIT",
@@ -3040,6 +3074,9 @@ int snd_aoc_new_ctl(struct aoc_chip *chip)
 		if (err < 0)
 			return err;
 	}
+
+	if (chip->hac_amp_en_gpio)
+		snd_ctl_add(chip->card, snd_ctl_new1(&hac_amp_en_ctl, chip));
 
 	pdm_callback_register(snd_aoc_pdm_state, NUM_OF_BUILTIN_MIC, chip);
 

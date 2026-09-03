@@ -398,8 +398,7 @@ static irqreturn_t apds9300_interrupt_handler(int irq, void *private)
 	return IRQ_HANDLED;
 }
 
-static int apds9300_probe(struct i2c_client *client,
-		const struct i2c_device_id *id)
+static int apds9300_probe(struct i2c_client *client)
 {
 	struct apds9300_data *data;
 	struct iio_dev *indio_dev;
@@ -494,7 +493,7 @@ static DEFINE_SIMPLE_DEV_PM_OPS(apds9300_pm_ops, apds9300_suspend,
 				apds9300_resume);
 
 static const struct i2c_device_id apds9300_id[] = {
-	{ APDS9300_DRV_NAME, 0 },
+	{ APDS9300_DRV_NAME },
 	{ }
 };
 

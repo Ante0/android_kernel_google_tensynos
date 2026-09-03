@@ -9,6 +9,7 @@
 #include <linux/rbtree.h>
 #include <linux/list.h>
 #include <linux/mm.h>
+#include <linux/spinlock.h>
 #include <linux/rtmutex.h>
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
@@ -54,21 +55,36 @@ struct binder_buffer {
 	size_t data_size;
 	size_t offsets_size;
 	size_t extra_buffers_size;
-	void __user *user_data;
+	unsigned long user_data;
 	int pid;
 };
 
 /**
- * struct binder_lru_page - page object used for binder shrinker
- * @page_ptr: pointer to physical page in mmap'd space
- * @lru:      entry in binder_freelist
- * @alloc:    binder_alloc for a proc
+ * struct binder_shrinker_mdata - binder metadata used to reclaim pages
+ * @lru:         LRU entry in binder_freelist
+ * @alloc:       binder_alloc owning the page to reclaim
+ * @page_index:  offset in @alloc->pages[] into the page to reclaim
  */
+struct binder_shrinker_mdata {
+	struct list_head lru;
+	struct binder_alloc *alloc;
+	unsigned long page_index;
+};
+
 struct binder_lru_page {
 	struct list_head lru;
 	struct page *page_ptr;
 	struct binder_alloc *alloc;
 };
+
+static inline struct list_head *page_to_lru(struct page *p)
+{
+	struct binder_shrinker_mdata *mdata;
+
+	mdata = (struct binder_shrinker_mdata *)page_private(p);
+
+	return &mdata->lru;
+}
 
 /**
  * struct binder_alloc - per-binder proc state for binder allocator
@@ -96,10 +112,10 @@ struct binder_lru_page {
  * struct binder_buffer objects used to track the user buffers
  */
 struct binder_alloc {
-	struct mutex mutex;
+	spinlock_t lock;
 	struct vm_area_struct *vma;
 	struct mm_struct *mm;
-	void __user *buffer;
+	unsigned long buffer;
 	struct list_head buffers;
 	struct rb_root free_buffers;
 	struct rb_root allocated_buffers;
@@ -109,6 +125,7 @@ struct binder_alloc {
 	int pid;
 	size_t pages_high;
 	bool oneway_spam_detected;
+	ANDROID_OEM_DATA(1);
 };
 
 #ifdef CONFIG_ANDROID_BINDER_IPC_SELFTEST

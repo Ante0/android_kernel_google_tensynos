@@ -16,6 +16,8 @@
 #include <linux/sys_soc.h>
 #include <linux/module.h>
 
+#include <soc/google/gs-chipid.h>
+
 struct gs_chipid_variant {
 	int product_ver;
 	int unique_id_reg;
@@ -469,16 +471,6 @@ static void gs_chipid_get_ap_hw_tune_str(void __iomem *reg)
 	}
 }
 
-int gs_chipid_get_ap_hw_tune_array(const u8 **array)
-{
-	if (!gs_soc_info.initialized)
-		return -EPROBE_DEFER;
-
-	*array = gs_soc_info.ap_hw_tune_arr;
-	return sizeof(gs_soc_info.ap_hw_tune_arr);
-}
-EXPORT_SYMBOL_GPL(gs_chipid_get_ap_hw_tune_array);
-
 static void gs_chipid_get_asv_tbl_str(void __iomem *reg)
 {
 	u32 addr;
@@ -528,9 +520,8 @@ MODULE_DEVICE_TABLE(of, of_gs_chipid_ids);
 
 /**
  *  gs_chipid_early_init: Early chipid initialization
- *  @dev: pointer to chipid device
  */
-void gs_chipid_early_init(void)
+static void gs_chipid_early_init(void)
 {
 	struct device_node *np;
 	const struct of_device_id *match;

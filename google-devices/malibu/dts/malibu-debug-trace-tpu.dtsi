@@ -1,0 +1,348 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+&sswrp_tpu {
+	tpu_funnel: funnel@2c2000 {
+		compatible = "arm,coresight-dynamic-funnel", "arm,primecell";
+		reg = <0x2c2000 0x1000>;
+
+		clocks = <&osc>;
+		clock-names = "apb_pclk";
+
+		power-domains = <&sswrp_tpu_pd>;
+
+		out-ports {
+			port {
+				tpu_funnel_out_port: endpoint {
+					remote-endpoint = <&tpu_etf_in_port>;
+				};
+			};
+		};
+
+		in-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				tpu_funnel_in_port0: endpoint {
+					remote-endpoint = <&tpu_gem1_out_port>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				tpu_funnel_in_port1: endpoint {
+					remote-endpoint = <&tpu_gem0_out_port>;
+				};
+			};
+
+			port@2 {
+				reg = <2>;
+				tpu_funnel_in_port2: endpoint {
+					remote-endpoint = <&tpu_tcu_out_port>;
+				};
+			};
+
+			port@3 {
+				reg = <3>;
+				tpu_funnel_in_port3: endpoint {
+					remote-endpoint = <&tpu_top_replicator_out_port0>;
+				};
+			};
+
+			port@4 {
+				reg = <4>;
+				tpu_funnel_in_port4: endpoint {
+					remote-endpoint = <&tpu_smmu_ela_out_port>;
+				};
+			};
+		};
+	};
+
+	tpu_etf: etf@2c3000 {
+		compatible = "arm,coresight-tmc", "arm,primecell";
+		reg = <0x2c3000 0x1000>;
+
+		clocks = <&osc>;
+		clock-names = "apb_pclk";
+
+		power-domains = <&sswrp_tpu_pd>;
+
+		in-ports {
+			port {
+				tpu_etf_in_port: endpoint {
+					remote-endpoint = <&tpu_funnel_out_port>;
+				};
+			};
+		};
+
+		out-ports {
+			port {
+				tpu_etf_out_port: endpoint {
+					remote-endpoint = <&l3_funnel_in_port2>;
+				};
+			};
+		};
+	};
+
+	tpu_top_funnel: tpu-top-funnel {
+		compatible = "arm,coresight-static-funnel";
+
+		clocks = <&osc>;
+		clock-names = "apb_pclk";
+
+		power-domains = <&sswrp_tpu_pd>;
+
+		out-ports {
+			port {
+				tpu_top_funnel_out_port: endpoint {
+					remote-endpoint = <&tpu_top_replicator_in_port>;
+				};
+			};
+		};
+
+		in-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				tpu_top_funnel_in_port0: endpoint {
+					remote-endpoint = <&tpu_r52_instruction_out_port>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				tpu_top_funnel_in_port1: endpoint {
+					remote-endpoint = <&tpu_r52_data_out_port>;
+				};
+			};
+
+			port@2 {
+				reg = <2>;
+				tpu_top_funnel_in_port2: endpoint {
+					remote-endpoint = <&tpu_custom_block_funnel_out_port>;
+				};
+			};
+		};
+	};
+
+	tpu_top_etf: tpu-top-etf {
+		compatible = "arm,coresight-dummy-sink";
+
+		clocks = <&osc>;
+		clock-names = "apb_pclk";
+
+		power-domains = <&sswrp_tpu_pd>;
+
+		in-ports {
+			port {
+				tpu_top_etf_in_port: endpoint {
+					remote-endpoint = <&tpu_top_replicator_out_port1>;
+				};
+			};
+		};
+
+		out-ports {
+			port {
+				tpu_top_etf_out_port: endpoint {
+					remote-endpoint = <&tpu_top_etr_in_port>;
+				};
+			};
+		};
+	};
+
+	tpu_top_etr: tpu-top-etr {
+		compatible = "arm,coresight-dummy-sink";
+
+		clocks = <&osc>;
+		clock-names = "apb_pclk";
+
+		power-domains = <&sswrp_tpu_pd>;
+
+		in-ports {
+			port {
+				tpu_top_etr_in_port: endpoint {
+					remote-endpoint = <&tpu_top_etf_out_port>;
+				};
+			};
+		};
+
+		out-ports {
+			port {
+			};
+		};
+	};
+
+	tpu_top_replicator: tpu-top-replicator {
+		compatible = "arm,coresight-static-replicator";
+
+		clocks = <&osc>;
+		clock-names = "apb_pclk";
+		power-domains = <&sswrp_tpu_pd>;
+
+
+		in-ports {
+			port {
+				tpu_top_replicator_in_port: endpoint {
+					remote-endpoint = <&tpu_top_funnel_out_port>;
+				};
+			};
+		};
+
+		out-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				tpu_top_replicator_out_port0: endpoint {
+					remote-endpoint = <&tpu_funnel_in_port3>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				tpu_top_replicator_out_port1: endpoint {
+					remote-endpoint = <&tpu_top_etf_in_port>;
+				};
+			};
+		};
+	};
+
+	tpu_custom_block_funnel: tpu-custom-block-funnel {
+		compatible = "arm,coresight-static-funnel";
+
+		out-ports {
+			port {
+				tpu_custom_block_funnel_out_port: endpoint {
+					remote-endpoint = <&tpu_top_funnel_in_port2>;
+				};
+			};
+		};
+
+		in-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				tpu_custom_block_funnel_in_port0: endpoint {
+					remote-endpoint = <&tpu_dive_out_port>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				tpu_custom_block_funnel_in_port1: endpoint {
+					remote-endpoint = <&tpu_tiles_out_port>;
+				};
+			};
+		};
+	};
+
+	tpu_gem1: tpu-gem1 {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				tpu_gem1_out_port: endpoint {
+					remote-endpoint = <&tpu_funnel_in_port0>;
+				};
+			};
+		};
+	};
+
+	tpu_gem0: tpu-gem0 {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				tpu_gem0_out_port: endpoint {
+					remote-endpoint = <&tpu_funnel_in_port1>;
+				};
+			};
+		};
+	};
+
+	tpu_tcu: tpu-tcu {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				tpu_tcu_out_port: endpoint {
+					remote-endpoint = <&tpu_funnel_in_port2>;
+				};
+			};
+		};
+	};
+
+	tpu_smmu_ela: tpu-smmu-ela {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				tpu_smmu_ela_out_port: endpoint {
+					remote-endpoint = <&tpu_funnel_in_port4>;
+				};
+			};
+		};
+	};
+
+	tpu_r52_instruction: tpu-r52-instruction {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				tpu_r52_instruction_out_port: endpoint {
+					remote-endpoint = <&tpu_top_funnel_in_port0>;
+				};
+			};
+		};
+	};
+
+	tpu_r52_data: tpu-r52-data {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				tpu_r52_data_out_port: endpoint {
+					remote-endpoint = <&tpu_top_funnel_in_port1>;
+				};
+			};
+		};
+	};
+
+	tpu_dive: tpu-dive {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				tpu_dive_out_port: endpoint {
+					remote-endpoint = <&tpu_custom_block_funnel_in_port0>;
+				};
+			};
+		};
+	};
+
+	tpu_tiles: tpu-tiles {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				tpu_tiles_out_port: endpoint {
+					remote-endpoint = <&tpu_custom_block_funnel_in_port1>;
+				};
+			};
+		};
+	};
+};

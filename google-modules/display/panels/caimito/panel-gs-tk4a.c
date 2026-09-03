@@ -21,7 +21,7 @@
 #include "gs_panel/gs_panel.h"
 #include "gs_panel/gs_panel_funcs_defaults.h"
 
-static const struct drm_dsc_config pps_config = {
+static struct drm_dsc_config pps_config = {
 	.line_buf_depth = 9,
 	.bits_per_component = 8,
 	.convert_rgb = true,
@@ -285,7 +285,7 @@ static void tk4a_set_hbm_mode(struct gs_panel *ctx,
 	GS_DCS_BUF_ADD_CMDLIST(dev, test_key_enable);
 	GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x01, 0x22, 0x68);
 	if (GS_IS_HBM_ON_IRC_OFF(ctx->hbm_mode)) {
-		if (ctx->panel_rev == PANEL_REV_EVT1)
+		if (ctx->panel_rev_id.id == PANEL_REVID_EVT1)
 			GS_DCS_BUF_ADD_CMD(dev, 0x68, 0x1C, 0xE3, 0xFF, 0x94); /* FGZ Mode ON */
 		else
 			GS_DCS_BUF_ADD_CMD(dev, 0x68, 0x28, 0xED, 0xFF, 0x94); /* FGZ Mode ON */;
@@ -534,7 +534,7 @@ static const struct gs_panel_mode_array tk4a_modes = {
 	.modes = {
 		{
 			.mode = {
-				.name = "1080x2424@60:60",
+				.name = "1080x2424x60@60",
 				DRM_MODE_TIMING(60, HDISPLAY, HFP, HSA, HBP, VDISPLAY, VFP, VSA, VBP),
 				/* aligned to bootloader setting */
 				.type = DRM_MODE_TYPE_PREFERRED,
@@ -552,7 +552,7 @@ static const struct gs_panel_mode_array tk4a_modes = {
 		},
 		{
 			.mode = {
-				.name = "1080x2424@120:120",
+				.name = "1080x2424x120@120",
 				DRM_MODE_TIMING(120, HDISPLAY, HFP, HSA, HBP, VDISPLAY, VFP, VSA, VBP),
 				.width_mm = WIDTH_MM,
 				.height_mm = HEIGHT_MM,
@@ -605,7 +605,7 @@ static const struct gs_panel_mode_array tk4a_lp_modes = {
 	.modes = {
 		{
 			.mode = {
-				.name = "1080x2424@30:30",
+				.name = "1080x2424x30@30",
 				DRM_MODE_TIMING(30, HDISPLAY, HFP, HSA, HBP, VDISPLAY, VFP, VSA, VBP),
 				.width_mm = WIDTH_MM,
 				.height_mm = HEIGHT_MM,
@@ -637,12 +637,13 @@ static const struct gs_panel_funcs tk4a_gs_funcs = {
 	.set_lp_mode = gs_panel_set_lp_mode_helper,
 	.set_nolp_mode = tk4a_set_nolp_mode,
 	.set_binned_lp = gs_panel_set_binned_lp_helper,
+	.set_vddd_voltage = gs_panel_set_vddd_optional_gpio_helper,
 	.set_dimming = tk4a_set_dimming_on,
 	.set_hbm_mode = tk4a_set_hbm_mode,
 	.is_mode_seamless = tk4a_is_mode_seamless,
 	.mode_set = tk4a_mode_set,
 	.get_panel_rev = tk4a_get_panel_rev,
-	.read_id = gs_panel_read_slsi_ddic_id,
+	.read_serial = gs_panel_read_slsi_ddic_id,
 	.atomic_check = tk4a_atomic_check,
 };
 

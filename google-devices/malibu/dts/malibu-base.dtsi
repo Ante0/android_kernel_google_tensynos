@@ -1,0 +1,1706 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+#include <dt-bindings/cap-sysfs/cpu-mbu-power-states.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,mbu.h>
+#include <dt-bindings/interconnect/google,mbu,irm.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/interrupt-controller/irq-cpm-google.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/mbu-gic.h>
+#include <dt-bindings/ip-idle/google,mbu.h>
+#include <dt-bindings/lpcm/clock_mbu.h>
+#include <dt-bindings/lpcm/pf_state_mbu.h>
+#include <dt-bindings/lpcm/reset_mbu.h>
+#include <dt-bindings/mailbox/google,mbu.h>
+#include <dt-bindings/power/genpd_mbu.h>
+#include <dt-bindings/power/syspm/google,mbu.h>
+#include <dt-bindings/soc/google/google-wdt-def.h>
+#include <dt-bindings/soc/google/keydebug-core-def.h>
+
+// Earlier than all node to be referred
+#include "malibu-sswrp.dtsi"
+#include "malibu-tpu.dtsi"
+
+#include "malibu-aoc.dtsi"
+#include "malibu-audio.dtsi"
+#include "malibu-ap-pmic.dtsi"
+#include "malibu-cpm-clk.dtsi"
+#include "malibu-debug-trace.dtsi"
+#include "malibu-dpa.dtsi"
+#include "malibu-dpu.dtsi"
+#include "malibu-g2d.dtsi"
+#include "malibu-gia.dtsi"
+#include "malibu-gia-test.dtsi"
+#include "malibu-gpdma.dtsi"
+#include "malibu-gpu.dtsi"
+#include "malibu-gxp.dtsi"
+#include "malibu-iif.dtsi"
+#include "malibu-interconnect.dtsi"
+#include "malibu-isp.dtsi"
+#include "malibu-lsios.dtsi"
+#include "malibu-mba.dtsi"
+#include "malibu-odpm.dtsi"
+#include "malibu-pinctrl.dtsi"
+#include "malibu-power-domains.dtsi"
+#include "malibu-rmem.dtsi"
+#include "malibu-smmu.dtsi"
+#include "malibu-smmu-perf.dtsi"
+#include "malibu-smmu-pmu.dtsi"
+#include "malibu-thermal.dtsi"
+#include "malibu-towerci.dtsi"
+#include "malibu-c3p.dtsi"
+#include "malibu-trusty.dtsi"
+#include "malibu-dma-heap.dtsi"
+#include "malibu-faceauth-dma-heap.dtsi"
+#include "malibu-otp.dtsi"
+#include "malibu-gsa.dtsi"
+#include "malibu-dpm.dtsi"
+#include "malibu-wonder.dtsi"
+
+/ {
+	build_info = <0x00>;
+	compatible = "google,mbu";
+	#address-cells = <0x00000002>;
+	#size-cells = <0x00000002>;
+	interrupt-parent = <&gic>;
+
+	memory: memory@80000000 {
+		device_type = "memory";
+		reg = <0x00000000 0x80000000 0x00000000 0x10000000>; //256MB for speed
+	};
+
+	osc: oscillator {
+		#clock-cells = <0>;
+		compatible = "fixed-clock";
+		clock-frequency = <24576000>;
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupts =
+			<GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(1) | IRQ_TYPE_LEVEL_LOW) 0>,  //secure
+			<GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(1) | IRQ_TYPE_LEVEL_LOW) 0>,  //NS
+			<GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(1) | IRQ_TYPE_LEVEL_LOW) 0>,  //virtual
+			<GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(1) | IRQ_TYPE_LEVEL_LOW) 0>;  //hypervisor
+	};
+
+	gic: interrupt-controller@9228000 {
+		compatible = "arm,gic-v3";
+		#interrupt-cells = <0x00000004>;
+		#address-cells = <0x00000002>;
+		#size-cells = <0x00000002>;
+		interrupt-controller;
+		ranges;
+		reg = <0x0 0x09228000 0 0x00010000>,  // GICD
+		      <0x0 0x092a8000 0 0x00200000>,  // GICR
+		      <0x0 0x0 0 0x0>,                // GICC
+		      <0x0 0x0 0 0x0>,                // GICH
+		      <0x0 0x0 0 0x0>;                // GICV
+		// Should replace 0 with a ppi-partitions subnode when ppi-partitions are added.
+		interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH 0>;
+	};
+
+	cpus: cpus {
+		#address-cells = <0x00000001>;
+		#size-cells = <0x00000000>;
+
+		cpu-map {
+			cluster0: cluster0 {
+				core0 {
+					cpu = <&gelas_ll_0>;
+				};
+				core1 {
+					cpu = <&gelas_ll_1>;
+				};
+			};
+
+			cluster1: cluster1 {
+				core0 {
+					cpu = <&gelas_0>;
+				};
+				core1 {
+					cpu = <&gelas_1>;
+				};
+				core2 {
+					cpu = <&gelas_2>;
+				};
+				core3 {
+					cpu = <&gelas_3>;
+				};
+			};
+
+			cluster2: cluster2 {
+				core0 {
+					cpu = <&travis_0>;
+				};
+			};
+		};
+
+		gelas_ll_0: cpu@0 {
+			device_type = "cpu";
+			compatible = "gem5,armv8", "arm,armv8";
+			reg = <0x00000000>;
+			enable-method = "psci";
+			dvfs-helper-domain-name = "cpu0";
+			operating-points-v2 = <&cpu_opp_table_mid_ll_core>;
+			power-domains = <&CPU_PD0>;
+			power-domain-names = "psci";
+			capacity-dmips-mhz = <779>;
+		};
+		gelas_ll_1: cpu@100 {
+			device_type = "cpu";
+			compatible = "gem5,armv8", "arm,armv8";
+			reg = <0x00000100>;
+			enable-method = "psci";
+			dvfs-helper-domain-name = "cpu0";
+			operating-points-v2 = <&cpu_opp_table_mid_ll_core>;
+			power-domains = <&CPU_PD1>;
+			power-domain-names = "psci";
+			capacity-dmips-mhz = <779>;
+		};
+		gelas_0: cpu@200 {
+			device_type = "cpu";
+			compatible = "gem5,armv8", "arm,armv8";
+			reg = <0x00000200>;
+			enable-method = "psci";
+			dvfs-helper-domain-name = "cpu1";
+			operating-points-v2 = <&cpu_opp_table_mid_core>;
+			power-domains = <&CPU_PD2>;
+			power-domain-names = "psci";
+			capacity-dmips-mhz = <780>;
+		};
+		gelas_1: cpu@300 {
+			device_type = "cpu";
+			compatible = "gem5,armv8", "arm,armv8";
+			reg = <0x00000300>;
+			enable-method = "psci";
+			dvfs-helper-domain-name = "cpu1";
+			operating-points-v2 = <&cpu_opp_table_mid_core>;
+			power-domains = <&CPU_PD3>;
+			power-domain-names = "psci";
+			capacity-dmips-mhz = <780>;
+		};
+		gelas_2: cpu@400 {
+			device_type = "cpu";
+			compatible = "gem5,armv8", "arm,armv8";
+			reg = <0x00000400>;
+			enable-method = "psci";
+			dvfs-helper-domain-name = "cpu1";
+			operating-points-v2 = <&cpu_opp_table_mid_core>;
+			power-domains = <&CPU_PD4>;
+			power-domain-names = "psci";
+			capacity-dmips-mhz = <780>;
+		};
+		gelas_3: cpu@500 {
+			device_type = "cpu";
+			compatible = "gem5,armv8", "arm,armv8";
+			reg = <0x00000500>;
+			enable-method = "psci";
+			dvfs-helper-domain-name = "cpu1";
+			operating-points-v2 = <&cpu_opp_table_mid_core>;
+			power-domains = <&CPU_PD5>;
+			power-domain-names = "psci";
+			capacity-dmips-mhz = <780>;
+		};
+		travis_0: cpu@600 {
+			device_type = "cpu";
+			compatible = "gem5,armv8", "arm,armv8";
+			reg = <0x00000600>;
+			enable-method = "psci";
+			dvfs-helper-domain-name = "cpu2";
+			operating-points-v2 = <&cpu_opp_table_big_core>;
+			power-domains = <&CPU_PD6>;
+			power-domain-names = "psci";
+			capacity-dmips-mhz = <1024>;
+		};
+
+		idle-states {
+			entry-method = "psci";
+
+			CPU_LIT_C2: cpu0-idle-state-2 {
+				compatible = "arm,idle-state";
+				idle-state-name = "cpu-lit-c2";
+				arm,psci-suspend-param = <0x40000003>;
+				entry-latency-us = <120>;
+				exit-latency-us = <300>;
+				min-residency-us = <1800>;
+				local-timer-stop;
+			};
+			CPU_MID_C2: cpu1-idle-state-2 {
+				compatible = "arm,idle-state";
+				idle-state-name = "cpu-mid-c2";
+				arm,psci-suspend-param = <0x40000003>;
+				entry-latency-us = <120>;
+				exit-latency-us = <300>;
+				min-residency-us = <1600>;
+				local-timer-stop;
+			};
+			CPU_BIG_C2: cpu2-idle-state-2 {
+				compatible = "arm,idle-state";
+				idle-state-name = "cpu-big-c2";
+				arm,psci-suspend-param = <0x40000003>;
+				entry-latency-us = <80>;
+				exit-latency-us = <400>;
+				min-residency-us = <1300>;
+				local-timer-stop;
+			};
+		};
+		domain-idle-states {
+			CLUSTER0_C3: cluster0-idle-state-3 {
+				compatible = "domain-idle-state";
+				idle-state-name = "cluster0-c3";
+				arm,psci-suspend-param = <0x40010033>;
+				entry-latency-us = <800>;
+				exit-latency-us = <700>;
+				min-residency-us = <5000>;
+				local-timer-stop;
+			};
+			CLUSTER1_C3: cluster1-idle-state-3 {
+				compatible = "domain-idle-state";
+				idle-state-name = "cluster1-c3";
+				arm,psci-suspend-param = <0x40010033>;
+				entry-latency-us = <1000>;
+				exit-latency-us = <600>;
+				min-residency-us = <5500>;
+				local-timer-stop;
+			};
+			CLUSTER2_C3: cluster2-idle-state-3 {
+				compatible = "domain-idle-state";
+				idle-state-name = "cluster2-c3";
+				arm,psci-suspend-param = <0x40010033>;
+				entry-latency-us = <500>;
+				exit-latency-us = <1000>;
+				min-residency-us = <3000>;
+				local-timer-stop;
+			};
+			CLUSTER_C4_LITE: cluster-idle-state-4-lite {
+				compatible = "domain-idle-state";
+				idle-state-name = "cluster-c4-lite";
+				arm,psci-suspend-param = <0x40020133>;
+				entry-latency-us = <1800>;
+				exit-latency-us = <2000>;
+				min-residency-us = <10000>;
+				local-timer-stop;
+			};
+			CLUSTER_C4_DEEP: cluster-idle-state-4-deep {
+				compatible = "domain-idle-state";
+				idle-state-name = "cluster-c4-deep";
+				arm,psci-suspend-param = <0x40020333>;
+				entry-latency-us = <2100>;
+				exit-latency-us = <2300>;
+				min-residency-us = <12000>;
+				local-timer-stop;
+			};
+			CLUSTER_S3: cluster-idle-state-suspend {
+				compatible = "domain-idle-state";
+				// TODO(b/291686880): Restore the node
+				status = "disabled";
+				idle-state-name = "cluster-s3";
+				arm,psci-suspend-param = <0x40033333>;
+				entry-latency-us = <2147483648>;
+				exit-latency-us = <2147483648>;
+				min-residency-us = <2147483648>;
+				local-timer-stop;
+			};
+		};
+
+	};
+	psci {
+		compatible = "arm,psci-1.0";
+		method = "smc";
+
+		CPU_PD0: power-domain-cpu0 {
+			#power-domain-cells = <0>;
+			domain-idle-states = <&CPU_LIT_C2>;
+			power-domains = <&CPUCL0>;
+		};
+
+		CPU_PD1: power-domain-cpu1 {
+			#power-domain-cells = <0>;
+			domain-idle-states =  <&CPU_LIT_C2>;
+			power-domains = <&CPUCL0>;
+		};
+
+		CPU_PD2: power-domain-cpu2 {
+			#power-domain-cells = <0>;
+			domain-idle-states =  <&CPU_MID_C2>;
+			power-domains = <&CPUCL1>;
+		};
+
+		CPU_PD3: power-domain-cpu3 {
+			#power-domain-cells = <0>;
+			domain-idle-states =  <&CPU_MID_C2>;
+			power-domains = <&CPUCL1>;
+		};
+
+		CPU_PD4: power-domain-cpu4 {
+			#power-domain-cells = <0>;
+			domain-idle-states =  <&CPU_MID_C2>;
+			power-domains = <&CPUCL1>;
+		};
+
+		CPU_PD5: power-domain-cpu5 {
+			#power-domain-cells = <0>;
+			domain-idle-states =  <&CPU_MID_C2>;
+			power-domains = <&CPUCL1>;
+		};
+
+		CPU_PD6: power-domain-cpu6 {
+			#power-domain-cells = <0>;
+			domain-idle-states =  <&CPU_BIG_C2>;
+			power-domains = <&CPUCL2>;
+		};
+
+		CPUCL0: power-domain-cluster-0 {
+			#power-domain-cells = <0>;
+			domain-idle-states = <&CLUSTER0_C3>;
+			power-domains = <&CPU_TOP_CL>;
+		};
+
+		CPUCL1: power-domain-cluster-1 {
+			#power-domain-cells = <0>;
+			domain-idle-states = <&CLUSTER1_C3>;
+			power-domains = <&CPU_TOP_CL>;
+		};
+
+		CPUCL2: power-domain-cluster-2 {
+			#power-domain-cells = <0>;
+			domain-idle-states = <&CLUSTER2_C3>;
+			power-domains = <&CPU_TOP_CL>;
+		};
+
+		CPU_TOP_CL: power-domain-top-cluster {
+			#power-domain-cells = <0>;
+			domain-idle-states = <&CLUSTER_C4_LITE>, <&CLUSTER_C4_DEEP>;
+		};
+
+	};
+
+	gs_domain_idle {
+		compatible = "google,gs_domain_idle";
+
+		cpu-cluster-zero {
+			power-domains = <&CPUCL0>;
+			num-cpu-freq-policies = <1>;
+			cpu-freq-policies = <0>;
+		};
+
+		cpu-cluster-one {
+			power-domains = <&CPUCL1>;
+			num-cpu-freq-policies = <1>;
+			cpu-freq-policies = <1>;
+		};
+
+		cpu_cluster_two: cpu-cluster-two {
+			power-domains = <&CPUCL2>;
+			num-cpu-freq-policies = <1>;
+			cpu-freq-policies = <2>;
+		};
+
+		cpu-cluster-top {
+			power-domains = <&CPU_TOP_CL>;
+			num-cpu-freq-policies = <0>;
+		};
+	};
+
+	dvfs_helper: dvfs_helper {
+		compatible = "google,dvfs-helper";
+		mboxes = <&goog_mba_cpm_iface>;
+	};
+
+	mbfs_cpm_backend0_label: mbfs_cpm_backend0 {
+		compatible = "google,mbfs_cpm_backend";
+		mboxes = <&goog_mba_cpm_iface>;
+		service-idx = <0x14>;
+		status = "disabled";
+	};
+
+	cap_sysfs {
+		compatible = "google,cap-sysfs";
+
+		cap_statsbuf: cap_statsbuf@21910C08 {
+			#address-cells = <2>;
+			#size-cells = <2>;
+			reg = <0 0x21910C08 0 0x13F8>;
+		};
+
+		tfa_cpu_stats: tfa_cpu_stats@8b20f000 {
+			reg = <0 0x8b20f000 0 0x1000>;
+			states = <C2_CORE0>,
+				<C2_CORE1>,
+				<C2_CORE2>,
+				<C2_CORE3>,
+				<C2_CORE4>,
+				<C2_CORE5>,
+				<C2_CORE6>;
+
+			states-verbose = "C2 - Core 0",
+						"C2 - Core 1",
+						"C2 - Core 2",
+						"C2 - Core 3",
+						"C2 - Core 4",
+						"C2 - Core 5",
+						"C2 - Core 6";
+		};
+	};
+
+	cpu_opp_table_mid_ll_core: cpu-opp-table-mid-ll-core {
+                opp-shared;
+        };
+
+        cpu_opp_table_mid_core: cpu-opp-table-mid-core {
+                opp-shared;
+        };
+
+        cpu_opp_table_big_core: cpu-opp-table-big-core {
+                opp-shared;
+        };
+
+	irm_gmc_freq: irm_gmc_freq {
+		compatible = "google,irm-devfreq";
+		irm-client-idx = <IRM_IDX_APC>;
+		irm-min-clamp-reg = <0x1c>;
+		irm-trigger-reg = <0x24>;
+		gmc-memss-table =
+			/* gmc		memss */
+			/bits/ 64 < 421000000	175000000 >,
+			/bits/ 64 < 533000000	175000000 >,
+			/bits/ 64 < 666000000	268000000 >,
+			/bits/ 64 < 1066000000	537000000 >,
+			/bits/ 64 < 1374000000	614000000 >,
+			/bits/ 64 < 1500000000	750000000 >,
+			/bits/ 64 < 2133000000	844000000 >,
+			/bits/ 64 < 2400000000	844000000 >,
+			/bits/ 64 < 2764000000	1056000000 >,
+			/bits/ 64 < 3199000000	1056000000 >,
+			/bits/ 64 < 3750000000	1200000000 >,
+			/bits/ 64 < 4224000000	1200000000 >,
+			/bits/ 64 < 4800000000	1200000000 >;
+
+		gmc_dvfs {
+			dvfs-helper-domain-name = "gmc0";
+		};
+		memss_dvfs {
+			dvfs-helper-domain-name = "memss";
+		};
+
+		vote_manager {
+			powerhint_min_freq = <1066000000>;
+		};
+	};
+
+	gs_perf_mon: gs_perf_mon {
+		compatible = "google,gs_perf_mon";
+		param_ticks_per_counter_update = <2>;
+		client_update_backup_us = <10000>;
+		client_update_interval_us = <8000>;
+		gs_perf_cpu {
+			cpu0 {
+				cpu_idx = <0>;
+				pmu_events {
+					l2-cachemiss-ev = <0x17>;
+					l3-cachemiss-ev = <0x2A>;
+					mem-rd-inst-ev = <0x66>;
+					mem-wr-inst-ev = <0x67>;
+					cme-inst-ev = <0x3247>;
+				};
+				amu_events {
+					inst-ev = <0x0008>;
+					cyc-ev = <0x0011>;
+					stall-backend-mem-ev = <0x4005>;
+				};
+			};
+			cpu1 {
+				cpu_idx = <1>;
+				pmu_events {
+					l2-cachemiss-ev = <0x17>;
+					l3-cachemiss-ev = <0x2A>;
+					mem-rd-inst-ev = <0x66>;
+					mem-wr-inst-ev = <0x67>;
+					cme-inst-ev = <0x3247>;
+				};
+				amu_events {
+					inst-ev = <0x0008>;
+					cyc-ev = <0x0011>;
+					stall-backend-mem-ev = <0x4005>;
+				};
+			};
+			cpu2 {
+				cpu_idx = <2>;
+				pmu_events {
+					l2-cachemiss-ev = <0x17>;
+					l3-cachemiss-ev = <0x2A>;
+					mem-rd-inst-ev = <0x66>;
+					mem-wr-inst-ev = <0x67>;
+					cme-inst-ev = <0x3247>;
+				};
+				amu_events {
+					inst-ev = <0x0008>;
+					cyc-ev = <0x0011>;
+					stall-backend-mem-ev = <0x4005>;
+				};
+			};
+			cpu3 {
+				cpu_idx = <3>;
+				pmu_events {
+					l2-cachemiss-ev = <0x17>;
+					l3-cachemiss-ev = <0x2A>;
+					mem-rd-inst-ev = <0x66>;
+					mem-wr-inst-ev = <0x67>;
+					cme-inst-ev = <0x3247>;
+				};
+				amu_events {
+					inst-ev = <0x0008>;
+					cyc-ev = <0x0011>;
+					stall-backend-mem-ev = <0x4005>;
+				};
+			};
+			cpu4 {
+				cpu_idx = <4>;
+				pmu_events {
+					l2-cachemiss-ev = <0x17>;
+					l3-cachemiss-ev = <0x2A>;
+					mem-rd-inst-ev = <0x66>;
+					mem-wr-inst-ev = <0x67>;
+					cme-inst-ev = <0x3247>;
+				};
+				amu_events {
+					inst-ev = <0x0008>;
+					cyc-ev = <0x0011>;
+					stall-backend-mem-ev = <0x4005>;
+				};
+			};
+			cpu5 {
+				cpu_idx = <5>;
+				pmu_events {
+					l2-cachemiss-ev = <0x17>;
+					l3-cachemiss-ev = <0x2A>;
+					mem-rd-inst-ev = <0x66>;
+					mem-wr-inst-ev = <0x67>;
+					cme-inst-ev = <0x3247>;
+				};
+				amu_events {
+					inst-ev = <0x0008>;
+					cyc-ev = <0x0011>;
+					stall-backend-mem-ev = <0x4005>;
+				};
+			};
+			cpu6 {
+				cpu_idx = <6>;
+				pmu_events {
+					l2-cachemiss-ev = <0x17>;
+					l3-cachemiss-ev = <0x2A>;
+					mem-rd-inst-ev = <0x66>;
+					mem-wr-inst-ev = <0x67>;
+					cme-inst-ev = <0x3247>;
+				};
+				amu_events {
+					inst-ev = <0x0008>;
+					cyc-ev = <0x0011>;
+					stall-backend-mem-ev = <0x4005>;
+				};
+			};
+		};
+	};
+
+	cmefreq_gov: cmefreq_gov {
+		compatible = "google,cmefreq_gov";
+		boost_freq = <1920000>;
+		base_freq = <0>;
+
+		primary_vote_config {
+			vote_name = "cmefreq_gov";
+		};
+
+		governor_config {
+			cmefreq_gov_little {
+				cpulist = <&gelas_ll_0>, <&gelas_ll_1>;
+				cpuidle_state_depth_threshold = <2>;
+			};
+			cmefreq_gov_mid {
+				cpulist = <&gelas_0>, <&gelas_1>, <&gelas_2>,
+					<&gelas_3>;
+				cpuidle_state_depth_threshold = <2>;
+			};
+			cmefreq_gov_big {
+				cpulist = <&travis_0>;
+				cpuidle_state_depth_threshold = <2>;
+			};
+		};
+	};
+
+	gs_governor_dsulat: gs-governor-dsulat {
+		compatible = "google,gs_governor_dsulat";
+		mboxes = <&gs_perf_domain>;
+
+		primary_vote_config {
+			vote_name = "dsulat";
+		};
+
+		governor_config {
+			gs_dsulat_little {
+				cpulist = <&gelas_ll_0>, <&gelas_ll_1>;
+				cpuidle_state_depth_threshold = <2>;
+			};
+			gs_dsulat_mid {
+				cpulist = <&gelas_0>, <&gelas_1>, <&gelas_2>,
+					<&gelas_3>;
+				cpuidle_state_depth_threshold = <2>;
+			};
+			gs_dsulat_big {
+				cpulist = <&travis_0>;
+				cpuidle_state_depth_threshold = <2>;
+			};
+		};
+	};
+
+	gs_governor_memlat: gs-governor-memlat {
+		compatible = "google,gs_governor_memlat";
+
+		primary_vote_config {
+			vote_name = "gmclat";
+			devfreq = <&irm_gmc_freq>;
+		};
+
+		governor_config {
+			gs_memlat_little {
+				cpulist = <&gelas_ll_0>, <&gelas_ll_1>;
+				cpuidle_state_depth_threshold = <2>;
+			};
+			gs_memlat_mid {
+				cpulist = <&gelas_0>, <&gelas_1>, <&gelas_2>,
+					<&gelas_3>;
+				cpuidle_state_depth_threshold = <2>;
+			};
+			gs_memlat_big {
+				cpulist = <&travis_0>;
+				cpuidle_state_depth_threshold = <2>;
+			};
+		};
+
+		resume-boost {
+			freq-khz = <1500000>;
+			duration-ms = <80>;
+		};
+	};
+
+	aliases {
+		serial0 = &lsios_uart3;
+		serial1 = &aoss_pg_uart0;
+		ufs0 = &ufs;
+	};
+
+	usb_ref_clk: usb_ref_clk {
+		#clock-cells = <0>;
+		compatible = "fixed-clock";
+		clock-frequency = <19200000>;
+	};
+
+	usb_bus_clk: usb_bus_clk {
+		#clock-cells = <0>;
+		compatible = "fixed-clock";
+		clock-frequency = <250000000>;
+	};
+
+	usb_suspend_clk: usb_suspend_clk {
+		#clock-cells = <0>;
+		compatible = "fixed-clock";
+		clock-frequency = <200000>;
+	};
+
+	simple_usb_bus: simple_usb_bus {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		dma-ranges = <0x0 0x0 0x0 0x0 0x1 0x0>;
+		ranges;
+		usb: usb3@a200000 {
+			compatible = "google,dwc3-mbu";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			reg = <0 0xa200000 0 0x14>,
+			      <0 0xa200020 0 0x8>,
+			      <0 0xa200028 0 0x8>;
+			reg-names = "usbcs_host_cfg_csr", "usbcs_usbint_csr", "usb_top_cfg_csr";
+
+			clocks = <&hsion_usbc_non_sticky_clk>,  <&hsion_usbc_sticky_clk>,
+				<&hsion_usbdp_u2phy_apb_clk>;
+			clock-names = "usbc_non_sticky", "usbc_sticky", "u2phy_apb_clk";
+
+			interrupts-extended =
+				<&hsion_multicast_aggr_5 HSION_GIA_MULTICAST_AGGR_5_USBDP_TOP_WRPSS_USB_USB_CUSTOM_INT_USBDRD_PME_GEN_U2P_INTR>,
+				<&hsion_multicast_aggr_5 HSION_GIA_MULTICAST_AGGR_5_USBDP_TOP_WRPSS_USB_USB_CUSTOM_INT_USBDRD_PME_GEN_U3P_INTR>;
+			interrupt-names = "pme_gen_u2p_intr_agg", "pme_gen_u3p_intr_agg";
+
+			resets = <&hsion_resets HSION_USBC_NON_STICKY_RST>,
+				<&hsion_resets HSION_USBC_STICKY_RST>,
+				<&hsion_resets HSION_USBDP_USBDRD_BUS>,
+				<&hsion_resets HSION_USBDP_U2PHY_APB>,
+				<&hsion_resets HSION_USBDP_TOP>;
+			reset-names = "usbc_non_sticky", "usbc_sticky",
+				"usb_drd_bus_rst", "u2phy_apb_rst",
+				"usb_top_csr";
+
+			power-domains = <&hsio_n_usb_psw_pd>,<&hsio_n_usb_pd>;
+			power-domain-names = "usb_psw_pd", "usb_top_pd";
+
+			phys = <&usb_phy 0>, <&usb_phy 1>;
+			phy-names = "usb2-phy", "usb3-phy";
+
+			usb-vc = <1>;
+
+			ranges;
+			dwc3: dwc3@a210000 {
+				compatible = "snps,dwc3";
+				reg = <0 0xa210000  0 0xd060>;
+				interrupts-extended = <&hsion_multicast_aggr_5 HSION_GIA_MULTICAST_AGGR_5_USBDP_TOP_WRPSS_USB_DWC_USB31_INTERRUPT_0>;
+				clocks = <&usb_ref_clk>, <&usb_bus_clk>, <&usb_suspend_clk>;
+				clock-names = "ref", "bus_early", "suspend";
+				iommus = <&amb_smmu 0x8200>;
+				maximum-speed = "super-speed";
+				phys = <&usb_phy 0>, <&usb_phy 1>;
+				phy-names = "usb2-phy", "usb3-phy";
+				usb-role-switch;
+				role-switch-default-mode = "peripheral";
+				snps,quirk-frame-length-adjustment = <0xa0>;
+				snps,gfladj-refclk-lpm-sel-quirk;
+				snps,incr-burst-type-adjustment = <4>;
+				dma-coherent;
+
+				/*
+				 * 1st is for xhci driver memory allocation on dram,
+				 * 2nd is for the memory outside of xhci driver allocation but
+				 * HC still needs to access.
+				 */
+				memory-region = <&xhci_dma_dram>, <&xhci_dma_buffer>;
+				num-hc-interrupters = /bits/ 16 <2>;
+			};
+		};
+
+		usb2_aux: usb2@a2b3088 {
+			status = "disabled";
+
+			compatible = "google,dwc3-mbu-aux";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			reg = <0 0x0a2b3088 0 0xc>,
+				<0 0x0a2b30b4 0 0x8>,
+				<0 0x0a2b3094 0 0x4>;
+			reg-names = "usbcs_host_cfg_csr", "usbcs_usbint_csr", "usb_top_cfg_csr";
+
+			clocks = <&hsio_n_usb2aux_ctrl_vcc_non_sticky_clk>,
+					 <&hsio_n_usb2aux_ctrl_vaux_sticky_clk>;
+			clock-names = "usbc_non_sticky", "usbc_sticky";
+
+			interrupts-extended = <&hsion_multicast_aggr_6
+				HSION_GIA_MULTICAST_AGGR_6_USBDP_TOP_USB2AUX_CUSTOM_INT_USBDRD_PME_GEN_U2P_INTR>;
+			interrupt-names = "pme_gen_u2p_intr_agg";
+
+			resets = <&hsion_resets HSION_USB2AUX_CTRL_VCC_NON_STICKY>,
+				<&hsion_resets HSION_USB2AUX_CTRL_VAUX_STICKY>;
+			reset-names = "usbc_non_sticky", "usbc_sticky";
+			power-domains = <&hsio_n_usb2aux_psw_pd>,<&hsio_n_usb2aux_pd>;
+			power-domain-names = "usb_psw_pd", "usb_top_pd";
+
+			phys = <&usb2_aux_phy 0>;
+			phy-names = "usb2-phy";
+
+			usb-vc = <1>; /* Traffic class : Soft Real Time */
+
+			ranges;
+
+			dwc3_aux: dwc3@a480000 {
+				compatible = "snps,dwc3";
+				reg = <0 0x0a480000 0 0x10000>;
+				interrupts-extended = <&hsion_multicast_aggr_6
+					HSION_GIA_MULTICAST_AGGR_6_USBDP_TOP_DWC_USB2_SUBSYSTEM_INST_DWC_USB3_DWC_USB3_NOCLKRST_DWC_USB3_PWRM_DWC_USB3_PWRM_CSR_INTERRUPT_0>;
+				clocks = <&usb_ref_clk>, <&usb_bus_clk>, <&usb_suspend_clk>;
+				clock-names = "ref", "bus_early", "suspend";
+				iommus = <&amb_smmu 0x8201>;
+				maximum-speed = "high-speed";
+				dr_mode = "host";
+				phys = <&usb2_aux_phy 0>;
+				phy-names = "usb2-phy";
+				snps,quirk-frame-length-adjustment = <0xa0>;
+				snps,gfladj-refclk-lpm-sel-quirk;
+				snps,incr-burst-type-adjustment = <4>;
+				/*
+				 * 1st is for xhci driver memory allocation,
+				 * 2nd is for the memory outside of xhci driver allocation but
+				 * HC still needs to access.
+				 */
+				// memory-region = <&xhci_dma>, <&xhci_aoc_rmem>;
+			};
+		};
+	};
+
+	usb_phy: usb_phy@a1ba000 {
+		compatible = "google,usb_phy-mbu";
+		reg = <0 0xa1ba000 0 0x2c>, <0 0xa200014 0 0xc>,
+		      <0 0xa21d060 0 0x10>, <0 0xa220000 0 0x10000>,
+		      <0 0xa230000 0 0x10000>,
+		      <0 0xa240000 0 0x1000>, <0 0xa250000 0 0x1000>,
+		      <0 0xa260000 0 0x1000>, <0 0xa2b3000 0 0x80>,
+		      <0 0xa2b30b0 0 0x4>;
+		reg-names = "gp_ss_csr", "usb2_cfg_csr", "dwc3_lcsr_deemph",
+			"dptx_phy_regs", "phy_sram", "dptx_tca_regs", "dp_pipe_lane0",
+			"dp_pipe_lane1", "dp_top_csr", "upcs_config_reg";
+		#phy-cells = <1>;
+		clocks = <&hsion_usb2_phy_reset_clk>, <&hsion_usb3dp_phy_reset_clk>;
+		clock-names = "usb2_phy_reset_clk", "usb3dp_phy_reset_clk";
+
+		power-domains = <&hsio_n_usb_pd>;
+		resets = <&hsion_resets HSION_USB2_PHY_RESET>,
+			 <&hsion_resets HSION_USB3DP_PHY_RESET>;
+		reset-names = "usb2_phy_reset", "usb3dp_phy_reset";
+
+		fw-name = "usb_phy_fw_2.27.0.bin";
+		orientation-switch;
+		mode-switch;
+
+		force-u31-war;
+
+		nvmem-cells = <&hsio_n_eusb2_rext_external_mode>,
+			      <&hsio_n_eusb2_rext_ctrl>,
+			      <&hsio_n_usb3_rext_external_mode>,
+			      <&hsio_n_usb3_rext_ctrl>;
+		nvmem-cell-names = "usb2_rext_external_mode",
+				   "usb2_rext_ctrl",
+				   "usb3_rext_external_mode",
+				   "usb3_rext_ctrl";
+	};
+
+	usb2_aux_phy: usb2_aux_phy@a290000 {
+		compatible = "google,usb_phy-mbu-aux";
+		reg = <0 0xa290000 0 0x100>, <0 0xa2b3084 0 0x4>;
+		reg-names = "usb2_ss", "usb2_cfg_csr";
+		#phy-cells = <1>;
+		clocks = <&hsio_n_usb2aux_phy_reset_clk>;
+		clock-names = "usb2_phy_reset_clk";
+
+		power-domains = <&hsio_n_usb2aux_pd>;
+
+		resets = <&hsion_resets HSION_USB2AUX_PHY_RESET>;
+		reset-names = "usb2_phy_reset";
+
+		orientation-switch;
+	};
+
+	dwc_dptx: dwc_dptx@a2b4000 {
+		compatible = "google,dwc_dptx";
+		reg = <0 0xa2b4000 0 0x20000>;
+		reg-names = "dptx_regs";
+
+		clocks = <&gpcm_hsion_pll_dp_clk>, <&hsio_n_usbdp_pixel_0_clk>, <&dpu_dp0_pix_clk>,
+			 <&hsio_n_usbdp_sclk0_clk>, <&hsio_n_sresetn0_clk>;
+		clock-names = "gpcm_pll_dp_clk", "hsion_pix_clk0", "dpu_pix_clk0",
+			      "hsion_aud_clk0", "hsion_aud_clk1";
+
+		phys = <&usb_phy 2>;
+		phy-names = "dp-phy";
+
+		power-domains = <&hsio_n_dp_pd>, <&dpu_dp0_pd>, <&sswrp_dpu_pd>;
+		power-domain-names = "dp_top_pd", "dpu_dp_pd", "sswrp_dpu_pd";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			/* input */
+			port@0 {
+				reg = <0>;
+				dptx_port0_in: endpoint {
+					remote-endpoint = <&dp_port1_out>;
+				};
+			};
+		};
+	};
+
+	dwc_dptx_audio: dwc_dptx-audio {
+		status = "disabled";
+		#sound-dai-cells = <0>;
+		compatible = "google,dwc_dptx_audio";
+		id = <0>;
+	};
+
+	target_dvfs_fe: target_dvfs_fe_drv {
+		compatible = "google,dvfs_frontend";
+		mboxes = <&dvfs_helper>,
+				<&mbfs_cpm_backend0_label>,
+				<&power_controller>;
+	};
+
+	gs_perf_domain: gs_perf_domain_drv {
+		compatible = "google,gs_perf_domain";
+		mbfs-perf-domains-path = "cpm/perf/domains";
+		mboxes = <&dvfs_helper>,
+				<&mbfs_cpm_backend0_label>,
+				<&target_dvfs_fe>;
+
+		dsu_target {
+			vote_manager {
+				powerhint_min_freq = <691000000>;
+			};
+		};
+	};
+
+	goog_chip_info: goog_chip_info@ebd2000 {
+		compatible = "google,chip-info";
+		reg = <0x0 0xebd2000 0x0 0x1000>,
+		      <0x0 0x9890000 0x0 0x7000>,
+		      <0x0 0x3b846000 0x0 0x1000>;
+		reg-names = "cpm", "bmsm", "gpcm";
+
+		ids_table: ids_table {
+			compatible = "google,mbu_a0_ids";
+			google,reg-index = <0>;
+			feature-name = "IDS table";
+			translator = "ids-translator";
+		};
+
+		dvfs_table: dvfs_table {
+			compatible = "google,mbu_a0_dvfs";
+			google,reg-index = <0>;
+			feature-name = "DVFS table";
+			translator = "dvfs-translator";
+		};
+
+		hw_feature_table: hw_feature_table {
+			compatible = "google,mbu_a0_hw_feature";
+			google,reg-index = <0>;
+			feature-name = "HW feature table";
+		};
+
+		device_table: device_table {
+			compatible = "google,mbu_a0_ptde";
+			google,reg-index = <0>;
+			feature-name = "Device table";
+			device-table;
+			visible-in-prod;
+		};
+
+		serial: serial {
+			compatible = "google,mbu_a0_serial";
+			google,reg-index = <1>;
+			feature-name = "Serial table";
+			private;
+			serial-codes;
+		};
+
+		gpcm_asic_id: gpcm_asic_id {
+			compatible = "google,mbu_a0_gpcm_asic_id";
+			google,reg-index = <2>;
+			feature-name = "GPCM ASIC ID";
+			translator = "asic-id-translator";
+			visible-in-prod;
+		};
+
+		ap_rom_patch_ver: ap_rom_patch_ver {
+			compatible = "google,mbu_a0_ap_rom_patch_ver";
+			google,reg-index = <1>;
+			feature-name = "AP ROM patch version";
+			visible-in-prod;
+		};
+
+		lcs: lcs {
+			compatible = "google,mbu_a0_lcs";
+			google,reg-index = <1>;
+			feature-name = "LCS";
+			lcs-state;
+			private;
+		};
+
+		rto: rto {
+			compatible = "google,mbu_b0_rto";
+			google,reg-index = <0>;
+			feature-name = "rto";
+			rto;
+			private;
+		};
+	};
+
+	pcie0_syscon: syscon@49de080 {
+		compatible = "google,malibu-pcie-ctrl-power-csr", "syscon";
+		reg = <0 0x49de080 0 0xc>;
+	};
+
+	pcie1_syscon: syscon@49de0e8 {
+		compatible = "google,malibu-pcie-ctrl-power-csr", "syscon";
+		reg = <0 0x49de0e8 0 0xc>;
+	};
+
+	pcie_top_psm_state: syscon@480a03c {
+		compatible = "google,malibu-pcie-top-psm-state", "syscon";
+		reg = <0 0x480a03c 0 0x4>;
+	};
+
+	pcie_subsystem_general: syscon@4b46000 {
+		compatible = "google,malibu-pcie-subsystem-general", "syscon";
+		reg = <0 0x4b46000 0 0x1000>;
+	};
+
+	pcie_phy: phy@49de000 {
+		compatible = "google,pcie-phy";
+		reg = <0 0x49de000 0 0x24>,
+		      <0 0x4a20000 0 0x14000>,
+		      <0 0x4b47000 0 0x1000>;
+		reg-names = "top", "phy_sram", "phy";
+		#phy-cells = <0>;
+		power-domains = <&pcie_top_pd>;
+	};
+
+	pcie0: pcie@49de024 {
+		compatible = "google,malibu-pcie";
+		device_type = "pci";
+		bus-range = <0x00 0xff>;
+		max-link-speed = <4>;
+		google,pcie-subsystem-general = <&pcie_subsystem_general>;
+		top-psm-state = <&pcie_top_psm_state>;
+
+		reg = <0 0x49de024 0 0x68>,
+		      <0 0x4b40000 0 0x1000>,
+		      <0 0x4bee000 0 0xd00>,
+		      <0 0x4eee000 0 0x01ff24>,
+		      <0 0x480a034 0 0x4>,
+		      <4 0x20000000 0 0x100000>;
+		reg-names = "top", "sii", "dbi", "atu", "psm_state", "config";
+
+		#address-cells = <3>;
+		#size-cells = <2>;
+		ranges = <0x01000000 0x0 0x20100000 0x4 0x20100000 0x0 0x00100000>,
+			 <0x02000000 0x0 0x20200000 0x4 0x20200000 0x0 0x0fe00000>,
+			 <0x03000000 0x4 0x30000000 0x4 0x30000000 0x0 0x10000000>;
+
+		interrupts-extended =
+			<&gic GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_PCIE0_MSI_CTRL_INT_VEC_0
+			IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_PCIE0_MSI_CTRL_INT_VEC_1
+			IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_PCIE0_MSI_CTRL_INT_VEC_2
+			IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_PCIE0_MSI_CTRL_INT_VEC_3
+			IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_PCIE0_MSI_CTRL_INT_VEC_4
+			IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_PCIE0_MSI_CTRL_INT_VEC_5
+			IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_PCIE0_MSI_CTRL_INT_VEC_6
+			IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_PCIE0_MSI_CTRL_INT_VEC_7
+			IRQ_TYPE_LEVEL_HIGH 0>,
+			<&pcie_pulse_aggr_2 PCIE_GIA_PULSE_AGGR_2_TOP_WRAPPER_TOP_PCIE0_SMLH_REQ_RST_NOT_INT>,
+			<&pcie_multicast_aggr_3 PCIE_GIA_MULTICAST_AGGR_3_TOP_WRAPPER_TOP_PCIE0_LTSSM_INT>,
+			<&pcie_multicast_aggr_3 PCIE_GIA_MULTICAST_AGGR_3_TOP_WRAPPER_TOP_PCIE0_PCIE_INT_0>;
+		interrupt-names =
+			"msi0",
+			"msi1",
+			"msi2",
+			"msi3",
+			"msi4",
+			"msi5",
+			"msi6",
+			"msi7",
+			"link_down",
+			"ltssm_int",
+			"aggr_err";
+
+		phys = <&pcie_phy>;
+		phy-names = "phy";
+
+		linux,pci-domain = <0>;
+		power-domains = <&pcie_ctrl0_pd>;
+		google,allow-suspend-in-linkup;
+
+		pinctrl-0 = <&pcie_pcie0_perstn0>, <&pcie_pcie0_clkreq0_func>;
+		pinctrl-1 = <&pcie_pcie0_perstn0>, <&pcie_pcie0_clkreq0_idle>;
+		pinctrl-2 = <>;
+		pinctrl-names = "default", "idle", "init";
+		perstn-gpios = <&pcie_pinctrl XPCIE_PCIE0_PERSTN0 GPIO_ACTIVE_LOW>;
+		// TODO(b/373994833): Determine and apply suitable value for google,perst-delay-us
+		iommu-map = <0x100 &amb_smmu 0x8300 0x1>;
+		iommu-nested-translations;
+
+		#interrupt-cells = <1>;
+		interrupt-map-mask = <0 0 0 7>;
+		interrupt-map = <0 0 0 1
+				 &pcie_multicast_aggr_3
+				 PCIE_GIA_MULTICAST_AGGR_3_TOP_WRAPPER_TOP_PCIE0_LEGACY_INTA
+				 0 0 0 2
+				 &pcie_multicast_aggr_3
+				 PCIE_GIA_MULTICAST_AGGR_3_TOP_WRAPPER_TOP_PCIE0_LEGACY_INTB
+				 0 0 0 3
+				 &pcie_multicast_aggr_3
+				 PCIE_GIA_MULTICAST_AGGR_3_TOP_WRAPPER_TOP_PCIE0_LEGACY_INTC
+				 0 0 0 4
+				 &pcie_multicast_aggr_3
+				 PCIE_GIA_MULTICAST_AGGR_3_TOP_WRAPPER_TOP_PCIE0_LEGACY_INTD>;
+
+		pcie0_port0: pci@0 {
+			compatible = "pci1ae0,c001", "pciclass,0604";
+			device_type = "pci";
+			reg = <0x0 0x0 0x0 0x0 0x0>;
+			bus-range = <0x00 0xff>;
+
+			#address-cells = <3>;
+			#size-cells = <2>;
+			ranges;
+		};
+	};
+
+	pcie1: pcie@49de08c {
+		compatible = "google,malibu-pcie";
+		device_type = "pci";
+		bus-range = <0x00 0xff>;
+		max-link-speed = <4>;
+		google,pcie-subsystem-general = <&pcie_subsystem_general>;
+		top-psm-state = <&pcie_top_psm_state>;
+
+		reg = <0 0x49de08c 0 0x68>,
+		      <0 0x4b41000 0 0x1000>,
+		      <0 0x4fee000 0 0xd00>,
+		      <0 0x52ee000 0 0x01ff24>,
+		      <0 0x480a038 0 0x4>,
+		      <4 0x00000000 0 0x100000>;
+		reg-names = "top", "sii", "dbi", "atu", "psm_state", "config";
+
+		#address-cells = <3>;
+		#size-cells = <2>;
+		ranges = <0x01000000 0x0 0x00100000 0x4 0x00100000 0x0 0x00100000>,
+			 <0x02000000 0x0 0x00200000 0x4 0x00200000 0x0 0x0fe00000>,
+			 <0x03000000 0x4 0x10000000 0x4 0x10000000 0x0 0x10000000>;
+
+		interrupts-extended =
+			<&gic GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_PCIE1_MSI_CTRL_INT_VEC_0
+			IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_PCIE1_MSI_CTRL_INT_VEC_1
+			IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_PCIE1_MSI_CTRL_INT_VEC_2
+			IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_PCIE1_MSI_CTRL_INT_VEC_3
+			IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_PCIE1_MSI_CTRL_INT_VEC_4
+			IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_PCIE1_MSI_CTRL_INT_VEC_5
+			IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_PCIE1_MSI_CTRL_INT_VEC_6
+			IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_PCIE1_MSI_CTRL_INT_VEC_7
+			IRQ_TYPE_LEVEL_HIGH 0>,
+			<&pcie_pulse_aggr_2 PCIE_GIA_PULSE_AGGR_2_TOP_WRAPPER_TOP_PCIE1_SMLH_REQ_RST_NOT_INT>,
+			<&pcie_multicast_aggr_3 PCIE_GIA_MULTICAST_AGGR_3_TOP_WRAPPER_TOP_PCIE1_LTSSM_INT>,
+			<&pcie_multicast_aggr_3 PCIE_GIA_MULTICAST_AGGR_3_TOP_WRAPPER_TOP_PCIE1_PCIE_INT_0>;
+		interrupt-names =
+			"msi0",
+			"msi1",
+			"msi2",
+			"msi3",
+			"msi4",
+			"msi5",
+			"msi6",
+			"msi7",
+			"link_down",
+			"ltssm_int",
+			"aggr_err";
+
+		phys = <&pcie_phy>;
+		phy-names = "phy";
+
+		linux,pci-domain = <1>;
+		power-domains = <&pcie_ctrl1_pd>;
+
+		pinctrl-0 = <&pcie_pcie0_perstn1>, <&pcie_pcie0_clkreq1_func>;
+		pinctrl-1 = <&pcie_pcie0_perstn1>, <&pcie_pcie0_clkreq1_idle>;
+		pinctrl-names = "default", "idle";
+		perstn-gpios = <&pcie_pinctrl XPCIE_PCIE0_PERSTN1 GPIO_ACTIVE_LOW>;
+		// TODO(b/373994833): Determine and apply suitable value for google,perst-delay-us
+		iommu-map = <0x100 &amb_smmu 0x8308 0x1>;
+
+		#interrupt-cells = <1>;
+		interrupt-map-mask = <0 0 0 7>;
+		interrupt-map = <0 0 0 1
+				 &pcie_multicast_aggr_3
+				 PCIE_GIA_MULTICAST_AGGR_3_TOP_WRAPPER_TOP_PCIE1_LEGACY_INTA
+				 0 0 0 2
+				 &pcie_multicast_aggr_3
+				 PCIE_GIA_MULTICAST_AGGR_3_TOP_WRAPPER_TOP_PCIE1_LEGACY_INTB
+				 0 0 0 3
+				 &pcie_multicast_aggr_3
+				 PCIE_GIA_MULTICAST_AGGR_3_TOP_WRAPPER_TOP_PCIE1_LEGACY_INTC
+				 0 0 0 4
+				 &pcie_multicast_aggr_3
+				 PCIE_GIA_MULTICAST_AGGR_3_TOP_WRAPPER_TOP_PCIE1_LEGACY_INTD>;
+
+		pcie1_port0: pci@0 {
+			compatible = "pci1ae0,c001", "pciclass,0604";
+			device_type = "pci";
+			reg = <0x0 0x0 0x0 0x0 0x0>;
+			bus-range = <0x00 0xff>;
+
+			#address-cells = <3>;
+			#size-cells = <2>;
+			ranges;
+		};
+	};
+
+	ufs: ufs@3c2d0000 {
+		compatible = "google,ufshc";
+		reg = <0x0 0x3c2d0000 0x0 0x3000>,
+		      <0x0 0x3c2e0000 0x0 0x718>,
+		      <0x0 0x3c2f0000 0x0 0x4>,
+		      <0x0 0x3c340000 0x0 0xa000>,
+		      <0x0 0x3c34a000 0x0 0x18>,
+		      <0x0 0x3c00b108 0x0 0x4>,
+		      <0x0 0x3c00c210 0x0 0x4>,
+		      <0x0 0x3c00d108 0x0 0x4>;
+		reg-names = "ufs_hc", "ufs_top", "ufs_sec", "ufs_phy_sram", "ufs_ss",
+		      "psm_status_hsios", "psm_status_ufs_hc", "psm_status_ufs_phy";
+		iommus = <&amb_smmu 0x8000>;
+		iommu-idmapped;
+		iommu-force-cacheable;
+		dma-coherent;
+		interrupts-extended =
+			<&hsios_multicast_aggr_2
+				HSIOS_GIA_MULTICAST_AGGR_2_UFS_SD_TOP_UFS_TOP_UFS_SS_SINTERRUPT>,
+			<&gic GIC_SPI SSWRP_HSIO_S_HSIOS_AP_INTR_UFS_0 IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_HSIO_S_HSIOS_AP_INTR_UFS_1 IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_HSIO_S_HSIOS_AP_INTR_UFS_2 IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_HSIO_S_HSIOS_AP_INTR_UFS_3 IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_HSIO_S_HSIOS_AP_INTR_UFS_4 IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_HSIO_S_HSIOS_AP_INTR_UFS_5 IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_HSIO_S_HSIOS_AP_INTR_UFS_6 IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_HSIO_S_HSIOS_AP_INTR_UFS_7 IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_HSIO_S_HSIOS_AP_INTR_UFS_8 IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_HSIO_S_HSIOS_AP_INTR_UFS_9 IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_HSIO_S_HSIOS_AP_INTR_UFS_10 IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_HSIO_S_HSIOS_AP_INTR_UFS_11 IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_HSIO_S_HSIOS_AP_INTR_UFS_12 IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_HSIO_S_HSIOS_AP_INTR_UFS_13 IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_HSIO_S_HSIOS_AP_INTR_UFS_14 IRQ_TYPE_LEVEL_HIGH 0>,
+			<&gic GIC_SPI SSWRP_HSIO_S_HSIOS_AP_INTR_UFS_15 IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&hsio_s_ufs_prep_pd>, <&hsio_s_ufs_pd>, <&CPU_TOP_CL>;
+		power-domain-names = "ufs_prep_pd", "ufs_pd", "cpu_top_cl";
+
+		clocks = <&hsios_gpio_ref_clk>, <&hsios_mphy_ref_clk>, <&hsios_cp_core_clk>, <&hsios_ufs_deep_h8_clk>;
+		clock-names = "gpio_ref_clk", "mphy_ref_clk", "cp_core_clk", "deep_h8_clk";
+		mboxes = <&goog_mba_cpm_iface>;
+
+		/* TODO(b/413561944): Check dts settings */
+
+		resets = <&hsios_resets HSIOS_UFS_PHY_RESET>;
+		reset-names = "phy_rst";
+		pinctrl-0 = <&hsios_ufs_resetb>, <&hsios_ufs_pwr_en>, <&hsios_ufs_lss>;
+		pinctrl-1 = <&hsios_stby_ufs_refclk>;
+		pinctrl-2 = <&hsios_stby_ufs_refclk_sleep>;
+		pinctrl-names = "default", "refclk_on", "refclk_off";
+		reset-gpios = <&hsios_pinctrl XHSIOS_UFS_RESETB GPIO_ACTIVE_HIGH>;
+		power-gpios = <&hsios_pinctrl XHSIOS_UFS_PWR_EN GPIO_ACTIVE_HIGH>;
+		lss-gpios = <&hsios_pinctrl XHSIOS_UFS_LSS GPIO_ACTIVE_HIGH>;
+
+		vdd0p75-supply = <&ldo_1s_reg>;
+		/* Voltage supply for UFS PHY AON*/
+		vdd1p2-supply = <&ldo_24s_reg>;
+		/* Voltage supply for UFS Flash */
+		vcc-supply = <&buck_11s_reg>;
+		vccq-supply = <&buck_13s_reg>;
+		/* Auto Hibern8 settings */
+		ah8-timer-scale = <1>;
+		ah8-idle-timer-value = <100>;
+
+		google,enable-local-rpm;
+		google,enable-phy-calibration;
+		google,enable-hc-swh8-pg;
+		google,enable-hc-ah8-pg;
+		google,enable-refclk-acg;
+		/* TODO(b/429964837): DBL should control this property */
+		/* google,enable-hs-lss; */
+		google,decouple-ufs-en;
+		google,skip-cport-setup;
+		google,mphy-pmc-war;
+		google,rext-internal;
+
+		read-boost-devfreq-names = "fabsyss", "fabhbw", "memss", "gmc", "fabstby", "dsu", "cpuacc";
+		read-boost-devfreq-maxfreqs = <400000 1066000 1056000 4224000 576000 1920000 533000>;
+
+		gsa-device = <&gsa>;
+		ip-idle-index = <IP_IDLE_IDX_UFS>;
+	};
+
+	powerdashboard: powerdashboard {
+		compatible = "google,power-dashboard";
+		mboxes = <&goog_mba_cpm_iface>;
+		sampling-rate-us = <100000>;
+	};
+
+	cpm_rst: cpm_rst {
+		compatible = "google,cpm-rst";
+		mboxes = <&goog_mba_cpm_iface>;
+
+		hsion_resets: hsion_resets {
+			#reset-cells = <1>;
+			lpcm-id = <LPCM_HSIO_N>;
+			reset-num = <HSION_RST_NUMBER>;
+		};
+
+		hsios_resets: hsios_resets {
+			#reset-cells = <1>;
+			lpcm-id = <LPCM_HSIO_S>;
+			reset-num = <HSIOS_RST_NUMBER>;
+		};
+
+		lsio_s_resets: lsio-s-resets {
+			#reset-cells = <1>;
+			lpcm-id = <LPCM_LSIO_S>;
+			reset-num = <LSIO_S_RST_NUMBER>;
+		};
+
+		lsio_e_resets: lsio-e-resets {
+			#reset-cells = <1>;
+			lpcm-id = <LPCM_LSIO_E>;
+			reset-num = <LSIO_E_RST_NUMBER>;
+		};
+
+		aoss_pg_amb_resets: aoss-pg-amb-resets {
+			#reset-cells = <1>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			reset-num = <AOSS_PG_AMB_RST_NUMBER>;
+		};
+
+		pcie_resets: pcie-resets {
+			#reset-cells = <1>;
+			lpcm-id = <LPCM_PCIE>;
+			reset-num = <PCIE_RST_NUMBER>;
+		};
+
+		codec_3p_resets: codec-3p-resets {
+			#reset-cells = <1>;
+			lpcm-id = <LPCM_CODEC_3P>;
+			reset-num = <CODEC_3P_RST_NUMBER>;
+		};
+	};
+
+	cpm {
+		compatible = "syscon", "simple-mfd";
+	};
+
+	google_mitigation: google-mitigation {
+		mba-dest-service-id = <MBOX_SERVICE_ID_BCL>;
+		mba-pmic-dest-channel = <MBOX_DEST_CHAN_DA9188_REGULATOR>;
+	};
+
+	cpm_irq: cpm_irq {
+		compatible = "google,cpm-irq";
+		mboxes = <&goog_mba_cpm_iface>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	clocks: clocks {
+		gtc_osc: gtc-osc {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <38400000>;
+		};
+
+		sst_osc: sst-osc {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <38400000>;
+		};
+	};
+
+	sst: sst@200c1000 {
+		compatible = "google,sst";
+		reg = <0 0x200c1000 0 0x00003000>;
+
+		clocks = <&gtc_osc>, <&sst_osc>;
+		clock-names = "gtc", "sst_1";
+
+		timer-cnt = <1>;
+		interrupts = <GIC_SPI SSWRP_APC_TIMER1_INTR IRQ_TYPE_LEVEL_HIGH 0>;
+	};
+
+	wdt0: watchdog_cl0@200c4000 {
+		compatible = "google,wdt";
+		reg = <0 0x200c4000 0 0x00001000>;
+		clocks = <&gtc_osc>;
+		timeout-sec = <24>;
+		/*
+		 * EXPIRY_ACTION decides the interrupt is routed to ap(0) or GDMC(1)
+		 * WDT0 raises an interrupt to AP. When WDT0 expired, it will trigger
+		 * a FIQ to EL3, EL3 will get a call stack for all cores.
+		 */
+		expiry-action = /bits/ 8 <EXPIRY_ACTION_AP>;
+		use-syscore-pm;
+		key-unlock = <0x00c0ffee>;
+		key-lock = <0x00000000>;
+	};
+
+	wdt1: watchdog_cl1@200c5000 {
+		compatible = "google,wdt";
+		reg = <0 0x200c5000 0 0x00001000>;
+		clocks = <&gtc_osc>;
+		timeout-sec = <30>;
+		/*
+		 * EXPIRY_ACTION decides the interrupt is routed to ap(0) or GDMC(1)
+		 * When WDT1 expired, it will raise an interrupt which should be routed
+		 * to GDMC M55 to do the system reset.
+		 */
+		expiry-action = /bits/ 8 <EXPIRY_ACTION_GDMC>;
+		use-syscore-pm;
+		key-unlock = <0x00c0ffee>;
+		key-lock = <0x00000000>;
+	};
+
+	cpu_lpm_stats: cpu_lpm_stats {
+		compatible = "google,cpu-lpm-stats";
+
+		power-domain-cpu0 {
+			power-domains = <&CPU_PD0>;
+			power-state = <C2_CORE0>;
+		};
+
+		power-domain-cpu1 {
+			power-domains = <&CPU_PD1>;
+			power-state = <C2_CORE1>;
+		};
+
+		power-domain-cpu2 {
+			power-domains = <&CPU_PD2>;
+			power-state = <C2_CORE2>;
+		};
+
+		power-domain-cpu3 {
+			power-domains = <&CPU_PD3>;
+			power-state = <C2_CORE3>;
+		};
+
+		power-domain-cpu4 {
+			power-domains = <&CPU_PD4>;
+			power-state = <C2_CORE4>;
+		};
+
+		power-domain-cpu5 {
+			power-domains = <&CPU_PD5>;
+			power-state = <C2_CORE5>;
+		};
+
+		power-domain-cpu6 {
+			power-domains = <&CPU_PD6>;
+			power-state = <C2_CORE6>;
+		};
+
+		power-domain-cluster-0 {
+			power-domains = <&CPUCL0>;
+			power-state = <C3_CLUSTER0>;
+		};
+
+		power-domain-cluster-1 {
+			power-domains = <&CPUCL1>;
+			power-state = <C3_CLUSTER1>;
+		};
+
+		power-domain-cluster-2 {
+			power-domains = <&CPUCL2>;
+			power-state = <C3_CLUSTER2>;
+		};
+
+		power-domain-top-cluster {
+			power-domains = <&CPU_TOP_CL>;
+			power-state = <C4_LITE>, <C4_DEEP>;
+		};
+	};
+
+	hardlockup-watchdog {
+		compatible = "google,hardlockup-watchdog";
+		sampling_time = <4>;
+		opportunity_count = <3>;
+		panic = <1>;
+	};
+
+	gcdd: gcdd {
+		compatible = "google,crash-debug-dump";
+		freq-names = "LIT", "MID0", "MID1", "BIG";
+		memory-region = <&cdd_header>, <&log_kevents>;
+		apc-wdt-sub-reason = <0xeb8c004>; // CPM BREADCRUMB2
+		panic-action = <GO_DEFAULT_ID>;
+		wdt-handle = <&wdt1>;
+	};
+
+	gvdu: gvdu {
+		compatible = "google,volatile-debug-unlock";
+		gdmc-iface = <&goog_mba_gdmc_iface>;
+		memory-region = <&gvdu_dma_region>;
+		vdu-directive-max-size = <0x00004F20>;
+		default-debug-vector = "F4FFFFFFFFFFFFFFFFFFFFCF0F000000";
+		default-policy-type = "POLICY_TYPE_MBU_RAMDUMP",
+				      "POLICY_TYPE_MBU_DEV_AP";
+	};
+
+	modem_uart: modem_uart {
+		compatible = "google,modem-uart";
+		gdmc-iface = <&goog_mba_gdmc_iface>;
+		memory-region = <&gdmc_metrics_dma_buffer>;
+		buffer-offset = <0x2000>;
+		buffer-size = <0x2000>;
+	};
+
+	fwmt: fwmt {
+		compatible = "google,fwmt-gdmc";
+		gdmc-iface = <&goog_mba_gdmc_iface>;
+		mboxes = <&goog_mba_cpm_iface>;
+		memory-region = <&gdmc_metrics_dma_buffer>;
+		buffer-offset = <0x0>;
+		buffer-size = <0x2000>;
+	};
+
+	debug_kinfo: debug_kinfo {
+		compatible = "google,debug-kinfo";
+		memory-region = <&debug_kinfo_reserved>;
+	};
+
+	pixel_debug_kinfo: pixel_debug_kinfo {
+		compatible = "google,pixel-debug-kinfo";
+		memory-region = <&debug_kinfo_reserved>;
+	};
+
+	pixel_reboot: pixel_reboot {
+		compatible = "google,pixel-reboot-v3";
+	};
+
+	gs_debug_test: gs_debug_test {
+		compatible = "google,gs-debug-test";
+		reg = <0x0 0x0ebe6000 0x0 0x00001000>;
+		reg-names = "cpm_grm_base";
+		cpm_sw_crst_ctrl_offset = <0x38>;
+		nr_cpu = <0x7>;
+		nr_little_cpu = <0x2>;
+		nr_mid_cpu = <0x4>;
+		nr_big_cpu = <0x1>;
+		little_cpu_start = <0x0>;
+		mid_cpu_start = <0x2>;
+		big_cpu_start = <0x6>;
+	};
+
+	arm_pmu {
+		compatible = "arm,armv8-pmuv3";
+		// Should replace 0 with a ppi-partitions subnode when ppi-partitions are added.
+		interrupts = <GIC_PPI 7 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH) 0>;
+	};
+
+	dsu_pmu: dsu-pmu {
+		compatible = "arm,dsu-pmu";
+		interrupts = <GIC_SPI SSWRP_APC_NCLUSTERPMUIRQ IRQ_TYPE_LEVEL_HIGH 0>;
+		cpus = <&gelas_ll_0>, <&gelas_ll_1>,                    // cluster0
+		       <&gelas_0>, <&gelas_1>, <&gelas_2>, <&gelas_3>,  // cluster1
+		       <&travis_0>;                                     // cluster2
+	};
+
+	spe-pmu {
+		compatible = "arm,statistical-profiling-extension-v1";
+		interrupts = <GIC_PPI 5 (GIC_CPU_MASK_SIMPLE(7) | IRQ_TYPE_LEVEL_HIGH) 0>;
+	};
+
+	odm: odm {
+		compatible = "simple-bus";
+		#address-cells = <0x00000002>;
+		#size-cells = <0x00000002>;
+		ranges;
+	};
+
+	gdmc_dhub: gdmc_dhub {
+		compatible = "google,gdmc-dhub-gen2";
+		gdmc-iface = <&goog_mba_gdmc_iface>;
+	};
+
+	fwtp_cpm: fwtp_cpm {
+		compatible = "google,fwtp-cpm";
+		mboxes = <&goog_mba_cpm_iface>;
+		mba-dest-channel = <MBOX_DEST_CHAN_CPM_FWTP>;
+		memory-region = <&cpm_tracepoint_ipc_dma_buff>;
+		tracepoint-list = "cpm", "cap", "vfa";
+	};
+
+	fwtp_gdmc: fwtp_gdmc {
+		compatible = "google,fwtp-gdmc";
+		gdmc-iface = <&goog_mba_gdmc_iface>;
+		memory-region = <&gdmc_tracepoint_dma_buff>;
+	};
+
+	google_gem {
+		compatible = "google,gem";
+		memory-region = <&google_gem_dma_region>;
+		gdmc-iface = <&goog_mba_gdmc_iface>;
+	};
+
+	hardlockup_debugger: hardlockup-debugger {
+		compatible = "google,hardlockup-debug";
+		use_multistage_wdt_irq = <256>;
+	};
+
+	keydebug {
+		compatible = "keydebug";
+		key_down_delay = <6000>;
+		keys_down = <116 115>;
+		dbg_fn_delay = <2000>;
+		bind_s2x_version = <BIND_S2X_VERSION_2>;
+	};
+
+	power_keydebug {
+		compatible = "power-keydebug";
+	};
+
+	skip_s2m_voter: skip-s2m-voter {
+		compatible = "google,skip-s2m-voter";
+		gdmc-iface = <&goog_mba_gdmc_iface>;
+	};
+
+	ehld_coreinstr: ehld-coreinstr {
+		compatible = "google,ehld-coreinstr";
+		gdmc-iface = <&goog_mba_gdmc_iface>;
+
+		clocks = <&cpu_sswrp_tss_clk>;
+		clock-names = "tss_clk";
+
+		interval = <1000>;
+		warn-count = <4>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		sgi_base {
+			reg = <0x92b8000 0x10000>,
+				<0x92f8000 0x10000>,
+				<0x9338000 0x10000>,
+				<0x9378000 0x10000>,
+				<0x93b8000 0x10000>,
+				<0x93f8000 0x10000>,
+				<0x9438000 0x10000>;
+		};
+		coreinstret_base {
+			reg = <0x200c07c0 0x20>;
+		};
+		coreinstr_base {
+			reg = <0x200c0504 0x24>;
+		};
+		pmu_base {
+			reg = <0x228A0000 0x1000>,
+				<0x22920000 0x1000>,
+				<0x229A0000 0x1000>,
+				<0x22A20000 0x1000>,
+				<0x22AA0000 0x1000>,
+				<0x22B20000 0x1000>,
+				<0x22BA0000 0x1000>;
+		};
+	};
+
+	goog_aoss_wdt_handler: goog_aoss_wdt_handler {
+		compatible = "google,aoss-wdt-handler";
+		wakeup-source;
+		interrupt-parent = <&cpm_irq>;
+		interrupts = <CPM_IRQ_AP_GDMC_WAKE IRQ_TYPE_NONE>;
+	};
+
+	pkvm_assignable_devices {
+		compatible = "pkvm,device-assignment";
+		devices = <&guest0_tpu_mailboxes 0>;
+	};
+};

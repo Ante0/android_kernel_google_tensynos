@@ -134,13 +134,11 @@ static int exynos_tui_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int exynos_tui_remove(struct platform_device *pdev)
+static void exynos_tui_remove(struct platform_device *pdev)
 {
 	struct miscdevice *misc_dev = dev_get_drvdata(&pdev->dev);
 
 	misc_deregister(misc_dev);
-
-	return 0;
 }
 
 struct platform_driver tui_driver = {

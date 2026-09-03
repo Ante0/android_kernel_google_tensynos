@@ -8,6 +8,7 @@
 #include <linux/idr.h>
 #include <linux/iommu.h>
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 
 #include "edgetpu-domain-pool.h"
 #include "edgetpu-internal.h"
@@ -134,7 +135,7 @@ int edgetpu_domain_pool_attach_domain(struct edgetpu_domain_pool *pool, struct i
 	if (pasid < 0)
 		return pasid;
 
-	ret = iommu_attach_device_pasid(domain, pool->etdev->dev, pasid);
+	ret = iommu_attach_device_pasid(domain, pool->etdev->dev, pasid, NULL);
 	if (ret) {
 		ida_free(&pool->pasid_pool, pasid);
 		return ret;

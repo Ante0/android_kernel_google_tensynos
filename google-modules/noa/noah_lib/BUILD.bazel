@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "sources",
+    srcs = glob(
+        ["**"],
+        exclude = [
+            ".*",
+            ".*/**",
+            "BUILD.bazel",
+            "**/*.bzl",
+            "build.config.*",
+        ],
+    ),
+    visibility = [
+        # keep sorted
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules/noa/common:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "noah_lib_headers",
+    hdrs = glob([
+        "pw_rpc_c/public/**/*.h",
+        "gen/pw_rpc_services/**/*.h",
+        "noa_ipc/public/**/*.h",
+        "pw_rpc_service_client/public/**/*.h",
+    ]),
+    includes = [
+        "gen/pw_rpc_services",
+        "noa_ipc/public",
+        "pw_rpc_c/public",
+        "pw_rpc_service_client/public",
+    ],
+    visibility = [
+        "//private/google-modules/dpa:__subpackages__",
+        "//private/google-modules/noa/common:__subpackages__",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/google:__subpackages__",
+        "//private/google-modules/soc/rdo/drivers/soc/google/dpa:__subpackages__",
+    ],
+)
+
+exports_files(
+    [
+        "noa_ipc/ipc_manager.c",
+        "noa_ipc/ipc_channel.c",
+        "noa_ipc/ipc_buffer_shared_memory.c",
+        "noa_ipc/ipc_buffer.c",
+        "pw_rpc_c/pw_rpc_client.c",
+        "pw_rpc_c/pw_rpc_call_list.c",
+        "pw_rpc_c/pw_rpc_packet.c",
+        "pw_rpc_c/packet.pb.c",
+        "pw_rpc_c/linux_export.c",
+        "pw_rpc_service_client/pw_log_service_client.nanopb.c",
+        "gen/pw_rpc_services/pw_log/proto/log.pb.c",
+        "gen/pw_rpc_services/pw_rpc/echo.pb.c",
+        "gen/pw_rpc_services/shell_cmd_service/shell_cmd_service.pb.c",
+        "gen/pw_rpc_services/dma_service/dma_service.pb.c",
+        "gen/pw_rpc_services/ipsec_test_service/ipsec_test_service.pb.c",
+        "gen/pw_rpc_services/power_service/power_service.pb.c",
+    ],
+    visibility = [
+        "//private/google-modules/dpa:__subpackages__",
+        "//private/google-modules/soc/rdo/drivers/soc/google/dpa:__subpackages__",
+    ],
+)

@@ -35,6 +35,7 @@
 #include <linux/kernel_stat.h>
 #include <linux/pm_runtime.h>
 #include <linux/platform_device.h>
+#include <linux/pinctrl/consumer.h>
 
 #include "bbd.h"
 #include "bcm_gps_spi.h"
@@ -540,7 +541,7 @@ static const struct file_operations bcm_spi_fops = {
 
 /* Misc. functions */
 
-unsigned long bcm_clock_get_ms(void)
+static unsigned long bcm_clock_get_ms(void)
 {
 	struct timespec64 t;
 	unsigned long now;
@@ -554,7 +555,7 @@ unsigned long bcm_clock_get_ms(void)
 	return now - init_time;
 }
 
-void wait1secDelay(unsigned int count)
+static void wait1secDelay(unsigned int count)
 {
 	if (count <= 100)
 		usleep_range(1000, 2000);

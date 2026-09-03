@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Sensors device tree source of deepspace.
+ *
+ * Copyright 2024 Google,LLC.
+ */
+
+&ldo_10s_reg {
+  regulator-boot-on;
+};
+
+&aoc {
+	sensor_1v2-supply = <&ldo_10s_reg>;
+	sensor_power_list = "sensor_1v2", "sensor_1v8", "sensor_3v3";
+};

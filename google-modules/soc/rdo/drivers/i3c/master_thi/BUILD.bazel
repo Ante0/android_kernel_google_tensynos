@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "dw-i3c-master-thi",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "dw-i3c-master-thi.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_DW_I3C_MASTER_THI": {
+            True: [
+                "dw-i3c-master-thi-core.c",
+                "dw-i3c-master-thi-trace.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":dw-i3c-xfer-host-ap",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "dw-i3c-xfer-host-ap",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "dw-i3c-xfer-host-ap.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_DW_I3C_XFER_HOST_AP": {
+            True: [
+                "dw-i3c-xfer-host-ap-core.c",
+                "dw-i3c-xfer-host-trace.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)

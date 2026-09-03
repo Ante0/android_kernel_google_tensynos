@@ -55,13 +55,13 @@
 
 		idt,has_rtx = <0>;
 		/* Granvilla GPIO 2~4 */
-		idt,gpio_ben = <&max777x9_gpio 4 GPIO_ACTIVE_HIGH>;  /* EXT_BST_EN */
-		idt,gpio_boost = <&s2mpg12_gpio 3 GPIO_ACTIVE_HIGH>; /* WLC_TX_SW_EN */
-		/* idt,gpio_switch = <&p9xxx_gpio 3 GPIO_ACTIVE_HIGH>; */ /* EXT_BST_VTRX */
-		idt,gpio_extben = <&s2mpg12_gpio 2 GPIO_ACTIVE_HIGH>; /* AP2QI_EXTBST_EN */
+		idt,ben-gpios = <&max777x9_gpio 4 GPIO_ACTIVE_HIGH>;  /* EXT_BST_EN */
+		idt,boost-gpios = <&s2mpg12_gpio 3 GPIO_ACTIVE_HIGH>; /* WLC_TX_SW_EN */
+		/* idt,switch-gpios = <&p9xxx_gpio 3 GPIO_ACTIVE_HIGH>; */ /* EXT_BST_VTRX */
+		idt,extben-gpios = <&s2mpg12_gpio 2 GPIO_ACTIVE_HIGH>; /* AP2QI_EXTBST_EN */
 
 		/* WLCDC */
-		idt,gpio_dc_switch = <&s2mpg12_gpio 0 GPIO_ACTIVE_HIGH>; /* WLC_RX_SW_EN */
+		idt,dc_switch-gpios = <&s2mpg12_gpio 0 GPIO_ACTIVE_HIGH>; /* WLC_RX_SW_EN */
 		idt,max_vout_mv = <19500>;
 		idt,has_wlc_dc = <1>;
 		google,power_mitigate_threshold = <90>;
@@ -69,8 +69,8 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&wc_irq &wc_en>;
 
-		idt,gpio_qien = <&gpp0 0 GPIO_ACTIVE_HIGH>;
-		idt,irq_gpio = <&gpa9 5 GPIO_ACTIVE_LOW>;
+		idt,qien-gpios = <&gpp0 0 GPIO_ACTIVE_HIGH>;
+		idt,irq-gpios = <&gpa9 5 GPIO_ACTIVE_LOW>;
 
 		p9xxx_gpio: p9xxx_gpio {
 			gpio-controller;

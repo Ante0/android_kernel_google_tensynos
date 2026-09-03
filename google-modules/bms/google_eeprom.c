@@ -16,6 +16,20 @@
 #include <linux/delay.h>
 #include "gbms_storage.h"
 
+/*
+ * IMPORTANT: EEPROM Layout Compatibility
+ *
+ * This file defines the EEPROM memory layout for the Android OS.
+ * This layout MUST be kept in sync with the corresponding layout in the
+ * bootloader. Any changes to the EEPROM memory map must be reflected
+ * in both the bootloader and the kernel to avoid data corruption and
+ * unexpected behavior.
+ *
+ * The EEPROM layout differs between EEPROM models (e.g., M24C08 vs. M24C64).
+ * Ensure that the correct offsets are used for the target hardware.
+ *
+ * See b/458510524 for more details.
+ */
 #define BATT_EEPROM_TAG_MINF_OFFSET	0x00
 #define BATT_EEPROM_TAG_MINF_LEN	GBMS_MINF_LEN
 #define BATT_EEPROM_TAG_BGPN_OFFSET	0x03
@@ -52,7 +66,7 @@
 #define BATT_EEPROM_TAG_FCRU_OFFSET	0x3E2
 #define BATT_EEPROM_TAG_FCRU_LEN	GBMS_FCRU_LEN
 #define BATT_EEPROM_TAG_FGST_OFFSET	0x3E4
-#define BATT_EEPROM_TAG_FGST_LEN 	1
+#define BATT_EEPROM_TAG_FGST_LEN	1
 #define BATT_EEPROM_TAG_AYMD_OFFSET	0x3E5
 #define BATT_EEPROM_TAG_AYMD_LEN	BATT_EEPROM_TAG_XYMD_LEN
 #define BATT_EEPROM_TAG_GCFE_OFFSET	0x3E8
@@ -187,7 +201,8 @@ static int gbee_storage_iter(int index, gbms_tag_t *tag, void *ptr)
 					   GBMS_TAG_RFCN, GBMS_TAG_THAS,
 					   GBMS_TAG_AYMD, GBMS_TAG_MYMD,
 					   GBMS_TAG_FGST, GBMS_TAG_FCRU,
-					   GBMS_TAG_AAWC };
+					   GBMS_TAG_AAWC, GBMS_TAG_AATD,
+					   GBMS_TAG_MDLV };
 	const int count = ARRAY_SIZE(keys);
 
 	if (index < 0 || index >= count)
@@ -253,6 +268,8 @@ static bool gbee_storage_is_writable(gbms_tag_t tag)
 	case GBMS_TAG_FGST:
 	case GBMS_TAG_FCRU:
 	case GBMS_TAG_AAWC:
+	case GBMS_TAG_AATD:
+	case GBMS_TAG_MDLV:
 		return true;
 	default:
 		return false;

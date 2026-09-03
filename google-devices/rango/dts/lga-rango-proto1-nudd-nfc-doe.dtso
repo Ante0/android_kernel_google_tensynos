@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * rango device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+/dts-v1/;
+/plugin/;
+
+#define RANGO_PROTO_WLC
+#define RANGO_PROTO_EVT_EXT_BST_EN
+
+#include "lga-rango-proto-pinctrl.dtsi"
+#include "lga-rango-common.dtsi"
+#include "lga-rango-battery.dtsi"
+#include "lga-rango-camera-proto1.dtsi"
+#include "lga-rango-inner-touch-proto1.dtsi"
+#include "lga-rango-odpm-proto1.dtsi"
+#include "lga-rango-charging-thermal.dtsi"
+
+/ {
+	board_id = <0x70602>;
+	board_rev = <0x010001>;
+	fragment@boardbase {
+		target-path = "/";
+		__overlay__ {
+			model = "RANGO Proto 1.0 NUDD NFC DOE based on LGA";
+			compatible = "google,lga-rango", "google,lga";
+		};
+	};
+};
+

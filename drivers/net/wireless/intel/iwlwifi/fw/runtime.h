@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause */
 /*
  * Copyright (C) 2017 Intel Deutschland GmbH
- * Copyright (C) 2018-2022 Intel Corporation
+ * Copyright (C) 2018-2024 Intel Corporation
  */
 #ifndef __iwl_fw_runtime_h__
 #define __iwl_fw_runtime_h__
@@ -12,8 +12,9 @@
 #include "fw/api/debug.h"
 #include "fw/api/paging.h"
 #include "fw/api/power.h"
-#include "iwl-eeprom-parse.h"
+#include "iwl-nvm-utils.h"
 #include "fw/acpi.h"
+#include "fw/regulatory.h"
 
 struct iwl_fw_runtime_ops {
 	void (*dump_start)(void *ctx);
@@ -23,6 +24,8 @@ struct iwl_fw_runtime_ops {
 };
 
 #define MAX_NUM_LMAC 2
+#define MAX_NUM_TCM 2
+#define MAX_NUM_RCM 2
 struct iwl_fwrt_shared_mem_cfg {
 	int num_lmacs;
 	int num_txfifo_entries;
@@ -42,6 +45,10 @@ struct iwl_fwrt_shared_mem_cfg {
  * struct iwl_fwrt_dump_data - dump data
  * @trig: trigger the worker was scheduled upon
  * @fw_pkt: packet received from FW
+ *
+ * Note that the decision which part of the union is used
+ * is based on iwl_trans_dbg_ini_valid(): the 'trig' part
+ * is used if it is %true, the 'desc' part otherwise.
  */
 struct iwl_fwrt_dump_data {
 	union {
@@ -50,6 +57,7 @@ struct iwl_fwrt_dump_data {
 			struct iwl_rx_packet *fw_pkt;
 		};
 		struct {
+			/* must be first to be same as 'trig' */
 			const struct iwl_fw_dump_desc *desc;
 			bool monitor_only;
 		};
@@ -95,6 +103,12 @@ struct iwl_txf_iter_data {
  * @cur_fw_img: current firmware image, must be maintained by
  *	the driver by calling &iwl_fw_set_current_image()
  * @dump: debug dump data
+ * @uats_table: AP type table
+ * @uefi_tables_lock_status: The status of the WIFI GUID UEFI variables lock:
+ *	0: Unlocked, 1 and 2: Locked.
+ *	Only read the UEFI variables if locked.
+ * @sar_profiles: sar profiles as read from WRDS/EWRD BIOS tables
+ * @geo_profiles: geographic profiles as read from WGDS BIOS table
  */
 struct iwl_fw_runtime {
 	struct iwl_trans *trans;
@@ -128,6 +142,8 @@ struct iwl_fw_runtime {
 		unsigned long non_collect_ts_start[IWL_FW_INI_TIME_POINT_NUM];
 		u32 *d3_debug_data;
 		u32 lmac_err_id[MAX_NUM_LMAC];
+		u32 tcm_err_id[MAX_NUM_TCM];
+		u32 rcm_err_id[MAX_NUM_RCM];
 		u32 umac_err_id;
 
 		struct iwl_txf_iter_data txf_iter_data;
@@ -141,29 +157,31 @@ struct iwl_fw_runtime {
 			u32 umac_minor;
 		} fw_ver;
 	} dump;
-#ifdef CONFIG_IWLWIFI_DEBUGFS
 	struct {
+#ifdef CONFIG_IWLWIFI_DEBUGFS
 		struct delayed_work wk;
 		u32 delay;
+#endif
 		u64 seq;
 	} timestamp;
+#ifdef CONFIG_IWLWIFI_DEBUGFS
 	bool tpc_enabled;
 #endif /* CONFIG_IWLWIFI_DEBUGFS */
-#ifdef CONFIG_ACPI
-	struct iwl_sar_profile sar_profiles[ACPI_SAR_PROFILE_NUM];
+	struct iwl_sar_profile sar_profiles[BIOS_SAR_MAX_PROFILE_NUM];
 	u8 sar_chain_a_profile;
 	u8 sar_chain_b_profile;
-	struct iwl_geo_profile geo_profiles[ACPI_NUM_GEO_PROFILES_REV3];
+	u8 reduced_power_flags;
+	struct iwl_geo_profile geo_profiles[BIOS_GEO_MAX_PROFILE_NUM];
 	u32 geo_rev;
 	u32 geo_num_profiles;
 	bool geo_enabled;
 	struct iwl_ppag_chain ppag_chains[IWL_NUM_CHAIN_LIMITS];
 	u32 ppag_flags;
-	u32 ppag_ver;
+	u8 ppag_ver;
 	struct iwl_sar_offset_mapping_cmd sgom_table;
 	bool sgom_enabled;
-	u8 reduced_power_flags;
-#endif
+	struct iwl_mcc_allowed_ap_type_cmd uats_table;
+	u8 uefi_tables_lock_status;
 };
 
 void iwl_fw_runtime_init(struct iwl_fw_runtime *fwrt, struct iwl_trans *trans,

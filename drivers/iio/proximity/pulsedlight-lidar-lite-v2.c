@@ -253,8 +253,7 @@ static const struct iio_info lidar_info = {
 	.read_raw = lidar_read_raw,
 };
 
-static int lidar_probe(struct i2c_client *client,
-		       const struct i2c_device_id *id)
+static int lidar_probe(struct i2c_client *client)
 {
 	struct lidar_data *data;
 	struct iio_dev *indio_dev;
@@ -323,9 +322,9 @@ static void lidar_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id lidar_id[] = {
-	{"lidar-lite-v2", 0},
-	{"lidar-lite-v3", 0},
-	{ },
+	{ "lidar-lite-v2" },
+	{ "lidar-lite-v3" },
+	{ }
 };
 MODULE_DEVICE_TABLE(i2c, lidar_id);
 

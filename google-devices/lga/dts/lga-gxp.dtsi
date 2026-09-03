@@ -1,0 +1,84 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Device tree source for Laguna DSP.
+ *
+ * Copyright 2024 Google LLC
+ */
+
+#include <dt-bindings/interrupt-controller/lga-gic.h>
+
+/ {
+	sswrp_aur: sswrp_aur@38000000 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x38000000 0xaf1000>;
+
+		gxp: gxp@880000 {
+			compatible = "google,gxp-lga";
+			#dma-address-cells = <1>;
+			#dma-size-cells = <1>;
+			gcip-dma-window = <0x02000000 0xEE000000>; /* GCIP IOMMU attribute. */
+			gcip-reserved-map = <0x80000000 0x1000>;
+			reg = <0x880000 0x260000
+				0x4C0000 0x001000
+				0x4E3000 0x001000
+				0x506000 0x001000
+				0x440000 0x001000
+				0x441000 0x001000
+				0x442000 0x001000
+				0x000000 0x040000>;
+			reg-names = "aur", "core0_mba", "core1_mba", "core2_mba", "mcu0_kmba",
+				    "mcu0_umba", "iif_mailbox", "lpm";
+			iommus = <&aur_smmu 0>;
+			pasid-num-bits = <4>;
+			power-domains = <&sswrp_aurora_pd>;
+			pmu-aur-status = <0x05330044>;
+			tpu-device = <&edgetpu>;
+			gxp-tpu-mbx-offset = <0x0 0x5c000>; /* TPU mbx #46 */
+			gxp-fw-region = <&gxp_fw_reserved>;
+			gxp-secure-data-region = <&gxp_secure_data_reserved>;
+			gxp-mcu-fw-region = <&gxp_mcu_fw_reserved>;
+			gxp-memory-per-core = <0 512>;
+			interrupts =
+				<GIC_SPI SSWRP_AURORA_AURORA_AP_CORE_0_MBA_IRQ_0_112
+				IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_AURORA_AURORA_AP_CORE_1_MBA_IRQ_0_114
+				IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_AURORA_AURORA_AP_CORE_2_MBA_IRQ_0_116
+				IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_AURORA_AURORA_AP_MCU_0_MBA_IRQ_0_118
+				IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_AURORA_AURORA_AP_MCU_0_MBA_IRQ_1_119
+				IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_AURORA_AURORA_AP_WDOG_BITE_IRQ
+				IRQ_TYPE_LEVEL_HIGH 0>;
+			gsa-device = <&gsa>;
+			iif-device = <&iif>;
+			dsu-devfreq = <&dsufreq>;
+			gcip-dvfs-table-size = <16 2>; /*<row col>*/
+			gcip-dvfs-table = <
+			/*    freq(kHz) power(mW) */
+				1065600 299 /*  0 */
+				 998400 272 /*  1 */
+				 921600 236 /*  2 */
+				 844800 205 /*  3 */
+				 768000 180 /*  4 */
+				 710400 170 /*  5 */
+				 652800 146 /*  6 */
+				 576000 127 /*  7 */
+				 499200 107 /*  8 */
+				 460800  96 /*  9 */
+				 355200  75 /* 10 */
+				 300000  63 /* 11 */
+				 230400  48 /* 12 */
+				 153600  34 /* 13 */
+				 115200  27 /* 14 */
+				  38400  12 /* 15 */
+			>;
+		};
+		gxp_cooling: gxp-cooling {
+			#cooling-cells = <2>;
+		};
+	};
+};

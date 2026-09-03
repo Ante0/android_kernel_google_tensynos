@@ -10,7 +10,9 @@
  */
 
 #include <linux/list.h>
-#include <linux/of_platform.h>
+#include <linux/mod_devicetable.h>
+#include <linux/of.h>
+#include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/sysctl.h>
 #include <linux/proc_fs.h>
@@ -19,7 +21,7 @@
 #include <soc/google/pt.h>
 #include "pt_trace.h"
 #include "slc_pmon.h"
-#include "../cal-if/acpm_dvfs.h"
+#include "acpm_dvfs.h"
 #include <soc/google/acpm_ipc_ctrl.h>
 #include <linux/errno.h>
 #include <linux/debugfs.h>
@@ -194,10 +196,13 @@ static bool slc_version_check(struct slc_acpm_driver_data *driver_data)
 		driver_data->version >> 16,
 		driver_data->version & 0xffff);
 
+	/* balance of_node_put() in of_find_node_by_name() */
+	of_node_get(driver_data->pdev->dev.of_node);
 	sub_node = of_find_node_by_name(driver_data->pdev->dev.of_node,
 					"async");
 	if (IS_ERR(sub_node) || (driver_data->version < PT_VERSION_ASYNC)) {
 		dev_err(&driver_data->pdev->dev, "No asynchronous node");
+		of_node_put(sub_node);
 		return true;
 	}
 
@@ -206,10 +211,14 @@ static bool slc_version_check(struct slc_acpm_driver_data *driver_data)
 					&driver_data->async_id,
 					&driver_data->async_size) < 0) {
 		dev_err(&driver_data->pdev->dev, "No asynchronous channel");
+		of_node_put(sub_node);
 		return true;
 	}
 	dev_info(&driver_data->pdev->dev,
 			"Asynchronous notification enabled");
+
+	/* FIXME: this leaks sub_node */
+
 	return true;
 }
 

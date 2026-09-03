@@ -1,0 +1,238 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module", "ddk_submodule")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+genrule(
+    name = "gen_tmi3_headers",
+    srcs = [
+        "pcie/core/label.ini",
+        "pcie/core/mtk_auto_gen_build_info.pl",
+        "pcie/core/mtk_auto_gen_hw_interface.pl",
+    ],
+    outs = [
+        "pcie/core/mtk_pci_dev_cfg.h",
+        "pcie/core/mtk_cldma_hw_interface.h",
+        "pcie/core/mtk_dpmaif_drv_interface.h",
+        "pcie/core/mtk_ctrl_cfg.h",
+        "pcie/core/mtk_utility_cfg.h",
+        "pcie/core/mtk_build_info.h",
+    ],
+    cmd = """
+        LABEL_PRODUCT="m9xx_0x0900"
+        # Execute scripts to generate file
+        perl "$(location :pcie/core/mtk_auto_gen_hw_interface.pl)" "$(location :pcie/core/mtk_pci_dev_cfg.h)" $$LABEL_PRODUCT
+        perl "$(location :pcie/core/mtk_auto_gen_hw_interface.pl)" "$(location :pcie/core/mtk_cldma_hw_interface.h)" $$LABEL_PRODUCT
+        perl "$(location :pcie/core/mtk_auto_gen_hw_interface.pl)" "$(location :pcie/core/mtk_dpmaif_drv_interface.h)" $$LABEL_PRODUCT
+        perl "$(location :pcie/core/mtk_auto_gen_hw_interface.pl)" "$(location :pcie/core/mtk_ctrl_cfg.h)" $$LABEL_PRODUCT
+        perl "$(location :pcie/core/mtk_auto_gen_hw_interface.pl)" "$(location :pcie/core/mtk_utility_cfg.h)" $$LABEL_PRODUCT
+        perl "$(location :pcie/core/mtk_auto_gen_build_info.pl)" "$(location :pcie/core/mtk_build_info.h)" $$LABEL_PRODUCT
+    """,
+    message = "Generating tmi3 header files...",
+)
+
+# Top-level DDK module for tmi3.
+# This rule groups the submodules and provides common settings like kernel_build and kconfig.
+ddk_module(
+    name = "tmi3",
+    # The individual .ko outputs are defined by the ddk_submodules listed in deps.
+    kernel_build = "//private/devices/google/common:kernel",
+    # Dependencies include the submodules and other necessary libraries/headers.
+    deps = [
+        ":mtk_common_mod",
+        ":mtk_pcie_mod",
+        # Include the shared headers for tmi3.
+        ":tmi3_headers",
+    ],
+)
+
+# ddk_submodule for building mtk_common.ko
+ddk_submodule(
+    name = "mtk_common_mod",
+    srcs = [
+        "common/mtk_bm.c",
+        "common/mtk_ctrl_plane.c",
+        "common/mtk_data_plane.c",
+        "common/mtk_debug.c",
+        "common/mtk_dev.c",
+        "common/mtk_ethtool.c",
+        "common/mtk_fsm.c",
+        "common/mtk_memlog.c",
+        "common/mtk_port.c",
+        "common/mtk_port_io.c",
+        "common/mtk_statistics.c",
+        "common/mtk_trace.c",
+        ":pcie/core/mtk_build_info.h",
+        ":pcie/core/mtk_cldma_hw_interface.h",
+        ":pcie/core/mtk_ctrl_cfg.h",
+        ":pcie/core/mtk_dpmaif_drv_interface.h",
+        ":pcie/core/mtk_pci_dev_cfg.h",
+        ":pcie/core/mtk_utility_cfg.h",
+    ],
+    out = "mtk_common.ko",
+    conditional_srcs = {
+        "CONFIG_DEBUG_FS": {
+            True: [
+                "common/mtk_debugfs.c",
+            ],
+        },
+        "CONFIG_MTK_DEVLINK": {
+            True: [
+                "common/mtk_devlink.c",
+            ],
+        },
+        "CONFIG_MTK_HOST_DRV_WWAN_SUPPORT": {
+            True: [
+                "common/mtk_wwan.c",
+            ],
+            False: [
+                "common/mtk_wwan_legacy.c",
+            ],
+        },
+    },
+    copts = [
+        "-Werror",
+        "-fsanitize=integer-divide-by-zero",
+        "-include",
+        "wwan_defines.h",
+    ],
+    includes = [
+        "common",
+        "pcie/core",
+    ],
+    deps = [
+        ":tmi3_headers",
+        "//private/google-modules/radio/common/metrics_collection:headers",
+        "//private/google-modules/radio/common/radio-bridge",
+        "//private/google-modules/radio/mediatek/t900/wwan/pwrctl:wwan_gpio_pwrctl",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/adsp:mtk_pcimsg_google",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/google:ddk_headers",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/google:radio_google",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+# ddk_submodule for building mtk_pcie.ko
+ddk_submodule(
+    name = "mtk_pcie_mod",
+    srcs = [
+        "pcie/core/mtk_cldma.c",
+        "pcie/core/mtk_cldma_drv.c",
+        "pcie/core/mtk_dpmaif.c",
+        "pcie/core/mtk_dpmaif_drv.c",
+        "pcie/core/mtk_dpmaif_ring.c",
+        "pcie/core/mtk_except.c",
+        "pcie/core/mtk_frc.c",
+        "pcie/core/mtk_pci.c",
+        "pcie/core/mtk_pcie_trace.c",
+        "pcie/core/mtk_pm.c",
+        "pcie/core/mtk_trans_ctrl.c",
+        "pcie/m9xx/mtk_cldma_drv_m9xx.c",
+        "pcie/m9xx/mtk_ctrl_cfg_m9xx.c",
+        "pcie/m9xx/mtk_dpmaif_drv_m9xx.c",
+        "pcie/m9xx/mtk_pci_drv_m9xx.c",
+        "pcie/m9xx/mtk_utility_cfg_m9xx.c",
+        ":pcie/core/mtk_build_info.h",
+        ":pcie/core/mtk_cldma_hw_interface.h",
+        ":pcie/core/mtk_ctrl_cfg.h",
+        ":pcie/core/mtk_dpmaif_drv_interface.h",
+        ":pcie/core/mtk_pci_dev_cfg.h",
+        ":pcie/core/mtk_utility_cfg.h",
+    ],
+    out = "mtk_pcie.ko",
+    conditional_srcs = {
+        "CONFIG_ARCH_GOOGLE": {
+            True: [
+                "pcie/core/mtk_google.c",
+            ],
+        },
+    },
+    copts = [
+        "-Werror",
+        "-fsanitize=integer-divide-by-zero",
+        "-include",
+        "wwan_defines.h",
+    ],
+    includes = [
+        "pcie/core",
+        "pcie/customize/google",
+        "pcie/m9xx",
+    ],
+    deps = [
+        ":tmi3_headers",
+        "//private/google-modules/radio/common/metrics_collection:headers",
+        "//private/google-modules/radio/mediatek/t900/wwan/pwrctl:wwan_gpio_pwrctl",
+        "//private/google-modules/radio/mediatek/t900/wwan/pwrctl:wwan_gpio_pwrctl_headers",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/adsp:mtk_pcimsg_google",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/google:ddk_headers",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/google:radio_google",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+# Existing ddk_headers for tmi3. This target is used by other modules
+# to get access to tmi3's header files.
+ddk_headers(
+    name = "tmi3_headers",
+    hdrs = [
+        "common/mtk_bm.h",
+        "common/mtk_ctrl_plane.h",
+        "common/mtk_data_plane.h",
+        "common/mtk_debug.h",
+        "common/mtk_debugfs.h",
+        "common/mtk_dev.h",
+        "common/mtk_devlink.h",
+        "common/mtk_fsm.h",
+        "common/mtk_memlog.h",
+        "common/mtk_port.h",
+        "common/mtk_port_io.h",
+        "common/mtk_port_io_tty.h",
+        "common/mtk_statistics.h",
+        "common/mtk_trace.h",
+        "common/mtk_utility.h",
+        "common/mtk_wwan.h",
+        "pcie/core/mtk_cldma.h",
+        "pcie/core/mtk_cldma_drv.h",
+        "pcie/core/mtk_dpmaif.h",
+        "pcie/core/mtk_dpmaif_drv.h",
+        "pcie/core/mtk_dpmaif_reg.h",
+        "pcie/core/mtk_dpmaif_ring.h",
+        "pcie/core/mtk_except.h",
+        "pcie/core/mtk_frc.h",
+        "pcie/core/mtk_google.h",
+        "pcie/core/mtk_pci.h",
+        "pcie/core/mtk_pci_reg.h",
+        "pcie/core/mtk_pcie_memlog.h",
+        "pcie/core/mtk_pcie_trace.h",
+        "pcie/core/mtk_pcimsg.h",
+        "pcie/core/mtk_pm.h",
+        "pcie/core/mtk_trans_ctrl.h",
+        "pcie/m9xx/mtk_cldma_drv_m9xx.h",
+        "pcie/m9xx/mtk_dpmaif_reg_m9xx.h",
+        "pcie/m9xx/mtk_pci_drv_m9xx.h",
+    ],
+    includes = [
+        "common",
+        "pcie/core",
+    ],
+    visibility = [
+        "//private/google-modules/noa/common:__subpackages__",
+        "//private/google-modules/radio/mediatek:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "tmi3.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)

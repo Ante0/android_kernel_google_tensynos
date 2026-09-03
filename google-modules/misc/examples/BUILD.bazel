@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+# This directory contains examples for using Kleaf DDK.

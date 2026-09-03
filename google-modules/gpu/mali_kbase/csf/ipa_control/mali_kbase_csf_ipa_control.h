@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -137,7 +137,6 @@ int kbase_ipa_control_unregister(struct kbase_device *kbdev, const void *client)
  * @protected_time: Time spent in protected mode since last query,
  *                  expressed in nanoseconds. This pointer may be NULL if the
  *                  client doesn't want to know about this.
- * @now:            The current monotonic time (ktime_get_raw()).
  *
  * A client that has already opened a session by registering itself to read
  * some performance counters may use this function to query the values of
@@ -154,18 +153,19 @@ int kbase_ipa_control_unregister(struct kbase_device *kbdev, const void *client)
  * Return: 0 on success, negative -errno on error
  */
 int kbase_ipa_control_query(struct kbase_device *kbdev, const void *client, u64 *values,
-			    size_t num_values, u64 *protected_time, ktime_t *now);
+			    size_t num_values, u64 *protected_time);
 
 /**
  * kbase_ipa_control_handle_gpu_power_on - Handle the GPU power on event
  *
- * @kbdev:          Pointer to kbase device.
+ * @kbdev:              Pointer to kbase device.
+ * @reconfig_select:    Flag whether to reconfig SELECT registers or not.
  *
  * This function is called after GPU has been powered and is ready for use.
  * After the GPU power on, IPA Control component needs to ensure that the
  * counters start incrementing again.
  */
-void kbase_ipa_control_handle_gpu_power_on(struct kbase_device *kbdev);
+void kbase_ipa_control_handle_gpu_power_on(struct kbase_device *kbdev, bool reconfig_select);
 
 /**
  * kbase_ipa_control_handle_gpu_power_off - Handle the GPU power off event
@@ -192,11 +192,12 @@ void kbase_ipa_control_handle_gpu_reset_pre(struct kbase_device *kbdev);
 /**
  * kbase_ipa_control_handle_gpu_reset_post - Handle the post GPU reset event
  *
- * @kbdev:          Pointer to kbase device.
+ * @kbdev:              Pointer to kbase device.
+ * @reconfig_select:    Flag whether to reconfig SELECT registers or not.
  *
  * This function is called after the GPU has been reset.
  */
-void kbase_ipa_control_handle_gpu_reset_post(struct kbase_device *kbdev);
+void kbase_ipa_control_handle_gpu_reset_post(struct kbase_device *kbdev, bool reconfig_select);
 
 /**
  * kbase_ipa_control_handle_gpu_sleep_enter - Handle the pre GPU Sleep event
@@ -265,5 +266,42 @@ void kbase_ipa_control_protm_entered(struct kbase_device *kbdev);
  * that the GPU has exited from protected mode.
  */
 void kbase_ipa_control_protm_exited(struct kbase_device *kbdev);
+
+/* Extern functions to access IPA registers */
+#if IS_ENABLED(MALI_KERNEL_TEST_API)
+/**
+ * kbase_ipa_reg_read32 - A wrapper function to access IPA registers
+ * @kbdev:		Pointer to kbase device
+ * @reg_enum:	Register enum
+ *
+ * Return: Value in desired register
+ */
+u32 kbase_ipa_reg_read32(struct kbase_device *kbdev, u32 reg_enum);
+
+/**
+ * kbase_ipa_reg_read64 - A wrapper function to access IPA registers
+ * @kbdev:		Pointer to kbase device
+ * @reg_enum:	Register enum
+ *
+ * Return: Value in desired register
+ */
+u64 kbase_ipa_reg_read64(struct kbase_device *kbdev, u32 reg_enum);
+
+/**
+ * kbase_ipa_reg_write32 - A wrapper function to access IPA registers
+ * @kbdev:		Pointer to kbase device
+ * @reg_enum:	Register enum
+ * @value:		Value to write
+ */
+void kbase_ipa_reg_write32(struct kbase_device *kbdev, u32 reg_enum, u32 value);
+
+/**
+ * kbase_ipa_reg_write64 - A wrapper function to access IPA registers
+ * @kbdev:		Pointer to kbase device
+ * @reg_enum:	Register enum
+ * @value:		Value to write
+ */
+void kbase_ipa_reg_write64(struct kbase_device *kbdev, u32 reg_enum, u64 value);
+#endif
 
 #endif /* _KBASE_CSF_IPA_CONTROL_H_ */

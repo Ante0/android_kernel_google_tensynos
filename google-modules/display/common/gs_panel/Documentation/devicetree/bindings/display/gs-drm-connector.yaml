@@ -1,0 +1,94 @@
+# SPDX-License-Identifier: GPL-2.0-only
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/display/gs-drm-connector.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google Silicon Display Panel Connector Driver (Generic)
+
+maintainers:
+  - Taylor Nelms <tknelms@google.com>
+
+description:
+  This document describes device tree properties for Google Silicon's display
+  panel connector driver framework.
+
+properties:
+  compatible:
+    $ref: /schemas/dtcore.yaml#/properties/compatible
+    const: google,drm_connector
+
+  port:
+    $ref: /schemas/graph.yaml#/properties/port
+    description: Logically connects connector to encoder dsi host
+
+  google,device-index:
+    description:
+      In multi-panel scenarios, this index is used to distinguish the primary
+      display connector from the secondary display connector. If not present,
+      is assumed to be the primary panel connector.
+    enum:
+      - 0 # Primary
+      - 1 # Secondary
+
+  "#address-cells":
+    const: 1
+  "#size-cells":
+    const: 0
+
+patternProperties:
+  "^panel.*$":
+    $ref: gs-panel.yaml
+    description:
+      Any number of possible panels may be assigned as children of the connector.
+      When resolving panel choice, their "label" properties will be used to
+      disambiguate and select the correct panel driver.
+      In cases where the panels are named/addressed as "@0", "@1", "@2", etc, require
+      both the properties "#address-cells" and "#size-cells"
+
+required:
+  - compatible
+  - port
+
+examples:
+  - |
+    gs_connector: gs-drm-connector {
+              compatible = "google,drm_connector";
+              label = "gs-drm-connector";
+
+              google,device-index = <0>;
+
+              #address-cells = <1>;
+              #size-cells = <0>;
+
+              port {
+                      /* input */
+                      dsim0_connector_in: endpoint {
+                              remote-endpoint = <&dsi0_connector_out>;
+                      };
+              };
+
+              /* panels will go here */
+              google_gs_hk3: panel@0 {
+                      compatible = "google,gs-hk3";
+                      label = "google-hk3";
+                      channel = <0>;
+                      touch = <&spitouch>;
+
+                      /* reset, power */
+                      reset-gpios = <&gpp0 0 GPIO_ACTIVE_HIGH>;
+                      vci-supply = <&m_ldo14_reg>;
+                      vddi-supply = <&s_bucka_reg>;
+                      vddd-supply = <&disp_vddd>;
+                      vddd-gpios = <&gpp21 5 GPIO_ACTIVE_HIGH>;
+              };
+
+              panel@1 {
+                      compatible = "google,panel-gs-simple";
+                      label = "panel-gs-simple";
+                      channel = <0>;
+
+                      /* reset, power */
+                      reset-gpios = <&gpp0 0 GPIO_ACTIVE_HIGH>;
+              };
+      };

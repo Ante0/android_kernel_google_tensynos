@@ -13,6 +13,7 @@
 
 #include <linux/bitfield.h>
 #include <linux/bitops.h>
+#include <linux/cleanup.h>
 #include <linux/device.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -21,7 +22,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 
 #include <linux/iio/iio.h>
 #include <linux/iio/buffer.h>
@@ -98,7 +99,6 @@ enum bma400_activity {
 struct bma400_data {
 	struct device *dev;
 	struct regmap *regmap;
-	struct regulator_bulk_data regulators[BMA400_NUM_REGULATORS];
 	struct mutex mutex; /* data register lock */
 	struct iio_mount_matrix orientation;
 	enum bma400_power_mode power_mode;
@@ -796,21 +796,19 @@ static int bma400_enable_steps(struct bma400_data *data, int val)
 
 static int bma400_get_steps_reg(struct bma400_data *data, int *val)
 {
-	u8 *steps_raw;
 	int ret;
 
-	steps_raw = kmalloc(BMA400_STEP_RAW_LEN, GFP_KERNEL);
+	u8 *steps_raw __free(kfree) = kmalloc(BMA400_STEP_RAW_LEN, GFP_KERNEL);
 	if (!steps_raw)
 		return -ENOMEM;
 
 	ret = regmap_bulk_read(data->regmap, BMA400_STEP_CNT0_REG,
 			       steps_raw, BMA400_STEP_RAW_LEN);
-	if (ret) {
-		kfree(steps_raw);
+	if (ret)
 		return ret;
-	}
+
 	*val = get_unaligned_le24(steps_raw);
-	kfree(steps_raw);
+
 	return IIO_VAL_INT;
 }
 
@@ -830,13 +828,6 @@ static void bma400_init_tables(void)
 		bma400_scales[i] = 0;
 		bma400_scales[i + 1] = BMA400_SCALE_MIN << raw;
 	}
-}
-
-static void bma400_regulators_disable(void *data_ptr)
-{
-	struct bma400_data *data = data_ptr;
-
-	regulator_bulk_disable(ARRAY_SIZE(data->regulators), data->regulators);
 }
 
 static void bma400_power_disable(void *data_ptr)
@@ -868,33 +859,15 @@ static enum iio_modifier bma400_act_to_mod(enum bma400_activity activity)
 
 static int bma400_init(struct bma400_data *data)
 {
+	static const char * const regulator_names[] = { "vdd", "vddio" };
 	unsigned int val;
 	int ret;
 
-	data->regulators[BMA400_VDD_REGULATOR].supply = "vdd";
-	data->regulators[BMA400_VDDIO_REGULATOR].supply = "vddio";
-	ret = devm_regulator_bulk_get(data->dev,
-				      ARRAY_SIZE(data->regulators),
-				      data->regulators);
-	if (ret) {
-		if (ret != -EPROBE_DEFER)
-			dev_err(data->dev,
-				"Failed to get regulators: %d\n",
-				ret);
-
-		return ret;
-	}
-	ret = regulator_bulk_enable(ARRAY_SIZE(data->regulators),
-				    data->regulators);
-	if (ret) {
-		dev_err(data->dev, "Failed to enable regulators: %d\n",
-			ret);
-		return ret;
-	}
-
-	ret = devm_add_action_or_reset(data->dev, bma400_regulators_disable, data);
+	ret = devm_regulator_bulk_get_enable(data->dev,
+					     ARRAY_SIZE(regulator_names),
+					     regulator_names);
 	if (ret)
-		return ret;
+		return dev_err_probe(data->dev, ret, "Failed to get regulators\n");
 
 	/* Try to read chip_id register. It must return 0x90. */
 	ret = regmap_read(data->regmap, BMA400_CHIP_ID_REG, &val);
@@ -1714,7 +1687,7 @@ static irqreturn_t bma400_interrupt(int irq, void *private)
 
 	if (FIELD_GET(BMA400_INT_DRDY_MSK, le16_to_cpu(data->status))) {
 		mutex_unlock(&data->mutex);
-		iio_trigger_poll_chained(data->trig);
+		iio_trigger_poll_nested(data->trig);
 		return IRQ_HANDLED;
 	}
 

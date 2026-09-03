@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config FWTP_CPM
+	tristate "CPM firmware tracepoint module"
+	help
+	  Enable support for reading and publishing CPM firmware
+          tracepoints.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config FWTP_GOOGLE_GDMC
+	tristate "Google GDMC firmware tracepoint module"
+	depends on GOOGLE_MBA_GDMC_INTERFACE
+	depends on FWTP
+	help
+	  Enable support for reading and publishing Google GDMC firmware
+	  tracepoints.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config FWTP
+	tristate "Google firmware tracepoint module"
+	help
+	  Enable support for reading and publishing Google firmware tracepoints.
+	  Select Y if you have Google firmware.
+	  If unsure select "N".

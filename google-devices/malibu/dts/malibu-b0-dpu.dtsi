@@ -1,0 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+&dw_mipi_g301_cdphy0 {
+	non24x_fix;
+};
+
+&dw_mipi_g301_cdphy1 {
+	non24x_fix;
+};

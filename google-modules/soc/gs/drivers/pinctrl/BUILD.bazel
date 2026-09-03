@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# generic pinmux support
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "pinctrl-defines-header",
+    hdrs = [
+        "pinctrl_defines.h",
+    ],
+    includes = [
+        ".",
+    ],
+    visibility = [
+        ":__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "pinctrl-slg51000",
+    srcs = [
+        "pinctrl_defines.h",
+    ],
+    out = "pinctrl-slg51000.ko",
+    conditional_srcs = {
+        "CONFIG_PINCTRL_SLG51000": {
+            True: [
+                "pinctrl-slg51000.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location pinctrl_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "pinctrl-slg51002",
+    srcs = [
+        "pinctrl_defines.h",
+    ],
+    out = "pinctrl-slg51002.ko",
+    conditional_srcs = {
+        "CONFIG_PINCTRL_SLG51002": {
+            True: [
+                "pinctrl-slg51002.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location pinctrl_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

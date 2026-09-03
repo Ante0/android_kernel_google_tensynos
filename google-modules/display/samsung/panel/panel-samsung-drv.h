@@ -18,7 +18,6 @@
 #include <linux/delay.h>
 #include <linux/regulator/consumer.h>
 #include <linux/gpio/consumer.h>
-#include <linux/of_gpio.h>
 #include <linux/backlight.h>
 #include <drm/drm_bridge.h>
 #include <drm/drm_connector.h>
@@ -27,8 +26,8 @@
 #include <drm/drm_panel.h>
 #include <drm/drm_property.h>
 #include <drm/drm_mipi_dsi.h>
+#include <exynos_drm_connector.h>
 
-#include "../exynos_drm_connector.h"
 #include "panel-common.h"
 
 #define MAX_REGULATORS		3
@@ -774,9 +773,8 @@ struct te2_data {
 };
 
 struct ready_signal_t {
-	int gpio;
+	struct gpio_desc *gpio;
 	int irq;
-	enum of_gpio_flags gpio_flags;
 	struct completion detected;
 };
 
@@ -1289,18 +1287,10 @@ int exynos_panel_init_brightness(struct exynos_panel_desc *desc,
 				u32 num_configs, u32 panel_rev);
 int exynos_panel_set_brightness(struct exynos_panel *exynos_panel, u16 br);
 u16 exynos_panel_get_brightness(struct exynos_panel *exynos_panel);
-#ifdef CONFIG_DEBUG_FS
 void exynos_panel_debugfs_create_cmdset(struct exynos_panel *ctx,
 					struct dentry *parent,
 					const struct exynos_dsi_cmd_set *cmdset,
 					const char *name);
-#else
-static inline
-void exynos_panel_debugfs_create_cmdset(struct exynos_panel *ctx,
-					struct dentry *parent,
-					const struct exynos_dsi_cmd_set *cmdset,
-					const char *name) { }
-#endif
 void exynos_panel_send_cmd_set_flags(struct exynos_panel *ctx, const struct exynos_dsi_cmd_set *cmd_set,
 			       u32 flags);
 inline void exynos_panel_msleep(u32 delay_ms);

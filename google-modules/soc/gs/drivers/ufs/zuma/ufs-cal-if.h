@@ -8,8 +8,7 @@
 #undef NULL
 #define NULL    0
 
-#undef BIT
-#define BIT(a)	(1U << (a))
+#include <linux/bits.h>
 
 struct uic_pwr_mode {
 	u8 lane;

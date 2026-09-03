@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config SLC_PARTITION_MANAGER
+	tristate "PT API framework"
+	default n
+	help
+	Enable PT framework for managing system level cache.
+
+config SLC_PARTITION_MANAGER_LEGACY
+	bool "Enable legacy PT API framework support"
+	depends on SLC_PARTITION_MANAGER
+	default n
+	help
+	Enable legacy PT framework for managing system level cache.
+
+config GS_SLC_ACPM
+	tristate "PT ACPM driver"
+	depends on SLC_PARTITION_MANAGER && GS_ACPM
+	default n
+	help
+	Support PT ACPM drvier
+
+config SLC_PMON
+	bool "Enable SLC perf counter support"
+	depends on GS_SLC_ACPM
+	default n
+	help
+	Enable SLC perf counter support in PT ACPM driver.

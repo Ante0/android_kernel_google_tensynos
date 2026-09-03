@@ -1,0 +1,114 @@
+What:       	/sys/kernel/uwb
+Date:       	September 2024
+KernelVersion:  Linux version 6.1.75
+Contact:    	Rajendra Varma <raj.varma@samsung.com>
+Description:    This directory contains the information pertaining
+			to the debug nodes corresponding to the UWB hardware.
+			The data is discharged from the firmware of UWB
+			chipset through the SPI lines to the HOST when the
+			device driver module is loaded
+
+What:       	/sys/kernel/uwb/fwversion
+Date:       	September 2024
+KernelVersion:  Linux version 6.1.75
+Contact:    	Rajendra Varma <raj.varma@samsung.com>
+Description:    This node in the uwb directory contains the information about
+			the firware version that is currently flashed on to the
+			UWB hardware. This FW version is retrieved from the
+			chipset when the UWB specific kernel module is loaded.
+
+What:       	/sys/kernel/uwb/devid
+Date:       	September 2024
+KernelVersion:  Linux version 6.1.75
+Contact:    	Rajendra Varma <raj.varma@samsung.com>
+Description:    This feature is used to retrieve the ChipID/DeviceID
+			of the UWB hardware after the device driver is loaded.
+			This information is obtained by parsing the ATR message
+			emitted directly from the firmware loaded on the UWB chipset
+
+What:       	/sys/kernel/uwb/bl1_flash_retries
+Date:       	October 2024
+KernelVersion:  Linux version 6.6.46
+Contact:    	Rajendra Varma <raj.varma@samsung.com>
+Description:    This feature is used to display the number of BL1 download/flash
+			retry attempts that are made while the FW download. If no flash
+			attempts are made then it displays -1, if the flash is successful
+			in the first attempt then the value will be 0. For any number of
+			subsequent retry attempts made, the corresponding retry count is
+			displayed.
+
+What:       	/sys/kernel/uwb/num_spi_slow_txs
+Date:       	January 2025
+KernelVersion:  Linux version 6.6.46
+Contact:    	Hasan Awais <hasanawais@google.com>
+Description:    This node is used to retrieve the number of SPI transactions
+			that have lasted beyond a certain threshold, depending on packet size.
+			The default leeway added is 1ms, and `spi_slow_tx_ms` may be provided
+			as a module parameter when loading the UWB kernel module.
+
+
+
+What:           /sys/kernel/uwb/power_stats/active_count
+Date:           November 2025
+KernelVersion:  Linux version 6.6.111
+Contact:        Rajendra Varma <raj.varma@samsung.com>
+Description:    This feature is used to display the power mode active_count.
+		It indicates the Number of times the subsystem has entered Active Mode
+		since the last reset or measurement interval.
+
+What:           /sys/kernel/uwb/power_stats/active_duration
+Date:           November 2025
+KernelVersion:  Linux version 6.6.111
+Contact:        Rajendra Varma <raj.varma@samsung.com>
+Description:    This feature is used to display the power mode active_duration.
+		It indicates the Cumulative time (in milliseconds) that the subsystem
+		has spent in Active Mode during the same period.
+
+What:           /sys/kernel/uwb/power_stats/active_last_entry
+Date:           November 2025
+KernelVersion:  Linux version 6.6.111
+Contact:        Rajendra Varma <raj.varma@samsung.com>
+Description:    This feature is used to display the power mode active_last_entry.
+		Timestamp (in milliseconds) when the subsystem most recently entered
+		Active Mode.
+
+What:           /sys/kernel/uwb/power_stats/active_last_exit
+Date:           November 2025
+KernelVersion:  Linux version 6.6.111
+Contact:        Rajendra Varma <raj.varma@samsung.com>
+Description:    This feature is used to display the power mode active_last_exit.
+		Timestamp (in milliseconds) when the subsystem most recently exited
+		Active Mode.
+
+
+What:           /sys/kernel/uwb/power_stats/idle_count
+Date:           November 2025
+KernelVersion:  Linux version 6.6.111
+Contact:        Rajendra Varma <raj.varma@samsung.com>
+Description:    This feature is used to display the power mode idle_count.
+		It indicates the Number of times the subsystem has entered Idle Mode
+		since the last reset or measurement interval.
+
+What:           /sys/kernel/uwb/power_stats/idle_duration
+Date:           November 2025
+KernelVersion:  Linux version 6.6.111
+Contact:        Rajendra Varma <raj.varma@samsung.com>
+Description:    This feature is used to display the power mode idle_duration.
+		It indicates the Cumulative time (in milliseconds) that the subsystem
+		has spent in Idle Mode during the same period.
+
+What:           /sys/kernel/uwb/power_stats/idle_last_entry
+Date:           November 2025
+KernelVersion:  Linux version 6.6.111
+Contact:        Rajendra Varma <raj.varma@samsung.com>
+Description:    This feature is used to display the power mode idle_last_entry.
+		Timestamp (in milliseconds) when the subsystem most recently entered
+		Idle Mode.
+
+What:           /sys/kernel/uwb/power_stats/idle_last_exit
+Date:           November 2025
+KernelVersion:  Linux version 6.6.111
+Contact:        Rajendra Varma <raj.varma@samsung.com>
+Description:    This feature is used to display the power mode idle_last_exit.
+		Timestamp (in milliseconds) when the subsystem most recently exited
+		Idle Mode.

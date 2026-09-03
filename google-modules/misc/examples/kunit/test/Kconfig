@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config SAMPLE_KUNIT_EXAMPLE_TEST
+	tristate "KUnit test for kunit_example" if !KUNIT_ALL_TESTS
+	depends on SAMPLE_KUNIT_EXAMPLE && KUNIT
+	default KUNIT_ALL_TESTS
+	help
+	  This builds unit tests for the kunit_example module.
+	  It demonstrates how to mock internal functions using static stubs.
+	  The tests cover both real and mocked implementations of the internal
+	  logic via the public API.
+
+	  If unsure, say N.

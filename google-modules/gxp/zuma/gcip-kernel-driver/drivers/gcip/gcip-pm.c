@@ -6,6 +6,7 @@
  */
 
 #include <linux/atomic.h>
+#include <linux/completion.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/mutex.h>
@@ -28,13 +29,22 @@ static void gcip_pm_try_power_down(struct gcip_pm *pm)
 	if (ret == -EAGAIN) {
 		dev_warn(pm->dev, "Power down request denied, retrying in %d ms\n",
 			 GCIP_ASYNC_POWER_DOWN_RETRY_DELAY);
-		pm->power_down_pending = true;
+
+		if (!pm->power_down_pending) {
+			pm->power_down_pending = true;
+			reinit_completion(&pm->pending_power_down_done);
+		}
+
 		schedule_delayed_work(&pm->power_down_work,
 				      msecs_to_jiffies(GCIP_ASYNC_POWER_DOWN_RETRY_DELAY));
 	} else {
 		if (ret)
 			dev_err(pm->dev, "Power down request failed (%d)\n", ret);
-		pm->power_down_pending = false;
+
+		if (pm->power_down_pending) {
+			pm->power_down_pending = false;
+			complete_all(&pm->pending_power_down_done);
+		}
 	}
 }
 
@@ -49,7 +59,7 @@ static void gcip_pm_async_power_down_work(struct work_struct *work)
 	if (pm->power_down_pending)
 		gcip_pm_try_power_down(pm);
 	else
-		dev_info(pm->dev, "Delayed power down cancelled\n");
+		dev_warn(pm->dev, "async power down finds no request pending\n");
 
 	mutex_unlock(&pm->lock);
 }
@@ -81,11 +91,15 @@ struct gcip_pm *gcip_pm_create(const struct gcip_pm_args *args)
 	pm->before_destroy = args->before_destroy;
 	pm->power_up = args->power_up;
 	pm->power_down = args->power_down;
+	pm->power_down_wait_timeout_ms = args->power_down_wait_timeout_ms;
+	if (!pm->power_down_wait_timeout_ms)
+		pm->power_down_wait_timeout_ms = GCIP_POWER_DOWN_WAIT_TIMEOUT_DEFAULT;
 
 	mutex_init(&pm->lock);
 	INIT_DELAYED_WORK(&pm->power_down_work, gcip_pm_async_power_down_work);
 	INIT_WORK(&pm->put_async_work, gcip_pm_async_put_work);
 	atomic_set(&pm->put_async_count, 0);
+	init_completion(&pm->pending_power_down_done);
 
 	if (pm->after_create) {
 		ret = pm->after_create(pm->data);
@@ -104,11 +118,40 @@ void gcip_pm_destroy(struct gcip_pm *pm)
 
 	pm->power_down_pending = false;
 	cancel_delayed_work_sync(&pm->power_down_work);
+	complete_all(&pm->pending_power_down_done);
 
 	if (pm->before_destroy)
 		pm->before_destroy(pm->data);
 
 	devm_kfree(pm->dev, pm);
+}
+
+static int gcip_pm_get_power_up(struct gcip_pm *pm)
+{
+	int ret = 0;
+
+retry:
+	gcip_pm_lockdep_assert_held(pm);
+
+	/* Already powered up. */
+	if (pm->count)
+		return 0;
+
+	if (!pm->power_down_pending)
+		return pm->power_up(pm->data);
+
+	mutex_unlock(&pm->lock);
+	dev_info(pm->dev, "wait for pending power down to complete");
+	if (!wait_for_completion_timeout(&pm->pending_power_down_done,
+					 msecs_to_jiffies(pm->power_down_wait_timeout_ms))) {
+		dev_err(pm->dev, "timeout waiting for power down to complete");
+		ret = -ETIMEDOUT;
+	}
+
+	mutex_lock(&pm->lock);
+	if (!ret)
+		goto retry;
+	return ret;
 }
 
 /*
@@ -120,30 +163,23 @@ void gcip_pm_destroy(struct gcip_pm *pm)
  */
 static int gcip_pm_get_locked(struct gcip_pm *pm, enum gcip_pm_flags flags)
 {
-	int ret = 0;
+	int ret;
 
 	gcip_pm_lockdep_assert_held(pm);
+	ret = gcip_pm_get_power_up(pm);
+	if (ret)
+		return ret;
 
-	if (!pm->count) {
-		if (pm->power_down_pending)
-			pm->power_down_pending = false;
-		else
-			ret = pm->power_up(pm->data);
-	}
+	pm->count++;
 
-	if (!ret) {
-		pm->count++;
+	if (flags & GCIP_PM_SUSPENDABLE) {
+		pm->suspendable_count++;
 
-		if (flags & GCIP_PM_SUSPENDABLE) {
-			pm->suspendable_count++;
-
-			if (pm->suspendable_count > pm->count)
-				pm->suspendable_count = pm->count;
-		}
+		if (pm->suspendable_count > pm->count)
+			pm->suspendable_count = pm->count;
 	}
 
 	dev_dbg(pm->dev, "%s: %d\n", __func__, pm->count);
-
 	return ret;
 }
 
@@ -209,6 +245,7 @@ static void __gcip_pm_put_flags(struct gcip_pm *pm, enum gcip_pm_flags flags)
 
 	if (!pm->count) {
 		pm->power_down_pending = true;
+		reinit_completion(&pm->pending_power_down_done);
 		gcip_pm_try_power_down(pm);
 	}
 
@@ -268,6 +305,7 @@ void gcip_pm_flush_delayed_power_down_work(struct gcip_pm *pm, int retry)
 		dev_warn(pm->dev,
 			 "Cancel the power down request, the block might be in the bad state");
 		pm->power_down_pending = false;
+		complete_all(&pm->pending_power_down_done);
 	}
 
 	mutex_unlock(&pm->lock);

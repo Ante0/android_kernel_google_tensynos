@@ -12,9 +12,18 @@
 #include <linux/stddef.h>
 #include <linux/types.h>
 #include <linux/uidgid.h>
+#include <linux/android_vendor.h>
 #include <uapi/linux/android/binderfs.h>
 #include "binder_alloc.h"
 #include "dbitmap.h"
+
+extern int binder_use_rust;
+#ifdef CONFIG_ANDROID_BINDERFS
+void unload_binderfs(void);
+int on_binderfs_mount(void);
+#else
+static inline void unload_binderfs(void) {}
+#endif
 
 struct binder_context {
 	struct binder_node *binder_context_mgr_node;
@@ -130,12 +139,13 @@ enum binder_stat_types {
 	BINDER_STAT_DEATH,
 	BINDER_STAT_TRANSACTION,
 	BINDER_STAT_TRANSACTION_COMPLETE,
+	BINDER_STAT_FREEZE,
 	BINDER_STAT_COUNT
 };
 
 struct binder_stats {
-	atomic_t br[_IOC_NR(BR_ONEWAY_SPAM_SUSPECT) + 1];
-	atomic_t bc[_IOC_NR(BC_REPLY_SG) + 1];
+	atomic_t br[_IOC_NR(BR_CLEAR_FREEZE_NOTIFICATION_DONE) + 1];
+	atomic_t bc[_IOC_NR(BC_FREEZE_NOTIFICATION_DONE) + 1];
 	atomic_t obj_created[BINDER_STAT_COUNT];
 	atomic_t obj_deleted[BINDER_STAT_COUNT];
 };
@@ -153,17 +163,18 @@ struct binder_work {
 	enum binder_work_type {
 		BINDER_WORK_TRANSACTION = 1,
 		BINDER_WORK_TRANSACTION_COMPLETE,
+		BINDER_WORK_TRANSACTION_PENDING,
 		BINDER_WORK_TRANSACTION_ONEWAY_SPAM_SUSPECT,
 		BINDER_WORK_RETURN_ERROR,
 		BINDER_WORK_NODE,
 		BINDER_WORK_DEAD_BINDER,
 		BINDER_WORK_DEAD_BINDER_AND_CLEAR,
 		BINDER_WORK_CLEAR_DEATH_NOTIFICATION,
-#ifndef __GENKSYMS__
 		BINDER_WORK_FROZEN_BINDER,
 		BINDER_WORK_CLEAR_FREEZE_NOTIFICATION,
-#endif
 	} type;
+
+	ANDROID_OEM_DATA(1);
 };
 
 struct binder_error {
@@ -410,11 +421,15 @@ enum binder_prio_state {
  * @freeze_wait:          waitqueue of processes waiting for all outstanding
  *                        transactions to be processed
  *                        (protected by @inner_lock)
+ * @dmap                  dbitmap to manage available reference descriptors
+ *                        (protected by @outer_lock)
  * @todo:                 list of work for this process
  *                        (protected by @inner_lock)
  * @stats:                per-process binder statistics
  *                        (atomics, no lock needed)
  * @delivered_death:      list of delivered death notification
+ *                        (protected by @inner_lock)
+ * @delivered_freeze:     list of delivered freeze notification
  *                        (protected by @inner_lock)
  * @max_threads:          cap on number of binder threads
  *                        (protected by @inner_lock)
@@ -459,10 +474,12 @@ struct binder_proc {
 	bool sync_recv;
 	bool async_recv;
 	wait_queue_head_t freeze_wait;
+	struct dbitmap dmap;
 	struct list_head todo;
 	struct binder_stats stats;
 	struct list_head delivered_death;
-	int max_threads;
+	struct list_head delivered_freeze;
+	u32 max_threads;
 	int requested_threads;
 	int requested_threads_started;
 	int tmp_ref;
@@ -474,22 +491,24 @@ struct binder_proc {
 	spinlock_t outer_lock;
 	struct dentry *binderfs_entry;
 	bool oneway_spam_detection_enabled;
+	ANDROID_OEM_DATA(1);
 };
 
 /**
  * struct binder_proc_wrap - wrapper to preserve KMI in binder_proc
  * @proc:                    binder_proc being wrapped
- * @dmap:                    dbitmap to manage available reference descriptors
- *                           (protected by @proc.outer_lock)
- * @lock:                    protects @proc->alloc fields
- * @delivered_freeze:        list of delivered freeze notification
- *                           (protected by @inner_lock)
+ * @mutex:                   protects binder_alloc fields
+ * @pages:                   array of struct page *
+ * @mapped:                  whether the vm area is mapped, each binderinstance
+ *                           is allowed a single mapping throughout its lifetime
  */
 struct binder_proc_wrap {
 	struct binder_proc proc;
-	struct dbitmap dmap;
-	spinlock_t lock;
-	struct list_head delivered_freeze;
+	struct binder_alloc_wrap {
+		struct mutex mutex;
+		struct page **pages;
+		bool mapped;
+	} alloc;
 };
 
 static inline
@@ -498,36 +517,14 @@ struct binder_proc_wrap *proc_wrapper(struct binder_proc *proc)
 	return container_of(proc, struct binder_proc_wrap, proc);
 }
 
-static inline struct binder_proc *
-binder_proc_entry(struct binder_alloc *alloc)
+static inline
+struct binder_alloc_wrap *alloc_to_wrap(struct binder_alloc *alloc)
 {
-	return container_of(alloc, struct binder_proc, alloc);
-}
+	struct binder_proc *proc;
 
-static inline struct binder_proc_wrap *
-binder_alloc_to_proc_wrap(struct binder_alloc *alloc)
-{
-	return proc_wrapper(binder_proc_entry(alloc));
-}
+	proc = container_of(alloc, struct binder_proc, alloc);
 
-static inline void binder_alloc_lock_init(struct binder_alloc *alloc)
-{
-	spin_lock_init(&binder_alloc_to_proc_wrap(alloc)->lock);
-}
-
-static inline void binder_alloc_lock(struct binder_alloc *alloc)
-{
-	spin_lock(&binder_alloc_to_proc_wrap(alloc)->lock);
-}
-
-static inline void binder_alloc_unlock(struct binder_alloc *alloc)
-{
-	spin_unlock(&binder_alloc_to_proc_wrap(alloc)->lock);
-}
-
-static inline int binder_alloc_trylock(struct binder_alloc *alloc)
-{
-	return spin_trylock(&binder_alloc_to_proc_wrap(alloc)->lock);
+	return &proc_wrapper(proc)->alloc;
 }
 
 /**
@@ -541,9 +538,9 @@ binder_alloc_get_free_async_space(struct binder_alloc *alloc)
 {
 	size_t free_async_space;
 
-	binder_alloc_lock(alloc);
+	mutex_lock(&alloc_to_wrap(alloc)->mutex);
 	free_async_space = alloc->free_async_space;
-	binder_alloc_unlock(alloc);
+	mutex_unlock(&alloc_to_wrap(alloc)->mutex);
 	return free_async_space;
 }
 
@@ -666,6 +663,7 @@ struct binder_transaction {
 	 */
 	spinlock_t lock;
 	ANDROID_VENDOR_DATA(1);
+	ANDROID_OEM_DATA(1);
 };
 
 /**

@@ -332,7 +332,7 @@ static bool fiji_is_hw_avfs_present(struct pp_hwmgr *hwmgr)
 
 static int fiji_smu_init(struct pp_hwmgr *hwmgr)
 {
-	struct fiji_smumgr *fiji_priv = NULL;
+	struct fiji_smumgr *fiji_priv;
 
 	fiji_priv = kzalloc(sizeof(struct fiji_smumgr), GFP_KERNEL);
 
@@ -2024,7 +2024,7 @@ static int fiji_init_smc_table(struct pp_hwmgr *hwmgr)
 	table->VoltageResponseTime = 0;
 	table->PhaseResponseTime = 0;
 	table->MemoryThermThrottleEnable = 1;
-	table->PCIeBootLinkLevel = 0;      /* 0:Gen1 1:Gen2 2:Gen3*/
+	table->PCIeBootLinkLevel = (uint8_t) (data->dpm_table.pcie_speed_table.count);
 	table->PCIeGenInterval = 1;
 	table->VRConfig = 0;
 

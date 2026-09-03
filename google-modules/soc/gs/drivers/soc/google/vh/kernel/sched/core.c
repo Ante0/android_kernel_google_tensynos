@@ -10,18 +10,20 @@
 #include <linux/sched/cputime.h>
 #include <kernel/sched/sched.h>
 
-#include "sched_priv.h"
+#if IS_ENABLED(CONFIG_SOC_GS101) || IS_ENABLED(CONFIG_SOC_GS201) || IS_ENABLED(CONFIG_SOC_ZUMA)
 #include <performance/gs_perf_mon/gs_perf_mon.h>
+#else
+#include <perf/core/gs_perf_mon.h>
+#endif
+
+#include "sched_priv.h"
+
+#include "governor_memlat.h"
+
+extern inline void update_misfit_status(struct task_struct *p, struct rq *rq);
 
 struct vendor_group_list vendor_group_list[VG_MAX];
 
-#if IS_ENABLED(CONFIG_UCLAMP_STATS)
-extern void update_uclamp_stats(int cpu, u64 time);
-#endif
-
-extern inline void update_misfit_status(struct task_struct *p, struct rq *rq);
-extern int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
-		cpumask_t *valid_mask);
 /*
  * Ignore uclamp_min for CFS tasks if
  *
@@ -59,9 +61,21 @@ DEFINE_STATIC_KEY_FALSE(uclamp_max_filter_enable);
 DEFINE_STATIC_KEY_FALSE(tapered_dvfs_headroom_enable);
 DEFINE_STATIC_KEY_FALSE(auto_dvfs_headroom_enable);
 DEFINE_STATIC_KEY_FALSE(auto_migration_margins_enable);
+DEFINE_STATIC_KEY_FALSE(response_time_ms_fix_enable);
 
 DEFINE_STATIC_KEY_FALSE(skip_inefficient_opps_enable);
 DEFINE_STATIC_KEY_FALSE(use_em_for_freq_mapping);
+
+DEFINE_STATIC_KEY_FALSE(per_task_memory_aware_enable);
+
+DEFINE_STATIC_KEY_FALSE(eas_fork_exec_enable);
+
+DEFINE_STATIC_KEY_FALSE(update_freq_on_idle_enable);
+
+DEFINE_STATIC_KEY_FALSE(enable_ptick);
+
+DEFINE_STATIC_KEY_FALSE(dsulat_fast_switch_enable);
+DEFINE_STATIC_KEY_FALSE(memlat_fast_switch_enable);
 
 #define vi_set_adpf(vi, type, value) \
     do { \
@@ -132,6 +146,8 @@ static inline void task_tick_uclamp(struct rq *rq, struct task_struct *curr)
 	if (!uclamp_is_used())
 		return;
 
+	lockdep_assert_rq_held(rq);
+
 	/*
 	 * Condition might have changed since we enqueued the task.
 	 */
@@ -164,14 +180,26 @@ static inline void task_tick_uclamp(struct rq *rq, struct task_struct *curr)
 static inline void task_tick_uclamp(struct rq *rq, struct task_struct *curr) {}
 #endif
 
-void vh_scheduler_tick_pixel_mod(void *data, struct rq *rq)
+void vh_scheduler_tick_pixel_mod_locked(struct rq *rq)
 {
-	struct rq_flags rf;
-	rq_lock(rq, &rf);
+	bool uclamp_st_updated = false;
+
+	lockdep_assert_rq_held(rq);
+
 	task_tick_uclamp(rq, rq->curr);
 	__update_util_est_invariance(rq, rq->curr, true);
-	rq_unlock(rq, &rf);
+	uclamp_st_updated = update_auto_max_uclamp_st(rq->curr);
 
+	if (uclamp_st_updated) {
+		/* rq clock is already updated */
+		rq->clock_update_flags = RQCF_UPDATED;
+		/* freq may have been updated in entity tick, so use force update here */
+		cpufreq_update_util(rq, SCHED_PIXEL_FORCE_UPDATE);
+	}
+}
+
+void vh_scheduler_tick_pixel_mod_nolock(struct rq *rq)
+{
 	/* Check if an RT task needs to move to a better fitting CPU */
 	check_migrate_rt_task(rq, rq->curr);
 
@@ -186,28 +214,182 @@ void vh_scheduler_tick_pixel_mod(void *data, struct rq *rq)
 	gs_perf_mon_tick_update_counters();
 }
 
+void vh_scheduler_tick_pixel_mod(void *data, struct rq *rq)
+{
+	struct rq_flags rf;
+
+	/* Our ptick handles everything now, skip if enabled */
+	if (static_key_enabled(&enable_ptick)) {
+		/*
+		 * Tickle the perf counters if there are no tasks running to
+		 * help trigger any potential necessary update
+		 */
+		if (!rq->nr_running)
+			gs_perf_mon_tick_update_counters();
+		return;
+	}
+
+	rq_lock(rq, &rf);
+	vh_scheduler_tick_pixel_mod_locked(rq);
+	rq_unlock(rq, &rf);
+
+	vh_scheduler_tick_pixel_mod_nolock(rq);
+}
+
+static void reset_task_pmu(struct task_struct *p)
+{
+	struct vendor_task_struct *vp = get_vendor_task_struct(p);
+
+	raw_spin_lock(&vp->lock);
+	memset(&vp->mp_stats.pmu_stats, 0, sizeof(struct pmu_stats_struct));
+	raw_spin_unlock(&vp->lock);
+}
+
+static void finish_task_pmu(int cpu, struct task_struct *p, u64 cycle, u64 stall, u64 inst,
+			    u64 mem_rd_inst, u64 mem_wr_inst)
+{
+	struct vendor_task_struct *vp = get_vendor_task_struct(p);
+	s64 cycle_delta, stall_delta, inst_delta, mem_rd_inst_delta, mem_wr_inst_delta;
+	u64 last_cycle = vp->mp_stats.pmu_stats.last_cycle[pixel_cpu_to_cluster[cpu]];
+	u64 last_stall = vp->mp_stats.pmu_stats.last_stall[pixel_cpu_to_cluster[cpu]];
+	u64 last_inst = vp->mp_stats.pmu_stats.last_inst[pixel_cpu_to_cluster[cpu]];
+	u64 last_mem_rd_inst = vp->mp_stats.pmu_stats.last_mem_rd_inst;
+	u64 last_mem_wr_inst = vp->mp_stats.pmu_stats.last_mem_wr_inst;
+
+	/* not prepared yet */
+	if (last_cycle == 0)
+		return;
+
+	/* cycle should not be the same, but stall, inst, and mem_xx_inst could be. */
+	if (unlikely(cycle <= last_cycle || stall < last_stall || inst < last_inst ||
+		     mem_rd_inst < last_mem_rd_inst || mem_wr_inst < last_mem_wr_inst))
+		return;
+
+	cycle_delta = cycle - last_cycle;
+	stall_delta = stall - last_stall;
+	inst_delta = inst - last_inst;
+	mem_rd_inst_delta = mem_rd_inst - last_mem_rd_inst;
+	mem_wr_inst_delta = mem_wr_inst - last_mem_wr_inst;
+
+	/* possibly overflow, reset the stats */
+	if (unlikely(cycle_delta < 0)) {
+		reset_task_pmu(p);
+		return;
+	}
+
+	/* cycle delta should always >= other delta */
+	if (unlikely(cycle_delta < stall_delta || cycle_delta < inst_delta))
+		return;
+
+	raw_spin_lock(&vp->lock);
+	vp->mp_stats.pmu_stats.cycle[pixel_cpu_to_cluster[cpu]] += cycle_delta;
+	vp->mp_stats.pmu_stats.stall[pixel_cpu_to_cluster[cpu]] += stall_delta;
+	vp->mp_stats.pmu_stats.inst[pixel_cpu_to_cluster[cpu]] += inst_delta;
+	vp->mp_stats.pmu_stats.total_mem_rd_inst += mem_rd_inst_delta;
+	vp->mp_stats.pmu_stats.total_mem_wr_inst += mem_wr_inst_delta;
+	vp->mp_stats.pmu_stats.total_inst += inst_delta;
+	raw_spin_unlock(&vp->lock);
+	trace_per_task_pmu_stats(p, cpu, cycle_delta, stall_delta, inst_delta,
+				 mem_rd_inst_delta + mem_wr_inst_delta);
+}
+
+static void prepare_task_pmu(int cpu, struct task_struct *p, u64 cycle, u64 stall, u64 inst,
+			     u64 mem_rd_inst, u64 mem_wr_inst)
+{
+	struct vendor_task_struct *vp = get_vendor_task_struct(p);
+
+	raw_spin_lock(&vp->lock);
+	vp->mp_stats.pmu_stats.last_cycle[pixel_cpu_to_cluster[cpu]] = cycle;
+	vp->mp_stats.pmu_stats.last_stall[pixel_cpu_to_cluster[cpu]] = stall;
+	vp->mp_stats.pmu_stats.last_inst[pixel_cpu_to_cluster[cpu]] = inst;
+	vp->mp_stats.pmu_stats.last_mem_rd_inst = mem_rd_inst;
+	vp->mp_stats.pmu_stats.last_mem_wr_inst = mem_wr_inst;
+	raw_spin_unlock(&vp->lock);
+}
+
+static void update_task_pmu(int cpu, struct task_struct *prev, struct task_struct *next)
+{
+	u64 cycle, stall, inst, mem_rd_inst, mem_wr_inst;
+
+	if (read_perf_event_local(cpu, CORE_INST_INDEX, &inst) ||
+	    read_perf_event_local(cpu, CORE_STALL_INDEX, &stall) ||
+	    read_perf_event_local(cpu, CORE_CYCLE_INDEX, &cycle) ||
+	    read_perf_event_local(cpu, CORE_MEM_RD_INST_INDEX, &mem_rd_inst) ||
+	    read_perf_event_local(cpu, CORE_MEM_WR_INST_INDEX, &mem_wr_inst))
+		return;
+
+	if (!is_idle_task(prev) && !(prev->flags & PF_EXITING))
+		finish_task_pmu(cpu, prev, cycle, stall, inst, mem_rd_inst, mem_wr_inst);
+	if (!is_idle_task(next) && !(next->flags & PF_EXITING))
+		prepare_task_pmu(cpu, next, cycle, stall, inst, mem_rd_inst, mem_wr_inst);
+}
+
+static inline void ptick_clear(struct rq *rq)
+{
+	struct vendor_rq_struct *vrq = get_vendor_rq_struct(rq);
+
+	if (!vrq->ptick_timer)
+		return;
+
+	if (hrtimer_active(vrq->ptick_timer))
+		hrtimer_cancel(vrq->ptick_timer);
+}
+
+static inline void ptick_start(struct rq *rq)
+{
+	struct vendor_rq_struct *vrq = get_vendor_rq_struct(rq);
+
+	if (!vrq->ptick_timer)
+		return;
+
+	hrtimer_start(vrq->ptick_timer, ns_to_ktime(PTICK_PERIOD_NS), HRTIMER_MODE_REL_PINNED_HARD);
+}
+
 void vh_sched_switch_pixel_mod(void *data, bool preempt, struct task_struct *prev,
 			       struct task_struct *next, unsigned int prev_state)
 {
+	bool force_cpufreq_update = false;
 	struct rq *rq = task_rq(prev);
 
-	if (task_is_running(prev))
+	if (static_branch_likely(&update_freq_on_idle_enable) && !in_suspend_resume)
+		force_cpufreq_update = is_idle_task(next) || is_idle_task(prev);
+
+	if (task_is_running(prev)) {
 		__update_util_est_invariance(rq, prev, rq->nr_running > 1);
+		force_cpufreq_update |= update_auto_max_uclamp_st(prev);
+	}
+
+	force_cpufreq_update |= update_auto_max_uclamp_st(next);
+
+	if (force_cpufreq_update) {
+		/* freq may have been updated in set/put task, so use force update here */
+		cpufreq_update_util(rq, SCHED_PIXEL_FORCE_UPDATE);
+	}
+
+	if (static_key_enabled(&per_task_memory_aware_enable))
+		update_task_pmu(cpu_of(rq), prev, next);
+
+	if (is_idle_task(next))
+		ptick_clear(rq);
+
+	if (static_key_enabled(&enable_ptick)) {
+		if (fair_policy(prev->policy))
+			fair_add_pushable_task(rq, prev);
+		if (fair_policy(next->policy)) {
+			fair_remove_pushable_task(rq, next);
+			fair_queue_pushable_tasks(rq);
+		}
+
+		if (is_idle_task(prev))
+			ptick_start(rq);
+	}
 
 	send_trace_sched_group_tracker(next, true);
 }
 
-void rvh_after_enqueue_task_pixel_mod(void *data, struct rq *rq, struct task_struct *p, int flags)
-{
-	if (p->prio < MAX_RT_PRIO)
-		return;
-
-	update_misfit_status(p, rq);
-}
-
-
 void rvh_enqueue_task_pixel_mod(void *data, struct rq *rq, struct task_struct *p, int flags)
 {
+	struct vendor_task_struct_h *vph = get_vendor_task_struct_h(p);
 	struct vendor_task_struct *vp = get_vendor_task_struct(p);
 	unsigned long irqflags;
 	int group;
@@ -216,16 +398,15 @@ void rvh_enqueue_task_pixel_mod(void *data, struct rq *rq, struct task_struct *p
 		return;
 
 	if (static_branch_likely(&auto_dvfs_headroom_enable)) {
-		if (vg[get_vendor_group(p)].disable_util_est) {
-			p->se.avg.util_est.enqueued = 0;
-			p->se.avg.util_est.ewma = 0;
+		if (!get_rampup_multiplier(p)) {
+			p->se.avg.util_est = 0;
 		}
 	}
 
 	raw_spin_lock_irqsave(&vp->lock, irqflags);
 	if (vp->queued_to_list == LIST_NOT_QUEUED) {
 		group = get_vendor_group(p);
-		add_to_vendor_group_list(&vp->node, group);
+		add_to_vendor_group_list(&vph->node, group);
 		vp->queued_to_list = LIST_QUEUED;
 	}
 	raw_spin_unlock_irqrestore(&vp->lock, irqflags);
@@ -236,11 +417,12 @@ void rvh_enqueue_task_pixel_mod(void *data, struct rq *rq, struct task_struct *p
 	 * can read sched_slice()
 	 */
 	if (uclamp_is_used() && rt_task(p) && p->sched_class->uclamp_enabled)
-		apply_uclamp_filters(rq, p);
+		apply_uclamp_filters(rq, p, flags);
 }
 
 void rvh_dequeue_task_pixel_mod(void *data, struct rq *rq, struct task_struct *p, int flags)
 {
+	struct vendor_task_struct_h *vph = get_vendor_task_struct_h(p);
 	struct vendor_task_struct *vp = get_vendor_task_struct(p);
 	unsigned long irqflags;
 	int group;
@@ -256,7 +438,7 @@ void rvh_dequeue_task_pixel_mod(void *data, struct rq *rq, struct task_struct *p
 	raw_spin_lock_irqsave(&vp->lock, irqflags);
 	if (vp->queued_to_list == LIST_QUEUED) {
 		group = get_vendor_group(p);
-		remove_from_vendor_group_list(&vp->node, group);
+		remove_from_vendor_group_list(&vph->node, group);
 		vp->queued_to_list = LIST_NOT_QUEUED;
 	}
 	raw_spin_unlock_irqrestore(&vp->lock, irqflags);
@@ -267,6 +449,27 @@ void rvh_dequeue_task_pixel_mod(void *data, struct rq *rq, struct task_struct *p
 	if (uclamp_is_used()) {
 		uclamp_reset_ignore_uclamp_max(p);
 		uclamp_reset_ignore_uclamp_min(p);
+	}
+}
+
+void rvh_after_enqueue_task_pixel_mod(void *data, struct rq *rq, struct task_struct *p,
+				      int flags)
+{
+	if (p->prio < MAX_RT_PRIO)
+		return;
+
+	update_misfit_status(p, rq);
+}
+
+void rvh_after_dequeue_task_pixel_mod(void *data, struct rq *rq, struct task_struct *p,
+				      int flags, bool *results)
+{
+	if (!rq->dl.dl_nr_running) {
+		/*
+		 * Workaround upstream bug due to dl_server causing bw to
+		 * always be positive even if there are no dl tasks.
+		 */
+		rq->dl.running_bw = 0;
 	}
 }
 
@@ -364,7 +567,8 @@ static void set_performance_inheritance(struct task_struct *p, struct task_struc
 		if (!!get_preempt_wakeup(pi_task))
 			vi_set_preempt_wakeup(vi, type, 1);
 
-		if (__get_prefer_high_cap(pi_task) || task_cpu(pi_task) >= pixel_cluster_start_cpu[1])
+		if (get_prefer_high_cap(pi_task) ||
+			task_cpu(pi_task) >= pixel_cluster_start_cpu[1])
 			vi_set_prefer_high_cap(vi, type, 1);
 	} else {
 		vi->uclamp[type][UCLAMP_MIN] = uclamp_none(UCLAMP_MIN);
@@ -388,15 +592,21 @@ static void set_performance_inheritance(struct task_struct *p, struct task_struc
 }
 
 void vh_binder_set_priority_pixel_mod(void *data, struct binder_transaction *t,
-	struct task_struct *p)
+	struct task_struct *to_task)
 {
-	if (!t->is_nested)
-		get_vendor_task_struct(p)->is_binder_task = true;
+	struct task_struct *from_task = NULL;
 
-	if (!t->from)
+	if (t->flags & TF_ONE_WAY)
 		return;
 
-	set_performance_inheritance(p, current, VI_BINDER);
+	spin_lock(&t->lock);
+	if (t->from)
+		from_task = get_task_struct(t->from->task);
+	spin_unlock(&t->lock);
+
+	set_performance_inheritance(to_task, from_task, VI_BINDER);
+	if (from_task)
+		put_task_struct(from_task);
 }
 
 void vh_binder_restore_priority_pixel_mod(void *data, struct binder_transaction *t,
@@ -409,9 +619,74 @@ void vh_binder_proc_transaction_finish(void *data, struct binder_proc *proc,
 		struct binder_transaction *t, struct task_struct *binder_th_task,
 		bool pending_async, bool sync)
 {
-	if (binder_th_task && proc->default_priority.prio < NICE_TO_PRIO(0) &&
-		proc->default_priority.prio >= NICE_TO_PRIO(-20))
-		proc->default_priority.prio = NICE_TO_PRIO(0);
+	if (binder_th_task) {
+		struct vendor_task_struct *vp = get_vendor_task_struct(binder_th_task);
+
+		if (vp->is_binder_task && proc->default_priority.prio < NICE_TO_PRIO(0) &&
+		    proc->default_priority.prio >= NICE_TO_PRIO(-20))
+			proc->default_priority.prio = NICE_TO_PRIO(0);
+	}
+}
+
+void vh_rust_binder_set_priority_pixel_mod(void *data,
+					   rust_binder_transaction t,
+					   struct task_struct *to_task)
+{
+	rust_binder_thread from_thread = rust_binder_transaction_from_thread(t);
+	struct task_struct *from_task;
+
+	if (rust_binder_transaction_flags(t) & TF_ONE_WAY)
+		return;
+
+	rcu_read_lock();
+	from_task = rust_binder_thread_task(from_thread);
+	if (from_task)
+		from_task = tryget_task_struct(from_task);
+	rcu_read_unlock();
+
+	set_performance_inheritance(to_task, from_task, VI_BINDER);
+	if (from_task)
+		put_task_struct(from_task);
+}
+
+void vh_rust_binder_restore_priority_pixel_mod(void *data, struct task_struct *task)
+{
+	set_performance_inheritance(task, NULL, VI_BINDER);
+}
+
+static inline void set_binder_task_state(struct task_struct *task, bool is_binder)
+{
+	struct vendor_task_struct *vp = get_vendor_task_struct(task);
+
+	vp->is_binder_task = is_binder;
+}
+
+void vh_binder_looper_state_registered_pixel_mod(void *data, struct binder_thread *thread,
+						 struct binder_proc *proc)
+{
+	set_binder_task_state(thread->task, true);
+}
+
+void vh_binder_looper_exited_pixel_mod(void *data, struct binder_thread *thread,
+				       struct binder_proc *proc)
+{
+	set_binder_task_state(thread->task, false);
+}
+
+void vh_rust_binder_looper_entry_mod(void *data, rust_binder_thread thread,
+				     unsigned int looper_flags)
+{
+	struct task_struct *task;
+
+	rcu_read_lock();
+	task = rust_binder_thread_task(thread);
+	if (task) {
+		if (looper_flags & RB_LOOPER_EXITED)
+			set_binder_task_state(task, false);
+		else if (looper_flags & (RB_LOOPER_REGISTERED | RB_LOOPER_ENTERED))
+			set_binder_task_state(task, true);
+	}
+	rcu_read_unlock();
 }
 
 void rvh_rtmutex_prepare_setprio_pixel_mod(void *data, struct task_struct *p,

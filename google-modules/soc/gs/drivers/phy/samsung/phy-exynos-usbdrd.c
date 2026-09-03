@@ -13,6 +13,7 @@
  * published by the Free Software Foundation.
  */
 
+#include <linux/cleanup.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/device.h>
@@ -20,6 +21,7 @@
 #include <linux/kernel.h>
 #include <linux/kvm_host.h>
 #include <linux/module.h>
+#include <linux/mod_devicetable.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/phy/phy.h>
@@ -35,7 +37,7 @@
 #include <linux/exynos_otp.h>
 #endif
 #ifdef CONFIG_OF
-#include <linux/of_device.h>
+#include <linux/of_platform.h>
 #include <linux/of_gpio.h>
 #endif
 
@@ -44,6 +46,7 @@
 
 //#include <soc/samsung/exynos-cpupm.h>
 #include <soc/google/exynos-el3_mon.h>
+#include <soc/google/exynos-usbdrd.h>
 
 static void __iomem *usbdp_combo_phy_reg;
 void __iomem *phycon_base_addr;
@@ -195,6 +198,7 @@ hs_phy_tune_show(struct device *dev,
 	tune_node = of_parse_phandle(dev->of_node, "hs_tune_param", 0);
 
 	ret = of_property_read_u32_array(tune_node, "hs_tune_cnt", &tune_num, 1);
+	of_node_put(tune_node);
 	if (ret) {
 		len += snprintf(buf + len, PAGE_SIZE,
 				"Can't get tune value!!!\n");
@@ -231,6 +235,7 @@ hs_phy_tune_store(struct device *dev,
 
 	tune_node = of_parse_phandle(dev->of_node, "hs_tune_param", 0);
 	ret = of_property_read_u32_array(tune_node, "hs_tune_cnt", &tune_num, 1);
+	of_node_put(tune_node);
 	if (ret) {
 		pr_err("Can't get hs_tune_cnt!!!\n");
 		goto exit;
@@ -262,6 +267,7 @@ phy_tune_show(struct device *dev,
 	tune_node = of_parse_phandle(dev->of_node, "ss_tune_param", 0);
 
 	ret = of_property_read_u32_array(tune_node, "ss_tune_cnt", &tune_num, 1);
+	of_node_put(tune_node);
 	if (ret) {
 		len += snprintf(buf + len, PAGE_SIZE,
 				"Can't get tune value!!!\n");
@@ -298,6 +304,7 @@ phy_tune_store(struct device *dev,
 
 	tune_node = of_parse_phandle(dev->of_node, "ss_tune_param", 0);
 	ret = of_property_read_u32_array(tune_node, "ss_tune_cnt", &tune_num, 1);
+	of_node_put(tune_node);
 	if (ret) {
 		pr_err("Can't get ss_tune_cnt!!!\n");
 		goto exit;
@@ -1020,7 +1027,6 @@ static int exynos_usbdrd_fill_hstune_param(struct exynos_usbdrd_phy *phy_drd,
 					   struct device_node *node)
 {
 	struct device *dev = phy_drd->dev;
-	struct device_node *child = NULL;
 	struct exynos_usb_tune_param *hs_tune_param;
 	size_t size = sizeof(struct exynos_usb_tune_param);
 	int ret;
@@ -1040,7 +1046,7 @@ static int exynos_usbdrd_fill_hstune_param(struct exynos_usbdrd_phy *phy_drd,
 		return -ENOMEM;
 	phy_drd->usbphy_info.tune_param = hs_tune_param;
 
-	for_each_child_of_node(node, child) {
+	for_each_child_of_node_scoped(node, child) {
 		ret = of_property_read_string(child, "tune_name", &name);
 		if (ret == 0) {
 			memcpy(hs_tune_param[param_index].name, name, strlen(name));
@@ -1072,7 +1078,6 @@ static int exynos_usbdrd_fill_sstune_param(struct exynos_usbdrd_phy *phy_drd,
 					   struct device_node *node)
 {
 	struct device *dev = phy_drd->dev;
-	struct device_node *child = NULL;
 	struct exynos_usb_tune_param *ss_tune_param;
 	size_t size = sizeof(struct exynos_usb_tune_param);
 	int ret;
@@ -1089,7 +1094,7 @@ static int exynos_usbdrd_fill_sstune_param(struct exynos_usbdrd_phy *phy_drd,
 		return -ENOMEM;
 	phy_drd->usbphy_sub_info.tune_param = ss_tune_param;
 
-	for_each_child_of_node(node, child) {
+	for_each_child_of_node_scoped(node, child) {
 		ret = of_property_read_string(child, "tune_name", &name);
 		if (ret == 0) {
 			memcpy(ss_tune_param[idx].name, name, strlen(name));
@@ -1217,6 +1222,7 @@ static int exynos_usbdrd_get_sub_phyinfo(struct exynos_usbdrd_phy *phy_drd)
 	tune_node = of_parse_phandle(dev->of_node, "ss_tune_param", 0);
 	if (tune_node) {
 		ret = exynos_usbdrd_fill_sstune_param(phy_drd, tune_node);
+		of_node_put(tune_node);
 		if (ret < 0) {
 			dev_err(dev, "can't fill super speed tuning param\n");
 			return -EINVAL;
@@ -1288,9 +1294,11 @@ static int exynos_usbdrd_get_phyinfo(struct exynos_usbdrd_phy *phy_drd)
 		ret = exynos_usbdrd_fill_sstune(phy_drd, tune_node);
 		if (ret < 0) {
 			dev_err(dev, "can't fill super speed tuning value\n");
+			of_node_put(tune_node);
 			return -EINVAL;
 		}
 	}
+	of_node_put(tune_node);
 
 	tune_node = of_parse_phandle(dev->of_node, "hs_tune_info", 0);
 	if (tune_node)
@@ -1300,13 +1308,16 @@ static int exynos_usbdrd_get_phyinfo(struct exynos_usbdrd_phy *phy_drd)
 		ret = exynos_usbdrd_fill_hstune(phy_drd, tune_node);
 		if (ret < 0) {
 			dev_err(dev, "can't fill high speed tuning value\n");
+			of_node_put(tune_node);
 			return -EINVAL;
 		}
 	}
+	of_node_put(tune_node);
 
 	tune_node = of_parse_phandle(dev->of_node, "hs_tune_param", 0);
 	if (tune_node) {
 		ret = exynos_usbdrd_fill_hstune_param(phy_drd, tune_node);
+		of_node_put(tune_node);
 		if (ret < 0) {
 			dev_err(dev, "can't fill high speed tuning param\n");
 			return -EINVAL;
@@ -1354,74 +1365,6 @@ static int exynos_usbdrd_get_iptype(struct exynos_usbdrd_phy *phy_drd)
 	}
 
 	return 0;
-}
-
-static int exynos_usbdrd_usb_update(struct notifier_block *nb,
-				    unsigned long action, void *dev)
-{
-	struct exynos_usbdrd_phy *phy_drd = container_of(nb, struct exynos_usbdrd_phy, usb_nb);
-	union extcon_property_value property = { 0 };
-
-	if (action) {
-		extcon_get_property(phy_drd->edev, EXTCON_USB, EXTCON_PROP_USB_TYPEC_POLARITY,
-				    &property);
-		phy_drd->usbphy_info.used_phy_port = property.intval;
-		phy_drd->usbphy_sub_info.used_phy_port = property.intval;
-
-		dev_info(phy_drd->dev, "%s: phy port[%d]\n", __func__,
-			 phy_drd->usbphy_info.used_phy_port);
-	}
-
-	return NOTIFY_OK;
-}
-
-static int exynos_usbdrd_usb_host_update(struct notifier_block *nb,
-					 unsigned long action, void *dev)
-{
-	struct exynos_usbdrd_phy *phy_drd =
-		container_of(nb, struct exynos_usbdrd_phy, usb_host_nb);
-	union extcon_property_value property = { 0 };
-
-	if (action) {
-		extcon_get_property(phy_drd->edev, EXTCON_USB_HOST, EXTCON_PROP_USB_TYPEC_POLARITY,
-				    &property);
-		phy_drd->usbphy_info.used_phy_port = property.intval;
-		phy_drd->usbphy_sub_info.used_phy_port = property.intval;
-
-		dev_info(phy_drd->dev, "%s: phy port[%d]\n", __func__,
-			 phy_drd->usbphy_info.used_phy_port);
-	}
-
-	return NOTIFY_OK;
-}
-
-static int exynos_usbdrd_extcon_register(struct exynos_usbdrd_phy *phy_drd)
-{
-	struct device *dev = phy_drd->dev;
-	int ret = 0;
-
-	if (!of_property_read_bool(dev->of_node, "extcon"))
-		return -EINVAL;
-
-	phy_drd->edev = extcon_get_edev_by_phandle(dev, 0);
-	if (IS_ERR_OR_NULL(phy_drd->edev)) {
-		dev_err(dev, "couldn't get extcon\n");
-		return phy_drd->edev ? PTR_ERR(phy_drd->edev) : -ENODEV;
-	}
-
-	phy_drd->usb_nb.notifier_call = exynos_usbdrd_usb_update;
-	ret = extcon_register_notifier(phy_drd->edev, EXTCON_USB, &phy_drd->usb_nb);
-	if (ret < 0) {
-		dev_err(dev, "EXTCON_USB notifier register failed\n");
-		return ret;
-	}
-
-	phy_drd->usb_host_nb.notifier_call = exynos_usbdrd_usb_host_update;
-	ret = extcon_register_notifier(phy_drd->edev, EXTCON_USB_HOST, &phy_drd->usb_host_nb);
-	if (ret < 0)
-		dev_err(dev, "EXTCON_USB_HOST notifier register failed\n");
-
-	return ret;
 }
 
 static void exynos_usbdrd_pipe3_exit(struct exynos_usbdrd_phy *phy_drd)
@@ -1542,39 +1485,10 @@ static void exynos_usbdrd_pipe3_init(struct exynos_usbdrd_phy *phy_drd)
 	phy_exynos_usb_v3p1_g2_link_pclk_sel(&phy_drd->usbphy_info);
 
 #elif defined(CONFIG_PHY_SAMSUNG_USB_GEN2_V4)
-	int ret = 0;
-	union extcon_property_value property = { 0 };
 	struct phy_usb_instance *inst = &phy_drd->phys[1];
 
 	//power on
 	inst->phy_cfg->phy_isol(inst, 0, inst->pmu_mask);
-
-	if (!phy_drd->edev) {
-		ret = exynos_usbdrd_extcon_register(phy_drd);
-		if (ret < 0)
-			dev_err(phy_drd->dev, "%s: extcon register failed\n", __func__);
-
-		if (extcon_get_state(phy_drd->edev, EXTCON_USB)) {
-			ret = extcon_get_property(phy_drd->edev, EXTCON_USB,
-						  EXTCON_PROP_USB_TYPEC_POLARITY, &property);
-		} else if (extcon_get_state(phy_drd->edev, EXTCON_USB_HOST)) {
-			ret = extcon_get_property(phy_drd->edev, EXTCON_USB_HOST,
-						  EXTCON_PROP_USB_TYPEC_POLARITY, &property);
-		}
-
-		if (ret) {
-			/* set phy port to 0 as default */
-			property.intval = 0;
-			dev_err(phy_drd->dev, "%s: get cc orientation failed, ret=%d\n",
-				__func__, ret);
-		}
-
-		phy_drd->usbphy_info.used_phy_port = property.intval;
-		phy_drd->usbphy_sub_info.used_phy_port = property.intval;
-
-		dev_info(phy_drd->dev, "%s: phy port[%d]\n", __func__,
-			 phy_drd->usbphy_info.used_phy_port);
-	}
 
 	phy_drd->usbphy_sub_info.dev = phy_drd->dev;
 	phy_exynos_usb_v3p1_g2_pma_ready(&phy_drd->usbphy_info);
@@ -1810,37 +1724,6 @@ int exynos_usbdrd_phy_tune(struct phy *phy, int phy_state)
 }
 EXPORT_SYMBOL_GPL(exynos_usbdrd_phy_tune);
 
-/*
- * USB LDO control was moved to phy_conn API from OTG
- * without adding one more phy interface
- */
-void exynos_usbdrd_phy_conn(struct phy *phy, int is_conn)
-{
-	struct phy_usb_instance *inst = phy_get_drvdata(phy);
-	struct exynos_usbdrd_phy *phy_drd = to_usbdrd_phy(inst);
-
-	/* ldo control is moved to power sw */
-	if (is_conn) {
-		dev_info(phy_drd->dev, "USB PHY Conn Set\n");
-		phy_drd->is_conn = 1;
-	} else {
-		dev_info(phy_drd->dev, "USB PHY Conn Clear\n");
-		phy_drd->is_conn = 0;
-	}
-}
-EXPORT_SYMBOL_GPL(exynos_usbdrd_phy_conn);
-
-int exynos_usbdrd_dp_ilbk(struct phy *phy)
-{
-	struct phy_usb_instance *inst = phy_get_drvdata(phy);
-	struct exynos_usbdrd_phy *phy_drd = to_usbdrd_phy(inst);
-
-	inst->phy_cfg->phy_ilbk(phy_drd);
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(exynos_usbdrd_dp_ilbk);
-
 int exynos_usbdrd_phy_vendor_set(struct phy *phy, int is_enable,
 				 int is_cancel)
 {
@@ -1878,7 +1761,7 @@ static void exynos_usbdrd_utmi_set(struct exynos_usbdrd_phy *phy_drd,
 	}
 }
 
-int exynos_usbdrd_phy_link_rst(struct phy *phy)
+static int exynos_usbdrd_phy_link_rst(struct phy *phy)
 {
 	struct phy_usb_instance *inst = phy_get_drvdata(phy);
 	struct exynos_usbdrd_phy *phy_drd = to_usbdrd_phy(inst);
@@ -1887,17 +1770,6 @@ int exynos_usbdrd_phy_link_rst(struct phy *phy)
 	phy_exynos_usb_v3p1_link_sw_reset(&phy_drd->usbphy_info);
 	return 0;
 }
-
-int exynos_usbdrd_phy_set(struct phy *phy, int option, void *info)
-{
-	struct phy_usb_instance *inst = phy_get_drvdata(phy);
-	struct exynos_usbdrd_phy *phy_drd = to_usbdrd_phy(inst);
-
-	inst->phy_cfg->phy_set(phy_drd, option, info);
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(exynos_usbdrd_phy_set);
 
 static int exynos_usbdrd_phy_power_on(struct phy *phy)
 {
@@ -2056,7 +1928,7 @@ void exynos_usbdrd_usbdp_tca_set(struct phy *phy, int mux, int low_power_en)
 EXPORT_SYMBOL_GPL(exynos_usbdrd_usbdp_tca_set);
 
 static struct phy *exynos_usbdrd_phy_xlate(struct device *dev,
-					   struct of_phandle_args *args)
+					   const struct of_phandle_args *args)
 {
 	struct exynos_usbdrd_phy *phy_drd = dev_get_drvdata(dev);
 
@@ -2088,6 +1960,21 @@ static irqreturn_t exynos_usbdrd_phy_conn_interrupt(int irq, void *_phydrd)
 		 __func__, (ret == 1) ? "Disable" : "Disconnect");
 
 	return IRQ_HANDLED;
+}
+
+static int exynos_usbdrd_set_orientation(struct typec_switch_dev *sw,
+					 enum typec_orientation orientation)
+{
+	int ret = 0;
+	struct exynos_usbdrd_phy *phy_drd = typec_switch_get_drvdata(sw);
+	int polarity = orientation == TYPEC_ORIENTATION_NORMAL ? 0 : 1;
+
+	phy_drd->usbphy_info.used_phy_port = polarity;
+	phy_drd->usbphy_sub_info.used_phy_port = polarity;
+
+	dev_info(phy_drd->dev, "%s: orientation:%d\n", __func__, orientation);
+
+	return ret;
 }
 
 static struct phy_ops exynos_usbdrd_phy_ops = {
@@ -2137,11 +2024,6 @@ static const struct of_device_id exynos_usbdrd_phy_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, exynos_usbdrd_phy_of_match);
 
-void __iomem *phy_exynos_usbdp_get_address(void)
-{
-	return usbdp_combo_phy_reg;
-}
-
 static int exynos_usbdrd_phy_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -2151,10 +2033,11 @@ static int exynos_usbdrd_phy_probe(struct platform_device *pdev)
 	const struct of_device_id *match;
 	const struct exynos_usbdrd_phy_drvdata *drv_data;
 	struct regmap *reg_pmu;
-	struct device_node *syscon_np;
+	struct device_node *syscon_np __free(device_node) = NULL;
 	struct resource pmu_res;
 	struct device_node	*s2mpu_np;
 	struct platform_device	*s2mpu_pdev;
+	struct typec_switch_desc tc_sw_desc = { };
 	u32 pmu_offset, pmu_offset_dp, pmu_offset_tcxo;
 	u32 pmu_mask, pmu_mask_tcxo, pmu_mask_pll;
 	int i, ret;
@@ -2251,17 +2134,16 @@ static int exynos_usbdrd_phy_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	reg_pmu = syscon_regmap_lookup_by_phandle(dev->of_node,
-						  "samsung,pmu-syscon");
-	if (IS_ERR(reg_pmu)) {
-		dev_err(dev, "Failed to lookup PMU regmap\n");
-		return ret;
-	}
-
 	syscon_np = of_parse_phandle(dev->of_node, "samsung,pmu-syscon", 0);
 	if (!syscon_np) {
 		dev_err(dev, "syscon device node not found\n");
 		return -EINVAL;
+	}
+
+	reg_pmu = syscon_node_to_regmap(syscon_np);
+	if (IS_ERR(reg_pmu)) {
+		dev_err(dev, "Failed to lookup PMU regmap\n");
+		return ret;
 	}
 
 	if (of_address_to_resource(syscon_np, 0, &pmu_res)) {
@@ -2334,10 +2216,6 @@ static int exynos_usbdrd_phy_probe(struct platform_device *pdev)
 	} else {
 		dev_err(dev, "non-DT: PHY CON Selection\n");
 	}
-
-	ret = exynos_usbdrd_extcon_register(phy_drd);
-	if (ret < 0)
-		phy_drd->edev = 0;
 
 	ret = of_property_read_u32(dev->of_node, "reverse_con_dir", &phy_drd->reverse_phy_port);
 	dev_info(dev, "reverse_con_dir = %d\n", phy_drd->reverse_phy_port);
@@ -2465,8 +2343,34 @@ static int exynos_usbdrd_phy_probe(struct platform_device *pdev)
 		dev_err(dev, "%s - Couldn't create sysfs for loopback test\n",
 			__func__);
 
+	tc_sw_desc.fwnode = dev_fwnode(dev);
+	tc_sw_desc.drvdata = phy_drd;
+	tc_sw_desc.name = fwnode_get_name(dev_fwnode(dev));
+	tc_sw_desc.set = exynos_usbdrd_set_orientation;
+
+	phy_drd->typec_switch = typec_switch_register(dev, &tc_sw_desc);
+	if (IS_ERR(phy_drd->typec_switch)) {
+		ret = PTR_ERR(phy_drd->typec_switch);
+		dev_err(dev, "typec orientation switch failed to register:%d\n", ret);
+		return ret;
+	}
+
 	pr_info("%s: ---\n", __func__);
 	return 0;
+}
+
+static void exynos_usbdrd_phy_remove(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct exynos_usbdrd_phy *phy_drd = dev_get_drvdata(dev);
+
+	if (!phy_drd) {
+		dev_warn(&pdev->dev, "%s: the drvdata has already gone.\n", __func__);
+		return;
+	}
+
+	if (!IS_ERR_OR_NULL(phy_drd->typec_switch))
+		typec_switch_unregister(phy_drd->typec_switch);
 }
 
 #ifdef CONFIG_PM
@@ -2491,6 +2395,7 @@ static const struct dev_pm_ops exynos_usbdrd_phy_dev_pm_ops = {
 
 static struct platform_driver phy_exynos_usbdrd = {
 	.probe	= exynos_usbdrd_phy_probe,
+	.remove = exynos_usbdrd_phy_remove,
 	.driver = {
 		.of_match_table	= exynos_usbdrd_phy_of_match,
 		.name		= "phy_exynos_usbdrd",

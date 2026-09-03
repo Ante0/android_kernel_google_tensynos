@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_CAP_SYSFS
+	tristate "Google CAP sysfs driver"
+	depends on ARCH_GOOGLE
+	help
+	  Enable support for Google CAP sysfs driver.
+	  The driver would create a sysfs interface to get data
+	  from CAP to AP.
+	  If unsure select "N".

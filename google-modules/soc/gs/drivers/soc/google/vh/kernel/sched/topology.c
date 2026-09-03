@@ -7,44 +7,45 @@
  */
 
 #include <linux/sched.h>
+#include <kernel/sched/sched.h>
+
+#include "sched_priv.h"
+
 #if IS_ENABLED(CONFIG_VH_SCHED) && IS_ENABLED(CONFIG_PIXEL_EM)
-#include "../../include/pixel_em.h"
-extern struct pixel_em_profile **vendor_sched_pixel_em_profile;
+#include "pixel_em.h"
 #endif
 
 #if IS_ENABLED(CONFIG_VH_SCHED) && IS_ENABLED(CONFIG_PIXEL_EM)
 void vh_arch_set_freq_scale_pixel_mod(void *data, const struct cpumask *cpus,
-                                      unsigned long freq,
-                                      unsigned long max, unsigned long *scale)
+				      unsigned long freq,
+				      unsigned long max, unsigned long *scale)
 {
-        int i;
-        struct pixel_em_profile **profile_ptr_snapshot;
-        profile_ptr_snapshot = READ_ONCE(vendor_sched_pixel_em_profile);
-        if (profile_ptr_snapshot) {
-                struct pixel_em_profile *profile = READ_ONCE(*profile_ptr_snapshot);
-                if (profile) {
-                        struct pixel_em_cluster *cluster;
-                        struct pixel_em_opp *max_opp;
-                        struct pixel_em_opp *opp;
+	int i;
+	struct pixel_em_cluster *cluster = get_em_cluster(cpumask_first(cpus));
 
-                        cluster = profile->cpu_to_cluster[cpumask_first(cpus)];
-                        max_opp = &cluster->opps[cluster->num_opps - 1];
+	if (cluster) {
+		struct pixel_em_opp *max_opp;
+		struct pixel_em_opp *opp;
 
-                        for (i = 0; i < cluster->num_opps; i++) {
-                                opp = &cluster->opps[i];
-                                if (opp->freq >= freq)
-                                        break;
-                        }
+		max_opp = &cluster->opps[cluster->num_opps - 1];
 
-                        *scale = (opp->capacity << SCHED_CAPACITY_SHIFT) /
-                                  max_opp->capacity;
-                }
-        }
+		for (i = 0; i < cluster->num_opps; i++) {
+			opp = &cluster->opps[i];
+			if (opp->freq >= freq)
+				break;
+		}
+
+		*scale = (opp->capacity << SCHED_CAPACITY_SHIFT) / max_opp->capacity;
+	}
 }
-EXPORT_SYMBOL_GPL(vh_arch_set_freq_scale_pixel_mod);
 #endif
 
-void android_vh_use_amu_fie_pixel_mod(void* data, bool *use_amu_fie)
+void android_vh_use_amu_fie_pixel_mod(void *data, bool *use_amu_fie)
 {
 	*use_amu_fie = false;
+}
+
+void android_rvh_build_perf_domains_pixel_mod(void *data, bool *eas_check)
+{
+	*eas_check = true;
 }

@@ -292,6 +292,7 @@
 
 #define EXYNOS_CH_ID_CPLOG	81 /* umts_dm0 */
 #define EXYNOS_CH_ID_LOOPBACK	82 /* umts_loopback */
+#define EXYNOS_CH_ID_ESIM_TRACE	84
 
 #define EXYNOS_CH_ID_RCS_0	91
 #define EXYNOS_CH_ID_RCS_1	92

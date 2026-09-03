@@ -3,7 +3,7 @@
  * This file is provided under a dual BSD/GPLv2 license.  When using or
  * redistributing this file, you may do so under either license.
  *
- * Copyright(c) 2018 Intel Corporation. All rights reserved.
+ * Copyright(c) 2018 Intel Corporation
  *
  * Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
  */
@@ -17,8 +17,11 @@
 #include <sound/sof/info.h>
 #include <sound/sof/pm.h>
 #include <sound/sof/trace.h>
+#include <sound/compress_params.h>
 #include <uapi/sound/sof/fw.h>
 #include <sound/sof/ext_manifest.h>
+
+struct snd_sof_pcm_stream;
 
 /* Flag definitions used in sof_core_debug (sof_debug module parameter) */
 #define SOF_DBG_ENABLE_TRACE	BIT(0)
@@ -43,6 +46,13 @@
 #define SOF_DBG_PRINT_IPC_SUCCESS_LOGS		BIT(9) /* print IPC success
 							* in dmesg logs
 							*/
+#define SOF_DBG_FORCE_NOCODEC			BIT(10) /* ignore all codec-related
+							 * configurations
+							 */
+#define SOF_DBG_DUMP_IPC_MESSAGE_PAYLOAD	BIT(11) /* On top of the IPC message header
+							 * dump the message payload also
+							 */
+#define SOF_DBG_DSPLESS_MODE			BIT(15) /* Do not initialize and use the DSP */
 
 /* Flag definitions used for controlling the DSP dump behavior */
 #define SOF_DBG_DUMP_REGS		BIT(0)
@@ -110,6 +120,8 @@ struct sof_compr_stream {
 	u32 sampling_rate;
 	u16 channels;
 	u16 sample_container_bytes;
+	struct snd_codec codec_params;
+	size_t posn_offset;
 };
 
 struct snd_sof_dev;
@@ -122,16 +134,17 @@ struct snd_sof_pdata;
 
 /**
  * struct snd_sof_platform_stream_params - platform dependent stream parameters
- * @stream_tag:		Stream tag to use
- * @use_phy_addr:	Use the provided @phy_addr for configuration
  * @phy_addr:		Platform dependent address to be used, if  @use_phy_addr
  *			is true
+ * @stream_tag:		Stream tag to use
+ * @use_phy_addr:	Use the provided @phy_addr for configuration
  * @no_ipc_position:	Disable position update IPC from firmware
+ * @cont_update_posn:	Continuous position update.
  */
 struct snd_sof_platform_stream_params {
+	u32 phy_addr;
 	u16 stream_tag;
 	bool use_phy_address;
-	u32 phy_addr;
 	bool no_ipc_position;
 	bool cont_update_posn;
 };
@@ -147,6 +160,13 @@ struct sof_firmware {
 	u32 payload_offset;
 };
 
+enum sof_dai_access {
+	SOF_DAI_DSP_ACCESS,	/* access from DSP only */
+	SOF_DAI_HOST_ACCESS,	/* access from host only */
+
+	SOF_DAI_ACCESS_NUM
+};
+
 /*
  * SOF DSP HW abstraction operations.
  * Used to abstract DSP HW architecture and any IO busses between host CPU
@@ -155,8 +175,10 @@ struct sof_firmware {
 struct snd_sof_dsp_ops {
 
 	/* probe/remove/shutdown */
+	int (*probe_early)(struct snd_sof_dev *sof_dev); /* optional */
 	int (*probe)(struct snd_sof_dev *sof_dev); /* mandatory */
-	int (*remove)(struct snd_sof_dev *sof_dev); /* optional */
+	void (*remove)(struct snd_sof_dev *sof_dev); /* optional */
+	void (*remove_late)(struct snd_sof_dev *sof_dev); /* optional */
 	int (*shutdown)(struct snd_sof_dev *sof_dev); /* optional */
 
 	/* DSP core boot / reset */
@@ -171,6 +193,10 @@ struct snd_sof_dsp_ops {
 	 * TODO: consider removing these operations and calling respective
 	 * implementations directly
 	 */
+	void (*write8)(struct snd_sof_dev *sof_dev, void __iomem *addr,
+		       u8 value); /* optional */
+	u8 (*read8)(struct snd_sof_dev *sof_dev,
+		    void __iomem *addr); /* optional */
 	void (*write)(struct snd_sof_dev *sof_dev, void __iomem *addr,
 		      u32 value); /* optional */
 	u32 (*read)(struct snd_sof_dev *sof_dev,
@@ -238,14 +264,35 @@ struct snd_sof_dsp_ops {
 	/* pcm ack */
 	int (*pcm_ack)(struct snd_sof_dev *sdev, struct snd_pcm_substream *substream); /* optional */
 
+	/*
+	 * optional callback to retrieve the number of frames left/arrived from/to
+	 * the DSP on the DAI side (link/codec/DMIC/etc).
+	 *
+	 * The callback is used when the firmware does not provide this information
+	 * via the shared SRAM window and it can be retrieved by host.
+	 */
+	u64 (*get_dai_frame_counter)(struct snd_sof_dev *sdev,
+				     struct snd_soc_component *component,
+				     struct snd_pcm_substream *substream); /* optional */
+
+	/*
+	 * Optional callback to retrieve the number of bytes left/arrived from/to
+	 * the DSP on the host side (bytes between host ALSA buffer and DSP).
+	 *
+	 * The callback is needed for ALSA delay reporting.
+	 */
+	u64 (*get_host_byte_counter)(struct snd_sof_dev *sdev,
+				     struct snd_soc_component *component,
+				     struct snd_pcm_substream *substream); /* optional */
+
 	/* host read DSP stream data */
 	int (*ipc_msg_data)(struct snd_sof_dev *sdev,
-			    struct snd_pcm_substream *substream,
+			    struct snd_sof_pcm_stream *sps,
 			    void *p, size_t sz); /* mandatory */
 
 	/* host side configuration of the stream's data offset in stream mailbox area */
 	int (*set_stream_data_offset)(struct snd_sof_dev *sdev,
-				      struct snd_pcm_substream *substream,
+				      struct snd_sof_pcm_stream *sps,
 				      size_t posn_offset); /* optional */
 
 	/* pre/post firmware run */
@@ -313,6 +360,8 @@ struct snd_sof_dsp_ops {
 	struct snd_soc_dai_driver *drv;
 	int num_drv;
 
+	bool (*is_chain_dma_supported)(struct snd_sof_dev *sdev, u32 dai_type); /* optional */
+
 	/* ALSA HW info flags, will be stored in snd_pcm_runtime.hw.info */
 	u32 hw_info;
 
@@ -365,8 +414,8 @@ struct snd_sof_debugfs_map {
 
 /* mailbox descriptor, used for host <-> DSP IPC */
 struct snd_sof_mailbox {
-	u32 offset;
 	size_t size;
+	u32 offset;
 };
 
 /* IPC message descriptor for host <-> DSP IO */
@@ -378,11 +427,12 @@ struct snd_sof_ipc_msg {
 	size_t reply_size;
 	int reply_error;
 
-	/* notification, firmware initiated messages */
-	void *rx_data;
+	bool ipc_complete;
 
 	wait_queue_head_t waitq;
-	bool ipc_complete;
+
+	/* notification, firmware initiated messages */
+	void *rx_data;
 };
 
 /**
@@ -406,11 +456,13 @@ struct sof_ipc_fw_tracing_ops {
  * @ctx_save:		Optional function pointer for context save
  * @ctx_restore:	Optional function pointer for context restore
  * @set_core_state:	Optional function pointer for turning on/off a DSP core
+ * @set_pm_gate:	Optional function pointer for pm gate settings
  */
 struct sof_ipc_pm_ops {
 	int (*ctx_save)(struct snd_sof_dev *sdev);
 	int (*ctx_restore)(struct snd_sof_dev *sdev);
 	int (*set_core_state)(struct snd_sof_dev *sdev, int core_idx, bool on);
+	int (*set_pm_gate)(struct snd_sof_dev *sdev, u32 flags);
 };
 
 /**
@@ -421,15 +473,11 @@ struct sof_ipc_pm_ops {
  *			DSP.
  *			The function implements generic, hardware independent way
  *			of loading the initial firmware and its modules (if any).
- * @query_fw_configuration: Optional function pointer to query information and
- *			configuration from the booted firmware.
- *			Executed after the first successful firmware boot.
  */
 struct sof_ipc_fw_loader_ops {
 	int (*validate)(struct snd_sof_dev *sdev);
 	size_t (*parse_ext_manifest)(struct snd_sof_dev *sdev);
 	int (*load_fw_to_dsp)(struct snd_sof_dev *sdev);
-	int (*query_fw_configuration)(struct snd_sof_dev *sdev);
 };
 
 struct sof_ipc_tplg_ops;
@@ -441,7 +489,12 @@ struct sof_ipc_pcm_ops;
  * @pm:		Pointer to PM ops
  * @pcm:	Pointer to PCM ops
  * @fw_loader:	Pointer to Firmware Loader ops
- * @fw_tracing:	Pointer to Firmware tracing ops
+ * @fw_tracing:	Optional pointer to Firmware tracing ops
+ *
+ * @init:	Optional pointer for IPC related initialization
+ * @exit:	Optional pointer for IPC related cleanup
+ * @post_fw_boot: Optional pointer to execute IPC related tasks after firmware
+ *		boot.
  *
  * @tx_msg:	Function pointer for sending a 'short' IPC message
  * @set_get_data: Function pointer for set/get data ('large' IPC message). This
@@ -463,6 +516,10 @@ struct sof_ipc_ops {
 	const struct sof_ipc_pcm_ops *pcm;
 	const struct sof_ipc_fw_loader_ops *fw_loader;
 	const struct sof_ipc_fw_tracing_ops *fw_tracing;
+
+	int (*init)(struct snd_sof_dev *sdev);
+	void (*exit)(struct snd_sof_dev *sdev);
+	int (*post_fw_boot)(struct snd_sof_dev *sdev);
 
 	int (*tx_msg)(struct snd_sof_dev *sdev, void *msg_data, size_t msg_bytes,
 		      void *reply_data, size_t reply_bytes, bool no_pm);
@@ -490,6 +547,10 @@ struct snd_sof_ipc {
 	const struct sof_ipc_ops *ops;
 };
 
+/* Helper to retrieve the IPC ops */
+#define sof_ipc_get_ops(sdev, ops_name)		\
+		(((sdev)->ipc && (sdev)->ipc->ops) ? (sdev)->ipc->ops->ops_name : NULL)
+
 /*
  * SOF Device Level.
  */
@@ -497,6 +558,16 @@ struct snd_sof_dev {
 	struct device *dev;
 	spinlock_t ipc_lock;	/* lock for IPC users */
 	spinlock_t hw_lock;	/* lock for HW IO access */
+
+	/*
+	 * When true the DSP is not used.
+	 * It is set under the following condition:
+	 * User sets the SOF_DBG_DSPLESS_MODE flag in sof_debug module parameter
+	 * and
+	 * the platform advertises that it can support such mode
+	 * pdata->desc->dspless_mode_supported is true.
+	 */
+	bool dspless_mode_selected;
 
 	/* Main, Base firmware image */
 	struct sof_firmware basefw;
@@ -529,6 +600,7 @@ struct snd_sof_dev {
 
 	/* IPC */
 	struct snd_sof_ipc *ipc;
+	struct snd_sof_mailbox fw_info_box;	/* FW shared memory */
 	struct snd_sof_mailbox dsp_box;		/* DSP initiated IPC */
 	struct snd_sof_mailbox host_box;	/* Host initiated IPC */
 	struct snd_sof_mailbox stream_box;	/* Stream position update */
@@ -548,6 +620,7 @@ struct snd_sof_dev {
 	struct list_head dfsentry_list;
 	bool dbg_dump_printed;
 	bool ipc_dump_printed;
+	bool d3_prevented; /* runtime pm use count incremented to prevent context lost */
 
 	/* firmware loader */
 	struct sof_ipc_fw_ready fw_ready;
@@ -559,6 +632,7 @@ struct snd_sof_dev {
 	struct list_head pcm_list;
 	struct list_head kcontrol_list;
 	struct list_head widget_list;
+	struct list_head pipeline_list;
 	struct list_head dai_list;
 	struct list_head dai_link_list;
 	struct list_head route_list;
@@ -648,6 +722,13 @@ void snd_sof_new_platform_drv(struct snd_sof_dev *sdev);
 extern struct snd_compress_ops sof_compressed_ops;
 
 /*
+ * Firmware (firmware, libraries, topologies) file location
+ */
+int sof_create_ipc_file_profile(struct snd_sof_dev *sdev,
+				struct sof_loadable_file_profile *base_profile,
+				struct sof_loadable_file_profile *out_profile);
+
+/*
  * Firmware loading.
  */
 int snd_sof_load_firmware_raw(struct snd_sof_dev *sdev);
@@ -668,8 +749,20 @@ static inline void snd_sof_ipc_msgs_rx(struct snd_sof_dev *sdev)
 }
 int sof_ipc_tx_message(struct snd_sof_ipc *ipc, void *msg_data, size_t msg_bytes,
 		       void *reply_data, size_t reply_bytes);
+static inline int sof_ipc_tx_message_no_reply(struct snd_sof_ipc *ipc, void *msg_data,
+					      size_t msg_bytes)
+{
+	return sof_ipc_tx_message(ipc, msg_data, msg_bytes, NULL, 0);
+}
+int sof_ipc_set_get_data(struct snd_sof_ipc *ipc, void *msg_data,
+			 size_t msg_bytes, bool set);
 int sof_ipc_tx_message_no_pm(struct snd_sof_ipc *ipc, void *msg_data, size_t msg_bytes,
 			     void *reply_data, size_t reply_bytes);
+static inline int sof_ipc_tx_message_no_pm_no_reply(struct snd_sof_ipc *ipc, void *msg_data,
+						    size_t msg_bytes)
+{
+	return sof_ipc_tx_message_no_pm(ipc, msg_data, msg_bytes, NULL, 0);
+}
 int sof_ipc_send_msg(struct snd_sof_dev *sdev, void *msg_data, size_t msg_bytes,
 		     size_t reply_bytes);
 
@@ -743,18 +836,16 @@ int sof_block_read(struct snd_sof_dev *sdev, enum snd_sof_fw_blk_type blk_type,
 		   u32 offset, void *dest, size_t size);
 
 int sof_ipc_msg_data(struct snd_sof_dev *sdev,
-		     struct snd_pcm_substream *substream,
+		     struct snd_sof_pcm_stream *sps,
 		     void *p, size_t sz);
 int sof_set_stream_data_offset(struct snd_sof_dev *sdev,
-			       struct snd_pcm_substream *substream,
+			       struct snd_sof_pcm_stream *sps,
 			       size_t posn_offset);
 
 int sof_stream_pcm_open(struct snd_sof_dev *sdev,
 			struct snd_pcm_substream *substream);
 int sof_stream_pcm_close(struct snd_sof_dev *sdev,
 			 struct snd_pcm_substream *substream);
-
-int sof_machine_check(struct snd_sof_dev *sdev);
 
 /* SOF client support */
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_CLIENT)

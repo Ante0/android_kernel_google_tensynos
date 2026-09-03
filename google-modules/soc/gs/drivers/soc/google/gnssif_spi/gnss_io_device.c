@@ -197,7 +197,7 @@ static const struct file_operations misc_io_fops = {
 	.read = misc_read,
 };
 
-int init_io_device(struct io_device *iod, struct device *dev)
+static int init_io_device(struct io_device *iod, struct device *dev)
 {
 	int ret = 0;
 

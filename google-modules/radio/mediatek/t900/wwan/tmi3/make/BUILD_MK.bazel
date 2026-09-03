@@ -1,0 +1,57 @@
+# buildifier: disable=module-docstring
+load("//build/bazel_mgk_rules:mgk_ko.bzl", "define_mgk_ko")
+
+package(
+    default_visibility = [
+        "//visibility:public",
+    ],
+)
+
+define_mgk_ko(
+    name = "tmi3",
+    srcs = glob([
+        "**/*.c",
+        "**/*.h",
+        "**/Kbuild",
+        "**/Makefile",
+        "**/*.pl",
+        "pcie/core/label.ini",
+    ]) + [
+        "//vendor/mediatek/kernel_modules/wwan/pwrctl:pwrctl_folders",
+    ],
+    outs = [
+        "mtk_common.ko",
+        "mtk_pcie.ko",
+    ],
+    deps = [
+        "//vendor/mediatek/kernel_modules/wwan/pwrctl/common:wwan_gpio_pwrctl",
+    ],
+)
+
+define_mgk_ko(
+    name = "tmi3_ack",
+    srcs = glob([
+        "**/*.c",
+        "**/*.h",
+        "**/Kbuild",
+        "**/Makefile",
+        "**/*.pl",
+        "pcie/core/label.ini",
+    ]) + [
+        "//vendor/mediatek/kernel_modules/wwan/pwrctl:pwrctl_folders",
+    ],
+    outs = [
+        "mtk_common.ko",
+        "mtk_pcie.ko",
+    ],
+    deps = [
+        "//vendor/mediatek/kernel_modules/wwan/pwrctl/common:wwan_gpio_pwrctl_ack",
+    ],
+)
+
+filegroup(
+    name = "tmi3_headers",
+    srcs = glob([
+        "**/*.h",
+    ]),
+)

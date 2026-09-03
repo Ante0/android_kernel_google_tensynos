@@ -248,7 +248,7 @@ static ssize_t timeout_store(struct kobject *kobj, struct kobj_attribute *attr, 
 		pr_warn("invalid action parameter in buffer [%s]\n", buf);
 		return -EINVAL;
 	}
-	strlcpy(item_action, buf, action_size);
+	strscpy(item_action, buf, action_size);
 
 	if (kstrtoll(item_timeout, 10, &val)) {
 		pr_warn("invalid timeout parameter in buffer [%s]\n", buf);
@@ -294,7 +294,7 @@ static ssize_t action_store(struct kobject *kobj, struct kobj_attribute *attr, c
 {
 	char *newline = NULL;
 
-	strlcpy(pixel_suspend_diag_inst.action, buf, sizeof(pixel_suspend_diag_inst.action));
+	strscpy(pixel_suspend_diag_inst.action, buf, sizeof(pixel_suspend_diag_inst.action));
 	newline = strchr(pixel_suspend_diag_inst.action, '\n');
 	if (newline)
 		*newline = '\0';

@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+
+config QCOM_QMI_HELPERS
+	tristate "config QCOM_QMI_HELPERS"
+	help
+	  QCOM_QMI_HELPERS Support
+
+config MHI_OUT_OF_TREE
+	bool "Support MHI for Google platform"
+	help
+	  Support MHI for Google platform

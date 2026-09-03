@@ -8,9 +8,10 @@
 /dts-v1/;
 
 #include "sc7180-trogdor.dtsi"
+#include "sc7180-trogdor-detachable.dtsi"
 
 / {
-	avdd_lcd: avdd-lcd {
+	avdd_lcd: avdd-lcd-regulator {
 		compatible = "regulator-fixed";
 		regulator-name = "avdd_lcd";
 
@@ -22,7 +23,7 @@
 		vin-supply = <&pp5000_a>;
 	};
 
-	avee_lcd: avee-lcd {
+	avee_lcd: avee-lcd-regulator {
 		compatible = "regulator-fixed";
 		regulator-name = "avee_lcd";
 
@@ -35,7 +36,7 @@
 	};
 
 	pp1800_ts:
-	v1p8_mipi: v1p8-mipi {
+	v1p8_mipi: v1p8-mipi-regulator {
 		compatible = "regulator-fixed";
 		regulator-name = "v1p8_mipi";
 
@@ -77,14 +78,14 @@
 			cooling-maps {
 				map0 {
 					trip = <&skin_temp_alert0>;
-					cooling-device = <&CPU6 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
-							 <&CPU7 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					cooling-device = <&cpu6 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
+							 <&cpu7 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 				};
 
 				map1 {
 					trip = <&skin_temp_alert1>;
-					cooling-device = <&CPU6 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
-							 <&CPU7 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					cooling-device = <&cpu6 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
+							 <&cpu7 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 				};
 			};
 		};
@@ -103,41 +104,6 @@
 	base_detection: cbas {
 		compatible = "google,cros-cbas";
 	};
-
-	keyboard-controller {
-		compatible = "google,cros-ec-keyb-switches";
-	};
-};
-
-&dsi0 {
-
-	panel: panel@0 {
-		reg = <0>;
-		enable-gpios = <&tlmm 87 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&vdd_reset_1800>;
-		avdd-supply = <&avdd_lcd>;
-		avee-supply = <&avee_lcd>;
-		pp1800-supply = <&v1p8_mipi>;
-		pp3300-supply = <&pp3300_dx_edp>;
-		backlight = <&backlight>;
-		rotation = <270>;
-
-		port {
-			panel_in: endpoint {
-				remote-endpoint = <&dsi0_out>;
-			};
-		};
-	};
-
-	ports {
-		port@1 {
-			endpoint {
-				remote-endpoint = <&panel_in>;
-				data-lanes = <0 1 2 3>;
-			};
-		};
-	};
 };
 
 &i2c4 {
@@ -153,6 +119,7 @@
 		interrupt-parent = <&tlmm>;
 		interrupts = <9 IRQ_TYPE_EDGE_FALLING>;
 
+		panel = <&panel>;
 		post-power-on-delay-ms = <70>;
 		hid-descr-addr = <0x0001>;
 
@@ -161,11 +128,43 @@
 	};
 };
 
+&mdss_dsi0 {
+
+	panel: panel@0 {
+		reg = <0>;
+		enable-gpios = <&tlmm 87 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&vdd_reset_1800>;
+		avdd-supply = <&avdd_lcd>;
+		avee-supply = <&avee_lcd>;
+		pp1800-supply = <&v1p8_mipi>;
+		pp3300-supply = <&pp3300_dx_edp>;
+		backlight = <&backlight>;
+		rotation = <270>;
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&mdss_dsi0_out>;
+			};
+		};
+	};
+
+	ports {
+		port@1 {
+			endpoint {
+				remote-endpoint = <&panel_in>;
+				data-lanes = <0 1 2 3>;
+			};
+		};
+	};
+};
+
 &pm6150_adc {
-	skin-temp-thermistor@4d {
+	channel@4d {
 		reg = <ADC5_AMUX_THM1_100K_PU>;
 		qcom,ratiometric;
 		qcom,hw-settle-time = <200>;
+		label = "skin_therm";
 	};
 };
 
@@ -216,13 +215,7 @@ pp3300_disp_on: &pp3300_dx_edp {
  */
 
 tp_en: &en_pp3300_dx_edp {
-	pinmux {
-		pins = "gpio85";
-	};
-
-	pinconf {
-		pins = "gpio85";
-	};
+	pins = "gpio85";
 };
 
 /* PINCTRL - board-specific pinctrl */
@@ -352,55 +345,31 @@ tp_en: &en_pp3300_dx_edp {
 			  "DP_HOT_PLUG_DET",
 			  "EC_IN_RW_ODL";
 
-	avdd_lcd_en: avdd-lcd-en {
-		pinmux {
-			pins = "gpio88";
-			function = "gpio";
-		};
-
-		pinconf {
-			pins = "gpio88";
-			drive-strength = <2>;
-			bias-disable;
-		};
+	avdd_lcd_en: avdd-lcd-en-state {
+		pins = "gpio88";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
 	};
 
-	avee_lcd_en: avee-lcd-en {
-		pinmux {
-			pins = "gpio21";
-			function = "gpio";
-		};
-
-		pinconf {
-			pins = "gpio21";
-			drive-strength = <2>;
-			bias-disable;
-		};
+	avee_lcd_en: avee-lcd-en-state {
+		pins = "gpio21";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
 	};
 
-	mipi_1800_en: mipi-1800-en {
-		pinmux {
-			pins = "gpio86";
-			function = "gpio";
-		};
-
-		pinconf {
-			pins = "gpio86";
-			drive-strength = <2>;
-			bias-disable;
-		};
+	mipi_1800_en: mipi-1800-en-state {
+		pins = "gpio86";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
 	};
 
-	vdd_reset_1800: vdd-reset-1800 {
-		pinmux {
-			pins = "gpio87";
-			function = "gpio";
-		};
-
-		pinconf {
-			pins = "gpio87";
-			drive-strength = <2>;
-			bias-disable;
-		};
+	vdd_reset_1800: vdd-reset-1800-state {
+		pins = "gpio87";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
 	};
 };

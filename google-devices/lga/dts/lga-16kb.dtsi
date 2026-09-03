@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * LGA 16KB device tree overlay.
+ *
+ * Copyright 2026 Google LLC
+ *
+ */
+
+#include <linux/kconfig.h>
+
+#if IS_ENABLED(CONFIG_ARM64_16K_PAGES)
+
+&cp_msi_rmem {
+	reg = <0x00000000 0xf6200000 0x00000000 0x00004000>;
+};
+
+&cpu_stats_carveout {
+	reg = <0x00000000 0x8b20c000 0x00000000 0x00004000>; /* 16KB */
+};
+
+/ {
+	fragment@modemif {
+		__overlay__ {
+			cp_shmem {
+				regions {
+					msi {
+						region,size = <0x00004000>;
+					};
+				};
+			};
+		};
+	};
+};
+
+#endif

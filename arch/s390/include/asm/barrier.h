@@ -8,13 +8,15 @@
 #ifndef __ASM_BARRIER_H
 #define __ASM_BARRIER_H
 
+#include <asm/march.h>
+
 /*
  * Force strict CPU ordering.
  * And yes, this is required on UP too when we're talking
  * to devices.
  */
 
-#ifdef CONFIG_HAVE_MARCH_Z196_FEATURES
+#ifdef MARCH_HAS_Z196_FEATURES
 /* Fast-BCR without checkpoint synchronization */
 #define __ASM_BCR_SERIALIZE "bcr 14,0\n"
 #else
@@ -60,8 +62,8 @@ do {									\
  * @size: number of elements in array
  */
 #define array_index_mask_nospec array_index_mask_nospec
-static inline unsigned long array_index_mask_nospec(unsigned long index,
-						    unsigned long size)
+static __always_inline unsigned long array_index_mask_nospec(unsigned long index,
+							     unsigned long size)
 {
 	unsigned long mask;
 

@@ -1,0 +1,368 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:hermetic_tools.bzl", "hermetic_genrule")
+load("@kleaf//build/kernel/kleaf/tests:hermetic_test.bzl", "hermetic_test")
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+load(
+    "//private/devices/google/common/kleaf:bste.bzl",
+    "bste_cc_binary",
+    "bste_prebuilt_binary",
+    "bste_test_package",
+    "bste_test_suite",
+)
+load("//private/devices/google/common/kleaf/tests:utils/failure_test.bzl", "failure_test")
+load("//private/devices/google/common/kleaf/tests:utils/file_content_test.bzl", "file_content_test")
+load("//private/devices/google/common/kleaf/tests:utils/files_test.bzl", "files_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# --- Sample Targets Specification ---
+
+bste_cc_binary(
+    name = "sample_cc_binary",
+    srcs = ["sample_c_source.c"],
+    data = ["data/cc_data.txt"],
+)
+
+bste_prebuilt_binary(
+    name = "sample_prebuilt_binary",
+    src = "scripts/prebuilt_script.sh",
+    data = ["data/prebuilt_data.txt"],
+)
+
+bste_test_suite(
+    name = "sample_test_suite",
+    srcs = [
+        "srcs/suite_main.sh",
+    ],
+    data = [
+        "data/module_config.bin",
+        ":sample_cc_binary",
+        ":sample_prebuilt_binary",
+    ],
+    suite_exit = "suite_exit",
+    suite_init = "suite_init",
+    test_cases = [
+        "test_case_1",
+        "test_case_2",
+        "test_case_long",
+    ],
+    test_exit = "test_exit",
+    test_init = "test_init",
+)
+
+bste_test_suite(
+    name = "api_demo_suite",
+    srcs = [
+        "srcs/demo_error.sh",
+        "srcs/demo_fail.sh",
+        "srcs/demo_pass.sh",
+        "srcs/demo_skip.sh",
+    ],
+    test_cases = [
+        "demo_pass",
+        "demo_assert_pass",
+        "demo_fail",
+        "demo_assert_fail",
+        "demo_skip",
+        "demo_error",
+    ],
+)
+
+bste_test_package(
+    name = "sample_test_package",
+    test_suites = [
+        ":sample_test_suite",
+        ":api_demo_suite",
+    ],
+)
+
+# --- Platform Verification ---
+
+sh_binary(
+    name = "architecture_check_test_bin",
+    srcs = ["readelf_tester.sh"],
+    data = [":sample_cc_binary"],
+)
+
+hermetic_test(
+    name = "architecture_check_test",
+    size = "small",
+    actual = ":architecture_check_test_bin",
+    args = ["$(location :sample_cc_binary)"],
+    data = [":sample_cc_binary"],
+    use_cc_toolchain = True,
+)
+
+# --- Structural Propagation & Integrity ---
+
+files_test(
+    name = "data_propagation_integrity_test",
+    size = "small",
+    expected_files = [
+        "sample_test_suite/bste_test_metadata.sh",
+        "sample_test_suite/bste_test_sources.sh",
+        "sample_test_suite/data/cc_data.txt",
+        "sample_test_suite/data/module_config.bin",
+        "sample_test_suite/data/prebuilt_data.txt",
+        "sample_test_suite/sample_cc_binary",
+        "sample_test_suite/sample_prebuilt_binary",
+        "sample_test_suite/srcs/suite_main.sh",
+    ],
+    target_under_test = ":sample_test_suite",
+)
+
+# --- Build-Time Validation / Fail-Fast ---
+
+# 1. Empty Test Plan
+bste_test_suite(
+    name = "fail_empty_plan",
+    tags = ["manual"],
+    test_cases = [],
+)
+
+failure_test(
+    name = "empty_test_plan_failure_test",
+    size = "small",
+    reason = "attribute cannot be empty",
+    target_under_test = ":fail_empty_plan",
+)
+
+# 2. Illegal Function Names
+bste_test_suite(
+    name = "fail_illegal_func",
+    tags = ["manual"],
+    test_cases = [
+        "valid_one",
+        "illegal-hyphen",
+    ],
+)
+
+failure_test(
+    name = "illegal_function_names_failure_test",
+    size = "small",
+    reason = "is invalid",
+    target_under_test = ":fail_illegal_func",
+)
+
+# 3. Invalid Sourcing (not ending in .sh)
+bste_test_suite(
+    name = "fail_invalid_source",
+    srcs = ["data/module_config.bin"],
+    tags = ["manual"],
+    test_cases = ["dummy"],
+)
+
+failure_test(
+    name = "invalid_sourcing_failure_test",
+    size = "small",
+    reason = "is misplaced here",
+    target_under_test = ":fail_invalid_source",
+)
+
+bste_test_suite(
+    name = "dup_suite",
+    tags = ["manual"],
+    test_cases = ["dummy"],
+)
+
+bste_test_package(
+    name = "fail_suite_collision",
+    tags = ["manual"],
+    test_suites = [
+        ":dup_suite",
+        "//private/devices/google/common/kleaf/tests/bste_test/collision_pkg:dup_suite",
+    ],
+)
+
+failure_test(
+    name = "suite_collision_failure_test",
+    size = "small",
+    reason = "Test Suite Name Collision",
+    target_under_test = ":fail_suite_collision",
+)
+
+# --- Metadata & Content Tests ---
+
+hermetic_genrule(
+    name = "sample_test_metadata_extract",
+    srcs = [":sample_test_suite"],
+    outs = ["extracted_metadata.sh"],
+    cmd = """
+        for f in $(SRCS); do
+            case "$$f" in
+                *bste_test_metadata.sh)
+                    cp -f "$$f" "$@"
+                    exit 0
+                    ;;
+            esac
+        done
+        echo "ERROR: Could not find bste_test_metadata.sh in srcs" >&2
+        exit 1
+    """,
+)
+
+hermetic_genrule(
+    name = "sample_test_sources_extract",
+    srcs = [":sample_test_suite"],
+    outs = ["extracted_sources.sh"],
+    cmd = """
+        for f in $(SRCS); do
+            case "$$f" in
+                *bste_test_sources.sh)
+                    cp -f "$$f" "$@"
+                    exit 0
+                    ;;
+            esac
+        done
+        echo "ERROR: Could not find bste_test_sources.sh in srcs" >&2
+        exit 1
+    """,
+)
+
+file_content_test(
+    name = "metadata_content_test",
+    size = "small",
+    actual = ":sample_test_metadata_extract",
+    expected_content = """# SPDX-License-Identifier: GPL-2.0-only
+BSTE_TEST_CASES=("test_case_1" "test_case_2" "test_case_long")
+BSTE_SUITE_INIT="suite_init"
+BSTE_SUITE_EXIT="suite_exit"
+BSTE_TEST_INIT="test_init"
+BSTE_TEST_EXIT="test_exit"
+""",
+)
+
+file_content_test(
+    name = "sources_content_test",
+    size = "small",
+    actual = ":sample_test_sources_extract",
+    expected_content = """# SPDX-License-Identifier: GPL-2.0-only
+alias pass='bste_test_pass "srcs/suite_main.sh" "$LINENO"'
+alias fail='bste_test_fail "srcs/suite_main.sh" "$LINENO"'
+alias skip='bste_test_skip "srcs/suite_main.sh" "$LINENO"'
+alias error='bste_test_error "srcs/suite_main.sh" "$LINENO"'
+alias assert_true='bste_test_assert_true "srcs/suite_main.sh" "$LINENO"'
+alias assert_false='bste_test_assert_false "srcs/suite_main.sh" "$LINENO"'
+alias assert_eq='bste_test_assert_eq "srcs/suite_main.sh" "$LINENO"'
+alias assert_ne='bste_test_assert_ne "srcs/suite_main.sh" "$LINENO"'
+source srcs/suite_main.sh
+""",
+)
+
+# --- Package Aggregation Tests ---
+
+sh_binary(
+    name = "package_aggregation_listing_test_bin",
+    srcs = ["tar_tester.sh"],
+    data = [":sample_test_package"],
+)
+
+hermetic_test(
+    name = "package_aggregation_listing_test",
+    size = "small",
+    actual = ":package_aggregation_listing_test_bin",
+    args = [
+        "$(location :sample_test_package)",
+        "bste_test",
+        "harness/bste_test.sh",
+        "harness/bste_test_runner.sh",
+        "test_suites/sample_test_suite/bste_test_metadata.sh",
+        "test_suites/sample_test_suite/bste_test_sources.sh",
+        "test_suites/sample_test_suite/data/cc_data.txt",
+        "test_suites/sample_test_suite/data/module_config.bin",
+        "test_suites/sample_test_suite/data/prebuilt_data.txt",
+        "test_suites/sample_test_suite/sample_cc_binary",
+        "test_suites/sample_test_suite/sample_prebuilt_binary",
+        "test_suites/sample_test_suite/srcs/suite_main.sh",
+        "test_suites/api_demo_suite/bste_test_metadata.sh",
+        "test_suites/api_demo_suite/bste_test_sources.sh",
+        "test_suites/api_demo_suite/srcs/demo_error.sh",
+        "test_suites/api_demo_suite/srcs/demo_fail.sh",
+        "test_suites/api_demo_suite/srcs/demo_pass.sh",
+        "test_suites/api_demo_suite/srcs/demo_skip.sh",
+    ],
+    data = [":sample_test_package"],
+)
+
+bste_test_suite(
+    name = "resilience_iso_suite",
+    srcs = ["resilience_suites/iso_test.sh"],
+    suite_init = "suite_init",
+    test_cases = [
+        "test_case_1",
+        "test_case_2",
+    ],
+)
+
+bste_test_suite(
+    name = "resilience_crash_suite",
+    srcs = ["resilience_suites/crash_test.sh"],
+    test_cases = [
+        "sleepy_case",
+    ],
+)
+
+bste_test_suite(
+    name = "resilience_kill_suite",
+    srcs = ["resilience_suites/kill_test.sh"],
+    test_cases = [
+        "orphan_test",
+    ],
+)
+
+bste_test_suite(
+    name = "resilience_api_suite",
+    srcs = ["resilience_suites/api_test.sh"],
+    test_cases = [
+        "test_success",
+        "test_failure",
+        "test_skip",
+        "test_error",
+        "test_asserts",
+    ],
+)
+
+bste_test_package(
+    name = "resilience_test_package",
+    test_suites = [
+        ":resilience_iso_suite",
+        ":resilience_crash_suite",
+        ":resilience_kill_suite",
+        ":resilience_api_suite",
+    ],
+)
+
+sh_binary(
+    name = "runtime_resilience_integration_test_bin",
+    srcs = ["runtime_resilience_test.sh"],
+    data = [":resilience_test_package"],
+)
+
+hermetic_test(
+    name = "runtime_resilience_integration_test",
+    size = "small",
+    actual = ":runtime_resilience_integration_test_bin",
+    # TODO: Use nohup from toybox
+    append_host_path = True,  # for nohup
+    args = ["$(location :resilience_test_package)"],
+    data = [":resilience_test_package"],
+)
+
+sh_binary(
+    name = "bste_validator_test_bin",
+    srcs = ["bste_validator_test.sh"],
+    data = ["//private/devices/google/common/kleaf/impl/bste:bste_validator"],
+)
+
+hermetic_test(
+    name = "bste_validator_test",
+    size = "small",
+    actual = ":bste_validator_test_bin",
+    args = ["$(location //private/devices/google/common/kleaf/impl/bste:bste_validator)"],
+    data = ["//private/devices/google/common/kleaf/impl/bste:bste_validator"],
+)
+
+test_suite(
+    name = "bste_test",
+)

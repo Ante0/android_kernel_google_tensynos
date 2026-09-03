@@ -1,0 +1,136 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# ACPM.
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "headers",
+    hdrs = glob([
+        "*.h",
+    ]),
+    includes = ["."],
+    visibility = [
+        "//private/google-modules/soc/gs:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "gs_acpm",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "gs_acpm.ko",
+    conditional_srcs = {
+        "CONFIG_ACPM_MFD": {
+            True: [
+                "acpm_mfd.c",
+            ],
+        },
+        "CONFIG_GS_ACPM": {
+            True: [
+                "acpm.c",
+                "acpm_ipc.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google:kernel-top",
+        "//private/google-modules/soc/gs/drivers/soc/google/cal-if:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/debug:dss",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel:systrace",
+    ],
+)
+
+ddk_module(
+    name = "acpm_flexpmu_dbg",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "acpm_flexpmu_dbg.ko",
+    conditional_srcs = {
+        "CONFIG_ACPM_FLEXPMU_DBG": {
+            True: [
+                "acpm_flexpmu_dbg.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":gs_acpm",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "power_stats",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "power_stats.ko",
+    conditional_srcs = {
+        "CONFIG_ACPM_POWER_STATS": {
+            True: [
+                "power_stats.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":gs_acpm",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-pd",
+    ],
+)
+
+ddk_module(
+    name = "acpm_mbox_test",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "acpm_mbox_test.ko",
+    conditional_srcs = {
+        "CONFIG_ACPM_MBOX_TEST": {
+            True: [
+                "acpm_mbox_test.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":gs_acpm",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google:gs-chipid",
+        "//private/google-modules/soc/gs/drivers/soc/google/cal-if:cmupmucal",
+        "//private/google-modules/soc/gs/drivers/soc/google/cal-if:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/pt:slc_pt",
+    ] + select({
+        "//private/devices/google/common:soc_is_gs201_or_before": [
+            "//private/google-modules/soc/gs/drivers/devfreq-whi/google:exynos_devfreq",
+        ],
+        "//conditions:default": [
+            "//private/google-modules/soc/gs/drivers/devfreq/google:exynos_devfreq",
+        ],
+    }),
+)

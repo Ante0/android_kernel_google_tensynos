@@ -96,7 +96,10 @@ const struct sbb_signal signals[SBB_SIG_NUM_SIGNALS] = {
 	{ SBB_SIG_UFS_POWER_ON, "ufs_power_on", KERNEL_DRIVEN },
 	{ SBB_SIG_UFS_IO_OUTSTANDING, "ufs_io_outstanding", KERNEL_DRIVEN },
 	{ SBB_SIG_MODEM_CP2AP_WAKE_ISR, "cp2ap_wake_isr", KERNEL_DRIVEN },
-	{ SBB_SIG_PCIE_LINK_STATE, "pcie_link_state", KERNEL_DRIVEN }
+	{ SBB_SIG_PCIE_LINK_STATE, "pcie_link_state", KERNEL_DRIVEN },
+	{ SBB_SIG_GPU_POWERING_ON, "gpu_power_on", KERNEL_DRIVEN },
+	{ SBB_SIG_GPU_POWERING_OFF, "gpu_power_off", KERNEL_DRIVEN },
+	{ SBB_SIG_GPU_SETTING_CLK, "gpu_set_clk", KERNEL_DRIVEN },
 };
 
 /*
@@ -348,6 +351,11 @@ struct sbb_gpio_tracker {
 	 * The sysfs file exposing the GPIO's value to userland.
 	 */
 	struct sysfs_file value_file;
+
+	/*
+	 * The pinctrl platform device for the GPIO.
+	 */
+	struct platform_device *pinctrl_pdev;
 };
 
 /*
@@ -377,7 +385,7 @@ static void sbb_mux_drv_undo_probe(struct sbb_gpio_tracker **gpio_trackers_ptr);
 /*
  * Driver remove point: free up resources allocated during probe.
  */
-static int sbb_mux_drv_remove(struct platform_device *dev);
+static void sbb_mux_drv_remove(struct platform_device *dev);
 
 /*
  * Driver entry point.

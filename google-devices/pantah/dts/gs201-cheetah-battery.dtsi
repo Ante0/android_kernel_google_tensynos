@@ -47,8 +47,8 @@
 					google,batt-id = <1>;
 					google,aacr-ref-cycles = <200 300 400 500 600 1000>;
 					google,aacr-ref-fade10 = < 10  23  34  44 100  200>;
-					google,aafv-ref-cycles = <200 400 600 800 1000 1001>;
-					google,aafv-ref-offset = <  0  20  40  60   80  100>;
+					google,aafv-ref-cycles = <200 400 600 800 1000>;
+					google,aafv-ref-offset = < 20  40  60  80  100>;
 					google,aacc-chg-temp = <0 550>;
 					google,aacc-chg-weights = < /* units: 1/1000 cycles */
 						100 100 100 100 100 100 100 100 100 100
@@ -68,12 +68,11 @@
 					google,batt-id = <3>;
 					google,aacr-ref-cycles = <300 400 500 600 1000>;
 					google,aacr-ref-fade10 = < 14  26  38 100  200>;
-					google,aafv-ref-cycles = <200 400 600 800 1000 1001>;
-					google,aafv-ref-offset = <  0  20  40  60   80  100>;
+					google,aafv-ref-cycles = <200 400 600 800 1000>;
+					google,aafv-ref-offset = < 20  40  60  80  100>;
 					google,aacc-chg-temp = <0 550>;
 					google,aacc-chg-weights = < /* units: 1/1000 cycles */
 						100 100 100 100 100 100 100 100 100 100
-						  0   0   0   0   0   0   0   0   0   0
 						  0   0   0   0   0   0   0   0   0   0
 						  0   0   0   0   0   0   0   0   0   0
 						  0   0   0   0   0   0   0   0   0   0

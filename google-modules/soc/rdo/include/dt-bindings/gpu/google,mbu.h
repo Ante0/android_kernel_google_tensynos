@@ -1,0 +1,30 @@
+/* SPDX-License-Identifier: GPL-2.0-only or BSD-2-Clause */
+
+#ifndef __DT_BINDINGS_GPU_GOOGLE_MBU_H
+#define __DT_BINDINGS_GPU_GOOGLE_MBU_H
+#define __DT_BINDINGS_GPU_DVFS_H
+
+#define GPU_OPP_LEVEL_NM   1
+#define GPU_OPP_LEVEL_UD   4
+#define GPU_OPP_LEVEL_SUD  7
+#define GPU_OPP_LEVEL_UUD  10
+#define GPU_OPP_LEVEL_INIT 13
+
+#define GPU_OPP_LEVEL_0  0
+#define GPU_OPP_LEVEL_1  GPU_OPP_LEVEL_NM
+#define GPU_OPP_LEVEL_2  2
+#define GPU_OPP_LEVEL_3  3
+#define GPU_OPP_LEVEL_4  GPU_OPP_LEVEL_UD
+#define GPU_OPP_LEVEL_5  5
+#define GPU_OPP_LEVEL_6  6
+#define GPU_OPP_LEVEL_7  GPU_OPP_LEVEL_SUD
+#define GPU_OPP_LEVEL_8  8
+#define GPU_OPP_LEVEL_9  9
+#define GPU_OPP_LEVEL_10 GPU_OPP_LEVEL_UUD
+#define GPU_OPP_LEVEL_11 11
+#define GPU_OPP_LEVEL_12 12
+#define GPU_OPP_LEVEL_13 GPU_OPP_LEVEL_INIT
+#define GPU_OPP_LEVEL_14 14
+#define GPU_OPP_LEVEL_15 15
+
+#endif /* __DT_BINDINGS_GPU_DVFS_H */

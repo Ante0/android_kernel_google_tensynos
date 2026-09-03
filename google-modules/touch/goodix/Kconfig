@@ -29,3 +29,8 @@ config TOUCHSCREEN_MOTION_FILTER
 	bool "touch motion filter"
 	help
 	  Say Y here if motion filter is enabled.
+
+config GTI_PM
+	bool "touch gti pm"
+	help
+	  touch gti pm

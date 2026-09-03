@@ -2,7 +2,10 @@
 #
 # Copyright (C) 2024 Google LLC
 
-build:zuma_base --//private/google-modules/soc/gs:gs_soc_module=//private/devices/google/zuma:zuma_soc
+build:zuma_base --//private/devices/google/common:soc=zuma
+build:zuma_base --//private/google-modules/aoc/alsa:dp_module=//private/google-modules/display/samsung:exynos-drm-audio
+build:zuma_base --//private/google-modules/soc/gs/drivers/soc/google/eh:ip_idle=exynos_ip_idle
+build:zuma_base --//private/google-modules/touch/common:samsung_drm
 
 build:zuma --config=zuma_base
 build:zuma --//private/devices/google/common:kernel=//private/devices/google/zuma:zuma/kernel

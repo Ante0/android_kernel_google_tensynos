@@ -6,18 +6,17 @@
  */
 
 #include <linux/err.h>
+#include <linux/gpio/consumer.h>
+#include <linux/hte.h>
+#include <linux/interrupt.h>
 #include <linux/mod_devicetable.h>
 #include <linux/module.h>
-#include <linux/moduleparam.h>
-#include <linux/interrupt.h>
-#include <linux/gpio.h>
-#include <linux/timer.h>
 #include <linux/platform_device.h>
+#include <linux/timer.h>
 #include <linux/workqueue.h>
-#include <linux/hte.h>
 
 /*
- * This sample HTE GPIO test driver demonstrates HTE API usage by enabling
+ * This sample HTE test driver demonstrates HTE API usage by enabling
  * hardware timestamp on gpio_in and specified LIC IRQ lines.
  *
  * Note: gpio_out and gpio_in need to be shorted externally in order for this
@@ -215,7 +214,7 @@ out:
 	return ret;
 }
 
-static int tegra_hte_test_remove(struct platform_device *pdev)
+static void tegra_hte_test_remove(struct platform_device *pdev)
 {
 	(void)pdev;
 
@@ -223,13 +222,11 @@ static int tegra_hte_test_remove(struct platform_device *pdev)
 	gpiod_put(hte.gpio_in);
 	gpiod_put(hte.gpio_out);
 	del_timer_sync(&hte.timer);
-
-	return 0;
 }
 
 static struct platform_driver tegra_hte_test_driver = {
 	.probe = tegra_hte_test_probe,
-	.remove = tegra_hte_test_remove,
+	.remove_new = tegra_hte_test_remove,
 	.driver = {
 		.name = "tegra_hte_test",
 		.of_match_table = tegra_hte_test_of_match,
@@ -238,4 +235,5 @@ static struct platform_driver tegra_hte_test_driver = {
 module_platform_driver(tegra_hte_test_driver);
 
 MODULE_AUTHOR("Dipen Patel <dipenp@nvidia.com>");
+MODULE_DESCRIPTION("NVIDIA Tegra HTE (Hardware Timestamping Engine) test driver");
 MODULE_LICENSE("GPL");

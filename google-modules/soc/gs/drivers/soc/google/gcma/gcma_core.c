@@ -17,6 +17,7 @@
 #include <linux/hashtable.h>
 #include <linux/xarray.h>
 
+#include "gcma_core.h"
 #include "gcma_vh.h"
 #include "gcma_sysfs.h"
 #include "gcma_debug.h"
@@ -289,7 +290,7 @@ static struct gcma_inode *add_gcma_inode(struct gcma_fs *gcma_fs,
 	return inode;
 }
 
-int register_gcma_area(const char *name, phys_addr_t base, phys_addr_t size)
+int register_pixel_gcma_area(const char *name, phys_addr_t base, phys_addr_t size)
 {
 	unsigned long i;
 	struct page *page;
@@ -326,7 +327,7 @@ int register_gcma_area(const char *name, phys_addr_t base, phys_addr_t size)
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(register_gcma_area);
+EXPORT_SYMBOL_GPL(register_pixel_gcma_area);
 
 static void page_area_lock(struct page *page)
 {
@@ -580,7 +581,7 @@ again:
 	return discard;
 }
 
-void gcma_alloc_range(unsigned long start_pfn, unsigned long end_pfn)
+void pixel_gcma_alloc_range(unsigned long start_pfn, unsigned long end_pfn)
 {
 	s64 start_time;
 	int i;
@@ -610,9 +611,9 @@ void gcma_alloc_range(unsigned long start_pfn, unsigned long end_pfn)
 	latency = ktime_to_ns(ktime_get()) - start_time;
 	account_gcma_per_page_alloc_latency(count, latency);
 }
-EXPORT_SYMBOL_GPL(gcma_alloc_range);
+EXPORT_SYMBOL_GPL(pixel_gcma_alloc_range);
 
-void gcma_free_range(unsigned long start_pfn, unsigned long end_pfn)
+void pixel_gcma_free_range(unsigned long start_pfn, unsigned long end_pfn)
 {
 	unsigned long pfn;
 	struct page *page;
@@ -648,7 +649,7 @@ void gcma_free_range(unsigned long start_pfn, unsigned long end_pfn)
 
 	local_irq_enable();
 }
-EXPORT_SYMBOL_GPL(gcma_free_range);
+EXPORT_SYMBOL_GPL(pixel_gcma_free_range);
 
 void evict_gcma_lru_pages(unsigned long nr_request)
 {
@@ -715,8 +716,8 @@ static DECLARE_WORK(lru_evict_work, evict_gcma_pages);
  * @page is !workingset and GCMA doesn't have @page: just bail out
  * @page is !workingset and GCMA has @page: remove the stale @page
  */
-void gcma_cc_store_page(int hash_id, struct cleancache_filekey key,
-			pgoff_t offset, struct page *page)
+static void gcma_cc_store_page(int hash_id, struct cleancache_filekey key,
+			       pgoff_t offset, struct page *page)
 {
 	struct gcma_fs *gcma_fs;
 	struct gcma_inode *inode;
@@ -1012,7 +1013,7 @@ struct cleancache_ops gcma_cleancache_ops = {
 	.invalidate_fs = gcma_cc_invalidate_fs,
 };
 
-int __init gcma_init(void)
+static int __init gcma_init(void)
 {
 	int err;
 

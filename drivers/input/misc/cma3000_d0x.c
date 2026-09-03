@@ -292,7 +292,7 @@ struct cma3000_accl_data *cma3000_init(struct device *dev, int irq,
 		goto err_out;
 	}
 
-	data = kzalloc(sizeof(struct cma3000_accl_data), GFP_KERNEL);
+	data = kzalloc(sizeof(*data), GFP_KERNEL);
 	input_dev = input_allocate_device();
 	if (!data || !input_dev) {
 		error = -ENOMEM;
@@ -324,8 +324,6 @@ struct cma3000_accl_data *cma3000_init(struct device *dev, int irq,
 	input_dev->id.bustype = bops->bustype;
 	input_dev->open = cma3000_open;
 	input_dev->close = cma3000_close;
-
-	 __set_bit(EV_ABS, input_dev->evbit);
 
 	input_set_abs_params(input_dev, ABS_X,
 			-data->g_range, data->g_range, pdata->fuzz_x, 0);

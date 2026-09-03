@@ -35,7 +35,7 @@ static int panel_gs_simple_enable(struct drm_panel *panel)
 }
 
 /**
- * panel_gs_simple_read_id() - Stub function for reading panel id
+ * panel_gs_simple_read_serial() - Stub function for reading panel id
  * @ctx: Panel handle
  *
  * As this driver doubles as the emulator panel, this function makes sure
@@ -44,9 +44,9 @@ static int panel_gs_simple_enable(struct drm_panel *panel)
  *
  * Return: Always 0
  */
-static int panel_gs_simple_read_id(struct gs_panel *ctx)
+static int panel_gs_simple_read_serial(struct gs_panel *ctx)
 {
-	strscpy(ctx->panel_id, "ffffffff", PANEL_ID_MAX);
+	strscpy(ctx->panel_serial_number, "ffffffff", PANEL_SERIAL_MAX);
 
 	return 0;
 }
@@ -63,7 +63,7 @@ static int panel_gs_simple_read_id(struct gs_panel *ctx)
  */
 static int panel_gs_simple_read_extinfo(struct gs_panel *ctx)
 {
-	strscpy(ctx->panel_extinfo, "ffffffff", PANEL_EXTINFO_MAX);
+	ctx->panel_id = PANEL_ID_INVALID_VALUE;
 
 	return 0;
 }
@@ -80,7 +80,7 @@ static const struct drm_panel_funcs panel_gs_simple_drm_funcs = {
 
 static const struct gs_panel_funcs panel_gs_simple_panel_funcs = {
 	.set_brightness = gs_dcs_set_brightness,
-	.read_id = panel_gs_simple_read_id,
+	.read_serial = panel_gs_simple_read_serial,
 	.read_extinfo = panel_gs_simple_read_extinfo,
 };
 
@@ -101,15 +101,22 @@ const struct brightness_capability panel_gs_simple_brightness_capability = {
 	},
 };
 
-static const struct drm_dsc_config wqhd_pps_config = {
+static struct drm_dsc_config vga_pps_config = {
+	.line_buf_depth = 9,
+	.bits_per_component = 8,
+	.convert_rgb = true,
 	.slice_count = 2,
+	.slice_width = 320,
 	.slice_height = 40,
+	.simple_422 = false,
+	.pic_width = 640,
+	.pic_height = 480,
 };
 
-#define EMU_WQHD_DSC {\
+#define EMU_VGA_DSC {\
 	.enabled = true,\
 	.dsc_count = 2,\
-	.cfg = &wqhd_pps_config,\
+	.cfg = &vga_pps_config,\
 }
 
 static struct gs_panel_mode_array panel_gs_simple_normal_modes = {
@@ -117,31 +124,56 @@ static struct gs_panel_mode_array panel_gs_simple_normal_modes = {
 	.modes = {
 		{
 			.mode = {
-				.name = "1440x2960@60",
-				DRM_MODE_TIMING(60, 1440, 32, 12, 16, 2960, 12, 4, 16),
+				.name = "640x480@60",
+				DRM_MODE_TIMING(60, 640, 19192, 12, 36, 480, 12, 4, 24),
 				.flags = 0,
 				.type = DRM_MODE_TYPE_PREFERRED,
-				.width_mm = 80,
-				.height_mm = 120,
+				.width_mm = 64,
+				.height_mm = 48,
 			},
 			.gs_mode = {
 				.mode_flags = MIPI_DSI_MODE_VIDEO,
 				.bpc = 8,
-				.dsc = EMU_WQHD_DSC,
+				.dsc = {
+					.enabled = false,
+				},
 			},
 		},
 		{
 			.mode = {
-				.name = "1440x2960@120",
-				DRM_MODE_TIMING(120, 1440, 32, 12, 16, 2960, 12, 4, 16),
+				.name = "640x480@60:dsc",
+				DRM_MODE_TIMING(60, 640, 17782, 12, 36, 480, 12, 4, 24),
+				.flags = 0,
+				.width_mm = 64,
+				.height_mm = 48,
+			},
+			.gs_mode = {
+				.mode_flags = MIPI_DSI_MODE_VIDEO,
+				.bpc = 8,
+				.dsc = EMU_VGA_DSC,
+			},
+		},
+	},
+};
+
+static struct gs_panel_mode_array panel_gs_simple_normal_command_modes = {
+	.num_modes = 1,
+	.modes = {
+		{
+			.mode = {
+				.name = "1440x2960@60",
+				DRM_MODE_TIMING(60, 1440, 32, 12, 16, 2960, 12, 4, 16),
 				.flags = 0,
 				.width_mm = 80,
 				.height_mm = 120,
 			},
 			.gs_mode = {
-				.mode_flags = MIPI_DSI_MODE_VIDEO,
+				.mode_flags = MIPI_DSI_CLOCK_NON_CONTINUOUS,
 				.bpc = 8,
-				.dsc = EMU_WQHD_DSC,
+				.dsc = {
+					.enabled = false,
+				},
+				.sw_trigger = true,
 			},
 		},
 	},
@@ -189,11 +221,21 @@ const struct gs_panel_brightness_desc panel_gs_simple_brightness_desc = {
 	.brt_capability = &panel_gs_simple_brightness_capability,
 };
 
-const static struct gs_panel_desc panel_gs_simple_desc = {
+static const struct gs_panel_desc panel_gs_simple_desc = {
 	.data_lane_cnt = 4,
 	.brightness_desc = &panel_gs_simple_brightness_desc,
 	.num_binned_lp = 0,
 	.modes = &panel_gs_simple_normal_modes,
+	.panel_func = &panel_gs_simple_drm_funcs,
+	.gs_panel_func = &panel_gs_simple_panel_funcs,
+	.reset_timing_ms = { 0, 0, 0 },
+};
+
+static const struct gs_panel_desc panel_gs_simple_command_desc = {
+	.data_lane_cnt = 4,
+	.brightness_desc = &panel_gs_simple_brightness_desc,
+	.num_binned_lp = 0,
+	.modes = &panel_gs_simple_normal_command_modes,
 	.panel_func = &panel_gs_simple_drm_funcs,
 	.gs_panel_func = &panel_gs_simple_panel_funcs,
 	.reset_timing_ms = { 0, 0, 0 },
@@ -205,8 +247,12 @@ static const struct of_device_id dsi_of_match[] = {
 		.data = &panel_gs_simple_desc,
 	},
 	{
+		.compatible = "google,panel-gs-simple-command",
+		.data = &panel_gs_simple_command_desc,
+	},
+	{
 		/* sentinel */
-	}
+	},
 };
 MODULE_DEVICE_TABLE(of, dsi_of_match);
 

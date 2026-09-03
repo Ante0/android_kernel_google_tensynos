@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
 
 /*
- * resolve_btfids scans Elf object for .BTF_ids section and resolves
+ * resolve_btfids scans ELF object for .BTF_ids section and resolves
  * its symbols with BTF ID values.
  *
  * Each symbol points to 4 bytes data and is expected to have
@@ -409,6 +409,14 @@ static int elf_collect(struct object *obj)
 			obj->efile.idlist       = data;
 			obj->efile.idlist_shndx = idx;
 			obj->efile.idlist_addr  = sh.sh_addr;
+		} else if (!strcmp(name, BTF_BASE_ELF_SEC)) {
+			/* If a .BTF.base section is found, do not resolve
+			 * BTF ids relative to vmlinux; resolve relative
+			 * to the .BTF.base section instead.  btf__parse_split()
+			 * will take care of this once the base BTF it is
+			 * passed is NULL.
+			 */
+			obj->base_btf_path = NULL;
 		}
 
 		if (compressed_section_fix(elf, scn, &sh))

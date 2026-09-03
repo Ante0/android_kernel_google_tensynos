@@ -1,0 +1,61 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/*
+ * Platform common touch device tree
+ *
+ * Copyright 2025 Google, LLC.
+ */
+
+/*
+ * Touch pins:
+ *
+ * SSWRP_AOSS_SPI2 = AOSS_AMB_SPI3
+ *   XAOSS_AMB_SPI3_SCLK = AOSS2TS0_SPI_CLK_1V2
+ *   XAOSS_AMB_SPI3_MOSI = AOSS2TS0_SPI_MOSI_1V2
+ *   XAOSS_AMB_SPI3_MISO = AOSS2TS0_SPI_MISO_1V2
+ *   XAOSS_AMB_SPI3_CSn = AOSS2TS0_SPI_CS_L_1V2
+ *
+ * XAOSS_SC_GPIO12 = TS0_2_AOSS_INT_L_1V2
+ * DA9188_SUB_GPIO_17 = PMICS2TS0_RESET_L_1V2
+ */
+
+/ {
+	fragment@touch_bus_negotiator {
+		target-path = "/";
+		__overlay__ {
+			tbn: tbn {
+				compatible = "touch_bus_negotiator";
+				tbn,mode = <2>;
+			};
+		};
+	};
+};
+
+/ {
+	fragment@goog_interface_manager {
+		target-path = "/";
+		__overlay__ {
+			gim: gim {
+				compatible = "goog_interface_manager";
+			};
+		};
+	};
+};
+
+&aoss_pg_spi2 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	google,cs-clock-delay-us = <10>;
+	polling-busy-wait-mode;
+
+	spitouch: touchscreen@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		status = "disabled";
+		reg = <0>;
+		pinctrl-names = "ts_active", "ts_suspend";
+		pinctrl-0 = <&ts0_2_aoss_int_l_1v2 &pmics2ts0_reset_l_1v2>;
+		pinctrl-1 = <>;
+	};
+};

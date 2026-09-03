@@ -514,8 +514,7 @@ static int wf_fcu_init_chip(struct wf_fcu_priv *pv)
 	return 0;
 }
 
-static int wf_fcu_probe(struct i2c_client *client,
-			const struct i2c_device_id *id)
+static int wf_fcu_probe(struct i2c_client *client)
 {
 	struct wf_fcu_priv *pv;
 
@@ -574,7 +573,7 @@ static void wf_fcu_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id wf_fcu_id[] = {
-	{ "MAC,fcu", 0 },
+	{ "MAC,fcu" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, wf_fcu_id);

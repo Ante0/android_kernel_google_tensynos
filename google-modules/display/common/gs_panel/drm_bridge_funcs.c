@@ -22,14 +22,33 @@
 #include "gs_panel/gs_panel.h"
 #include "trace/panel_trace.h"
 
+#if IS_ENABLED(CONFIG_GOOGLE_CRASH_DEBUG_DUMP)
+#include <soc/google/google-cdd.h>
+#endif
+
 #define bridge_to_gs_panel(b) container_of((b), struct gs_panel, bridge)
 
-#ifndef DISPLAY_PANEL_INDEX_PRIMARY
-#define DISPLAY_PANEL_INDEX_PRIMARY 0
+void gs_panel_set_panel_state(struct gs_panel *ctx, enum gs_panel_state panel_state)
+{
+	ctx->panel_state = panel_state;
+	PANEL_ATRACE_INT_PID("panel_state", ctx->panel_state, ctx->trace_pid);
+	dev_dbg(ctx->dev, "panel_state: %d\n", panel_state);
+
+#if IS_ENABLED(CONFIG_GOOGLE_CRASH_DEBUG_DUMP)
+	u32 dev_stat;
+	struct gs_drm_connector *gs_connector = ctx->gs_connector;
+
+	google_cdd_get_system_dev_stat(CDD_SYSTEM_DEVICE_DISPLAY, &dev_stat);
+	if (gs_connector && gs_connector->funcs && gs_connector->funcs->panel_update_dev_stat) {
+		gs_connector->funcs->panel_update_dev_stat(gs_connector, &dev_stat);
+		PANEL_ATRACE_BEGIN("update_cdd_display_stat");
+		google_cdd_set_system_dev_stat(CDD_SYSTEM_DEVICE_DISPLAY, dev_stat);
+		PANEL_ATRACE_END("update_cdd_display_stat");
+	} else {
+		dev_info(ctx->dev, "update cdd display stat failed\n");
+	}
 #endif
-#ifndef DISPLAY_PANEL_INDEX_SECONDARY
-#define DISPLAY_PANEL_INDEX_SECONDARY 1
-#endif
+}
 
 static unsigned long get_backlight_state_from_panel(struct backlight_device *bl,
 						    enum gs_panel_state panel_state)
@@ -84,20 +103,6 @@ void gs_panel_set_backlight_state(struct gs_panel *ctx, enum gs_panel_state pane
 	}
 }
 
-static const char *gs_panel_get_sysfs_name(struct gs_panel *ctx)
-{
-	switch (ctx->gs_connector->panel_index) {
-	case DISPLAY_PANEL_INDEX_PRIMARY:
-		return "primary-panel";
-	case DISPLAY_PANEL_INDEX_SECONDARY:
-		return "secondary-panel";
-	default:
-		dev_warn(ctx->dev, "Unsupported panel_index value %d\n",
-			 ctx->gs_connector->panel_index);
-		return "primary-panel";
-	}
-}
-
 void gs_panel_node_attach(struct gs_drm_connector *gs_connector)
 {
 	struct gs_panel *ctx = gs_connector_to_panel(gs_connector);
@@ -133,6 +138,22 @@ void gs_panel_node_attach(struct gs_drm_connector *gs_connector)
 		dev_dbg(ctx->dev, "succeed to link %s sysfs\n", sysfs_name);
 }
 
+void gs_panel_node_detach(struct gs_drm_connector *gs_connector)
+{
+	struct gs_panel *ctx = gs_connector_to_panel(gs_connector);
+	struct drm_connector *connector = &gs_connector->base;
+	const char *sysfs_name;
+
+	if (WARN(!ctx, "%s: failed to get gs_panel\n", __func__))
+		return;
+
+	sysfs_name = gs_panel_get_sysfs_name(ctx);
+
+	sysfs_remove_link(&ctx->bridge.dev->dev->kobj, sysfs_name);
+	sysfs_remove_link(&connector->kdev->kobj, "panel");
+	sysfs_remove_link(&gs_connector->kdev->kobj, "panel");
+}
+
 static int gs_panel_bridge_attach(struct drm_bridge *bridge, enum drm_bridge_attach_flags flags)
 {
 	struct gs_panel *ctx = bridge_to_gs_panel(bridge);
@@ -156,46 +177,31 @@ static int gs_panel_bridge_attach(struct drm_bridge *bridge, enum drm_bridge_att
 		ctx->gs_connector->needs_commit = true;
 
 	if (connector->dev->mode_config.poll_enabled)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
 		drm_kms_helper_connector_hotplug_event(connector);
-#else
-		drm_kms_helper_hotplug_event(connector->dev);
-#endif
 
 	return 0;
 }
 
 static void gs_panel_bridge_detach(struct drm_bridge *bridge)
 {
-	struct gs_panel *ctx = bridge_to_gs_panel(bridge);
-	struct drm_connector *connector = &ctx->gs_connector->base;
-	const char *sysfs_name = gs_panel_get_sysfs_name(ctx);
-
-	sysfs_remove_link(&bridge->dev->dev->kobj, sysfs_name);
-
-	/* TODO(tknelms): debugfs removal */
-	sysfs_remove_link(&connector->kdev->kobj, "panel");
-	/* TODO(tknelms): evaluate what needs to be done to clean up connector */
-	drm_connector_unregister(connector);
-	drm_connector_cleanup(&ctx->gs_connector->base);
 }
 
-static void gs_panel_bridge_enable(struct drm_bridge *bridge,
-				   struct drm_bridge_state *old_bridge_state)
+static void gs_panel_bridge_enable_internal(struct gs_panel *ctx)
 {
-	struct gs_panel *ctx = bridge_to_gs_panel(bridge);
 	const struct drm_connector_state *conn_state = ctx->gs_connector->base.state;
 	struct gs_drm_connector_state *gs_conn_state = to_gs_connector_state(conn_state);
 	bool need_update_backlight = false;
 	bool is_active;
-	const bool is_lp_mode = ctx->current_mode && ctx->current_mode->gs_mode.is_lp_mode;
+	bool is_lp_mode = ctx->current_mode && ctx->current_mode->gs_mode.is_lp_mode;
 
 	mutex_lock(&ctx->mode_lock); /*TODO(b/267170999): MODE*/
+
+	PANEL_ATRACE_BEGIN("gs_panel_bridge_enable_internal");
 	if (ctx->panel_state == GPANEL_STATE_HANDOFF) {
 		is_active = !gs_panel_first_enable_helper(ctx);
 	} else if (ctx->panel_state == GPANEL_STATE_HANDOFF_MODESET) {
 		if (!gs_panel_first_enable_helper(ctx)) {
-			ctx->panel_state = GPANEL_STATE_MODESET;
+			gs_panel_set_panel_state(ctx, GPANEL_STATE_MODESET);
 			mutex_unlock(&ctx->mode_lock); /*TODO(b/267170999): MODE*/
 			drm_panel_disable(&ctx->base);
 			mutex_lock(&ctx->mode_lock); /*TODO(b/267170999): MODE*/
@@ -210,11 +216,14 @@ static void gs_panel_bridge_enable(struct drm_bridge *bridge,
 		drm_panel_enable(&ctx->base);
 		need_update_backlight = true;
 	}
-	ctx->panel_state = is_lp_mode ? GPANEL_STATE_LP : GPANEL_STATE_NORMAL;
+	gs_panel_set_panel_state(ctx, is_lp_mode ? GPANEL_STATE_LP : GPANEL_STATE_NORMAL);
 
-	if (gs_panel_has_func(ctx, update_ffc) &&
-	    (!ctx->idle_data.self_refresh_active || gs_conn_state->dsi_hs_clk_changed))
+	if (gs_panel_has_func(ctx, update_ffc) && !ctx->force_ffc_off &&
+	    (!ctx->idle_data.self_refresh_active || gs_conn_state->dsi_hs_clk_changed) &&
+	    gs_conn_state->dsi_hs_clk_mbps) {
+		dev_dbg(ctx->dev, "update ffc for hs_clk %u\n", gs_conn_state->dsi_hs_clk_mbps);
 		ctx->desc->gs_panel_func->update_ffc(ctx, gs_conn_state->dsi_hs_clk_mbps);
+	}
 
 	if (ctx->idle_data.self_refresh_active) {
 		dev_dbg(ctx->dev, "self refresh state : %s\n", __func__);
@@ -230,17 +239,21 @@ static void gs_panel_bridge_enable(struct drm_bridge *bridge,
 	if (is_lp_mode && gs_panel_has_func(ctx, set_post_lp_mode))
 		ctx->desc->gs_panel_func->set_post_lp_mode(ctx);
 
+	/* Clear mode in progress for drivers that don't need commit */
+	if (!ctx->gs_connector->needs_commit)
+		ctx->mode_in_progress = MODE_DONE;
+
 	mutex_unlock(&ctx->mode_lock); /*TODO(b/267170999): MODE*/
 
-	if (need_update_backlight && ctx->bl) {
+	if (need_update_backlight && ctx->bl)
 		backlight_update_status(ctx->bl);
-	}
 
-	if (!is_active && gs_panel_has_func(ctx, run_normal_mode_work)) {
-		dev_dbg(ctx->dev, "%s: schedule normal_mode_work\n", __func__);
-		schedule_delayed_work(&ctx->normal_mode_work,
-				      msecs_to_jiffies(ctx->normal_mode_work_delay_ms));
+	if (!is_active && gs_panel_has_func(ctx, run_common_work)) {
+		dev_dbg(ctx->dev, "schedule common_work while enabling display\n");
+		schedule_delayed_work(&ctx->common_work.delay_work,
+				      msecs_to_jiffies(ctx->common_work.delay_ms));
 	}
+	PANEL_ATRACE_END("gs_panel_bridge_enable_internal");
 }
 
 /**
@@ -530,6 +543,12 @@ void gs_panel_wait_for_cmd_tx_window(struct drm_crtc *crtc,
 	PANEL_ATRACE_END("mipi_time_window");
 }
 
+void gs_panel_update_dsi_with_mode(struct mipi_dsi_device *dsi, const struct gs_panel_mode *pmode)
+{
+	dsi->mode_flags = pmode->gs_mode.mode_flags;
+	dsi->dsc = pmode->gs_mode.dsc.enabled ? pmode->gs_mode.dsc.cfg : NULL;
+}
+
 void gs_panel_disable_normal_feat_locked(struct gs_panel *ctx)
 {
 	bool is_lhbm_enabled = !gs_is_local_hbm_disabled(ctx);
@@ -561,11 +580,11 @@ static void bridge_mode_set_enter_lp_mode(struct gs_panel *ctx, const struct gs_
 	if (is_active) {
 		gs_panel_disable_normal_feat_locked(ctx);
 		ctx->desc->gs_panel_func->set_lp_mode(ctx, pmode);
-		ctx->panel_state = GPANEL_STATE_LP;
+		gs_panel_set_panel_state(ctx, GPANEL_STATE_LP);
 
-		if (gs_panel_has_func(ctx, run_normal_mode_work)) {
-			dev_dbg(ctx->dev, "%s: cancel normal_mode_work\n", __func__);
-			cancel_delayed_work(&ctx->normal_mode_work);
+		if (gs_panel_has_func(ctx, run_common_work) && !ctx->common_work.lp_mode_included) {
+			dev_dbg(ctx->dev, "cancel common_work while entering lp mode\n");
+			cancel_delayed_work(&ctx->common_work.delay_work);
 		}
 	}
 	if (!ctx->regulator.post_vddd_lp_enabled)
@@ -580,13 +599,12 @@ static void bridge_mode_set_leave_lp_mode(struct gs_panel *ctx, const struct gs_
 	gs_panel_set_vddd_voltage(ctx, false);
 	if (is_active && gs_panel_has_func(ctx, set_nolp_mode)) {
 		ctx->desc->gs_panel_func->set_nolp_mode(ctx, pmode);
-		ctx->panel_state = GPANEL_STATE_NORMAL;
-		/*TODO(b/279521693): lhbm_on_delay_frames*/
+		gs_panel_set_panel_state(ctx, GPANEL_STATE_NORMAL);
 
-		if (gs_panel_has_func(ctx, run_normal_mode_work)) {
-			dev_dbg(ctx->dev, "%s: schedule normal_mode_work\n", __func__);
-			schedule_delayed_work(&ctx->normal_mode_work,
-					      msecs_to_jiffies(ctx->normal_mode_work_delay_ms));
+		if (gs_panel_has_func(ctx, run_common_work) && !ctx->common_work.lp_mode_included) {
+			dev_dbg(ctx->dev, "schedule common_work while exiting lp mode\n");
+			schedule_delayed_work(&ctx->common_work.delay_work,
+					      msecs_to_jiffies(ctx->common_work.delay_ms));
 		}
 	}
 	ctx->current_binned_lp = NULL;
@@ -655,12 +673,12 @@ static void gs_panel_bridge_mode_set(struct drm_bridge *bridge, const struct drm
 {
 	struct gs_panel *ctx = bridge_to_gs_panel(bridge);
 	struct device *dev = ctx->dev;
-	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
 	const struct gs_panel_mode *pmode = gs_panel_get_mode(ctx, mode);
 	const struct gs_panel_funcs *funcs = ctx->desc->gs_panel_func;
 	const struct gs_panel_mode *old_mode;
 	bool need_update_backlight = false;
 	bool come_out_lp_mode = false;
+	bool refresh_rate_changed = false;
 	u64 waiting_time_us = 0;
 	bool needs_waiting = false;
 
@@ -686,13 +704,40 @@ static void gs_panel_bridge_mode_set(struct drm_bridge *bridge, const struct drm
 	mutex_lock(&ctx->mode_lock);
 	if (ctx->panel_state == GPANEL_STATE_HANDOFF) {
 		dev_warn(dev, "mode change at boot to %s\n", adjusted_mode->name);
-		ctx->panel_state = GPANEL_STATE_HANDOFF_MODESET;
+		gs_panel_set_panel_state(ctx, GPANEL_STATE_HANDOFF_MODESET);
+	} else if (gs_is_panel_active(ctx)) {
+		const struct drm_connector_state *conn_state = ctx->gs_connector->base.state;
+		struct gs_drm_connector_state *gs_conn_state = to_gs_connector_state(conn_state);
+
+		if (!gs_conn_state->seamless_possible) {
+			gs_panel_set_panel_state(ctx, GPANEL_STATE_MODESET);
+			mutex_unlock(&ctx->mode_lock); /*TODO(b/267170999): MODE*/
+			drm_panel_disable(&ctx->base);
+			mutex_lock(&ctx->mode_lock); /*TODO(b/267170999): MODE*/
+		}
 	}
 
-	dev_dbg(dev, "changing display mode to %dx%d@%d\n", pmode->mode.hdisplay,
-		pmode->mode.vdisplay, drm_mode_vrefresh(&pmode->mode));
+	if (old_mode != NULL) {
+		refresh_rate_changed =
+			(drm_mode_vrefresh(&old_mode->mode) != drm_mode_vrefresh(&pmode->mode));
+		/* Check if resolution changing */
+		if (old_mode->mode.hdisplay != pmode->mode.hdisplay ||
+		    old_mode->mode.vdisplay != pmode->mode.vdisplay)
+			ctx->mode_in_progress = refresh_rate_changed ? MODE_RES_AND_RR_IN_PROGRESS :
+								       MODE_RES_IN_PROGRESS;
+		else
+			ctx->mode_in_progress = refresh_rate_changed ? MODE_RR_IN_PROGRESS :
+								       MODE_DONE;
 
-	dsi->mode_flags = pmode->gs_mode.mode_flags;
+		dev_dbg(dev, "changing display mode %dx%dx%d@%d to %dx%dx%d@%d\n",
+			old_mode->mode.hdisplay, old_mode->mode.vdisplay,
+			drm_mode_vrefresh(&old_mode->mode), gs_drm_mode_te_freq(&old_mode->mode),
+			pmode->mode.hdisplay, pmode->mode.vdisplay, drm_mode_vrefresh(&pmode->mode),
+			gs_drm_mode_te_freq(&pmode->mode));
+	} else {
+		ctx->mode_in_progress = MODE_RES_AND_RR_IN_PROGRESS;
+	}
+
 	ctx->timestamps.last_mode_set_ts = ktime_get();
 
 	PANEL_ATRACE_BEGIN("%s: %dx%dx%d@%d", __func__, pmode->mode.hdisplay, pmode->mode.vdisplay,
@@ -720,8 +765,7 @@ static void gs_panel_bridge_mode_set(struct drm_bridge *bridge, const struct drm
 				bridge_mode_set_normal(ctx, pmode, old_mode);
 				state_changed = true;
 			} else
-				dev_warn(
-					ctx->dev,
+				dev_dbg(ctx->dev,
 					"don't do mode change (`%s`) when panel isn't in interactive mode\n",
 					pmode->mode.name);
 		}
@@ -751,6 +795,20 @@ static void gs_panel_bridge_mode_set(struct drm_bridge *bridge, const struct drm
 	PANEL_ATRACE_END(__func__);
 }
 
+static void gs_panel_bridge_enable(struct drm_bridge *bridge,
+				   struct drm_bridge_state *old_bridge_state)
+{
+	struct gs_panel *ctx = bridge_to_gs_panel(bridge);
+
+	if (!IS_ENABLED(CONFIG_GOOGLE_DRM_BRIDGE_MODE_SET)) {
+		const struct drm_connector_state *conn_state = ctx->gs_connector->base.state;
+		struct drm_crtc_state *crtc_state = conn_state->crtc->state;
+
+		gs_panel_bridge_mode_set(bridge, &crtc_state->mode, &crtc_state->adjusted_mode);
+	}
+	gs_panel_bridge_enable_internal(ctx);
+}
+
 static void gs_panel_bridge_disable(struct drm_bridge *bridge,
 				    struct drm_bridge_state *old_bridge_state)
 {
@@ -761,6 +819,7 @@ static void gs_panel_bridge_disable(struct drm_bridge *bridge,
 	struct drm_crtc_state *crtc_state = !conn_state->crtc ? NULL : conn_state->crtc->state;
 	const bool self_refresh_active = crtc_state && crtc_state->self_refresh_active;
 
+	PANEL_ATRACE_BEGIN("gs_panel_bridge_disable");
 	if (self_refresh_active && !gs_conn_state->blanked_mode) {
 		mutex_lock(&ctx->mode_lock); /*TODO(b/267170999): MODE*/
 		dev_dbg(dev, "self refresh state : %s\n", __func__);
@@ -774,43 +833,63 @@ static void gs_panel_bridge_disable(struct drm_bridge *bridge,
 			ctx->regulator.need_post_vddd_lp = false;
 		}
 
-		if (gs_panel_has_func(ctx, pre_update_ffc) &&
-		    (gs_conn_state->dsi_hs_clk_changed || gs_conn_state->pending_dsi_hs_clk_mbps))
+		if (gs_panel_has_func(ctx, pre_update_ffc) && !ctx->force_ffc_off &&
+		    (gs_conn_state->dsi_hs_clk_changed || gs_conn_state->pending_dsi_hs_clk_mbps)) {
+			dev_dbg(dev, "pre update ffc\n");
 			ctx->desc->gs_panel_func->pre_update_ffc(ctx);
+		}
 	} else {
 		if (gs_conn_state->blanked_mode) {
 			/* blanked mode takes precedence over normal modeset */
-			ctx->panel_state = GPANEL_STATE_BLANK;
+			gs_panel_set_panel_state(ctx, GPANEL_STATE_BLANK);
 		} else if (crtc_state && crtc_state->mode_changed &&
 			   drm_atomic_crtc_effectively_active(crtc_state)) {
-			ctx->panel_state = GPANEL_STATE_MODESET;
-		} else if (ctx->force_power_on) {
+			/* if it's seamless mode switch skip disable and treat as interactive */
+			if (!gs_conn_state->seamless_possible)
+				gs_panel_set_panel_state(ctx, GPANEL_STATE_MODESET);
+		} else if (ctx->force_power_on && !gs_conn_state->skip_force_power_on) {
 			/* force blank state instead of power off */
-			ctx->panel_state = GPANEL_STATE_BLANK;
+			gs_panel_set_panel_state(ctx, GPANEL_STATE_BLANK);
 		} else {
-			ctx->panel_state = GPANEL_STATE_OFF;
+			gs_panel_set_panel_state(ctx, GPANEL_STATE_OFF);
 			ctx->mode_in_progress = MODE_DONE;
 
-			if (gs_panel_has_func(ctx, run_normal_mode_work)) {
-				dev_dbg(dev, "%s: cancel normal_mode_work\n", __func__);
-				cancel_delayed_work(&ctx->normal_mode_work);
+			if (gs_panel_has_func(ctx, run_common_work)) {
+				dev_dbg(dev, "cancel common_work while disabling display\n");
+				cancel_delayed_work(&ctx->common_work.delay_work);
 			}
 		}
 
-		drm_panel_disable(&ctx->base);
+		if (!gs_is_panel_active(ctx))
+			drm_panel_disable(&ctx->base);
 	}
+
+	// clear fault connector states on disable
+	bitmap_clear(gs_conn_state->dsi_errors, 0, GS_DSI_ERR_MAX);
+	bitmap_clear(gs_conn_state->panel_errors, 0, GS_PANEL_ERR_MAX);
+	PANEL_ATRACE_END("gs_panel_bridge_disable");
 }
 
 static void gs_panel_bridge_pre_enable(struct drm_bridge *bridge,
 				       struct drm_bridge_state *old_bridge_state)
 {
 	struct gs_panel *ctx = bridge_to_gs_panel(bridge);
+	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
+	struct drm_crtc_state *crtc_state = ctx->gs_connector->base.state->crtc->state;
+	struct drm_display_mode *mode = &crtc_state->mode;
+	const struct gs_panel_mode *pmode = gs_panel_get_mode(ctx, mode);
 
+	PANEL_ATRACE_BEGIN("gs_panel_bridge_pre_enable");
 	if (ctx->panel_state == GPANEL_STATE_BLANK) {
 		if (gs_panel_has_func(ctx, panel_reset))
 			ctx->desc->gs_panel_func->panel_reset(ctx);
 	} else if (!gs_is_panel_enabled(ctx))
 		drm_panel_prepare(&ctx->base);
+
+	/* update dsi device with information about upcoming enabled mode */
+	gs_panel_update_dsi_with_mode(dsi, pmode);
+
+	PANEL_ATRACE_END("gs_panel_bridge_pre_enable");
 }
 
 static void gs_panel_set_partial(struct gs_display_partial *partial,
@@ -835,7 +914,8 @@ static void gs_panel_set_partial(struct gs_display_partial *partial,
 /**
  * gs_panel_is_mode_seamless() - check if mode transition can be done seamlessly
  * @ctx: Reference to panel data
- * @mode: Proposed display mode
+ * @old_pmode: Current display mode (potentially NULL if panel was off)
+ * @new_pmode: Proposed display mode
  *
  * Checks whether the panel can transition to the new mode seamlessly without
  * having to turn the display off before the mode change.
@@ -845,11 +925,19 @@ static void gs_panel_set_partial(struct gs_display_partial *partial,
  *
  * Return: true if seamless transition possible, false otherwise
  */
-static bool gs_panel_is_mode_seamless(const struct gs_panel *ctx, const struct gs_panel_mode *mode)
+static bool gs_panel_is_mode_seamless(const struct gs_panel *ctx,
+				      const struct gs_panel_mode *old_pmode,
+				      const struct gs_panel_mode *new_pmode)
 {
-	if (!gs_panel_has_func(ctx, is_mode_seamless))
+	if (gs_panel_has_func(ctx, is_mode_seamless_atomic)) {
+		if (!old_pmode)
+			return false;
+		return ctx->desc->gs_panel_func->is_mode_seamless_atomic(ctx, old_pmode, new_pmode);
+	} else if (gs_panel_has_func(ctx, is_mode_seamless)) {
+		return ctx->desc->gs_panel_func->is_mode_seamless(ctx, new_pmode);
+	} else {
 		return false;
-	return ctx->desc->gs_panel_func->is_mode_seamless(ctx, mode);
+	}
 }
 
 static int gs_drm_connector_check_mode(struct gs_panel *ctx,
@@ -857,7 +945,12 @@ static int gs_drm_connector_check_mode(struct gs_panel *ctx,
 				       struct drm_crtc_state *crtc_state)
 {
 	struct gs_drm_connector_state *gs_connector_state = to_gs_connector_state(connector_state);
+	struct drm_atomic_state *state = crtc_state->state;
+	struct drm_crtc_state *old_crtc_state =
+		drm_atomic_get_old_crtc_state(state, crtc_state->crtc);
 	const struct gs_panel_mode *pmode = gs_panel_get_mode(ctx, &crtc_state->mode);
+	const struct gs_panel_mode *old_pmode =
+		old_crtc_state ? gs_panel_get_mode(ctx, &old_crtc_state->mode) : NULL;
 	bool is_video_mode;
 
 	if (!pmode) {
@@ -873,30 +966,27 @@ static int gs_drm_connector_check_mode(struct gs_panel *ctx,
 	if (crtc_state->connectors_changed || !gs_is_panel_active(ctx))
 		gs_connector_state->seamless_possible = false;
 	else
-		gs_connector_state->seamless_possible = gs_panel_is_mode_seamless(ctx, pmode);
+		gs_connector_state->seamless_possible =
+			gs_panel_is_mode_seamless(ctx, old_pmode, pmode);
 
 	gs_connector_state->gs_mode = pmode->gs_mode;
+	if (gs_panel_has_func(ctx, get_te_usec))
+		gs_connector_state->gs_mode.te_usec =
+			ctx->desc->gs_panel_func->get_te_usec(ctx, pmode);
 	gs_panel_set_partial(&gs_connector_state->partial, pmode, ctx->desc->is_partial);
 
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_EXYNOS_BTS)
 /*
- * this atomic check is called after adjusted mode is populated, so it's safe to modify
+ * This is called as part of atomic check after adjusted mode is populated, so it's safe to modify
  * adjusted_mode if needed at this point
  */
-static int gs_panel_bridge_atomic_check(struct drm_bridge *bridge,
-					struct drm_bridge_state *bridge_state,
-					struct drm_crtc_state *new_crtc_state,
-					struct drm_connector_state *conn_state)
+static void gs_panel_bts_boost_check(struct gs_panel *ctx, struct drm_crtc_state *new_crtc_state,
+				     const struct drm_connector_state *conn_state)
 {
-	struct gs_panel *ctx = bridge_to_gs_panel(bridge);
-	struct drm_atomic_state *state = new_crtc_state->state;
 	const struct drm_display_mode *current_mode = &ctx->current_mode->mode;
-	int ret;
-
-	if (unlikely(!new_crtc_state))
-		return 0;
 
 	if (unlikely(!current_mode)) {
 		dev_warn(ctx->dev, "%s: failed to get current mode, skip mode check\n", __func__);
@@ -1007,15 +1097,35 @@ static int gs_panel_bridge_atomic_check(struct drm_bridge *bridge,
 			dev_dbg(ctx->dev, "%s: restore mode clock after op_hz\n", __func__);
 		}
 	}
+}
+#endif /* IS_ENABLED(CONFIG_EXYNOS_BOOST) */
+
+static int gs_panel_bridge_atomic_check(struct drm_bridge *bridge,
+					struct drm_bridge_state *bridge_state,
+					struct drm_crtc_state *new_crtc_state,
+					struct drm_connector_state *conn_state)
+{
+	struct gs_panel *ctx = bridge_to_gs_panel(bridge);
+	struct drm_atomic_state *state = new_crtc_state->state;
+	int ret = 0;
+
+	if (unlikely(!new_crtc_state))
+		return ret;
+
+	PANEL_ATRACE_BEGIN("gs_panel_bridge_atomic_check");
+
+#if IS_ENABLED(CONFIG_EXYNOS_BTS)
+	gs_panel_bts_boost_check(ctx, new_crtc_state, conn_state);
+#endif
 
 	if (gs_panel_has_func(ctx, atomic_check)) {
 		ret = ctx->desc->gs_panel_func->atomic_check(ctx, state);
 		if (ret)
-			return ret;
+			goto out;
 	}
 
 	if (!drm_atomic_crtc_needs_modeset(new_crtc_state))
-		return 0;
+		goto out;
 
 	if (ctx->panel_state == GPANEL_STATE_HANDOFF) {
 		struct drm_crtc_state *old_crtc_state =
@@ -1025,7 +1135,11 @@ static int gs_panel_bridge_atomic_check(struct drm_bridge *bridge,
 			old_crtc_state->self_refresh_active = true;
 	}
 
-	return gs_drm_connector_check_mode(ctx, conn_state, new_crtc_state);
+	ret = gs_drm_connector_check_mode(ctx, conn_state, new_crtc_state);
+
+out:
+	PANEL_ATRACE_END("gs_panel_bridge_atomic_check");
+	return ret;
 }
 
 static void gs_panel_bridge_post_disable(struct drm_bridge *bridge,
@@ -1033,11 +1147,13 @@ static void gs_panel_bridge_post_disable(struct drm_bridge *bridge,
 {
 	struct gs_panel *ctx = bridge_to_gs_panel(bridge);
 
+	PANEL_ATRACE_BEGIN("gs_panel_bridge_post_disable");
 	/* fully power off only if panel is in full off mode */
 	if (!gs_is_panel_enabled(ctx))
 		drm_panel_unprepare(&ctx->base);
 
 	gs_panel_set_backlight_state(ctx, ctx->panel_state);
+	PANEL_ATRACE_END("gs_panel_bridge_post_disable");
 }
 
 static const struct drm_bridge_funcs gs_panel_bridge_funcs = {
@@ -1051,7 +1167,9 @@ static const struct drm_bridge_funcs gs_panel_bridge_funcs = {
 	.atomic_duplicate_state = drm_atomic_helper_bridge_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_bridge_destroy_state,
 	.atomic_reset = drm_atomic_helper_bridge_reset,
+#if IS_ENABLED(CONFIG_GOOGLE_DRM_BRIDGE_MODE_SET)
 	.mode_set = gs_panel_bridge_mode_set,
+#endif
 };
 
 const struct drm_bridge_funcs *get_panel_drm_bridge_funcs(void)

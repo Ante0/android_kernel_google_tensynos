@@ -54,7 +54,7 @@
 		b2_ocp_warn_en = <OCP_WARN_ENABLE>;
 		b2_ocp_warn_cnt = <OCP_WARN_2_CLOCK>;
 		b2_ocp_warn_dvs_mask = <OCP_WARN_NOT_MASKED>;
-		b2_ocp_warn_lvl = <OCP_WARN_LVL_2PH_8_A>;
+		b2_ocp_warn_lvl = <0>;
 		b2_ocp_warn_debounce_clk = <3>;
 
 		b3_ocp_warn_en = <OCP_WARN_ENABLE>;
@@ -72,7 +72,7 @@
 		b2_soft_ocp_warn_en = <OCP_WARN_ENABLE>;
 		b2_soft_ocp_warn_cnt = <OCP_WARN_2_CLOCK>;
 		b2_soft_ocp_warn_dvs_mask = <OCP_WARN_NOT_MASKED>;
-		b2_soft_ocp_warn_lvl = <OCP_WARN_LVL_2PH_8_A>;
+		b2_soft_ocp_warn_lvl = <0>;
 		b2_soft_ocp_warn_debounce_clk = <3>;
 
 		b3_soft_ocp_warn_en = <OCP_WARN_ENABLE>;

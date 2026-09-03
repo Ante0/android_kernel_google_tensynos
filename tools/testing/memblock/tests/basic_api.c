@@ -15,12 +15,12 @@ static int memblock_initialization_check(void)
 	PREFIX_PUSH();
 
 	ASSERT_NE(memblock.memory.regions, NULL);
-	ASSERT_EQ(memblock.memory.cnt, 1);
+	ASSERT_EQ(memblock.memory.cnt, 0);
 	ASSERT_EQ(memblock.memory.max, EXPECTED_MEMBLOCK_REGIONS);
 	ASSERT_EQ(strcmp(memblock.memory.name, "memory"), 0);
 
 	ASSERT_NE(memblock.reserved.regions, NULL);
-	ASSERT_EQ(memblock.reserved.cnt, 1);
+	ASSERT_EQ(memblock.reserved.cnt, 0);
 	ASSERT_EQ(memblock.memory.max, EXPECTED_MEMBLOCK_REGIONS);
 	ASSERT_EQ(strcmp(memblock.reserved.name, "reserved"), 0);
 
@@ -423,6 +423,98 @@ static int memblock_add_near_max_check(void)
 	return 0;
 }
 
+/*
+ * A test that trying to add the 129th memory block.
+ * Expect to trigger memblock_double_array() to double the
+ * memblock.memory.max, find a new valid memory as
+ * memory.regions.
+ */
+static int memblock_add_many_check(void)
+{
+	int i;
+	void *orig_region;
+	struct region r = {
+		.base = SZ_16K,
+		.size = SZ_16K,
+	};
+	phys_addr_t new_memory_regions_size;
+	phys_addr_t base, size = SZ_64;
+	phys_addr_t gap_size = SZ_64;
+
+	PREFIX_PUSH();
+
+	reset_memblock_regions();
+	memblock_allow_resize();
+
+	dummy_physical_memory_init();
+	/*
+	 * We allocated enough memory by using dummy_physical_memory_init(), and
+	 * split it into small block. First we split a large enough memory block
+	 * as the memory region which will be choosed by memblock_double_array().
+	 */
+	base = PAGE_ALIGN(dummy_physical_memory_base());
+	new_memory_regions_size = PAGE_ALIGN(INIT_MEMBLOCK_REGIONS * 2 *
+					     sizeof(struct memblock_region));
+	memblock_add(base, new_memory_regions_size);
+
+	/* This is the base of small memory block. */
+	base += new_memory_regions_size + gap_size;
+
+	orig_region = memblock.memory.regions;
+
+	for (i = 0; i < INIT_MEMBLOCK_REGIONS; i++) {
+		/*
+		 * Add these small block to fulfill the memblock. We keep a
+		 * gap between the nearby memory to avoid being merged.
+		 */
+		memblock_add(base, size);
+		base += size + gap_size;
+
+		ASSERT_EQ(memblock.memory.cnt, i + 2);
+		ASSERT_EQ(memblock.memory.total_size, new_memory_regions_size +
+						      (i + 1) * size);
+	}
+
+	/*
+	 * At there, memblock_double_array() has been succeed, check if it
+	 * update the memory.max.
+	 */
+	ASSERT_EQ(memblock.memory.max, INIT_MEMBLOCK_REGIONS * 2);
+
+	/* memblock_double_array() will reserve the memory it used. Check it. */
+	ASSERT_EQ(memblock.reserved.cnt, 1);
+	ASSERT_EQ(memblock.reserved.total_size, new_memory_regions_size);
+
+	/*
+	 * Now memblock_double_array() works fine. Let's check after the
+	 * double_array(), the memblock_add() still works as normal.
+	 */
+	memblock_add(r.base, r.size);
+	ASSERT_EQ(memblock.memory.regions[0].base, r.base);
+	ASSERT_EQ(memblock.memory.regions[0].size, r.size);
+
+	ASSERT_EQ(memblock.memory.cnt, INIT_MEMBLOCK_REGIONS + 2);
+	ASSERT_EQ(memblock.memory.total_size, INIT_MEMBLOCK_REGIONS * size +
+					      new_memory_regions_size +
+					      r.size);
+	ASSERT_EQ(memblock.memory.max, INIT_MEMBLOCK_REGIONS * 2);
+
+	dummy_physical_memory_cleanup();
+
+	/*
+	 * The current memory.regions is occupying a range of memory that
+	 * allocated from dummy_physical_memory_init(). After free the memory,
+	 * we must not use it. So restore the origin memory region to make sure
+	 * the tests can run as normal and not affected by the double array.
+	 */
+	memblock.memory.regions = orig_region;
+	memblock.memory.cnt = INIT_MEMBLOCK_REGIONS;
+
+	test_pass_pop();
+
+	return 0;
+}
+
 static int memblock_add_checks(void)
 {
 	prefix_reset();
@@ -438,6 +530,7 @@ static int memblock_add_checks(void)
 	memblock_add_twice_check();
 	memblock_add_between_check();
 	memblock_add_near_max_check();
+	memblock_add_many_check();
 
 	prefix_pop();
 
@@ -799,6 +892,352 @@ static int memblock_reserve_near_max_check(void)
 	return 0;
 }
 
+/*
+ * A test that trying to reserve the 129th memory block.
+ * Expect to trigger memblock_double_array() to double the
+ * memblock.memory.max, find a new valid memory as
+ * reserved.regions.
+ */
+static int memblock_reserve_many_check(void)
+{
+	int i;
+	void *orig_region;
+	struct region r = {
+		.base = SZ_16K,
+		.size = SZ_16K,
+	};
+	phys_addr_t memory_base = SZ_128K;
+	phys_addr_t new_reserved_regions_size;
+
+	PREFIX_PUSH();
+
+	reset_memblock_regions();
+	memblock_allow_resize();
+
+	/* Add a valid memory region used by double_array(). */
+	dummy_physical_memory_init();
+	memblock_add(dummy_physical_memory_base(), MEM_SIZE);
+
+	for (i = 0; i < INIT_MEMBLOCK_REGIONS; i++) {
+		/* Reserve some fakes memory region to fulfill the memblock. */
+		memblock_reserve(memory_base, MEM_SIZE);
+
+		ASSERT_EQ(memblock.reserved.cnt, i + 1);
+		ASSERT_EQ(memblock.reserved.total_size, (i + 1) * MEM_SIZE);
+
+		/* Keep the gap so these memory region will not be merged. */
+		memory_base += MEM_SIZE * 2;
+	}
+
+	orig_region = memblock.reserved.regions;
+
+	/* This reserve the 129 memory_region, and makes it double array. */
+	memblock_reserve(memory_base, MEM_SIZE);
+
+	/*
+	 * This is the memory region size used by the doubled reserved.regions,
+	 * and it has been reserved due to it has been used. The size is used to
+	 * calculate the total_size that the memblock.reserved have now.
+	 */
+	new_reserved_regions_size = PAGE_ALIGN((INIT_MEMBLOCK_REGIONS * 2) *
+					sizeof(struct memblock_region));
+	/*
+	 * The double_array() will find a free memory region as the new
+	 * reserved.regions, and the used memory region will be reserved, so
+	 * there will be one more region exist in the reserved memblock. And the
+	 * one more reserved region's size is new_reserved_regions_size.
+	 */
+	ASSERT_EQ(memblock.reserved.cnt, INIT_MEMBLOCK_REGIONS + 2);
+	ASSERT_EQ(memblock.reserved.total_size, (INIT_MEMBLOCK_REGIONS + 1) * MEM_SIZE +
+						new_reserved_regions_size);
+	ASSERT_EQ(memblock.reserved.max, INIT_MEMBLOCK_REGIONS * 2);
+
+	/*
+	 * Now memblock_double_array() works fine. Let's check after the
+	 * double_array(), the memblock_reserve() still works as normal.
+	 */
+	memblock_reserve(r.base, r.size);
+	ASSERT_EQ(memblock.reserved.regions[0].base, r.base);
+	ASSERT_EQ(memblock.reserved.regions[0].size, r.size);
+
+	ASSERT_EQ(memblock.reserved.cnt, INIT_MEMBLOCK_REGIONS + 3);
+	ASSERT_EQ(memblock.reserved.total_size, (INIT_MEMBLOCK_REGIONS + 1) * MEM_SIZE +
+						new_reserved_regions_size +
+						r.size);
+	ASSERT_EQ(memblock.reserved.max, INIT_MEMBLOCK_REGIONS * 2);
+
+	dummy_physical_memory_cleanup();
+
+	/*
+	 * The current reserved.regions is occupying a range of memory that
+	 * allocated from dummy_physical_memory_init(). After free the memory,
+	 * we must not use it. So restore the origin memory region to make sure
+	 * the tests can run as normal and not affected by the double array.
+	 */
+	memblock.reserved.regions = orig_region;
+	memblock.reserved.cnt = INIT_MEMBLOCK_RESERVED_REGIONS;
+
+	test_pass_pop();
+
+	return 0;
+}
+
+
+/*
+ * A test that trying to reserve the 129th memory block at all locations.
+ * Expect to trigger memblock_double_array() to double the
+ * memblock.memory.max, find a new valid memory as reserved.regions.
+ *
+ *  0               1               2                 128
+ *  +-------+       +-------+       +-------+         +-------+
+ *  |  32K  |       |  32K  |       |  32K  |   ...   |  32K  |
+ *  +-------+-------+-------+-------+-------+         +-------+
+ *          |<-32K->|       |<-32K->|
+ *
+ */
+/* Keep the gap so these memory region will not be merged. */
+#define MEMORY_BASE(idx) (SZ_128K + (MEM_SIZE * 2) * (idx))
+static int memblock_reserve_all_locations_check(void)
+{
+	int i, skip;
+	void *orig_region;
+	struct region r = {
+		.base = SZ_16K,
+		.size = SZ_16K,
+	};
+	phys_addr_t new_reserved_regions_size;
+
+	PREFIX_PUSH();
+
+	/* Reserve the 129th memory block for all possible positions*/
+	for (skip = 0; skip < INIT_MEMBLOCK_REGIONS + 1; skip++) {
+		reset_memblock_regions();
+		memblock_allow_resize();
+
+		/* Add a valid memory region used by double_array(). */
+		dummy_physical_memory_init();
+		memblock_add(dummy_physical_memory_base(), MEM_SIZE);
+
+		for (i = 0; i < INIT_MEMBLOCK_REGIONS + 1; i++) {
+			if (i == skip)
+				continue;
+
+			/* Reserve some fakes memory region to fulfill the memblock. */
+			memblock_reserve(MEMORY_BASE(i), MEM_SIZE);
+
+			if (i < skip) {
+				ASSERT_EQ(memblock.reserved.cnt, i + 1);
+				ASSERT_EQ(memblock.reserved.total_size, (i + 1) * MEM_SIZE);
+			} else {
+				ASSERT_EQ(memblock.reserved.cnt, i);
+				ASSERT_EQ(memblock.reserved.total_size, i * MEM_SIZE);
+			}
+		}
+
+		orig_region = memblock.reserved.regions;
+
+		/* This reserve the 129 memory_region, and makes it double array. */
+		memblock_reserve(MEMORY_BASE(skip), MEM_SIZE);
+
+		/*
+		 * This is the memory region size used by the doubled reserved.regions,
+		 * and it has been reserved due to it has been used. The size is used to
+		 * calculate the total_size that the memblock.reserved have now.
+		 */
+		new_reserved_regions_size = PAGE_ALIGN((INIT_MEMBLOCK_REGIONS * 2) *
+						sizeof(struct memblock_region));
+		/*
+		 * The double_array() will find a free memory region as the new
+		 * reserved.regions, and the used memory region will be reserved, so
+		 * there will be one more region exist in the reserved memblock. And the
+		 * one more reserved region's size is new_reserved_regions_size.
+		 */
+		ASSERT_EQ(memblock.reserved.cnt, INIT_MEMBLOCK_REGIONS + 2);
+		ASSERT_EQ(memblock.reserved.total_size, (INIT_MEMBLOCK_REGIONS + 1) * MEM_SIZE +
+							new_reserved_regions_size);
+		ASSERT_EQ(memblock.reserved.max, INIT_MEMBLOCK_REGIONS * 2);
+
+		/*
+		 * Now memblock_double_array() works fine. Let's check after the
+		 * double_array(), the memblock_reserve() still works as normal.
+		 */
+		memblock_reserve(r.base, r.size);
+		ASSERT_EQ(memblock.reserved.regions[0].base, r.base);
+		ASSERT_EQ(memblock.reserved.regions[0].size, r.size);
+
+		ASSERT_EQ(memblock.reserved.cnt, INIT_MEMBLOCK_REGIONS + 3);
+		ASSERT_EQ(memblock.reserved.total_size, (INIT_MEMBLOCK_REGIONS + 1) * MEM_SIZE +
+							new_reserved_regions_size +
+							r.size);
+		ASSERT_EQ(memblock.reserved.max, INIT_MEMBLOCK_REGIONS * 2);
+
+		dummy_physical_memory_cleanup();
+
+		/*
+		 * The current reserved.regions is occupying a range of memory that
+		 * allocated from dummy_physical_memory_init(). After free the memory,
+		 * we must not use it. So restore the origin memory region to make sure
+		 * the tests can run as normal and not affected by the double array.
+		 */
+		memblock.reserved.regions = orig_region;
+		memblock.reserved.cnt = INIT_MEMBLOCK_RESERVED_REGIONS;
+	}
+
+	test_pass_pop();
+
+	return 0;
+}
+
+/*
+ * A test that trying to reserve the 129th memory block at all locations.
+ * Expect to trigger memblock_double_array() to double the
+ * memblock.memory.max, find a new valid memory as reserved.regions. And make
+ * sure it doesn't conflict with the range we want to reserve.
+ *
+ * For example, we have 128 regions in reserved and now want to reserve
+ * the skipped one. Since reserved is full, memblock_double_array() would find
+ * an available range in memory for the new array. We intended to put two
+ * ranges in memory with one is the exact range of the skipped one. Before
+ * commit 48c3b583bbdd ("mm/memblock: fix overlapping allocation when doubling
+ * reserved array"), the new array would sits in the skipped range which is a
+ * conflict. The expected new array should be allocated from memory.regions[0].
+ *
+ *           0                               1
+ * memory    +-------+                       +-------+
+ *           |  32K  |                       |  32K  |
+ *           +-------+ ------+-------+-------+-------+
+ *                   |<-32K->|<-32K->|<-32K->|
+ *
+ *                           0               skipped           127
+ * reserved                  +-------+       .........         +-------+
+ *                           |  32K  |       .  32K  .   ...   |  32K  |
+ *                           +-------+-------+-------+         +-------+
+ *                                   |<-32K->|
+ *                                           ^
+ *                                           |
+ *                                           |
+ *                                           skipped one
+ */
+/* Keep the gap so these memory region will not be merged. */
+#define MEMORY_BASE_OFFSET(idx, offset) ((offset) + (MEM_SIZE * 2) * (idx))
+static int memblock_reserve_many_may_conflict_check(void)
+{
+	int i, skip;
+	void *orig_region;
+	struct region r = {
+		.base = SZ_16K,
+		.size = SZ_16K,
+	};
+	phys_addr_t new_reserved_regions_size;
+
+	/*
+	 *  0        1          129
+	 *  +---+    +---+      +---+
+	 *  |32K|    |32K|  ..  |32K|
+	 *  +---+    +---+      +---+
+	 *
+	 * Pre-allocate the range for 129 memory block + one range for double
+	 * memblock.reserved.regions at idx 0.
+	 */
+	dummy_physical_memory_init();
+	phys_addr_t memory_base = dummy_physical_memory_base();
+	phys_addr_t offset = PAGE_ALIGN(memory_base);
+
+	PREFIX_PUSH();
+
+	/* Reserve the 129th memory block for all possible positions*/
+	for (skip = 1; skip <= INIT_MEMBLOCK_REGIONS + 1; skip++) {
+		reset_memblock_regions();
+		memblock_allow_resize();
+
+		reset_memblock_attributes();
+		/* Add a valid memory region used by double_array(). */
+		memblock_add(MEMORY_BASE_OFFSET(0, offset), MEM_SIZE);
+		/*
+		 * Add a memory region which will be reserved as 129th memory
+		 * region. This is not expected to be used by double_array().
+		 */
+		memblock_add(MEMORY_BASE_OFFSET(skip, offset), MEM_SIZE);
+
+		for (i = 1; i <= INIT_MEMBLOCK_REGIONS + 1; i++) {
+			if (i == skip)
+				continue;
+
+			/* Reserve some fakes memory region to fulfill the memblock. */
+			memblock_reserve(MEMORY_BASE_OFFSET(i, offset), MEM_SIZE);
+
+			if (i < skip) {
+				ASSERT_EQ(memblock.reserved.cnt, i);
+				ASSERT_EQ(memblock.reserved.total_size, i * MEM_SIZE);
+			} else {
+				ASSERT_EQ(memblock.reserved.cnt, i - 1);
+				ASSERT_EQ(memblock.reserved.total_size, (i - 1) * MEM_SIZE);
+			}
+		}
+
+		orig_region = memblock.reserved.regions;
+
+		/* This reserve the 129 memory_region, and makes it double array. */
+		memblock_reserve(MEMORY_BASE_OFFSET(skip, offset), MEM_SIZE);
+
+		/*
+		 * This is the memory region size used by the doubled reserved.regions,
+		 * and it has been reserved due to it has been used. The size is used to
+		 * calculate the total_size that the memblock.reserved have now.
+		 */
+		new_reserved_regions_size = PAGE_ALIGN((INIT_MEMBLOCK_REGIONS * 2) *
+						sizeof(struct memblock_region));
+		/*
+		 * The double_array() will find a free memory region as the new
+		 * reserved.regions, and the used memory region will be reserved, so
+		 * there will be one more region exist in the reserved memblock. And the
+		 * one more reserved region's size is new_reserved_regions_size.
+		 */
+		ASSERT_EQ(memblock.reserved.cnt, INIT_MEMBLOCK_REGIONS + 2);
+		ASSERT_EQ(memblock.reserved.total_size, (INIT_MEMBLOCK_REGIONS + 1) * MEM_SIZE +
+							new_reserved_regions_size);
+		ASSERT_EQ(memblock.reserved.max, INIT_MEMBLOCK_REGIONS * 2);
+
+		/*
+		 * The first reserved region is allocated for double array
+		 * with the size of new_reserved_regions_size and the base to be
+		 * MEMORY_BASE_OFFSET(0, offset) + SZ_32K - new_reserved_regions_size
+		 */
+		ASSERT_EQ(memblock.reserved.regions[0].base + memblock.reserved.regions[0].size,
+			  MEMORY_BASE_OFFSET(0, offset) + SZ_32K);
+		ASSERT_EQ(memblock.reserved.regions[0].size, new_reserved_regions_size);
+
+		/*
+		 * Now memblock_double_array() works fine. Let's check after the
+		 * double_array(), the memblock_reserve() still works as normal.
+		 */
+		memblock_reserve(r.base, r.size);
+		ASSERT_EQ(memblock.reserved.regions[0].base, r.base);
+		ASSERT_EQ(memblock.reserved.regions[0].size, r.size);
+
+		ASSERT_EQ(memblock.reserved.cnt, INIT_MEMBLOCK_REGIONS + 3);
+		ASSERT_EQ(memblock.reserved.total_size, (INIT_MEMBLOCK_REGIONS + 1) * MEM_SIZE +
+							new_reserved_regions_size +
+							r.size);
+		ASSERT_EQ(memblock.reserved.max, INIT_MEMBLOCK_REGIONS * 2);
+
+		/*
+		 * The current reserved.regions is occupying a range of memory that
+		 * allocated from dummy_physical_memory_init(). After free the memory,
+		 * we must not use it. So restore the origin memory region to make sure
+		 * the tests can run as normal and not affected by the double array.
+		 */
+		memblock.reserved.regions = orig_region;
+		memblock.reserved.cnt = INIT_MEMBLOCK_RESERVED_REGIONS;
+	}
+
+	dummy_physical_memory_cleanup();
+
+	test_pass_pop();
+
+	return 0;
+}
+
 static int memblock_reserve_checks(void)
 {
 	prefix_reset();
@@ -813,6 +1252,9 @@ static int memblock_reserve_checks(void)
 	memblock_reserve_twice_check();
 	memblock_reserve_between_check();
 	memblock_reserve_near_max_check();
+	memblock_reserve_many_check();
+	memblock_reserve_all_locations_check();
+	memblock_reserve_many_may_conflict_check();
 
 	prefix_pop();
 
@@ -1111,7 +1553,7 @@ static int memblock_remove_only_region_check(void)
 	ASSERT_EQ(rgn->base, 0);
 	ASSERT_EQ(rgn->size, 0);
 
-	ASSERT_EQ(memblock.memory.cnt, 1);
+	ASSERT_EQ(memblock.memory.cnt, 0);
 	ASSERT_EQ(memblock.memory.total_size, 0);
 
 	test_pass_pop();
@@ -1539,7 +1981,7 @@ static int memblock_free_only_region_check(void)
 	ASSERT_EQ(rgn->base, 0);
 	ASSERT_EQ(rgn->size, 0);
 
-	ASSERT_EQ(memblock.reserved.cnt, 1);
+	ASSERT_EQ(memblock.reserved.cnt, 0);
 	ASSERT_EQ(memblock.reserved.total_size, 0);
 
 	test_pass_pop();
@@ -1945,6 +2387,53 @@ static int memblock_trim_memory_checks(void)
 	return 0;
 }
 
+static int memblock_overlaps_region_check(void)
+{
+	struct region r = {
+		.base = SZ_1G,
+		.size = SZ_4M
+	};
+
+	PREFIX_PUSH();
+
+	reset_memblock_regions();
+	memblock_add(r.base, r.size);
+
+	/* Far Away */
+	ASSERT_FALSE(memblock_overlaps_region(&memblock.memory, SZ_1M, SZ_1M));
+	ASSERT_FALSE(memblock_overlaps_region(&memblock.memory, SZ_2G, SZ_1M));
+
+	/* Neighbor */
+	ASSERT_FALSE(memblock_overlaps_region(&memblock.memory, SZ_1G - SZ_1M, SZ_1M));
+	ASSERT_FALSE(memblock_overlaps_region(&memblock.memory, SZ_1G + SZ_4M, SZ_1M));
+
+	/* Partial Overlap */
+	ASSERT_TRUE(memblock_overlaps_region(&memblock.memory, SZ_1G - SZ_1M, SZ_2M));
+	ASSERT_TRUE(memblock_overlaps_region(&memblock.memory, SZ_1G + SZ_2M, SZ_2M));
+
+	/* Totally Overlap */
+	ASSERT_TRUE(memblock_overlaps_region(&memblock.memory, SZ_1G, SZ_4M));
+	ASSERT_TRUE(memblock_overlaps_region(&memblock.memory, SZ_1G - SZ_2M, SZ_8M));
+	ASSERT_TRUE(memblock_overlaps_region(&memblock.memory, SZ_1G + SZ_1M, SZ_1M));
+
+	test_pass_pop();
+
+	return 0;
+}
+
+static int memblock_overlaps_region_checks(void)
+{
+	prefix_reset();
+	prefix_push("memblock_overlaps_region");
+	test_print("Running memblock_overlaps_region tests...\n");
+
+	memblock_overlaps_region_check();
+
+	prefix_pop();
+
+	return 0;
+}
+
 int memblock_basic_checks(void)
 {
 	memblock_initialization_check();
@@ -1954,6 +2443,7 @@ int memblock_basic_checks(void)
 	memblock_free_checks();
 	memblock_bottom_up_checks();
 	memblock_trim_memory_checks();
+	memblock_overlaps_region_checks();
 
 	return 0;
 }

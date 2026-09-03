@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Battery device tree entries specific to Kodiak Proto1
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+
+&google_battery {
+	google,chg-battery-capacity = <5058>;
+	google,chg-topoff-limits = <253 253 253 506 1517 1012 0>;
+};

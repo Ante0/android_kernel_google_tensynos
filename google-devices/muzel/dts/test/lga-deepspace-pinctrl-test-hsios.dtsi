@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,lga.h>
+
+&hsios_pinctrl {
+	hsios_uwb_output_gpios: hsios_uwb_output_gpios {
+		pins = "XHSIOS_GPIO7";
+		function = "hsios_gpio";
+		bias-pull-up;
+		output-high;
+	};
+	hsios_modem_output_gpios: hsios_modem_output_gpios {
+		pins = "XHSIOS_GPIO0",
+		       "XHSIOS_GPIO1",
+		       "XHSIOS_GPIO2",
+		       "XHSIOS_GPIO3",
+		       "XHSIOS_GPIO4",
+		       "XHSIOS_GPIO8";
+		function = "hsios_gpio";
+		bias-pull-up;
+		output-high;
+	};
+	hsios_wifi_output_gpios: hsios_wifi_output_gpios {
+		pins = "XHSIOS_GPIO5",
+		       "XHSIOS_GPIO6";
+		function = "hsios_gpio";
+		bias-pull-up;
+		output-high;
+	};
+};

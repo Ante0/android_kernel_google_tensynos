@@ -8,6 +8,11 @@
 #define BTRFS_SEND_H
 
 #include <linux/types.h>
+#include <linux/sizes.h>
+#include <linux/align.h>
+
+struct btrfs_inode;
+struct btrfs_ioctl_send_args;
 
 #define BTRFS_SEND_STREAM_MAGIC "btrfs-stream"
 /* Conditional support for the upcoming protocol version. */
@@ -18,13 +23,12 @@
 #endif
 
 /*
- * In send stream v1, no command is larger than 64K. In send stream v2, no limit
- * should be assumed.
+ * In send stream v1, no command is larger than 64K. In send stream v2, no
+ * limit should be assumed, the buffer size is set to be a header with
+ * compressed extent size.
  */
 #define BTRFS_SEND_BUF_SIZE_V1				SZ_64K
-
-struct inode;
-struct btrfs_ioctl_send_args;
+#define BTRFS_SEND_BUF_SIZE_V2	ALIGN(SZ_16K + BTRFS_MAX_COMPRESSED, PAGE_SIZE)
 
 enum btrfs_tlv_type {
 	BTRFS_TLV_U8,
@@ -178,6 +182,6 @@ enum {
 	__BTRFS_SEND_A_MAX		= 35,
 };
 
-long btrfs_ioctl_send(struct inode *inode, struct btrfs_ioctl_send_args *arg);
+long btrfs_ioctl_send(struct btrfs_inode *inode, const struct btrfs_ioctl_send_args *arg);
 
 #endif

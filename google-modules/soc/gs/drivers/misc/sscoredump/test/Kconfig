@@ -1,0 +1,15 @@
+#
+# SPDX-License-Identifier: GPL-2.0-only
+#
+
+config SUBSYSTEM_COREDUMP_KUNIT_TEST
+	tristate "KUnit test for sscoredump" if !KUNIT_ALL_TESTS
+	depends on SUBSYSTEM_COREDUMP && KUNIT
+	default KUNIT_ALL_TESTS
+	help
+	  This builds unit tests for the sscoredump driver.
+
+	  For more information on KUnit and unit tests in general,
+	  please refer to the KUnit documentation in Documentation/dev-tools/kunit/.
+
+	  If unsure, say N.

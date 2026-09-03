@@ -1,0 +1,18 @@
+// This folder contains the test application to test IOMMU map/unmap
+// performance. Following the steps below to build the binary in Android
+// 1. Copy iommu_map_benchmark.h from soc/gs/drivers/iommu to this folder
+// 2. Copy this iommu folder to the Android
+//    vendor/google_testing/pixel_scripts/iommu
+// 3. In the Android tree, run 'source build/envsetup.sh' and 'lunch xxx'
+// 4. cd $ANDROID_BUILD_TOP
+// 5. 'mmm vendor/google_testing/pixel_scripts/iommu' to build the test
+//    application
+// Output should be in
+// out/target/product/{device}/system/bin/iommu_map_benchmark
+
+cc_binary {
+    name: "iommu_map_benchmark",
+    srcs: ["iommu_map_benchmark.c"],
+    stl: "none",
+}
+

@@ -1,0 +1,3 @@
+. ${ROOT_DIR}/${KERNEL_DIR}/build.config.constants
+
+MKDTIMG_FLAGS="--page_size=4096 --id=/:board_id --rev=/:board_rev"

@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+load("//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_headers(
+    name = "bcmdhd_headers",
+    hdrs = glob([
+        "**/*.h",
+        "**/*.mk",
+    ]) + [
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/wlan/wonder:wonder_headers",
+    ],
+    includes = [
+        ".",
+        "include",
+    ],
+)
+
+ddk_module(
+    name = "bcmdhd4383",
+    srcs = glob(
+        [
+            "**/*.c",
+            "**/*.h",
+        ],
+        exclude = [
+            "bcm_l2_filter.c",
+            "verhoeff_chksum.c",
+            "dhd_custom_google.c",
+            "dhd_custom_google_4390.c",
+            "dhd_custom_google_4398.c",
+            "dhd_custom_meson.c",
+            "dhd_custom_msm.c",
+            "dhd_sdio.c",
+            "bcmsdh_linux.c",
+            "bcmspibrcm.c",
+            "bcmsdspi_linux.c",
+            "bcmsdh.c",
+            "bcmsdh_sdmmc.c",
+            "dhd_cdc.c",
+            "bcmsdh_sdmmc_linux.c",
+        ],
+    ),
+    out = "bcmdhd4383.ko",
+    copts = [
+        "-include",
+        "dhd_defines.h",
+        "-DBCMDHD=4383",
+        "-I$(ROOT_DIR)/private/google-modules/soc/gs/include",
+        "-Wno-date-time",
+        "-Wno-missing-prototypes",
+        "-Wno-parentheses-equality",
+    ] + select({
+        "//private/devices/google/common:factory_build": ["-DBCMDHD_FACTORY_BUILD"],
+        "//conditions:default": [],
+    }) + select({
+        "//private/devices/google/common:soc_is_malibu": [
+            "-include",
+            "wlan_config.h",
+        ],
+        "//conditions:default": [],
+    }),
+    includes = [
+        ".",
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":bcmdhd_headers",
+    ] + select({
+        "//private/devices/google/common:soc_is_laguna_or_later": [
+            "//private/google-modules/soc/rdo/pci:google-pcie",
+        ],
+        "//private/devices/google/common:soc_is_zuma_or_zumapro": [
+            "//private/google-modules/soc/gs/drivers/pci/controller/dwc:pcie-exynos-gs",
+        ],
+        "//conditions:default": [
+        ],
+    }) + select({
+        "//private/devices/google/common:soc_is_malibu": [
+            "//private/google-modules/wlan/linux:cfg80211",
+            "//private/google-modules/wlan/linux:wlan_linux_headers",
+            "//private/google-modules/wlan/wonder",
+        ],
+        "//conditions:default": [],
+    }),
+)

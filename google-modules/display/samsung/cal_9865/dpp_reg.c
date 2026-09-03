@@ -43,20 +43,20 @@ struct cal_regs_desc regs_dpp[REGS_DPP_TYPE_MAX][REGS_DPP_ID_MAX];
 
 #define srcl_regs_desc(id)                      (&regs_dpp[REGS_SRAMC][id])
 #define srcl_read(id, offset)                   \
-        cal_read(srcl_regs_desc(id), offset)
+	cal_read(srcl_regs_desc(id), offset)
 #define srcl_write(id, offset, val)             \
-        cal_write(srcl_regs_desc(id), offset, val)
+	cal_write(srcl_regs_desc(id), offset, val)
 #define srcl_read_mask(id, offset, mask)        \
-        cal_read_mask(srcl_regs_desc(id), offset, mask)
+	cal_read_mask(srcl_regs_desc(id), offset, mask)
 #define srcl_write_mask(id, offset, val, mask)  \
-        cal_write_mask(srcl_regs_desc(id), offset, val, mask)
+	cal_write_mask(srcl_regs_desc(id), offset, val, mask)
 
 /* SCL_COEF */
 #define coef_regs_desc(id)                      (&regs_dpp[REGS_SCL_COEF][id])
 #define coef_read(id, offset)                   \
-        cal_read(coef_regs_desc(id), offset)
+	cal_read(coef_regs_desc(id), offset)
 #define coef_write(id, offset, val)             \
-        cal_write(coef_regs_desc(id), offset, val)
+	cal_write(coef_regs_desc(id), offset, val)
 
 /* HDR_COMM_COEF */
 #define hdr_comm_regs_desc(id)                      (&regs_dpp[REGS_HDR_COMM][id])
@@ -80,13 +80,13 @@ void dpp_regs_desc_init(void __iomem *regs, phys_addr_t start, const char *name,
 /****************** SRAMCON CAL functions ******************/
 static void sramc_reg_set_mode_enable(u32 id, u32 mode)
 {
-        srcl_write(id, SRAMC_L_COM_MODE_REG, mode);
+	srcl_write(id, SRAMC_L_COM_MODE_REG, mode);
 }
 
 static void sramc_reg_set_dst_hpos(u32 id, u32 top, u32 bottom)
 {
-        srcl_write(id, SRAMC_L_COM_DST_POSITION_REG,
-                        SRAMC_DST_BOTTOM(bottom) | SRAMC_DST_TOP(top));
+	srcl_write(id, SRAMC_L_COM_DST_POSITION_REG,
+		   SRAMC_DST_BOTTOM(bottom) | SRAMC_DST_TOP(top));
 }
 
 static void sramc_reg_set_rsc_config(u32 id, struct dpp_params_info *p)
@@ -832,7 +832,7 @@ static void dma_reg_set_base_addr(u32 id, struct dpp_params_info *p,
 
 static void dpp_reg_set_scl_pos(u32 id)
 {
-        /* Initialize setting of initial phase */
+	/* Initialize setting of initial phase */
 	dpp_write_mask(id, DPP_COM_SCL_HPOSITION, DPP_SCL_HPOS(0),
 		       DPP_SCL_HPOS_MASK);
 	dpp_write_mask(id, DPP_COM_SCL_VPOSITION, DPP_SCL_VPOS(0),

@@ -14,7 +14,7 @@ description: |
   their input line is connected to the output line.
 
 allOf:
-  - $ref: name-prefix.yaml#
+  - $ref: dai-common.yaml#
 
 properties:
   compatible:
@@ -23,6 +23,11 @@ properties:
   mux-gpios:
     description: |
       GPIOs used to select the input line.
+
+  state-labels:
+    description: State of input line. default is "Input 1", "Input 2"
+    $ref: /schemas/types.yaml#/definitions/string-array
+    maxItems: 2
 
   sound-name-prefix: true
 
@@ -37,4 +42,5 @@ examples:
     mux {
         compatible = "simple-audio-mux";
         mux-gpios = <&gpio 3 0>;
+        state-labels = "Label_A", "Label_B";
     };

@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "radio-bridge.kconfig",
+    srcs = ["Kconfig"],
+    visibility = ["//private/devices/google:__subpackages__"],
+)
+
+alias(
+    name = "radio-bridge",
+    actual = select({
+        "//private/devices/google/common:soc_is_malibu": ":radio-bridge-module",
+        "//conditions:default": "radio-bridge-headers",
+    }),
+)
+
+ddk_headers(
+    name = "radio-bridge-headers",
+    hdrs = [
+        "radio-bridge.h",
+    ],
+    includes = ["."],
+)
+
+ddk_module(
+    name = "radio-bridge-module",
+    srcs = [
+        "radio-bridge.c",
+    ],
+    out = "radio-bridge.ko",
+    hdrs = [":radio-bridge-headers"],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/aoss-ssr-notifier:aoss_ssr_notifier",
+    ],
+)

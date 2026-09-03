@@ -42,19 +42,6 @@ static int max77779_pmic_reg_update(struct regmap *map, uint8_t reg, uint8_t mas
 	return regmap_update_bits(map, reg, mask, val);
 }
 
-static inline int max77779_pmic_readn(struct max77779_pmic_info *info,
-				      int addr, u8 *val, int len)
-{
-	int rc;
-
-	rc = regmap_bulk_read(info->regmap, addr, val, len);
-	if (rc < 0)
-		dev_warn(info->dev, "regmap_read failed for address %04x rc=%d\n",
-			 addr, rc);
-
-	return rc;
-}
-
 int max77779_external_pmic_reg_read(struct device *dev, uint8_t reg, uint8_t *val)
 {
 	struct max77779_pmic_info *info = dev_get_drvdata(dev);
@@ -88,7 +75,7 @@ int max77779_external_pmic_reg_update(struct device *dev, uint8_t reg, uint8_t m
 }
 EXPORT_SYMBOL_GPL(max77779_external_pmic_reg_update);
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 static int addr_write(void *d, u64 val)
 {
 	struct max77779_pmic_info *info = d;
@@ -155,35 +142,28 @@ static ssize_t registers_dump_show(struct device *dev, struct device_attribute *
 				   char *buf)
 {
 	struct max77779_pmic_info *info = dev_get_drvdata(dev);
-	static u8 *dump;
-	int ret = 0, offset = 0, i;
+	int ret, i;
+	int offset = 0;
 
 	if (!info->regmap) {
 		pr_err("Failed to read, no regmap\n");
 		return -EIO;
 	}
 
-	mutex_lock(&info->reg_dump_lock);
-
-	dump = kzalloc(MAX77779_PMIC_NUM_REGS * sizeof(u8), GFP_KERNEL);
-	if (!dump) {
-		dev_err(dev, "[%s]: Failed to allocate mem ret:%d\n", __func__, ret);
-		goto unlock;
-	}
-
-	ret = max77779_pmic_readn(info, MAX77779_PMIC_ID, dump, MAX77779_PMIC_NUM_REGS);
-	if (ret < 0) {
-		dev_err(dev, "[%s]: Failed to dump ret:%d\n", __func__, ret);
-		goto done;
-	}
-
 	for (i = 0; i < MAX77779_PMIC_NUM_REGS; i++) {
+		u8 tmp;
 		u32 reg_address = i + MAX77779_PMIC_ID;
 
 		if (!max77779_pmic_is_readable(dev, reg_address))
 			continue;
 
-		ret = sysfs_emit_at(buf, offset, "%02x: %02x\n", reg_address, dump[i]);
+		ret = max77779_pmic_reg_read(info->regmap, reg_address, &tmp);
+		if (ret < 0) {
+			dev_err(dev, "[%s]: Failed to dump ret:%d\n", __func__, ret);
+			break;
+		}
+
+		ret = sysfs_emit_at(buf, offset, "%02x: %02x\n", reg_address, tmp);
 		if (!ret) {
 			dev_err(dev, "[%s]: Not all registers printed. last:%x\n", __func__,
 				reg_address - 1);
@@ -192,11 +172,7 @@ static ssize_t registers_dump_show(struct device *dev, struct device_attribute *
 		offset += ret;
 	}
 
-done:
-	kfree(dump);
-unlock:
-	mutex_unlock(&info->reg_dump_lock);
-	return offset;
+	return ret < 0 ? ret : offset;
 }
 static DEVICE_ATTR_RO(registers_dump);
 
@@ -233,6 +209,10 @@ static const struct mfd_cell max77779_pmic_devs[] = {
 		.name = "max77779-pmic-sgpio",
 		.of_compatible = "max77779-pmic-sgpio",
 	},
+	{
+		.name = "max77779-vdroop",
+		.of_compatible = "max77779-vdroop",
+	},
 };
 
 /*
@@ -255,12 +235,13 @@ int max77779_pmic_init(struct max77779_pmic_info *info)
 		return -ENODEV;
 	}
 
-	mfd_add_devices(info->dev, PLATFORM_DEVID_AUTO, max77779_pmic_devs,
-			ARRAY_SIZE(max77779_pmic_devs), NULL, 0, NULL);
+	err = mfd_add_devices(info->dev, PLATFORM_DEVID_AUTO, max77779_pmic_devs,
+			      ARRAY_SIZE(max77779_pmic_devs), NULL, 0, NULL);
+	if (err)
+		return dev_err_probe(info->dev, err, "Failed to add sub-devices\n");
 
 	dbg_init_fs(info);
 
-	mutex_init(&info->reg_dump_lock);
 	err = device_create_file(info->dev, &dev_attr_registers_dump);
 	if (err != 0)
 		dev_warn(info->dev, "Failed to create registers_dump, ret=%d\n", err);

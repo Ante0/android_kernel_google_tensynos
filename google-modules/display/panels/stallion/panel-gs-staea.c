@@ -105,8 +105,13 @@ struct staea_panel {
 static const struct gs_dsi_cmd staea_lp_cmds[] = {
 	/* disable dimming */
 	GS_DSI_CMD(0x53, 0x20),
+	/* Settings AOD Hclk */
+	GS_DSI_CMD(0xFF, 0xAA, 0x55, 0xA5, 0x81),
+	GS_DSI_CMD(0x6F, 0x0E),
+	GS_DSI_CMD(0xF5, 0x20),
 	/* enter AOD */
 	GS_DSI_CMD(MIPI_DCS_ENTER_IDLE_MODE),
+	GS_DSI_CMD(0x65, 0x01),
 };
 static DEFINE_GS_CMDSET(staea_lp);
 
@@ -239,6 +244,15 @@ static const struct gs_dsi_cmd staea_init_cmds[] = {
 				0xBD, 0x1F, 0x06, 0x4F, 0x19, 0x05, 0xBD, 0x1F, 0x06, 0x4F, 0x19, 0x05, 0xBD,
 				0x1F, 0x06, 0x4F, 0x19, 0x05, 0xBD, 0x1F, 0x06, 0x4F, 0x19, 0x05, 0xBD, 0x1F,
 				0x06, 0x4F, 0x19),
+
+	/* b/384421400: AOD in internal power mode */
+	GS_DSI_CMD(0xF0, 0x55, 0xAA, 0x52, 0x08, 0x00),
+	GS_DSI_CMD(0x6F, 0x1D),
+	GS_DSI_CMD(0xB5, 0x15, 0x1A, 0x00, 0x00, 0x00),
+	GS_DSI_CMD(0xF0, 0x55, 0xAA, 0x52, 0x08, 0x01),
+	GS_DSI_CMD(0x6F, 0x0D),
+	GS_DSI_CMD(0xE4, 0x10),
+	GS_DSI_CMD(0xBA, 0x1E, 0x1E, 0x06),
 
 	GS_DSI_DELAY_CMD(120, MIPI_DCS_EXIT_SLEEP_MODE)
 };
@@ -591,7 +605,11 @@ static void staea_set_nolp_mode(struct gs_panel *ctx, const struct gs_panel_mode
 	if (!gs_is_panel_active(ctx))
 		return;
 	/* exit AOD */
-	GS_DCS_BUF_ADD_CMD_AND_FLUSH(dev, MIPI_DCS_EXIT_IDLE_MODE);
+	GS_DCS_BUF_ADD_CMD(dev, 0x65, 0x00);
+	GS_DCS_BUF_ADD_CMD(dev, MIPI_DCS_EXIT_IDLE_MODE);
+	GS_DCS_BUF_ADD_CMD(dev, 0xFF, 0xAA, 0x55, 0xA5, 0x81);
+	GS_DCS_BUF_ADD_CMD(dev, 0x6F, 0x0E);
+	GS_DCS_BUF_ADD_CMD_AND_FLUSH(dev, 0xF5, 0x2B);
 	staea_change_frequency(ctx, pmode);
 
 	/* Delay setting dimming on AOD exit until brightness has stabilized. */
@@ -860,7 +878,7 @@ static void staea_get_panel_rev(struct gs_panel *ctx, u32 id)
 	gs_panel_get_panel_rev(ctx, rev);
 }
 
-static int staea_read_id(struct gs_panel *ctx)
+static int staea_read_serial(struct gs_panel *ctx)
 {
 	struct device *dev = ctx->dev;
 	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
@@ -877,7 +895,7 @@ static int staea_read_id(struct gs_panel *ctx)
 		ret = 0;
 	}
 
-	bin2hex(ctx->panel_id, buf, staea_DDIC_ID_LEN);
+	bin2hex(ctx->panel_serial_number, buf, staea_DDIC_ID_LEN);
 done:
 	GS_DCS_WRITE_CMD(dev, 0xFF, 0xAA, 0x55, 0xA5, 0x00);
 	return ret;
@@ -1076,7 +1094,7 @@ static const struct gs_display_underrun_param underrun_param = {
 /* Truncate 8-bit signed value to 6-bit signed value */
 #define TO_6BIT_SIGNED(v) ((v) & 0x3F)
 
-static const struct drm_dsc_config staea_dsc_cfg = {
+static struct drm_dsc_config staea_dsc_cfg = {
 	/* Used DSC v1.2 */
 	.dsc_version_major = 1,
 	.dsc_version_minor = 2,
@@ -1376,7 +1394,7 @@ static const struct gs_panel_funcs staea_gs_funcs = {
 	.get_te2_edges = gs_panel_get_te2_edges_helper,
 	.set_te2_edges = gs_panel_set_te2_edges_helper,
 	.update_te2 = staea_update_te2,
-	.read_id = staea_read_id,
+	.read_serial = staea_read_serial,
 	.atomic_check = staea_atomic_check,
 	.pre_update_ffc = staea_pre_update_ffc,
 	.update_ffc = staea_update_ffc,
@@ -1490,7 +1508,8 @@ static int staea_panel_config(struct gs_panel *ctx)
 {
 	gs_panel_model_init(ctx, PROJECT, 0);
 	return gs_panel_update_brightness_desc(&staea_brightness_desc, staea_btr_configs,
-						ARRAY_SIZE(staea_btr_configs), ctx->panel_rev);
+						ARRAY_SIZE(staea_btr_configs),
+						ctx->panel_rev_bitmask);
 }
 
 static const struct of_device_id gs_panel_of_match[] = {

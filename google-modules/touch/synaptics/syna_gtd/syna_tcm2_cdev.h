@@ -2,7 +2,7 @@
  *
  * Synaptics TouchCom touchscreen driver
  *
- * Copyright (C) 2017-2020 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2024 Synaptics Incorporated. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,10 +29,10 @@
  * DOLLARS.
  */
 
-/*
+/**
  * @file syna_tcm2_cdev.h
  *
- * The header file defines the structure being used in the.ioctl interface
+ * The header file defines the structure being used in the ioctl interface
  */
 
 #ifndef _SYNAPTICS_TCM2_CDEV_H_
@@ -40,8 +40,7 @@
 
 
 
-/* defines the IOCTLs supported
- */
+/** Definitions of the IOCTLs supported */
 #define IOCTL_MAGIC 's'
 
 /* Previous IOCTLs in early driver */
@@ -73,7 +72,7 @@
 #define STD_DRIVER_GET_CONFIG_ID    (0x22)
 
 
-#define IOCTL_STD_IOCTL_BEGIN       _IOR(IOCTL_MAGIC, STD_IOCTL_BEGIN)
+#define IOCTL_STD_IOCTL_BEGIN       _IO(IOCTL_MAGIC, STD_IOCTL_BEGIN)
 #define IOCTL_STD_SET_PID           _IOW(IOCTL_MAGIC, STD_SET_PID_ID, struct syna_ioctl_data *)
 #define IOCTL_STD_ENABLE_IRQ        _IOW(IOCTL_MAGIC, STD_ENABLE_IRQ_ID, struct syna_ioctl_data *)
 #define IOCTL_STD_RAW_READ          _IOR(IOCTL_MAGIC, STD_RAW_READ_ID, struct syna_ioctl_data *)
@@ -90,11 +89,11 @@
 #define IOCTL_DRIVER_GET_CONFIG     _IOR(IOCTL_MAGIC, STD_DRIVER_GET_CONFIG_ID, struct syna_ioctl_data *)
 
 
-/* Define a data structure for driver parameters configurations
+/* Register map of connection in the driver configurations
  *
  *       Description       BYTE |    BIT 7    |    BIT 6    |    BIT 5    |    BIT 4    |    BIT 3    |    BIT 2    |    BIT 1    |    BIT 0    |
  * --------------------------------------------------------------------------------------------------------------------------------------------------
- *      DUT Connection     [ 0] |                   reserved                            |Bare connect |  reserved   | Disconnect  |   Connect   |
+ *      DUT Connection     [ 0] |                   reserved                            |Bare connect |  reserved   | Inactivate  |   Activate  |
  *                              ---------------------------------------------------------------------------------------------------------------------
  *                         [ 1] |           current touchcomm version                                                                           |
  *                              ---------------------------------------------------------------------------------------------------------------------
@@ -118,7 +117,7 @@ struct drv_param_connection {
 		unsigned char data[5];
 	};
 };
-/* Define a data structure for driver parameters configurations
+/* Register map of bus config in the driver configurations
  *
  *       Description       BYTE |    BIT 7    |    BIT 6    |    BIT 5    |    BIT 4    |    BIT 3    |    BIT 2    |    BIT 1    |    BIT 0    |
  * --------------------------------------------------------------------------------------------------------------------------------------------------
@@ -142,15 +141,15 @@ struct drv_param_bus {
 		struct {
 			/* bus config : 8 bytes */
 			unsigned char reserve_b0__7;
-			unsigned short chunk_wr_size;
-			unsigned short chunk_rd_size;
+			unsigned short max_wr_size;
+			unsigned short max_rd_size;
 			unsigned char reserve_b40__47;
 			unsigned short reserve_b48__63;
 		} __packed;
 		unsigned char data[8];
 	};
 };
-/* Define a data structure for driver parameters configurations
+/* Register map of power rails in the driver configurations
  *
  *       Description       BYTE |    BIT 7    |    BIT 6    |    BIT 5    |    BIT 4    |    BIT 3    |    BIT 2    |    BIT 1    |    BIT 0    |
  * --------------------------------------------------------------------------------------------------------------------------------------------------
@@ -172,11 +171,11 @@ struct drv_param_power {
 		unsigned char data[11];
 	};
 };
-/* Define a data structure for driver parameters configurations
+/* Register map of features in the driver configurations
  *
  *       Description       BYTE |    BIT 7    |    BIT 6    |    BIT 5    |    BIT 4    |    BIT 3    |    BIT 2    |    BIT 1    |    BIT 0    |
  * --------------------------------------------------------------------------------------------------------------------------------------------------
- *      Features           [ 0] |                   reserved                                                        |Legacy V2 FW |Predict Read |
+ *      Features           [ 0] |                   reserved                                                                      |Predict Read |
  *                              ---------------------------------------------------------------------------------------------------------------------
  *                         [ 1] |           Extra bytes to read                                                                                 |
  *                              ---------------------------------------------------------------------------------------------------------------------
@@ -206,8 +205,7 @@ struct drv_param_feature {
 		struct {
 			/* features : 12 bytes */
 			unsigned char predict_reads:1;
-			unsigned char legacy_firmware:1;
-			unsigned char reserve_b2__7:6;
+			unsigned char reserve_b1__7:7;
 			unsigned char extra_bytes_to_read:8;
 			unsigned char depth_of_fifo:8;
 			unsigned char reserve_b24__31:8;
@@ -239,10 +237,8 @@ struct drv_param {
 
 
 
-/*
- * syna_cdev_ioctl_get_name()
- *
- * Return the string of IOCTL
+/**
+ * @brief   Return the string of IOCTL.
  *
  * @param
  *    [ in] code:     code for the target operation

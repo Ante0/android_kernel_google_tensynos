@@ -10,6 +10,8 @@
 	sbu-mux-en-gpio = <&gpp12 2 GPIO_ACTIVE_HIGH>;
 	sbu-mux-sel-gpio = <&gpp12 3 GPIO_ACTIVE_HIGH>;
 	pullup-supply = <&m_ldo7_reg>;
+	charging-adapter-pdp-milliwatt = <45000>;
+
 	connector {
 		sink-pdos = <PDO_FIXED(5000, 3000,
 				       PDO_FIXED_DATA_SWAP |

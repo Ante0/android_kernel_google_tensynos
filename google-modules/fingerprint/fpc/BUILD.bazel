@@ -1,24 +1,27 @@
 # SPDX-License-Identifier: GPL-2.0
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+# FignerprintCard
 
-kernel_module(
-    name = "fpc",
-    srcs = glob([
-        "**/*.c",
-        "**/*.h",
-    ]) + [
-        "//private/google-modules/soc/gs:gs_soc_headers",
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_module(
+    name = "fpc1020_platform_tee",
+    srcs = [
+        "fpc1020_platform_tee.c",
     ],
-    outs = [
-        "fpc1020_platform_tee.ko",
-    ],
+    out = "fpc1020_platform_tee.ko",
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
-    ],
     deps = [
-        "//private/google-modules/soc/gs:gs_soc_module",
+        "//common:all_headers_aarch64",
     ],
 )

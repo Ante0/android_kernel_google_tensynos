@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Copyright (C) 2022 Google LLC
+
+# Please put lga shared configs to private/devices/google/lga/device.bazelrc, which is used by lga_base here.
+build:muzel --config=lga_base
+build:muzel --//private/devices/google/common:kernel=//private/devices/google/muzel:kernel
+build:muzel --//private/google-modules/amplifiers/cs40l26:version=v14.5.0+v4.1.1

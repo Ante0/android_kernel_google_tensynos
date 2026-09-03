@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config PINCTRL_GOOGLE
+	tristate "GOOGLE common pin controller driver"
+	depends on ARCH_GOOGLE
+	depends on PINCTRL
+	select PINMUX
+	select GPIOLIB
+	select GENERIC_PINCONF
+	select GPIOLIB_IRQCHIP
+	help
+	  Enable support for Google pinctrl driver on Google
+	  platform. This driver manages high speed IO, low speed
+	  IO and GPIO routines. This would be essential for any
+	  peripherals to interact with SOC.
+
+config PINCTRL_RDO
+	bool "Pinctrl Redondo support"
+	depends on PINCTRL_GOOGLE
+	help
+	  Enable pinctrl for Redondo
+	  Driver for IO BANK programming
+	  and for IRQ over GPIO.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config PINCTRL_LGA
+	bool "Pinctrl Laguna support"
+	depends on !PINCTRL_RDO
+	depends on PINCTRL_GOOGLE
+	help
+	  Enable pinctrl for Laguna
+	  Driver for IO BANK programming
+	  and for IRQ over GPIO.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config PINCTRL_MBU
+	bool "Pinctrl Malibu support"
+	depends on !PINCTRL_LGA
+	depends on !PINCTRL_RDO
+	depends on PINCTRL_GOOGLE
+	help
+	  Enable pinctrl for Malibu
+	  Driver for IO BANK programming and for IRQ over GPIO.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config PINCTRL_GOOGLE_TEST
+	tristate "Test driver for Google pin controller"
+	depends on PINCTRL_GOOGLE
+	help
+	  Enable test driver for google pinctrl driver which allows
+	  to validate the correctness of pinctrl registers configuration
+	  and interrupts handling.

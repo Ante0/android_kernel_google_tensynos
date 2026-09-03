@@ -129,6 +129,33 @@ static void simulate_panic(char *arg)
 	pr_crit("failed!\n");
 }
 
+static void simulate_custom_panic(char *arg)
+{
+	size_t length = 0;
+
+	if (arg == NULL)
+		return;
+
+	length = strnlen(arg, PAGE_SIZE);
+
+	if (length == 0) {
+		pr_crit("no message given! Exit the test.\n");
+		return;
+	}
+
+	if (length >= PAGE_SIZE) {
+		pr_crit("message given greater than page size.\n");
+		return;
+	}
+
+	pr_crit("start with arg [%s]\n", arg);
+
+	panic("%s", arg);
+
+	/* Should not reach here */
+	pr_crit("failed!\n");
+}
+
 static void simulate_bug(char *arg)
 {
 	pr_crit("called!\n");
@@ -691,6 +718,7 @@ struct force_error_item {
 static const struct force_error_item force_error_vector[] = {
 	/* General debug triggers */
 	{ "panic",		&simulate_panic },
+	{ "custom_panic",	&simulate_custom_panic },
 	{ "bug",		&simulate_bug },
 	{ "warn",		&simulate_warn },
 	{ "null",		&simulate_null },
@@ -713,7 +741,7 @@ static const struct force_error_item force_error_vector[] = {
 	{ "spabort",		&simulate_sp_abort },
 	{ "jumpzero",		&simulate_jump_zero },
 	{ "suspend_hang",	&simulate_suspend_hang },
-	{ "device_suspend_hang",&simulate_device_suspend_hang },
+	{ "device_suspend_hang", &simulate_device_suspend_hang },
 	/* SOC dependent triggers */
 	{ "cold_reset",		&simulate_cold_reset },
 	{ "emerg_reset",	&simulate_watchdog_emergency_reset },

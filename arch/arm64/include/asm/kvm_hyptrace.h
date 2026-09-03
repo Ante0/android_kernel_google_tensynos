@@ -1,21 +1,27 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 #ifndef __ARM64_KVM_HYPTRACE_H_
 #define __ARM64_KVM_HYPTRACE_H_
-#include <asm/kvm_hyp.h>
 
-#include <linux/ring_buffer_ext.h>
+#include <linux/ring_buffer.h>
+#include <linux/trace_seq.h>
+#include <linux/workqueue.h>
 
-/*
- * Host donations to the hypervisor to store the struct hyp_buffer_page.
- */
-struct hyp_buffer_pages_backing {
-	unsigned long start;
-	size_t size;
+struct ht_iterator {
+	struct hyp_trace_buffer	*hyp_buffer;
+	int			cpu;
+	struct hyp_entry_hdr	*ent;
+	unsigned long		lost_events;
+	int			ent_cpu;
+	size_t			ent_size;
+	u64			ts;
+	void			*spare;
+	size_t			copy_leftover;
+	struct trace_seq        seq;
+	struct delayed_work     poll_work;
 };
 
-struct hyp_trace_pack {
-	struct hyp_buffer_pages_backing		backing;
-	struct kvm_nvhe_clock_data		trace_clock_data;
-	struct trace_buffer_pack		trace_buffer_pack;
+struct hyp_trace_desc {
+	struct trace_page_desc		page_desc;
 
 };
 #endif

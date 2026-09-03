@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# USB Host Controller Drivers
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "headers",
+    hdrs = [
+        "xhci-exynos.h",
+    ],
+    includes = ["."],
+    visibility = [
+        "//private/google-modules/aoc/usb:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "xhci-exynos",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "xhci-exynos.ko",
+    conditional_srcs = {
+        "CONFIG_USB_XHCI_EXYNOS": {
+            True: [
+                "xhci-exynos.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/usb/dwc3:dwc3-exynos-usb",
+    ] + select({
+        "//private/devices/google/common:soc_is_zuma_or_zumapro": [
+            "//private/google-modules/soc/gs/drivers/phy/samsung:phy-exynos-usbdrd-eusb-super",
+        ],
+        "//private/devices/google/common:soc_is_gs201_or_before": [
+            "//private/google-modules/soc/gs/drivers/phy/samsung:phy-exynos-usbdrd-super",
+        ],
+        "//conditions:default": [
+        ],
+    }),
+)

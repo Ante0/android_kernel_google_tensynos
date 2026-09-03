@@ -751,6 +751,9 @@ static int tas25xx_pm_resume(struct device *dev)
 
 static void schedule_init_work(struct tas25xx_priv *p_tas25xx, int ch)
 {
+	if (p_tas25xx->devs[ch]->is_probed == 0)
+		return;
+
 	/* actual init work will decide the delay */
 	schedule_delayed_work(&p_tas25xx->devs[ch]->init_work,
 		msecs_to_jiffies(0));
@@ -758,9 +761,9 @@ static void schedule_init_work(struct tas25xx_priv *p_tas25xx, int ch)
 
 static void cancel_init_work(struct tas25xx_priv *p_tas25xx, int ch)
 {
-	//struct linux_platform *plat_data = NULL;
+	if (p_tas25xx->devs[ch]->is_probed == 0)
+		return;
 
-	//plat_data = (struct linux_platform *) p_tas25xx->platform_data;
 	cancel_delayed_work(&p_tas25xx->devs[ch]->init_work);
 
 }
@@ -795,6 +798,11 @@ static int tas25xx_parse_dt(struct device *dev,
 		goto EXIT;
 	}
 
+	if (p_tas25xx->ch_count == 0) {
+		dev_info(plat_data->dev, "%s: no channel, ignore\n", __func__);
+		goto EXIT;
+	}
+
 	/*the device structures array*/
 	p_tas25xx->devs = kmalloc(p_tas25xx->ch_count * sizeof(struct tas_device *),
 		GFP_KERNEL);
@@ -805,6 +813,8 @@ static int tas25xx_parse_dt(struct device *dev,
 			rc = -ENOMEM;
 			break;
 		}
+
+		p_tas25xx->devs[i]->is_probed = 0;
 
 		p_tas25xx->devs[i]->reset_gpio = of_get_named_gpio(np, dts_tag[i][0], 0);
 		if (!gpio_is_valid(p_tas25xx->devs[i]->reset_gpio)) {
@@ -869,13 +879,14 @@ EXIT:
 	return rc;
 }
 
-static int tas25xx_i2c_probe(struct i2c_client *p_client,
-			const struct i2c_device_id *id)
+static int tas25xx_i2c_probe(struct i2c_client *p_client)
 {
 	struct tas25xx_priv *p_tas25xx;
 	struct linux_platform *plat_data;
 	int ret = 0;
 	int i = 0;
+	int probed_coount = 0;
+	int probed_index = -1;
 
 	dev_info(&p_client->dev, "Driver Tag: %s, addr=0x%2x\n",
 		TAS25XX_DRIVER_TAG, p_client->addr);
@@ -937,6 +948,9 @@ static int tas25xx_i2c_probe(struct i2c_client *p_client,
 			goto err;
 	}
 
+	if (p_tas25xx->ch_count == 0)
+		goto err;
+
 	for (i = 0; i < p_tas25xx->ch_count; i++) {
 		if (gpio_is_valid(p_tas25xx->devs[i]->reset_gpio)) {
 			ret = gpio_request(p_tas25xx->devs[i]->reset_gpio,
@@ -980,12 +994,22 @@ static int tas25xx_i2c_probe(struct i2c_client *p_client,
 			if (!ret) {
 				dev_info(&p_client->dev,
 					"successfully read revid 0x%x\n", p_tas25xx->dev_revid);
+				p_tas25xx->devs[i]->is_probed = 1;
+				probed_coount++;
+				probed_index = i;
 			} else {
 				dev_err(&p_client->dev,
 					"Unable to read rev id, i2c failure\n");
+				p_tas25xx->devs[i]->is_probed = 0;
 				break;
 			}
 		}
+	}
+
+	/* allow register codec if only one amp is probed */
+	if (ret && probed_coount == 1) {
+		ret = 0;
+		dev_info(&p_client->dev, "only one amp is probed in index=%d\n", probed_index);
 	}
 
 	/* consider i2c error as fatal */
@@ -1021,6 +1045,9 @@ static int tas25xx_i2c_probe(struct i2c_client *p_client,
 	}
 
 err:
+	if (ret)
+		ret = tas25xx_register_nop_codec(p_tas25xx);
+
 	return ret;
 }
 
@@ -1033,20 +1060,24 @@ static void tas25xx_i2c_remove(struct i2c_client *p_client)
 	plat_data = (struct linux_platform *) p_tas25xx->platform_data;
 	dev_info(plat_data->dev, "%s\n", __func__);
 
-	/*Cancel all the work routine before exiting*/
-	for (i = 0; i < p_tas25xx->ch_count; i++)
-		cancel_delayed_work_sync(&p_tas25xx->devs[i]->init_work);
+	if (p_tas25xx->nop_codec_is_register) {
+		tas25xx_deregister_nop_codec(p_tas25xx);
+	} else {
+		/*Cancel all the work routine before exiting*/
+		for (i = 0; i < p_tas25xx->ch_count; i++)
+			cancel_delayed_work_sync(&p_tas25xx->devs[i]->init_work);
 
-	cancel_delayed_work_sync(&p_tas25xx->irq_work);
-	cancel_delayed_work_sync(&p_tas25xx->dc_work);
+		cancel_delayed_work_sync(&p_tas25xx->irq_work);
+		cancel_delayed_work_sync(&p_tas25xx->dc_work);
 
-	tas25xx_deregister_codec(p_tas25xx);
-	mutex_destroy(&p_tas25xx->codec_lock);
+		tas25xx_deregister_codec(p_tas25xx);
+		mutex_destroy(&p_tas25xx->codec_lock);
 
-	tas25xx_deregister_misc(p_tas25xx);
-	mutex_destroy(&p_tas25xx->file_lock);
+		tas25xx_deregister_misc(p_tas25xx);
+		mutex_destroy(&p_tas25xx->file_lock);
 
-	mutex_destroy(&p_tas25xx->dev_lock);
+		mutex_destroy(&p_tas25xx->dev_lock);
+	}
 
 	for (i = 0; i < p_tas25xx->ch_count; i++) {
 		if (gpio_is_valid(p_tas25xx->devs[i]->reset_gpio))

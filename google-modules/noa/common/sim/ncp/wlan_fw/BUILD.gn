@@ -1,0 +1,33 @@
+import("//build_overrides/noa.gni")
+import("$dir_noa_packages/noa_common/sim/ncp/wlan_fw/wlan_service.gni")
+
+wlan_source_set("wlan_cast") {
+  public = [ "$dir_wlan_fw/wlan_cast.h" ]
+}
+
+wlan_source_set("noa_desc") {
+  public_deps = [
+    "$dir_wlan_fw/sys_if:common",
+    "$dir_wlan_fw/sys_if:types",
+  ]
+  public = [ "$dir_wlan_fw/noa_desc.h" ]
+}
+
+wlan_test_group("tests") {
+  tests = []
+  group_deps = [
+    "$dir_wlan_fw/core:tests",
+    "$dir_wlan_fw/ext_svc:tests",
+    "$dir_wlan_fw/modules/flow_id_table:tests",
+    "$dir_wlan_fw/modules/noa_ring_svc:tests",
+    "$dir_wlan_fw/modules/sta_table:tests",
+    "$dir_wlan_fw/modules/wlan_buffer_management:tests",
+    "$dir_wlan_fw/modules/wlan_nep_buffer_pool:tests",
+    "$dir_wlan_fw/modules/wlan_ring:tests",
+    "$dir_wlan_fw/modules/wlan_ring_manager:tests",
+    "$dir_wlan_fw/sys_if:tests",
+    "$dir_wlan_fw/wdev_if:tests",
+    "$dir_wlan_fw/wlan_debug_controller:tests",
+    "$dir_wlan_fw/wlan_log:tests",
+  ]
+}

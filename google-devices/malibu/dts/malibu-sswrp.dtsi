@@ -1,0 +1,60 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+/*
+ * Device tree source for Malibu SSWRP
+ * make nodes of different devices refer to them and add the devices as
+ * sub-devices of this node for easy management and presentation
+ * Copyright 2025 Google LLC
+ */
+
+/ {
+	sswrp_fabstby: bus@4000000 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x4000000 0x3e1000>;
+	};
+
+	sswrp_gdmc: bus@6000000 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x6000000 0x3000000>;
+	};
+
+	sswrp_cpuacc: bus@9000000 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x9000000 0x7f703c>;
+	};
+
+	sswrp_cpu: bus@10000000 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x10000000 0x13804000>;
+	};
+
+	sswrp_memss: bus@24000000 {
+		compatible = "simple-pm-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x24000000 0x44c47f4>;
+	};
+
+	sswrp_fabhbw: bus@34000000 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x34000000 0x3de000>;
+	};
+
+	sswrp_aurdsp: bus@38000000 {
+		compatible = "simple-pm-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x38000000 0xaf1000>;
+		power-domains = <&sswrp_aurdsp_pd>;
+	};
+};

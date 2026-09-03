@@ -1,27 +1,160 @@
-# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-License-Identifier: GPL-2.0-only
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+# Cirrus Logic haptic driver.
 
-kernel_module(
-    name = "cs40l26",
-    srcs = glob([
-        "**/*.c",
-        "**/*.h",
-    ]) + [
-        "//private/google-modules/soc/gs:gs_soc_headers",
-    ],
-    outs = [
-        "cl_dsp-core.ko",
-        "cs40l26-core.ko",
-        "cs40l26-i2c.ko",
-        "snd-soc-cs40l26.ko",
-    ],
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+load(":build_defs.bzl", "define_driver_versions", "get_versioned_sources")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+HAPTICS_COMMON_HEADERS = [
+    "cl_dsp.h",
+    "cs40l26.h",
+]
+
+VERSIONS = [
+    "v14.5.0+v4.1.1",
+    "v16.4.0+v5.1.0",
+    "dev",
+]
+
+string_flag(
+    name = "version",
+    # If version is not defined, the default version is the latest one.
+    build_setting_default = VERSIONS[len(VERSIONS) - 1],
+)
+
+define_driver_versions(
+    name = "cs40l26_version_configs",
+    versions = VERSIONS,
+)
+
+string_flag(
+    name = "max_transmission_length",
+    build_setting_default = "4096",
+)
+
+config_setting(
+    name = "tx_len_256",
+    flag_values = {":max_transmission_length": "256"},
+)
+
+config_setting(
+    name = "tx_len_4096",
+    flag_values = {":max_transmission_length": "4096"},
+)
+
+MAX_TX_LEN_DEFINES = select({
+    ":tx_len_256": ["CONFIG_FW_CL_DSP_MAX_TRANSMISSION_LENGTH=256"],
+    ":tx_len_4096": ["CONFIG_FW_CL_DSP_MAX_TRANSMISSION_LENGTH=4096"],
+    "//conditions:default": ["CONFIG_FW_CL_DSP_MAX_TRANSMISSION_LENGTH=4096"],
+})
+
+ddk_module(
+    name = "cl_dsp-core",
+    srcs = select(get_versioned_sources(
+        source_files = HAPTICS_COMMON_HEADERS + [
+            "cl_dsp.c",
+            "cl_dsp-debugfs.c",
+        ],
+        versions = VERSIONS,
+    )),
+    out = "cl_dsp-core.ko",
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ] + MAX_TX_LEN_DEFINES,
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "cs40l26-core",
+    srcs = select(get_versioned_sources(
+        source_files = HAPTICS_COMMON_HEADERS + [
+            "cs40l26.c",
+            "cs40l26-debugfs.c",
+            "cs40l26-sysfs.c",
+            "cs40l26-tables.c",
+        ],
+        versions = VERSIONS,
+    )),
+    out = "cs40l26-core.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ] + MAX_TX_LEN_DEFINES,
+    deps = [
+        ":cl_dsp-core",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel:systrace",
+    ],
+)
+
+ddk_module(
+    name = "snd-soc-cs40l26",
+    srcs = select(get_versioned_sources(
+        source_files = HAPTICS_COMMON_HEADERS + [
+            "cs40l26-codec.c",
+        ],
+        versions = VERSIONS,
+    )),
+    out = "snd-soc-cs40l26.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
     ],
     deps = [
-        "//private/google-modules/soc/gs:gs_soc_module",
+        ":cl_dsp-core",
+        ":cs40l26-core",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "cs40l26-i2c",
+    srcs = select(get_versioned_sources(
+        source_files = HAPTICS_COMMON_HEADERS + [
+            "cs40l26-i2c.c",
+        ],
+        versions = VERSIONS,
+    )),
+    out = "cs40l26-i2c.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":cs40l26-core",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "cs40l26-spi",
+    srcs = select(get_versioned_sources(
+        source_files = HAPTICS_COMMON_HEADERS + [
+            "cs40l26-spi.c",
+        ],
+        versions = VERSIONS,
+    )),
+    out = "cs40l26-spi.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":cs40l26-core",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
     ],
 )

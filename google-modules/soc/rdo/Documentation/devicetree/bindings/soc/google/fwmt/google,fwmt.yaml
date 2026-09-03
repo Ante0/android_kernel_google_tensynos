@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2026 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/soc/google/fwmt/google,fwmt.yaml#
+$schema: http://devicetree.org/meta-schemas/base.yaml#
+
+title: FWMT (Firmware Metrics)
+
+maintainers:
+  - Filip Konieczny <filipkonieczny@google.com>
+
+description:
+  This driver offers its interface through character devices, and it enables
+  retrieval of metrics collected by the firmware.
+
+properties:
+  compatible:
+    const: google,fwmt-gdmc
+
+  gdmc-iface:
+    description:
+      A phandle to the mailbox controller used for communication with the GDMC.
+
+  mboxes:
+    description:
+      A phandle to the mailbox controller used for communication with the CPM.
+
+  memory-region:
+    description:
+      A phandle to a reserved memory region used for DMA buffers to exchange
+      data with the firmware.
+
+  buffer-offset:
+    description:
+      Offset of the DMA buffer within the reserved memory region.
+
+  buffer-size:
+    description:
+      Size of the DMA buffer within the reserved memory region.
+
+required:
+  - compatible
+  - gdmc-iface
+  - mboxes
+  - memory-region
+  - buffer-offset
+  - buffer-size
+
+additionalProperties: false
+
+examples:
+  - |
+    fwmt: fwmt {
+      compatible = "google,fwmt-gdmc";
+      gdmc-iface = <&goog_mba_gdmc_iface>;
+      mboxes = <&goog_mba_cpm_iface>;
+      memory-region = <&gdmc_metrics_dma_buffer>;
+      buffer-offset = <0x0>;
+      buffer-size = <0x2000>;
+    };

@@ -94,7 +94,13 @@ struct cal_regs_offset {
 	u32 hist_offset;
 };
 
-extern struct cal_regs_offset regs_dqe_offset[DQE_VERSION_MAX];
+static struct cal_regs_offset regs_dqe_offset[DQE_VERSION_MAX] = {
+	{0x0,   0x0,   0x0,   0x0,   0x0,   0x0},       /* GS101(9845) EVT0/A0 */
+	{0x400, 0x800, 0x800, 0x800, 0x400, 0x400},     /* GS101(9845) EVT1/B0 */
+	{0x400, 0x800, 0x800, 0x800, 0x400, 0x400},	/* GS201(9855) */
+	{0x400, 0x800, 0x800, 0x800, 0x400, 0x400},	/* Zuma(9865) */
+};
+
 
 #define dqe_regs_desc(dqe_id)				(&regs_dqe[dqe_id].desc)
 #define dqe_read(dqe_id, offset)			\
@@ -347,7 +353,7 @@ void dqe_reg_set_histogram_threshold(u32 dqe_id, enum exynos_histogram_id hist_i
 void dqe_reg_set_histogram(u32 dqe_id, enum exynos_histogram_id hist_id,
 			   enum histogram_state state);
 void dqe_reg_get_histogram_bins(struct device *dev, u32 dqe_id, enum exynos_histogram_id hist_id,
-				struct histogram_bins *bins);
+				struct histogram_bins *aligned_bins);
 static inline void dqe_reg_set_histogram_pos(u32 dqe_id, enum exynos_histogram_id hist_id,
 					     enum histogram_prog_pos pos)
 {

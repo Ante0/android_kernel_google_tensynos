@@ -264,7 +264,7 @@ __be32 ipv4str_to_be32(const char *ipv4str, size_t count)
 	char *next = ipstr;
 	int i;
 
-	strlcpy(ipstr, ipv4str, ARRAY_SIZE(ipstr));
+	strscpy(ipstr, ipv4str, sizeof(ipstr));
 
 	for (i = 0; i < 4; i++) {
 		char *p;
@@ -624,7 +624,8 @@ bool mif_gpio_set_value(struct cpif_gpio *gpio, int value, unsigned int delay_ms
 	/* set gpio even if it is set already */
 	gpio_set_value(gpio->num, value);
 
-	if (!strcmp(gpio->label, "AP2CP_PM_WRST_N") || !strcmp(gpio->label, "AP2CP_CP_WRST_N"))
+	if (!strcmp(gpio->label, "AP2CP_PM_WRST_N") || !strcmp(gpio->label, "AP2CP_CP_WRST_N") ||
+		!strcmp(gpio->label, "AP2CP_WAKEUP"))
 		mif_info("SET GPIO %s = %d (wait %dms, dup %d)\n", gpio->label, value, delay_ms, dup);
 
 	if (delay_ms > 0 && !dup)

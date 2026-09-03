@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -38,10 +38,10 @@ static int kbasep_dvfs_utilization_debugfs_show(struct seq_file *file, void *dat
 	struct kbase_device *kbdev = file->private;
 
 	CSTD_UNUSED(data);
-	seq_printf(file, "busy_time: %u idle_time: %u protm_time: %u\n",
-		   kbdev->pm.backend.metrics.values.time_busy,
-		   kbdev->pm.backend.metrics.values.time_idle,
-		   kbdev->pm.backend.metrics.values.time_in_protm);
+	seq_printf(file, "busy_time: %llu idle_time: %llu protm_time: %llu\n",
+		   (unsigned long long)kbdev->pm.backend.metrics.values.time_busy,
+		   (unsigned long long)kbdev->pm.backend.metrics.values.time_idle,
+		   (unsigned long long)kbdev->pm.backend.metrics.values.time_in_protm);
 
 	return 0;
 }

@@ -16,7 +16,9 @@
 #include <soc/google/bts.h>
 #include <soc/google/cal-if.h>
 #include <linux/module.h>
+#include <linux/usb/dwc3-exynos.h>
 #include <soc/google/exynos-cpupm.h>
+#include <soc/google/exynos-usbdrd.h>
 
 struct exynos_pm_domain *exynos_pd_lookup_name(const char *domain_name)
 {
@@ -37,6 +39,7 @@ struct exynos_pm_domain *exynos_pd_lookup_name(const char *domain_name)
 			pd = platform_get_drvdata(pdev);
 			if (!strcmp(pd->name, domain_name)) {
 				exypd = pd;
+				of_node_put(np);
 				break;
 			}
 		}
@@ -334,16 +337,17 @@ static void of_get_power_down_ok(struct exynos_pm_domain *pd)
 
 static int exynos_pd_genpd_init(struct exynos_pm_domain *pd, int state)
 {
-	int ret;
-
 	pd->genpd.name = pd->name;
 	pd->genpd.power_off = genpd_power_off;
 	pd->genpd.power_on = genpd_power_on;
 
 	/* pd power on/off latency is less than 1ms */
-	ret = pm_genpd_init(&pd->genpd, NULL, state ? false : true);
-	if (ret)
-		return ret;
+	pm_genpd_init(&pd->genpd, NULL, state ? false : true);
+
+	pd->genpd.states = kzalloc(sizeof(*pd->genpd.states), GFP_KERNEL);
+
+	if (!pd->genpd.states)
+		return -ENOMEM;
 
 	pd->genpd.states[0].power_on_latency_ns = 1000000;
 	pd->genpd.states[0].power_off_latency_ns = 1000000;
@@ -485,6 +489,7 @@ static int exynos_pd_probe(struct platform_device *pdev)
 	parent = of_parse_phandle(np, "power-domains", 0);
 	if (parent) {
 		parent_pd_pdev = of_find_device_by_node(parent);
+		of_node_put(parent);
 		if (parent_pd_pdev) {
 			parent_pd = platform_get_drvdata(parent_pd_pdev);
 			if (parent_pd) {

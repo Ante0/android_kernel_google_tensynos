@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Mustang Type-C device tree
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+
+#include <dt-bindings/usb/pd.h>
+
+&max77759tcpcspmi {
+	connector {
+		sink-pdos = <PDO_FIXED(5000, 3000,
+				       PDO_FIXED_DATA_SWAP |
+				       PDO_FIXED_USB_COMM |
+				       PDO_FIXED_HIGHER_CAP |
+				       PDO_FIXED_DUAL_ROLE)
+			     PDO_FIXED(9000, 2200, 0)
+			     PDO_PPS_APDO(5000, 21000, 3000)>;
+		charging-adapter-pdp-milliwatt = <45000>;
+
+		capabilities {
+			caps0 {
+				sink-pdos = <PDO_FIXED(5000, 3000,
+						       PDO_FIXED_DATA_SWAP |
+						       PDO_FIXED_USB_COMM |
+						       PDO_FIXED_HIGHER_CAP |
+						       PDO_FIXED_DUAL_ROLE)
+					     PDO_FIXED(9000, 2200, 0)
+					     PDO_PPS_APDO(5000, 21000, 3000)>;
+			};
+		};
+	};
+};

@@ -130,6 +130,26 @@ config REGULATOR_SLG51002
 	  The SLG51002 is eight compact and customizable low dropout
 	  regulators.
 
+config REGULATOR_SGM38122
+	tristate "SG Micro SGM38122 power management IC"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  Say y here to support for the SGM38122.
+	  The SGM38122 is a 4-channel LDO PMIC.
+	  It has one high efficiency and low output DVDD channel and
+	  three high PSRR and low noise AVDD1/2/3 channels.
+
+config REGULATOR_SGM38125
+	tristate "SG Micro SGM38125 power management IC"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  Say y here to support for the SGM38125.
+	  The SGM38125 is a 4-channel LDO PMIC.
+	  It has one high efficiency and low output DVDD channel and
+	  three high PSRR and low noise AVDD1/2/3 channels.
+
 config REGULATOR_RT6160_GS
 	tristate "Richtek RT6160 BuckBoost voltage regulator for some GS SoCs"
 	depends on I2C
@@ -141,5 +161,30 @@ config REGULATOR_RT6160_GS
 	  The wide output range is from 2025mV to 5200mV and can be used on most
 	  common application scenario.
 
+config REGULATOR_SY70206
+	tristate "Silergy SY70206 power management IC"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  Say y here to support for the Silergy SY70206.
+	  The SY70206 an I2C interface programmable power management IC for
+	  smartphone camera module.
+	  The device is both a buck-boost converter and a flash LED driver.
+
+config REGULATOR_S2DOS07X02_GS
+	tristate "Samsung S2DOS07X02 BuckBoost voltage regulator for some GS SoCs"
+	depends on I2C
+	help
+	  This adds support for the Samsung S2DOS07X02 voltage regulator via I2C
+	  bus. This driver file includes functions for reading and writing
+	  output voltage, and enabling/disabling the regulator.
+
+config REGULATOR_TPS628600_GS
+	tristate "TI TPS628600 BuckBoost voltage regulator for some GS SoCs"
+	depends on I2C
+	help
+	  This adds support for the TI TPS628600 voltage regulator via I2C bus.
+	  This driver file includes functions for reading and writing output
+	  voltage, and enabling/disabling the regulator.
 
 endif

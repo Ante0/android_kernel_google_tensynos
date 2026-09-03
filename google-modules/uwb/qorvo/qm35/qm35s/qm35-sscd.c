@@ -4,7 +4,7 @@
 
 #define NAME "uwb"
 
-void qm35_release_coredump(struct device *dev)
+static void qm35_release_coredump(struct device *dev)
 {
 }
 

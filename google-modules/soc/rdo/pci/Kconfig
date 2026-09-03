@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config PCIE_DW_GOOGLE_V2
+	tristate "Google PCIe root complex driver support v2"
+	depends on PCI
+	depends on PCIE_GOOGLE_PHY
+	select PCIE_DW_HOST
+	select PCI_HOST_COMMON
+	select PCI_PWRCTL if HAVE_PWRCTL
+	help
+	  Enable support for the v2 PCIe controller
+	  root complex driver.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config PCIE_DW_GOOGLE
+	tristate "Google PCIe root complex driver support"
+	depends on ARCH_GOOGLE
+	depends on PCI
+	depends on GOOGLE_CPM_CLK
+	depends on GOOGLE_IRM
+	select PCIE_DW_HOST
+	help
+	  Enable support for the PCIe controller
+	  root complex driver.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config PCIE_GOOGLE_PHY
+	tristate "Google PCIe phy driver"
+	depends on ARCH_GOOGLE
+	help
+	  Enable support for the PCIe phy driver for
+	  google platforms.
+	  Select Y if you have such a device.
+	  If unsure select "N".

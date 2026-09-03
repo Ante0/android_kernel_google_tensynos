@@ -28,6 +28,8 @@
 #define __DCN314_CLK_MGR_H__
 #include "clk_mgr_internal.h"
 
+#define DCN314_NUM_CLOCK_SOURCES   5
+
 struct dcn314_watermarks;
 
 struct dcn314_smu_watermark_set {
@@ -40,8 +42,17 @@ struct clk_mgr_dcn314 {
 	struct dcn314_smu_watermark_set smu_wm_set;
 };
 
+struct dcn314_ss_info_table {
+	uint32_t ss_divider;
+	uint32_t ss_percentage[DCN314_NUM_CLOCK_SOURCES];
+};
+
 bool dcn314_are_clock_states_equal(struct dc_clocks *a,
 		struct dc_clocks *b);
+
+bool dcn314_is_spll_ssc_enabled(struct clk_mgr *clk_mgr_base);
+
+void dcn314_init_clocks(struct clk_mgr *clk_mgr);
 
 void dcn314_update_clocks(struct clk_mgr *clk_mgr_base,
 			struct dc_state *context,
@@ -53,5 +64,10 @@ void dcn314_clk_mgr_construct(struct dc_context *ctx,
 		struct dccg *dccg);
 
 void dcn314_clk_mgr_destroy(struct clk_mgr_internal *clk_mgr_int);
+
+
+void dcn314_dump_clk_registers(struct clk_state_registers_and_bypass *regs_and_bypass,
+		struct clk_mgr *clk_mgr_base, struct clk_log_info *log_info);
+
 
 #endif //__DCN314_CLK_MGR_H__

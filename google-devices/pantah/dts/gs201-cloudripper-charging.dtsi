@@ -18,7 +18,7 @@
 							    "pca94xx-mains";
 
 				/* S2MPG12X01 -> GPIO_1 -> CHARGE_PUMP_EN */
-				google,dc-en = <&s2mpg12_gpio 1 0>;
+				google,dc-en-gpios = <&s2mpg12_gpio 1 0>;
 				/* DC enabled by default */
 				google,dc-en-value;
 				google,dc_limit-demand = <560000>;

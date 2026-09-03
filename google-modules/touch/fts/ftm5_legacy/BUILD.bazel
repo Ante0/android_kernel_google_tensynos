@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
 
 filegroup(
     name = "ftm5.kconfig",
@@ -13,27 +18,35 @@ filegroup(
     ],
 )
 
-kernel_module(
+ddk_module(
     name = "ftm5",
     srcs = glob([
-        "**/*.c",
         "**/*.h",
     ]) + [
-        "Kbuild",
-        "//private/google-modules/display/samsung:headers",
-        "//private/google-modules/display/samsung/include:headers",
-        "//private/google-modules/soc/gs:gs_soc_headers",
-        "//private/google-modules/touch/common:headers",
+        "fts.c",
+        "fts_lib/ftsCompensation.c",
+        "fts_lib/ftsCore.c",
+        "fts_lib/ftsError.c",
+        "fts_lib/ftsFlash.c",
+        "fts_lib/ftsFrame.c",
+        "fts_lib/ftsGesture.c",
+        "fts_lib/ftsIO.c",
+        "fts_lib/ftsTest.c",
+        "fts_lib/ftsTime.c",
+        "fts_lib/ftsTool.c",
+        "fts_proc.c",
     ],
-    outs = [
-        "ftm5.ko",
-    ],
+    out = "ftm5.ko",
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
     ],
     deps = [
-        "//private/google-modules/touch/common:touch.common",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/samsung:headers",
+        "//private/google-modules/touch/common:ddk_headers",
+        "//private/google-modules/touch/common:heatmap",
+        "//private/google-modules/touch/common:touch_bus_negotiator",
+        "//private/google-modules/touch/common:touch_offload",
     ],
 )

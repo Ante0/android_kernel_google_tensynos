@@ -1,0 +1,52 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * LGA rango inner touch device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+&tbn {
+	tbn,mode = <3>;
+};
+
+&inner_touch {
+	status = "ok";
+
+	compatible = "st,fst2";
+	spi-max-frequency = <20000000>;
+	rx-sample-delay-ns = <25>;
+	pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
+
+	st,dchip_id = /bits/ 8 <0x46 0x54>;
+	st,max-coords = <2076 2152>;
+	st,device_name = "fts";
+	st,irq-gpio = <TS1_2_AOC_INT_L_1V2(GPIO_ACTIVE_LOW)>;
+	st,reset-gpio = <PMICS2TS1_RESET_L_1V2(GPIO_ACTIVE_LOW)>;
+	st,grip_area = /bits/ 8 <15>; /* Left and right grip rejection
+					 area. Unit: pixels */
+	st,mm2px = /bits/ 8 <15>; /* 2152 px / 146.5512 mm  = 14.684 */
+	st,sensor_inverted_x;
+	st,panel_map_from_tic = <0x04 0>,<0x09 1>;
+
+	goog,panel-map-from-tic;
+
+	goog,firmware_names = "st_fts_c13.ubin","st_fts.ubin";
+	goog,test_limits_names = "stm_fts_production_limits.csv", "stm_fts_production_limits.csv";
+
+	//goog,tbn-enabled;
+	//goog,offload-enabled;
+	//goog,v4l2-enabled;
+	goog,dev-id = <0>;
+	goog,touch_offload_id = /bits/ 8 <'r''g''5''0'>; /* outer: 1; inner 0 */
+	goog,display-resolution = /bits/ 16 <2076 2152>;
+	goog,channel-num = /bits/ 16 <38 39>;
+	//goog,offload-caps-data-types = /bits/ 16 <0x1f>;
+	//goog,offload-caps-scan-types = /bits/ 16 <0xc0>;
+	goog,default-grip-disabled;
+	goog,default-palm-disabled;
+	goog,late-sense-on-enabled;
+};
+
+&google_gs_rgea {
+	touch = <&inner_touch>;
+};

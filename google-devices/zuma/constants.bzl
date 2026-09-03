@@ -23,7 +23,6 @@ ZUMA_MODULE_OUTS = [
     "drivers/gpu/drm/display/drm_display_helper.ko",
     "drivers/i2c/i2c-dev.ko",
     "drivers/misc/eeprom/at24.ko",
-    "drivers/misc/open-dice.ko",
     "drivers/perf/arm-cmn.ko",
     "drivers/perf/arm_dsu_pmu.ko",
     "drivers/scsi/sg.ko",

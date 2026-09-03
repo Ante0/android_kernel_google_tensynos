@@ -43,7 +43,6 @@
 #include "gs_drm/gs_drm_connector.h"
 #endif
 
-#define CREATE_TRACE_POINTS
 #include <trace/dpu_trace.h>
 
 #define DRIVER_NAME	"exynos"
@@ -54,8 +53,6 @@
 
 #define EXYNOS_DRM_WAIT_FENCE_TIMEOUT_MS 250
 
-EXPORT_TRACEPOINT_SYMBOL(tracing_mark_write);
-EXPORT_TRACEPOINT_SYMBOL(dsi_label_scope);
 
 static void exynos_drm_drv_set_lhbm_hist_helper(struct histogram_channel_config *cfg,
 						struct histogram_roi *roi,
@@ -1005,6 +1002,7 @@ static const struct drm_ioctl_desc exynos_ioctls[] = {
 
 static const struct file_operations exynos_drm_driver_fops = {
 	.owner		= THIS_MODULE,
+	.fop_flags	= FOP_UNSIGNED_OFFSET,
 	.open		= drm_open,
 	.mmap		= exynos_drm_gem_mmap,
 	.poll		= drm_poll,
@@ -1192,18 +1190,6 @@ static int exynos_drm_bind(struct device *dev)
 
 	drm_mode_config_reset(drm);
 
-	/*
-	 * enable drm irq mode.
-	 * - with irq_enabled = true, we can use the vblank feature.
-	 *
-	 * P.S. note that we wouldn't use drm irq handler but
-	 *	just specific driver own one instead because
-	 *	drm framework supports only one irq handler.
-	 */
-#if IS_ENABLED(CONFIG_DRM_LEGACY)
-	drm->irq_enabled = true;
-#endif
-
 	/* init kms poll for handling hpd */
 	drm_kms_helper_poll_init(drm);
 
@@ -1269,10 +1255,9 @@ static int exynos_drm_platform_probe(struct platform_device *pdev)
 					       match);
 }
 
-static int exynos_drm_platform_remove(struct platform_device *pdev)
+static void exynos_drm_platform_remove(struct platform_device *pdev)
 {
 	component_master_del(&pdev->dev, &exynos_drm_ops);
-	return 0;
 }
 
 static void exynos_drm_platform_shutdown(struct platform_device *pdev)

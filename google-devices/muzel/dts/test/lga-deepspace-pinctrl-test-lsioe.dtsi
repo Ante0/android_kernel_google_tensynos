@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,lga.h>
+
+&lsioe_pinctrl {
+	lsioe_gnss_output_gpios: lsioe_gnss_output_gpios {
+		pins = "XLSIOE_CLI10_PIN2",
+		       "XLSIOE_CLI10_PIN3";
+		function = "lsioe_gpio";
+		bias-pull-up;
+		output-high;
+	};
+	lsioe_haptic_output_gpios: lsioe_haptic_output_gpios {
+		pins = "XLSIOE_CLI14_PIN2",
+		       "XLSIOE_CLI14_PIN3";
+		function = "lsioe_gpio";
+		bias-pull-up;
+		output-high;
+	};
+	lsioe_ifpmic_output_gpios: lsioe_ifpmic_output_gpios {
+		pins = "XLSIOE_CLI13_PIN3";
+		function = "lsioe_gpio";
+		bias-pull-up;
+		output-high;
+	};
+	lsioe_camera_output_gpios: lsioe_camera_output_gpios {
+		pins = "XLSIOE_CLI8_PIN2",
+		       "XLSIOE_CLI13_PIN2";
+		function = "lsioe_gpio";
+		bias-pull-up;
+		output-high;
+	};
+};

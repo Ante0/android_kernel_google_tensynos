@@ -1,0 +1,121 @@
+// SPDX-License-Identifier: GPL-2.0-only
+#include <dt-bindings/interconnect/google,lga,irm.h>
+#include <dt-bindings/lpcm/pf_state.h>
+
+/ {
+	irm_gmc_freq: irm_gmc_freq {
+		compatible = "google,irm-devfreq";
+		google,irm-client-name = "apc";
+
+		gmc_dvfs {
+			dvfs-helper-domain-name = "gmc";
+		};
+		memss_dvfs {
+			dvfs-helper-domain-name = "memss";
+		};
+
+	};
+
+	gmc_freq: gmc_freq {
+		compatible = "google,devfreq-fabric-mem-mba";
+		dvfs-helper-domain-name = "gmc";
+		lpcm-id = <LPCM_GMC0>;
+		mboxes = <&goog_mba_cpm_iface>;
+	};
+
+	memss_freq: memss_freq {
+		compatible = "google,devfreq-fabric-mem-mba";
+		dvfs-helper-domain-name = "memss";
+		lpcm-id = <LPCM_MEMSS>;
+		mboxes = <&goog_mba_cpm_iface>;
+	};
+
+	fabrt_freq: fabrt_freq {
+		compatible = "google,devfreq-fabric-mem-mba";
+		dvfs-helper-domain-name = "fabrt";
+		lpcm-id = <LPCM_FABRT>;
+		mboxes = <&goog_mba_cpm_iface>;
+	};
+
+	fabhbw_freq: fabhbw_freq {
+		compatible = "google,devfreq-fabric-mem-mba";
+		dvfs-helper-domain-name = "fabhbw";
+		lpcm-id = <LPCM_FABHBW>;
+		mboxes = <&goog_mba_cpm_iface>;
+	};
+
+	fabmed_freq: fabmed_freq {
+		compatible = "google,devfreq-fabric-mem-mba";
+		dvfs-helper-domain-name = "fabmed";
+		lpcm-id = <LPCM_FABMED>;
+		mboxes = <&goog_mba_cpm_iface>;
+	};
+
+	fabstby_freq: fabstby_freq {
+		compatible = "google,devfreq-fabric-mem-mba";
+		dvfs-helper-domain-name = "fabstby";
+		lpcm-id = <LPCM_FABSTBY>;
+		mboxes = <&goog_mba_cpm_iface>;
+	};
+
+	fabsyss_freq: fabsyss_freq {
+		compatible = "google,devfreq-fabric-mem-mba";
+		dvfs-helper-domain-name = "fabsyss";
+		lpcm-id = <LPCM_FABSYSS>;
+		mboxes = <&goog_mba_cpm_iface>;
+	};
+
+	ispfe_freq: ispfe_freq {
+		compatible = "google,devfreq-ccf";
+		dvfs-helper-domain-name = "ispfe";
+		clocks = <&ispfe_pf_state_clk>;
+	};
+
+	ispbe_freq: ispbe_freq {
+		compatible = "google,devfreq-ccf";
+		dvfs-helper-domain-name = "ispbe";
+		clocks = <&ispbe_pf_state_clk>;
+	};
+
+	gsw_freq: gsw_freq {
+		compatible = "google,devfreq-ccf";
+		dvfs-helper-domain-name = "gsw";
+		clocks = <&gsw_pf_state_clk>;
+	};
+
+	dpu_freq: dpu_freq {
+		compatible = "google,devfreq-ccf";
+		dvfs-helper-domain-name = "dpu";
+		clocks = <&dpu_core_pf_state_clk>;
+	};
+
+	codec_3p_freq: codec_3p_freq {
+		compatible = "google,devfreq-ccf";
+		dvfs-helper-domain-name = "codec3p";
+		clocks = <&codec_3p_pf_state_clk>;
+	};
+
+	eh_freq: eh_freq {
+		compatible = "google,devfreq-ccf";
+		dvfs-helper-domain-name = "eh";
+		clocks = <&eh_pf_state_clk>;
+	};
+
+	g2d_freq: g2d_freq {
+		compatible = "google,devfreq-ccf";
+		dvfs-helper-domain-name = "g2d";
+		clocks = <&g2d_pf_state_clk>;
+	};
+
+	gpdma_freq: gpdma_freq {
+		compatible = "google,devfreq-ccf";
+		dvfs-helper-domain-name = "gpdma";
+		clocks = <&gpdma_pf_state_clk>;
+	};
+
+	inftcu_freq: inftcu_freq {
+		compatible = "google,devfreq-ccf";
+		dvfs-helper-domain-name = "inf_tcu";
+		clocks = <&inftcu_pf_state_clk>;
+	};
+};

@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "exynos_mfc",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "exynos_mfc.ko",
+    conditional_srcs = {
+        "CONFIG_VIDEO_EXYNOS_MFC": {
+            True: [
+                "mfc.c",
+                "mfc_buf.c",
+                "mfc_core.c",
+                "mfc_core_cmd.c",
+                "mfc_core_enc_param.c",
+                "mfc_core_hw_reg_api.c",
+                "mfc_core_hwlock.c",
+                "mfc_core_intlock.c",
+                "mfc_core_isr.c",
+                "mfc_core_meerkat.c",
+                "mfc_core_nal_q.c",
+                "mfc_core_ops.c",
+                "mfc_core_otf.c",
+                "mfc_core_pm.c",
+                "mfc_core_qos.c",
+                "mfc_core_reg_api.c",
+                "mfc_core_run.c",
+                "mfc_debugfs.c",
+                "mfc_dec_ctrl.c",
+                "mfc_dec_v4l2.c",
+                "mfc_dec_vb2.c",
+                "mfc_enc_ctrl.c",
+                "mfc_enc_v4l2.c",
+                "mfc_enc_vb2.c",
+                "mfc_llc.c",
+                "mfc_meerkat.c",
+                "mfc_mem.c",
+                "mfc_meminfo.c",
+                "mfc_memlog.c",
+                "mfc_perf_measure.c",
+                "mfc_qos.c",
+                "mfc_queue.c",
+                "mfc_rm.c",
+                "mfc_slc.c",
+                "mfc_sync.c",
+                "mfc_sysevent.c",
+                "mfc_utils.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/bts",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos_pm_qos",
+        "//private/google-modules/soc/gs/drivers/soc/google/debug:dss",
+        "//private/google-modules/soc/gs/drivers/soc/google/debug:itmon",
+        "//private/google-modules/soc/gs/drivers/soc/google/pt:slc_pt",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel:systrace",
+    ],
+)

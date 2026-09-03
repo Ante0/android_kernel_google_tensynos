@@ -23,7 +23,7 @@
 
 static DEFINE_PER_CPU(u64, mdcr_el2);
 
-/**
+/*
  * save/restore_guest_debug_regs
  *
  * For some debug operations we need to tweak some guest registers. As
@@ -139,6 +139,7 @@ void kvm_arm_vcpu_init_debug(struct kvm_vcpu *vcpu)
 
 /**
  * kvm_arm_reset_debug_ptr - reset the debug ptr to point to the vcpu state
+ * @vcpu:	the vcpu pointer
  */
 
 void kvm_arm_reset_debug_ptr(struct kvm_vcpu *vcpu)
@@ -324,12 +325,12 @@ void kvm_arch_vcpu_load_debug_state_flags(struct kvm_vcpu *vcpu)
 	 * we may need to check if the host state needs to be saved.
 	 */
 	if (cpuid_feature_extract_unsigned_field(dfr0, ID_AA64DFR0_EL1_PMSVer_SHIFT) &&
-	    !(read_sysreg_s(SYS_PMBIDR_EL1) & BIT(SYS_PMBIDR_EL1_P_SHIFT)))
+	    !(read_sysreg_s(SYS_PMBIDR_EL1) & BIT(PMBIDR_EL1_P_SHIFT)))
 		vcpu_set_flag(vcpu, DEBUG_STATE_SAVE_SPE);
 
 	/* Check if we have TRBE implemented and available at the host */
 	if (cpuid_feature_extract_unsigned_field(dfr0, ID_AA64DFR0_EL1_TraceBuffer_SHIFT) &&
-	    !(read_sysreg_s(SYS_TRBIDR_EL1) & TRBIDR_PROG))
+	    !(read_sysreg_s(SYS_TRBIDR_EL1) & TRBIDR_EL1_P))
 		vcpu_set_flag(vcpu, DEBUG_STATE_SAVE_TRBE);
 }
 

@@ -30,7 +30,6 @@ struct mux {
 	int cached_state;
 	struct mux_control *control;
 	struct iio_channel *parent;
-	struct iio_dev *indio_dev;
 	struct iio_chan_spec *chan;
 	struct iio_chan_spec_ext_info *ext_info;
 	struct mux_child *child;
@@ -416,11 +415,9 @@ static int mux_probe(struct platform_device *pdev)
 	}
 
 	mux->control = devm_mux_control_get(dev, NULL);
-	if (IS_ERR(mux->control)) {
-		if (PTR_ERR(mux->control) != -EPROBE_DEFER)
-			dev_err(dev, "failed to get control-mux\n");
-		return PTR_ERR(mux->control);
-	}
+	if (IS_ERR(mux->control))
+		return dev_err_probe(dev, PTR_ERR(mux->control),
+				     "failed to get control-mux\n");
 
 	i = 0;
 	for (state = 0; state < all_children; state++) {

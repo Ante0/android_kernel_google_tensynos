@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load(
+    "@kleaf//build/kernel/kleaf:kernel.bzl",
+    "ddk_headers",
+    "ddk_module",
+)
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "headers",
+    hdrs = glob(["include/**/*.h"]),
+    includes = ["include"],
+)
+
+ddk_module(
+    name = "snd-soc-cs35l43",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "cs35l43.c",
+        "cs35l43-tables.c",
+    ],
+    out = "snd-soc-cs35l43.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":fw_cs_dsp",
+        ":headers",
+        ":snd-soc-wm-adsp",
+        "//common:all_headers_aarch64",
+    ],
+)
+
+ddk_module(
+    name = "snd-soc-cs35l43-spi",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "cs35l43-spi.c",
+    ],
+    out = "snd-soc-cs35l43-spi.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        ":snd-soc-cs35l43",
+        "//common:all_headers_aarch64",
+    ],
+)
+
+ddk_module(
+    name = "snd-soc-cs35l43-i2c",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "cs35l43-i2c.c",
+    ],
+    out = "snd-soc-cs35l43-i2c.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        ":snd-soc-cs35l43",
+        "//common:all_headers_aarch64",
+    ],
+)
+
+ddk_module(
+    name = "snd-soc-wm-adsp",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "wm_adsp.c",
+    ],
+    out = "snd-soc-wm-adsp.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":fw_cs_dsp",
+        ":headers",
+        "//common:all_headers_aarch64",
+    ],
+)
+
+ddk_module(
+    name = "fw_cs_dsp",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "cs_dsp.c",
+    ],
+    out = "fw_cs_dsp.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
+    ],
+)

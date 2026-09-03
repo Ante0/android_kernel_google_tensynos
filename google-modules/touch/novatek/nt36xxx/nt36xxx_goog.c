@@ -6,11 +6,10 @@
  */
 #include "nt36xxx.h"
 #include <linux/input/mt.h>
-#include <samsung/exynos_drm_connector.h> /* to_exynos_connector_state() */
+#include <exynos_drm_connector.h> /* to_exynos_connector_state() */
 
-void nvt_heatmap_decode(
-		const uint8_t *in, const uint32_t in_sz,
-		const uint8_t *out, const uint32_t out_sz)
+static void nvt_heatmap_decode(const uint8_t *in, const uint32_t in_sz,
+			       const uint8_t *out, const uint32_t out_sz)
 {
 	const u16 ESCAPE_MASK = 0xF000;
 	const u16 ESCAPE_BIT = 0x8000;
@@ -149,7 +148,7 @@ int nvt_get_channel_data(void *private_data,
 	return ret;
 }
 
-int nvt_test_mode_read(struct nvt_ts_data *ts, struct gti_sensor_data_cmd *cmd)
+static int nvt_test_mode_read(struct nvt_ts_data *ts, struct gti_sensor_data_cmd *cmd)
 {
 	char trace_tag[128];
 	int ret = 0;
@@ -211,7 +210,7 @@ err_read:
 	nvt_change_mode(NORMAL_MODE);
 	if (ret == -EAGAIN) {
 		NVT_LOG("Reload FW to recover unexcepted return!");
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 		nvt_clear_fw_reset_state();
 		nvt_bootloader_reset();
 		if (nvt_check_fw_reset_state(RESET_STATE_NORMAL_RUN)) {
@@ -221,7 +220,7 @@ err_read:
 		}
 #else
 		nvt_update_firmware(get_fw_name(), 1);
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	}
 	mutex_unlock(&ts->lock);
 	NVT_DBG("--, ret(%d)\n", ret);
@@ -245,7 +244,7 @@ int nvt_callback(void *private_data,
 		break;
 
 	case GTI_CMD_RESET:
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 		nvt_clear_fw_reset_state();
 		nvt_bootloader_reset();
 		ret = nvt_check_fw_reset_state(RESET_STATE_NORMAL_RUN);
@@ -256,7 +255,7 @@ int nvt_callback(void *private_data,
 		}
 #else
 		ret = nvt_update_firmware(get_fw_name(), 1);
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 		break;
 
 	case GTI_CMD_SELFTEST: {
@@ -322,9 +321,9 @@ int nvt_callback(void *private_data,
 			ts->trim_table->id[0], ts->trim_table->id[1],
 			ts->trim_table->id[2], ts->trim_table->id[3],
 			ts->trim_table->id[4], ts->trim_table->id[5]);
-#if !SPI_FLASH
+#if !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 		buf_idx += scnprintf(buf + buf_idx, size, "mp_fw_name= %s\n", get_mp_fw_name());
-#endif // !SPI_FLASH
+#endif // !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 		buf_idx += scnprintf(buf + buf_idx, size, "fw_name= %s\n", get_fw_name());
 		ret = 0;
 		NVT_LOG("GTI_CMD_GET_FW_VERSION.\n");
@@ -424,7 +423,7 @@ int nvt_callback(void *private_data,
 					sensing_enabled = false;
 				}
 			} else {
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 				nvt_clear_fw_reset_state();
 				nvt_bootloader_reset();
 				if (nvt_check_fw_reset_state(RESET_STATE_NORMAL_RUN)) {
@@ -434,7 +433,7 @@ int nvt_callback(void *private_data,
 				}
 #else
 				ret = nvt_update_firmware(get_fw_name(), 1);
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 				sensing_enabled = true;
 			}
 		} else {
@@ -479,7 +478,7 @@ int nvt_callback(void *private_data,
 		ret = 0;
 		break;
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	case GTI_CMD_SET_HEATMAP_ENABLED:
 		nvt_set_heatmap_host_cmd(ts, true);
 		ret = 0;

@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * camera lwis device tree for Mustang
+ *
+ * Copyright 2024 Google LLC.
+ *
+ */
+
+#include "lga-blazer-camera-proto1.dtsi"
+
+/* Apply different drive strength with BZ5 */
+
+/* REAR ULTRA WIDE CAMERA TAOTIE */
+&sensor_mclk1_out {
+	drive-strength = <2>;
+};
+&sensor_mclk1_fn {
+	drive-strength = <2>;
+};
+/* REAR CAMERA BOITATA */
+&sensor_mclk2_out {
+	drive-strength = <3>;
+};
+&sensor_mclk2_fn {
+	drive-strength = <3>;
+};
+/* FRONT CAMERA TAOTIE */
+&sensor_mclk3_out {
+	drive-strength = <2>;
+};
+&sensor_mclk3_fn {
+	drive-strength = <2>;
+};
+/* REAR TELE CAMERA TAOTIE */
+&sensor_mclk6_out {
+	drive-strength = <2>;
+};
+&sensor_mclk6_fn {
+	drive-strength = <2>;
+};

@@ -13,8 +13,6 @@
 
 #define pr_fmt(fmt)  "%s: " fmt, __func__
 
-#include <asm/unaligned.h>
-
 #include <drm/drm_of.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_panel.h>
@@ -23,8 +21,10 @@
 #include <drm/drm_modes.h>
 #include <drm/drm_vblank.h>
 
+#include <linux/cleanup.h>
 #include <linux/clk.h>
 #include <linux/console.h>
+#include <linux/device.h>
 #include <linux/errno.h>
 #include <linux/gpio/consumer.h>
 #include <linux/irq.h>
@@ -34,6 +34,7 @@
 #include <linux/of_gpio.h>
 #include <linux/of_graph.h>
 #include <linux/phy/phy.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/component.h>
@@ -59,6 +60,7 @@
 #include <regs-dsim.h>
 
 #include <trace/dpu_trace.h>
+#include <trace/panel_trace.h>
 
 #include "exynos_drm_connector.h"
 #include "exynos_drm_crtc.h"
@@ -179,8 +181,10 @@ void dsim_dump(struct dsim_device *dsim, struct drm_printer *p)
 	struct drm_printer printer, *pointer;
 
 	if (!p) {
-		printer = is_console_enabled() ?
-			drm_debug_printer("[drm]") : drm_info_printer(dsim->dev);
+		printer = (is_console_enabled()
+			   ? drm_dbg_printer(dsim->encoder.dev, DRM_UT_DRIVER,
+					     "[drm]")
+			   : drm_info_printer(dsim->dev));
 			pointer = &printer;
 	} else {
 		pointer = p;
@@ -717,16 +721,20 @@ static int dsim_set_clock_mode(struct dsim_device *dsim,
 	return 0;
 }
 
-static int dsim_of_parse_modes(struct device_node *entry,
-		struct dsim_pll_param *pll_param)
+static int dsim_of_parse_modes(struct device *dev, struct device_node *entry,
+			       struct dsim_pll_param *pll_param)
 {
+	const char *name;
 	u32 res[14];
 	int cnt;
 
 	memset(pll_param, 0, sizeof(*pll_param));
 
-	of_property_read_string(entry, "mode-name",
-			(const char **)&pll_param->name);
+	if (!of_property_read_string(entry, "mode-name", &name)) {
+		pll_param->name = devm_kstrdup(dev, name, GFP_KERNEL);
+		if (name && !pll_param->name)
+			return -ENOMEM;
+	}
 
 	cnt = of_property_count_u32_elems(entry, "pmsk");
 	if (cnt != 4 && cnt != 14) {
@@ -895,7 +903,7 @@ read_node_fail:
 static struct dsim_pll_params *dsim_of_get_clock_mode(struct dsim_device *dsim)
 {
 	struct device *dev = dsim->dev;
-	struct device_node *np, *mode_np, *entry;
+	struct device_node *np, *mode_np;
 	struct dsim_pll_params *pll_params;
 
 	np = of_parse_phandle(dev->of_node, "dsim_mode", 0);
@@ -914,12 +922,6 @@ static struct dsim_pll_params *dsim_of_get_clock_mode(struct dsim_device *dsim)
 	if (!pll_params)
 		goto err_put_mode_np;
 
-	entry = of_get_next_child(mode_np, NULL);
-	if (!entry) {
-		dsim_err(dsim, "could not find child node of dsim-modes");
-		goto err_put_mode_np;
-	}
-
 	pll_params->num_modes = of_get_child_count(mode_np);
 	if (pll_params->num_modes == 0) {
 		dsim_err(dsim, "%pOF: no modes specified\n", np);
@@ -933,14 +935,14 @@ static struct dsim_pll_params *dsim_of_get_clock_mode(struct dsim_device *dsim)
 
 	pll_params->num_modes = 0;
 
-	for_each_child_of_node(mode_np, entry) {
+	for_each_child_of_node_scoped(mode_np, entry) {
 		struct dsim_pll_param *pll_param;
 
 		pll_param = devm_kzalloc(dsim->dev, sizeof(*pll_param), GFP_KERNEL);
 		if (!pll_param)
-			goto err_put_entry;
+			goto err_put_mode_np;
 
-		if (dsim_of_parse_modes(entry, pll_param) < 0) {
+		if (dsim_of_parse_modes(dev, entry, pll_param) < 0) {
 			kfree(pll_param);
 			continue;
 		}
@@ -953,12 +955,9 @@ static struct dsim_pll_params *dsim_of_get_clock_mode(struct dsim_device *dsim)
 
 	of_node_put(np);
 	of_node_put(mode_np);
-	of_node_put(entry);
 
 	return pll_params;
 
-err_put_entry:
-	of_node_put(entry);
 err_put_mode_np:
 	of_node_put(mode_np);
 err_put_np:
@@ -984,111 +983,125 @@ static void dsim_restart(struct dsim_device *dsim)
 
 #ifdef CONFIG_DEBUG_FS
 
-static int dsim_of_parse_diag(struct device_node *np, struct dsim_dphy_diag *diag)
+static int dsim_of_parse_diag(struct device *dev, struct device_node *np,
+			      struct dsim_dphy_diag *diag)
 {
-        int count;
-        u8 bit_range[2];
-        const char *reg_base = NULL;
+	int count;
+	u8 bit_range[2];
+	const char *reg_base = NULL;
+	const char *name;
 
-        of_property_read_string(np, "reg-base", &reg_base);
-        if (!strcmp(reg_base, "dphy")) {
-                diag->reg_base = REGS_DSIM_PHY;
-        } else if (!strcmp(reg_base, "dphy-extra")) {
-                diag->reg_base = REGS_DSIM_PHY_BIAS;
-        } else {
-                pr_err("%s: invalid reg-base: %s\n", __func__, reg_base);
-                return -EINVAL;
-        }
+	of_property_read_string(np, "reg-base", &reg_base);
+	if (!strcmp(reg_base, "dphy")) {
+		diag->reg_base = REGS_DSIM_PHY;
+	} else if (!strcmp(reg_base, "dphy-extra")) {
+		diag->reg_base = REGS_DSIM_PHY_BIAS;
+	} else {
+		pr_err("%s: invalid reg-base: %s\n", __func__, reg_base);
+		return -EINVAL;
+	}
 
-        of_property_read_string(np, "diag-name", &diag->name);
-        if (!diag->name || !diag->name[0]) {
-                pr_err("%s: empty diag-name\n", __func__);
-                return -EINVAL;
-        }
+	of_property_read_string(np, "diag-name", &diag->name);
+	if (!diag->name || !diag->name[0]) {
+		pr_err("%s: empty diag-name\n", __func__);
+		return -EINVAL;
+	}
+	diag->name = devm_kstrdup(dev, diag->name, GFP_KERNEL);
+	if (!diag->name)
+		return -ENOMEM;
 
-        of_property_read_string(np, "desc", &diag->desc);
-        of_property_read_string(np, "help", &diag->help);
+	name = NULL;
+	of_property_read_string(np, "desc", &name);
+	diag->desc = devm_kstrdup(dev, name, GFP_KERNEL);
+	if (name && !diag->desc)
+		return -ENOMEM;
 
-        count = of_property_count_u16_elems(np, "reg-offset");
-        if (count <= 0 || count > MAX_DIAG_REG_NUM) {
-                pr_err("%s: wrong number of reg-offset: %d\n", __func__, count);
-                return -ERANGE;
-        }
+	name = NULL;
+	of_property_read_string(np, "help", &name);
+	diag->help = devm_kstrdup(dev, name, GFP_KERNEL);
+	if (name && !diag->help)
+		return -ENOMEM;
 
-        if (of_property_read_u16_array(np, "reg-offset", diag->reg_offset, count) < 0) {
-                pr_err("%s: failed to read reg-offset\n", __func__);
-                return -EINVAL;
-        }
-        diag->num_reg = count;
+	count = of_property_count_u16_elems(np, "reg-offset");
+	if (count <= 0 || count > MAX_DIAG_REG_NUM) {
+		pr_err("%s: wrong number of reg-offset: %d\n", __func__, count);
+		return -ERANGE;
+	}
 
-        if (of_property_read_u8_array(np, "bit-range", bit_range, 2) < 0) {
-                pr_err("%s: failed to read bit-range\n", __func__);
-                return -EINVAL;
-        }
+	if (of_property_read_u16_array(np, "reg-offset", diag->reg_offset, count) < 0) {
+		pr_err("%s: failed to read reg-offset\n", __func__);
+		return -EINVAL;
+	}
+	diag->num_reg = count;
 
-        if (bit_range[0] >= 32 || bit_range[1] >= 32) {
-                pr_err("%s: invalid bit range %d, %d\n", __func__, bit_range[0], bit_range[1]);
-                return -EINVAL;
-        }
-        if (bit_range[0] < bit_range[1]) {
-                diag->bit_start = bit_range[0];
-                diag->bit_end = bit_range[1];
-        } else {
-                diag->bit_start = bit_range[1];
-                diag->bit_end = bit_range[0];
-        }
-        diag->read_only = of_property_read_bool(np, "read_only");
+	if (of_property_read_u8_array(np, "bit-range", bit_range, 2) < 0) {
+		pr_err("%s: failed to read bit-range\n", __func__);
+		return -EINVAL;
+	}
 
-        return 0;
+	if (bit_range[0] >= 32 || bit_range[1] >= 32) {
+		pr_err("%s: invalid bit range %d, %d\n", __func__, bit_range[0], bit_range[1]);
+		return -EINVAL;
+	}
+	if (bit_range[0] < bit_range[1]) {
+		diag->bit_start = bit_range[0];
+		diag->bit_end = bit_range[1];
+	} else {
+		diag->bit_start = bit_range[1];
+		diag->bit_end = bit_range[0];
+	}
+	diag->read_only = of_property_read_bool(np, "read_only");
+
+	return 0;
 }
 
 static void dsim_of_get_pll_diags(struct dsim_device *dsim)
 {
-	struct device_node *np, *entry;
+	struct device_node *np __free(device_node);
 	struct device *dev = dsim->dev;
-        uint32_t index = 0;
+	uint32_t index = 0;
 
 	np = of_parse_phandle(dev->of_node, "dphy_diag", 0);
-        dsim->config.num_dphy_diags = of_get_child_count(np);
-        if (dsim->config.num_dphy_diags == 0) {
-                goto nochild;
-        }
+	dsim->config.num_dphy_diags = of_get_child_count(np);
+	if (dsim->config.num_dphy_diags == 0) {
+		goto nochild;
+	}
 
 	dsim->config.dphy_diags = devm_kzalloc(dsim->dev, sizeof(struct dsim_dphy_diag) *
-					dsim->config.num_dphy_diags, GFP_KERNEL);
+					       dsim->config.num_dphy_diags, GFP_KERNEL);
 	if (!dsim->config.dphy_diags) {
-                dsim_warn(dsim, "%s: no memory for %u diag items\n",
-                          __func__, dsim->config.num_dphy_diags);
-                dsim->config.num_dphy_diags = 0;
-                goto nochild;
-        }
+		dsim_warn(dsim, "%s: no memory for %u diag items\n",
+			  __func__, dsim->config.num_dphy_diags);
+		dsim->config.num_dphy_diags = 0;
+		goto nochild;
+	}
 
-        for_each_child_of_node(np, entry) {
-                if (index >= dsim->config.num_dphy_diags) {
-                      dsim_warn(dsim, "%s: diag parsing error with unexpected index %u\n",
-                                __func__, index);
-                      goto get_diag_fail;
-                }
+	for_each_child_of_node_scoped(np, entry) {
+		if (index >= dsim->config.num_dphy_diags) {
+			dsim_warn(dsim, "%s: diag parsing error with unexpected index %u\n",
+				  __func__, index);
+			goto get_diag_fail;
+		}
 
-                if (dsim_of_parse_diag(entry, &dsim->config.dphy_diags[index]) < 0) {
-                      dsim_warn(dsim, "%s: diag parsing error for item %u\n",
-                                __func__, index);
-                      goto get_diag_fail;
-                }
-                ++index;
-        }
-        return;
+		if (dsim_of_parse_diag(dev, entry, &dsim->config.dphy_diags[index]) < 0) {
+			dsim_warn(dsim, "%s: diag parsing error for item %u\n",
+				  __func__, index);
+			goto get_diag_fail;
+		}
+		++index;
+	}
+	return;
 
 get_diag_fail:
-        dsim->config.num_dphy_diags = 0;
-        devm_kfree(dsim->dev, dsim->config.dphy_diags);
-        dsim->config.dphy_diags = NULL;
+	dsim->config.num_dphy_diags = 0;
+	devm_kfree(dsim->dev, dsim->config.dphy_diags);
+	dsim->config.dphy_diags = NULL;
 nochild:
-        return;
+	return;
 }
 
 int dsim_dphy_diag_get_reg(struct dsim_device *dsim,
-                           struct dsim_dphy_diag *diag, uint32_t *vals)
+			   struct dsim_dphy_diag *diag, uint32_t *vals)
 {
 	int ret;
 	uint32_t ix, mask, val;
@@ -1124,7 +1137,7 @@ out:
 }
 
 int dsim_dphy_diag_set_reg(struct dsim_device *dsim,
-                           struct dsim_dphy_diag *diag, uint32_t val)
+			   struct dsim_dphy_diag *diag, uint32_t val)
 {
 	int ret;
 	u32 mask;
@@ -1527,22 +1540,22 @@ static const struct drm_encoder_helper_funcs dsim_encoder_helper_funcs = {
 
 static int dsim_encoder_late_register(struct drm_encoder *encoder)
 {
-        struct dsim_device *dsim = encoder_to_dsim(encoder);
-        dsim_diag_create_debugfs(dsim);
-        return 0;
+	struct dsim_device *dsim = encoder_to_dsim(encoder);
+	dsim_diag_create_debugfs(dsim);
+	return 0;
 }
 
 static void dsim_encoder_early_unregister(struct drm_encoder *encoder)
 {
-        struct dsim_device *dsim = encoder_to_dsim(encoder);
-        dsim_diag_remove_debugfs(dsim);
+	struct dsim_device *dsim = encoder_to_dsim(encoder);
+	dsim_diag_remove_debugfs(dsim);
 }
 
 #else
 
 static int dsim_encoder_late_register(struct drm_encoder * /* encoder */)
 {
-        return 0;
+	return 0;
 }
 
 static void dsim_encoder_early_unregister(struct drm_encoder * /*encoder */)
@@ -1553,8 +1566,8 @@ static void dsim_encoder_early_unregister(struct drm_encoder * /*encoder */)
 
 static const struct drm_encoder_funcs dsim_encoder_funcs = {
 	.destroy = drm_encoder_cleanup,
-        .late_register = dsim_encoder_late_register,
-        .early_unregister = dsim_encoder_early_unregister,
+	.late_register = dsim_encoder_late_register,
+	.early_unregister = dsim_encoder_early_unregister,
 };
 
 #if IS_ENABLED(CONFIG_GS_DRM_PANEL_UNIFIED)
@@ -1623,7 +1636,6 @@ static int dsim_add_mipi_dsi_device(struct dsim_device *dsim,
 	struct mipi_dsi_device_info info = {
 		.node = NULL,
 	};
-	struct device_node *node;
 	const char *name;
 	const char *dual_dsi;
 	const char *p;
@@ -1647,7 +1659,7 @@ static int dsim_add_mipi_dsi_device(struct dsim_device *dsim,
 	}
 	/* implied else case: search for legacy panel below */
 #endif
-	for_each_available_child_of_node(dsim->dsi_host.dev->of_node, node) {
+	for_each_available_child_of_node_scoped(dsim->dsi_host.dev->of_node, node) {
 		bool found;
 
 		/*
@@ -1686,7 +1698,7 @@ static int dsim_add_mipi_dsi_device(struct dsim_device *dsim,
 				scnprintf(info.type, sizeof(info.type),
 					"%d:%s", idx, name);
 			else
-				strlcpy(info.type, name, sizeof(info.type));
+				strscpy(info.type, name, sizeof(info.type));
 			info.node = of_node_get(node);
 		}
 	}
@@ -2020,20 +2032,22 @@ static int dsim_remap_regs(struct dsim_device *dsim)
 	i = of_property_match_string(np, "reg-names", "sys");
 	if (of_address_to_resource(np, i, &res)) {
 		dsim_err(dsim, "failed to get sys resource\n");
-		goto err_dphy_ext;
+		goto err_node_put;
 	}
 	dsim->res.ss_reg_base = ioremap(res.start, resource_size(&res));
 	if (!dsim->res.ss_reg_base) {
 		dsim_err(dsim, "failed to map sysreg-disp address.");
 		ret = -ENOMEM;
-		goto err_dphy_ext;
+		goto err_node_put;
 	}
 	dsim_regs_desc_init(dsim->res.ss_reg_base, res.start, np->name, REGS_DSIM_SYS,
 			dsim->id);
+	of_node_put(np);
 
 	return ret;
 
-err_dphy_ext:
+err_node_put:
+	of_node_put(np);
 	iounmap(dsim->res.phy_regs_ex);
 	iounmap(dsim->res.phy_regs);
 err_dsi:
@@ -2043,14 +2057,24 @@ err:
 }
 
 
+#if IS_ENABLED(CONFIG_ARM_EXYNOS_DEVFREQ)
 static void dsim_underrun_info(struct dsim_device *dsim, u32 underrun_cnt)
 {
-	pr_err("underrun irq occurs(%u): MIF(%d), INT(%d), DISP(%d)\n",
+	printk_ratelimited("underrun irq occurs(%u): MIF(%lu, %d), INT(%lu, %d), DISP(%lu, %d)\n",
 			underrun_cnt,
+			exynos_devfreq_get_domain_freq(DEVFREQ_MIF),
 			exynos_pm_qos_request(PM_QOS_BUS_THROUGHPUT),
+			exynos_devfreq_get_domain_freq(DEVFREQ_INT),
 			exynos_pm_qos_request(PM_QOS_DEVICE_THROUGHPUT),
+			exynos_devfreq_get_domain_freq(DEVFREQ_DISP),
 			exynos_pm_qos_request(PM_QOS_DISPLAY_THROUGHPUT));
 }
+#else
+static void dsim_underrun_info(struct dsim_device *dsim, u32 underrun_cnt)
+{
+	printk_ratelimited("underrun irq occurs(%u)\n", underrun_cnt);
+}
+#endif
 
 static irqreturn_t dsim_irq_handler(int irq, void *dev_id)
 {
@@ -2594,14 +2618,15 @@ dsim_req_read_command(struct dsim_device *dsim, const struct mipi_dsi_msg *msg)
 
 	dsim_reg_clear_int(dsim->id, DSIM_INTSRC_SFR_PH_FIFO_EMPTY);
 	reinit_completion(&dsim->ph_wr_comp);
-	trace_dsi_tx(MIPI_DSI_SET_MAXIMUM_RETURN_PACKET_SIZE, &rx_len, 1, true, 0);
+	trace_dsi_tx(dsim->panel_index, MIPI_DSI_SET_MAXIMUM_RETURN_PACKET_SIZE, &rx_len, 1, true,
+		     0);
 	/* set the maximum packet size returned */
 	dsim_reg_wr_tx_header(dsim->id, MIPI_DSI_SET_MAXIMUM_RETURN_PACKET_SIZE,
 			msg->rx_len, 0, false);
 
 	/* read request */
 	mipi_dsi_create_packet(&packet, msg);
-	trace_dsi_tx(msg->type, msg->tx_buf, msg->tx_len, true, 0);
+	trace_dsi_tx(dsim->panel_index, msg->type, msg->tx_buf, msg->tx_len, true, 0);
 	dsim_reg_wr_tx_header(dsim->id, packet.header[0], packet.header[1],
 						packet.header[2], true);
 
@@ -2700,7 +2725,7 @@ dsim_read_data(struct dsim_device *dsim, const struct mipi_dsi_msg *msg)
 		} while (!dsim_reg_rx_fifo_is_empty(dsim->id) && --retry_cnt);
 	}
 
-	trace_dsi_rx(tx_buf[0], rx_buf, rx_size);
+	trace_dsi_rx(dsim->panel_index, tx_buf[0], rx_buf, rx_size);
 	return rx_size;
 }
 
@@ -2752,6 +2777,7 @@ static ssize_t dsim_host_transfer(struct mipi_dsi_host *host,
 	ret = pm_runtime_resume_and_get(dsim->dev);
 	if (ret) {
 		dsim_err(dsim, "runtime resume failed (%d). unable to transfer cmd\n", ret);
+		DPU_ATRACE_END(__func__);
 		return ret;
 	}
 
@@ -3047,7 +3073,7 @@ static ssize_t hs_clock_store(struct device *dev,
 		goto out;
 	}
 
-	strlcpy(params, buf, sizeof(params));
+	strscpy(params, buf, sizeof(params));
 	hs_clk_str = strsep(&p, " ");
 	apply_now_str = strsep(&p, " ");
 
@@ -3262,7 +3288,7 @@ err:
 	return ret;
 }
 
-static int dsim_remove(struct platform_device *pdev)
+static void dsim_remove(struct platform_device *pdev)
 {
 	struct dsim_device *dsim = platform_get_drvdata(pdev);
 
@@ -3288,7 +3314,6 @@ static int dsim_remove(struct platform_device *pdev)
 		dsim->log = NULL;
 	}
 #endif
-	return 0;
 }
 
 #ifdef CONFIG_PM

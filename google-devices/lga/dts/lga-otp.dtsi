@@ -1,0 +1,536 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+&nvmem {
+	/* OTPs */
+	nvmem-layout {
+		compatible = "fixed-layout";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		ufs_clk_pad_slew_control: ufs_clk_pad_slew_control@b5,1 {
+			reg = <0xb5 0x1>;
+			bits = <1 1>;
+		};
+		ufs_clk_pad_drive_sel: ufs_clk_pad_drive_sel@b5,2 {
+			reg = <0xb5 0x1>;
+			bits = <2 3>;
+		};
+		hsio_n_eusb2_rext_ctrl: hsio_n_eusb2_rext_ctrl@bd,4 {
+			reg = <0xbd 0x1>;
+			bits = <4 4>;
+		};
+		hsio_n_eusb2_rext_external_mode: hsio_n_eusb2_rext_external_mode@be,0 {
+			reg = <0xbe 0x1>;
+			bits = <0 1>;
+		};
+		hsio_n_pcie_rext_external_mode: hsio_n_pcie_rext_external_mode@be,1 {
+			reg = <0xbe 0x1>;
+			bits = <1 1>;
+		};
+		hsio_s_pcie_rext_external_mode: hsio_s_pcie_rext_external_mode@be,2 {
+			reg = <0xbe 0x1>;
+			bits = <2 1>;
+		};
+		hsio_n_pcie_rext_ctrl: hsio_n_pcie_rext_ctrl@be,3 {
+			reg = <0xbe 0x2>;
+			bits = <3 6>;
+		};
+		hsio_s_pcie_rext_ctrl: hsio_s_pcie_rext_ctrl@bf,1 {
+			reg = <0xbf 0x1>;
+			bits = <1 6>;
+		};
+		hsio_n_usb3_rext_external_mode: hsio_n_usb3_rext_external_mode@bf,7 {
+			reg = <0xbf 0x1>;
+			bits = <7 1>;
+		};
+		hsio_s_ufs_rext_external_mode: hsio_s_ufs_rext_external_mode@c0,0 {
+			reg = <0xc0 0x1>;
+			bits = <0 1>;
+		};
+		hsio_n_usb3_rext_ctrl: hsio_n_usb3_rext_ctrl@c0,1 {
+			reg = <0xc0 0x1>;
+			bits = <1 6>;
+		};
+		hsio_s_ufs_rext_ctrl: hsio_s_ufs_rext_ctrl@c0,7 {
+			reg = <0xc0 0x2>;
+			bits = <7 6>;
+		};
+		hsio_s_ufs_tactivate_sel: hsio_s_ufs_tactivate_sel@c1,5 {
+			reg = <0xc1 0x1>;
+			bits = <5 2>;
+		};
+		hsio_n_usb2_phy_cfg_pll_cpbias_cntrl_enable:
+				hsio_n_usb2_phy_cfg_pll_cpbias_cntrl_enable@c1,7 {
+			reg = <0xc1 0x1>;
+			bits = <7 1>;
+		};
+		hsio_n_usb2_phy_cfg_pll_fb_div_enable:
+				hsio_n_usb2_phy_cfg_pll_fb_div_enable@c2,0 {
+			reg = <0xc2 0x1>;
+			bits = <0 1>;
+		};
+		hsio_n_usb2_phy_cfg_pll_gmp_cntrl_enable:
+				hsio_n_usb2_phy_cfg_pll_gmp_cntrl_enable@c2,1 {
+			reg = <0xc2 0x1>;
+			bits = <1 1>;
+		};
+		hsio_n_usb2_phy_cfg_pll_int_cntrl_enable:
+				hsio_n_usb2_phy_cfg_pll_int_cntrl_enable@c2,2 {
+			reg = <0xc2 0x1>;
+			bits = <2 1>;
+		};
+		hsio_n_usb2_phy_cfg_pll_prop_cntrl_enable:
+				hsio_n_usb2_phy_cfg_pll_prop_cntrl_enable@c2,3 {
+			reg = <0xc2 0x1>;
+			bits = <3 1>;
+		};
+		hsio_n_usb2_phy_cfg_pll_ref_div_enable:
+				hsio_n_usb2_phy_cfg_pll_ref_div_enable@c2,4 {
+			reg = <0xc2 0x1>;
+			bits = <4 1>;
+		};
+		hsio_n_usb2_phy_cfg_pll_vco_cntrl_enable:
+				hsio_n_usb2_phy_cfg_pll_vco_cntrl_enable@c2,5 {
+			reg = <0xc2 0x1>;
+			bits = <5 1>;
+		};
+		hsio_n_usb2_phy_cfg_pll_vref_tune_enable:
+				hsio_n_usb2_phy_cfg_pll_vref_tune_enable@c2,6 {
+			reg = <0xc2 0x1>;
+			bits = <6 1>;
+		};
+		hsio_n_usb2_phy_cfg_rx_eq_ctle_enable:
+				hsio_n_usb2_phy_cfg_rx_eq_ctle_enable@c2,7 {
+			reg = <0xc2 0x1>;
+			bits = <7 1>;
+		};
+		hsio_n_usb2_phy_cfg_rx_hs_tune_enable:
+				hsio_n_usb2_phy_cfg_rx_hs_tune_enable@c3,0 {
+			reg = <0xc3 0x1>;
+			bits = <0 1>;
+		};
+		hsio_n_usb2_phy_cfg_tx_fsls_slew_rate_tune_enable:
+				hsio_n_usb2_phy_cfg_tx_fsls_slew_rate_tune_enable@c3,1 {
+			reg = <0xc3 0x1>;
+			bits = <1 1>;
+		};
+		hsio_n_usb2_phy_cfg_tx_fsls_vref_tune_enable:
+				hsio_n_usb2_phy_cfg_tx_fsls_vref_tune_enable@c3,2 {
+			reg = <0xc3 0x1>;
+			bits = <2 1>;
+		};
+		hsio_n_usb2_phy_cfg_tx_hs_vref_tune_enable:
+				hsio_n_usb2_phy_cfg_tx_hs_vref_tune_enable@c3,3 {
+			reg = <0xc3 0x1>;
+			bits = <3 1>;
+		};
+		hsio_n_usb2_phy_cfg_tx_hs_xv_tune_enable:
+				hsio_n_usb2_phy_cfg_tx_hs_xv_tune_enable@c3,4 {
+			reg = <0xc3 0x1>;
+			bits = <4 1>;
+		};
+		hsio_n_usb2_phy_cfg_tx_preemp_tune_enable:
+				hsio_n_usb2_phy_cfg_tx_preemp_tune_enable@c3,5 {
+			reg = <0xc3 0x1>;
+			bits = <5 1>;
+		};
+		hsio_n_usb2_phy_cfg_tx_res_tune_enable:
+				hsio_n_usb2_phy_cfg_tx_res_tune_enable@c3,6 {
+			reg = <0xc3 0x1>;
+			bits = <6 1>;
+		};
+		hsio_n_usb2_phy_cfg_tx_rise_tune_enable:
+				hsio_n_usb2_phy_cfg_tx_rise_tune_enable@c3,7 {
+			reg = <0xc3 0x1>;
+			bits = <7 1>;
+		};
+		hsio_n_usb2_phy_cfg_pll_cpbias_cntrl:
+				hsio_n_usb2_phy_cfg_pll_cpbias_cntrl@c4,0 {
+			reg = <0xc4 0x1>;
+			bits = <0 7>;
+		};
+		hsio_n_usb2_phy_cfg_pll_fb_div: hsio_n_usb2_phy_cfg_pll_fb_div@c4,7 {
+			reg = <0xc4 0x3>;
+			bits = <7 12>;
+		};
+		hsio_n_usb2_phy_cfg_pll_gmp_cntrl: hsio_n_usb2_phy_cfg_pll_gmp_cntrl@c6,3 {
+			reg = <0xc6 0x1>;
+			bits = <3 2>;
+		};
+		hsio_n_usb2_phy_cfg_pll_int_cntrl: hsio_n_usb2_phy_cfg_pll_int_cntrl@c6,5 {
+			reg = <0xc6 0x2>;
+			bits = <5 6>;
+		};
+		hsio_n_usb2_phy_cfg_pll_prop_cntrl:
+				hsio_n_usb2_phy_cfg_pll_prop_cntrl@c7,3 {
+			reg = <0xc7 0x2>;
+			bits = <3 6>;
+		};
+		hsio_n_usb2_phy_cfg_pll_ref_div: hsio_n_usb2_phy_cfg_pll_ref_div@c8,1 {
+			reg = <0xc8 0x1>;
+			bits = <1 4>;
+		};
+		hsio_n_usb2_phy_cfg_pll_vco_cntrl: hsio_n_usb2_phy_cfg_pll_vco_cntrl@c8,5 {
+			reg = <0xc8 0x1>;
+			bits = <5 3>;
+		};
+		hsio_n_usb2_phy_cfg_pll_vref_tune: hsio_n_usb2_phy_cfg_pll_vref_tune@c9,0 {
+			reg = <0xc9 0x1>;
+			bits = <0 2>;
+		};
+		hsio_n_usb2_phy_cfg_rx_eq_ctle: hsio_n_usb2_phy_cfg_rx_eq_ctle@c9,2 {
+			reg = <0xc9 0x1>;
+			bits = <2 2>;
+		};
+		hsio_n_usb2_phy_cfg_rx_hs_tune: hsio_n_usb2_phy_cfg_rx_hs_tune@c9,4 {
+			reg = <0xc9 0x1>;
+			bits = <4 3>;
+		};
+		hsio_n_usb2_phy_cfg_tx_fsls_slew_rate_tune:
+				hsio_n_usb2_phy_cfg_tx_fsls_slew_rate_tune@c9,7 {
+			reg = <0xc9 0x1>;
+			bits = <7 1>;
+		};
+		hsio_n_usb2_phy_cfg_tx_fsls_vref_tune:
+				hsio_n_usb2_phy_cfg_tx_fsls_vref_tune@ca,0 {
+			reg = <0xca 0x1>;
+			bits = <0 2>;
+		};
+		hsio_n_usb2_phy_cfg_tx_hs_vref_tune:
+				hsio_n_usb2_phy_cfg_tx_hs_vref_tune@ca,2 {
+			reg = <0xca 0x1>;
+			bits = <2 3>;
+		};
+		hsio_n_usb2_phy_cfg_tx_hs_xv_tune: hsio_n_usb2_phy_cfg_tx_hs_xv_tune@ca,5 {
+			reg = <0xca 0x1>;
+			bits = <5 2>;
+		};
+		hsio_n_usb2_phy_cfg_tx_preemp_tune:
+				hsio_n_usb2_phy_cfg_tx_preemp_tune@ca,7 {
+			reg = <0xca 0x2>;
+			bits = <7 3>;
+		};
+		hsio_n_usb2_phy_cfg_tx_res_tune: hsio_n_usb2_phy_cfg_tx_res_tune@cb,2 {
+			reg = <0xcb 0x1>;
+			bits = <2 2>;
+		};
+		hsio_n_usb2_phy_cfg_tx_rise_tune: hsio_n_usb2_phy_cfg_tx_rise_tune@cb,4 {
+			reg = <0xcb 0x1>;
+			bits = <4 2>;
+		};
+		hsio_s_ufs_refclk_freq_sel: hsio_s_ufs_refclk_freq_sel@cf,6 {
+			reg = <0xcf 0x1>;
+			bits = <6 1>;
+		};
+		hsio_n_eusb2_clkbuf_sel: hsio_n_eusb2_clkbuf_sel@d0,0 {
+			reg = <0xd0 0x1>;
+			bits = <0 1>;
+		};
+		hsio_n_usb3_drd_clkbuf_sel: hsio_n_usb3_drd_clkbuf_sel@d0,1 {
+			reg = <0xd0 0x1>;
+			bits = <1 1>;
+		};
+		hsio_s_ufs_clkbuf_sel: hsio_s_ufs_clkbuf_sel@d0,2 {
+			reg = <0xd0 0x1>;
+			bits = <2 1>;
+		};
+		rawcmn_dig_aon_mplla_tune_bank_0: rawcmn_dig_aon_mplla_tune_bank_0@300,0 {
+			reg = <0x300 0x1>;
+			bits = <0 8>;
+		};
+		rawcmn_dig_aon_mplla_tune_bank_1: rawcmn_dig_aon_mplla_tune_bank_1@301,0 {
+			reg = <0x301 0x1>;
+			bits = <0 8>;
+		};
+		rawlaneaonn_dig_tx_mplla_dcc_ctrl_range_bank_0_n0:
+				rawlaneaonn_dig_tx_mplla_dcc_ctrl_range_bank_0_n0@302,0 {
+			reg = <0x302 0x1>;
+			bits = <0 8>;
+		};
+		rawlaneaonn_dig_tx_mplla_dcc_full_bank_0_n0:
+				rawlaneaonn_dig_tx_mplla_dcc_full_bank_0_n0@303,0 {
+			reg = <0x303 0x2>;
+			bits = <0 16>;
+		};
+		rawlaneaonn_dig_tx_mplla_dcc_half_bank_0_n0:
+				rawlaneaonn_dig_tx_mplla_dcc_half_bank_0_n0@305,0 {
+			reg = <0x305 0x2>;
+			bits = <0 16>;
+		};
+		rawlaneaonn_dig_tx_mplla_dcc_ctrl_range_bank_1_n0:
+				rawlaneaonn_dig_tx_mplla_dcc_ctrl_range_bank_1_n0@307,0 {
+			reg = <0x307 0x1>;
+			bits = <0 8>;
+		};
+		rawlaneaonn_dig_tx_mplla_dcc_full_bank_1_n0:
+				rawlaneaonn_dig_tx_mplla_dcc_full_bank_1_n0@308,0 {
+			reg = <0x308 0x2>;
+			bits = <0 16>;
+		};
+		rawlaneaonn_dig_tx_mplla_dcc_half_bank_1_n0:
+				rawlaneaonn_dig_tx_mplla_dcc_half_bank_1_n0@30a,0 {
+			reg = <0x30a 0x2>;
+			bits = <0 16>;
+		};
+		rawlaneaonn_dig_rx_afe_ctle_idac_ofst_bank_0_n0:
+				rawlaneaonn_dig_rx_afe_ctle_idac_ofst_bank_0_n0@30c,0 {
+			reg = <0x30c 0x1>;
+			bits = <0 8>;
+		};
+		rawlaneaonn_dig_rx_afe_ctle_idac_ofst_bank_1_n0:
+				rawlaneaonn_dig_rx_afe_ctle_idac_ofst_bank_1_n0@30d,0 {
+			reg = <0x30d 0x1>;
+			bits = <0 8>;
+		};
+		rawlaneaonn_dig_rx_afe_ctle_idac_ofst_bank_2_n0:
+				rawlaneaonn_dig_rx_afe_ctle_idac_ofst_bank_2_n0@30e,0 {
+			reg = <0x30e 0x1>;
+			bits = <0 8>;
+		};
+		rawlaneaonn_dig_rx_afe_ctle_idac_ofst_bank_3_n0:
+				rawlaneaonn_dig_rx_afe_ctle_idac_ofst_bank_3_n0@30f,0 {
+			reg = <0x30f 0x1>;
+			bits = <0 8>;
+		};
+		rawlaneaonn_dig_rx_dcc_ctrl_range_bank_0_n0:
+				rawlaneaonn_dig_rx_dcc_ctrl_range_bank_0_n0@310,0 {
+			reg = <0x310 0x1>;
+			bits = <0 8>;
+		};
+		rawlaneaonn_dig_rx_dcc_full_data_bank_0_n0:
+				rawlaneaonn_dig_rx_dcc_full_data_bank_0_n0@311,0 {
+			reg = <0x311 0x2>;
+			bits = <0 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_full_byp_bank_0_n0:
+				rawlaneaonn_dig_rx_dcc_full_byp_bank_0_n0@312,6 {
+			reg = <0x312 0x3>;
+			bits = <6 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_full_phase_bank_0_n0:
+				rawlaneaonn_dig_rx_dcc_full_phase_bank_0_n0@314,4 {
+			reg = <0x314 0x3>;
+			bits = <4 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_half_data_bank_0_n0:
+				rawlaneaonn_dig_rx_dcc_half_data_bank_0_n0@316,2 {
+			reg = <0x316 0x2>;
+			bits = <2 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_half_byp_bank_0_n0:
+				rawlaneaonn_dig_rx_dcc_half_byp_bank_0_n0@318,0 {
+			reg = <0x318 0x2>;
+			bits = <0 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_half_phase_bank_0_n0:
+				rawlaneaonn_dig_rx_dcc_half_phase_bank_0_n0@319,6 {
+			reg = <0x319 0x3>;
+			bits = <6 14>;
+		};
+		rawlaneaonn_dig_rx_data_iq_cal_bank_0_n0:
+				rawlaneaonn_dig_rx_data_iq_cal_bank_0_n0@31b,4 {
+			reg = <0x31b 0x3>;
+			bits = <4 16>;
+		};
+		rawlaneaonn_dig_rx_bypass_iq_cal_bank_0_n0:
+				rawlaneaonn_dig_rx_bypass_iq_cal_bank_0_n0@31d,4 {
+			reg = <0x31d 0x3>;
+			bits = <4 16>;
+		};
+		rawlaneaonn_dig_rx_dcc_ctrl_range_bank_1_n0:
+				rawlaneaonn_dig_rx_dcc_ctrl_range_bank_1_n0@31f,4 {
+			reg = <0x31f 0x2>;
+			bits = <4 8>;
+		};
+		rawlaneaonn_dig_rx_dcc_full_data_bank_1_n0:
+				rawlaneaonn_dig_rx_dcc_full_data_bank_1_n0@320,4 {
+			reg = <0x320 0x3>;
+			bits = <4 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_full_byp_bank_1_n0:
+				rawlaneaonn_dig_rx_dcc_full_byp_bank_1_n0@322,2 {
+			reg = <0x322 0x2>;
+			bits = <2 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_full_phase_bank_1_n0:
+				rawlaneaonn_dig_rx_dcc_full_phase_bank_1_n0@324,0 {
+			reg = <0x324 0x2>;
+			bits = <0 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_half_data_bank_1_n0:
+				rawlaneaonn_dig_rx_dcc_half_data_bank_1_n0@325,6 {
+			reg = <0x325 0x3>;
+			bits = <6 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_half_byp_bank_1_n0:
+				rawlaneaonn_dig_rx_dcc_half_byp_bank_1_n0@327,4 {
+			reg = <0x327 0x3>;
+			bits = <4 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_half_phase_bank_1_n0:
+				rawlaneaonn_dig_rx_dcc_half_phase_bank_1_n0@329,2 {
+			reg = <0x329 0x2>;
+			bits = <2 14>;
+		};
+		rawlaneaonn_dig_rx_data_iq_cal_bank_1_n0:
+				rawlaneaonn_dig_rx_data_iq_cal_bank_1_n0@32b,0 {
+			reg = <0x32b 0x2>;
+			bits = <0 16>;
+		};
+		rawlaneaonn_dig_rx_bypass_iq_cal_bank_1_n0:
+				rawlaneaonn_dig_rx_bypass_iq_cal_bank_1_n0@32d,0 {
+			reg = <0x32d 0x2>;
+			bits = <0 16>;
+		};
+		rawlaneaonn_dig_rx_scope_vdac_ofst_n0:
+				rawlaneaonn_dig_rx_scope_vdac_ofst_n0@32f,0 {
+			reg = <0x32f 0x2>;
+			bits = <0 13>;
+		};
+		rawlaneaonn_dig_tx_mplla_dcc_ctrl_range_bank_0_n1:
+				rawlaneaonn_dig_tx_mplla_dcc_ctrl_range_bank_0_n1@330,5 {
+			reg = <0x330 0x2>;
+			bits = <5 8>;
+		};
+		rawlaneaonn_dig_tx_mplla_dcc_full_bank_0_n1:
+				rawlaneaonn_dig_tx_mplla_dcc_full_bank_0_n1@331,5 {
+			reg = <0x331 0x3>;
+			bits = <5 16>;
+		};
+		rawlaneaonn_dig_tx_mplla_dcc_half_bank_0_n1:
+				rawlaneaonn_dig_tx_mplla_dcc_half_bank_0_n1@333,5 {
+			reg = <0x333 0x3>;
+			bits = <5 16>;
+		};
+		rawlaneaonn_dig_tx_mplla_dcc_ctrl_range_bank_1_n1:
+				rawlaneaonn_dig_tx_mplla_dcc_ctrl_range_bank_1_n1@335,5 {
+			reg = <0x335 0x2>;
+			bits = <5 8>;
+		};
+		rawlaneaonn_dig_tx_mplla_dcc_full_bank_1_n1:
+				rawlaneaonn_dig_tx_mplla_dcc_full_bank_1_n1@336,5 {
+			reg = <0x336 0x3>;
+			bits = <5 16>;
+		};
+		rawlaneaonn_dig_tx_mplla_dcc_half_bank_1_n1:
+				rawlaneaonn_dig_tx_mplla_dcc_half_bank_1_n1@338,5 {
+			reg = <0x338 0x3>;
+			bits = <5 16>;
+		};
+		rawlaneaonn_dig_rx_afe_ctle_idac_ofst_bank_0_n1:
+				rawlaneaonn_dig_rx_afe_ctle_idac_ofst_bank_0_n1@33a,5 {
+			reg = <0x33a 0x2>;
+			bits = <5 8>;
+		};
+		rawlaneaonn_dig_rx_afe_ctle_idac_ofst_bank_1_n1:
+				rawlaneaonn_dig_rx_afe_ctle_idac_ofst_bank_1_n1@33b,5 {
+			reg = <0x33b 0x2>;
+			bits = <5 8>;
+		};
+		rawlaneaonn_dig_rx_afe_ctle_idac_ofst_bank_2_n1:
+				rawlaneaonn_dig_rx_afe_ctle_idac_ofst_bank_2_n1@33c,5 {
+			reg = <0x33c 0x2>;
+			bits = <5 8>;
+		};
+		rawlaneaonn_dig_rx_afe_ctle_idac_ofst_bank_3_n1:
+				rawlaneaonn_dig_rx_afe_ctle_idac_ofst_bank_3_n1@33d,5 {
+			reg = <0x33d 0x2>;
+			bits = <5 8>;
+		};
+		rawlaneaonn_dig_rx_dcc_ctrl_range_bank_0_n1:
+				rawlaneaonn_dig_rx_dcc_ctrl_range_bank_0_n1@33e,5 {
+			reg = <0x33e 0x2>;
+			bits = <5 8>;
+		};
+		rawlaneaonn_dig_rx_dcc_full_data_bank_0_n1:
+				rawlaneaonn_dig_rx_dcc_full_data_bank_0_n1@33f,5 {
+			reg = <0x33f 0x3>;
+			bits = <5 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_full_byp_bank_0_n1:
+				rawlaneaonn_dig_rx_dcc_full_byp_bank_0_n1@341,3 {
+			reg = <0x341 0x3>;
+			bits = <3 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_full_phase_bank_0_n1:
+				rawlaneaonn_dig_rx_dcc_full_phase_bank_0_n1@343,1 {
+			reg = <0x343 0x2>;
+			bits = <1 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_half_data_bank_0_n1:
+				rawlaneaonn_dig_rx_dcc_half_data_bank_0_n1@344,7 {
+			reg = <0x344 0x3>;
+			bits = <7 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_half_byp_bank_0_n1:
+				rawlaneaonn_dig_rx_dcc_half_byp_bank_0_n1@346,5 {
+			reg = <0x346 0x3>;
+			bits = <5 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_half_phase_bank_0_n1:
+				rawlaneaonn_dig_rx_dcc_half_phase_bank_0_n1@348,3 {
+			reg = <0x348 0x3>;
+			bits = <3 14>;
+		};
+		rawlaneaonn_dig_rx_data_iq_cal_bank_0_n1:
+				rawlaneaonn_dig_rx_data_iq_cal_bank_0_n1@34a,1 {
+			reg = <0x34a 0x3>;
+			bits = <1 16>;
+		};
+		rawlaneaonn_dig_rx_bypass_iq_cal_bank_0_n1:
+				rawlaneaonn_dig_rx_bypass_iq_cal_bank_0_n1@34c,1 {
+			reg = <0x34c 0x3>;
+			bits = <1 16>;
+		};
+		rawlaneaonn_dig_rx_dcc_ctrl_range_bank_1_n1:
+				rawlaneaonn_dig_rx_dcc_ctrl_range_bank_1_n1@34e,1 {
+			reg = <0x34e 0x2>;
+			bits = <1 8>;
+		};
+		rawlaneaonn_dig_rx_dcc_full_data_bank_1_n1:
+				rawlaneaonn_dig_rx_dcc_full_data_bank_1_n1@34f,1 {
+			reg = <0x34f 0x2>;
+			bits = <1 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_full_byp_bank_1_n1:
+				rawlaneaonn_dig_rx_dcc_full_byp_bank_1_n1@350,7 {
+			reg = <0x350 0x3>;
+			bits = <7 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_full_phase_bank_1_n1:
+				rawlaneaonn_dig_rx_dcc_full_phase_bank_1_n1@352,5 {
+			reg = <0x352 0x3>;
+			bits = <5 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_half_data_bank_1_n1:
+				rawlaneaonn_dig_rx_dcc_half_data_bank_1_n1@354,3 {
+			reg = <0x354 0x3>;
+			bits = <3 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_half_byp_bank_1_n1:
+				rawlaneaonn_dig_rx_dcc_half_byp_bank_1_n1@356,1 {
+			reg = <0x356 0x2>;
+			bits = <1 14>;
+		};
+		rawlaneaonn_dig_rx_dcc_half_phase_bank_1_n1:
+				rawlaneaonn_dig_rx_dcc_half_phase_bank_1_n1@357,7 {
+			reg = <0x357 0x3>;
+			bits = <7 14>;
+		};
+		rawlaneaonn_dig_rx_data_iq_cal_bank_1_n1:
+				rawlaneaonn_dig_rx_data_iq_cal_bank_1_n1@359,5 {
+			reg = <0x359 0x3>;
+			bits = <5 16>;
+		};
+		rawlaneaonn_dig_rx_bypass_iq_cal_bank_1_n1:
+				rawlaneaonn_dig_rx_bypass_iq_cal_bank_1_n1@35b,5 {
+			reg = <0x35b 0x3>;
+			bits = <5 16>;
+		};
+		rawlaneaonn_dig_rx_scope_vdac_ofst_n1:
+				rawlaneaonn_dig_rx_scope_vdac_ofst_n1@35d,5 {
+			reg = <0x35d 0x3>;
+			bits = <5 13>;
+		};
+	};
+};

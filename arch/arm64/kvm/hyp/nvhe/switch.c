@@ -32,19 +32,100 @@
 /* Non-VHE specific context */
 DEFINE_PER_CPU(struct kvm_host_data, kvm_host_data);
 DEFINE_PER_CPU(struct kvm_cpu_context, kvm_hyp_ctxt);
-__visible DEFINE_PER_CPU(unsigned long, kvm_hyp_vector);
+DEFINE_PER_CPU(unsigned long, kvm_hyp_vector);
 
 extern void kvm_nvhe_prepare_backtrace(unsigned long fp, unsigned long pc);
+extern void __pkvm_unmask_serror(void);
+
+#define update_pvm_fgt_traps(hctxt, vcpu, kvm, reg)	\
+	update_fgt_traps_cs(hctxt, vcpu, kvm, reg, PVM_ ## reg ## _CLR, PVM_ ## reg ## _SET);
+
+static void __activate_pvm_traps_hcrx(struct kvm_vcpu *vcpu)
+{
+	struct kvm_cpu_context *hctxt = host_data_ptr(host_ctxt);
+	struct kvm *kvm = kern_hyp_va(vcpu->kvm);
+	u64 clear = 0;
+	u64 set = 0;
+
+	if (!cpus_have_final_cap(ARM64_HAS_HCX))
+		return;
+
+	ctxt_sys_reg(hctxt, HCRX_EL2) = read_sysreg_s(SYS_HCRX_EL2);
+	if (vcpu_has_nv(vcpu) && !is_hyp_ctxt(vcpu))
+		compute_clr_set(vcpu, HCRX_EL2, clear, set);
+
+	set |= PVM_HCRX_EL2_SET;
+	clear |= PVM_HCRX_EL2_CLR;
+	if (clear || set) {
+		u64 val = __HCRX_EL2_nMASK;
+
+		val |= set;
+		val &= ~clear;
+		write_sysreg_s(val, SYS_HCRX_EL2);
+	}
+}
+
+static void __activate_pvm_traps_hfgxtr(struct kvm_vcpu *vcpu)
+{
+	struct kvm_cpu_context *hctxt = host_data_ptr(host_ctxt);
+	struct kvm *kvm = kern_hyp_va(vcpu->kvm);
+
+	if (!cpus_have_final_cap(ARM64_HAS_FGT))
+		return;
+
+	update_pvm_fgt_traps(hctxt, vcpu, kvm, HFGRTR_EL2);
+
+	/* Trap guest writes to TCR_EL1 to prevent it from enabling HA or HD. */
+	if (cpus_have_final_cap(ARM64_WORKAROUND_AMPERE_AC03_CPU_38)) {
+		update_fgt_traps_cs(hctxt, vcpu, kvm, HFGWTR_EL2, PVM_HFGWTR_EL2_CLR,
+			PVM_HFGWTR_EL2_SET | HFGxTR_EL2_TCR_EL1_MASK);
+	} else {
+		update_pvm_fgt_traps(hctxt, vcpu, kvm, HFGWTR_EL2);
+	}
+
+	update_pvm_fgt_traps(hctxt, vcpu, kvm, HFGITR_EL2);
+	update_pvm_fgt_traps(hctxt, vcpu, kvm, HDFGRTR_EL2);
+	update_pvm_fgt_traps(hctxt, vcpu, kvm, HDFGWTR_EL2);
+
+	if (cpu_has_amu())
+		update_pvm_fgt_traps(hctxt, vcpu, kvm, HAFGRTR_EL2);
+}
+
+static void __deactivate_pvm_traps_hfgxtr(struct kvm_vcpu *vcpu)
+{
+	struct kvm_cpu_context *hctxt = &this_cpu_ptr(&kvm_host_data)->host_ctxt;
+
+	if (!cpus_have_final_cap(ARM64_HAS_FGT))
+		return;
+
+	write_sysreg_s(ctxt_sys_reg(hctxt, HFGRTR_EL2), SYS_HFGRTR_EL2);
+	write_sysreg_s(ctxt_sys_reg(hctxt, HFGWTR_EL2), SYS_HFGWTR_EL2);
+	write_sysreg_s(ctxt_sys_reg(hctxt, HFGITR_EL2), SYS_HFGITR_EL2);
+	write_sysreg_s(ctxt_sys_reg(hctxt, HDFGRTR_EL2), SYS_HDFGRTR_EL2);
+	write_sysreg_s(ctxt_sys_reg(hctxt, HDFGWTR_EL2), SYS_HDFGWTR_EL2);
+
+	if (cpu_has_amu())
+		write_sysreg_s(ctxt_sys_reg(hctxt, HAFGRTR_EL2), SYS_HAFGRTR_EL2);
+}
 
 static void __activate_cptr_traps(struct kvm_vcpu *vcpu)
 {
 	u64 val = CPTR_EL2_TAM;	/* Same bit irrespective of E2H */
 
-	if (!guest_owns_fp_regs(vcpu))
+	if (!guest_owns_fp_regs())
 		__activate_traps_fpsimd32(vcpu);
 
-	/* !hVHE case upstream */
-	if (1) {
+	if (has_hvhe()) {
+		val |= CPACR_ELx_TTA;
+
+		if (guest_owns_fp_regs()) {
+			val |= CPACR_ELx_FPEN;
+			if (vcpu_has_sve(vcpu))
+				val |= CPACR_ELx_ZEN;
+		}
+
+		write_sysreg(val, cpacr_el1);
+	} else {
 		val |= CPTR_EL2_TTA | CPTR_NVHE_EL2_RES1;
 
 		/*
@@ -53,10 +134,10 @@ static void __activate_cptr_traps(struct kvm_vcpu *vcpu)
 		 */
 		val |= CPTR_EL2_TSM;
 
-		if (!vcpu_has_sve(vcpu) || !guest_owns_fp_regs(vcpu))
+		if (!vcpu_has_sve(vcpu) || !guest_owns_fp_regs())
 			val |= CPTR_EL2_TZ;
 
-		if (!guest_owns_fp_regs(vcpu))
+		if (!guest_owns_fp_regs())
 			val |= CPTR_EL2_TFP;
 
 		write_sysreg(val, cptr_el2);
@@ -65,8 +146,16 @@ static void __activate_cptr_traps(struct kvm_vcpu *vcpu)
 
 static void __deactivate_cptr_traps(struct kvm_vcpu *vcpu)
 {
-	/* !hVHE case upstream */
-	if (1) {
+	if (has_hvhe()) {
+		u64 val = CPACR_ELx_FPEN;
+
+		if (cpus_have_final_cap(ARM64_SVE))
+			val |= CPACR_ELx_ZEN;
+		if (cpus_have_final_cap(ARM64_SME))
+			val |= CPACR_ELx_SMEN;
+
+		write_sysreg(val, cpacr_el1);
+	} else {
 		u64 val = CPTR_NVHE_EL2_RES1;
 
 		if (!cpus_have_final_cap(ARM64_SVE))
@@ -80,9 +169,17 @@ static void __deactivate_cptr_traps(struct kvm_vcpu *vcpu)
 
 static void __activate_traps(struct kvm_vcpu *vcpu)
 {
-	___activate_traps(vcpu);
+	___activate_traps(vcpu, vcpu->arch.hcr_el2);
 	__activate_traps_common(vcpu);
 	__activate_cptr_traps(vcpu);
+
+	if (unlikely(vcpu_is_protected(vcpu))) {
+		__activate_pvm_traps_hcrx(vcpu);
+		__activate_pvm_traps_hfgxtr(vcpu);
+	} else {
+		__activate_traps_hcrx(vcpu);
+		__activate_traps_hfgxtr(vcpu);
+	}
 
 	write_sysreg(__this_cpu_read(kvm_hyp_vector), vbar_el2);
 
@@ -125,6 +222,11 @@ static void __deactivate_traps(struct kvm_vcpu *vcpu)
 	}
 
 	__deactivate_traps_common(vcpu);
+
+	if (unlikely(vcpu_is_protected(vcpu)))
+		__deactivate_pvm_traps_hfgxtr(vcpu);
+	else
+		__deactivate_traps_hfgxtr(vcpu);
 
 	write_sysreg(this_cpu_ptr(&kvm_init_params)->hcr_el2, hcr_el2);
 
@@ -194,9 +296,8 @@ static void __pmu_switch_to_host(struct kvm_vcpu *vcpu)
 static bool kvm_handle_pvm_sys64(struct kvm_vcpu *vcpu, u64 *exit_code)
 {
 	/*
-	 * Make sure we handle the exit for workarounds and ptrauth
-	 * before the pKVM handling, as the latter could decide to
-	 * UNDEF.
+	 * Make sure we handle the exit for workarounds before the pKVM
+	 * handling, as the latter could decide to UNDEF.
 	 */
 	return (kvm_hyp_handle_sysreg(vcpu, exit_code) ||
 		kvm_handle_pvm_sysreg(vcpu, exit_code));
@@ -205,26 +306,27 @@ static bool kvm_handle_pvm_sys64(struct kvm_vcpu *vcpu, u64 *exit_code)
 static const exit_handler_fn hyp_exit_handlers[] = {
 	[0 ... ESR_ELx_EC_MAX]		= NULL,
 	[ESR_ELx_EC_CP15_32]		= kvm_hyp_handle_cp15_32,
-	[ESR_ELx_EC_HVC64]		= kvm_hyp_handle_hvc64,
 	[ESR_ELx_EC_SYS64]		= kvm_hyp_handle_sysreg,
 	[ESR_ELx_EC_SVE]		= kvm_hyp_handle_fpsimd,
 	[ESR_ELx_EC_FP_ASIMD]		= kvm_hyp_handle_fpsimd,
 	[ESR_ELx_EC_IABT_LOW]		= kvm_hyp_handle_iabt_low,
 	[ESR_ELx_EC_DABT_LOW]		= kvm_hyp_handle_dabt_low,
 	[ESR_ELx_EC_WATCHPT_LOW]	= kvm_hyp_handle_watchpt_low,
-	[ESR_ELx_EC_PAC]		= kvm_hyp_handle_ptrauth,
+	[ESR_ELx_EC_MOPS]		= kvm_hyp_handle_mops,
 };
 
 static const exit_handler_fn pvm_exit_handlers[] = {
 	[0 ... ESR_ELx_EC_MAX]		= NULL,
 	[ESR_ELx_EC_HVC64]		= kvm_handle_pvm_hvc64,
+	[ESR_ELx_EC_SMC64]		= kvm_handle_pvm_smc64,
 	[ESR_ELx_EC_SYS64]		= kvm_handle_pvm_sys64,
-	[ESR_ELx_EC_SVE]		= kvm_handle_pvm_restricted,
+	[ESR_ELx_EC_SVE]		= kvm_hyp_handle_fpsimd,
+	[ESR_ELx_EC_SME]		= kvm_handle_pvm_restricted,
 	[ESR_ELx_EC_FP_ASIMD]		= kvm_hyp_handle_fpsimd,
 	[ESR_ELx_EC_IABT_LOW]		= kvm_hyp_handle_iabt_low,
 	[ESR_ELx_EC_DABT_LOW]		= kvm_hyp_handle_dabt_low,
 	[ESR_ELx_EC_WATCHPT_LOW]	= kvm_hyp_handle_watchpt_low,
-	[ESR_ELx_EC_PAC]		= kvm_hyp_handle_ptrauth,
+	[ESR_ELx_EC_MOPS]		= kvm_hyp_handle_mops,
 };
 
 static const exit_handler_fn *kvm_get_exit_handler_array(struct kvm_vcpu *vcpu)
@@ -235,10 +337,24 @@ static const exit_handler_fn *kvm_get_exit_handler_array(struct kvm_vcpu *vcpu)
 	return hyp_exit_handlers;
 }
 
+/*
+ * As we have caught the guest red-handed, decide that it isn't fit for
+ * purpose anymore by making the vcpu invalid. The VMM can try and fix it by
+ * re-initializing the vcpu with KVM_ARM_VCPU_INIT, however, this is likely
+ * not possible for protected VMs.
+ */
+void vcpu_illegal_trap(struct kvm_vcpu *vcpu, u64 *exit_code)
+{
+	trace_vcpu_illegal_trap(kvm_vcpu_get_esr(vcpu));
+
+	vcpu_clear_flag(vcpu, VCPU_INITIALIZED);
+	*exit_code &= BIT(ARM_EXIT_WITH_SERROR_BIT);
+	*exit_code |= ARM_EXCEPTION_IL;
+}
+
 static inline bool fixup_guest_exit(struct kvm_vcpu *vcpu, u64 *exit_code)
 {
 	const exit_handler_fn *handlers = kvm_get_exit_handler_array(vcpu);
-	struct kvm *kvm = kern_hyp_va(vcpu->kvm);
 
 	synchronize_vcpu_pstate(vcpu, exit_code);
 
@@ -251,18 +367,8 @@ static inline bool fixup_guest_exit(struct kvm_vcpu *vcpu, u64 *exit_code)
 	 * it.  The check below is based on the one in
 	 * kvm_arch_vcpu_ioctl_run().
 	 */
-	if (kvm_vm_is_protected(kvm) && vcpu_mode_is_32bit(vcpu)) {
-		/*
-		 * As we have caught the guest red-handed, decide that it isn't
-		 * fit for purpose anymore by making the vcpu invalid. The VMM
-		 * can try and fix it by re-initializing the vcpu with
-		 * KVM_ARM_VCPU_INIT, however, this is likely not possible for
-		 * protected VMs.
-		 */
-		vcpu->arch.target = -1;
-		*exit_code &= BIT(ARM_EXIT_WITH_SERROR_BIT);
-		*exit_code |= ARM_EXCEPTION_IL;
-	}
+	if (unlikely(vcpu_is_protected(vcpu) && vcpu_mode_is_32bit(vcpu)))
+		vcpu_illegal_trap(vcpu, exit_code);
 
 	return __fixup_guest_exit(vcpu, exit_code, handlers);
 }
@@ -287,7 +393,7 @@ int __kvm_vcpu_run(struct kvm_vcpu *vcpu)
 		pmr_sync();
 	}
 
-	host_ctxt = &this_cpu_ptr(&kvm_host_data)->host_ctxt;
+	host_ctxt = host_data_ptr(host_ctxt);
 	host_ctxt->__hyp_running_vcpu = vcpu;
 	guest_ctxt = &vcpu->arch.ctxt;
 
@@ -302,6 +408,16 @@ int __kvm_vcpu_run(struct kvm_vcpu *vcpu)
 	 * before we load guest Stage1.
 	 */
 	__debug_save_host_buffers_nvhe(vcpu);
+
+	/*
+	 * We're about to restore some new MMU state. Make sure
+	 * ongoing page-table walks that have started before we
+	 * trapped to EL2 have completed.
+	 *
+	 * See DDI0487I.a D8.1.5 "Out-of-context translation regimes",
+	 * rule R_LFHQG and subsequent information statements.
+	 */
+	dsb(nsh);
 
 	__kvm_adjust_pc(vcpu);
 
@@ -340,12 +456,19 @@ int __kvm_vcpu_run(struct kvm_vcpu *vcpu)
 	__timer_disable_traps(vcpu);
 	__hyp_vgic_save_state(vcpu);
 
+	/*
+	 * Same thing as before the guest run: we're about to switch
+	 * the MMU context, so let's make sure we don't have any
+	 * ongoing EL1&0 translations.
+	 */
+	dsb(nsh);
+
 	__deactivate_traps(vcpu);
 	__load_host_stage2();
 
 	__sysreg_restore_state_nvhe(host_ctxt);
 
-	if (vcpu->arch.fp_state == FP_STATE_GUEST_OWNED)
+	if (guest_owns_fp_regs())
 		__fpsimd_save_fpexc32(vcpu);
 
 	__debug_switch_to_host(vcpu);
@@ -364,11 +487,13 @@ int __kvm_vcpu_run(struct kvm_vcpu *vcpu)
 
 	host_ctxt->__hyp_running_vcpu = NULL;
 
+	__pkvm_unmask_serror();
+
 	return exit_code;
 }
 
-static void (*hyp_panic_notifier)(struct kvm_cpu_context *host_ctxt);
-int __pkvm_register_hyp_panic_notifier(void (*cb)(struct kvm_cpu_context *host_ctxt))
+static void (*hyp_panic_notifier)(struct user_pt_regs *regs);
+int __pkvm_register_hyp_panic_notifier(void (*cb)(struct user_pt_regs *regs))
 {
 	return cmpxchg(&hyp_panic_notifier, NULL, cb) ? -EBUSY : 0;
 }
@@ -381,11 +506,11 @@ asmlinkage void __noreturn hyp_panic(void)
 	struct kvm_cpu_context *host_ctxt;
 	struct kvm_vcpu *vcpu;
 
-	host_ctxt = &this_cpu_ptr(&kvm_host_data)->host_ctxt;
+	host_ctxt = host_data_ptr(host_ctxt);
 	vcpu = host_ctxt->__hyp_running_vcpu;
 
 	if (READ_ONCE(hyp_panic_notifier))
-		hyp_panic_notifier(host_ctxt);
+		hyp_panic_notifier(&host_ctxt->regs);
 
 	if (vcpu) {
 		__timer_disable_traps(vcpu);
@@ -397,6 +522,8 @@ asmlinkage void __noreturn hyp_panic(void)
 	/* Prepare to dump kvm nvhe hyp stacktrace */
 	kvm_nvhe_prepare_backtrace((unsigned long)__builtin_frame_address(0),
 				   _THIS_IP_);
+
+	__pkvm_panic_tracing();
 
 	__hyp_do_panic(host_ctxt, spsr, elr, par);
 	unreachable();

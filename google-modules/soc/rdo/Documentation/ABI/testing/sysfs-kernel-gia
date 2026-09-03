@@ -1,0 +1,153 @@
+What:		/sys/kernel/gia/
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The `/sys/kernel/gia/` directory contains subdirectories, one for
+		each GIA-enabled device present in the system. The names of these
+		subdirectories (e.g., `dpu-level-aggr-20-intr@ef88000`) are
+		device-specific and provide a unique identifier for each GIA instance.
+
+What:		/sys/kernel/gia/<device-name>/gia_count
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The `gia_count` file represents the total number of GIA
+		(Generic Interrupt Accelerator) events handled by the
+		specified device. This is a monotonically increasing counter.
+		The value is a decimal integer.
+
+What:		/sys/kernel/gia/<device-name>/gia_handler_latency_min
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The `gia_handler_latency_min` file represents the minimum
+		latency (in nanoseconds) observed for handling a GIA event
+		by the specified device. This value represents the time
+		taken by GIA specific handler. It's an unsigned integer.
+
+What:		/sys/kernel/gia/<device-name>/gia_handler_latency_max
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The `gia_handler_latency_max` file represents the maximum
+		latency (in nanoseconds) observed for handling a GIA event
+		by the specified device. This value represents the time
+		taken by GIA specific handler. It's an unsigned integer.
+
+What:		/sys/kernel/gia/<device-name>/gia_handler_latency_avg
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The `gia_handler_latency_avg` file represents the average
+		latency (in nanoseconds) observed for handling GIA events
+		by the specified device. This value represents the time
+		taken by GIA specific handler. This is an unsigned long long
+		integer. Reads may return 0 if no events have occurred.
+
+What:		/sys/kernel/gia/<device-name>/gia_concurrency_<n>
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Files of the form `gia_concurrency_<n>` (where <n> is a positive integer,
+		starting from 1 and goes till 4, represent data related to GIA concurrency.
+		The specific meaning of the data within each `gia_concurrency_<n>` file
+		is how many time <n> interrupts occurred. These files are read-only.
+
+What:		/sys/kernel/gia/<device-name>/hwirq_<n>/
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The `/sys/kernel/gia/<device-name>/hwirq_<n>/` directory contains
+		statistics and information related to a specific hardware interrupt
+		line, identified by `<n>`, associated with the GIA device
+		`<device-name>`.  `<n>` is a zero-padded, three-digit decimal
+		number (e.g., `hwirq_007`, `hwirq_012`). There will be a directory
+		of this form for each hardware interrupt managed by the GIA device.
+
+What:		/sys/kernel/gia/<device-name>/hwirq_<n>/irq_count
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The `irq_count` file represents the total number of times hardware
+		interrupt `<n>` (associated with the GIA device) has been triggered.
+		This is a monotonically increasing counter.  The value is a decimal
+		integer.
+
+What:		/sys/kernel/gia/<device-name>/hwirq_<n>/irq_handler_time_min
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The `irq_handler_time_min` file represents the minimum latency
+		(in nanoseconds) observed for handling hardware interrupt `<n>`.
+		This is the time spent in the interrupt handler itself.
+		It's an unsigned integer.
+
+What:		/sys/kernel/gia/<device-name>/hwirq_<n>/irq_handler_time_max
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The `irq_handler_time_max` file represents the maximum latency
+		(in nanoseconds) observed for handling hardware interrupt `<n>`.
+		This is the time spent in the interrupt handler itself.
+		It's an unsigned integer.
+
+What:		/sys/kernel/gia/<device-name>/hwirq_<n>/irq_handler_time_avg
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The `irq_handler_time_avg` file represents the average latency
+		(in nanoseconds) observed for handling hardware interrupt `<n>`.
+		This is the time spent in the interrupt handler itself.
+		It's an unsigned long long integer.  Reads may return 0 if no
+		interrupts have occurred.
+
+What:		/sys/kernel/gia/<device-name>/hwirq_<n>/irq_max_freq
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The `irq_max_freq` file represents the maximum frequency (in Hz)
+		at which hardware interrupt `<n>` has been observed. This gives
+		an indication of the peak interrupt rate. It is represented as a decimal
+		integer.
+
+What:		/sys/kernel/gia/<device-name>/hwirq_<n>/irq_name
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The `irq_name` file contains a string representing the name
+		assigned to hardware interrupt `<n>`. This is typically a
+		descriptive name provided by the device driver.
+
+What:		/sys/kernel/gia/<device-name>/hwirq_<n>/irq_sw_wait_time_min
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The `irq_sw_wait_time_min` file represents the minimum software
+		wait time (in nanoseconds) observed for hardware interrupt `<n>`.
+		This is the time spent waiting in software, before the interrupt
+		handler can proceed. It's an unsigned integer.
+
+What:		/sys/kernel/gia/<device-name>/hwirq_<n>/irq_sw_wait_time_max
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The `irq_sw_wait_time_max` file represents the maximum software
+		wait time (in nanoseconds) observed for hardware interrupt `<n>`.
+		This is the time spent waiting in software, before the interrupt
+		handler can proceed. It's an unsigned integer.
+
+What:		/sys/kernel/gia/<device-name>/hwirq_<n>/irq_sw_wait_time_avg
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The `irq_sw_wait_time_avg` file represents the average software
+		wait time (in nanoseconds) observed for hardware interrupt `<n>`.
+		This is the time spent waiting in software, before the interrupt
+		handler can proceed. It's an unsigned integer.
+
+What:		/sys/kernel/gia/<device-name>/hwirq_<n>/irq_virq
+Date:		February 2025
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The `irq_virq` file represents the virtual interrupt number
+		associated with hardware interrupt `<n>`. This is a decimal integer.

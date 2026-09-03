@@ -203,23 +203,6 @@ static const u16 expected_tpt_mimo3_40MHz[4][IWL_RATE_COUNT] = {
 	{0, 0, 0, 0, 277, 0, 478, 624, 737, 911, 1026, 1070, 1109}, /* AGG+SGI */
 };
 
-/* mbps, mcs */
-static const struct iwl_rate_mcs_info iwl_rate_mcs[IWL_RATE_COUNT] = {
-	{  "1", "BPSK DSSS"},
-	{  "2", "QPSK DSSS"},
-	{"5.5", "BPSK CCK"},
-	{ "11", "QPSK CCK"},
-	{  "6", "BPSK 1/2"},
-	{  "9", "BPSK 1/2"},
-	{ "12", "QPSK 1/2"},
-	{ "18", "QPSK 3/4"},
-	{ "24", "16QAM 1/2"},
-	{ "36", "16QAM 3/4"},
-	{ "48", "64QAM 2/3"},
-	{ "54", "64QAM 3/4"},
-	{ "60", "64QAM 5/6"},
-};
-
 #define MCS_INDEX_PER_STREAM	(8)
 
 static void rs_rate_scale_clear_window(struct iwl_rate_scale_data *window)
@@ -2690,20 +2673,16 @@ static void rs_get_rate(void *priv_r, struct ieee80211_sta *sta, void *priv_sta,
 	IWL_DEBUG_RATE_LIMIT(priv, "rate scale calculate new rate for skb\n");
 
 	/* Get max rate if user set max rate */
-	if (lq_sta) {
-		lq_sta->max_rate_idx = fls(txrc->rate_idx_mask) - 1;
-		if ((sband->band == NL80211_BAND_5GHZ) &&
-		    (lq_sta->max_rate_idx != -1))
-			lq_sta->max_rate_idx += IWL_FIRST_OFDM_RATE;
-		if ((lq_sta->max_rate_idx < 0) ||
-		    (lq_sta->max_rate_idx >= IWL_RATE_COUNT))
-			lq_sta->max_rate_idx = -1;
-	}
+	lq_sta->max_rate_idx = fls(txrc->rate_idx_mask) - 1;
+	if (sband->band == NL80211_BAND_5GHZ && lq_sta->max_rate_idx != -1)
+		lq_sta->max_rate_idx += IWL_FIRST_OFDM_RATE;
+	if (lq_sta->max_rate_idx < 0 || lq_sta->max_rate_idx >= IWL_RATE_COUNT)
+		lq_sta->max_rate_idx = -1;
 
-	/* Treat uninitialized rate scaling data same as non-existing. */
-	if (lq_sta && !lq_sta->drv) {
+	if (!lq_sta->drv) {
 		IWL_DEBUG_RATE(priv, "Rate scaling not initialized yet.\n");
-		priv_sta = NULL;
+		/* mac80211 already set up the data for using low rates */
+		return;
 	}
 
 	rate_idx  = lq_sta->last_txrate_idx;
@@ -2772,7 +2751,6 @@ void iwl_rs_rate_init(struct iwl_priv *priv, struct ieee80211_sta *sta, u8 sta_i
 	sta_priv = (struct iwl_station_priv *) sta->drv_priv;
 	lq_sta = &sta_priv->lq_sta;
 	sband = hw->wiphy->bands[conf->chandef.chan->band];
-
 
 	lq_sta->lq.sta_id = sta_id;
 
@@ -2921,7 +2899,7 @@ static void rs_fill_link_cmd(struct iwl_priv *priv,
 		/* Repeat initial/next rate.
 		 * For legacy IWL_NUMBER_TRY == 1, this loop will not execute.
 		 * For HT IWL_HT_NUMBER_TRY == 3, this executes twice. */
-		while (repeat_rate > 0 && (index < LINK_QUAL_MAX_RETRY_NUM)) {
+		while (repeat_rate > 0 && index < (LINK_QUAL_MAX_RETRY_NUM - 1)) {
 			if (is_legacy(tbl_type.lq_type)) {
 				if (ant_toggle_cnt < NUM_TRY_BEFORE_ANT_TOGGLE)
 					ant_toggle_cnt++;
@@ -3088,6 +3066,23 @@ static ssize_t rs_sta_dbgfs_scale_table_read(struct file *file,
 	int i = 0;
 	int index = 0;
 	ssize_t ret;
+
+	/* mbps, mcs */
+	static const struct iwl_rate_mcs_info iwl_rate_mcs[IWL_RATE_COUNT] = {
+		{  "1", "BPSK DSSS"},
+		{  "2", "QPSK DSSS"},
+		{"5.5", "BPSK CCK"},
+		{ "11", "QPSK CCK"},
+		{  "6", "BPSK 1/2"},
+		{  "9", "BPSK 1/2"},
+		{ "12", "QPSK 1/2"},
+		{ "18", "QPSK 3/4"},
+		{ "24", "16QAM 1/2"},
+		{ "36", "16QAM 3/4"},
+		{ "48", "64QAM 2/3"},
+		{ "54", "64QAM 3/4"},
+		{ "60", "64QAM 5/6"},
+	};
 
 	struct iwl_lq_sta *lq_sta = file->private_data;
 	struct iwl_priv *priv;

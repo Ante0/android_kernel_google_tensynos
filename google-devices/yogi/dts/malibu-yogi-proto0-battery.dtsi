@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Battery device tree entries specific to Yogi Proto0
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+
+&max77779_fg {
+	maxim,fg-data {
+		#include "malibu-yogi-proto0-battery-data.dtsi"
+	};
+};

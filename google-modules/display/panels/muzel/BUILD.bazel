@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+_PANEL_LOCAL_DEFINES = [
+    "DYNAMIC_DEBUG_MODULE",
+] + select({
+    "//private/devices/google/common:factory_build": ["PANEL_FACTORY_BUILD"],
+    "//conditions:default": [],
+})
+
+ddk_headers(
+    name = "common_headers",
+    hdrs = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common:ddk_headers",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+# Note: please add additional drivers as separate ddk modules
+ddk_module(
+    name = "panel-gs-bmea",
+    srcs = [
+        "panel-gs-bmea.c",
+    ],
+    out = "panel-gs-bmea.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = _PANEL_LOCAL_DEFINES,
+    deps = [
+        ":common_headers",
+        "//private/google-modules/display/common/gs_panel:gs-panel",
+    ],
+)
+
+ddk_module(
+    name = "panel-gs-flea",
+    srcs = [
+        "panel-gs-flea.c",
+    ],
+    out = "panel-gs-flea.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = _PANEL_LOCAL_DEFINES,
+    deps = [
+        ":common_headers",
+        "//private/google-modules/display/common/gs_panel:gs-panel",
+    ],
+)
+
+ddk_module(
+    name = "panel-gs-fleb",
+    srcs = [
+        "panel-gs-fleb.c",
+    ],
+    out = "panel-gs-fleb.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = _PANEL_LOCAL_DEFINES,
+    deps = [
+        ":common_headers",
+        "//private/google-modules/display/common/gs_panel:gs-panel",
+    ],
+)

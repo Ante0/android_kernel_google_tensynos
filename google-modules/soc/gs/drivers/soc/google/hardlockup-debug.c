@@ -40,7 +40,6 @@
 #include <soc/google/acpm_ipc_ctrl.h>
 #endif
 #include <soc/google/exynos-debug.h>
-#include <soc/google/meminfo.h>
 
 #define HARDLOCKUP_DEBUG_EL1_FIQ_MAGIC		(0xDEADBEEF)
 #define HARDLOCKUP_DEBUG_EL1_SGI_MAGIC		(HARDLOCKUP_DEBUG_EL1_FIQ_MAGIC + 1)
@@ -156,7 +155,7 @@ static void pm_dev_start(void *data, struct device *dev, const char *pm_ops, int
 	priv->dev = dev;
 	priv->parent = dev->parent;
 	priv->event = event;
-	strlcpy(priv->pm_ops, pm_ops, sizeof(priv->pm_ops));
+	strscpy(priv->pm_ops, pm_ops, sizeof(priv->pm_ops));
 	interval_tree_insert(&priv->node, &pm_dev_rbroot);
 exit:
 	spin_unlock_irqrestore(&pm_trace_lock, flags);
@@ -303,7 +302,6 @@ static int hardlockup_debug_bug_handler(struct pt_regs *regs, unsigned long esr)
 
 		if (atomic_cmpxchg(&show_mem_once, 1, 0)) {
 			handle_sysrq('m');
-			dump_pixel_meminfo();
 		}
 
 		if (atomic_cmpxchg(&dump_tasks_once, 1, 0)) {
@@ -534,10 +532,8 @@ static int hardlockup_debugger_probe(struct platform_device *pdev)
 	WARN_ON(register_trace_android_vh_cpu_idle_exit(
 				vh_bug_on_wdt_fiq_pending, NULL));
 
-	if (IS_ENABLED(CONFIG_TRACING)) {
-		WARN_ON(register_trace_device_pm_callback_start(pm_dev_start, NULL));
-		WARN_ON(register_trace_device_pm_callback_end(pm_dev_end, NULL));
-	}
+	WARN_ON(register_trace_device_pm_callback_start(pm_dev_start, NULL));
+	WARN_ON(register_trace_device_pm_callback_end(pm_dev_end, NULL));
 
 	/* Clear AP cache flush complete flag on boot */
 	dbg_snapshot_set_core_cflush_stat(0x0);

@@ -373,8 +373,8 @@ static int pktproc_fill_data_addr(struct pktproc_queue *q)
 			desc[fore].control |= (1 << 3);	/* RINGEND */
 
 		if (unlikely(desc[fore].reserved0 != 0)) { /* W/A to detect mem poison */
-			mif_err("mem poison:0x%lX r0:%d c:%d s:%d l%d cl%d r1:%d\n",
-					(unsigned long)desc[fore].cp_data_paddr, desc[fore].reserved0,
+			mif_err("mem poison:0x%llX r0:%d c:%d s:%d l%d cl%d r1:%d\n",
+					desc[fore].cp_data_paddr, desc[fore].reserved0,
 					desc[fore].control, desc[fore].status,
 					desc[fore].lro, desc[fore].clat, desc[fore].reserved1);
 			panic("memory poison\n");
@@ -412,7 +412,7 @@ static int pktproc_fill_data_addr_without_bm(struct pktproc_queue *q)
 #endif
 
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
-	if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num))
+	if (pcie_is_sysmmu_enabled(mc->pcie_ch_num))
 		fore = q->ioc.curr_fore;
 	else
 		fore = *q->fore_ptr;
@@ -436,7 +436,7 @@ static int pktproc_fill_data_addr_without_bm(struct pktproc_queue *q)
 	if (q->ppa->buff_rgn_cached) {
 		space = circ_get_space(q->num_desc, fore, q->done_ptr);
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
-		if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
+		if (pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
 			if (space > q->ppa->space_margin)
 				space -= q->ppa->space_margin;
 			else
@@ -460,7 +460,7 @@ static int pktproc_fill_data_addr_without_bm(struct pktproc_queue *q)
 			q->q_idx, fore, dst_paddr);
 
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
-		if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
+		if (pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
 			dst_vaddr = cpif_pcie_iommu_map_va(q, dst_paddr, fore, &fore_inc);
 			if (!dst_vaddr) {
 				mif_err_limited("cpif_pcie_iommu_get_va() failed\n");
@@ -471,7 +471,7 @@ static int pktproc_fill_data_addr_without_bm(struct pktproc_queue *q)
 #endif
 
 #if !IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOCC)
-		if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
+		if (pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
 			if (q->ppa->buff_rgn_cached && !q->ppa->use_hw_iocc) {
 				if (dst_vaddr)
 					goto dma_map;
@@ -513,7 +513,7 @@ dma_map:
 			*q->fore_ptr = circ_new_ptr(q->num_desc, *q->fore_ptr, fore_inc);
 		fore = circ_new_ptr(q->num_desc, fore, 1);
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
-		if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num))
+		if (pcie_is_sysmmu_enabled(mc->pcie_ch_num))
 			q->ioc.curr_fore = fore;
 #endif
 	}
@@ -586,7 +586,7 @@ static u8 *get_packet_vaddr(struct pktproc_queue *q, struct pktproc_desc_sktbuf 
 #endif
 	{
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
-		if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
+		if (pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
 			unsigned long src_paddr = desc->cp_data_paddr - q->cp_buff_pbase +
 					q->q_buff_pbase - ppa->skb_padding_size;
 
@@ -648,7 +648,7 @@ static struct sk_buff *cpif_build_skb_single(struct pktproc_queue *q, u8 *src, u
 #endif
 	{
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
-		if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
+		if (pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
 			skb = build_skb(src - front_pad_size, q->ppa->true_packet_size);
 			if (unlikely(!skb))
 				goto error;
@@ -885,7 +885,7 @@ static int pktproc_get_pkt_from_sktbuf_mode(struct pktproc_queue *q, struct sk_b
 	if (dit_check_dir_use_queue(DIT_DIR_RX, q->q_idx)) {
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
 		struct modem_ctl *mc = dev_get_drvdata(ppa->dev);
-		if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num))
+		if (pcie_is_sysmmu_enabled(mc->pcie_ch_num))
 			unsigned long src_paddr = 0;
 		else
 			unsigned long src_paddr = desc_done_ptr.cp_data_paddr - q->cp_buff_pbase +
@@ -993,13 +993,26 @@ rx_error:
 int pktproc_get_usage(struct pktproc_queue *q)
 {
 	u32 usage = 0;
+	u32 fore = READ_ONCE(*q->fore_ptr);
+	u32 rear = READ_ONCE(*q->rear_ptr);
+
+	if (unlikely(fore >= q->num_desc || rear >= q->num_desc || q->done_ptr >= q->num_desc)) {
+		struct link_device *ld = &q->mld->link_dev;
+
+		mif_err_limited("Invalid rx pointer!!\n");
+		mif_err_limited("Q%d fore/rear/done/num_desc: %d/%d/%d/%d\n",
+			q->q_idx, fore, rear, q->done_ptr, q->num_desc);
+		ld->link_trigger_cp_crash(q->mld, CRASH_REASON_MIF_FORCED,
+				"invalid rx pointer given");
+		return 0;
+	}
 
 	switch (q->ppa->desc_mode) {
 	case DESC_MODE_RINGBUF:
-		usage = circ_get_usage(q->num_desc, *q->fore_ptr, *q->rear_ptr);
+		usage = circ_get_usage(q->num_desc, fore, rear);
 		break;
 	case DESC_MODE_SKTBUF:
-		usage = circ_get_usage(q->num_desc, *q->rear_ptr, q->done_ptr);
+		usage = circ_get_usage(q->num_desc, rear, q->done_ptr);
 		break;
 	default:
 		usage = 0;
@@ -1155,7 +1168,7 @@ static unsigned int pktproc_perftest_gen_rx_packet_sktbuf_mode(
 
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
 		/* set data */
-		if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num))
+		if (pcie_is_sysmmu_enabled(mc->pcie_ch_num))
 			src = q->ioc.pf_buf[rear_ptr] + q->ppa->skb_padding_size;
 		else
 			src = desc[rear_ptr].cp_data_paddr -
@@ -1548,7 +1561,7 @@ static ssize_t status_show(struct device *dev, struct device_attribute *attr, ch
 				circ_get_usage(q->num_desc, *q->rear_ptr, q->done_ptr),
 				circ_get_usage(q->num_desc, *q->rear_ptr, *q->fore_ptr));
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
-			if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
+			if (pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
 				count += scnprintf(&buf[count], PAGE_SIZE - count,
 					"  iommu_mapped cnt:%u size:0x%llX\n",
 					q->ioc.mapped_cnt, q->ioc.mapped_size);
@@ -1629,7 +1642,7 @@ int pktproc_init(struct pktproc_adaptor *ppa)
 		switch (ppa->desc_mode) {
 		case DESC_MODE_SKTBUF:
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
-			if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num))
+			if (pcie_is_sysmmu_enabled(mc->pcie_ch_num))
 				cpif_pcie_iommu_reset(q);
 #endif
 			if (pktproc_check_active(q->ppa, q->q_idx))
@@ -1664,7 +1677,7 @@ int pktproc_init(struct pktproc_adaptor *ppa)
 		switch (ppa->desc_mode) {
 		case DESC_MODE_SKTBUF:
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
-			if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
+			if (pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
 				ret = cpif_pcie_iommu_init(q);
 				if (ret) {
 					mif_err("cpif_pcie_iommu_init() error %d Q%d\n", ret, q->q_idx);
@@ -1751,7 +1764,7 @@ static void pktproc_adjust_size(struct pktproc_adaptor *ppa)
 {
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
 	struct modem_ctl *mc = dev_get_drvdata(ppa->dev);
-	if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
+	if (pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
 		ppa->skb_padding_size = SKB_FRONT_PADDING;
 	} else {
 		if (ppa->use_netrx_mng)
@@ -1768,7 +1781,7 @@ static void pktproc_adjust_size(struct pktproc_adaptor *ppa)
 
 	ppa->true_packet_size = ppa->max_packet_size;
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
-	if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
+	if (pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
 		ppa->true_packet_size += ppa->skb_padding_size;
 		ppa->true_packet_size += SKB_DATA_ALIGN(sizeof(struct skb_shared_info));
 
@@ -1864,7 +1877,7 @@ static int pktproc_get_info(struct pktproc_adaptor *ppa, struct device_node *np)
 		return -EINVAL;
 	}
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
-	if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
+	if (pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
 		if (ppa->use_netrx_mng || !ppa->buff_rgn_cached || ppa->desc_mode != DESC_MODE_SKTBUF) {
 			mif_err("not compatible with pcie iommu\n");
 			return -EINVAL;
@@ -1963,7 +1976,7 @@ int pktproc_create(struct platform_device *pdev, struct mem_link_device *mld,
 	if (!ppa->use_netrx_mng) {
 		buff_size_by_q = ppa->buff_rgn_size / ppa->num_queue;
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
-		if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
+		if (pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
 			mif_info("Rounded down queue size from 0x%08x to 0x%08x\n",
 				 buff_size_by_q, rounddown(buff_size_by_q, SZ_4K));
 			buff_size_by_q = rounddown(buff_size_by_q, SZ_4K);
@@ -1973,7 +1986,7 @@ int pktproc_create(struct platform_device *pdev, struct mem_link_device *mld,
 		if (ppa->buff_rgn_cached) {
 			ppa->buff_vbase = phys_to_virt(ppa->buff_pbase);
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
-			if (exynos_pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
+			if (pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
 				mif_info("release iommu buffer region offset:0x%08x\n",
 					 ppa->buff_rgn_offset);
 				cp_shmem_release_rmem(mld->link_dev.mdm_data->cp_num,
@@ -2105,7 +2118,6 @@ int pktproc_create(struct platform_device *pdev, struct mem_link_device *mld,
 			alloc_size = sizeof(dma_addr_t) * q->num_desc;
 			q->dma_addr = kzalloc(alloc_size, GFP_KERNEL);
 			if (!q->dma_addr) {
-				mif_err("kzalloc() dma_addr failed\n");
 				ret = -ENOMEM;
 				goto create_error;
 			}

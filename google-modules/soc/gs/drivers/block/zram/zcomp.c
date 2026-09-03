@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-/*
- * Copyright (C) 2014 Sergey Senozhatsky.
- */
 
 #include <linux/kernel.h>
 #include <linux/string.h>
 #include <linux/err.h>
 #include <linux/slab.h>
 #include <linux/highmem.h>
-#include <linux/blkdev.h>
 #include <linux/bio.h>
 #include <linux/swap.h>
 
@@ -17,16 +13,11 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/zram.h>
 
-#include "zcomp.h"
-
 /*
  * Pages that compress to sizes equals or greater than this are stored
  * uncompressed in memory.
  */
 static size_t huge_class_size = 0;
-
-/* The 32 is align with SWAP_CLUSTER_MAX and BLK_MAX_REQUEST_COUNT */
-#define ZRAM_BLK_MAX_REQUEST_COUNT 32
 
 struct zcomp_backend {
 	const char algo_name[ZCOMP_ALGO_NAME_MAX];
@@ -38,7 +29,7 @@ static LIST_HEAD(zcomp_list);
 static DECLARE_RWSEM(zcomp_rwsem);
 
 /* caller should hold a zcomp_rwsem under semaphore */
-struct zcomp *find_zcomp(const char *algo_name)
+static struct zcomp *find_zcomp(const char *algo_name)
 {
 	struct zcomp *cursor, *ret = NULL;
 
@@ -57,8 +48,6 @@ int zcomp_register(const char *algo_name, const struct zcomp_operation *op)
 	struct zcomp *zcomp;
 	size_t len;
 	int ret = 0;
-
-	BUILD_BUG_ON(ZRAM_BLK_MAX_REQUEST_COUNT != SWAP_CLUSTER_MAX);
 
 	if (!algo_name || !op)
 		return -EINVAL;
@@ -114,13 +103,6 @@ int zcomp_unregister(const char *algo_name)
 }
 EXPORT_SYMBOL(zcomp_unregister);
 
-static void zcomp_fill_page(void *ptr, unsigned long len,
-					unsigned long value)
-{
-	WARN_ON_ONCE(!IS_ALIGNED(len, sizeof(unsigned long)));
-	memset_l(ptr, value, len / sizeof(unsigned long));
-}
-
 static bool zcomp_page_same_pattern(struct page *page, unsigned long *element)
 {
 	unsigned int pos;
@@ -128,7 +110,7 @@ static bool zcomp_page_same_pattern(struct page *page, unsigned long *element)
 	unsigned long val;
 	bool ret = true;
 
-	mem = kmap_atomic(page);
+	mem = kmap_local_page(page);
 	val = mem[0];
 	for (pos = 1; pos < PAGE_SIZE / sizeof(*mem); pos++) {
 		if (val != mem[pos]) {
@@ -139,7 +121,7 @@ static bool zcomp_page_same_pattern(struct page *page, unsigned long *element)
 
 	*element = val;
 out:
-	kunmap_atomic(mem);
+	kunmap_local(mem);
 	return ret;
 }
 
@@ -187,248 +169,83 @@ static inline bool zcomp_async(struct zcomp *comp)
 	return comp->op->compress_async ? true : false;
 }
 
-/*
- * The caller needs to hold cookie_pool.lock
- */
-static bool refill_zcomp_cookie(struct zcomp *zcomp)
-{
-	int i;
-	struct zcomp_cookie *cookie;
-
-	WARN_ON(zcomp->cookie_pool.count != 0);
-
-	for (i = 0; i < BATCH_ZCOMP_REQUEST; i++) {
-		cookie = kmalloc(sizeof(struct zcomp_cookie), GFP_ATOMIC);
-		if (!cookie)
-			break;
-		list_add(&cookie->list, &zcomp->cookie_pool.head);
-		zcomp->cookie_pool.count++;
-	}
-
-	return !zcomp->cookie_pool.count;
-}
-
-static struct zcomp_cookie *alloc_zcomp_cookie(struct zcomp *zcomp)
-{
-	struct zcomp_cookie *cookie = NULL;
-
-	WARN_ON(in_interrupt());
-
-	spin_lock(&zcomp->cookie_pool.lock);
-	if (list_empty(&zcomp->cookie_pool.head)) {
-		if (refill_zcomp_cookie(zcomp))
-			goto out;
-	}
-
-	cookie = list_first_entry(&zcomp->cookie_pool.head,
-					struct zcomp_cookie, list);
-	list_del(&cookie->list);
-	zcomp->cookie_pool.count--;
-out:
-	spin_unlock(&zcomp->cookie_pool.lock);
-
-	return cookie;
-}
-
-static void free_zcomp_cookie(struct zcomp *zcomp, struct zcomp_cookie *cookie)
-{
-	spin_lock(&zcomp->cookie_pool.lock);
-	list_add(&cookie->list, &zcomp->cookie_pool.head);
-	zcomp->cookie_pool.count++;
-
-	if (zcomp->cookie_pool.count >= BATCH_ZCOMP_REQUEST * 2) {
-		int i;
-
-		for (i = 0; i < BATCH_ZCOMP_REQUEST; i++) {
-			cookie = list_last_entry(&zcomp->cookie_pool.head,
-						struct zcomp_cookie, list);
-			list_del(&cookie->list);
-			kfree(cookie);
-			zcomp->cookie_pool.count--;
-		}
-	}
-	spin_unlock(&zcomp->cookie_pool.lock);
-}
-
-static void init_zcomp_cookie_pool(struct zcomp *zcomp)
-{
-	INIT_LIST_HEAD(&zcomp->cookie_pool.head);
-	spin_lock_init(&zcomp->cookie_pool.lock);
-	zcomp->cookie_pool.count = 0;
-}
-
-static void destroy_zcomp_cookie_pool(struct zcomp *zcomp)
-{
-	struct zcomp_cookie *cookie;
-
-	spin_lock(&zcomp->cookie_pool.lock);
-	while (!list_empty(&zcomp->cookie_pool.head)) {
-		cookie = list_first_entry(&zcomp->cookie_pool.head,
-					struct zcomp_cookie, list);
-		list_del(&cookie->list);
-		kfree(cookie);
-		zcomp->cookie_pool.count--;
-	}
-	spin_unlock(&zcomp->cookie_pool.lock);
-}
-
-static int flush_pending_io(struct zcomp *comp)
-{
-	struct zcomp_cookie *cookie, *tmp;
-	int err = 0;
-	LIST_HEAD(req_list);
-
-	spin_lock(&comp->request_lock);
-	list_splice_init(&comp->request_list, &req_list);
-	comp->pend_request = 0;
-	spin_unlock(&comp->request_lock);
-
-	list_for_each_entry_safe_reverse(cookie, tmp, &req_list, list) {
-		if (comp->op->compress_async(comp, cookie->page, cookie)) {
-			if (cookie->bio)
-				bio_io_error(cookie->bio);
-			err = -EIO;
-		}
-	}
-
-	return err;
-}
-
-static void zram_unplug(struct blk_plug_cb *cb, bool from_schedule)
-{
-	flush_pending_io((struct zcomp *)(cb->data));
-	kfree(cb);
-}
-
-/*
- * If the comp is plugged, append the cookie to request list and return true
- * otherwise, return false.
- */
-static void zram_append_request(struct zcomp *comp, struct zcomp_cookie *cookie)
-{
-	spin_lock(&comp->request_lock);
-	list_add(&cookie->list, &comp->request_list);
-	comp->pend_request++;
-	spin_unlock(&comp->request_lock);
-}
-
-static unsigned long nr_pend_request(struct zcomp *comp)
-{
-	unsigned long ret;
-
-	spin_lock(&comp->request_lock);
-	ret = comp->pend_request;
-	spin_unlock(&comp->request_lock);
-
-	return ret;
-}
-
 int zcomp_compress(struct zcomp *comp, u32 index, struct page *page,
 			struct bio *bio)
 {
-	/*
-	 * Async IO should return 1 instead of 0 to indicate
-	 * IO submit is successful because IO completion
-	 * callback should be handled at different context.
-	 */
-	int ret = 1;
 	unsigned long element;
-	struct zcomp_cookie *cookie;
 
 	if (zcomp_page_same_pattern(page, &element)) {
-		zram_slot_update(comp->zram, index, element, 0);
+		zram_slot_update(comp->zram, index, element, 0, comp->prio);
 		return 0;
 	}
 
-	if (!zcomp_async(comp)) {
-		struct zcomp_cookie stack_cookie;
+	if (!zcomp_async(comp))
+		return comp->op->compress(comp, index, page, bio);
+	else
+		return comp->op->compress_async(comp, index, page, bio);
+}
 
-		cookie = &stack_cookie;
-		cookie->zram = comp->zram;
-		cookie->index = index;
-		cookie->page = page;
-		cookie->bio = bio;
+void zcomp_prepare_decompress(struct zcomp *comp)
+{
+	if (comp && comp->op->prepare_decompress)
+		comp->op->prepare_decompress(comp);
+}
 
-		return comp->op->compress(comp, page, cookie);
-	}
+int zcomp_decompress_buf(struct zcomp *comp, u32 index, void *src,
+			 unsigned int size, struct page *page)
+{
+	int ret;
 
-	cookie = alloc_zcomp_cookie(comp);
-	if (!cookie)
-		return -ENOMEM;
-
-	cookie->zram = comp->zram;
-	cookie->index = index;
-	cookie->page = page;
-	cookie->bio = bio;
-	/*
-	 * Since __zram_make_request has bio_endio, zcomp_async needs
-	 * to hold the bio completion until the IO request is done if
-	 * the IO is submitted successfully. zcomp_copy_buffer in
-	 * zcomp instance will handle it. If the IO submission fails,
-	 * we release the bio chain here so that __zram_make_request's
-	 * bio_endio will finally call the IO completion to handle
-	 * the error propagation.
-	 */
-	if (bio)
-		bio_inc_remaining(bio);
-
-	if (blk_check_plugged(zram_unplug, comp, sizeof(struct blk_plug_cb)) &&
-	    nr_pend_request(comp) < ZRAM_BLK_MAX_REQUEST_COUNT) {
-		zram_append_request(comp, cookie);
-	} else {
-		flush_pending_io(comp);
-		if (comp->op->compress_async(comp, page, cookie)) {
-			if (cookie->bio)
-				bio_io_error(cookie->bio);
-			ret = -EIO;
-		}
-	}
+	trace_zcomp_decompress_start(page, index);
+	ret = comp->op->decompress(comp, src, size, page);
+	trace_zcomp_decompress_end(page, index);
 
 	return ret;
 }
 
 int zcomp_decompress(struct zcomp *comp, u32 index, struct page *page)
 {
-	int ret = 0;
-	void *dst, *src;
+	int ret;
+	void *src;
 	unsigned int src_len;
 	unsigned long handle;
 	struct zram *zram = comp->zram;
 
 	handle = zram_get_handle(zram, index);
-	if (!handle || zram_test_flag(zram, index, ZRAM_SAME)) {
-		unsigned long val = handle ? zram_get_element(zram, index) : 0;
-
-		dst = kmap_atomic(page);
-		zcomp_fill_page(dst, PAGE_SIZE, val);
-		kunmap_atomic(dst);
-		goto out;
-	}
-
 	src_len = zram_get_obj_size(zram, index);
-	if (src_len == PAGE_SIZE) {
-		src = zs_map_object(zram->mem_pool, handle, ZS_MM_RO);
-		dst = kmap_atomic(page);
-		memcpy(dst, src, PAGE_SIZE);
-		kunmap_atomic(dst);
-		zs_unmap_object(zram->mem_pool, handle);
-		goto out;
-	}
-
 	src = zs_map_object(zram->mem_pool, handle, ZS_MM_RO);
-	trace_zcomp_decompress_start(page, index);
-	ret = comp->op->decompress(comp, src, src_len, page);
-	trace_zcomp_decompress_end(page, index);
+
+	ret = zcomp_decompress_buf(comp, index, src, src_len, page);
+
 	zs_unmap_object(zram->mem_pool, handle);
-out:
 	return ret;
+}
+
+bool zcomp_has_recompress(const char *algo_name)
+{
+	struct zcomp *zcomp;
+	bool ret = false;
+
+	down_read(&zcomp_rwsem);
+	zcomp = find_zcomp(algo_name);
+	ret = zcomp && zcomp->op->recompress;
+	up_read(&zcomp_rwsem);
+
+	return ret;
+}
+
+int zcomp_recompress(struct zcomp *comp, u32 index, struct page *page,
+		     u32 prio, u32 threshold)
+{
+	if (!comp->op->recompress)
+		return -ENOSYS;
+
+	return comp->op->recompress(comp, index, page, prio, threshold);
 }
 
 void zcomp_destroy(struct zcomp *comp)
 {
 	comp->op->destroy(comp);
-	if (zcomp_async(comp))
-		destroy_zcomp_cookie_pool(comp);
 }
 
 /*
@@ -439,7 +256,8 @@ void zcomp_destroy(struct zcomp *comp)
  * case of allocation error, or any other error potentially
  * returned by zcomp_create().
  */
-struct zcomp *zcomp_create(const char *algo_name, struct zram *zram)
+struct zcomp *zcomp_create(const char *algo_name, struct zcomp_params *params,
+			   struct zram *zram, u32 prio)
 {
 	struct zcomp *comp;
 	int error;
@@ -451,18 +269,16 @@ struct zcomp *zcomp_create(const char *algo_name, struct zram *zram)
 		return ERR_PTR(-EINVAL);
 	}
 
+	/* assign the params before comp->op->create */
+	comp->params = params;
+	comp->prio = prio;
+
 	error = comp->op->create(comp, algo_name);
 	if (error) {
 		up_read(&zcomp_rwsem);
 		return ERR_PTR(error);
 	}
 
-	if (zcomp_async(comp)) {
-		init_zcomp_cookie_pool(comp);
-		INIT_LIST_HEAD(&comp->request_list);
-		spin_lock_init(&comp->request_lock);
-		comp->pend_request = 0;
-	}
 	comp->zram = zram;
 	up_read(&zcomp_rwsem);
 
@@ -476,23 +292,17 @@ struct zcomp *zcomp_create(const char *algo_name, struct zram *zram)
  * Once zcomp instance finishes the compression, it need to copy the compressed
  * buffer to zram's memory space.
  *
- * @err: the error from zcomp instance
  * @buffer: memory address compressed objecd is stored
  * @comp_len: compressed object size
- * @cookie: the one we got when comopress function is called
+ * @zram: zram instance
+ * @page: original buffer to be compressed
+ * @index: swap slot index
  */
-int zcomp_copy_buffer(int err, void *buffer, int comp_len,
-		      struct zcomp_cookie *cookie)
+int zcomp_copy_buffer(void *buffer, int comp_len, struct zram *zram,
+		      struct page *page, u32 index, u32 prio)
 {
 	void *dst_addr;
 	unsigned long handle;
-	struct zram *zram = cookie->zram;
-	struct page *page = cookie->page;
-	struct bio *bio = cookie->bio;
-	u32 index = cookie->index;
-
-	if (err)
-		goto out;
 
 	if (comp_len >= huge_class_size)
 		comp_len = PAGE_SIZE;
@@ -504,32 +314,89 @@ int zcomp_copy_buffer(int err, void *buffer, int comp_len,
 			__GFP_MOVABLE |
 			__GFP_CMA);
 	if (IS_ERR((void *)handle)) {
-		err = PTR_ERR((void *)handle);
-		goto out;
+		return PTR_ERR((void *)handle);
 	}
 
 	dst_addr = zs_map_object(zram->mem_pool, handle, ZS_MM_WO);
 	if (comp_len == PAGE_SIZE) {
-		void *src = kmap_atomic(page);
+		void *src = kmap_local_page(page);
 
 		memcpy(dst_addr, src, comp_len);
-		kunmap_atomic(src);
+		kunmap_local(src);
 	} else {
 		memcpy(dst_addr, buffer, comp_len);
 	}
 	zs_unmap_object(zram->mem_pool, handle);
-	zram_slot_update(zram, index, handle, comp_len);
-out:
-	if (zcomp_async(zram->comp)) {
-		if (!bio) { /* rw_page case */
-			zram_page_write_endio(zram, page, err);
-		} else {
-			zram_bio_endio(zram, bio, true, err);
-		}
+	zram_slot_update(zram, index, handle, comp_len, prio);
 
-		free_zcomp_cookie(zram->comp, cookie);
-	}
-
-	return err;
+	return 0;
 }
 EXPORT_SYMBOL(zcomp_copy_buffer);
+
+/*
+ * Similar to zcomp_copy_buffer. The index was already locked during the
+ * recompress process.
+ *
+ * Once zcomp instance finishes the recompression, it need to copy the
+ * new compressed buffer to zram's memory space.
+ * There are two differences:
+ * 1. If the recompressed size is not smaller than original size, or not
+ * smaller than the threshold, we won't copy the data.
+ * 2. No direct reclaim in the recompression path.
+ *
+ * @buffer: memory address compressed objecd is stored
+ * @comp_len_new: the recompressed object size
+ * @zram: zram instance
+ * @index: swap slot index
+ * @prio: the recompress algorithm index
+ * @threshold: the max recompressed object size we accept.
+ */
+int zcomp_recompress_copy_buffer(void *buffer, int comp_len_new,
+				 struct zram *zram, u32 index,
+				 u32 prio, u32 threshold)
+{
+	unsigned int comp_len_old;
+	unsigned int class_index_old;
+	unsigned int class_index_new;
+	unsigned long handle_new;
+	void *dst;
+
+	comp_len_old = zram_get_obj_size(zram, index);
+	class_index_old = zs_lookup_class_index(zram->mem_pool, comp_len_old);
+	class_index_new = zs_lookup_class_index(zram->mem_pool, comp_len_new);
+
+	/* Try next prio until we make progress */
+	if (class_index_new >= class_index_old ||
+	    (threshold && comp_len_new >= threshold))
+		return -EAGAIN;
+
+	/*
+	 * No direct reclaim (slow path) for handle allocation and no
+	 * re-compression attempt (unlike in zram_write_bvec()) since
+	 * we already have stored that object in zsmalloc. If we cannot
+	 * alloc memory for recompressed object then we bail out and
+	 * simply keep the old (existing) object in zsmalloc.
+	 */
+	handle_new = zs_malloc(zram->mem_pool, comp_len_new,
+			       __GFP_KSWAPD_RECLAIM |
+			       __GFP_NOWARN |
+			       __GFP_HIGHMEM |
+			       __GFP_MOVABLE);
+	if (IS_ERR_VALUE(handle_new))
+		return PTR_ERR((void *)handle_new);
+
+	dst = zs_map_object(zram->mem_pool, handle_new, ZS_MM_WO);
+	memcpy(dst, buffer, comp_len_new);
+	zs_unmap_object(zram->mem_pool, handle_new);
+
+	zram_recompress_slot_update(zram, index, handle_new, comp_len_new,
+				    prio);
+
+	return 0;
+}
+EXPORT_SYMBOL(zcomp_recompress_copy_buffer);
+
+size_t get_huge_class_size(void)
+{
+	return huge_class_size;
+}

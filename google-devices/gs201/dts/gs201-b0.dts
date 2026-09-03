@@ -646,7 +646,7 @@
 				aur_control_temp: aur-control-temp {
 					temperature = <100000>; /* millicelsius */
 					hysteresis = <5000>; /* millicelsius */
-					type = "active";
+					type = "passive";
 				};
 				aur_alert3: aur-alert3 {
 					temperature = <102000>; /* millicelsius */

@@ -27,5 +27,6 @@
 #define LINK_SPEED_GEN1		1
 #define LINK_SPEED_GEN2		2
 #define LINK_SPEED_GEN3		3
+#define LINK_SPEED_GEN4		4
 
 #endif

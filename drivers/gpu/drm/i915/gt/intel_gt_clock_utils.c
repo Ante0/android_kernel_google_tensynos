@@ -7,7 +7,9 @@
 #include "i915_reg.h"
 #include "intel_gt.h"
 #include "intel_gt_clock_utils.h"
+#include "intel_gt_print.h"
 #include "intel_gt_regs.h"
+#include "soc/intel_dram.h"
 
 static u32 read_reference_ts_freq(struct intel_uncore *uncore)
 {
@@ -107,7 +109,7 @@ static u32 gen9_read_clock_frequency(struct intel_uncore *uncore)
 	return freq;
 }
 
-static u32 gen5_read_clock_frequency(struct intel_uncore *uncore)
+static u32 gen6_read_clock_frequency(struct intel_uncore *uncore)
 {
 	/*
 	 * PRMs say:
@@ -119,7 +121,27 @@ static u32 gen5_read_clock_frequency(struct intel_uncore *uncore)
 	return 12500000;
 }
 
-static u32 gen2_read_clock_frequency(struct intel_uncore *uncore)
+static u32 gen5_read_clock_frequency(struct intel_uncore *uncore)
+{
+	/*
+	 * 63:32 increments every 1000 ns
+	 * 31:0 mbz
+	 */
+	return 1000000000 / 1000;
+}
+
+static u32 g4x_read_clock_frequency(struct intel_uncore *uncore)
+{
+	/*
+	 * 63:20 increments every 1/4 ns
+	 * 19:0 mbz
+	 *
+	 * -> 63:32 increments every 1024 ns
+	 */
+	return 1000000000 / 1024;
+}
+
+static u32 gen4_read_clock_frequency(struct intel_uncore *uncore)
 {
 	/*
 	 * PRMs say:
@@ -127,8 +149,10 @@ static u32 gen2_read_clock_frequency(struct intel_uncore *uncore)
 	 *     "The value in this register increments once every 16
 	 *      hclks." (through the “Clocking Configuration”
 	 *      (“CLKCFG”) MCHBAR register)
+	 *
+	 * Testing on actual hardware has shown there is no /16.
 	 */
-	return RUNTIME_INFO(uncore->i915)->rawclk_freq * 1000 / 16;
+	return DIV_ROUND_CLOSEST(i9xx_fsb_freq(uncore->i915), 4) * 1000;
 }
 
 static u32 read_clock_frequency(struct intel_uncore *uncore)
@@ -137,10 +161,16 @@ static u32 read_clock_frequency(struct intel_uncore *uncore)
 		return gen11_read_clock_frequency(uncore);
 	else if (GRAPHICS_VER(uncore->i915) >= 9)
 		return gen9_read_clock_frequency(uncore);
-	else if (GRAPHICS_VER(uncore->i915) >= 5)
+	else if (GRAPHICS_VER(uncore->i915) >= 6)
+		return gen6_read_clock_frequency(uncore);
+	else if (GRAPHICS_VER(uncore->i915) == 5)
 		return gen5_read_clock_frequency(uncore);
+	else if (IS_G4X(uncore->i915))
+		return g4x_read_clock_frequency(uncore);
+	else if (GRAPHICS_VER(uncore->i915) == 4)
+		return gen4_read_clock_frequency(uncore);
 	else
-		return gen2_read_clock_frequency(uncore);
+		return 0;
 }
 
 void intel_gt_init_clock_frequency(struct intel_gt *gt)
@@ -165,10 +195,9 @@ void intel_gt_init_clock_frequency(struct intel_gt *gt)
 void intel_gt_check_clock_frequency(const struct intel_gt *gt)
 {
 	if (gt->clock_frequency != read_clock_frequency(gt->uncore)) {
-		dev_err(gt->i915->drm.dev,
-			"GT clock frequency changed, was %uHz, now %uHz!\n",
-			gt->clock_frequency,
-			read_clock_frequency(gt->uncore));
+		gt_err(gt, "GT clock frequency changed, was %uHz, now %uHz!\n",
+		       gt->clock_frequency,
+		       read_clock_frequency(gt->uncore));
 	}
 }
 #endif
@@ -180,7 +209,7 @@ static u64 div_u64_roundup(u64 nom, u32 den)
 
 u64 intel_gt_clock_interval_to_ns(const struct intel_gt *gt, u64 count)
 {
-	return div_u64_roundup(count * NSEC_PER_SEC, gt->clock_frequency);
+	return mul_u64_u32_div(count, NSEC_PER_SEC, gt->clock_frequency);
 }
 
 u64 intel_gt_pm_interval_to_ns(const struct intel_gt *gt, u64 count)
@@ -190,7 +219,7 @@ u64 intel_gt_pm_interval_to_ns(const struct intel_gt *gt, u64 count)
 
 u64 intel_gt_ns_to_clock_interval(const struct intel_gt *gt, u64 ns)
 {
-	return div_u64_roundup(gt->clock_frequency * ns, NSEC_PER_SEC);
+	return mul_u64_u32_div(ns, gt->clock_frequency, NSEC_PER_SEC);
 }
 
 u64 intel_gt_ns_to_pm_interval(const struct intel_gt *gt, u64 ns)

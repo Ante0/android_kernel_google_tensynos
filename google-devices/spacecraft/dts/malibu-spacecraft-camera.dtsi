@@ -1,0 +1,393 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * camera lwis device tree for spacecraft
+ *
+ * Copyright 2025 Google LLC.
+ *
+ */
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/lwis/platform/malibu/tof.h>
+
+/ {
+	fragment@rcam_supply {
+		target-path = "/";
+		__overlay__ {
+			rcam_vana: rcam_supply@0 {
+				compatible = "regulator-fixed";
+				status = "okay";
+				regulator-name = "PP2250_LDO1";
+				regulator-min-microvolt = <2250000>;
+				regulator-max-microvolt = <2250000>;
+				/* 1ms */
+				regulator-enable-ramp-delay = <1000>;
+				enable-active-high;
+				/* VANA_EN */
+				gpio = <PMICM2RCAM_VANA_EN(GPIO_ACTIVE_HIGH)>;
+			};
+
+			rcam_vdig: rcam_supply@1 {
+				compatible = "regulator-fixed";
+				status = "okay";
+				regulator-name = "PP0850_LVBUCK";
+				regulator-min-microvolt = <850000>;
+				regulator-max-microvolt = <850000>;
+				/* 2ms */
+				regulator-enable-ramp-delay = <2000>;
+				enable-active-high;
+				/* VDIG_EN */
+				gpio = <PMICM2RCAM_VDIG_EN(GPIO_ACTIVE_HIGH)>;
+			};
+		};
+	};
+};
+
+&sgm38122_avdd1_csia {
+	regulator-min-microvolt = <2856000>;
+	regulator-max-microvolt = <2856000>;
+};
+
+&sgm38122_avdd3_csia {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+};
+
+&sgm38122_dvdd_csia {
+	regulator-min-microvolt = <1152000>;
+	regulator-max-microvolt = <1152000>;
+};
+
+&sgm38122_avdd3_csib {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+};
+
+&sgm38122_dvdd_csib {
+	regulator-min-microvolt = <1000000>;
+	regulator-max-microvolt = <1000000>;
+};
+
+&sgm38122_dvdd_csif {
+	regulator-min-microvolt = <1104000>;
+	regulator-max-microvolt = <1104000>;
+};
+
+&sgm38122_avdd1_csif {
+	regulator-min-microvolt = <2856000>;
+	regulator-max-microvolt = <2856000>;
+};
+
+&sgm38122_avdd3_csif {
+	regulator-min-microvolt = <3200000>;
+	regulator-max-microvolt = <3200000>;
+};
+
+&slg51002_ldo1 {
+	regulator-min-microvolt = <2250000>;
+	regulator-max-microvolt = <2250000>;
+};
+
+&slg51002_ldo2 {
+	regulator-min-microvolt = <2950000>;
+	regulator-max-microvolt = <2950000>;
+};
+
+&slg51002_ldo3 {
+	regulator-min-microvolt = <2850000>;
+	regulator-max-microvolt = <2850000>;
+};
+
+&slg51002_ldo4 {
+	regulator-min-microvolt = <2950000>;
+	regulator-max-microvolt = <2950000>;
+};
+
+&slg51002_ldo5 {
+	regulator-min-microvolt = <2900000>;
+	regulator-max-microvolt = <2900000>;
+};
+
+&slg51002_ldo6 {
+	regulator-min-microvolt = <1100000>;
+	regulator-max-microvolt = <1100000>;
+};
+
+&slg51002_ldo7 {
+	regulator-min-microvolt = <1060000>;
+	regulator-max-microvolt = <1060000>;
+};
+
+&slg51002_ldo8 {
+	regulator-min-microvolt = <970000>;
+	regulator-max-microvolt = <970000>;
+};
+
+&sgm38122_dvdd_csie {
+	regulator-min-microvolt = <1152000>;
+	regulator-max-microvolt = <1152000>;
+};
+
+&sgm38122_avdd1_csie {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+};
+
+&sgm38122_avdd2_csie {
+	regulator-min-microvolt = <2856000>;
+	regulator-max-microvolt = <2856000>;
+};
+
+&sgm38122_avdd3_csie {
+	regulator-min-microvolt = <2856000>;
+	regulator-max-microvolt = <2856000>;
+};
+
+&sgm38122_dvdd_csic {
+	regulator-min-microvolt = <1152000>;
+	regulator-max-microvolt = <1152000>;
+};
+
+&sgm38122_avdd2_csic {
+	regulator-min-microvolt = <2856000>;
+	regulator-max-microvolt = <2856000>;
+};
+
+&sgm38125_dvdd_csia {
+	regulator-min-microvolt = <856000>;
+	regulator-max-microvolt = <856000>;
+};
+
+&sgm38125_avdd1_csia {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+};
+
+&sgm38125_avdd2_csia {
+	regulator-min-microvolt = <2904000>;
+	regulator-max-microvolt = <2904000>;
+};
+
+&sgm38125_avdd3_csia {
+	regulator-min-microvolt = <2248000>;
+	regulator-max-microvolt = <2248000>;
+};
+
+&sgm38125_dvdd_csib {
+	regulator-min-microvolt = <1048000>;
+	regulator-max-microvolt = <1048000>;
+};
+
+&sgm38125_avdd1_csib {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+};
+
+&sgm38125_avdd2_csib {
+	regulator-min-microvolt = <2848000>;
+	regulator-max-microvolt = <2848000>;
+};
+
+&sgm38125_avdd3_csib {
+	regulator-min-microvolt = <2248000>;
+	regulator-max-microvolt = <2248000>;
+};
+
+&sgm38125_dvdd_csid {
+	regulator-min-microvolt = <1048000>;
+	regulator-max-microvolt = <1048000>;
+};
+
+&sgm38125_avdd1_csid {
+	regulator-min-microvolt = <2848000>;
+	regulator-max-microvolt = <2848000>;
+};
+
+&sgm38125_avdd2_csid {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+};
+
+&sgm38125_avdd3_csid {
+	regulator-min-microvolt = <2248000>;
+	regulator-max-microvolt = <2248000>;
+};
+
+&sgm38125_dvdd_csie {
+	regulator-min-microvolt = <1048000>;
+	regulator-max-microvolt = <1048000>;
+};
+
+&sgm38125_avdd1_csie {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+};
+
+&sgm38125_avdd2_csie {
+	regulator-min-microvolt = <2848000>;
+	regulator-max-microvolt = <2848000>;
+};
+
+&sgm38125_avdd3_csie {
+	regulator-min-microvolt = <2248000>;
+	regulator-max-microvolt = <2248000>;
+};
+
+&lsios_i3c2 {
+	#address-cells = <3>;
+	#size-cells = <0>;
+	i2c-shared-slot;
+
+	/* Lwis placeholder for RCAM */
+	csib_boitata_placeholder_i3c: csib_boitata_placeholder_i3c@0 {
+		compatible = "google,lwis-placeholder";
+		/* I2C */
+		reg = <0x3D 0x0 0x20>;
+	};
+	csib_chemosh_placeholder_i3c: csib_chemosh_placeholder_i3c@0 {
+		compatible = "google,lwis-placeholder";
+		/* I2C */
+		reg = <0x56 0x0 0x20>;
+	};
+	csib_cornerfolk_placeholder_i3c: csib_cornerfolk_placeholder_i3c@0 {
+		compatible = "google,lwis-placeholder";
+		/* I2C */
+		reg = <0xC 0x0 0x20>;
+	};
+	csib_ois_placeholder_i3c: csib_ois_placeholder_i3c@0 {
+		compatible = "google,lwis-placeholder";
+		/* I2C */
+		reg = <0x24 0x0 0x20>;
+	};
+	csib_vesta_ois_placeholder_i3c: csib_vesta_ois_placeholder_i3c@0 {
+		compatible = "google,lwis-placeholder";
+		/* I2C */
+		reg = <0x3C 0x0 0x20>;
+	};
+	csib_vesta_eeprom_placeholder_i3c: csib_vesta_eeprom_placeholder_i3c@0 {
+		compatible = "google,lwis-placeholder";
+		/* I2C */
+		reg = <0x51 0x0 0x20>;
+	};
+};
+
+&lsios_spi1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	google,spi-gpio-cs-with-cpol-high;
+	tof0: tof@0 {
+		compatible = "google,lwis-spi-device";
+
+		/* SPI_CONFIG */
+		reg = <0>;
+		spi-max-frequency = <20000000>;
+		spi-cpol;
+		spi-cpha;
+
+		/* Device node name */
+		node-name = "tof-tarasque";
+
+		/* Registers */
+		reg-addr-bitwidth = <16>;
+		reg-value-bitwidth = <8>;
+
+		/* MCLK Control */
+		/* LWIS DT parser explicitly requires mclk_on pinctrl */
+		pinctrl-names = "default", "mclk_on", "mclk_off";
+		pinctrl-0 = <&ldaf2aoss_irq_od_l_1v2>;
+		pinctrl-1 = <&ldaf2aoss_irq_od_l_1v2>;
+		pinctrl-2 = <>;
+
+		irq-gpios = <LDAF2AOSS_IRQ_OD_L_1V2(GPIO_ACTIVE_LOW)>;
+		irq-gpios-names = "tof-irq";
+		irq-gpios-events = <LWIS_PLATFORM_EVENT_ID_TOF_DATA_POLLING>;
+		irq-gpios-types = <IRQ_TYPE_EDGE_FALLING>;
+
+		/* Power supplies */
+		/* VADD 3.3V */
+		l27m-supply = <&ldo_27m_reg>;
+
+		/* Power up sequence */
+		power-up-seqs =
+			"l27m",
+			"mclk_on";
+		power-up-seq-types =
+			"regulator",
+			"pinctrl";
+		power-up-seq-delays-us =
+			<0
+			 0>;
+
+		/* Power down sequence */
+		power-down-seqs =
+			"mclk_off",
+			"l27m";
+		power-down-seq-types =
+			"pinctrl",
+			"regulator";
+		power-down-seq-delays-us =
+			<0
+			 0>;
+
+		/* Thread priority */
+		/* This is made to be lower than image sensor's thread */
+		/* thread priority to allow uninterrupted image sensor */
+		/* operation during periods of high CPU contention. */
+		transaction-thread-priority = <100>;
+	};
+};
+
+/ {
+	fragment@lwiscamera {
+		target-path = "/";
+		__overlay__ {
+			flash0: flash@0 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "flash-sy70206";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c0>;
+				i2c-addr = <0x63>;
+
+				/* Registers */
+				reg-addr-bitwidth = <8>;
+				reg-value-bitwidth = <8>;
+
+				/* Power supplies */
+				bb_cam-supply = <&sy70206_reg>;
+
+				power-up-seqs =
+					"fast-bb_cam";
+				power-up-seq-types =
+					"regulator_mode";
+				power-up-seq-delays-us =
+					<0>;
+
+				power-down-seqs =
+					"normal-bb_cam";
+				power-down-seq-types =
+					"regulator_mode";
+				power-down-seq-delays-us =
+					<0>;
+
+				/* Hax to let LWIS parse the regulator */
+				/* resume sequence */
+				resume-seqs = "bb_cam";
+				resume-seq-types = "regulator";
+				resume-seq-delays-us = <0>;
+
+				/* suspend sequence */
+				suspend-seqs = "bb_cam";
+				suspend-seq-types = "regulator";
+				suspend-seq-delays-us = <0>;
+			};
+		};
+	};
+};
+
+#include "malibu-spacecraft-quasar1-camera.dtsi"
+#include "malibu-spacecraft-quasar2-camera.dtsi"
+#include "malibu-spacecraft-pathfinder1-camera.dtsi"
+#include "malibu-spacecraft-pathfinder2-camera.dtsi"
+#include "malibu-spacecraft-spectra-camera.dtsi"

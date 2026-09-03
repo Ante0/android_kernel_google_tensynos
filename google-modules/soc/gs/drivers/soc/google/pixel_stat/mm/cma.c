@@ -10,7 +10,8 @@
 #include <linux/cma.h>
 #include <linux/kobject.h>
 #include <linux/slab.h>
-#include "../../vh/include/sched.h"
+#include "sched.h"
+#include "cma.h"
 
 #define DEF_LATENCY_MID_BOUND_MS 1500
 #define DEF_LATENCY_LOW_BOUND_MS 500
@@ -49,8 +50,8 @@ void vh_cma_alloc_start(void *data, const char *name, unsigned long count,
 {
 	struct vendor_task_struct *tsk;
 
-	tsk = get_vendor_task_struct(current);
-	set_vendor_task_struct_private(tsk, jiffies);
+	tsk = sched_get_vendor_task_struct(current);
+	sched_set_vendor_task_struct_private(tsk, jiffies);
 }
 
 struct cma *cma;
@@ -71,7 +72,7 @@ static int parse_cma_idx(struct cma *cma, void *data)
 
 void vh_cma_alloc_finish(void *data, const char *name, unsigned long pfn,
 			 const struct page *page, unsigned long count,
-			 unsigned int align)
+			 unsigned int align, int errorno)
 {
 	struct cma_pixel_stat *cma_stat;
 	struct cma_index index = {
@@ -82,8 +83,8 @@ void vh_cma_alloc_finish(void *data, const char *name, unsigned long pfn,
 	struct vendor_task_struct *tsk;
 	unsigned long old_ts;
 
-	tsk = get_vendor_task_struct(current);
-	old_ts = get_and_reset_vendor_task_struct_private(tsk);
+	tsk = sched_get_vendor_task_struct(current);
+	old_ts = sched_get_and_reset_vendor_task_struct_private(tsk);
 
 	delta = jiffies_to_msecs(jiffies - old_ts);
 	WARN_ON_ONCE(delta < 0);

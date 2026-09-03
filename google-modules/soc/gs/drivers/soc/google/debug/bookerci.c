@@ -66,6 +66,7 @@ enum node_type {
 struct reg_desc {
 	const char *name;
 	int offset;
+	bool is_secure;
 };
 
 struct node_desc {
@@ -75,6 +76,7 @@ struct node_desc {
 	int lid;
 	enum node_type type;
 	phys_addr_t pa;
+	void  __iomem *va;
 	const struct reg_desc *regs;
 	int regs_count;
 };
@@ -104,139 +106,139 @@ struct bci_dt_node {
 };
 
 static const struct reg_desc cfg_regs[] = {
-	{"cfgm_node_info", 0x0},
-	{"cfgm_periph_id_0_periph_id_1", 0x8},
-	{"cfgm_periph_id_2_periph_id_3", 0x10},
-	{"cfgm_periph_id_4_periph_id_5", 0x18},
-	{"cfgm_periph_id_6_periph_id_7", 0x20},
-	{"cfgm_component_id_0_component_id_1", 0x28},
-	{"cfgm_component_id_2_component_id_3", 0x30},
-	{"cfgm_child_info", 0x80},
-	{"cfgm_secure_access", 0x980},
-	{"cfgm_errgsr0", 0x3000},
-	{"cfgm_errgsr1", 0x3008},
-	{"cfgm_errgsr2", 0x3010},
-	{"cfgm_errgsr3", 0x3018},
-	{"cfgm_errgsr4", 0x3020},
-	{"cfgm_errgsr5", 0x3028},
-	{"cfgm_errgsr6", 0x3080},
-	{"cfgm_errgsr7", 0x3088},
-	{"cfgm_errgsr8", 0x3090},
-	{"cfgm_errgsr9", 0x3098},
-	{"cfgm_errgsr10", 0x30A0},
-	{"cfgm_errgsr11", 0x30A8},
-	{"cfgm_errgsr0_NS", 0x3100},
-	{"cfgm_errgsr1_NS", 0x3108},
-	{"cfgm_errgsr2_NS", 0x3110},
-	{"cfgm_errgsr3_NS", 0x3118},
-	{"cfgm_errgsr4_NS", 0x3120},
-	{"cfgm_errgsr5_NS", 0x3128},
-	{"cfgm_errgsr6_NS", 0x3180},
-	{"cfgm_errgsr7_NS", 0x3188},
-	{"cfgm_errgsr8_NS", 0x3190},
-	{"cfgm_errgsr9_NS", 0x3198},
-	{"cfgm_errgsr10_NS", 0x31A0},
-	{"cfgm_errgsr11_NS", 0x31A8},
-	{"cfgm_errdevaff", 0x3FA8},
-	{"cfgm_errdevarch", 0x3FB8},
-	{"cfgm_erridr", 0x3FC8},
-	{"cfgm_errpidr45", 0x3FD0},
-	{"cfgm_errpidr67", 0x3FD8},
-	{"cfgm_errpidr01", 0x3FE0},
-	{"cfgm_errpidr23", 0x3FE8},
-	{"cfgm_errcidr01", 0x3FF0},
-	{"cfgm_errcidr23", 0x3FF8},
-	{"info_global", 0x900},
-	{"ppu_int_enable", 0x1C00},
-	{"ppu_int_status", 0x1C08},
-	{"ppu_qactive_hyst", 0x1C10},
-	{"mpam_s_err_int_status", 0x1C18},
-	{"mpam_ns_err_int_status", 0x1C20}
+	{"cfgm_node_info", 0x0, false},
+	{"cfgm_periph_id_0_periph_id_1", 0x8, false},
+	{"cfgm_periph_id_2_periph_id_3", 0x10, false},
+	{"cfgm_periph_id_4_periph_id_5", 0x18, false},
+	{"cfgm_periph_id_6_periph_id_7", 0x20, false},
+	{"cfgm_component_id_0_component_id_1", 0x28, false},
+	{"cfgm_component_id_2_component_id_3", 0x30, false},
+	{"cfgm_child_info", 0x80, false},
+	{"cfgm_secure_access", 0x980, true},
+	{"cfgm_errgsr0", 0x3000, true},
+	{"cfgm_errgsr1", 0x3008, true},
+	{"cfgm_errgsr2", 0x3010, true},
+	{"cfgm_errgsr3", 0x3018, true},
+	{"cfgm_errgsr4", 0x3020, true},
+	{"cfgm_errgsr5", 0x3028, true},
+	{"cfgm_errgsr6", 0x3080, true},
+	{"cfgm_errgsr7", 0x3088, true},
+	{"cfgm_errgsr8", 0x3090, true},
+	{"cfgm_errgsr9", 0x3098, true},
+	{"cfgm_errgsr10", 0x30A0, true},
+	{"cfgm_errgsr11", 0x30A8, true},
+	{"cfgm_errgsr0_NS", 0x3100, false},
+	{"cfgm_errgsr1_NS", 0x3108, false},
+	{"cfgm_errgsr2_NS", 0x3110, false},
+	{"cfgm_errgsr3_NS", 0x3118, false},
+	{"cfgm_errgsr4_NS", 0x3120, false},
+	{"cfgm_errgsr5_NS", 0x3128, false},
+	{"cfgm_errgsr6_NS", 0x3180, false},
+	{"cfgm_errgsr7_NS", 0x3188, false},
+	{"cfgm_errgsr8_NS", 0x3190, false},
+	{"cfgm_errgsr9_NS", 0x3198, false},
+	{"cfgm_errgsr10_NS", 0x31A0, false},
+	{"cfgm_errgsr11_NS", 0x31A8, false},
+	{"cfgm_errdevaff", 0x3FA8, false},
+	{"cfgm_errdevarch", 0x3FB8, false},
+	{"cfgm_erridr", 0x3FC8, false},
+	{"cfgm_errpidr45", 0x3FD0, false},
+	{"cfgm_errpidr67", 0x3FD8, false},
+	{"cfgm_errpidr01", 0x3FE0, false},
+	{"cfgm_errpidr23", 0x3FE8, false},
+	{"cfgm_errcidr01", 0x3FF0, false},
+	{"cfgm_errcidr23", 0x3FF8, false},
+	{"info_global", 0x900, false},
+	{"ppu_int_enable", 0x1C00, true},
+	{"ppu_int_status", 0x1C08, true},
+	{"ppu_qactive_hyst", 0x1C10, true},
+	{"mpam_s_err_int_status", 0x1C18, true},
+	{"mpam_ns_err_int_status", 0x1C20, false}
 };
 
 static const struct reg_desc hnf_regs[] = {
-	{"hnf_node_info", 0x0},
-	{"hnf_sam_control", 0xd00},
-	{"hnf_sam_sn_properties", 0xd18},
-	{"hnf_cfg_ctl", 0xa00},
-	{"hnf_errfr", 0x3000},
-	{"hnf_errctlr", 0x3008},
-	{"hnf_errstatus", 0x3010},
-	{"hnf_erraddr", 0x3018},
-	{"hnf_errmisc", 0x3020},
-	{"hnf_errfr_ns", 0x3100},
-	{"hnf_errctlr_ns", 0x3108},
-	{"hnf_errstatus_ns", 0x3110},
-	{"hnf_erraddr_ns", 0x3118},
-	{"hnf_errmisc_ns", 0x3120},
-	{"hnf_err_inj", 0x3030},
-	{"hnf_byte_par_err_inj", 0x3038},
+	{"hnf_node_info", 0x0, false},
+	{"hnf_sam_control", 0xd00, true},
+	{"hnf_sam_sn_properties", 0xd18, true},
+	{"hnf_cfg_ctl", 0xa00, true},
+	{"hnf_errfr", 0x3000, true},
+	{"hnf_errctlr", 0x3008, true},
+	{"hnf_errstatus", 0x3010, true},
+	{"hnf_erraddr", 0x3018, true},
+	{"hnf_errmisc", 0x3020, true},
+	{"hnf_errfr_ns", 0x3100, false},
+	{"hnf_errctlr_ns", 0x3108, false},
+	{"hnf_errstatus_ns", 0x3110, false},
+	{"hnf_erraddr_ns", 0x3118, false},
+	{"hnf_errmisc_ns", 0x3120, false},
+	{"hnf_err_inj", 0x3030, true},
+	{"hnf_byte_par_err_inj", 0x3038, true},
 };
 
 static const struct reg_desc hnd_regs[] = {
-	{"hni_node_info", 0x0},
-	{"hni_sam_addrregion0_cfg", 0xc00},
-	{"hni_errfr", 0x3000},
-	{"hni_errctlr", 0x3008},
-	{"hni_errstatus", 0x3010},
-	{"hni_erraddr", 0x3018},
-	{"hni_errmisc", 0x3020},
-	{"hni_errfr_ns", 0x3100},
-	{"hni_errctlr_ns", 0x3108},
-	{"hni_errstatus_ns", 0x3110},
-	{"hni_erraddr_ns", 0x3118},
-	{"hni_errmisc_ns", 0x3120},
+	{"hni_node_info", 0x0, false},
+	{"hni_sam_addrregion0_cfg", 0xc00, true},
+	{"hni_errfr", 0x3000, true},
+	{"hni_errctlr", 0x3008, true},
+	{"hni_errstatus", 0x3010, true},
+	{"hni_erraddr", 0x3018, true},
+	{"hni_errmisc", 0x3020, true},
+	{"hni_errfr_ns", 0x3100, false},
+	{"hni_errctlr_ns", 0x3108, false},
+	{"hni_errstatus_ns", 0x3110, false},
+	{"hni_erraddr_ns", 0x3118, false},
+	{"hni_errmisc_ns", 0x3120, false},
 };
 
 static const struct reg_desc mtsx_regs[] = {
-	{"mtu_node_info", 0x0},
-	{"mtu_tag_addr_ctl", 0xa40},
-	{"mtu_tag_addr_base", 0xa48},
+	{"mtu_node_info", 0x0, false},
+	{"mtu_tag_addr_ctl", 0xa40, true},
+	{"mtu_tag_addr_base", 0xa48, true},
 	{"mtu_tag_addr_shutter0", 0xa50},
 	{"mtu_tag_addr_shutter1", 0xa58},
-	{"mtu_errfr", 0x3000},
-	{"mtu_errctlr", 0x3008},
-	{"mtu_errstatus", 0x3010},
-	{"mtu_erraddr", 0x3018},
-	{"mtu_errmisc", 0x3020},
-	{"mtu_errfr_ns", 0x3100},
-	{"mtu_errctlr_ns", 0x3108},
-	{"mtu_errstatus_ns", 0x3110},
-	{"mtu_erraddr_ns", 0x3118},
-	{"mtu_errmisc_ns", 0x3120},
-	{"mtu_err_inj", 0x3030},
+	{"mtu_errfr", 0x3000, true},
+	{"mtu_errctlr", 0x3008, true},
+	{"mtu_errstatus", 0x3010, true},
+	{"mtu_erraddr", 0x3018, true},
+	{"mtu_errmisc", 0x3020, true},
+	{"mtu_errfr_ns", 0x3100, false},
+	{"mtu_errctlr_ns", 0x3108, false},
+	{"mtu_errstatus_ns", 0x3110, false},
+	{"mtu_erraddr_ns", 0x3118, false},
+	{"mtu_errmisc_ns", 0x3120, false},
+	{"mtu_err_inj", 0x3030, true},
 };
 
 static const struct reg_desc rnf_regs[] = {
-	{"rn_node_info", 0x0},
-	{"sys_cache_grp_region0", 0xe00},
-	{"sys_cache_group_hn_count", 0xea0},
-	{"sys_cache_grp_hn_nodeid_reg0", 0xf00},
-	{"non_hash_mem_region_reg0", 0x0c00},
-	{"non_hash_mem_region_reg1", 0x0c08},
-	{"non_hash_mem_region_reg2", 0x0c10},
-	{"non_hash_mem_region_reg3", 0x0c18},
-	{"non_hash_mem_region_reg4", 0x0c20},
-	{"non_hash_mem_region_reg5", 0x0c28},
-	{"non_hash_tgt_nodeid0", 0x0d80},
-	{"non_hash_tgt_nodeid1", 0x0d88},
-	{"rnsam_status", 0x1100}
+	{"rn_node_info", 0x0, false},
+	{"sys_cache_grp_region0", 0xe00, true},
+	{"sys_cache_group_hn_count", 0xea0, true},
+	{"sys_cache_grp_hn_nodeid_reg0", 0xf00, true},
+	{"non_hash_mem_region_reg0", 0x0c00, true},
+	{"non_hash_mem_region_reg1", 0x0c08, true},
+	{"non_hash_mem_region_reg2", 0x0c10, true},
+	{"non_hash_mem_region_reg3", 0x0c18, true},
+	{"non_hash_mem_region_reg4", 0x0c20, true},
+	{"non_hash_mem_region_reg5", 0x0c28, true},
+	{"non_hash_tgt_nodeid0", 0x0d80, true},
+	{"non_hash_tgt_nodeid1", 0x0d88, true},
+	{"rnsam_status", 0x1100, true}
 };
 
 static const struct reg_desc xp_regs[] = {
-	{"xp_node_info", 0x0},
-	{"xp_device_port_connect_info_p0", 0x8},
-	{"xp_device_port_connect_info_p1", 0x10},
-	{"xp_mesh_port_connect_info_east", 0x18},
-	{"xp_mesh_port_connect_info_north", 0x20},
-	{"xp_errfr", 0x3000},
-	{"xp_errctlr", 0x3008},
-	{"xp_errstatus", 0x3010},
-	{"xp_errmisc", 0x3028},
-	{"xp_errfr_ns", 0x3100},
-	{"xp_errctlr_ns", 0x3108},
-	{"xp_errstatus_ns", 0x3110},
-	{"xp_errmisc_ns", 0x3128}
+	{"xp_node_info", 0x0, false},
+	{"xp_device_port_connect_info_p0", 0x8, false},
+	{"xp_device_port_connect_info_p1", 0x10, false},
+	{"xp_mesh_port_connect_info_east", 0x18, false},
+	{"xp_mesh_port_connect_info_north", 0x20, false},
+	{"xp_errfr", 0x3000, true},
+	{"xp_errctlr", 0x3008, true},
+	{"xp_errstatus", 0x3010, true},
+	{"xp_errmisc", 0x3028, true},
+	{"xp_errfr_ns", 0x3100, false},
+	{"xp_errctlr_ns", 0x3108, false},
+	{"xp_errstatus_ns", 0x3110, false},
+	{"xp_errmisc_ns", 0x3128, false}
 };
 
 static const struct bci_dt_node dt_nodes[] = {
@@ -313,7 +315,7 @@ static enum node_type errgsr_to_type_map[] = {
 	NODE_TYPE_XP, NODE_TYPE_HNI, NODE_TYPE_HNF, NODE_TYPE_SBSX, NODE_TYPE_UNUSED, NODE_TYPE_MTSX
 };
 
-static u64 read_bci_reg(phys_addr_t reg)
+static u64 read_bci_reg_s(phys_addr_t reg)
 {
 	struct arm_smccc_res smc_res;
 	u64 res;
@@ -334,7 +336,12 @@ static u64 read_bci_reg(phys_addr_t reg)
 	return res;
 }
 
-static void write_bci_reg(phys_addr_t reg, u64 val)
+static u64 read_bci_reg_ns(void __iomem *vreg)
+{
+	return __raw_readq(vreg);
+}
+
+static void write_bci_reg_s(phys_addr_t reg, u64 val)
 {
 	struct arm_smccc_res res;
 
@@ -349,19 +356,31 @@ static void write_bci_reg(phys_addr_t reg, u64 val)
 		      val >> 32, 0, 0, 0, 0, &res);
 }
 
+static void write_bci_reg_ns(void __iomem *vreg, u64 val)
+{
+	__raw_writeq(val, vreg);
+	// Ensure that the write is visible to the device
+	wmb();
+}
+
 static int dump_regs_show(struct seq_file *s, void *p)
 {
 	struct node_desc *node = s->private;
 	int i;
+	u64 val;
 
 	seq_printf(s, "%s at %pap\n", node->file_name, &node->pa);
 	seq_puts(s, "Reg                            Offset     Value\n");
 	seq_puts(s, "------------------------------------------------------------\n");
 	for (i = 0; i < node->regs_count; i++) {
+		if (node->regs[i].is_secure)
+			val = read_bci_reg_s(node->pa + node->regs[i].offset);
+		else
+			val = read_bci_reg_ns(node->va + node->regs[i].offset);
 		seq_printf(s, "%-30s %#010x %#018llx\n",
 			   node->regs[i].name,
 			   node->regs[i].offset,
-			   read_bci_reg(node->pa + node->regs[i].offset));
+			   val);
 	}
 	return 0;
 }
@@ -465,10 +484,27 @@ static void parseErrorMTSX(u64 misc) {
 }
 
 static void handle_node_error(struct node_desc *node, struct bci_irq_desc *irq) {
-	phys_addr_t pa = node->pa + (irq->is_secure ? ERR_RECORD_OFFSET : ERR_RECORD_NS_OFFSET);
-	u64 err_status = read_bci_reg(pa + 16);
-	u64 err_addr = node->type == NODE_TYPE_XP ? 0 : read_bci_reg(pa + 24);
-	u64 err_misc = node->type == NODE_TYPE_XP ? read_bci_reg(pa + 40) : read_bci_reg(pa + 32);
+	u64 err_fr, err_ctrl, err_status, err_addr, err_misc;
+	phys_addr_t pa;
+	void __iomem *va;
+
+	if (irq->is_secure) {
+		pa = node->pa + ERR_RECORD_OFFSET;
+		err_fr = read_bci_reg_s(pa);
+		err_ctrl = read_bci_reg_s(pa + 8);
+		err_status = read_bci_reg_s(pa + 16);
+		err_addr = node->type == NODE_TYPE_XP ? 0 : read_bci_reg_s(pa + 24);
+		err_misc = node->type == NODE_TYPE_XP ?
+						read_bci_reg_s(pa + 40) : read_bci_reg_s(pa + 32);
+	} else {
+		va = node->va + ERR_RECORD_NS_OFFSET;
+		err_fr = read_bci_reg_ns(va);
+		err_ctrl = read_bci_reg_ns(va + 8);
+		err_status = read_bci_reg_ns(va + 16);
+		err_addr = node->type == NODE_TYPE_XP ? 0 : read_bci_reg_ns(va + 24);
+		err_misc = node->type == NODE_TYPE_XP ?
+						read_bci_reg_ns(va + 40) : read_bci_reg_ns(va + 32);
+	}
 	bool status_valid = test_bit(ERRSTATUS_VALID_BIT, (unsigned long *)&err_status);
 	bool addr_valid = test_bit(ERRADDR_VALID_BIT, (unsigned long *)&err_status);
 	bool misc_valid = test_bit(ERRMISC_VALID_BIT, (unsigned long *)&err_status);
@@ -478,8 +514,8 @@ static void handle_node_error(struct node_desc *node, struct bci_irq_desc *irq) 
 		irq->is_secure ? "" : "Non-",
 		irq->is_error ? "error" : "fault");
 
-	pr_err("ERR_FR     %#018llx\n", read_bci_reg(pa));
-	pr_err("ERR_CTRL   %#018llx\n", read_bci_reg(pa + 8));
+	pr_err("ERR_FR     %#018llx\n", err_fr);
+	pr_err("ERR_CTRL   %#018llx\n", err_ctrl);
 	pr_err("ERR_STATUS %#018llx %svalid\n", err_status, status_valid ? "" : "in");
 	pr_err("ERR_ADDR   %#018llx %svalid\n", err_addr, addr_valid ? "" : "in");
 	pr_err("ERR_MISC   %#018llx %svalid\n", err_misc, misc_valid ? "" : "in");
@@ -515,7 +551,10 @@ static void handle_node_error(struct node_desc *node, struct bci_irq_desc *irq) 
 
 irq_clear:
 	/* clear interrupt */
-	write_bci_reg(pa + 16, ERRSTATUS_CLEAR_ALL);
+	if (irq->is_secure)
+		write_bci_reg_s(pa + 16, ERRSTATUS_CLEAR_ALL);
+	else
+		write_bci_reg_ns(va + 16, ERRSTATUS_CLEAR_ALL);
 }
 
 static void process_errgsr(struct bci_dev *bci, u64 errgsr,
@@ -546,6 +585,7 @@ static struct bci_irq_desc *find_irq_desc(struct bci_dev *bci, int irq) {
 
 static void dump_errgsr(struct bci_dev *bci, int errgsr_offset, const char* suffix) {
 	int i;
+	u64 errgsr;
 	/*
 	 * error status registers are sprint into two parts secure and non-secure.
 	 * Every part has different offset from the BCI base address.
@@ -555,7 +595,12 @@ static void dump_errgsr(struct bci_dev *bci, int errgsr_offset, const char* suff
 	 * multiply it by two to print both groups.
 	 */
 	for (i = 0; i < (ERRGSR_GROUP_COUNT * ERRGSR_COUNT); i++) {
-		u64 errgsr = read_bci_reg(bci->base + errgsr_offset + i * sizeof(u64));
+		if (*suffix == 'S')
+			errgsr =
+				read_bci_reg_s(bci->nodes[0].pa + errgsr_offset + i * sizeof(u64));
+		else
+			errgsr =
+				read_bci_reg_ns(bci->nodes[0].va + errgsr_offset + i * sizeof(u64));
 		dev_err(bci->dev, "por_cfgm_errgsr_%s[%d] = %#018llx\n", suffix, i, errgsr);
 	}
 }
@@ -566,6 +611,7 @@ static irqreturn_t bci_irq_handler(int irq, void *data)
 	struct bci_dev *bci = (struct bci_dev *)data;
 	struct bci_irq_desc *irq_desc = find_irq_desc(bci, irq);
 	int errgsr_offset;
+	u64 errgsr;
 
 	if (!irq_desc)
 		return IRQ_NONE;
@@ -579,7 +625,10 @@ static irqreturn_t bci_irq_handler(int irq, void *data)
 
 	/* Check secure error groups */
 	for (i = 0; i < ERRGSR_COUNT; i++) {
-		u64 errgsr = read_bci_reg(bci->base + errgsr_offset + i * 8);
+		if (irq_desc->is_secure)
+			errgsr = read_bci_reg_s(bci->nodes[0].pa + errgsr_offset + i * 8);
+		else
+			errgsr = read_bci_reg_ns(bci->nodes[0].va + errgsr_offset + i * 8);
 		process_errgsr(bci, errgsr, i, irq_desc);
 	}
 
@@ -624,6 +673,7 @@ static int bci_init_dt(struct bci_dev *bci)
 			u32 id, offset;
 			u64 node_info;
 			phys_addr_t pa;
+			void  __iomem *va;
 
 			if (of_property_read_u32(np, "id", &id))
 				return -EINVAL;
@@ -631,7 +681,8 @@ static int bci_init_dt(struct bci_dev *bci)
 				return -EINVAL;
 
 			pa = bci->base + offset;
-			node_info = read_bci_reg(pa);
+			va = ioremap(pa, SZ_16K);
+			node_info = read_bci_reg_ns(va);
 			bci->nodes[node_idx].name = dt_nodes[i].name;
 			bci->nodes[node_idx].nid = id;
 			bci->nodes[node_idx].lid = (node_info >> 32) & 0xffff;
@@ -639,6 +690,7 @@ static int bci_init_dt(struct bci_dev *bci)
 			bci->nodes[node_idx].regs = dt_nodes[i].regs;
 			bci->nodes[node_idx].regs_count = dt_nodes[i].regs_count;
 			bci->nodes[node_idx].pa = pa;
+			bci->nodes[node_idx].va = va;
 			node_idx++;
 		}
 	}
@@ -711,9 +763,9 @@ static int bci_init_irq(struct bci_dev *bci)
 		if (bci->nodes[i].type == NODE_TYPE_MTSX ||
 		    bci->nodes[i].type == NODE_TYPE_HNF ||
 		    bci->nodes[i].type == NODE_TYPE_HNI) {
-			write_bci_reg(bci->nodes[i].pa + ERRCTRL_OFFSET,
+			write_bci_reg_s(bci->nodes[i].pa + ERRCTRL_OFFSET,
 				      ERRCTRL_ENABLE_ALL);
-			write_bci_reg(bci->nodes[i].pa + ERRCTRL_NS_OFFSET,
+			write_bci_reg_ns(bci->nodes[i].va + ERRCTRL_NS_OFFSET,
 				      ERRCTRL_ENABLE_ALL);
 		}
 	}
@@ -750,13 +802,12 @@ static int bci_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int bci_remove(struct platform_device *pdev)
+static void bci_remove(struct platform_device *pdev)
 {
 	struct bci_dev *bci = platform_get_drvdata(pdev);
 
 	debugfs_remove_recursive(bci->de);
 	platform_set_drvdata(pdev, NULL);
-	return 0;
 }
 
 static const struct of_device_id bci_dt_match[] = {

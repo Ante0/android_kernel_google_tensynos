@@ -1,0 +1,261 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/ {
+	amb_tcu_pmcg: amb_tcu_pmcg@4192000 {
+		compatible = "arm,mmu-700-tcu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x4192000 0 0x1000>,
+		      <0 0x41b2000 0 0x1000>;
+		interrupts-extended = <&fabstby_pulse_aggr_0 FABSTBY_GIA_PULSE_AGGR_0_IP_IP_AON_TCU_WRAPPER_PMU_IRPT>;
+	};
+
+	hsios_ufs_tbu_pmcg: hsios_ufs_tbu_pmcg@4252000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x4252000 0 0x1000>,
+		      <0 0x4262000 0 0x1000>;
+		interrupts-extended = <&hsios_pulse_aggr_2 HSIOS_GIA_PULSE_AGGR_2_HSIO_S_AUX_HSIO_S_MASTER_WRAPPER_UFS_TBU_WRAPPER_TBU_PMU_IRPT>;
+	};
+
+	pcie_tbu_pmcg: pcie_tbu_pmcg@0x4292000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x4292000 0 0x1000>,
+		      <0 0x42a2000 0 0x1000>;
+		interrupts-extended = <&pcie_pulse_aggr_2 PCIE_GIA_PULSE_AGGR_2_AUX_AXIM_ACCESS_CNTL_TBU_TBU_PMU_IRPT>;
+	};
+
+	aoss_tbu_pmcg: aoss_tbu_pmcg@0x41d2000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x41d2000 0 0x1000>,
+		      <0 0x41e2000 0 0x1000>;
+		/*
+		 * tvanl@google.com in b/464767599#comment2 : Use aoss_pg_pulse_aggr_0 for all of them,
+		 * even though it will look weird.
+		 */
+		interrupts-extended = <&aoss_pg_pulse_aggr_0 AOSS_GIA_PULSE_AGGR_3_AUX_PARTITION_TBU_WRAPPER_TBU_PMU_IRPT>;
+	};
+
+	gsa_tbu_pmcg: gsa_tbu_pmcg@0x41f2000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x41f2000 0 0x1000>,
+		      <0 0x4202000 0 0x1000>;
+		interrupts-extended = <&gsa_pulse_aggr_2 GSA_GIA_PULSE_AGGR_2_AUX_TBU_WRAPPER_TBU_PMU_IRPT>;
+	};
+
+	gpca_tbu_pmcg: gpca_tbu_pmcg@0x4212000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x4212000 0 0x1000>,
+		      <0 0x4222000 0 0x1000>;
+		/*
+		 * Disable GPCA node because is not to be used on MBU.
+		 * More info: b/464767599#comment13.
+		 */
+		status = "disabled";
+	};
+
+	cpuacc_tbu_pmcg: cpuacc_tbu_pmcg@0x4232000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x4232000 0 0x1000>,
+		      <0 0x4242000 0 0x1000>;
+		interrupts-extended = <&cpuacc_pulse_aggr_0 CPUACC_GIA_PULSE_AGGR_0_AUX_GPDMA_TBU_SS_TBU_WRAPPER_TBU_PMU_IRPT>;
+	};
+
+	usbdp_tbu_pmcg: usbdp_tbu_pmcg@0x4272000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x4272000 0 0x1000>,
+		      <0 0x4282000 0 0x1000>;
+		interrupts-extended = <&hsion_pulse_aggr_2 HSION_GIA_PULSE_AGGR_2_HSIO_N_AUX_HSIO_N_USBM_ACCESS_CNTL_TBU_TBU__PMU_IRPT_0>;
+	};
+
+	disp_tcu_pmcg: disp_tcu_pmcg@f192000 {
+		compatible = "arm,mmu-700-tcu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0xf192000 0 0x1000>,
+		      <0 0xf1b2000 0 0x1000>;
+		interrupts-extended = <&fabdisp_pulse_aggr_0 FABDISP_GIA_PULSE_AGGR_0_IP_IP_AON_TCU_WRAPPER_PMU_IRPT>;
+	};
+
+	dpu1_tbu_pmcg: dpu1_tbu_pmcg@0xf1f2000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0xf1f2000 0 0x1000>,
+		      <0 0xf202000 0 0x1000>;
+		interrupts-extended = <&dpu_pulse_aggr_3 DPU_GIA_PULSE_AGGR_3_AUX_CORE_CORE_TBU_WRAPPER_0_TBU_PMU_IRPT>;
+	};
+
+	dpu2_tbu_pmcg: dpu2_tbu_pmcg@0xf1d2000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0xf1d2000 0 0x1000>,
+		      <0 0xf1e2000 0 0x1000>;
+		interrupts-extended = <&dpu_pulse_aggr_7 DPU_GIA_PULSE_AGGR_7_AUX_CORE_CORE_TBU_WRAPPER_1_TBU_PMU_IRPT>;
+	};
+
+	g2d_tbu_pmcg: g2d_tbu_pmcg@0xf212000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0xf212000 0 0x1000>,
+		      <0 0xf222000 0 0x1000>;
+		/* TODO: b/468029775 */
+		interrupts-extended = <&g2d_pulse_aggr_3 G2D_GIA_PULSE_AGGR_3_AUX_CORE_CORE_TBU_WRAPPER_TBU_PMU_IRPT>;
+	};
+
+	med_tcu_pmcg: med_tcu_pmcg@3d192000 {
+		compatible = "arm,mmu-700-tcu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x3d192000 0 0x1000>,
+		      <0 0x3d1b2000 0 0x1000>;
+		interrupts-extended = <&fabmed_pulse_aggr_0 FABMED_GIA_PULSE_AGGR_0_IP_IP_AON_TCU_WRAPPER_PMU_IRPT>;
+	};
+
+	ispfe0_tbu_pmcg: ispfe0_tbu_pmcg@3d1d2000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x3d1d2000 0 0x1000>,
+		      <0 0x3d1e2000 0 0x1000>;
+		interrupts-extended = <&ispfe_pulse_aggr_9 ISPFE_GIA_PULSE_AGGR_9_AUX_TBU_WRAPPER_0_TBU_PMU_IRPT>;
+	};
+
+	ispfe1_tbu_pmcg: ispfe1_tbu_pmcg@3d1f2000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x3d1f2000 0 0x1000>,
+		      <0 0x3d202000 0 0x1000>;
+		interrupts-extended = <&ispfe_pulse_aggr_10 ISPFE_GIA_PULSE_AGGR_10_AUX_TBU_WRAPPER_1_TBU_PMU_IRPT>;
+	};
+
+	ispfe2_tbu_pmcg: ispfe2_tbu_pmcg@3d212000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x3d212000 0 0x1000>,
+		      <0 0x3d222000 0 0x1000>;
+		interrupts-extended = <&ispfe_pulse_aggr_11 ISPFE_GIA_PULSE_AGGR_11_AUX_TBU_WRAPPER_2_TBU_PMU_IRPT>;
+	};
+
+	ispbe0_tbu_pmcg: ispbe0_tbu_pmcg@3d232000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x3d232000 0 0x1000>,
+		      <0 0x3d242000 0 0x1000>;
+		interrupts-extended = <&ispbe_pulse_aggr_14 ISPBE_GIA_PULSE_AGGR_14_AUX_PD_AUX_QCHWRAP_RGCG_INTF_DATA_PORT_0_TBU_WRAPPER_TBU_PMU_IRPT>;
+	};
+
+	ispbe1_tbu_pmcg: ispbe1_tbu_pmcg@3d252000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x3d252000 0 0x1000>,
+		      <0 0x3d262000 0 0x1000>;
+		interrupts-extended = <&ispbe_pulse_aggr_15 ISPBE_GIA_PULSE_AGGR_15_AUX_PD_AUX_QCHWRAP_RGCG_INTF_DATA_PORT_1_TBU_WRAPPER_TBU_PMU_IRPT>;
+	};
+
+	ispbe2_tbu_pmcg: ispbe2_tbu_pmcg@3d272000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x3d272000 0 0x1000>,
+		      <0 0x3d282000 0 0x1000>;
+		interrupts-extended = <&ispbe_pulse_aggr_16 ISPBE_GIA_PULSE_AGGR_16_AUX_PD_AUX_QCHWRAP_RGCG_INTF_DATA_PORT_2_TBU_WRAPPER_TBU_PMU_IRPT>;
+	};
+
+
+	gcv0_tbu_pmcg: gcv0_tbu_pmcg@3d292000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x3d292000 0 0x1000>,
+		      <0 0x3d2a2000 0 0x1000>;
+		interrupts-extended = <&gcv_pulse_aggr_9 GCV_GIA_PULSE_AGGR_9_AUX_PD_AUX_QCHWRAP_RGCG_INTF_TBU0_TBU_WRAPPER_TBU_PMU_IRPT>;
+	};
+
+	gcv1_tbu_pmcg: gcv1_tbu_pmcg@3d2b2000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x3d2b2000 0 0x1000>,
+		      <0 0x3d2c2000 0 0x1000>;
+		interrupts-extended = <&gcv_pulse_aggr_10 GCV_GIA_PULSE_AGGR_10_AUX_PD_AUX_QCHWRAP_RGCG_INTF_TBU1_TBU_WRAPPER_TBU_PMU_IRPT>;
+	};
+
+	c3p0_tbu_pmcg: c3p0_tbu_pmcg@3d2d2000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x3d2d2000 0 0x1000>,
+		      <0 0x3d2e2000 0 0x1000>;
+		interrupts-extended = <&codec_3p_pulse_aggr_3 CODEC_3P_GIA_PULSE_AGGR_3_AUX_AXIM_BLK0_TBU_WRAPPER0_TBU_PMU_IRPT>;
+	};
+
+	c3p1_tbu_pmcg: c3p1_tbu_pmcg@3d2f2000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x3d2f2000 0 0x1000>,
+		      <0 0x3d302000 0 0x1000>;
+		interrupts-extended = <&codec_3p_pulse_aggr_7 CODEC_3P_GIA_PULSE_AGGR_7_AUX_AXIM_BLK1_TBU_WRAPPER1_TBU_PMU_IRPT>;
+	};
+
+	gpu_tcu_pmcg: gpu_tcu_pmcg@34c02000 {
+		compatible = "arm,mmu-700-tcu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x34c02000 0 0x1000>,
+		      <0 0x34c22000 0 0x1000>;
+		interrupts-extended = <&gpu_pulse_aggr_1 GPU_GIA_PULSE_AGGR_1_AUX_DS_INST_SMMU_TCU_PMU_IRPT>;
+		power-domains = <&sswrp_gpu_pd>;
+	};
+
+	gpu_tbu0_pmcg: gpu_tbu0_pmcg@34c42000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x34c42000 0 0x1000>,
+		      <0 0x34c52000 0 0x1000>;
+		interrupts-extended = <&gpu_pulse_aggr_1 GPU_GIA_PULSE_AGGR_1_AUX_DS_INST_SMMU_TBU0_PMU_IRPT>;
+		power-domains = <&sswrp_gpu_pd>;
+	};
+
+	gpu_tbu1_pmcg: gpu_tbu1_pmcg@34c62000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x34c62000 0 0x1000>,
+		      <0 0x34c72000 0 0x1000>;
+		interrupts-extended = <&gpu_pulse_aggr_1 GPU_GIA_PULSE_AGGR_1_AUX_DS_INST_SMMU_TBU1_PMU_IRPT>;
+		power-domains = <&sswrp_gpu_pd>;
+	};
+
+	gpu_tbu2_pmcg: gpu_tbu2_pmcg@34c82000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x34c82000 0 0x1000>,
+		      <0 0x34c92000 0 0x1000>;
+		interrupts-extended = <&gpu_pulse_aggr_1 GPU_GIA_PULSE_AGGR_1_AUX_DS_INST_SMMU_TBU2_PMU_IRPT>;
+		power-domains = <&sswrp_gpu_pd>;
+	};
+
+	aurora_tcu_pmcg: aurora_tcu_pmcg@385c0000 {
+		compatible = "arm,mmu-700-tcu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x385c0000 0 0x1000>,
+		      <0 0x385e0000 0 0x1000>;
+		interrupts-extended = <&aurora_pulse_aggr_0 AURORA_GIA_PULSE_AGGR_0_AUX_SMMU_TCU_PMU_IRPT>;
+		power-domains = <&sswrp_aurdsp_pd>;
+	};
+
+	aurora_tbu0_pmcg: aurora_tbu0_pmcg@38600000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x38600000 0 0x1000>,
+		      <0 0x38610000 0 0x1000>;
+		interrupts-extended = <&aurora_pulse_aggr_0 AURORA_GIA_PULSE_AGGR_0_AUX_SMMU_TBU0_PMU_IRPT>;
+		power-domains = <&sswrp_aurdsp_pd>;
+	};
+
+	aurora_tbu1_pmcg: aurora_tbu1_pmcg@38620000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x38620000 0 0x1000>,
+		      <0 0x38630000 0 0x1000>;
+		interrupts-extended = <&aurora_pulse_aggr_0 AURORA_GIA_PULSE_AGGR_0_AUX_SMMU_TBU1_PMU_IRPT>;
+		power-domains = <&sswrp_aurdsp_pd>;
+	};
+
+	aurora_tbu2_pmcg: aurora_tbu2_pmcg@38640000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x38640000 0 0x1000>,
+		      <0 0x38650000 0 0x1000>;
+		interrupts-extended = <&aurora_pulse_aggr_0 AURORA_GIA_PULSE_AGGR_0_AUX_SMMU_TBU2_PMU_IRPT>;
+		power-domains = <&sswrp_aurdsp_pd>;
+	};
+
+	tpu_tcu_pmcg: tpu_tcu_pmcg@36102000  {
+		compatible = "arm,mmu-700-tcu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x36102000 0 0x1000>,
+		      <0 0x36122000 0 0x1000>;
+		interrupts-extended = <&tpu_pulse_aggr_0 TPU_GIA_PULSE_AGGR_0_AUX_LOGIC_SMMU_WRAPPER_TCU_PMU_IRPT>;
+		power-domains = <&sswrp_tpu_pd>;
+	};
+
+	tpu_tbu0_pmcg: tpu_tbu0_pmcg@36142000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x36142000 0 0x1000>,
+		      <0 0x36152000 0 0x1000>;
+		interrupts-extended = <&tpu_pulse_aggr_0 TPU_GIA_PULSE_AGGR_0_AUX_LOGIC_SMMU_WRAPPER_TBU0_PMU_IRPT>;
+		power-domains = <&sswrp_tpu_pd>;
+	};
+
+	tpu_tbu1_pmcg: tpu_tbu1_pmcg@36162000 {
+		compatible = "arm,mmu-700-tbu-pmcg", "arm,smmu-v3-pmcg";
+		reg = <0 0x36162000 0 0x1000>,
+		      <0 0x36172000 0 0x1000>;
+		interrupts-extended = <&tpu_pulse_aggr_0 TPU_GIA_PULSE_AGGR_0_AUX_LOGIC_SMMU_WRAPPER_TBU1_PMU_IRPT>;
+		power-domains = <&sswrp_tpu_pd>;
+	};
+};

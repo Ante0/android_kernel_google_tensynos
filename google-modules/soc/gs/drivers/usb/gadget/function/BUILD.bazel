@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# USB peripheral controller drivers
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "usb_f_dm",
+    srcs = [
+        "f_dm.c",
+        "usb_gadget_defines.h",
+    ],
+    out = "usb_f_dm.ko",
+    copts = [
+        "-include",
+        "$(location usb_gadget_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "usb_f_dm1",
+    srcs = [
+        "f_dm1.c",
+        "usb_gadget_defines.h",
+    ],
+    out = "usb_f_dm1.ko",
+    copts = [
+        "-include",
+        "$(location usb_gadget_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "usb_f_etr_miu",
+    srcs = [
+        "f_etr_miu.c",
+        "usb_gadget_defines.h",
+    ],
+    out = "usb_f_etr_miu.ko",
+    copts = [
+        "-include",
+        "$(location usb_gadget_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/debug:exynos-coresight-etm",
+    ],
+)

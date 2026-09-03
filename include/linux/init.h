@@ -2,7 +2,9 @@
 #ifndef _LINUX_INIT_H
 #define _LINUX_INIT_H
 
+#include <linux/build_bug.h>
 #include <linux/compiler.h>
+#include <linux/stringify.h>
 #include <linux/types.h>
 
 /* Built-in __init functions needn't be compiled with retpoline */
@@ -47,19 +49,11 @@
 
 /* These are for everybody (although not all archs will actually
    discard it in modules) */
-#if defined(MODULE) && defined(CONFIG_INTEGRATE_MODULES)
-#define __init		__cold
-#define __initdata
-#define __initconst
-#define __exitdata	__always_unused
-#define __exit_call	__always_unused
-#else /* !MODULE || !CONFIG_INTEGRATE_MODULES */
 #define __init		__section(".init.text") __cold  __latent_entropy __noinitretpoline
 #define __initdata	__section(".init.data")
 #define __initconst	__section(".init.rodata")
 #define __exitdata	__section(".exit.data")
 #define __exit_call	__used __section(".exitcall.exit")
-#endif /* MODULE && CONFIG_INTEGRATE_MODULES */
 
 /*
  * modpost check for section mismatches during the kernel build.
@@ -90,11 +84,15 @@
 
 #define __exit          __section(".exit.text") __exitused __cold notrace
 
-/* Used for MEMORY_HOTPLUG */
-#define __meminit        __section(".meminit.text") __cold notrace \
-						  __latent_entropy
-#define __meminitdata    __section(".meminit.data")
-#define __meminitconst   __section(".meminit.rodata")
+#ifdef CONFIG_MEMORY_HOTPLUG
+#define __meminit
+#define __meminitdata
+#define __meminitconst
+#else
+#define __meminit	__init
+#define __meminitdata	__initdata
+#define __meminitconst	__initconst
+#endif
 
 /* For assembly routines */
 #define __HEAD		.section	".head.text","ax"
@@ -104,10 +102,6 @@
 #define __INITDATA	.section	".init.data","aw",%progbits
 #define __INITRODATA	.section	".init.rodata","a",%progbits
 #define __FINITDATA	.previous
-
-#define __MEMINIT        .section	".meminit.text", "ax"
-#define __MEMINITDATA    .section	".meminit.data", "aw"
-#define __MEMINITRODATA  .section	".meminit.rodata", "a"
 
 /* silence warnings when references are OK */
 #define __REF            .section       ".ref.text", "ax"
@@ -148,28 +142,49 @@ struct file_system_type;
 extern int do_one_initcall(initcall_t fn);
 extern char __initdata boot_command_line[];
 extern char *saved_command_line;
+extern unsigned int saved_command_line_len;
 extern unsigned int reset_devices;
 
 /* used by init/main.c */
 void setup_arch(char **);
 void prepare_namespace(void);
 void __init init_rootfs(void);
+
+void init_IRQ(void);
+void time_init(void);
+void poking_init(void);
+void pgtable_cache_init(void);
+
+extern initcall_entry_t __initcall_start[];
+extern initcall_entry_t __initcall0_start[];
+extern initcall_entry_t __initcall1_start[];
+extern initcall_entry_t __initcall2_start[];
+extern initcall_entry_t __initcall3_start[];
+extern initcall_entry_t __initcall4_start[];
+extern initcall_entry_t __initcall5_start[];
+extern initcall_entry_t __initcall6_start[];
+extern initcall_entry_t __initcall7_start[];
+extern initcall_entry_t __initcall_end[];
+
 extern struct file_system_type rootfs_fs_type;
 
-#if defined(CONFIG_STRICT_KERNEL_RWX) || defined(CONFIG_STRICT_MODULE_RWX)
 extern bool rodata_enabled;
-#endif
-#ifdef CONFIG_STRICT_KERNEL_RWX
 void mark_rodata_ro(void);
-#endif
 
 extern void (*late_time_init)(void);
 
 extern bool initcall_debug;
 
+#ifdef MODULE
+extern struct module __this_module;
+#define THIS_MODULE (&__this_module)
+#else
+#define THIS_MODULE ((struct module *)0)
+#endif
+
 #endif
   
-#if !defined(MODULE) || defined(CONFIG_INTEGRATE_MODULES)
+#ifndef MODULE
 
 #ifndef __ASSEMBLY__
 
@@ -251,7 +266,7 @@ extern bool initcall_debug;
 	static_assert(__same_type(initcall_t, &fn));
 #else
 #define ____define_initcall(fn, __unused, __name, __sec)	\
-	static const initcall_t __name __used __noreorder	\
+	static initcall_t __name __used 			\
 		__attribute__((__section__(__sec))) = fn;
 #endif
 
@@ -266,7 +281,6 @@ extern bool initcall_debug;
 
 #define __define_initcall(fn, id) ___define_initcall(fn, id, .initcall##id)
 
-#ifndef MODULE
 /*
  * Early initcalls run before initializing SMP.
  *
@@ -300,12 +314,10 @@ extern bool initcall_debug;
 #define late_initcall_sync(fn)		__define_initcall(fn, 7s)
 
 #define __initcall(fn) device_initcall(fn)
-#endif /* !MODULE */
 
 #define __exitcall(fn)						\
 	static exitcall_t __exitcall_##fn __exit_call = fn
 
-#ifndef MODULE
 #define console_initcall(fn)	___define_initcall(fn, con, .con_initcall)
 
 struct obs_kernel_param {
@@ -313,6 +325,8 @@ struct obs_kernel_param {
 	int (*setup_func)(char *);
 	int early;
 };
+
+extern const struct obs_kernel_param __setup_start[], __setup_end[];
 
 /*
  * Only for really core code.  See moduleparam.h for the normal way.
@@ -366,12 +380,10 @@ struct obs_kernel_param {
 /* Relies on boot_command_line being set */
 void __init parse_early_param(void);
 void __init parse_early_options(char *cmdline);
-#endif /* !MODULE */
 #endif /* __ASSEMBLY__ */
 
-#endif /* !MODULE || CONFIG_INTEGRATE_MODULES */
+#else /* MODULE */
 
-#ifdef MODULE
 #define __setup_param(str, unique_id, fn)	/* nothing */
 #define __setup(str, func) 			/* nothing */
 #endif

@@ -29,16 +29,6 @@ struct exynos_cpu_power_ops {
 };
 extern struct exynos_cpu_power_ops exynos_cpu;
 
-#if defined(CONFIG_SOC_EXYNOS9820)
-#define phy_cluster(cpu)	MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 1)
-#define phy_cpu(cpu)		MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 0)
-#elif defined(CONFIG_SOC_GS101) || defined(CONFIG_SOC_GS201) || defined(CONFIG_SOC_ZUMA)
-#define phy_cluster(cpu)	MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 2)
-#define phy_cpu(cpu)		MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 1)
-#else
-#error "Unknown CONFIG_SOC"
-#endif
-
 /**
  * The APIs to control the PMU
  */

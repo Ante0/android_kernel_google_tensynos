@@ -1224,7 +1224,7 @@ int goodix_fw_update_init(struct goodix_ts_core *core_data)
 	}
 /*~[GOOG] */
 
-	strlcpy(core_data->update_ctrl.fw_name, core_data->board_data.fw_name,
+	strscpy(core_data->update_ctrl.fw_name, core_data->board_data.fw_name,
 		sizeof(core_data->update_ctrl.fw_name));
 
 	ret = goodix_fw_sysfs_init(core_data, &core_data->update_ctrl);

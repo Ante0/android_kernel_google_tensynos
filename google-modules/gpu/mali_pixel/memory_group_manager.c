@@ -8,7 +8,7 @@
  */
 
 #include <linux/atomic.h>
-#ifdef CONFIG_MALI_MEMORY_GROUP_MANAGER_DEBUG_FS
+#if IS_ENABLED(CONFIG_MALI_MEMORY_GROUP_MANAGER_DEBUG_FS)
 #include <linux/debugfs.h>
 #endif
 #include <linux/fs.h>
@@ -91,7 +91,7 @@ static inline vm_fault_t vmf_insert_pfn_prot(struct vm_area_struct *vma,
 struct mgm_group {
 	atomic_t size;
 	atomic_t lp_size;
-#ifdef CONFIG_MALI_MEMORY_GROUP_MANAGER_DEBUG_FS
+#if IS_ENABLED(CONFIG_MALI_MEMORY_GROUP_MANAGER_DEBUG_FS)
 	atomic_t insert_pfn;
 	atomic_t update_gpu_pte;
 #endif
@@ -115,7 +115,7 @@ struct mgm_groups {
 	struct mgm_group groups[MEMORY_GROUP_MANAGER_NR_GROUPS];
 	struct device *dev;
 	struct kobject kobj;
-#ifdef CONFIG_MALI_MEMORY_GROUP_MANAGER_DEBUG_FS
+#if IS_ENABLED(CONFIG_MALI_MEMORY_GROUP_MANAGER_DEBUG_FS)
 	struct dentry *mgm_debugfs_root;
 #endif
 	struct slc_data slc_data;
@@ -125,7 +125,7 @@ struct mgm_groups {
  * DebugFS
  */
 
-#ifdef CONFIG_MALI_MEMORY_GROUP_MANAGER_DEBUG_FS
+#if IS_ENABLED(CONFIG_MALI_MEMORY_GROUP_MANAGER_DEBUG_FS)
 
 static int mgm_debugfs_size_get(void *data, u64 *val)
 {
@@ -251,7 +251,7 @@ static int mgm_debugfs_init(struct mgm_groups *mgm_data)
 /*
  * Pixel Stats sysfs
  */
-#ifdef CONFIG_MALI_PIXEL_STATS
+#if IS_ENABLED(CONFIG_MALI_PIXEL_STATS)
 
 extern struct kobject *pixel_stat_gpu_kobj;
 
@@ -525,7 +525,7 @@ static u64 mgm_update_gpu_pte(
 	dev_dbg(data->dev, "%s: group_id=%u pte=0x%llx -> 0x%llx\n",
 		__func__, group_id, old_pte, pte);
 
-#ifdef CONFIG_MALI_MEMORY_GROUP_MANAGER_DEBUG_FS
+#if IS_ENABLED(CONFIG_MALI_MEMORY_GROUP_MANAGER_DEBUG_FS)
 	atomic_inc(&data->groups[group_id].update_gpu_pte);
 #endif
 
@@ -562,7 +562,7 @@ static vm_fault_t mgm_vmf_insert_pfn_prot(
 
 	if (fault != VM_FAULT_NOPAGE)
 		dev_err(data->dev, "vmf_insert_pfn_prot failed\n");
-#ifdef CONFIG_MALI_MEMORY_GROUP_MANAGER_DEBUG_FS
+#if IS_ENABLED(CONFIG_MALI_MEMORY_GROUP_MANAGER_DEBUG_FS)
 	else
 		atomic_inc(&data->groups[group_id].insert_pfn);
 #endif
@@ -604,7 +604,7 @@ static int mgm_initialize_data(struct mgm_groups *mgm_data)
 	for (i = 0; i < MEMORY_GROUP_MANAGER_NR_GROUPS; i++) {
 		atomic_set(&mgm_data->groups[i].size, 0);
 		atomic_set(&mgm_data->groups[i].lp_size, 0);
-#ifdef CONFIG_MALI_MEMORY_GROUP_MANAGER_DEBUG_FS
+#if IS_ENABLED(CONFIG_MALI_MEMORY_GROUP_MANAGER_DEBUG_FS)
 		atomic_set(&mgm_data->groups[i].insert_pfn, 0);
 		atomic_set(&mgm_data->groups[i].update_gpu_pte, 0);
 #endif
@@ -690,7 +690,7 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int memory_group_manager_remove(struct platform_device *pdev)
+static void memory_group_manager_remove(struct platform_device *pdev)
 {
 	struct memory_group_manager_device *mgm_dev =
 		platform_get_drvdata(pdev);
@@ -702,8 +702,6 @@ static int memory_group_manager_remove(struct platform_device *pdev)
 	kfree(mgm_dev);
 
 	dev_info(&pdev->dev, "Memory group manager removed successfully\n");
-
-	return 0;
 }
 
 static const struct of_device_id memory_group_manager_dt_ids[] = {

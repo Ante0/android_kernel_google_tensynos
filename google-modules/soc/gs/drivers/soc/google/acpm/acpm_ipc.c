@@ -28,7 +28,7 @@
 
 #include "acpm.h"
 #include "acpm_ipc.h"
-#include "../cal-if/fvmap.h"
+#include "fvmap.h"
 #include "fw_header/framework.h"
 
 #define IPC_TIMEOUT				(100000000)
@@ -169,6 +169,13 @@ static int plugins_init(struct device_node *node)
 	return ret;
 }
 
+static bool is_rt_dl_task_policy(void)
+{
+	return (current->policy == SCHED_FIFO ||
+		current->policy == SCHED_RR ||
+		current->policy == SCHED_DEADLINE);
+}
+
 int acpm_ipc_get_buffer(const char *name, char **addr, u32 *size)
 {
 	if (!acpm_srambase)
@@ -184,9 +191,6 @@ void acpm_ipc_set_waiting_mode(bool mode)
 
 void acpm_fw_set_log_level(unsigned int level)
 {
-	if (!IS_ENABLED(CONFIG_ACPM_ENABLE_LOGGING))
-		return;
-
 	acpm_debug->debug_log_level = level;
 
 	if (!level)
@@ -291,9 +295,6 @@ static void acpm_log_print_buff(struct acpm_log_buff *buffer)
 
 static void acpm_log_print(void)
 {
-	if (!IS_ENABLED(CONFIG_ACPM_ENABLE_LOGGING))
-		return;
-
 	mutex_lock(&print_log_mutex);
 	if (acpm_debug->debug_log_level >= 2)
 		acpm_log_print_buff(&acpm_debug->normal);
@@ -629,7 +630,7 @@ static void cpu_irq_info_dump(u32 retry)
 	for_each_irq_nr(i) {
 		struct irq_data *data;
 		struct irq_desc *desc;
-		unsigned int irq_stat = 0, delta;
+		unsigned int irq_cnt = 0, delta;
 		const char *name;
 
 		data = irq_get_irq_data(i);
@@ -641,9 +642,9 @@ static void cpu_irq_info_dump(u32 retry)
 			continue;
 
 		for_each_possible_cpu(cpu)
-			irq_stat += *per_cpu_ptr(desc->kstat_irqs, cpu);
+			irq_cnt += per_cpu(desc->kstat_irqs->cnt, cpu);
 
-		if (!irq_stat)
+		if (!irq_cnt)
 			continue;
 
 		if (desc->action && desc->action->name)
@@ -654,10 +655,10 @@ static void cpu_irq_info_dump(u32 retry)
 		if (irq_info && retry == 1) {
 			irq_info[i].irq_num = i;
 			irq_info[i].hwirq_num = desc->irq_data.hwirq;
-			irq_info[i].irq_stat = irq_stat;
+			irq_info[i].irq_stat = irq_cnt;
 			irq_info[i].name = name;
 		} else if (irq_info && retry == 5) {
-			delta = irq_stat - irq_info[i].irq_stat;
+			delta = irq_cnt - irq_info[i].irq_stat;
 			if (delta > 0) {
 				pr_info("irq-%-4d(hwirq-%-3d) delta of irqs: %8u %s\n",
 					i, (int)desc->irq_data.hwirq, delta, name);
@@ -675,7 +676,7 @@ static void acpm_ktop_release(void)
 	}
 }
 
-static int __acpm_ipc_send_data(unsigned int channel_id, struct ipc_config *cfg)
+static int __acpm_ipc_send_data(unsigned int channel_id, struct ipc_config *cfg, bool w_mode)
 {
 	volatile unsigned int tx_front, tx_rear, rx_front;
 	unsigned int tmp_index;
@@ -825,7 +826,7 @@ retry:
 				}
 				cnt_10us = 0;
 			} else {
-				if (preemptible()) {
+				if (w_mode) {
 					/*assume at least 50us delay here*/
 					usleep_range(50, 100);
 					cnt_10us += 5;
@@ -859,7 +860,7 @@ int acpm_ipc_send_data(unsigned int channel_id, struct ipc_config *cfg)
 {
 	int ret;
 	ATRACE_BEGIN(__func__);
-	ret = __acpm_ipc_send_data(channel_id, cfg);
+	ret = __acpm_ipc_send_data(channel_id, cfg, false);
 	ATRACE_END();
 	return ret;
 }
@@ -869,7 +870,10 @@ int acpm_ipc_send_data_lazy(unsigned int channel_id, struct ipc_config *cfg)
 {
 	int ret;
 	ATRACE_BEGIN(__func__);
-	ret = __acpm_ipc_send_data(channel_id, cfg);
+	if (is_rt_dl_task_policy())
+		ret = __acpm_ipc_send_data(channel_id, cfg, true);
+	else
+		ret = __acpm_ipc_send_data(channel_id, cfg, false);
 	ATRACE_END();
 	return ret;
 }
@@ -1132,9 +1136,8 @@ int acpm_ipc_probe(struct platform_device *pdev)
 	return ret;
 }
 
-int acpm_ipc_remove(struct platform_device *pdev)
+void acpm_ipc_remove(struct platform_device *pdev)
 {
-	return 0;
 }
 
 bool acpm_ipc_get_rx_buffer_properties(unsigned int channel_id, void __iomem **base,

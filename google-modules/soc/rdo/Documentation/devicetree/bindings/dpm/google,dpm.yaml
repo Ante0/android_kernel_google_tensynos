@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2023 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/dpm/google,dpm.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Debug Policy Module (DPM) config sources
+
+maintainers:
+  - Szymon Katra <skatra@google.com>
+
+description:
+  The dpm node defines the configuration for the device's debug state and
+  runtime behavior. By default, this node contains only static metadata, such
+  as version and variant information. Extended debugging properties are
+  dynamically injected via Device Tree Overlays (DTO) provided by the
+  bootloader.
+
+properties:
+  version:
+    description: Debug Policy version, used for informational purposes.
+
+  variant:
+    description: Used to determine Android build type user/eng/userdebug
+    - enum:
+      - user
+      - eng
+      - userdebug
+
+required:
+  - version
+  - variant
+
+additionalProperties: false
+
+examples:
+  - |
+  dpm {
+    version = <201>;
+    variant = "user";
+  };
+...

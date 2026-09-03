@@ -6,6 +6,7 @@
  *
  */
 
+#include <linux/cleanup.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -33,6 +34,7 @@
 #include <uapi/linux/in.h>
 #include <linux/inet.h>
 #include <net/ipv6.h>
+#include <misc/logbuffer.h>
 #include <soc/google/exynos-modem-ctrl.h>
 #include <soc/google/modem_notifier.h>
 
@@ -81,7 +83,6 @@ static struct modem_shared *create_modem_shared_data(
 	msd->storage.addr = devm_kcalloc(dev, MAX_MIF_BUFF_SIZE +
 		(MAX_MIF_SEPA_SIZE * 2), sizeof(*msd->storage.addr), GFP_KERNEL);
 	if (!msd->storage.addr) {
-		mif_err("IPC logger buff alloc failed!!\n");
 		devm_kfree(dev, msd);
 		return NULL;
 	}
@@ -106,11 +107,8 @@ static struct modem_ctl *create_modemctl_device(struct platform_device *pdev,
 
 	/* create modem control device */
 	modemctl = devm_kzalloc(dev, sizeof(struct modem_ctl), GFP_KERNEL);
-	if (!modemctl) {
-		mif_err("%s: modemctl devm_kzalloc fail\n", pdata->name);
-		mif_err("%s: xxx\n", pdata->name);
+	if (!modemctl)
 		return NULL;
-	}
 
 	modemctl->dev = dev;
 	modemctl->name = pdata->name;
@@ -150,10 +148,8 @@ static struct io_device *create_io_device(struct platform_device *pdev,
 	struct io_device *iod;
 
 	iod = devm_kzalloc(dev, sizeof(struct io_device), GFP_KERNEL);
-	if (!iod) {
-		mif_err("iod == NULL\n");
+	if (!iod)
 		return NULL;
-	}
 
 	INIT_LIST_HEAD(&iod->list);
 	RB_CLEAR_NODE(&iod->node_fmt);
@@ -337,10 +333,8 @@ static int parse_dt_mbox_pdata(struct device *dev, struct device_node *np,
 	}
 
 	mbox = (struct modem_mbox *)devm_kzalloc(dev, sizeof(struct modem_mbox), GFP_KERNEL);
-	if (!mbox) {
-		mif_err("mbox: failed to alloc memory\n");
+	if (!mbox)
 		return -ENOMEM;
-	}
 	pdata->mbx = mbox;
 
 	mif_dt_read_u32(np, "mif,int_ap2cp_msg", mbox->int_ap2cp_msg);
@@ -491,9 +485,7 @@ static int parse_dt_ipc_region_pdata(struct device *dev, struct device_node *np,
 static int parse_dt_iodevs_pdata(struct device *dev, struct device_node *np,
 				 struct modem_data *pdata)
 {
-	struct device_node *child = NULL;
-
-	for_each_child_of_node(np, child) {
+	for_each_child_of_node_scoped(np, child) {
 		struct modem_io_t *p_iod = NULL;
 		struct modem_io_t *iod;
 		unsigned int ch_count = 0;
@@ -501,10 +493,8 @@ static int parse_dt_iodevs_pdata(struct device *dev, struct device_node *np,
 
 		do {
 			iod = devm_kzalloc(dev, sizeof(struct modem_io_t), GFP_KERNEL);
-			if (!iod) {
-				mif_err("failed to alloc iodev\n");
+			if (!iod)
 				return -ENOMEM;
-			}
 
 			if (!p_iod) {
 				mif_dt_read_string(child, "iod,name", name);
@@ -559,13 +549,11 @@ static int parse_dt_iodevs_pdata(struct device *dev, struct device_node *np,
 static struct modem_data *modem_if_parse_dt_pdata(struct device *dev)
 {
 	struct modem_data *pdata;
-	struct device_node *iodevs_node = NULL;
+	struct device_node *iodevs_node __free(device_node) = NULL;
 
 	pdata = devm_kzalloc(dev, sizeof(struct modem_data), GFP_KERNEL);
-	if (!pdata) {
-		mif_err("modem_data: alloc fail\n");
+	if (!pdata)
 		return ERR_PTR(-ENOMEM);
-	}
 
 	if (parse_dt_common_pdata(dev->of_node, pdata)) {
 		mif_err("DT error: failed to parse common\n");
@@ -725,7 +713,7 @@ static int cpif_cdev_alloc_region(struct modem_data *pdata, struct modem_shared 
 		return ret;
 	}
 
-	msd->cdev_class = class_create(THIS_MODULE, "cpif");
+	msd->cdev_class = class_create("cpif");
 	if (IS_ERR(msd->cdev_class)) {
 		mif_err("class_create() failed:%ld\n", PTR_ERR(msd->cdev_class));
 		ret = -ENOMEM;
@@ -804,6 +792,7 @@ static int cpif_probe(struct platform_device *pdev)
 		np = of_parse_phandle(dev->of_node, "google,clk-buffer", 0);
 		if (np) {
 			dp = s5910_get_device(np);
+			of_node_put(np);
 			if (dp) {
 				modemctl->s5910_dev = dp;
 				link = device_link_add(dev, dp, 0);
@@ -843,10 +832,8 @@ static int cpif_probe(struct platform_device *pdev)
 
 	/* create io deivces and connect to modemctl device */
 	iod = kcalloc(pdata->num_iodevs, sizeof(*iod), GFP_KERNEL);
-	if (!iod) {
-		mif_err("kcalloc() err\n");
+	if (!iod)
 		goto free_chrdev;
-	}
 
 	for (i = 0; i < pdata->num_iodevs; i++) {
 		if (sim_mode < MIF_SIM_DUAL &&

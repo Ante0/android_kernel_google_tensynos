@@ -1,0 +1,123 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "dwc_dptx.kconfig",
+    srcs = [
+        "//private/google-modules/display/interfaces/synopsys/dwc_dptx:Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "ddk_headers",
+    hdrs = glob([
+        "api/**/*.h",
+        "include/**/*.h",
+    ]),
+    includes = [
+        "api",
+        "include",
+    ],
+    visibility = [
+        ":__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "dwc_dptx",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "api/api.c",
+        "audio_bridge.c",
+        "aux.c",
+        "avgen.c",
+        "clock_mng.c",
+        "core.c",
+        "dbg.c",
+        "debugfs.c",
+        "debugfs/audio_bridge.c",
+        "debugfs/clock_mng.c",
+        "debugfs/video_bridge.c",
+        "dptx.c",
+        "dptx_utils.c",
+        "edp.c",
+        "intr.c",
+        "link.c",
+        "mst.c",
+        "regmaps/audio_bridge.c",
+        "regmaps/clock_mng.c",
+        "regmaps/ctrl_fields.c",
+        "regmaps/regfields.c",
+        "regmaps/rst_mng.c",
+        "regmaps/video_bridge.c",
+        "rst_mng.c",
+        "video_bridge.c",
+    ],
+    out = "dwc_dptx.ko",
+    conditional_srcs = {
+        "CONFIG_DWC_DPTX_HDCP": {
+            True: [
+                "hdcp_auth13.c",
+                "hdcp_auth22.c",
+                "hdcp_auth_state.c",
+                "hdcp_control.c",
+                "hdcp_teeif.c",
+            ],
+        },
+        "CONFIG_DWC_DPTX_AUDIO": {
+            True: [
+                "dptx_audio/dptx_audio.c",
+            ],
+        },
+    },
+    copts = [
+        "-Wno-unused",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":ddk_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/phy:google-usb-phy",
+        "//private/google-modules/trusty:trusty-ipc",
+        "//private/google-modules/trusty:trusty_headers",
+    ] + select({
+        "//private/devices/google/common:soc_is_malibu": [
+            "//private/google-modules/soc/rdo/aoss-ssr-notifier:aoss_ssr_notifier",
+        ],
+        "//private/devices/google/common:soc_is_laguna": [
+            "//private/google-modules/soc/rdo/aoss-ssr-notifier:aoss_ssr_notifier",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+ddk_module(
+    name = "dwc_dptx_pci",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "dptx_pci.c",
+        "dw-devices.c",
+    ],
+    out = "dwc_dptx_pci.ko",
+    copts = [
+        "-Wno-unused",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":ddk_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)

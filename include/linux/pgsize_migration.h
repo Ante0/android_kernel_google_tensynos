@@ -13,9 +13,17 @@
  * page size in Android.
  */
 
+#include <linux/elf.h>
+#include <linux/fs.h>
 #include <linux/pgsize_migration_inline.h>
+#include <linux/printk.h>
 #include <linux/seq_file.h>
 #include <linux/mm.h>
+#include <linux/sched.h>
+
+#define pgmigration_err(fmt, ...) \
+	pr_err("page size migration: [%i (%s)] %s:%d: " fmt, \
+		task_pid_nr(current), current->comm, __func__, __LINE__, ## __VA_ARGS__)
 
 #if PAGE_SIZE == SZ_4K && defined(CONFIG_64BIT)
 extern void vma_set_pad_pages(struct vm_area_struct *vma,
@@ -73,4 +81,23 @@ static inline unsigned long vma_data_pages(struct vm_area_struct *vma)
 	return vma_pages(vma);
 }
 #endif /* PAGE_SIZE == SZ_4K && defined(CONFIG_64BIT) */
+
+static inline bool is_elf_file(struct file *file)
+{
+	char buf[SELFMAG];
+	loff_t pos = 0;
+
+	if (!file)
+		return false;
+
+	/*
+	 * Read the first SELFMAG bytes of the file to check for the
+	 * ELF magic number.
+	 */
+	if (kernel_read(file, buf, SELFMAG, &pos) != SELFMAG)
+		return false;
+
+	return !memcmp(buf, ELFMAG, SELFMAG);
+}
+
 #endif /* _LINUX_PAGE_SIZE_MIGRATION_H */

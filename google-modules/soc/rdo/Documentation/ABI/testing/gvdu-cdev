@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+What:		/dev/gvdu
+Date:		August 2025
+Contact:	Kanstantsin Yarmash <kyarmash@google.com>
+Description:
+		The /dev/gvdu device is a write-only character device for
+		submitting a Volatile Debug Unlock (VDU) directive to the driver.
+
+		Writing to this device buffers the directive within the driver. The
+		directive will be processed upon release of the character device,
+		which consumes the buffered data.
+
+		The character device is protected by a single-open mechanism.
+
+		The device accepts a single binary payload in the following format:
+
+		Data:   | grant length | grant data | delegate length | delegate data |
+		Format: |   uint32_t   |   base64   |    uint32_t     |    base64     |
+
+		Where:
+		 - grant length: A 32-bit unsigned integer in little-endian
+		   format specifying the length of the 'grant data' string.
+
+		 - grant data: The Base64-encoded grant string.
+
+		 - delegate length: A 32-bit unsigned integer in little-endian
+		   format specifying the length of the 'delegate data' string.
+
+		 - delegate data: The Base64-encoded delegate string.

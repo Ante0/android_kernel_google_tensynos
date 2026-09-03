@@ -113,7 +113,7 @@ static void mali_pma_slab_remove(
 
 static int protected_memory_allocator_probe(struct platform_device *pdev);
 
-static int protected_memory_allocator_remove(struct platform_device *pdev);
+static void protected_memory_allocator_remove(struct platform_device *pdev);
 
 /**
  * mali_pma_alloc_page - Allocate protected memory pages
@@ -546,16 +546,16 @@ out:
  *
  * @pdev: The protected memory allocator platform device to remove.
  */
-static int protected_memory_allocator_remove(struct platform_device *pdev)
+static void protected_memory_allocator_remove(struct platform_device *pdev)
 {
 	struct protected_memory_allocator_device *pma_dev;
 	struct mali_pma_dev *mali_pma_dev;
 
 	/* Get the Mali protected memory allocator device record. */
 	pma_dev = platform_get_drvdata(pdev);
-	if (!pma_dev) {
-		return 0;
-	}
+	if (!pma_dev)
+		return;
+
 	mali_pma_dev = container_of(pma_dev, struct mali_pma_dev, pma_dev);
 
 	/* Warn if there are any outstanding protected memory slabs. */
@@ -571,8 +571,6 @@ static int protected_memory_allocator_remove(struct platform_device *pdev)
 
 	/* Free the Mali protected memory allocator device record. */
 	kfree(mali_pma_dev);
-
-	return 0;
 }
 
 static const struct of_device_id protected_memory_allocator_dt_ids[] = {

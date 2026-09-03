@@ -1,0 +1,177 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Spacecraft device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include "malibu-spacecraft-soc-hybrid-gia.dtsi"
+
+/ {
+	fragment@virt_dp {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <2>;
+			v9p1: virtio_block@4410000{
+				compatible = "virtio,mmio";
+				reg = <0x0 0x4410000 0 0x10000>;
+				interrupts = <GIC_SPI 958 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-parent = <&gic>;
+			};
+
+			// Virtio block for loading images
+			virtio0: virtio_block@4420000 {
+				compatible = "virtio,mmio";
+				reg = <0x0 0x4420000 0 0x10000>;
+				interrupts = <GIC_SPI 959 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-parent = <&gic>;
+			};
+		};
+	};
+
+	fragment@virt_uart {
+		target-path = "/";
+		// Virtualized uart
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <2>;
+			sysclk: clk100000000 {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <100000000>;
+				clock-output-names = "sysclk";
+			};
+			// soc-hybrid platform uses arm pl011 uart
+			uart@4400000 {
+				compatible = "arm,pl011", "arm,primecell";
+				reg = <0x0 0x4400000 0x0 0x1000>;
+				interrupts = <GIC_SPI 957 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-parent = <&gic>;
+				clock-names = "uartclk", "apb_pclk";
+				clocks = <&sysclk>, <&sysclk>;
+			};
+		};
+	};
+};
+
+&chosen {
+	bootargs = "earlycon=pl011,0x4400000 console=ttyAMA0,115200n8 norandmaps ro androidboot.force_normal_boot=1 androidboot.hardware.platform=gem5 google_8250.nr_uarts=4 loglevel=8 init=/init maxcpus=1 androidboot.boot_devices=4420000.virtio_block enforcing=0 pvrsrvkm.FabricCoherencyOverride=0 printk.devkmsg=on firmware_class.path=/vendor/firmware fw_devlink=rpm androidboot.selinux=permissive deferred_probe_timeout=100";
+	/* hardcode rng seed for presil */
+	rng-seed = "deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef /
+		    deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef /
+		    deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef";
+};
+
+&mba_aonss_sc_mba_client_0 {
+	status = "okay";
+};
+
+&mba_aonss_sc_mba_client_1 {
+	status = "okay";
+};
+
+&mba_aonss_sc_mba_client_2 {
+	status = "okay";
+};
+
+&mba_aonss_sc_mba_client_3 {
+	status = "okay";
+};
+
+&mba_aonss_adsp_mba_client_0 {
+	status = "okay";
+};
+
+&mba_aonss_adsp_mba_client_1 {
+	status = "okay";
+};
+
+&mba_aonss_adsp_mba_client_2 {
+	status = "okay";
+};
+
+&mba_aonss_adsp_mba_client_3 {
+	status = "okay";
+};
+
+&mba_ambss_cpu_mba_client_2 {
+	status = "okay";
+};
+
+&mba_ambss_cpu_mba_client_3 {
+	status = "okay";
+};
+
+&mba_ambss_cpu_mba_client_4 {
+	status = "okay";
+};
+
+&mba_ambss_cpu_mba_client_5 {
+	status = "okay";
+};
+
+&cpm_ap_ns_req_mba_client_0 {
+        status = "okay";
+};
+
+&cpm_ap_ns_resp_mba_client_1 {
+        status = "okay";
+};
+
+&goog_mba_cpm_iface {
+        status = "okay";
+};
+
+&goog_mba_cpm_iface_test {
+        status = "okay";
+};
+
+/* Disable 8250 DW driver not used on soc-hybrid */
+&lsios_uart3 {
+	status = "disabled";
+};
+
+/* Disable drivers until power driver is enabled */
+&tpu_smmu {
+	status = "disabled";
+};
+
+&aurdsp_smmu {
+	status = "disabled";
+};
+
+/* Disable gpu driver until power driver is enabled */
+&gpu_pf_state {
+	in_emulation;
+};
+
+&ufs {
+	status = "disabled";
+};
+
+/* Config setting for power-controller on emu platform. */
+&power_controller {
+	in_emulation;
+};
+
+&usb {
+	phys = <>;
+};
+
+&dwc3 {
+	phys = <>;
+	maximum-speed = "high-speed";
+};
+
+&wdt0 {
+	status = "okay";
+};
+
+&wdt1 {
+	status = "okay";
+};

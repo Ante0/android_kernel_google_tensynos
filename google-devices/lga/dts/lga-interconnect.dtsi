@@ -1,0 +1,131 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+#include <dt-bindings/interconnect/google,icc.h>
+#include <dt-bindings/interconnect/google,rdo.h>
+#include <dt-bindings/interconnect/google,lga,irm.h>
+
+/ {
+	icc_gmc: icc_gmc {
+		compatible = "google,icc-gmc";
+		#interconnect-cells = <1>;
+		google,irm = <&irm>;
+		google,irm-commom-prop = <&irm_common>;
+	};
+
+	icc_ispfe: icc_ispfe {
+		compatible = "google,icc-ispfe";
+		#interconnect-cells = <1>;
+		google,irm = <&irm>;
+		google,irm-commom-prop = <&irm_common>;
+	};
+
+	icc_ispbe: icc_ispbe {
+		compatible = "google,icc-ispbe";
+		#interconnect-cells = <1>;
+		google,irm = <&irm>;
+		google,irm-commom-prop = <&irm_common>;
+	};
+
+	icc_gsw: icc_gsw {
+		compatible = "google,icc-gsw";
+		#interconnect-cells = <1>;
+		google,irm = <&irm>;
+		google,irm-commom-prop = <&irm_common>;
+	};
+
+	irm_common: irm_common {
+		num_vc = <5>;
+	};
+
+	irm: irm@5360000 {
+		compatible = "google,irm";
+		mboxes = <&goog_mba_cpm_iface>;
+		mba-dest-channel = <MBOX_DEST_CHAN_IRM>;
+		reg = <0x0 0x05360000 0x0 0xb000>;
+		google,irm-commom-prop = <&irm_common>;
+		client-prop = <0x1000 IRM_IDX_APC GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1080 IRM_IDX_DPU GOOGLE_ICC_UPDATE_SYNC>,
+			      <0x1100 IRM_IDX_PCIE_0 GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1180 IRM_IDX_PCIE_1 GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1200 IRM_IDX_UFS GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1280 IRM_IDX_USB GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1300 IRM_IDX_ISP_SET_0 GOOGLE_ICC_UPDATE_SYNC>,
+			      <0x1380 IRM_IDX_ISP_SET_1 GOOGLE_ICC_UPDATE_SYNC>,
+			      <0x1400 IRM_IDX_EH GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1480 IRM_IDX_GPCA GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1500 IRM_IDX_GPU GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1580 IRM_IDX_CODEC_3P GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1600 IRM_IDX_G2D GOOGLE_ICC_UPDATE_ASYNC>,
+			      <0x1680 IRM_IDX_GSW GOOGLE_ICC_UPDATE_SYNC>,
+			      <0x1700 IRM_IDX_GSA GOOGLE_ICC_UPDATE_ASYNC>;
+		client-name = "apc",
+			      "dpu",
+			      "pcie_0",
+			      "pcie_1",
+			      "ufs",
+			      "usb",
+			      "isp_set_0",
+			      "isp_set_1",
+			      "eh",
+			      "gpca",
+			      "gpu",
+			      "codec_3p",
+			      "g2d",
+			      "gsw",
+			      "gsa";
+	};
+
+	apc_irm: apc-irm {
+		compatible = "google,apc-irm";
+		mboxes = <&goog_mba_cpm_iface>;
+		mba-dest-channel = <MBOX_DEST_CHAN_IRM>;
+		google,disable-sync-clients;
+	};
+
+	google_icc_helper_mock_client: google_icc_helper_mock_client {
+		compatible = "google,icc-helper-mock-client";
+		interconnects = <&icc_gmc SSWRP_APC &icc_gmc GMC>,
+				<&icc_gmc SSWRP_DPU &icc_gmc GMC>,
+				<&icc_gmc SSWRP_PCIE_0 &icc_gmc GMC>,
+				<&icc_gmc SSWRP_PCIE_1 &icc_gmc GMC>,
+				<&icc_gmc SSWRP_UFS &icc_gmc GMC>,
+				<&icc_gmc SSWRP_USB &icc_gmc GMC>,
+				<&icc_ispfe ISPFE &icc_gmc SSWRP_ISP_SET_0>,
+				<&icc_gmc SSWRP_ISP_SET_0 &icc_gmc GMC>,
+				<&icc_ispbe ISPBE_TNR_ALIGN &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_ispbe ISPBE_BE_BAYER_TNR &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_ispbe ISPBE_BE_YUV &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_gmc SSWRP_ISP_SET_1 &icc_gmc GMC>,
+				<&icc_gmc SSWRP_EH &icc_gmc GMC>,
+				<&icc_gmc SSWRP_GPCA &icc_gmc GMC>,
+				<&icc_gmc SSWRP_GPU &icc_gmc GMC>,
+				<&icc_gmc SSWRP_CODEC_3P &icc_gmc GMC>,
+				<&icc_gmc SSWRP_G2D &icc_gmc GMC>,
+				<&icc_gsw GSW_GSE &icc_gmc SSWRP_GSW>,
+				<&icc_gsw GSW_GWE &icc_gmc SSWRP_GSW>,
+				<&icc_gmc SSWRP_GSW &icc_gmc GMC>,
+				<&icc_gmc SSWRP_GSA &icc_gmc GMC>;
+		interconnect-names = "sswrp-apc",
+				     "sswrp-dpu",
+				     "sswrp-pcie-0",
+				     "sswrp-pcie-1",
+				     "sswrp-ufs",
+				     "sswrp-usb",
+				     "ispfe",
+				     "ispfe-update-irm",
+				     "ispbe-tnr-align",
+				     "ispbe-be-bayer-tnr",
+				     "ispbe-be-yuv",
+				     "ispbe-update-irm",
+				     "sswrp-eh",
+				     "sswrp-gpca",
+				     "sswrp-gpu",
+				     "sswrp-codec-3p",
+				     "sswrp-g2d",
+				     "gsw-gse",
+				     "gsw-gwe",
+				     "gsw-update-irm",
+				     "sswrp-gsa";
+		google,irm-commom-prop = <&irm_common>;
+	};
+};

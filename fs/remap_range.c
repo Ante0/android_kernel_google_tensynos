@@ -15,6 +15,7 @@
 #include <linux/mount.h>
 #include <linux/fs.h>
 #include <linux/dax.h>
+#include <linux/overflow.h>
 #include "internal.h"
 
 #include <linux/uaccess.h>
@@ -98,17 +99,25 @@ static int generic_remap_checks(struct file *file_in, loff_t pos_in,
 	return 0;
 }
 
-static int remap_verify_area(struct file *file, loff_t pos, loff_t len,
-			     bool write)
+int remap_verify_area(struct file *file, loff_t pos, loff_t len, bool write)
 {
+	int mask = write ? MAY_WRITE : MAY_READ;
+	loff_t tmp;
+	int ret;
+
 	if (unlikely(pos < 0 || len < 0))
 		return -EINVAL;
 
-	if (unlikely((loff_t) (pos + len) < 0))
+	if (unlikely(check_add_overflow(pos, len, &tmp)))
 		return -EINVAL;
 
-	return security_file_permission(file, write ? MAY_WRITE : MAY_READ);
+	ret = security_file_permission(file, mask);
+	if (ret)
+		return ret;
+
+	return fsnotify_file_area_perm(file, mask, &pos, len);
 }
+EXPORT_SYMBOL_GPL(remap_verify_area);
 
 /*
  * Ensure that we don't remap a partial EOF block in the middle of something
@@ -304,7 +313,7 @@ __generic_remap_file_range_prep(struct file *file_in, loff_t pos_in,
 	/* Check that we don't violate system file offset limits. */
 	ret = generic_remap_checks(file_in, pos_in, file_out, pos_out, len,
 			remap_flags);
-	if (ret)
+	if (ret || *len == 0)
 		return ret;
 
 	/* Wait for the completion of any pending IOs on both files */
@@ -328,9 +337,6 @@ __generic_remap_file_range_prep(struct file *file_in, loff_t pos_in,
 	if (remap_flags & REMAP_FILE_DEDUP) {
 		bool		is_same = false;
 
-		if (*len == 0)
-			return 0;
-
 		if (!IS_DAX(inode_in))
 			ret = vfs_dedupe_file_range_compare(file_in, pos_in,
 					file_out, pos_out, *len, &is_same);
@@ -348,7 +354,7 @@ __generic_remap_file_range_prep(struct file *file_in, loff_t pos_in,
 
 	ret = generic_remap_check_len(inode_in, inode_out, pos_out, len,
 			remap_flags);
-	if (ret)
+	if (ret || *len == 0)
 		return ret;
 
 	/* If can't alter the file contents, we're done. */
@@ -367,9 +373,9 @@ int generic_remap_file_range_prep(struct file *file_in, loff_t pos_in,
 }
 EXPORT_SYMBOL(generic_remap_file_range_prep);
 
-loff_t do_clone_file_range(struct file *file_in, loff_t pos_in,
-			   struct file *file_out, loff_t pos_out,
-			   loff_t len, unsigned int remap_flags)
+loff_t vfs_clone_file_range(struct file *file_in, loff_t pos_in,
+			    struct file *file_out, loff_t pos_out,
+			    loff_t len, unsigned int remap_flags)
 {
 	loff_t ret;
 
@@ -393,8 +399,10 @@ loff_t do_clone_file_range(struct file *file_in, loff_t pos_in,
 	if (ret)
 		return ret;
 
+	file_start_write(file_out);
 	ret = file_in->f_op->remap_file_range(file_in, pos_in,
 			file_out, pos_out, len, remap_flags);
+	file_end_write(file_out);
 	if (ret < 0)
 		return ret;
 
@@ -402,36 +410,21 @@ loff_t do_clone_file_range(struct file *file_in, loff_t pos_in,
 	fsnotify_modify(file_out);
 	return ret;
 }
-EXPORT_SYMBOL(do_clone_file_range);
-
-loff_t vfs_clone_file_range(struct file *file_in, loff_t pos_in,
-			    struct file *file_out, loff_t pos_out,
-			    loff_t len, unsigned int remap_flags)
-{
-	loff_t ret;
-
-	file_start_write(file_out);
-	ret = do_clone_file_range(file_in, pos_in, file_out, pos_out, len,
-				  remap_flags);
-	file_end_write(file_out);
-
-	return ret;
-}
 EXPORT_SYMBOL(vfs_clone_file_range);
 
 /* Check whether we are allowed to dedupe the destination file */
-static bool allow_file_dedupe(struct file *file)
+static bool may_dedupe_file(struct file *file)
 {
-	struct user_namespace *mnt_userns = file_mnt_user_ns(file);
+	struct mnt_idmap *idmap = file_mnt_idmap(file);
 	struct inode *inode = file_inode(file);
 
 	if (capable(CAP_SYS_ADMIN))
 		return true;
 	if (file->f_mode & FMODE_WRITE)
 		return true;
-	if (uid_eq(current_fsuid(), i_uid_into_mnt(mnt_userns, inode)))
+	if (vfsuid_eq_kuid(i_uid_into_vfsuid(idmap, inode), current_fsuid()))
 		return true;
-	if (!inode_permission(mnt_userns, inode, MAY_WRITE))
+	if (!inode_permission(idmap, inode, MAY_WRITE))
 		return true;
 	return false;
 }
@@ -445,24 +438,29 @@ loff_t vfs_dedupe_file_range_one(struct file *src_file, loff_t src_pos,
 	WARN_ON_ONCE(remap_flags & ~(REMAP_FILE_DEDUP |
 				     REMAP_FILE_CAN_SHORTEN));
 
-	ret = mnt_want_write_file(dst_file);
-	if (ret)
-		return ret;
-
 	/*
 	 * This is redundant if called from vfs_dedupe_file_range(), but other
 	 * callers need it and it's not performance sesitive...
 	 */
 	ret = remap_verify_area(src_file, src_pos, len, false);
 	if (ret)
-		goto out_drop_write;
+		return ret;
 
 	ret = remap_verify_area(dst_file, dst_pos, len, true);
 	if (ret)
-		goto out_drop_write;
+		return ret;
+
+	/*
+	 * This needs to be called after remap_verify_area() because of
+	 * sb_start_write() and before may_dedupe_file() because the mount's
+	 * MAY_WRITE need to be checked with mnt_get_write_access_file() held.
+	 */
+	ret = mnt_want_write_file(dst_file);
+	if (ret)
+		return ret;
 
 	ret = -EPERM;
-	if (!allow_file_dedupe(dst_file))
+	if (!may_dedupe_file(dst_file))
 		goto out_drop_write;
 
 	ret = -EXDEV;
@@ -539,7 +537,7 @@ int vfs_dedupe_file_range(struct file *file, struct file_dedupe_range *same)
 
 	for (i = 0, info = same->info; i < count; i++, info++) {
 		struct fd dst_fd = fdget(info->dest_fd);
-		struct file *dst_file = dst_fd.file;
+		struct file *dst_file = fd_file(dst_fd);
 
 		if (!dst_file) {
 			info->status = -EBADF;

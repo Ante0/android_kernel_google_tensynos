@@ -1,29 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0
 /* Copyright (C) 2019 ARM Limited */
+
+#include <ctype.h>
+#include <string.h>
+
 #include "testcases.h"
-
-struct _aarch64_ctx *get_header(struct _aarch64_ctx *head, uint32_t magic,
-				size_t resv_sz, size_t *offset)
-{
-	size_t offs = 0;
-	struct _aarch64_ctx *found = NULL;
-
-	if (!head || resv_sz < HDR_SZ)
-		return found;
-
-	while (offs <= resv_sz - HDR_SZ &&
-	       head->magic != magic && head->magic) {
-		offs += head->size;
-		head = GET_RESV_NEXT_HEAD(head);
-	}
-	if (head->magic == magic) {
-		found = head;
-		if (offset)
-			*offset = offs;
-	}
-
-	return found;
-}
 
 bool validate_extra_context(struct extra_context *extra, char **err,
 			    void **extra_data, size_t *extra_size)
@@ -104,19 +85,41 @@ bool validate_za_context(struct za_context *za, char **err)
 	return true;
 }
 
+bool validate_zt_context(struct zt_context *zt, char **err)
+{
+	if (!zt || !err)
+		return false;
+
+	/* If the context is present there should be at least one register */
+	if (zt->nregs == 0) {
+		*err = "no registers";
+		return false;
+	}
+
+	/* Size should agree with the number of registers */
+	if (zt->head.size != ZT_SIG_CONTEXT_SIZE(zt->nregs)) {
+		*err = "register count does not match size";
+		return false;
+	}
+
+	return true;
+}
+
 bool validate_reserved(ucontext_t *uc, size_t resv_sz, char **err)
 {
 	bool terminated = false;
 	size_t offs = 0;
 	int flags = 0;
-	int new_flags;
+	int new_flags, i;
 	struct extra_context *extra = NULL;
 	struct sve_context *sve = NULL;
 	struct za_context *za = NULL;
+	struct zt_context *zt = NULL;
 	struct _aarch64_ctx *head =
 		(struct _aarch64_ctx *)uc->uc_mcontext.__reserved;
 	void *extra_data = NULL;
 	size_t extra_sz = 0;
+	char magic[4];
 
 	if (!err)
 		return false;
@@ -158,6 +161,14 @@ bool validate_reserved(ucontext_t *uc, size_t resv_sz, char **err)
 			if (head->size != sizeof(struct esr_context))
 				*err = "Bad size for esr_context";
 			break;
+		case POE_MAGIC:
+			if (head->size != sizeof(struct poe_context))
+				*err = "Bad size for poe_context";
+			break;
+		case TPIDR2_MAGIC:
+			if (head->size != sizeof(struct tpidr2_context))
+				*err = "Bad size for tpidr2_context";
+			break;
 		case SVE_MAGIC:
 			if (flags & SVE_CTX)
 				*err = "Multiple SVE_MAGIC";
@@ -171,6 +182,21 @@ bool validate_reserved(ucontext_t *uc, size_t resv_sz, char **err)
 			/* Size is validated in validate_za_context() */
 			za = (struct za_context *)head;
 			new_flags |= ZA_CTX;
+			break;
+		case ZT_MAGIC:
+			if (flags & ZT_CTX)
+				*err = "Multiple ZT_MAGIC";
+			/* Size is validated in validate_za_context() */
+			zt = (struct zt_context *)head;
+			new_flags |= ZT_CTX;
+			break;
+		case FPMR_MAGIC:
+			if (flags & FPMR_CTX)
+				*err = "Multiple FPMR_MAGIC";
+			else if (head->size !=
+				 sizeof(struct fpmr_context))
+				*err = "Bad size for fpmr_context";
+			new_flags |= FPMR_CTX;
 			break;
 		case EXTRA_MAGIC:
 			if (flags & EXTRA_CTX)
@@ -194,11 +220,19 @@ bool validate_reserved(ucontext_t *uc, size_t resv_sz, char **err)
 			/*
 			 * A still unknown Magic: potentially freshly added
 			 * to the Kernel code and still unknown to the
-			 * tests.
+			 * tests.  Magic numbers are supposed to be allocated
+			 * as somewhat meaningful ASCII strings so try to
+			 * print as such as well as the raw number.
 			 */
+			memcpy(magic, &head->magic, sizeof(magic));
+			for (i = 0; i < sizeof(magic); i++)
+				if (!isalnum(magic[i]))
+					magic[i] = '?';
+
 			fprintf(stdout,
-				"SKIP Unknown MAGIC: 0x%X - Is KSFT arm64/signal up to date ?\n",
-				head->magic);
+				"SKIP Unknown MAGIC: 0x%X (%c%c%c%c) - Is KSFT arm64/signal up to date ?\n",
+				head->magic,
+				magic[3], magic[2], magic[1], magic[0]);
 			break;
 		}
 
@@ -221,6 +255,9 @@ bool validate_reserved(ucontext_t *uc, size_t resv_sz, char **err)
 		if (new_flags & ZA_CTX)
 			if (!validate_za_context(za, err))
 				return false;
+		if (new_flags & ZT_CTX)
+			if (!validate_zt_context(zt, err))
+				return false;
 
 		flags |= new_flags;
 
@@ -229,6 +266,11 @@ bool validate_reserved(ucontext_t *uc, size_t resv_sz, char **err)
 
 	if (terminated && !(flags & FPSIMD_CTX)) {
 		*err = "Missing FPSIMD";
+		return false;
+	}
+
+	if (terminated && (flags & ZT_CTX) && !(flags & ZA_CTX)) {
+		*err = "ZT context but no ZA context";
 		return false;
 	}
 

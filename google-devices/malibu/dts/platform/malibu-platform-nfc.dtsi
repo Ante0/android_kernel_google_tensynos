@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * NFC device tree entries specific to the lga paltform
+ *
+ * Copyright 2025 Google LLC.
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+&lsioe_i2c3 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	st21nfc@8 {
+		compatible = "st,st21nfc";
+		reg = <0x08>;
+		dev-name = "st21nfc";
+		interrupt-parent = <&gdmc_pinctrl>;
+		reset-gpios = <AP2NFC_CHIP_EN_1V2(GPIO_ACTIVE_HIGH)>;
+		irq-gpios = <NFC2AP_HOST_IRQ_1V2(GPIO_ACTIVE_HIGH)>;
+		pidle-gpios = <NFC2AP_PWR_STATE_1V2(GPIO_ACTIVE_HIGH)>;
+		st,pidle_active_check;
+		st,extpad_control_en;
+		st,reduce-timeout;
+		st,clk_pinctrl_switch;
+
+		pinctrl-0 = <&aoss2nfc_clk_19p2mhz_1v2>;
+		pinctrl-1 = <&aoss2nfc_clk_19p2mhz_1v2>;
+		pinctrl-names = "default", "func";
+
+		status = "ok";
+	};
+};

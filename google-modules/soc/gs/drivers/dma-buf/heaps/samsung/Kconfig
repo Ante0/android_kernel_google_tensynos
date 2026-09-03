@@ -33,7 +33,7 @@ config DMABUF_HEAPS_SAMSUNG_CARVEOUT
 
 config DMABUF_HEAPS_GOOGLE_GCMA
 	bool "DMA-BUF GCMA Heap"
-	depends on GCMA
+	depends on GCMA || PIXEL_GCMA
 	help
 	  Choose this option to enable dma-buf GCMA heap. It allows
 	  using the carved out memory space for clean page cache when memory

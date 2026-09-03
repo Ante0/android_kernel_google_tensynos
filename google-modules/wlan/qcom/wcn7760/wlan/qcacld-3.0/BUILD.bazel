@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch")
+load(":wlan_qcacld3_modules.bzl", "define_module_for_target_variant_chipset")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+config_setting(
+    name = "wonder_enabled",
+    define_values = {
+        "CONFIG_WONDER_SUPPORT": "y",
+    },
+)
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+define_module_for_target_variant_chipset(
+    name = "qcacld-3.0",
+    chipset = "wcn7760",
+    target = "sun",
+    variant = "consolidate",
+)

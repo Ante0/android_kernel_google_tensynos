@@ -1,4 +1,9 @@
-load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
 
 filegroup(
     name = "edgetpu.kconfig",
@@ -22,29 +27,75 @@ ddk_headers(
     ],
 )
 
-kernel_module(
+ddk_module(
     name = "edgetpu.rio",
-    srcs = glob([
-        "**/*.c",
-        "**/*.h",
-    ]) + [
-        "Kbuild",
-        "Makefile",
-        "gcip-kernel-driver/drivers/gcip/Makefile",
-        "//private/google-modules/power/mitigation:headers",
-        "//private/google-modules/soc/gs:gs_soc_headers",
-    ],
-    outs = [
-        "rio.ko",
+    srcs = glob(
+        include = [
+            "**/*.c",
+            "**/*.h",
+        ],
+        exclude = [
+            "edgetpu-core.c",
+            "edgetpu-debug.c",
+            "edgetpu-devfreq.c",
+            "edgetpu-device-group.c",
+            "edgetpu-dt-mailbox-adapter.c",
+            "edgetpu-external.c",
+            "edgetpu-firmware.c",
+            "edgetpu-fs.c",
+            "edgetpu-google-iommu.c",
+            "edgetpu-ikv.c",
+            "edgetpu-kci.c",
+            "edgetpu-mobile-platform.c",
+            "edgetpu-pm.c",
+            "edgetpu-usage-stats.c",
+            "edgetpu-vii-packet.c",
+            "mobile-soc-gsx01.c",
+        ],
+    ),
+    out = "rio.ko",
+    hdrs = glob([
+        "gcip-kernel-driver/include/**/*.h",
+        "include/**/*.h",
+    ]),
+    includes = [
+        "gcip-kernel-driver/include",
+        "include",
     ],
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/gxp/zuma:__pkg__",
-        "//private/google-modules/soc/gs:__pkg__",
+    local_defines = [
+        "CONFIG_RIO",
+        "CONFIG_GOOGLE_BCL",
+    ],
+    textual_hdrs = [
+        "edgetpu-core.c",
+        "edgetpu-debug.c",
+        "edgetpu-devfreq.c",
+        "edgetpu-device-group.c",
+        "edgetpu-dt-mailbox-adapter.c",
+        "edgetpu-external.c",
+        "edgetpu-firmware.c",
+        "edgetpu-fs.c",
+        "edgetpu-google-iommu.c",
+        "edgetpu-ikv.c",
+        "edgetpu-kci.c",
+        "edgetpu-mobile-platform.c",
+        "edgetpu-pm.c",
+        "edgetpu-usage-stats.c",
+        "edgetpu-vii-packet.c",
+        "mobile-soc-gsx01.c",
     ],
     deps = [
-        "//private/google-modules/power/mitigation:bcl",
-        "//private/google-modules/soc/gs:gs_soc_module",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/iif",
+        "//private/google-modules/iif:iif_headers",
+        "//private/google-modules/power/mitigation:google_bcl",
+        "//private/google-modules/power/mitigation:headers",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/bts",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos_pm_qos",
+        "//private/google-modules/soc/gs/drivers/soc/google/cal-if:cmupmucal",
+        "//private/google-modules/soc/gs/drivers/soc/google/gsa:gsa_ko",
+        "//private/google-modules/soc/gs/drivers/thermal/samsung:gs_thermal",
     ],
 )

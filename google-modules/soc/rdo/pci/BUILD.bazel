@@ -1,0 +1,124 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+label_flag(
+    name = "google-pcie",
+    build_setting_default = ":no-pcie",
+    visibility = [
+        "//private/google-modules/radio:__subpackages__",
+        "//private/google-modules/wlan/bcmdhd:__subpackages__",
+        "//private/google-modules/wlan/qcom/wcn7760/cnss2:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "no-pcie",
+)
+
+ddk_headers(
+    # Needed for tracepoint.
+    name = "headers",
+    hdrs = [
+        "pcie_trace.h",
+    ],
+    includes = [
+        ".",
+    ],
+)
+
+ddk_module(
+    name = "google-pcie-v1",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "pcie-designware-host-customized.c",
+        "pcie-google-devcoredump.c",
+        "pcie-google-shim.c",
+    ],
+    out = "google-pcie.ko",
+    conditional_srcs = {
+        "CONFIG_DEBUG_FS": {
+            True: [
+                "pcie-google-debugfs.c",
+            ],
+        },
+        "CONFIG_SOC_LGA": {
+            True: [
+                "pcie-google.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/clk/google:clk-cpm",
+        "//private/google-modules/soc/rdo/interconnect:google_icc",
+    ],
+)
+
+ddk_module(
+    name = "google-pcie-v2",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "pcie-designware-host-customized.c",
+        "pcie-google-devcoredump.c",
+        "pcie-google-shim.c",
+        "pcie-google-v2.c",
+        "pcie-pci-customized.c",
+    ],
+    out = "google-pcie-v2.ko",
+    conditional_srcs = {
+        "CONFIG_DEBUG_FS": {
+            True: [
+                "pcie-google-debugfs.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "phy-google-pcie",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "phy-google-pcie.c",
+    ],
+    out = "phy-google-pcie.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+exports_files(
+    ["Kconfig"],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules/soc/rdo:__subpackages__",
+    ],
+)

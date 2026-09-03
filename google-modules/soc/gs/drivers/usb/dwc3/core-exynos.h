@@ -112,12 +112,6 @@
 
 #define DWC3_TRB_MASK		(DWC3_TRB_NUM - 1)
 
-int exynos_usbdrd_phy_tune(struct phy *phy, int phy_state);
-void exynos_usbdrd_phy_conn(struct phy *phy, int is_conn);
-void exynos_usbdrd_phy_vol_set(struct phy *phy, int voltage);
-int exynos_usbdrd_phy_set(struct phy *phy, int option, void *info);
-extern void exynos_usbdrd_usbdp_tca_set(struct phy *phy, int mux, int low_power_en);
-
 enum dwc3_phy_owner {
 	DWC3_PHY_OWNER_SELF =  0,
 	DWC3_PHY_OWNER_DP = 1,

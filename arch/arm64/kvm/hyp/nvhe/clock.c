@@ -1,42 +1,49 @@
 // SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2024 Google LLC
+ * Author: Vincent Donnefort <vdonnefort@google.com>
+ */
+
 #include <nvhe/clock.h>
 
 #include <asm/arch_timer.h>
 #include <asm/div64.h>
 
-static struct kvm_nvhe_clock_data trace_clock_data;
+static struct clock_data {
+	struct {
+		u32 mult;
+		u32 shift;
+		u64 epoch_ns;
+		u64 epoch_cyc;
+	} data[2];
+	u64 cur;
+} trace_clock_data;
 
-/*
- * Update without any locks! This is fine because tracing, the sole user of this
- * clock is ordering the memory and protects from races between read and
- * updates.
- */
-void trace_clock_update(struct kvm_nvhe_clock_data *data)
+/* Does not guarantee no reader on the modified bank. */
+void trace_clock_update(u32 mult, u32 shift, u64 epoch_ns, u64 epoch_cyc)
 {
-	trace_clock_data.mult = data->mult;
-	trace_clock_data.shift = data->shift;
-	trace_clock_data.epoch_ns = data->epoch_ns;
-	trace_clock_data.epoch_cyc = data->epoch_cyc;
+	struct clock_data *clock = &trace_clock_data;
+	u64 bank = clock->cur ^ 1;
+
+	clock->data[bank].mult		= mult;
+	clock->data[bank].shift		= shift;
+	clock->data[bank].epoch_ns	= epoch_ns;
+	clock->data[bank].epoch_cyc	= epoch_cyc;
+
+	smp_store_release(&clock->cur, bank);
 }
 
-/*
- * This clock is relying on host provided slope and epoch values to return
- * something synchronized with the host. The downside is we can't trust the
- * output which must not be used for anything else than debugging.
- */
-u64 trace_clock(void)
+/* Using host provided data. Do not use for anything else than debugging. */
+u64 __attribute__((patchable_function_entry(0, 0))) trace_clock(void)
 {
-	u64 cyc = __arch_counter_get_cntpct() - trace_clock_data.epoch_cyc;
-	__uint128_t ns;
+	struct clock_data *clock = &trace_clock_data;
+	u64 bank = smp_load_acquire(&clock->cur);
+	u64 cyc, ns;
 
-	/*
-	 * The host kernel can avoid the 64-bits overflow of the multiplication
-	 * by updating the epoch value with a timer (see
-	 * kernel/time/clocksource.c). The hypervisor doesn't have that option,
-	 * so let's do a more costly 128-bits mult here.
-	 */
-	ns = (__uint128_t)cyc * trace_clock_data.mult;
-	ns >>= trace_clock_data.shift;
+	cyc = __arch_counter_get_cntpct() - clock->data[bank].epoch_cyc;
 
-	return (u64)ns + trace_clock_data.epoch_ns;
+	ns = cyc * clock->data[bank].mult;
+	ns >>= clock->data[bank].shift;
+
+	return (u64)ns + clock->data[bank].epoch_ns;
 }

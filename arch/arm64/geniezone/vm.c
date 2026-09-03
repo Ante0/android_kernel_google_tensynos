@@ -7,30 +7,109 @@
 #include <linux/err.h>
 #include <linux/uaccess.h>
 
+#define CREATE_TRACE_POINTS
+#include <trace/events/geniezone.h>
 #include <linux/gzvm.h>
-#include <linux/gzvm_drv.h>
+#include <linux/soc/mediatek/gzvm_drv.h>
 #include "gzvm_arch_common.h"
 
-#define PAR_PA47_MASK ((((1UL << 48) - 1) >> 12) << 12)
+#define PAR_PA47_MASK GENMASK_ULL(47, 12)
+
+static struct timecycle clock_scale_factor;
+
+u32 gzvm_vtimer_get_clock_mult(void)
+{
+	return clock_scale_factor.mult;
+}
+
+u32 gzvm_vtimer_get_clock_shift(void)
+{
+	return clock_scale_factor.shift;
+}
+
+/**
+ * gzvm_hypcall_wrapper() - the wrapper for hvc calls
+ * @a0: arguments passed in registers 0
+ * @a1: arguments passed in registers 1
+ * @a2: arguments passed in registers 2
+ * @a3: arguments passed in registers 3
+ * @a4: arguments passed in registers 4
+ * @a5: arguments passed in registers 5
+ * @a6: arguments passed in registers 6
+ * @a7: arguments passed in registers 7
+ * @res: result values from registers 0 to 3
+ *
+ * Return: The wrapper helps caller to convert geniezone errno to Linux errno.
+ */
+int gzvm_hypcall_wrapper(unsigned long a0, unsigned long a1,
+			 unsigned long a2, unsigned long a3,
+			 unsigned long a4, unsigned long a5,
+			 unsigned long a6, unsigned long a7,
+			 struct arm_smccc_res *res)
+{
+	struct arm_smccc_1_2_regs res_1_2;
+	struct arm_smccc_1_2_regs args = {
+		.a0 = a0,
+		.a1 = a1,
+		.a2 = a2,
+		.a3 = a3,
+		.a4 = a4,
+		.a5 = a5,
+		.a6 = a6,
+		.a7 = a7,
+	};
+	trace_mtk_hypcall_enter(a0);
+	arm_smccc_1_2_hvc(&args, &res_1_2);
+	res->a0 = res_1_2.a0;
+	res->a1 = res_1_2.a1;
+	res->a2 = res_1_2.a2;
+	res->a3 = res_1_2.a3;
+	trace_mtk_hypcall_leave(a0, (res->a0 != ERR_NOT_SUPPORTED) ? 0 : 1);
+
+	return gzvm_err_to_errno(res->a0);
+}
 
 int gzvm_arch_inform_exit(u16 vm_id)
 {
 	struct arm_smccc_res res;
+	int ret;
 
-	arm_smccc_hvc(MT_HVC_GZVM_INFORM_EXIT, vm_id, 0, 0, 0, 0, 0, 0, &res);
-	if (res.a0 == 0)
-		return 0;
+	ret = gzvm_hypcall_wrapper(MT_HVC_GZVM_INFORM_EXIT, vm_id, 0, 0, 0, 0, 0, 0, &res);
+	if (ret)
+		return -ENXIO;
 
-	return -ENXIO;
+	return 0;
 }
 
-int gzvm_arch_probe(void)
+int gzvm_arch_probe(struct gzvm_version drv_version,
+		    struct gzvm_version *hyp_version)
 {
 	struct arm_smccc_res res;
+	int ret;
 
-	arm_smccc_hvc(MT_HVC_GZVM_PROBE, 0, 0, 0, 0, 0, 0, 0, &res);
-	if (res.a0)
+	ret = gzvm_hypcall_wrapper(MT_HVC_GZVM_PROBE,
+				   drv_version.major,
+				   drv_version.minor,
+				   drv_version.sub,
+				   0, 0, 0, 0, &res);
+	if (ret)
 		return -ENXIO;
+
+	hyp_version->major = (u32)res.a1;
+	hyp_version->minor = (u32)res.a2;
+	hyp_version->sub = res.a3;
+
+	return 0;
+}
+
+int gzvm_arch_drv_init(void)
+{
+	/* timecycle init mult shift */
+	clocks_calc_mult_shift(&clock_scale_factor.mult,
+			       &clock_scale_factor.shift,
+			       arch_timer_get_cntfrq(),
+			       NSEC_PER_SEC,
+			       30);
 
 	return 0;
 }
@@ -96,12 +175,18 @@ int gzvm_arch_create_vm(unsigned long vm_type)
 	return ret ? ret : res.a1;
 }
 
-int gzvm_arch_destroy_vm(u16 vm_id)
+int gzvm_arch_destroy_vm(u16 vm_id, u64 destroy_page_gran)
 {
 	struct arm_smccc_res res;
+	int ret;
 
-	return gzvm_hypcall_wrapper(MT_HVC_GZVM_DESTROY_VM, vm_id, 0, 0, 0, 0,
-				    0, 0, &res);
+	do {
+		ret = gzvm_hypcall_wrapper(MT_HVC_GZVM_DESTROY_VM, vm_id,
+					   destroy_page_gran, 0, 0,
+					   0, 0, 0, &res);
+	} while (ret == -EAGAIN);
+
+	return ret;
 }
 
 int gzvm_arch_memregion_purpose(struct gzvm *gzvm,
@@ -131,6 +216,50 @@ static int gzvm_vm_arch_enable_cap(struct gzvm *gzvm,
 				    cap->cap, cap->args[0], cap->args[1],
 				    cap->args[2], cap->args[3], cap->args[4],
 				    res);
+}
+
+static int gzvm_arch_enable_cap(struct gzvm_enable_cap *cap,
+				struct arm_smccc_res *res)
+{
+	return gzvm_hypcall_wrapper(MT_HVC_GZVM_ENABLE_CAP, 0,
+				    cap->cap, cap->args[0], cap->args[1],
+				    cap->args[2], cap->args[3], cap->args[4],
+				    res);
+}
+
+int gzvm_arch_query_hyp_batch_pages(struct gzvm_enable_cap *cap,
+				    void __user *argp)
+{
+	struct arm_smccc_res res = {0};
+	int ret;
+
+	ret = gzvm_arch_enable_cap(cap, &res);
+
+	if (ret)
+		return ret;
+
+	if (res.a1 == 0 ||
+	    GZVM_BLOCK_BASED_DEMAND_PAGE_SIZE % (PAGE_SIZE * res.a1) != 0)
+		return -EFAULT;
+
+	cap->args[0] = res.a1;
+
+	return ret;
+}
+
+int gzvm_arch_query_destroy_batch_pages(struct gzvm_enable_cap *cap,
+					void __user *argp)
+{
+	struct arm_smccc_res res = {0};
+	int ret;
+
+	ret = gzvm_arch_enable_cap(cap, &res);
+	/* destroy page batch size should be power of 2 */
+	if (ret || ((res.a1 & (res.a1 - 1)) != 0))
+		return -EINVAL;
+
+	cap->args[0] = res.a1;
+	return ret;
 }
 
 /**
@@ -169,31 +298,25 @@ static int gzvm_vm_ioctl_get_pvmfw_size(struct gzvm *gzvm,
  * @gfn: Guest frame number.
  * @total_pages: Total page numbers.
  * @slot: Pointer to struct gzvm_memslot.
+ * @gzvm: Pointer to struct gzvm.
  *
  * Return: how many pages we've fill in, negative if error
  */
 static int fill_constituents(struct mem_region_addr_range *consti,
 			     int *consti_cnt, int max_nr_consti, u64 gfn,
-			     u32 total_pages, struct gzvm_memslot *slot)
+			     u32 total_pages, struct gzvm_memslot *slot,
+			     struct gzvm *gzvm)
 {
-	u64 pfn, prev_pfn, gfn_end;
-	int nr_pages = 1;
-	int i = 0;
+	u64 pfn = 0, prev_pfn = 0, gfn_end = 0;
+	int nr_pages = 0;
+	int i = -1;
 
 	if (unlikely(total_pages == 0))
 		return -EINVAL;
 	gfn_end = gfn + total_pages;
 
-	/* entry 0 */
-	if (gzvm_gfn_to_pfn_memslot(slot, gfn, &pfn) != 0)
-		return -EFAULT;
-	consti[0].address = PFN_PHYS(pfn);
-	consti[0].pg_cnt = 1;
-	gfn++;
-	prev_pfn = pfn;
-
 	while (i < max_nr_consti && gfn < gfn_end) {
-		if (gzvm_gfn_to_pfn_memslot(slot, gfn, &pfn) != 0)
+		if (gzvm_vm_allocate_guest_page(gzvm, slot, gfn, &pfn) != 0)
 			return -EFAULT;
 		if (pfn == (prev_pfn + 1)) {
 			consti[i].pg_cnt++;
@@ -216,64 +339,78 @@ static int fill_constituents(struct mem_region_addr_range *consti,
 }
 
 /**
- * populate_mem_region() - Iterate all mem slot and populate pa to buffer until it's full
+ * gzvm_vm_populate_mem_region() - Iterate all mem slot and populate pa to
+ * buffer until it's full
  * @gzvm: Pointer to struct gzvm.
+ * @slot_id: Memory slot id to be populated.
  *
  * Return: 0 if it is successful, negative if error
  */
-static int populate_mem_region(struct gzvm *gzvm)
+int gzvm_vm_populate_mem_region(struct gzvm *gzvm, int slot_id)
 {
-	int slot_cnt = 0;
+	struct gzvm_memslot *memslot = &gzvm->memslot[slot_id];
+	struct gzvm_memory_region_ranges *region;
+	int max_nr_consti, remain_pages;
+	u64 gfn, gfn_end;
+	u32 buf_size;
 
-	while (slot_cnt < GZVM_MAX_MEM_REGION && gzvm->memslot[slot_cnt].npages != 0) {
-		struct gzvm_memslot *memslot = &gzvm->memslot[slot_cnt];
-		struct gzvm_memory_region_ranges *region;
-		int max_nr_consti, remain_pages;
-		u64 gfn, gfn_end;
-		u32 buf_size;
+	buf_size = PAGE_SIZE * 2;
+	region = alloc_pages_exact(buf_size, GFP_KERNEL);
+	if (!region)
+		return -ENOMEM;
 
-		buf_size = PAGE_SIZE * 2;
-		region = alloc_pages_exact(buf_size, GFP_KERNEL);
-		if (!region)
-			return -ENOMEM;
+	max_nr_consti = (buf_size - sizeof(*region)) /
+			sizeof(struct mem_region_addr_range);
 
-		max_nr_consti = (buf_size - sizeof(*region)) /
-				sizeof(struct mem_region_addr_range);
+	region->slot = memslot->slot_id;
+	remain_pages = memslot->npages;
+	gfn = memslot->base_gfn;
+	gfn_end = gfn + remain_pages;
 
-		region->slot = memslot->slot_id;
-		remain_pages = memslot->npages;
-		gfn = memslot->base_gfn;
-		gfn_end = gfn + remain_pages;
+	while (gfn < gfn_end) {
+		int nr_pages;
 
-		while (gfn < gfn_end) {
-			int nr_pages;
+		nr_pages = fill_constituents(region->constituents,
+					     &region->constituent_cnt,
+					     max_nr_consti, gfn,
+					     remain_pages, memslot, gzvm);
 
-			nr_pages = fill_constituents(region->constituents,
-						     &region->constituent_cnt,
-						     max_nr_consti, gfn,
-						     remain_pages, memslot);
-
-			if (nr_pages < 0) {
-				pr_err("Failed to fill constituents\n");
-				free_pages_exact(region, buf_size);
-				return -EFAULT;
-			}
-
-			region->gpa = PFN_PHYS(gfn);
-			region->total_pages = nr_pages;
-			remain_pages -= nr_pages;
-			gfn += nr_pages;
-
-			if (gzvm_arch_set_memregion(gzvm->vm_id, buf_size,
-						    virt_to_phys(region))) {
-				pr_err("Failed to register memregion to hypervisor\n");
-				free_pages_exact(region, buf_size);
-				return -EFAULT;
-			}
+		if (nr_pages < 0) {
+			pr_err("Failed to fill constituents\n");
+			free_pages_exact(region, buf_size);
+			return -EFAULT;
 		}
-		free_pages_exact(region, buf_size);
-		++slot_cnt;
+
+		region->gpa = PFN_PHYS(gfn);
+		region->total_pages = nr_pages;
+		remain_pages -= nr_pages;
+		gfn += nr_pages;
+
+		if (gzvm_arch_set_memregion(gzvm->vm_id, buf_size,
+					    virt_to_phys(region))) {
+			pr_err("Failed to register memregion to hypervisor\n");
+			free_pages_exact(region, buf_size);
+			return -EFAULT;
+		}
 	}
+	free_pages_exact(region, buf_size);
+
+	return 0;
+}
+
+static int populate_all_mem_regions(struct gzvm *gzvm)
+{
+	int ret, i;
+
+	for (i = 0; i < GZVM_MAX_MEM_REGION; i++) {
+		if (gzvm->memslot[i].npages == 0)
+			continue;
+
+		ret = gzvm_vm_populate_mem_region(gzvm, i);
+		if (ret != 0)
+			return ret;
+	}
+
 	return 0;
 }
 
@@ -303,7 +440,7 @@ static int gzvm_vm_ioctl_cap_pvm(struct gzvm *gzvm,
 		 * populate memory in advance to improve performance for protected VM.
 		 */
 		if (gzvm->demand_page_gran == PAGE_SIZE)
-			populate_mem_region(gzvm);
+			populate_all_mem_regions(gzvm);
 		ret = gzvm_vm_arch_enable_cap(gzvm, cap, &res);
 		return ret;
 	case GZVM_CAP_PVM_GET_PVMFW_SIZE:
@@ -316,18 +453,19 @@ static int gzvm_vm_ioctl_cap_pvm(struct gzvm *gzvm,
 	return -EINVAL;
 }
 
-int gzvm_vm_ioctl_arch_enable_cap(struct gzvm *gzvm,
-				  struct gzvm_enable_cap *cap,
-				  void __user *argp)
+int gzvm_vm_internal_arch_enable_cap(struct gzvm *gzvm,
+				     struct gzvm_enable_cap *cap)
 {
 	struct arm_smccc_res res = {0};
 	int ret;
 
 	switch (cap->cap) {
-	case GZVM_CAP_PROTECTED_VM:
-		ret = gzvm_vm_ioctl_cap_pvm(gzvm, cap, argp);
-		return ret;
+	case GZVM_CAP_ENABLE_DEMAND_PAGING:
+		fallthrough;
 	case GZVM_CAP_BLOCK_BASED_DEMAND_PAGING:
+		ret = gzvm_vm_arch_enable_cap(gzvm, cap, &res);
+		return ret;
+	case GZVM_CAP_ENABLE_IDLE:
 		ret = gzvm_vm_arch_enable_cap(gzvm, cap, &res);
 		return ret;
 	default:
@@ -337,29 +475,19 @@ int gzvm_vm_ioctl_arch_enable_cap(struct gzvm *gzvm,
 	return -EINVAL;
 }
 
-/**
- * gzvm_hva_to_pa_arch() - converts hva to pa with arch-specific way
- * @hva: Host virtual address.
- *
- * Return: GZVM_PA_ERR_BAD for translation error
- */
-u64 gzvm_hva_to_pa_arch(u64 hva)
+int gzvm_vm_ioctl_arch_enable_cap(struct gzvm *gzvm,
+				  struct gzvm_enable_cap *cap,
+				  void __user *argp)
 {
-	unsigned long flags;
-	u64 par;
+	int ret;
 
-	local_irq_save(flags);
-	asm volatile("at s1e1r, %0" :: "r" (hva));
-	isb();
-	par = read_sysreg_par();
-	local_irq_restore(flags);
-
-	if (par & SYS_PAR_EL1_F)
-		return GZVM_PA_ERR_BAD;
-	par = par & PAR_PA47_MASK;
-	if (!par)
-		return GZVM_PA_ERR_BAD;
-	return par;
+	switch (cap->cap) {
+	case GZVM_CAP_PROTECTED_VM:
+		ret = gzvm_vm_ioctl_cap_pvm(gzvm, cap, argp);
+		return ret;
+	default:
+		return -EINVAL;
+	}
 }
 
 int gzvm_arch_map_guest(u16 vm_id, int memslot_id, u64 pfn, u64 gfn,
@@ -377,4 +505,17 @@ int gzvm_arch_map_guest_block(u16 vm_id, int memslot_id, u64 gfn, u64 nr_pages)
 
 	return gzvm_hypcall_wrapper(MT_HVC_GZVM_MAP_GUEST_BLOCK, vm_id,
 				    memslot_id, gfn, nr_pages, 0, 0, 0, &res);
+}
+
+int gzvm_arch_get_statistics(struct gzvm *gzvm)
+{
+	struct arm_smccc_res res;
+	int ret;
+
+	ret = gzvm_hypcall_wrapper(MT_HVC_GZVM_GET_STATISTICS, gzvm->vm_id,
+				   0, 0, 0, 0, 0, 0, &res);
+
+	gzvm->stat.protected_hyp_mem = ((ret == 0) ? res.a1 : 0);
+	gzvm->stat.protected_shared_mem = ((ret == 0) ? res.a2 : 0);
+	return ret;
 }

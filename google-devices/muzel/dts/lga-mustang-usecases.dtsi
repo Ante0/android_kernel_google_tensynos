@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Usecases specific to Mustang Platform
+ *
+ * Copyright 2024 Google LLC
+ *
+ */
+
+/* system use cases */
+&max77779_chg {
+	/* external boost */
+	max77779,extbst-ctl-gpio = <&max77759_tcpc_gpio 0 GPIO_ACTIVE_HIGH>; /* OTG_PWR_EN */
+	post-init-providers = <&max77759_tcpc_gpio>;
+
+	/* for OTG related usecase*/
+	max77779,rx-to-rx-otg-en; /* support RX -> RX+OTG */
+	max77779,ext-otg-only; /* use external OTG only */
+	max77779,wlc-dc-otg-en;
+};

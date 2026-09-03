@@ -1,0 +1,44 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * Driver for NOA NET engine
+ *
+ * Copyright 2023 Google LLC.
+ *
+ * Author: Mark Chien <markchien@google.com>
+ */
+#ifndef NOA_DEF_H_
+#define NOA_DEF_H_
+
+#include <common/map_def.h>
+
+#define NOA_CALLBACK_DATA_LEN 88
+
+#define NOA_DEVICE "/dev/noa_device"
+
+#define NOA_IOCTL_MAGIC 'n'
+
+#define PUT_UPSTREAM_4MAP _IOW(NOA_IOCTL_MAGIC, \
+		CMD_PUT_UPSTREAM_4MAP, Tether4Entry)
+#define PUT_DOWNSTREAM_4MAP _IOW(NOA_IOCTL_MAGIC, \
+		CMD_PUT_DOWNSTREAM_4MAP, Tether4Entry)
+#define REMOVE_UPSTREAM_4MAP _IOW(NOA_IOCTL_MAGIC, \
+		CMD_REMOVE_UPSTREAM_4MAP, Tether4Key)
+#define REMOVE_DOWNSTREAM_4MAP _IOW(NOA_IOCTL_MAGIC, \
+		CMD_REMOVE_DOWNSTREAM_4MAP, Tether4Key)
+#define PUT_UPSTREAM_6MAP _IOW(NOA_IOCTL_MAGIC, \
+		CMD_PUT_UPSTREAM_6MAP, TetherUpstream6Entry)
+#define REMOVE_UPSTREAM_6MAP _IOW(NOA_IOCTL_MAGIC, \
+		CMD_REMOVE_UPSTREAM_6MAP, TetherUpstream6Key)
+#define PUT_DOWNSTREAM_6MAP _IOW(NOA_IOCTL_MAGIC, \
+		CMD_PUT_DOWNSTREAM_6MAP, TetherDownstream6Entry)
+#define REMOVE_DOWNSTREAM_6MAP _IOW(NOA_IOCTL_MAGIC, \
+		CMD_REMOVE_DOWNSTREAM_6MAP, TetherDownstream6Key)
+#define SET_CONFIG _IOWR(NOA_IOCTL_MAGIC, \
+		CMD_SET_CONFIG, TetherConfig)
+#define REMOVE_CONFIG _IO(NOA_IOCTL_MAGIC, CMD_REMOVE_CONFIG)
+#define GET_STATS _IOWR(NOA_IOCTL_MAGIC, \
+		CMD_GET_STATS, TetherStats)
+#define PUT_NETLINK_CONF _IOW(NOA_IOCTL_MAGIC, \
+        CMD_PUT_NETLINK_CONF, NetlinkConfig)
+
+#endif  // NOA_DEF_H_

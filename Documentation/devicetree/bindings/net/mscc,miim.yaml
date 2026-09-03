@@ -10,7 +10,7 @@ maintainers:
   - Alexandre Belloni <alexandre.belloni@bootlin.com>
 
 allOf:
-  - $ref: "mdio.yaml#"
+  - $ref: mdio.yaml#
 
 properties:
   compatible:
@@ -37,6 +37,16 @@ properties:
     maxItems: 1
 
   clock-frequency: true
+
+  resets:
+    items:
+      - description:
+          Reset shared with all blocks attached to the Switch Core Register
+          Bus (CSR) including VRAP slave.
+
+  reset-names:
+    items:
+      - const: switch
 
 required:
   - compatible

@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0
 
-/* Copyright (C) 2021-2022 Linaro Ltd. */
+/* Copyright (C) 2021-2024 Linaro Ltd. */
 
-#include <linux/kernel.h>
-#include <linux/types.h>
 #include <linux/device.h>
 #include <linux/sysfs.h>
+#include <linux/types.h>
 
 #include "ipa.h"
-#include "ipa_version.h"
 #include "ipa_sysfs.h"
+#include "ipa_version.h"
 
 static const char *ipa_version_string(struct ipa *ipa)
 {
@@ -36,8 +35,14 @@ static const char *ipa_version_string(struct ipa *ipa)
 		return "4.9";
 	case IPA_VERSION_4_11:
 		return "4.11";
+	case IPA_VERSION_5_0:
+		return "5.0";
+	case IPA_VERSION_5_1:
+		return "5.1";
+	case IPA_VERSION_5_5:
+		return "5.5";
 	default:
-		return "0.0";	/* Won't happen (checked at probe time) */
+		return "0.0";	/* Should not happen */
 	}
 }
 
@@ -46,7 +51,7 @@ version_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct ipa *ipa = dev_get_drvdata(dev);
 
-	return scnprintf(buf, PAGE_SIZE, "%s\n", ipa_version_string(ipa));
+	return sysfs_emit(buf, "%s\n", ipa_version_string(ipa));
 }
 
 static DEVICE_ATTR_RO(version);
@@ -70,7 +75,7 @@ static ssize_t rx_offload_show(struct device *dev,
 {
 	struct ipa *ipa = dev_get_drvdata(dev);
 
-	return scnprintf(buf, PAGE_SIZE, "%s\n", ipa_offload_string(ipa));
+	return sysfs_emit(buf, "%s\n", ipa_offload_string(ipa));
 }
 
 static DEVICE_ATTR_RO(rx_offload);
@@ -80,7 +85,7 @@ static ssize_t tx_offload_show(struct device *dev,
 {
 	struct ipa *ipa = dev_get_drvdata(dev);
 
-	return scnprintf(buf, PAGE_SIZE, "%s\n", ipa_offload_string(ipa));
+	return sysfs_emit(buf, "%s\n", ipa_offload_string(ipa));
 }
 
 static DEVICE_ATTR_RO(tx_offload);

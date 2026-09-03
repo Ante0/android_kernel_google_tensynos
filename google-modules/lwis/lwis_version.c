@@ -49,7 +49,19 @@ void lwis_get_feature_flags(char *buffer, size_t buffer_size)
 		 * Indicating that LWIS supports PDMA writing.
 		 */
 		" pdma-io"
+		/*
+		 * error-event-id:
+		 * Expend new error event ID to prevent potential event
+		 * ID conflicts between LWIS and ISP drivers.
+		 */
+		" error-event-id"
+		/*
+		 * dpm-qos-update:
+		 * Latest supported version of dpm-qos-update
+		 */
+		" dpm-qos-update=%d"
 		/* End of version string */
 		"\n";
-	scnprintf(buffer, buffer_size, long_string_format, LWIS_CMD_ID_TRANSACTION_SUBMIT);
+	scnprintf(buffer, buffer_size, long_string_format, LWIS_CMD_ID_TRANSACTION_SUBMIT,
+		  LWIS_CMD_ID_DPM_QOS_UPDATE);
 }

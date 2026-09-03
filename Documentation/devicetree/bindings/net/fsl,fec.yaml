@@ -7,7 +7,9 @@ $schema: http://devicetree.org/meta-schemas/core.yaml#
 title: Freescale Fast Ethernet Controller (FEC)
 
 maintainers:
-  - Joakim Zhang <qiangqing.zhang@nxp.com>
+  - Shawn Guo <shawnguo@kernel.org>
+  - Wei Fang <wei.fang@nxp.com>
+  - NXP Linux Team <linux-imx@nxp.com>
 
 allOf:
   - $ref: ethernet-controller.yaml#
@@ -49,6 +51,7 @@ properties:
               - fsl,imx8mm-fec
               - fsl,imx8mn-fec
               - fsl,imx8mp-fec
+              - fsl,imx93-fec
           - const: fsl,imx8mq-fec
           - const: fsl,imx6sx-fec
       - items:
@@ -56,6 +59,7 @@ properties:
           - const: fsl,imx6sx-fec
       - items:
           - enum:
+              - fsl,imx8dxl-fec
               - fsl,imx8qxp-fec
           - const: fsl,imx8qm-fec
           - const: fsl,imx6sx-fec
@@ -141,6 +145,9 @@ properties:
     description:
       Regulator that powers the Ethernet PHY.
 
+  power-domains:
+    maxItems: 1
+
   fsl,num-tx-queues:
     $ref: /schemas/types.yaml#/definitions/uint32
     description:
@@ -175,6 +182,13 @@ properties:
           - description: the gpr bit offset for ENET stop request
     description:
       Register bits of stop mode control, the format is <&gpr req_gpr req_bit>.
+
+  fsl,pps-channel:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    default: 0
+    description:
+      Specifies to which timer instance the PPS signal is routed.
+    enum: [0, 1, 2, 3]
 
   mdio:
     $ref: mdio.yaml#
@@ -216,6 +230,9 @@ properties:
       milliseconds will be observed after the phy-reset-gpios has been toggled.
       Can be omitted thus no delay is observed. Delay is in range of 1ms to 1000ms.
       Other delays are invalid.
+
+  iommus:
+    maxItems: 1
 
 required:
   - compatible

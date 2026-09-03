@@ -1,7 +1,6 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0-only
 
 /*
- * dm-init.c
  * Copyright (C) 2017 The Chromium OS Authors <chromium-os-dev@chromium.org>
  *
  * This file is released under the GPLv2.
@@ -296,14 +295,18 @@ static int __init dm_init_init(void)
 
 	for (i = 0; i < ARRAY_SIZE(waitfor); i++) {
 		if (waitfor[i]) {
+			dev_t dev;
+
 			DMINFO("waiting for device %s ...", waitfor[i]);
-			while (!dm_get_dev_t(waitfor[i]))
-				msleep(5);
+			while (early_lookup_bdev(waitfor[i], &dev))
+				fsleep(5000);
 		}
 	}
 
-	if (waitfor[0])
+	if (waitfor[0]) {
+		wait_for_device_probe();
 		DMINFO("all devices available");
+	}
 
 	list_for_each_entry(dev, &devices, list) {
 		if (dm_early_create(&dev->dmi, dev->table,

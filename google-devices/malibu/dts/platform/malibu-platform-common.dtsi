@@ -1,0 +1,153 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Malibu platform common device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+#include "malibu-platform-buttons.dtsi"
+#include "malibu-platform-cp.dtsi"
+#include "malibu-platform-lsio.dtsi"
+#include "malibu-platform-eusb-repeater.dtsi"
+#include "malibu-platform-usb-role-sw.dtsi"
+#include "malibu-platform-i2c.dtsi"
+#include "malibu-platform-typec-spmi.dtsi"
+#include "malibu-platform-charging.dtsi"
+#include "malibu-platform-battery.dtsi"
+#include "malibu-platform-wlan.dtsi"
+#include "malibu-platform-nfc.dtsi"
+#include "malibu-platform-ese.dtsi"
+#include "malibu-platform-bluetooth.dtsi"
+#include "malibu-platform-gsa-gsc.dtsi"
+#include "malibu-platform-usbdp-phy.dtsi"
+
+#include <dt-bindings/interrupt-controller/irq-gia-google-mbu.h>
+
+
+&mba_aonss_sc_mba_client_0 {
+		status = "okay";
+};
+
+&mba_aonss_sc_mba_client_1 {
+		status = "okay";
+};
+
+&mba_aonss_sc_mba_client_2 {
+		status = "okay";
+};
+
+&mba_aonss_sc_mba_client_3 {
+		status = "okay";
+};
+
+&mba_aonss_adsp_mba_client_0 {
+		status = "okay";
+};
+
+&mba_aonss_adsp_mba_client_1 {
+		status = "okay";
+};
+
+&mba_aonss_adsp_mba_client_2 {
+		status = "okay";
+};
+
+&mba_aonss_adsp_mba_client_3 {
+		status = "okay";
+};
+
+&mba_ambss_cpu_mba_client_2 {
+		status = "okay";
+};
+
+&mba_ambss_cpu_mba_client_3 {
+		status = "okay";
+};
+
+&mba_ambss_cpu_mba_client_4 {
+		status = "okay";
+};
+
+&mba_ambss_cpu_mba_client_5 {
+		status = "okay";
+};
+
+&cpm_ap_ns_req_mba_client_0 {
+		status = "okay";
+};
+
+&cpm_ap_ns_resp_mba_client_1 {
+		status = "okay";
+};
+
+&mba_gsa_client_0 {
+		status = "okay";
+};
+
+&goog_mba_cpm_iface {
+		status = "okay";
+};
+
+&goog_mba_cpm_iface_test {
+		status = "okay";
+};
+
+&gdmc_ap_non_secure_req_mba_client_2 {
+		status = "okay";
+};
+
+&gdmc_ap_non_secure_resp_mba_client_3 {
+		status = "okay";
+};
+
+&gdmc_ap_critical_req_mba_client_4 {
+		status = "okay";
+};
+
+&gdmc_ap_critical_resp_mba_client_5 {
+		status = "okay";
+};
+
+&gdmc_ap1_req_mba_client_6 {
+		status = "okay";
+};
+
+&gdmc_ap1_resp_mba_client_7 {
+		status = "okay";
+};
+
+&gdmc_ap2_req_mba_client_8 {
+		status = "okay";
+};
+
+&gdmc_ap2_resp_mba_client_9 {
+		status = "okay";
+};
+
+&gdmc_ap3_req_mba_client_10 {
+		status = "okay";
+};
+
+&gdmc_ap3_resp_mba_client_11 {
+		status = "okay";
+};
+
+&goog_mba_aggr_gdmc {
+		status = "okay";
+};
+
+&goog_mba_aggr_gdmc_crit {
+		status = "okay";
+};
+
+&goog_mba_gdmc_iface {
+		status = "okay";
+};
+
+&goog_mba_gdmc_iface_test {
+		status = "okay";
+};
+
+&mbfs_cpm_backend0_label {
+	status = "okay";
+};

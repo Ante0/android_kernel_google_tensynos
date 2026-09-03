@@ -7,6 +7,8 @@
 #ifndef __GOOGLE_MODEM_NOTIFIER_H__
 #define __GOOGLE_MODEM_NOTIFIER_H__
 
+#include <linux/notifier.h>
+
 struct notifier_block;
 
 /*
@@ -37,12 +39,12 @@ extern void modem_notify_event(enum modem_event evt, void *mc);
 
 extern int register_modem_voice_call_event_notifier(struct notifier_block *nb);
 extern void unregister_modem_voice_call_event_notifier(struct notifier_block *nb);
-extern void modem_voice_call_notify_event(enum modem_voice_call_event evt, void *data);
+extern int modem_voice_call_notify_event(enum modem_voice_call_event evt, void *data);
 
 #else
 
 static inline int modem_force_crash_exit_ext(const char *buf) { return 0; }
-static inline int void register_modem_force_crash_handler(struct notifier_block *nb) {}
+static inline int register_modem_force_crash_handler(struct notifier_block *nb) { return 0; }
 static inline void unregister_modem_force_crash_handler(struct notifier_block *nb) {}
 
 static inline int register_modem_event_notifier(struct notifier_block *nb)
@@ -59,7 +61,11 @@ static inline int register_modem_voice_call_event_notifier(struct notifier_block
 static inline void unregister_modem_voice_call_event_notifier(struct notifier_block *nb)
 {
 }
-static inline void modem_voice_call_notify_event(enum modem_voice_call_event evt, void *data) {}
+
+static inline int modem_voice_call_notify_event(enum modem_voice_call_event evt, void *data)
+{
+	return NOTIFY_DONE;
+}
 #endif
 
 #endif /* __GOOGLE_MODEM_NOTIFIER_H__ */

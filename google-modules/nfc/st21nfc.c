@@ -27,9 +27,12 @@
 #include <linux/workqueue.h>
 #include <linux/acpi.h>
 #include <linux/gpio/consumer.h>
+#include <linux/pinctrl/consumer.h>
 #include <net/nfc/nci.h>
 #include <linux/clk.h>
+#if IS_ENABLED(CONFIG_EXYNOS_PMU_IF)
 #include <soc/google/exynos-pmu-if.h>
+#endif /* CONFIG_EXYNOS_PMU_IF */
 #include "st21nfc.h"
 
 #define MAX_BUFFER_SIZE 260
@@ -37,10 +40,24 @@
 #define IDLE_CHARACTER 0x7e
 #define ST21NFC_POWER_STATE_MAX 3
 #define WAKEUP_SRC_TIMEOUT		(2000)
+#define WAKEUP_SRC_TIMEOUT_SHORT	(100)
 #define EXYNOS_CLK_MASK		0x01
+
+#define CORE_SET_POWER_SUB_STATE_CMD_SIZE 4
+/* Screen off locked */
+static const uint8_t CORE_SET_POWER_SUB_STATE_3_CMD[CORE_SET_POWER_SUB_STATE_CMD_SIZE] = {
+	0x20, 0x09, 0x01, 0x03};
+/* Screen off unlocked */
+static const uint8_t CORE_SET_POWER_SUB_STATE_1_CMD[CORE_SET_POWER_SUB_STATE_CMD_SIZE] = {
+	0x20, 0x09, 0x01, 0x01};
+#define CORE_SET_CONFIG_CMD_SIZE 7
+static const uint8_t CORE_SET_CONFIG_CMD[CORE_SET_CONFIG_CMD_SIZE] = {
+	0x20, 0x02, 0x04, 0x01, 0x02, 0x01, 0x00};
 #define EXYNOS_EXTPAD_CONTROL_EN_MASK 0x00010000
 
-#define DRIVER_VERSION "2.0.1A"
+#define POWER_STATE_CHECK_DURATION 2000
+
+#define DRIVER_VERSION "2.0.1D"
 
 #define PROP_PWR_MON_RW_ON_NTF nci_opcode_pack(NCI_GID_PROPRIETARY, 5)
 #define PROP_PWR_MON_RW_OFF_NTF nci_opcode_pack(NCI_GID_PROPRIETARY, 6)
@@ -113,7 +130,9 @@ struct st21nfc_device {
 	struct nfc_sub_power_stats pw_states[ST21NFC_POWER_STATE_MAX];
 	struct nfc_sub_power_stats_error pw_states_err;
 	struct workqueue_struct *st_p_wq;
+	struct workqueue_struct *st_delay_wq;
 	struct work_struct st_p_work;
+	struct delayed_work st_delay_work;
 	/*Power state shadow copies for reading*/
 	enum st21nfc_power_state c_pw_current;
 	struct nfc_sub_power_stats c_pw_states[ST21NFC_POWER_STATE_MAX];
@@ -125,11 +144,17 @@ struct st21nfc_device {
 	uint8_t pinctrl_en;
 	bool pidle_active_low;
 	int irq_clkreq;
+	struct pinctrl *pinctrl;
 
 	/* PMU CLK address */
 	unsigned int clk_pad;
 	/* PMU CLK EXTPAD_CONTROL_EN*/
 	bool clk_extpad_ctrl;
+	/* CLK PINCTRL SWITCH*/
+	bool clk_pinctrl_switch;
+
+	/* Power delay check feature flag*/
+	bool active_check;
 
 	/* GPIO for NFCC IRQ pin (input) */
 	struct gpio_desc *gpiod_irq;
@@ -141,6 +166,8 @@ struct st21nfc_device {
 	struct gpio_desc *gpiod_pidle;
 	/* irq_gpio polarity to be used */
 	unsigned int polarity_mode;
+	bool is_wakelock_short;
+	bool reduce_timeout;
 };
 
 /*
@@ -187,26 +214,68 @@ static int st21nfc_clock_deselect(struct st21nfc_device *st21nfc_dev)
 	}
 	return 0;
 }
-
-static void st21nfc_exynos_clk_control(struct st21nfc_device *st21nfc_dev,
-				       bool enable)
+static int st21nfc_clk_state(struct st21nfc_device *st21nfc_dev)
 {
-	if (st21nfc_dev->clk_extpad_ctrl && st21nfc_dev->clk_pad) {
+#if IS_ENABLED(CONFIG_EXYNOS_PMU_IF)
+	int ret = 0;
+
+	if (st21nfc_dev->clk_pad != 0 &&
+		exynos_pmu_read(st21nfc_dev->clk_pad, &ret) >= 0)
+		return ret & EXYNOS_CLK_MASK;
+#else /* CONFIG_EXYNOS_PMU_IF */
+	if (st21nfc_dev->clk_pinctrl_switch && st21nfc_dev->pinctrl)
+		return st21nfc_dev->clk_run ? 1 : 0;
+#endif /* CONFIG_EXYNOS_PMU_IF */
+
+	return -ENODEV;
+}
+
+static void st21nfc_clk_control(struct st21nfc_device *st21nfc_dev,
+				bool enable)
+{
+	struct i2c_client *client = st21nfc_dev->client;
+	struct device *dev __maybe_unused = &client->dev;
+	struct pinctrl_state *state __maybe_unused;
+	int rc __maybe_unused;
+
+#if IS_ENABLED(CONFIG_EXYNOS_PMU_IF)
+	if (st21nfc_dev->clk_pad == 0)
+		return;
+	if (st21nfc_dev->clk_extpad_ctrl) {
 		exynos_pmu_update(st21nfc_dev->clk_pad, EXYNOS_EXTPAD_CONTROL_EN_MASK,
 				  enable ? EXYNOS_EXTPAD_CONTROL_EN_MASK : 0);
-	} else	if (st21nfc_dev->clk_pad) {
+	} else {
 		exynos_pmu_update(st21nfc_dev->clk_pad, EXYNOS_CLK_MASK, enable ? 1 : 0);
 	}
+#else /* CONFIG_EXYNOS_PMU_IF */
+	if (!st21nfc_dev->clk_pinctrl_switch || !st21nfc_dev->pinctrl)
+		return;
+
+	state = pinctrl_lookup_state(st21nfc_dev->pinctrl, enable ? "func" : "default");
+
+	if (IS_ERR_OR_NULL(state)) {
+		dev_err(dev, "Can't find pinctrl state: %s\n",
+			enable ? "func" : "default");
+	} else {
+		rc = pinctrl_select_state(st21nfc_dev->pinctrl, state);
+		if (unlikely(rc))
+			dev_err(dev, "Failed to set pinctrl state: %s\n",
+				enable ? "func" : "default");
+		st21nfc_dev->clk_run = enable;
+	}
+#endif /* CONFIG_EXYNOS_PMU_IF */
 }
 
 static irqreturn_t st21nfc_clkreq_irq_handler(int irq, void *dev_id)
 {
+#if IS_ENABLED(CONFIG_EXYNOS_PMU_IF)
 	struct st21nfc_device *st21nfc_dev = dev_id;
 	int value = gpiod_get_value(st21nfc_dev->gpiod_clkreq);
 
 	if (st21nfc_dev->pinctrl_en) {
-		st21nfc_exynos_clk_control(st21nfc_dev, value ? true : false);
+		st21nfc_clk_control(st21nfc_dev, value ? true : false);
 	}
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -241,11 +310,16 @@ static irqreturn_t st21nfc_dev_irq_handler(int irq, void *dev_id)
 
 	if (device_may_wakeup(&st21nfc_dev->client->dev))
 		pm_wakeup_event(&st21nfc_dev->client->dev,
-			WAKEUP_SRC_TIMEOUT);
+				st21nfc_dev->is_wakelock_short ?
+				WAKEUP_SRC_TIMEOUT_SHORT : WAKEUP_SRC_TIMEOUT);
+	st21nfc_dev->is_wakelock_short = false;
 	st21nfc_disable_irq(st21nfc_dev);
 
 	/* Wake up waiting readers */
 	wake_up(&st21nfc_dev->read_wq);
+	/* Record the power state change if the chip just wake up*/
+	if (st21nfc_dev->active_check && st21nfc_dev->pw_current == ST21NFC_IDLE)
+		queue_work(st21nfc_dev->st_p_wq, &(st21nfc_dev->st_p_work));
 
 	return IRQ_HANDLED;
 }
@@ -328,6 +402,12 @@ static void st21nfc_power_stats_switch(
 	} else if (!is_ntf &&
 		new_state == ST21NFC_ACTIVE &&
 		old_state != ST21NFC_IDLE) {
+		if (st21nfc_dev->active_check &&
+				old_state == ST21NFC_ACTIVE_RW) {
+			/* Ignore case from ACTIVE_RW without NCI_NTF */
+			mutex_unlock(&st21nfc_dev->pidle_mutex);
+			return;
+		}
 		st21nfc_dev->pw_states_err.active_not_idle++;
 	} else if (!is_ntf &&
 		new_state == ST21NFC_IDLE &&
@@ -361,8 +441,8 @@ static void st21nfc_power_stats_idle_signal(struct st21nfc_device *st21nfc_dev)
 {
 	uint64_t current_time_ms = ktime_to_ms(ktime_get_boottime());
 	bool is_active = (bool) gpiod_get_value(st21nfc_dev->gpiod_pidle);
-	is_active = st21nfc_dev->pidle_active_low ? !is_active : is_active;
 
+	is_active = st21nfc_dev->pidle_active_low ? !is_active : is_active;
 	st21nfc_power_stats_switch(st21nfc_dev, current_time_ms,
 		st21nfc_dev->pw_current, is_active ? ST21NFC_ACTIVE : ST21NFC_IDLE,
 		false);
@@ -371,10 +451,36 @@ static void st21nfc_power_stats_idle_signal(struct st21nfc_device *st21nfc_dev)
 static void st21nfc_pstate_wq(struct work_struct *work)
 {
 	struct st21nfc_device *st21nfc_dev = container_of(work,
-							struct st21nfc_device,
-							st_p_work);
+			struct st21nfc_device, st_p_work);
 
 	st21nfc_power_stats_idle_signal(st21nfc_dev);
+
+	if (!st21nfc_dev->active_check)
+		return;
+	mutex_lock(&st21nfc_dev->pidle_mutex);
+	if (!delayed_work_pending(&(st21nfc_dev->st_delay_work)) &&
+			st21nfc_dev->pw_current != ST21NFC_IDLE) {
+		queue_delayed_work(st21nfc_dev->st_delay_wq,
+				&(st21nfc_dev->st_delay_work),
+				msecs_to_jiffies(POWER_STATE_CHECK_DURATION));
+	}
+	mutex_unlock(&st21nfc_dev->pidle_mutex);
+}
+
+static void st21nfc_delay_wq(struct work_struct *work)
+{
+	struct st21nfc_device *st21nfc_dev = container_of(work,
+			struct st21nfc_device, st_delay_work.work);
+	if (!st21nfc_dev->active_check)
+		return;
+	st21nfc_power_stats_idle_signal(st21nfc_dev);
+	mutex_lock(&st21nfc_dev->pidle_mutex);
+	if (st21nfc_dev->pw_current != ST21NFC_IDLE) {
+		queue_delayed_work(st21nfc_dev->st_delay_wq,
+				&(st21nfc_dev->st_delay_work),
+				msecs_to_jiffies(POWER_STATE_CHECK_DURATION));
+	}
+	mutex_unlock(&st21nfc_dev->pidle_mutex);
 }
 
 static irqreturn_t st21nfc_dev_power_stats_handler(int irq, void *dev_id)
@@ -508,6 +614,23 @@ static ssize_t st21nfc_dev_read(struct file *filp, char __user *buf,
 	return ret;
 }
 
+static bool st21nfc_is_short_timeout_command(const uint8_t *data, size_t count)
+{
+	if (count == CORE_SET_POWER_SUB_STATE_CMD_SIZE &&
+	    !memcmp(data, CORE_SET_POWER_SUB_STATE_3_CMD, count))
+		return true;
+
+	if (count == CORE_SET_POWER_SUB_STATE_CMD_SIZE &&
+	    !memcmp(data, CORE_SET_POWER_SUB_STATE_1_CMD, count))
+		return true;
+
+	if (count == CORE_SET_CONFIG_CMD_SIZE &&
+	    !memcmp(data, CORE_SET_CONFIG_CMD, count))
+		return true;
+
+	return false;
+}
+
 static ssize_t st21nfc_dev_write(struct file *filp, const char __user *buf,
 				 size_t count, loff_t *offset)
 {
@@ -529,6 +652,12 @@ static ssize_t st21nfc_dev_write(struct file *filp, const char __user *buf,
 
 	dev_dbg(&st21nfc_dev->client->dev, "writing %zu bytes.\n", count);
 	/* Write data */
+	if (st21nfc_dev->reduce_timeout &&
+	    st21nfc_is_short_timeout_command(tmp, count)) {
+		st21nfc_dev->is_wakelock_short = true;
+	} else {
+		st21nfc_dev->is_wakelock_short = false;
+	}
 	ret = i2c_master_send(st21nfc_dev->client, tmp, count);
 	if (ret != count) {
 		dev_err(&st21nfc_dev->client->dev, "i2c_master_send returned %d\n", ret);
@@ -550,8 +679,7 @@ static int st21nfc_dev_open(struct inode *inode, struct file *filp)
 		ret = -EBUSY;
 	} else {
 		st21nfc_dev->device_open = true;
-		if (st21nfc_dev->clk_pad)
-			st21nfc_exynos_clk_control(st21nfc_dev, true);
+		st21nfc_clk_control(st21nfc_dev, true);
 	}
 	return ret;
 }
@@ -564,9 +692,7 @@ static int st21nfc_release(struct inode *inode, struct file *file)
 						       st21nfc_device);
 
 	st21nfc_dev->device_open = false;
-	if (st21nfc_dev->clk_pad) {
-		st21nfc_exynos_clk_control(st21nfc_dev, false);
-	}
+	st21nfc_clk_control(st21nfc_dev, false);
 	return 0;
 }
 
@@ -667,18 +793,13 @@ static long st21nfc_dev_ioctl(struct file *filp, unsigned int cmd,
 		}
 		break;
 	case ST21NFC_CLK_ENABLE:
-		st21nfc_exynos_clk_control(st21nfc_dev, true);
+		st21nfc_clk_control(st21nfc_dev, true);
 		break;
 	case ST21NFC_CLK_DISABLE:
-		st21nfc_exynos_clk_control(st21nfc_dev, false);
+		st21nfc_clk_control(st21nfc_dev, false);
 		break;
 	case ST21NFC_CLK_STATE:
-		if (st21nfc_dev->clk_pad == 0 ||
-			exynos_pmu_read(st21nfc_dev->clk_pad, &ret) < 0) {
-			ret = -ENODEV;
-		} else {
-			ret &= EXYNOS_CLK_MASK;
-		}
+		ret = st21nfc_clk_state(st21nfc_dev);
 		break;
 	default:
 		dev_err(&st21nfc_dev->client->dev, "bad ioctl %u\n", cmd);
@@ -719,7 +840,6 @@ static unsigned int st21nfc_poll(struct file *file, poll_table *wait)
 
 static const struct file_operations st21nfc_dev_fops = {
 	.owner = THIS_MODULE,
-	.llseek = no_llseek,
 	.read = st21nfc_dev_read,
 	.write = st21nfc_dev_write,
 	.open = st21nfc_dev_open,
@@ -883,8 +1003,7 @@ static const struct acpi_gpio_mapping acpi_st21nfc_gpios[] = {
 	{ "clkreq-gpios", &clkreq_gpios, 1},
 };
 
-static int st21nfc_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id)
+static int st21nfc_probe(struct i2c_client *client)
 {
 	int ret;
 	struct st21nfc_device *st21nfc_dev;
@@ -927,10 +1046,7 @@ static int st21nfc_probe(struct i2c_client *client,
 	if (IS_ERR(st21nfc_dev->gpiod_pidle)) {
 		ret = 0;
 	} else {
-		if (!device_property_read_bool(dev, "st,pidle_active_low")) {
-			dev_dbg(dev, "[OPTIONAL] pidle_active_low not set\n");
-			st21nfc_dev->pidle_active_low = false;
-		} else {
+		if (device_property_read_bool(dev, "st,pidle_active_low")) {
 			dev_dbg(dev, "[OPTIONAL] pidle_active_low set\n");
 			st21nfc_dev->pidle_active_low = true;
 		}
@@ -940,6 +1056,23 @@ static int st21nfc_probe(struct i2c_client *client,
 			return -ENODEV;
 		mutex_init(&st21nfc_dev->pidle_mutex);
 		INIT_WORK(&(st21nfc_dev->st_p_work), st21nfc_pstate_wq);
+		if (device_property_read_bool(dev, "st,pidle_active_check")) {
+			dev_dbg(dev, "[OPTIONAL] pidle_active_check set\n");
+			st21nfc_dev->active_check = true;
+			/* Prepare a workqueue for st_delay_work */
+			st21nfc_dev->st_delay_wq = create_workqueue("st_delay_work");
+			if (!st21nfc_dev->st_delay_wq) {
+				mutex_destroy(&st21nfc_dev->pidle_mutex);
+				destroy_workqueue(st21nfc_dev->st_p_wq);
+				return -ENODEV;
+			}
+			INIT_DELAYED_WORK(&(st21nfc_dev->st_delay_work), st21nfc_delay_wq);
+		}
+		if (device_property_read_bool(dev, "st,reduce-timeout")) {
+			dev_dbg(dev, "[OPTIONAL] reduce_timeout set\n");
+			st21nfc_dev->reduce_timeout = true;
+		}
+
 		/* Start the power stat in power mode idle */
 		st21nfc_dev->irq_pw_stats_idle =
 					gpiod_to_irq(st21nfc_dev->gpiod_pidle);
@@ -970,7 +1103,17 @@ static int st21nfc_probe(struct i2c_client *client,
 			goto err_pidle_workqueue;
 		}
 	}
-
+	/* Try setup clk pinctrl switch*/
+	st21nfc_dev->clk_pinctrl_switch = false;
+	if (device_property_read_bool(dev, "st,clk_pinctrl_switch")) {
+		st21nfc_dev->pinctrl = devm_pinctrl_get(dev);
+		if (IS_ERR(st21nfc_dev->pinctrl)) {
+			dev_dbg(dev, "[OPTIONAL] pinctrl not found\n");
+		} else {
+			dev_info(dev, "[OPTIONAL] clk_pinctrl_switch enabled\n");
+			st21nfc_dev->clk_pinctrl_switch = true;
+		}
+	}
 	st21nfc_dev->gpiod_clkreq = devm_gpiod_get(dev, "clkreq", GPIOD_IN);
 	/* Try get pmu_clk_pad value*/
 	if (device_property_read_u32(dev, "pmu_clk_pad", &st21nfc_dev->clk_pad)) {
@@ -1079,6 +1222,8 @@ err_pidle_workqueue:
 	if (!IS_ERR(st21nfc_dev->gpiod_pidle)) {
 		mutex_destroy(&st21nfc_dev->pidle_mutex);
 		destroy_workqueue(st21nfc_dev->st_p_wq);
+		if (st21nfc_dev->active_check)
+			destroy_workqueue(st21nfc_dev->st_delay_wq);
 	}
 	return ret;
 }
@@ -1093,6 +1238,9 @@ static void st21nfc_remove(struct i2c_client *client)
 		sysfs_remove_file(&client->dev.kobj,
 				  &dev_attr_power_stats.attr);
 		mutex_destroy(&st21nfc_dev->pidle_mutex);
+		destroy_workqueue(st21nfc_dev->st_p_wq);
+		if (st21nfc_dev->active_check)
+			destroy_workqueue(st21nfc_dev->st_delay_wq);
 	}
 	sysfs_remove_group(&client->dev.kobj, &st21nfc_attr_grp);
 	mutex_destroy(&st21nfc_dev->read_mutex);
@@ -1104,6 +1252,10 @@ static int st21nfc_suspend(struct device *device)
 	struct i2c_client *client = to_i2c_client(device);
 	struct st21nfc_device *st21nfc_dev = i2c_get_clientdata(client);
 
+	if (st21nfc_dev->active_check) {
+		cancel_work_sync(&(st21nfc_dev->st_p_work));
+		cancel_delayed_work(&(st21nfc_dev->st_delay_work));
+	}
 	if (device_may_wakeup(&client->dev) && st21nfc_dev->irq_enabled) {
 		if (!enable_irq_wake(client->irq))
 			st21nfc_dev->irq_wake_up = true;
@@ -1122,15 +1274,10 @@ static int st21nfc_resume(struct device *device)
 			st21nfc_dev->irq_wake_up = false;
 	}
 
-	if (!IS_ERR(st21nfc_dev->gpiod_pidle)) {
-		bool is_active = (bool) gpiod_get_value(st21nfc_dev->gpiod_pidle);
-		is_active = st21nfc_dev->pidle_active_low ? !is_active : is_active;
-		if((st21nfc_dev->pw_current == ST21NFC_IDLE && is_active) ||
-		   (st21nfc_dev->pw_current == ST21NFC_ACTIVE && !is_active)) {
-			queue_work(st21nfc_dev->st_p_wq,
-				   &(st21nfc_dev->st_p_work));
-		}
-	}
+	/* The NFC controller might wakes up during suspend */
+	/* Check the power state change everytime after resume */
+	if (!IS_ERR(st21nfc_dev->gpiod_pidle))
+		queue_work(st21nfc_dev->st_p_wq, &(st21nfc_dev->st_p_work));
 	return 0;
 }
 

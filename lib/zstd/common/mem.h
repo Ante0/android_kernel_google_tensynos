@@ -15,7 +15,7 @@
 /*-****************************************
 *  Dependencies
 ******************************************/
-#include <asm/unaligned.h>  /* get_unaligned, put_unaligned* */
+#include <linux/unaligned.h>  /* get_unaligned, put_unaligned* */
 #include <linux/compiler.h>  /* inline */
 #include <linux/swab.h>  /* swab32, swab64 */
 #include <linux/types.h>  /* size_t, ptrdiff_t */
@@ -30,6 +30,8 @@
 *  Basic Types
 *****************************************************************/
 typedef uint8_t  BYTE;
+typedef uint8_t  U8;
+typedef int8_t   S8;
 typedef uint16_t U16;
 typedef int16_t  S16;
 typedef uint32_t U32;

@@ -162,9 +162,9 @@ static const struct attribute_group suspend_attr_group = {
 /*
  * Resume sysfs
  */
+#if IS_ENABLED(CONFIG_SOC_GS101)
 /* bl1sg: bl1_sleep_go time */
 METRICS_ATTR_RO(bl1sg, BL1, SLEEP_GO_START, PBL, SLEEP_GO_START);
-#if defined(CONFIG_SOC_GS101)
 /* pblsg: pbl_sleep_go time */
 METRICS_ATTR_RO(pblsg, PBL, SLEEP_GO_START, EL3, SLEEP_GO_START);
 /* el3sg: el3_sleep_go time */
@@ -175,24 +175,39 @@ METRICS_ATTR_RO(bl2wb, BL2, WARMBOOT_START, EL3, MON_SMC_WARMBOOT_START);
 METRICS_ATTR_RO(el3wb, EL3, MON_SMC_WARMBOOT_START, EL3, MON_SMC_WARMBOOT_END);
 /* total: bl1_sleep_go + pbl_sleep_go + el3_sleep_go + bl2_warmboot + el3_warmboot time */
 METRICS_ATTR_RO(resume_total, BL1, SLEEP_GO_START, EL3, MON_SMC_WARMBOOT_END);
-#else /* CONFIG_SOC_GS201 or Zuma */
+#elif IS_ENABLED(CONFIG_SOC_GS201) || IS_ENABLED(CONFIG_SOC_ZUMA)
+/* bl1sg: bl1_sleep_go time */
+METRICS_ATTR_RO(bl1sg, BL1, SLEEP_GO_START, PBL, SLEEP_GO_START);
 /* pblsg: pbl_sleep_go time */
 METRICS_ATTR_RO(pblsg, PBL, SLEEP_GO_START, EL3, MON_SMC_WARMBOOT_START);
 /* el3wb: el3_warmboot time */
 METRICS_ATTR_RO(el3wb, EL3, MON_SMC_WARMBOOT_START, EL3, MON_SMC_WARMBOOT_END);
 /* total: bl1_sleep_go + pbl_sleep_go + el3_warmboot time */
 METRICS_ATTR_RO(resume_total, BL1, SLEEP_GO_START, EL3, MON_SMC_WARMBOOT_END);
+#else /* CONFIG_SOC_LGA or later gSOCs */
+/* el3wb: el3_warmboot time */
+METRICS_ATTR_RO(el3wb, EL3, MON_SMC_WARMBOOT_START, EL3, MON_SMC_WARMBOOT_END);
+/* total: bl3_sleep_go + el3_warmboot time */
+METRICS_ATTR_RO(resume_total, EL3, SLEEP_GO_START, EL3, MON_SMC_WARMBOOT_END);
 #endif
 
 static struct attribute *resume_attrs[] = {
+#if IS_ENABLED(CONFIG_SOC_GS101)
 	&metrics_attr_bl1sg.attr,
 	&metrics_attr_pblsg.attr,
-#if defined(CONFIG_SOC_GS101)
 	&metrics_attr_el3sg.attr,
 	&metrics_attr_bl2wb.attr,
-#endif
 	&metrics_attr_el3wb.attr,
 	&metrics_attr_resume_total.attr,
+#elif IS_ENABLED(CONFIG_SOC_GS201) || IS_ENABLED(CONFIG_SOC_ZUMA)
+	&metrics_attr_bl1sg.attr,
+	&metrics_attr_pblsg.attr,
+	&metrics_attr_el3wb.attr,
+	&metrics_attr_resume_total.attr,
+#else /* CONFIG_SOC_LGA or later gSOCs */
+	&metrics_attr_el3wb.attr,
+	&metrics_attr_resume_total.attr,
+#endif
 	NULL
 };
 

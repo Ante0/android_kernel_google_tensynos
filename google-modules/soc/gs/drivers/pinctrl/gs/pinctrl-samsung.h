@@ -154,7 +154,7 @@ struct samsung_pin_bank_data {
  * @name: name to be prefixed for each pin in this pin bank.
  * @pin_base: starting pin number of the bank.
  * @soc_priv: per-bank private data for SoC-specific code.
- * @of_node: OF node of the bank.
+ * @fwnode: firmware device node
  * @drvdata: link to controller driver data
  * @irq_domain: IRQ domain of the bank.
  * @gpio_chip: GPIO chip of the bank.
@@ -162,7 +162,6 @@ struct samsung_pin_bank_data {
  * @irq_chip: link to irq chip for external gpio and wakeup interrupts.
  * @slock: spinlock protecting bank registers
  * @pm_save: saved register values during suspend
- * @weint_data: wakeup interrupt data
  */
 struct samsung_pin_bank {
 	const struct samsung_pin_bank_type *type;
@@ -181,7 +180,7 @@ struct samsung_pin_bank {
 
 	u32		pin_base;
 	void		*soc_priv;
-	struct device_node *of_node;
+	struct fwnode_handle *fwnode;
 	struct samsung_pinctrl_drv_data *drvdata;
 	struct irq_domain *irq_domain;
 	struct gpio_chip gpio_chip;
@@ -190,8 +189,6 @@ struct samsung_pin_bank {
 	raw_spinlock_t slock;
 
 	u32 pm_save[PINCFG_TYPE_NUM + 1]; /* +1 to handle double CON registers*/
-
-	struct exynos_weint_data *weint_data;
 };
 
 /**

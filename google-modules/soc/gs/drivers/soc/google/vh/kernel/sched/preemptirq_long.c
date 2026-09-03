@@ -8,8 +8,10 @@
 #include <linux/printk.h>
 #include <linux/sched/clock.h>
 
-#define CREATE_TRACE_POINTS
 #include "preemptirq_long.h"
+
+#define CREATE_TRACE_POINTS
+#include "trace_preemptirq_long.h"
 
 #define IRQSOFF_SENTINEL 0x0fffDEAD
 
@@ -138,7 +140,6 @@ static struct ctl_table preemptirq_long_table[] = {
 		.extra1		= &one_million,
 		.extra2		= &one_hundred_million,
 	},
-	{ }
 };
 
 int preemptirq_long_init(void)

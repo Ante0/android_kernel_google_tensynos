@@ -10,19 +10,19 @@
 
 &reserved_memory {
 	xhci_dma_buffer: xhci_dma_buffer@17BB5000 {
-		compatible = "xhci-dma-pool";
+		compatible = "shared-dma-pool";
 		reg = <0x0 0x17BB5000 0xB000>;
 		no-map;
 	};
 
 	xhci_dma: xhci_dma@17BC0000 {
-		compatible = "xhci-dma-pool";
+		compatible = "shared-dma-pool";
 		reg = <0x0 0x17BC0000 0x40000>;
 		no-map;
 	};
 
 	xhci_dma_dram: xhci_dma_dram@97000000 {
-		compatible = "xhci-dma-pool";
+		compatible = "shared-dma-pool";
 		reg = <0x0 0x97000000 0x400000>;
 		no-map;
 	};
@@ -228,7 +228,6 @@
 			phy-names = "usb2-phy", "usb3-phy";
 			/* support usb audio offloading: 1, if not: 0 */
 			usb_audio_offloading = <1>;
-			direct-usb-access;
 
 			maximum-speed = "super-speed-plus";
 			usb-psy-name = "usb";
@@ -250,6 +249,8 @@
 			snps,dis-u1-entry-quirk;
 			snps,dis-u2-entry-quirk;
 			xhci_l2_support = <1>;
+			num-hc-interrupters = /bits/ 16 <2>;
+			memory-swap-enabled;
 		};
 	};
 

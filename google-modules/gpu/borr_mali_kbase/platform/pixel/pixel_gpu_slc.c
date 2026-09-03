@@ -222,6 +222,9 @@ void gpu_slc_kctx_term(struct kbase_context *kctx)
 {
 	struct pixel_platform_data *pd = kctx->platform_data;
 
+	lockdep_assert_held(&kctx->kbdev->hwaccess_lock);
+
+
 	/* Contexts can be terminated without being idled first */
 	if (transition(&pd->slc_vote, VOTING, IDLE))
 		pixel_mgm_slc_dec_refcount(kctx->kbdev->mgm_dev);
@@ -243,9 +246,13 @@ void gpu_slc_kctx_term(struct kbase_context *kctx)
  */
 void gpu_slc_kctx_active(struct kbase_context *kctx)
 {
-	struct pixel_platform_data *pd = kctx->platform_data;
+	struct pixel_platform_data *pd;
 
 	lockdep_assert_held(&kctx->kbdev->hwaccess_lock);
+
+	pd = kctx->platform_data;
+	if (!pd)
+		return;
 
 	if (transition(&pd->slc_vote, IDLE, VOTING))
 		pixel_mgm_slc_inc_refcount(kctx->kbdev->mgm_dev);
@@ -258,9 +265,13 @@ void gpu_slc_kctx_active(struct kbase_context *kctx)
  */
 void gpu_slc_kctx_idle(struct kbase_context *kctx)
 {
-	struct pixel_platform_data *pd = kctx->platform_data;
+	struct pixel_platform_data *pd;
 
 	lockdep_assert_held(&kctx->kbdev->hwaccess_lock);
+
+	pd = kctx->platform_data;
+	if (!pd)
+		return;
 
 	if (transition(&pd->slc_vote, VOTING, IDLE))
 		pixel_mgm_slc_dec_refcount(kctx->kbdev->mgm_dev);

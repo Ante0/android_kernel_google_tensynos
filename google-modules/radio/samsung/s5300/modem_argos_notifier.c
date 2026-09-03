@@ -85,7 +85,6 @@ static int mif_store_rps_map(struct netdev_rx_queue *queue, char *buf, size_t le
 		GFP_KERNEL);
 	if (!map) {
 		free_cpumask_var(mask);
-		mif_err("failed to alloc kmem\n");
 		return -ENOMEM;
 	}
 
@@ -258,10 +257,8 @@ int mif_init_argos_notifier(void)
 	mif_info("++\n");
 
 	argos_nf = kzalloc(sizeof(struct argos_notifier), GFP_ATOMIC);
-	if (!argos_nf) {
-		mif_err("failed to allocate argos_nf\n");
+	if (!argos_nf)
 		return -ENOMEM;
-	}
 
 	argos_nf->ipc_nb.notifier_call = mif_argos_notifier_ipc;
 	ret = sec_argos_register_notifier(&argos_nf->ipc_nb, MIF_ARGOS_IPC_LABEL);

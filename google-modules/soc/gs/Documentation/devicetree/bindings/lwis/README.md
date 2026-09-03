@@ -83,6 +83,16 @@ properties are ignored.
     devices. These properties are to specify the bitwidths in case they are
     different from default.
 
+`reg-valid-ranges`
+:   Expected input: *a list of tuples: \<32-bit block id, 32-bit address,
+    32-bit address space sizes\>*
+:   This defines the register spaces the LWIS IOREG device can access.
+
+`offset`
+:   Expected input: *a single unsigned 64-bit value, in units of bytes.*
+:   This is an optional offset value for each register block. If defined, it
+    will be subtracted from the register address for read / writes.
+
 ### I2C {#i2c}
 
 `i2c-bus`
@@ -117,6 +127,31 @@ properties are ignored.
     given bus, the high priority queue is checked first then the worker moves
     to processing the medium priority queue and finally the low priority queue.
 
+`lwis,i2c-otp`
+:   This property enables direct kernel configuration of OTP for I2C devices,
+    improving efficiency and robustness during device initialization.
+`i2c-otp-settings`
+:   Expected input: *32-bit register address and 32-bit register value pair.*
+:   The OTP settings address-value pair.
+`i2c-otp-settle-time`
+:   Expected input: *32-bit unsigned integer value.*
+:   The sleep value in us after applying the OTP settings.
+:   Example:
+    ```
+    sensor1: sensor@1 {
+        compatible = "google,lwis-i2c-device";
+        /* Device node name */
+        node-name = "sensor-model";
+        /* I2C setting in kernel */
+        lwis,i2c-otp;
+        /* I2C OTP settings (reg, val) */
+        i2c-otp-settings =
+            <0xFCFC 0x4000
+             0x1000 0x0005
+             0x1010 0x0001>;
+        i2c-otp-settle-time = <6000>;
+    };
+    ```
 ### Clock {#clock}
 
 Reference:
@@ -201,18 +236,6 @@ Reference:
 :   Expected input: *a phandle to a pin configurations entry.*
 :   This should point to a pin configuration under a pin controller. All N
     pinctrl configurations should be under the same pin controller.
-
-`shared-pinctrl`
-:   Expected input: *A flag to indicate if pinctrls are shared with other
-    devices.*
-:   shared-pinctrl can be any of positive integer value, the same number defined
-    means they are sharing pinctrl resources.
-    -   For example:
-        -   Device A: shared-pinctrl = <1>
-        -   Device B: shared-pinctrl = <1>
-        -   Device C: shared-pinctrl = <2>
-        -   Device D: shared-pinctrl = <2>
-        -   Then A shares with B, C shares with D.
 
 ### Power Up / Down Sequence {#power-sequence}
 
@@ -471,34 +494,36 @@ Aggregate Interrupt
     };
     ```
 
-### Power management
+### Device access mode
 
-`pm-hibernation`
-:   Expected input: *a single 32-bit value.(i.e. 1 : enable to keep original mechanism, 0 : disable to disallow to get into the suspension mode).*
-:   This property prevents the camera driver from being powered off while the
-    system gets into the suspension mode.
+`lwis,disable-group-transfer`
+:   Some sensors lack support [repeated-start-condition](https://www.i2c-bus.org/repeated-start-condition/). This property provides a mechanism
+    for selectively disabling group transfer operations. By default,
+    allowing multiple register accesses to be grouped and executed as a
+    single transaction.
 :   Example:
 
     ```
-    flash0: flash@0 {
-        compatible = "google,lwis-i2c-device";
-
-        /* Device node name */
-        node-name = "flash-foo";
-
-        /* Power Management hibernation (deep sleep) */
-        /* 1 : enable, 0 : disable */
-        pm-hibernation = <0>;
+    lwis_device@0 {
+    compatible = "vendor,lwis-i2c-device";
+    reg = <0x0>;
+    /* Disable group transfer for this LWiS device */
+    lwis,disable-group-transfer;
+    ...
     };
     ```
 
 ### Device access mode
 
 `lwis,read-only`
-:   Some drivers (i.e. EEPROM) should not arbitrarily allow write access. This property sets device as read access only to avoid people with bad intentions breaking the drivers. In that case, define this property to deny write access to this particular device. Otherwise, read-write permissions will be granted.
+:   Some drivers (i.e. EEPROM) should not arbitrarily allow write access. This
+    property sets device as read access only to avoid people with bad
+    intentions breaking the drivers. In that case, define this property to deny
+    write access to this particular device. Otherwise, read-write permissions
+    will be granted.
 :   Example:
 
-```
+    ```
     eeprom: eeprom@ {
         compatible = "google,lwis-i2c-device";
 
@@ -508,7 +533,7 @@ Aggregate Interrupt
         /* Access mode property*/
         lwis,read-only;
     };
-```
+    ```
 
 ### Thread priority {#thread-priority}
 

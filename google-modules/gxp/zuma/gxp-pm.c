@@ -159,7 +159,7 @@ static int gxp_pm_blkpwr_down(struct gxp_dev *gxp)
 		 * indicate the device is still in use somewhere. The only
 		 * expected value here is 0, indicating no remaining users.
 		 */
-		dev_err(gxp->dev,
+		dev_warn(gxp->dev,
 			"pm_runtime_put_sync returned %d during blk down\n",
 			ret);
 	if (ret == -EAGAIN) {
@@ -179,7 +179,7 @@ static int gxp_pm_blkpwr_down(struct gxp_dev *gxp)
 	}
 	/* Remove our vote for INT/MIF state (if any) */
 	gxp_soc_pm_reset(gxp);
-	return ret;
+	return 0;
 }
 
 static int gxp_pm_blk_set_state_acpm(struct gxp_dev *gxp, unsigned long state)
@@ -992,6 +992,9 @@ static int gxp_pm_power_up(void *data)
 	if (gxp->power_mgr->min_freq_limit || gxp->power_mgr->max_freq_limit)
 		gxp_pm_update_freq_limits_locked(gxp);
 	mutex_unlock(&gxp->power_mgr->freq_limits_lock);
+
+	if (gxp->coresight_remote_restore)
+		gxp->coresight_remote_restore(gxp);
 #endif /* GXP_HAS_MCU */
 	return 0;
 }

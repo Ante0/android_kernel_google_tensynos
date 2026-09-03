@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Wireless Charger config for CPS4041.
+ * Intended to be included into the approriate I2C bus.
+ *
+ * Copyright 2024 Google LLC
+ */
+
+google_wlc: cps4041@30 {
+	compatible = "cps,cps4041";
+	reg = <0x30>;
+
+	google,hda-tz-wlc;
+	google,wlc_eoc_cloak;
+	google,fg-power-supply = <&google_battery>;
+	google,wcin_inlim_en-gpio = <&max77779_gpio 0 GPIO_ACTIVE_HIGH>;
+
+	google,high_soc_threshold = <75>;
+	google,rx_fwupdate_option = <2>;
+
+	google_wlc_gpio: google_wlc_gpio {
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <16>;
+	};
+
+};

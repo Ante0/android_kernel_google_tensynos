@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+/*
+ * Debug Policy Module device tree source
+ *
+ * Copyright 2025 Google Inc.
+ */
+
+/ {
+	dpm: dpm  {
+		version = <201>;
+		variant = "user";
+	}; /* end of dpm */
+}; /* end of root */

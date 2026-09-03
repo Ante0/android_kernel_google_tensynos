@@ -8,14 +8,14 @@
 #include "max77779.h"
 #include "max77779_fg.h"
 
-const struct regmap_config max77779_fg_regmap_cfg = {
+static const struct regmap_config max77779_fg_regmap_cfg = {
 	.reg_bits = 8,
 	.val_bits = 16,
 	.val_format_endian = REGMAP_ENDIAN_NATIVE,
 	.max_register = MAX77779_FG_USR,
 };
 
-const struct regmap_config max77779_fg_debug_regmap_cfg = {
+static const struct regmap_config max77779_fg_debug_regmap_cfg = {
 	.reg_bits = 8,
 	.val_bits = 16,
 	.val_format_endian = REGMAP_ENDIAN_NATIVE,
@@ -54,9 +54,9 @@ static int max77779_fg_i2c_regmap_init(struct max77779_fg_chip *chip, struct i2c
 {
 	int ret;
 
-	if (!primary || !chip->secondary) {
+	if (!primary || !chip->secondary_i2c) {
 		dev_err(chip->dev, "Error i2c client not valid. primary:%p secondary:%p",
-			primary, chip->secondary);
+			primary, chip->secondary_i2c);
 		return -EINVAL;
 	}
 
@@ -68,7 +68,7 @@ static int max77779_fg_i2c_regmap_init(struct max77779_fg_chip *chip, struct i2c
 		return -EINVAL;
 	}
 
-	ret = max77779_max17x0x_i2c_regmap_init(&chip->regmap_debug, chip->secondary,
+	ret = max77779_max17x0x_i2c_regmap_init(&chip->regmap_debug, chip->secondary_i2c,
 					    	&max77779_fg_debug_regmap_cfg, false);
 	if (ret < 0) {
 		dev_err(chip->dev, "Failed to re-initialize debug regmap (%ld)\n",
@@ -78,7 +78,7 @@ static int max77779_fg_i2c_regmap_init(struct max77779_fg_chip *chip, struct i2c
 	return 0;
 }
 
-static int max77779_fg_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static int max77779_fg_i2c_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
 	struct max77779_fg_chip *chip;
@@ -93,18 +93,19 @@ static int max77779_fg_i2c_probe(struct i2c_client *client, const struct i2c_dev
 		return -ENOMEM;
 
 	chip->dev = dev;
+	chip->dev->init_name = "i2c-max77779-fg";
 	chip->irq = client->irq;
 	i2c_set_clientdata(client, chip);
 
-	chip->secondary = i2c_new_ancillary_device(client, "ndbg",
-						   MAX77779_FG_NDGB_ADDRESS);
-	if (IS_ERR(chip->secondary)) {
+	chip->secondary_i2c = i2c_new_ancillary_device(client, "ndbg",
+						       MAX77779_FG_NDGB_ADDRESS_I2C);
+	if (IS_ERR(chip->secondary_i2c)) {
 		dev_err(dev, "Error setting up ancillary i2c bus(%ld)\n",
-			IS_ERR_VALUE(chip->secondary));
-		ret = PTR_ERR(chip->secondary);
+			IS_ERR_VALUE(chip->secondary_i2c));
+		ret = PTR_ERR(chip->secondary_i2c);
 		goto error;
 	}
-	i2c_set_clientdata(chip->secondary, chip);
+	i2c_set_clientdata(chip->secondary_i2c, chip);
 
 	/* needs chip->secondary */
 	ret = max77779_fg_i2c_regmap_init(chip, client);
@@ -117,8 +118,8 @@ static int max77779_fg_i2c_probe(struct i2c_client *client, const struct i2c_dev
 	if (!ret)
 		return ret;
 error:
-	if (chip->secondary)
-		i2c_unregister_device(chip->secondary);
+	if (chip->secondary_i2c)
+		i2c_unregister_device(chip->secondary_i2c);
 
 	return ret;
 }
@@ -127,8 +128,8 @@ static void max77779_fg_i2c_remove(struct i2c_client *client)
 {
 	struct max77779_fg_chip *chip = i2c_get_clientdata(client);
 
-	if (chip->secondary)
-		i2c_unregister_device(chip->secondary);
+	if (chip->secondary_i2c)
+		i2c_unregister_device(chip->secondary_i2c);
 
 	max77779_fg_remove(chip);
 }
@@ -141,7 +142,7 @@ MODULE_DEVICE_TABLE(of, max77779_fg_i2c_of_match);
 
 #if IS_ENABLED(CONFIG_PM)
 static const struct dev_pm_ops max77779_fg_pm_ops = {
-	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(max77779_fg_pm_suspend, max77779_fg_pm_resume)
+	SET_LATE_SYSTEM_SLEEP_PM_OPS(max77779_fg_pm_suspend, max77779_fg_pm_resume)
 };
 #endif
 

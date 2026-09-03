@@ -15,6 +15,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/cleanup.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/suspend.h>
@@ -242,7 +243,7 @@ static int gbms_storage_register_internal(struct gbms_storage_desc *desc,
 	if (index == gbms_providers_count)
 		gbms_providers_count += 1;
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	if (!IS_ERR_OR_NULL(rootdir) && name) {
 		/* TODO: create debugfs entries for the providers */
 	}
@@ -551,6 +552,7 @@ int gbms_storage_offline(const char *name, bool flush)
 EXPORT_SYMBOL_GPL(gbms_storage_offline);
 
 /* ------------------------------------------------------------------------ */
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 
 static int gbms_storage_show_cache(struct seq_file *m, void *data)
 {
@@ -660,7 +662,6 @@ static const struct file_operations gbms_providers_status_ops = {
 static const struct file_operations name = {	\
 	.owner	= THIS_MODULE,			\
 	.open	= simple_open,			\
-	.llseek	= no_llseek,			\
 	.read	= fn_read,			\
 	.write	= fn_write,			\
 }
@@ -860,6 +861,8 @@ static ssize_t debug_export_tag(struct file *filp,
 
 GBMS_DEBUG_ATTRIBUTE(gbms_providers_export_ops, NULL, debug_export_tag);
 
+#endif
+
 /* ------------------------------------------------------------------------ */
 
 struct gbms_storage_device {
@@ -1029,7 +1032,7 @@ static int gbms_storage_device_init(struct gbms_storage_device *gdev,
 	if (alloc_chrdev_region(&gdev->hcmajor, 0, 1, name) < 0)
 		goto no_gdev;
 	/* ls /sys/class */
-	gdev->hcclass = class_create(THIS_MODULE, name);
+	gdev->hcclass = class_create(name);
 	if (gdev->hcclass == NULL)
 		goto no_gdev;
 	/* ls /dev/ */
@@ -1189,13 +1192,14 @@ static void gbee_destroy(struct gbee_data *beed)
 	gbms_storage_offline(beed->bee_name, true);
 	nvmem_device_put(beed->bee_nvram);
 	kfree(beed->bee_name);
+	of_node_put(beed->node);
 }
 
 /* ------------------------------------------------------------------------ */
 
 #define entry_size(x) (ilog2(x) + (((x) & ((x) - 1)) != 0))
 
-static void gbms_storage_parse_provider_refs(struct device_node *node)
+static void gbms_storage_parse_provider_refs(const struct device_node *node)
 {
 	const char *s;
 	int i, ret, count;
@@ -1221,7 +1225,7 @@ static void gbms_storage_parse_provider_refs(struct device_node *node)
 
 static int __init gbms_storage_init(void)
 {
-	struct device_node *node;
+	struct device_node *node __free(device_node) = NULL;
 	const int pe_size = entry_size(sizeof(struct gbms_cache_entry));
 	bool has_bee = false;
 
@@ -1275,7 +1279,7 @@ static int __init gbms_storage_init(void)
 			if (!beed->bee_name)
 				return -ENOMEM;
 			beed->bee_status = GBEE_STATUS_PROBE;
-			beed->node = node;
+			beed->node = of_node_get(node);
 
 			/* add the bee to the late arrivals */
 			gbms_storage_register_internal(NULL, beed->bee_name,
@@ -1321,7 +1325,7 @@ static void __exit gbms_storage_exit(void)
 {
 	int ret;
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	if (!IS_ERR_OR_NULL(rootdir))
 		debugfs_remove(rootdir);
 #endif

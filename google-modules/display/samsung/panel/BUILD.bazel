@@ -1,0 +1,289 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "display.samsung.panel.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/google-modules/display/samsung:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "headers",
+    hdrs = [
+        "panel-common.h",
+        "panel-samsung-drv.h",
+    ],
+    visibility = [
+        "//private/google-modules/display/samsung:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "panel-common",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "panel-common.c",
+    ],
+    out = "panel-common.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/samsung:internal_headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-samsung-drv",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "panel-samsung-drv.c",
+    ],
+    out = "panel-samsung-drv.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/display/common/gs_drm:gs-drm-connector",
+        "//private/google-modules/display/common/gs_panel:gs-panel",
+        "//private/google-modules/display/samsung:exynos-drm",
+        "//private/google-modules/display/samsung:internal_headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-samsung-emul",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "panel-samsung-emul.c",
+    ],
+    out = "panel-samsung-emul.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        ":panel-samsung-drv",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/samsung:internal_headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-samsung-s6e3hc2",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "panel-samsung-s6e3hc2.c",
+    ],
+    out = "panel-samsung-s6e3hc2.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        ":panel-samsung-drv",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/samsung:internal_headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-samsung-s6e3fc3",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "panel-samsung-s6e3fc3.c",
+    ],
+    out = "panel-samsung-s6e3fc3.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        ":panel-samsung-drv",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/samsung:internal_headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-samsung-s6e3fc3-p10",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "panel-samsung-s6e3fc3-p10.c",
+    ],
+    out = "panel-samsung-s6e3fc3-p10.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        ":panel-samsung-drv",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common/gs_drm:gs-drm-connector",
+        "//private/google-modules/display/samsung:internal_headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-samsung-sofef01",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "panel-samsung-sofef01.c",
+    ],
+    out = "panel-samsung-sofef01.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        ":panel-samsung-drv",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/samsung:internal_headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-samsung-s6e3hc3",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "panel-samsung-s6e3hc3.c",
+    ],
+    out = "panel-samsung-s6e3hc3.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        ":panel-samsung-drv",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common/gs_drm:gs-drm-connector",
+        "//private/google-modules/display/samsung:internal_headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-samsung-s6e3hc3-c10",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "panel-samsung-s6e3hc3-c10.c",
+    ],
+    out = "panel-samsung-s6e3hc3-c10.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        ":panel-samsung-drv",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common/gs_drm:gs-drm-connector",
+        "//private/google-modules/display/samsung:internal_headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-samsung-s6e3hc4",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "panel-samsung-s6e3hc4.c",
+    ],
+    out = "panel-samsung-s6e3hc4.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        ":panel-samsung-drv",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common/gs_drm:gs-drm-connector",
+        "//private/google-modules/display/samsung:internal_headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-boe-nt37290",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "panel-boe-nt37290.c",
+    ],
+    out = "panel-boe-nt37290.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        ":panel-samsung-drv",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common/gs_drm:gs-drm-connector",
+        "//private/google-modules/display/samsung:internal_headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

@@ -1,0 +1,135 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2024-2025 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/soc/google/debug/google,ehld-coreinstr.yaml#
+$schema: http://devicetree.org/meta-schemas/base.yaml#
+
+title: Google Coreinstr EHLD Kernel driver
+
+maintainers:
+  - Mayank Rungta <mrungta@google.com>
+
+description:
+    This driver with the help of GDMC monitors CPU state.
+	  If GDMC detects lokcup or hang, it notifies this driver
+	  and the driver obtains necessary debugging information.
+
+properties:
+  compatible:
+    const: google,ehld-coreinstr
+
+  gdmc-iface:
+    type: object
+    description: phandle to `google,mba-gdmc-iface` device node.
+      This points to the GDMC MBA interface over which communication
+      with GDMC is established.
+
+  clocks:
+    maxItems: 1
+    description: A phandle to the Trace SubSystem clock. This driver
+      enables this clock before accessing CPU PMU registers.
+
+  clock-names:
+    const: tss_clk
+
+  interval:
+    description:
+      The HR timer interval in milliseconds. Driver uses HR timer to update CPU state.
+      This interval is also used to setup periodic timer in GDMC to poll CPU state.
+
+  warn-count:
+    description:
+      The number of consecutive failed polls before a warning is issued.
+      This is used to setup GDMC.
+
+  '#address-cells':
+    const: 1
+
+  '#size-cells':
+    const: 1
+
+patternProperties:
+  "^sgi_base$":
+    type: object
+    description: Holds the physical addresses for SGI registers for each core.
+    properties:
+      reg:
+        description: Physical address ranges for SGI registers for each core.
+
+  "^coreinstret_base$":
+    type: object
+    description: Holds the base address for the coreinstr_ret register.
+    properties:
+      reg:
+        maxItems: 1
+        description: The physical address range for the coreinstr_ret registers.
+
+  "^coreinstr_base$":
+    type: object
+    description: Holds the physical address for coreinstr registers.
+    properties:
+      reg:
+        maxItems: 1
+        description: The physical address range for the coreinstr registers.
+
+  "^pmu_base$":
+    type: object
+    description: Holds the physical addresses for the PMU registers for each core.
+    properties:
+      reg:
+        description: Physical address ranges for the PMU registers for each core.
+
+required:
+  - compatible
+  - gdmc-iface
+  - clocks
+  - clock-names
+  - sgi_base
+  - coreinstret_base
+  - coreinstr_base
+  - pmu_base
+
+additionalProperties: false
+
+examples:
+  - |
+
+    ehld_coreinstr: ehld-coreinstr {
+      compatible = "google,ehld-coreinstr";
+      gdmc-iface = <&goog_mba_gdmc_iface>;
+
+      clocks = <&cpu_sswrp_tss_clk>;
+      clock-names = "tss_clk";
+
+      interval = <1000>;
+      warn-count = <4>;
+      #address-cells = <1>;
+      #size-cells = <1>;
+      sgi_base {
+        reg = <0x5910000 0x40000>,
+          <0x5950000 0x40000>,
+          <0x5990000 0x40000>,
+          <0x59D0000 0x40000>,
+          <0x5A10000 0x40000>,
+          <0x5A50000 0x40000>,
+          <0x5A90000 0x40000>,
+          <0x5AD0000 0x40000>;
+      };
+      coreinstret_base {
+        reg = <0x200c07c0 0x20>;
+      };
+      coreinstr_base {
+        reg = <0x200c0504 0x24>;
+      };
+      pmu_base {
+        reg = <0x228A0000 0x1000>,
+          <0x22920000 0x1000>,
+          <0x229A0000 0x1000>,
+          <0x22A20000 0x1000>,
+          <0x22AA0000 0x1000>,
+          <0x22B20000 0x1000>,
+          <0x22BA0000 0x1000>,
+          <0x22C20000 0x1000>;
+      };
+    };

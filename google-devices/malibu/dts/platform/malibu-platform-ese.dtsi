@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * eSE device tree entries specific to the lga paltform
+ *
+ * Copyright 2025 Google LLC.
+ *
+ */
+
+&lsios_spi2 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	ese1: ese@0 {
+		compatible = "st,st54spi";
+		reg = <0>;
+		spi-max-frequency = <8000000>;
+		ese_chip_enable-gpio = <AP2ESE_CHIP_EN_1V2(GPIO_ACTIVE_HIGH)>;
+		ese_pwr_state-gpio = <&gdmc_pinctrl XGDMC_UART0_RXD GPIO_ACTIVE_HIGH>;
+		power_mode = "ST54L";
+		controller-data {
+			cs-gpio = <XLSIOS_SPIU2_CSN_CTSN_AV31(GPIO_ACTIVE_LOW)>;
+			cs-clock-delay = <18>;
+		};
+	};
+};
+

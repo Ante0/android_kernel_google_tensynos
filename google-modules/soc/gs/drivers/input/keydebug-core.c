@@ -13,6 +13,7 @@
  *
  */
 
+#include <dt-bindings/soc/google/keydebug-core-def.h>
 #include <linux/input.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -52,11 +53,23 @@ static int showallcpus_enable = 1;
 module_param(showallcpus_enable, int, 0644);
 
 /*
- * On the kernel command line specify
- * keydebug.bind_s2d=0 to avoid config S2D.
- * By default keydebug disables S2D when receiving down event, and restores when key released.
+ * Selects the key event action version. This variable is named `bind_s2d`
+ * for backward compatibility and cannot be renamed.
+ *
+ * This value acts as a global default and can be overridden by the
+ * "bind_s2x_version" property in the device tree on a per-instance basis.
+ *
+ * Version behaviors:
+ *
+ * - BIND_S2X_VERSION_1 (Default, legacy S2D mode):
+ *   By default, keydebug disables S2D when receiving a down event and
+ *   restores it when the key is released. To disable this behavior,
+ *   specify "keydebug.bind_s2d=0" on the kernel command line.
+ *
+ * - BIND_S2X_VERSION_2 (New S2M skip voting mode):
+ *   Invokes the S2M skip voting mechanism on key up/down events.
  */
-static int bind_s2d = 1;
+static int bind_s2d = BIND_S2X_VERSION_1;
 module_param(bind_s2d, int, 0644);
 
 #define DEFAULT_DBG_DELAY 3000 /* millisecond */
@@ -83,7 +96,23 @@ void keydebug_register_s2d_ops(void *get, void *set)
 }
 EXPORT_SYMBOL_GPL(keydebug_register_s2d_ops);
 
-void do_keydebug(struct work_struct *this)
+static int skip_s2m_vote_noop(bool vote)
+{
+	return -EPERM;
+}
+
+static int (*skip_s2m_vote)(bool vote) = skip_s2m_vote_noop;
+
+void keydebug_register_skip_s2m_vote_op(int (*voter)(bool))
+{
+	if (voter)
+		skip_s2m_vote = voter;
+	else
+		skip_s2m_vote = skip_s2m_vote_noop;
+}
+EXPORT_SYMBOL_GPL(keydebug_register_skip_s2m_vote_op);
+
+static void do_keydebug(struct work_struct *this)
 {
 	struct delayed_work *dwork = container_of(this, struct delayed_work,
 									work);
@@ -131,8 +160,10 @@ static void keydebug_event_down(void *priv)
 	struct keydebug_platform_data *pdata = priv;
 	uint32_t msecs = pdata->dbg_fn_delay ?: DEFAULT_DBG_DELAY;
 
-	if (bind_s2d)
+	if (pdata->bind_s2x_version == BIND_S2X_VERSION_1)
 		s2d_state_xchg(false, &pdata->s2d_state_backup);
+	else if (pdata->bind_s2x_version == BIND_S2X_VERSION_2)
+		skip_s2m_vote(true);
 
 	if (pdata->keydebug_requested) {
 		pr_info("%s: request is running\n", __func__);
@@ -155,8 +186,10 @@ static void keydebug_event_up(void *priv)
 {
 	struct keydebug_platform_data *pdata = priv;
 
-	if (bind_s2d)
+	if (pdata->bind_s2x_version == BIND_S2X_VERSION_1)
 		s2d_state_xchg(pdata->s2d_state_backup, NULL);
+	else if (pdata->bind_s2x_version == BIND_S2X_VERSION_2)
+		skip_s2m_vote(false);
 }
 
 static int keydebug_parse_dt(struct device *dev,
@@ -173,6 +206,11 @@ static int keydebug_parse_dt(struct device *dev,
 	/* Parse dbg_delay */
 	if (of_property_read_u32(dt, "dbg_fn_delay", &pdata->dbg_fn_delay))
 		pr_info("%s: DT:dbg_fn_delay property not found\n", __func__);
+
+	/* Parse bind_s2x_version. Set the default from the global module parameter. */
+	pdata->bind_s2x_version = bind_s2d;
+	if (of_property_read_u32(dt, "bind_s2x_version", &pdata->bind_s2x_version))
+		pr_debug("DT:bind_s2x_version property not found\n");
 
 	/* Must have keys_down property */
 	prop = of_find_property(dt, "keys_down", NULL);
@@ -304,7 +342,7 @@ err_get_pdata_fail:
 	return ret;
 }
 
-static int keydebug_remove(struct platform_device *pdev)
+static void keydebug_remove(struct platform_device *pdev)
 {
 	struct keydebug_platform_data *pdata = dev_get_platdata(&pdev->dev);
 
@@ -314,7 +352,6 @@ static int keydebug_remove(struct platform_device *pdev)
 	if (kdbg_wq)
 		destroy_workqueue(kdbg_wq);
 	probe_cnt = 0;
-	return 0;
 }
 
 #ifdef CONFIG_OF

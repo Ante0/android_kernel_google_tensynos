@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright 2024 Google,LLC.
+ */
+
+/ {
+	pmu@10000000 {
+		compatible = "arm,ci-700";
+		reg = <0x0 0x10000000 0x0 0x2000000>;
+		interrupts = <GIC_SPI SSWRP_APC_INTREQPMU_NID20 IRQ_TYPE_LEVEL_HIGH 0>;
+	};
+
+	booker {
+		compatible = "google,booker-ci";
+		reg_base = <0x10000000>;
+		interrupts =
+			<GIC_SPI SSWRP_APC_INTREQERRNS_NID20 IRQ_TYPE_LEVEL_HIGH 0>,
+			<GIC_SPI SSWRP_APC_INTREQERRS_NID20 IRQ_TYPE_LEVEL_HIGH 0>,
+			<GIC_SPI SSWRP_APC_INTREQFAULTNS_NID20 IRQ_TYPE_LEVEL_HIGH 0>,
+			<GIC_SPI SSWRP_APC_INTREQFAULTS_NID20 IRQ_TYPE_LEVEL_HIGH 0>;
+		interrupt-names = "BCI: Non-secure error",
+			"BCI: Secure error",
+			"BCI: Non-secure fault",
+			"BCI: Secure fault";
+		interrupt-is-secure = <0>, <1>, <0>, <1>;
+		interrupt-is-error = <1>, <1>, <0>, <0>;
+		status = "okay";
+		node0 {
+			device_type = "booker-cfg";
+			offset = <0x0>;
+			id = <20>;
+		};
+		node1 {
+			device_type = "booker-mtsx";
+			offset = <0x280000>;
+			id = <2>;
+		};
+		node2 {
+			device_type = "booker-mtsx";
+			offset = <0x680000>;
+			id = <10>;
+		};
+		node3 {
+			device_type = "booker-mtsx";
+			offset = <0xe80000>;
+			id = <26>;
+		};
+		node4 {
+			device_type = "booker-mtsx";
+			offset = <0x1280000>;
+			id = <34>;
+		};
+		node5 {
+			device_type = "booker-hnf";
+			offset = <0x310000>;
+			id = <4>;
+		};
+		node6 {
+			device_type = "booker-hnf";
+			offset = <0x710000>;
+			id = <12>;
+		};
+		node7 {
+			device_type = "booker-hnf";
+			offset = <0xf10000>;
+			id = <28>;
+		};
+		node8 {
+			device_type = "booker-hnf";
+			offset = <0x1310000>;
+			id = <36>;
+		};
+		node9 {
+			device_type = "booker-rnf";
+			offset = <0xa0000>;
+			id = <0>;
+		};
+		node10 {
+			device_type = "booker-rnf";
+			offset = <0x4a0000>;
+			id = <8>;
+		};
+		node11 {
+			device_type = "booker-rnf";
+			offset = <0x7a0000>;
+			id = <14>;
+		};
+		node12 {
+			device_type = "booker-rnf";
+			offset = <0xca0000>;
+			id = <24>;
+		};
+		node13 {
+			device_type = "booker-rnf";
+			offset = <0x10a0000>;
+			id = <32>;
+		};
+		node14 {
+			device_type = "booker-rni";
+			offset = <0xa00000>;
+			id = <16>;
+		};
+		node15 {
+			device_type = "booker-hni";
+			offset = <0x980000>;
+			id = <18>;
+		};
+		node16 {
+			device_type = "booker-hnd";
+			offset = <0x950000>;
+			id = <20>;
+		};
+	};
+};

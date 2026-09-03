@@ -21,37 +21,8 @@
 #include "vivid-kthread-cap.h"
 #include "vivid-vid-cap.h"
 
-static const struct vivid_fmt formats_ovl[] = {
-	{
-		.fourcc   = V4L2_PIX_FMT_RGB565, /* gggbbbbb rrrrrggg */
-		.vdownsampling = { 1 },
-		.bit_depth = { 16 },
-		.planes   = 1,
-		.buffers = 1,
-	},
-	{
-		.fourcc   = V4L2_PIX_FMT_XRGB555, /* gggbbbbb arrrrrgg */
-		.vdownsampling = { 1 },
-		.bit_depth = { 16 },
-		.planes   = 1,
-		.buffers = 1,
-	},
-	{
-		.fourcc   = V4L2_PIX_FMT_ARGB555, /* gggbbbbb arrrrrgg */
-		.vdownsampling = { 1 },
-		.bit_depth = { 16 },
-		.planes   = 1,
-		.buffers = 1,
-	},
-};
-
-/* The number of discrete webcam framesizes */
-#define VIVID_WEBCAM_SIZES 6
-/* The number of discrete webcam frameintervals */
-#define VIVID_WEBCAM_IVALS (VIVID_WEBCAM_SIZES * 2)
-
 /* Sizes must be in increasing order */
-static const struct v4l2_frmsize_discrete webcam_sizes[VIVID_WEBCAM_SIZES] = {
+static const struct v4l2_frmsize_discrete webcam_sizes[] = {
 	{  320, 180 },
 	{  640, 360 },
 	{  640, 480 },
@@ -64,20 +35,42 @@ static const struct v4l2_frmsize_discrete webcam_sizes[VIVID_WEBCAM_SIZES] = {
  * Intervals must be in increasing order and there must be twice as many
  * elements in this array as there are in webcam_sizes.
  */
-static const struct v4l2_fract webcam_intervals[VIVID_WEBCAM_IVALS] = {
+static const struct v4l2_fract webcam_intervals[] = {
 	{  1, 1 },
 	{  1, 2 },
 	{  1, 4 },
 	{  1, 5 },
 	{  1, 10 },
 	{  2, 25 },
-	{  1, 15 },
+	{  1, 15 }, /* 7 - maximum for 2160p */
 	{  1, 25 },
-	{  1, 30 },
+	{  1, 30 }, /* 9 - maximum for 1080p */
 	{  1, 40 },
 	{  1, 50 },
-	{  1, 60 },
+	{  1, 60 }, /* 12 - maximum for 720p */
+	{  1, 120 },
 };
+
+/* Limit maximum FPS rates for high resolutions */
+#define IVAL_COUNT_720P 12 /* 720p and up is limited to 60 fps */
+#define IVAL_COUNT_1080P 9 /* 1080p and up is limited to 30 fps */
+#define IVAL_COUNT_2160P 7 /* 2160p and up is limited to 15 fps */
+
+static inline unsigned int webcam_ival_count(const struct vivid_dev *dev,
+					     unsigned int frmsize_idx)
+{
+	if (webcam_sizes[frmsize_idx].height >= 2160)
+		return IVAL_COUNT_2160P;
+
+	if (webcam_sizes[frmsize_idx].height >= 1080)
+		return IVAL_COUNT_1080P;
+
+	if (webcam_sizes[frmsize_idx].height >= 720)
+		return IVAL_COUNT_720P;
+
+	/* For low resolutions, allow all FPS rates */
+	return ARRAY_SIZE(webcam_intervals);
+}
 
 static int vid_cap_queue_setup(struct vb2_queue *vq,
 		       unsigned *nbuffers, unsigned *nplanes,
@@ -124,9 +117,6 @@ static int vid_cap_queue_setup(struct vb2_queue *vq,
 					dev->fmt_cap->vdownsampling[p] +
 					dev->fmt_cap->data_offset[p];
 	}
-
-	if (vq->num_buffers + *nbuffers < 2)
-		*nbuffers = 2 - vq->num_buffers;
 
 	*nplanes = buffers;
 
@@ -221,12 +211,9 @@ static int vid_cap_start_streaming(struct vb2_queue *vq, unsigned count)
 	unsigned i;
 	int err;
 
-	if (vb2_is_streaming(&dev->vb_vid_out_q))
-		dev->can_loop_video = vivid_vid_can_loop(dev);
-
 	dev->vid_cap_seq_count = 0;
 	dprintk(dev, 1, "%s\n", __func__);
-	for (i = 0; i < VIDEO_MAX_FRAME; i++)
+	for (i = 0; i < MAX_VID_CAP_BUFFERS; i++)
 		dev->must_blank[i] = tpg_g_perc_fill(&dev->tpg) < 100;
 	if (dev->start_streaming_error) {
 		dev->start_streaming_error = false;
@@ -253,7 +240,6 @@ static void vid_cap_stop_streaming(struct vb2_queue *vq)
 
 	dprintk(dev, 1, "%s\n", __func__);
 	vivid_stop_generating_vid_cap(dev, &dev->vid_cap_streaming);
-	dev->can_loop_video = false;
 }
 
 static void vid_cap_buf_request_complete(struct vb2_buffer *vb)
@@ -284,7 +270,7 @@ void vivid_update_quality(struct vivid_dev *dev)
 {
 	unsigned freq_modulus;
 
-	if (dev->loop_video && (vivid_is_svid_cap(dev) || vivid_is_hdmi_cap(dev))) {
+	if (dev->input_is_connected_to_output[dev->input]) {
 		/*
 		 * The 'noise' will only be replaced by the actual video
 		 * if the output video matches the input video settings.
@@ -448,18 +434,10 @@ void vivid_update_format_cap(struct vivid_dev *dev, bool keep_controls)
 		tpg_s_rgb_range(&dev->tpg, v4l2_ctrl_g_ctrl(dev->rgb_range_cap));
 		break;
 	}
-	vfree(dev->bitmap_cap);
-	dev->bitmap_cap = NULL;
 	vivid_update_quality(dev);
 	tpg_reset_source(&dev->tpg, dev->src_rect.width, dev->src_rect.height, dev->field_cap);
 	dev->crop_cap = dev->src_rect;
 	dev->crop_bounds_cap = dev->src_rect;
-	if (dev->bitmap_cap &&
-	    (dev->compose_cap.width != dev->crop_cap.width ||
-	     dev->compose_cap.height != dev->crop_cap.height)) {
-		vfree(dev->bitmap_cap);
-		dev->bitmap_cap = NULL;
-	}
 	dev->compose_cap = dev->crop_cap;
 	if (V4L2_FIELD_HAS_T_OR_B(dev->field_cap))
 		dev->compose_cap.height /= 2;
@@ -475,8 +453,8 @@ void vivid_update_format_cap(struct vivid_dev *dev, bool keep_controls)
 	if (keep_controls)
 		return;
 
-	dims[0] = roundup(dev->src_rect.width, PIXEL_ARRAY_DIV);
-	dims[1] = roundup(dev->src_rect.height, PIXEL_ARRAY_DIV);
+	dims[0] = DIV_ROUND_UP(dev->src_rect.height, PIXEL_ARRAY_DIV);
+	dims[1] = DIV_ROUND_UP(dev->src_rect.width, PIXEL_ARRAY_DIV);
 	v4l2_ctrl_modify_dimensions(dev->pixel_array, dims);
 }
 
@@ -506,35 +484,35 @@ static enum v4l2_field vivid_field_cap(struct vivid_dev *dev, enum v4l2_field fi
 
 static unsigned vivid_colorspace_cap(struct vivid_dev *dev)
 {
-	if (!dev->loop_video || vivid_is_webcam(dev) || vivid_is_tv_cap(dev))
+	if (!vivid_input_is_connected_to(dev))
 		return tpg_g_colorspace(&dev->tpg);
 	return dev->colorspace_out;
 }
 
 static unsigned vivid_xfer_func_cap(struct vivid_dev *dev)
 {
-	if (!dev->loop_video || vivid_is_webcam(dev) || vivid_is_tv_cap(dev))
+	if (!vivid_input_is_connected_to(dev))
 		return tpg_g_xfer_func(&dev->tpg);
 	return dev->xfer_func_out;
 }
 
 static unsigned vivid_ycbcr_enc_cap(struct vivid_dev *dev)
 {
-	if (!dev->loop_video || vivid_is_webcam(dev) || vivid_is_tv_cap(dev))
+	if (!vivid_input_is_connected_to(dev))
 		return tpg_g_ycbcr_enc(&dev->tpg);
 	return dev->ycbcr_enc_out;
 }
 
 static unsigned int vivid_hsv_enc_cap(struct vivid_dev *dev)
 {
-	if (!dev->loop_video || vivid_is_webcam(dev) || vivid_is_tv_cap(dev))
+	if (!vivid_input_is_connected_to(dev))
 		return tpg_g_hsv_enc(&dev->tpg);
 	return dev->hsv_enc_out;
 }
 
 static unsigned vivid_quantization_cap(struct vivid_dev *dev)
 {
-	if (!dev->loop_video || vivid_is_webcam(dev) || vivid_is_tv_cap(dev))
+	if (!vivid_input_is_connected_to(dev))
 		return tpg_g_quantization(&dev->tpg);
 	return dev->quantization_out;
 }
@@ -593,7 +571,7 @@ int vivid_try_fmt_vid_cap(struct file *file, void *priv,
 	if (vivid_is_webcam(dev)) {
 		const struct v4l2_frmsize_discrete *sz =
 			v4l2_find_nearest_size(webcam_sizes,
-					       VIVID_WEBCAM_SIZES, width,
+					       ARRAY_SIZE(webcam_sizes), width,
 					       height, mp->width, mp->height);
 
 		w = sz->width;
@@ -702,11 +680,6 @@ int vivid_s_fmt_vid_cap(struct file *file, void *priv,
 		return -EBUSY;
 	}
 
-	if (dev->overlay_cap_owner && dev->fb_cap.fmt.pixelformat != mp->pixelformat) {
-		dprintk(dev, 1, "overlay is active, can't change pixelformat\n");
-		return -EBUSY;
-	}
-
 	dev->fmt_cap = vivid_get_format(dev, mp->pixelformat);
 	if (V4L2_FIELD_HAS_T_OR_B(mp->field))
 		factor = 2;
@@ -774,14 +747,16 @@ int vivid_s_fmt_vid_cap(struct file *file, void *priv,
 			compose->height /= factor;
 		}
 	} else if (vivid_is_webcam(dev)) {
+		unsigned int ival_sz = webcam_ival_count(dev, dev->webcam_size_idx);
+
 		/* Guaranteed to be a match */
 		for (i = 0; i < ARRAY_SIZE(webcam_sizes); i++)
 			if (webcam_sizes[i].width == mp->width &&
 					webcam_sizes[i].height == mp->height)
 				break;
 		dev->webcam_size_idx = i;
-		if (dev->webcam_ival_idx >= 2 * (VIVID_WEBCAM_SIZES - i))
-			dev->webcam_ival_idx = 2 * (VIVID_WEBCAM_SIZES - i) - 1;
+		if (dev->webcam_ival_idx >= ival_sz)
+			dev->webcam_ival_idx = ival_sz - 1;
 		vivid_update_format_cap(dev, false);
 	} else {
 		struct v4l2_rect r = { 0, 0, mp->width, mp->height };
@@ -928,8 +903,6 @@ int vivid_vid_cap_s_selection(struct file *file, void *fh, struct v4l2_selection
 	struct vivid_dev *dev = video_drvdata(file);
 	struct v4l2_rect *crop = &dev->crop_cap;
 	struct v4l2_rect *compose = &dev->compose_cap;
-	unsigned orig_compose_w = compose->width;
-	unsigned orig_compose_h = compose->height;
 	unsigned factor = V4L2_FIELD_HAS_T_OR_B(dev->field_cap) ? 2 : 1;
 	int ret;
 
@@ -1053,11 +1026,6 @@ int vivid_vid_cap_s_selection(struct file *file, void *fh, struct v4l2_selection
 		return -EINVAL;
 	}
 
-	if (dev->bitmap_cap && (compose->width != orig_compose_w ||
-				compose->height != orig_compose_h)) {
-		vfree(dev->bitmap_cap);
-		dev->bitmap_cap = NULL;
-	}
 	tpg_s_crop_compose(&dev->tpg, crop, compose);
 	return 0;
 }
@@ -1085,234 +1053,6 @@ int vivid_vid_cap_g_pixelaspect(struct file *file, void *priv,
 	return 0;
 }
 
-int vidioc_enum_fmt_vid_overlay(struct file *file, void  *priv,
-					struct v4l2_fmtdesc *f)
-{
-	struct vivid_dev *dev = video_drvdata(file);
-	const struct vivid_fmt *fmt;
-
-	if (dev->multiplanar)
-		return -ENOTTY;
-
-	if (f->index >= ARRAY_SIZE(formats_ovl))
-		return -EINVAL;
-
-	fmt = &formats_ovl[f->index];
-
-	f->pixelformat = fmt->fourcc;
-	return 0;
-}
-
-int vidioc_g_fmt_vid_overlay(struct file *file, void *priv,
-					struct v4l2_format *f)
-{
-	struct vivid_dev *dev = video_drvdata(file);
-	const struct v4l2_rect *compose = &dev->compose_cap;
-	struct v4l2_window *win = &f->fmt.win;
-	unsigned clipcount = win->clipcount;
-
-	if (dev->multiplanar)
-		return -ENOTTY;
-
-	win->w.top = dev->overlay_cap_top;
-	win->w.left = dev->overlay_cap_left;
-	win->w.width = compose->width;
-	win->w.height = compose->height;
-	win->field = dev->overlay_cap_field;
-	win->clipcount = dev->clipcount_cap;
-	if (clipcount > dev->clipcount_cap)
-		clipcount = dev->clipcount_cap;
-	if (dev->bitmap_cap == NULL)
-		win->bitmap = NULL;
-	else if (win->bitmap) {
-		if (copy_to_user(win->bitmap, dev->bitmap_cap,
-		    ((compose->width + 7) / 8) * compose->height))
-			return -EFAULT;
-	}
-	if (clipcount && win->clips)
-		memcpy(win->clips, dev->clips_cap,
-		       clipcount * sizeof(dev->clips_cap[0]));
-	return 0;
-}
-
-int vidioc_try_fmt_vid_overlay(struct file *file, void *priv,
-					struct v4l2_format *f)
-{
-	struct vivid_dev *dev = video_drvdata(file);
-	const struct v4l2_rect *compose = &dev->compose_cap;
-	struct v4l2_window *win = &f->fmt.win;
-	int i, j;
-
-	if (dev->multiplanar)
-		return -ENOTTY;
-
-	win->w.left = clamp_t(int, win->w.left,
-			      -dev->fb_cap.fmt.width, dev->fb_cap.fmt.width);
-	win->w.top = clamp_t(int, win->w.top,
-			     -dev->fb_cap.fmt.height, dev->fb_cap.fmt.height);
-	win->w.width = compose->width;
-	win->w.height = compose->height;
-	if (win->field != V4L2_FIELD_BOTTOM && win->field != V4L2_FIELD_TOP)
-		win->field = V4L2_FIELD_ANY;
-	win->chromakey = 0;
-	win->global_alpha = 0;
-	if (win->clipcount && !win->clips)
-		win->clipcount = 0;
-	if (win->clipcount > MAX_CLIPS)
-		win->clipcount = MAX_CLIPS;
-	if (win->clipcount) {
-		memcpy(dev->try_clips_cap, win->clips,
-		       win->clipcount * sizeof(dev->clips_cap[0]));
-		for (i = 0; i < win->clipcount; i++) {
-			struct v4l2_rect *r = &dev->try_clips_cap[i].c;
-
-			r->top = clamp_t(s32, r->top, 0, dev->fb_cap.fmt.height - 1);
-			r->height = clamp_t(s32, r->height, 1, dev->fb_cap.fmt.height - r->top);
-			r->left = clamp_t(u32, r->left, 0, dev->fb_cap.fmt.width - 1);
-			r->width = clamp_t(u32, r->width, 1, dev->fb_cap.fmt.width - r->left);
-		}
-		/*
-		 * Yeah, so sue me, it's an O(n^2) algorithm. But n is a small
-		 * number and it's typically a one-time deal.
-		 */
-		for (i = 0; i < win->clipcount - 1; i++) {
-			struct v4l2_rect *r1 = &dev->try_clips_cap[i].c;
-
-			for (j = i + 1; j < win->clipcount; j++) {
-				struct v4l2_rect *r2 = &dev->try_clips_cap[j].c;
-
-				if (v4l2_rect_overlap(r1, r2))
-					return -EINVAL;
-			}
-		}
-		memcpy(win->clips, dev->try_clips_cap,
-		       win->clipcount * sizeof(dev->clips_cap[0]));
-	}
-	return 0;
-}
-
-int vidioc_s_fmt_vid_overlay(struct file *file, void *priv,
-					struct v4l2_format *f)
-{
-	struct vivid_dev *dev = video_drvdata(file);
-	const struct v4l2_rect *compose = &dev->compose_cap;
-	struct v4l2_window *win = &f->fmt.win;
-	int ret = vidioc_try_fmt_vid_overlay(file, priv, f);
-	unsigned bitmap_size = ((compose->width + 7) / 8) * compose->height;
-	unsigned clips_size = win->clipcount * sizeof(dev->clips_cap[0]);
-	void *new_bitmap = NULL;
-
-	if (ret)
-		return ret;
-
-	if (win->bitmap) {
-		new_bitmap = vzalloc(bitmap_size);
-
-		if (new_bitmap == NULL)
-			return -ENOMEM;
-		if (copy_from_user(new_bitmap, win->bitmap, bitmap_size)) {
-			vfree(new_bitmap);
-			return -EFAULT;
-		}
-	}
-
-	dev->overlay_cap_top = win->w.top;
-	dev->overlay_cap_left = win->w.left;
-	dev->overlay_cap_field = win->field;
-	vfree(dev->bitmap_cap);
-	dev->bitmap_cap = new_bitmap;
-	dev->clipcount_cap = win->clipcount;
-	if (dev->clipcount_cap)
-		memcpy(dev->clips_cap, dev->try_clips_cap, clips_size);
-	return 0;
-}
-
-int vivid_vid_cap_overlay(struct file *file, void *fh, unsigned i)
-{
-	struct vivid_dev *dev = video_drvdata(file);
-
-	if (dev->multiplanar)
-		return -ENOTTY;
-
-	if (i && dev->fb_vbase_cap == NULL)
-		return -EINVAL;
-
-	if (i && dev->fb_cap.fmt.pixelformat != dev->fmt_cap->fourcc) {
-		dprintk(dev, 1, "mismatch between overlay and video capture pixelformats\n");
-		return -EINVAL;
-	}
-
-	if (dev->overlay_cap_owner && dev->overlay_cap_owner != fh)
-		return -EBUSY;
-	dev->overlay_cap_owner = i ? fh : NULL;
-	return 0;
-}
-
-int vivid_vid_cap_g_fbuf(struct file *file, void *fh,
-				struct v4l2_framebuffer *a)
-{
-	struct vivid_dev *dev = video_drvdata(file);
-
-	if (dev->multiplanar)
-		return -ENOTTY;
-
-	*a = dev->fb_cap;
-	a->capability = V4L2_FBUF_CAP_BITMAP_CLIPPING |
-			V4L2_FBUF_CAP_LIST_CLIPPING;
-	a->flags = V4L2_FBUF_FLAG_PRIMARY;
-	a->fmt.field = V4L2_FIELD_NONE;
-	a->fmt.colorspace = V4L2_COLORSPACE_SRGB;
-	a->fmt.priv = 0;
-	return 0;
-}
-
-int vivid_vid_cap_s_fbuf(struct file *file, void *fh,
-				const struct v4l2_framebuffer *a)
-{
-	struct vivid_dev *dev = video_drvdata(file);
-	const struct vivid_fmt *fmt;
-
-	if (dev->multiplanar)
-		return -ENOTTY;
-
-	if (!capable(CAP_SYS_ADMIN) && !capable(CAP_SYS_RAWIO))
-		return -EPERM;
-
-	if (dev->overlay_cap_owner)
-		return -EBUSY;
-
-	if (a->base == NULL) {
-		dev->fb_cap.base = NULL;
-		dev->fb_vbase_cap = NULL;
-		return 0;
-	}
-
-	if (a->fmt.width < 48 || a->fmt.height < 32)
-		return -EINVAL;
-	fmt = vivid_get_format(dev, a->fmt.pixelformat);
-	if (!fmt || !fmt->can_do_overlay)
-		return -EINVAL;
-	if (a->fmt.bytesperline < (a->fmt.width * fmt->bit_depth[0]) / 8)
-		return -EINVAL;
-	if (a->fmt.bytesperline > a->fmt.sizeimage / a->fmt.height)
-		return -EINVAL;
-
-	/*
-	 * Only support the framebuffer of one of the vivid instances.
-	 * Anything else is rejected.
-	 */
-	if (!vivid_validate_fb(a))
-		return -EINVAL;
-
-	dev->fb_vbase_cap = phys_to_virt((unsigned long)a->base);
-	dev->fb_cap = *a;
-	dev->overlay_cap_left = clamp_t(int, dev->overlay_cap_left,
-				    -dev->fb_cap.fmt.width, dev->fb_cap.fmt.width);
-	dev->overlay_cap_top = clamp_t(int, dev->overlay_cap_top,
-				   -dev->fb_cap.fmt.height, dev->fb_cap.fmt.height);
-	return 0;
-}
-
 static const struct v4l2_audio vivid_audio_inputs[] = {
 	{ 0, "TV", V4L2_AUDCAP_STEREO },
 	{ 1, "Line-In", V4L2_AUDCAP_STEREO },
@@ -1329,13 +1069,13 @@ int vidioc_enum_input(struct file *file, void *priv,
 	inp->type = V4L2_INPUT_TYPE_CAMERA;
 	switch (dev->input_type[inp->index]) {
 	case WEBCAM:
-		snprintf(inp->name, sizeof(inp->name), "Webcam %u",
-				dev->input_name_counter[inp->index]);
+		snprintf(inp->name, sizeof(inp->name), "Webcam %03u-%u",
+			 dev->inst, dev->input_name_counter[inp->index]);
 		inp->capabilities = 0;
 		break;
 	case TV:
-		snprintf(inp->name, sizeof(inp->name), "TV %u",
-				dev->input_name_counter[inp->index]);
+		snprintf(inp->name, sizeof(inp->name), "TV %03u-%u",
+			 dev->inst, dev->input_name_counter[inp->index]);
 		inp->type = V4L2_INPUT_TYPE_TUNER;
 		inp->std = V4L2_STD_ALL;
 		if (dev->has_audio_inputs)
@@ -1343,16 +1083,16 @@ int vidioc_enum_input(struct file *file, void *priv,
 		inp->capabilities = V4L2_IN_CAP_STD;
 		break;
 	case SVID:
-		snprintf(inp->name, sizeof(inp->name), "S-Video %u",
-				dev->input_name_counter[inp->index]);
+		snprintf(inp->name, sizeof(inp->name), "S-Video %03u-%u",
+			 dev->inst, dev->input_name_counter[inp->index]);
 		inp->std = V4L2_STD_ALL;
 		if (dev->has_audio_inputs)
 			inp->audioset = (1 << ARRAY_SIZE(vivid_audio_inputs)) - 1;
 		inp->capabilities = V4L2_IN_CAP_STD;
 		break;
 	case HDMI:
-		snprintf(inp->name, sizeof(inp->name), "HDMI %u",
-				dev->input_name_counter[inp->index]);
+		snprintf(inp->name, sizeof(inp->name), "HDMI %03u-%u",
+			 dev->inst, dev->input_name_counter[inp->index]);
 		inp->capabilities = V4L2_IN_CAP_DV_TIMINGS;
 		if (dev->edid_blocks == 0 ||
 		    dev->dv_timings_signal_mode[dev->input] == NO_SIGNAL)
@@ -1805,13 +1545,65 @@ int vidioc_query_dv_timings(struct file *file, void *_fh,
 	return 0;
 }
 
+void vivid_update_outputs(struct vivid_dev *dev)
+{
+	u32 edid_present = 0;
+
+	if (!dev || !dev->num_outputs)
+		return;
+	for (unsigned int i = 0, j = 0; i < dev->num_outputs; i++) {
+		if (dev->output_type[i] != HDMI)
+			continue;
+
+		struct vivid_dev *dev_rx = dev->output_to_input_instance[i];
+
+		if (dev_rx && dev_rx->edid_blocks)
+			edid_present |= 1 << j;
+		j++;
+	}
+	v4l2_ctrl_s_ctrl(dev->ctrl_tx_edid_present, edid_present);
+	v4l2_ctrl_s_ctrl(dev->ctrl_tx_hotplug, edid_present);
+	v4l2_ctrl_s_ctrl(dev->ctrl_tx_rxsense, edid_present);
+}
+
+void vivid_update_connected_outputs(struct vivid_dev *dev)
+{
+	u16 phys_addr = cec_get_edid_phys_addr(dev->edid, dev->edid_blocks * 128, NULL);
+
+	for (unsigned int i = 0, j = 0; i < dev->num_inputs; i++) {
+		unsigned int menu_idx =
+			dev->input_is_connected_to_output[i];
+
+		if (dev->input_type[i] != HDMI)
+			continue;
+		j++;
+		if (menu_idx < FIXED_MENU_ITEMS)
+			continue;
+
+		struct vivid_dev *dev_tx = vivid_ctrl_hdmi_to_output_instance[menu_idx];
+		unsigned int output = vivid_ctrl_hdmi_to_output_index[menu_idx];
+
+		if (!dev_tx)
+			continue;
+
+		unsigned int hdmi_output = dev_tx->output_to_iface_index[output];
+
+		vivid_update_outputs(dev_tx);
+		if (dev->edid_blocks) {
+			cec_s_phys_addr(dev_tx->cec_tx_adap[hdmi_output],
+					v4l2_phys_addr_for_input(phys_addr, j),
+					false);
+		} else {
+			cec_phys_addr_invalidate(dev_tx->cec_tx_adap[hdmi_output]);
+		}
+	}
+}
+
 int vidioc_s_edid(struct file *file, void *_fh,
 			 struct v4l2_edid *edid)
 {
 	struct vivid_dev *dev = video_drvdata(file);
 	u16 phys_addr;
-	u32 display_present = 0;
-	unsigned int i, j;
 	int ret;
 
 	memset(edid->reserved, 0, sizeof(edid->reserved));
@@ -1820,13 +1612,11 @@ int vidioc_s_edid(struct file *file, void *_fh,
 	if (dev->input_type[edid->pad] != HDMI || edid->start_block)
 		return -EINVAL;
 	if (edid->blocks == 0) {
+		if (vb2_is_busy(&dev->vb_vid_cap_q))
+			return -EBUSY;
 		dev->edid_blocks = 0;
-		if (dev->num_outputs) {
-			v4l2_ctrl_s_ctrl(dev->ctrl_tx_edid_present, 0);
-			v4l2_ctrl_s_ctrl(dev->ctrl_tx_hotplug, 0);
-		}
-		phys_addr = CEC_PHYS_ADDR_INVALID;
-		goto set_phys_addr;
+		vivid_update_connected_outputs(dev);
+		return 0;
 	}
 	if (edid->blocks > dev->edid_max_blocks) {
 		edid->blocks = dev->edid_max_blocks;
@@ -1843,26 +1633,7 @@ int vidioc_s_edid(struct file *file, void *_fh,
 	dev->edid_blocks = edid->blocks;
 	memcpy(dev->edid, edid->edid, edid->blocks * 128);
 
-	for (i = 0, j = 0; i < dev->num_outputs; i++)
-		if (dev->output_type[i] == HDMI)
-			display_present |=
-				dev->display_present[i] << j++;
-
-	if (dev->num_outputs) {
-		v4l2_ctrl_s_ctrl(dev->ctrl_tx_edid_present, display_present);
-		v4l2_ctrl_s_ctrl(dev->ctrl_tx_hotplug, display_present);
-	}
-
-set_phys_addr:
-	/* TODO: a proper hotplug detect cycle should be emulated here */
-	cec_s_phys_addr(dev->cec_rx_adap, phys_addr, false);
-
-	for (i = 0; i < MAX_OUTPUTS && dev->cec_tx_adap[i]; i++)
-		cec_s_phys_addr(dev->cec_tx_adap[i],
-				dev->display_present[i] ?
-				v4l2_phys_addr_for_input(phys_addr, i + 1) :
-				CEC_PHYS_ADDR_INVALID,
-				false);
+	vivid_update_connected_outputs(dev);
 	return 0;
 }
 
@@ -1924,7 +1695,7 @@ int vidioc_enum_frameintervals(struct file *file, void *priv,
 			break;
 	if (i == ARRAY_SIZE(webcam_sizes))
 		return -EINVAL;
-	if (fival->index >= 2 * (VIVID_WEBCAM_SIZES - i))
+	if (fival->index >= webcam_ival_count(dev, i))
 		return -EINVAL;
 	fival->type = V4L2_FRMIVAL_TYPE_DISCRETE;
 	fival->discrete = webcam_intervals[fival->index];
@@ -1951,7 +1722,7 @@ int vivid_vid_cap_s_parm(struct file *file, void *priv,
 			  struct v4l2_streamparm *parm)
 {
 	struct vivid_dev *dev = video_drvdata(file);
-	unsigned ival_sz = 2 * (VIVID_WEBCAM_SIZES - dev->webcam_size_idx);
+	unsigned int ival_sz = webcam_ival_count(dev, dev->webcam_size_idx);
 	struct v4l2_fract tpf;
 	unsigned i;
 

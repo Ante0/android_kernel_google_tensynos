@@ -61,7 +61,7 @@ static int edgetpu_external_mailbox_alloc(struct device *edgetpu_dev,
 	struct edgetpu_external_mailbox_req req;
 	int ret = 0;
 	struct fd f = fdget(client_info->tpu_fd);
-	struct file *file = f.file;
+	struct file *file = fd_file(f);
 
 	if (!file)
 		return -EBADF;
@@ -126,7 +126,7 @@ static int edgetpu_external_mailbox_free(struct device *edgetpu_dev,
 	struct edgetpu_client *client;
 	int ret = 0;
 	struct fd f = fdget(client_info->tpu_fd);
-	struct file *file = f.file;
+	struct file *file = fd_file(f);
 
 	if (!file)
 		return -EBADF;

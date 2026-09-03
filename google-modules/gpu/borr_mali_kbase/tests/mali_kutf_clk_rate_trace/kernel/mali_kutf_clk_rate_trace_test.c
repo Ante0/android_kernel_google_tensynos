@@ -19,6 +19,7 @@
  *
  */
 
+#include <linux/cleanup.h>
 #include <linux/fdtable.h>
 #include <linux/module.h>
 
@@ -423,7 +424,6 @@ static const char *kutf_clk_trace_do_get_platform(struct kutf_context *context,
 	int seq = cmd->cmd_input.u.val_u64 & 0xFF;
 	char const *errmsg = NULL;
 	const void *arbiter_if_node = NULL;
-	const void *power_node = NULL;
 	const char *platform = "GPU";
 #if defined(CONFIG_MALI_ARBITER_SUPPORT) && defined(CONFIG_OF)
 	struct kutf_clk_rate_trace_fixture_data *data = context->fixture;
@@ -433,6 +433,8 @@ static const char *kutf_clk_trace_do_get_platform(struct kutf_context *context,
 		arbiter_if_node = of_get_property(data->kbdev->dev->of_node, "arbiter_if", NULL);
 #endif
 	if (arbiter_if_node) {
+		struct device_node *power_node __free(device_node);
+
 		power_node = of_find_compatible_node(NULL, NULL, "arm,mali-gpu-power");
 		if (power_node) {
 			platform = "PV";

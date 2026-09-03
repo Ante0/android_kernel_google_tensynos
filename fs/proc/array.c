@@ -73,6 +73,7 @@
 #include <linux/mm.h>
 #include <linux/hugetlb.h>
 #include <linux/pagemap.h>
+#include <linux/page_size_compat_defs.h>
 #include <linux/swap.h>
 #include <linux/smp.h>
 #include <linux/signal.h>
@@ -91,6 +92,7 @@
 #include <linux/user_namespace.h>
 #include <linux/fs_struct.h>
 #include <linux/kthread.h>
+#include <linux/mmu_context.h>
 
 #include <asm/processor.h>
 #include "internal.h"
@@ -219,6 +221,8 @@ static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
 		seq_put_decimal_ull(m, "\t", task_session_nr_ns(p, pid->numbers[g].ns));
 #endif
 	seq_putc(m, '\n');
+
+	seq_printf(m, "Kthread:\t%c\n", p->flags & PF_KTHREAD ? '1' : '0');
 }
 
 void render_sigset_t(struct seq_file *m, const char *header,
@@ -300,13 +304,8 @@ static inline void task_sig(struct seq_file *m, struct task_struct *p)
 static void render_cap_t(struct seq_file *m, const char *header,
 			kernel_cap_t *a)
 {
-	unsigned __capi;
-
 	seq_puts(m, header);
-	CAP_FOR_EACH_U32(__capi) {
-		seq_put_hex_ll(m, NULL,
-			   a->cap[CAP_LAST_U32 - __capi], 8);
-	}
+	seq_put_hex_ll(m, NULL, a->val, 16);
 	seq_putc(m, '\n');
 }
 
@@ -428,6 +427,16 @@ static inline void task_thp_status(struct seq_file *m, struct mm_struct *mm)
 	seq_printf(m, "THP_enabled:\t%d\n", thp_enabled);
 }
 
+static inline void task_untag_mask(struct seq_file *m, struct mm_struct *mm)
+{
+	seq_printf(m, "untag_mask:\t%#lx\n", mm_untag_mask(mm));
+}
+
+__weak void arch_proc_pid_thread_features(struct seq_file *m,
+					  struct task_struct *task)
+{
+}
+
 int proc_pid_status(struct seq_file *m, struct pid_namespace *ns,
 			struct pid *pid, struct task_struct *task)
 {
@@ -443,6 +452,7 @@ int proc_pid_status(struct seq_file *m, struct pid_namespace *ns,
 		task_mem(m, mm);
 		task_core_dumping(m, task);
 		task_thp_status(m, mm);
+		task_untag_mask(m, mm);
 		mmput(mm);
 	}
 	task_sig(m, task);
@@ -451,6 +461,7 @@ int proc_pid_status(struct seq_file *m, struct pid_namespace *ns,
 	task_cpus_allowed(m, task);
 	cpuset_task_status_allowed(m, task);
 	task_context_switch_counts(m, task);
+	arch_proc_pid_thread_features(m, task);
 	return 0;
 }
 
@@ -521,7 +532,7 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 		}
 
 		sid = task_session_nr_ns(task, ns);
-		ppid = task_tgid_nr_ns(task->real_parent, ns);
+		ppid = task_ppid_nr_ns(task, ns);
 		pgid = task_pgrp_nr_ns(task, ns);
 
 		unlock_task_sighand(task, &flags);
@@ -601,7 +612,7 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 	seq_put_decimal_ull(m, " ", 0);
 	seq_put_decimal_ull(m, " ", start_time);
 	seq_put_decimal_ull(m, " ", vsize);
-	seq_put_decimal_ull(m, " ", mm ? get_mm_rss(mm) : 0);
+	seq_put_decimal_ull(m, " ", mm ? __page_size_count(get_mm_rss(mm)) : 0);
 	seq_put_decimal_ull(m, " ", rsslim);
 	seq_put_decimal_ull(m, " ", mm ? (permitted ? mm->start_code : 1) : 0);
 	seq_put_decimal_ull(m, " ", mm ? (permitted ? mm->end_code : 1) : 0);

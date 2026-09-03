@@ -130,13 +130,11 @@ static int priority_control_manager_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int priority_control_manager_remove(struct platform_device *pdev)
+static void priority_control_manager_remove(struct platform_device *pdev)
 {
 	struct priority_control_manager_device *pcm_dev = platform_get_drvdata(pdev);
 
 	dev_info(pcm_dev->data, "Priority control manager removed successfully\n");
-
-	return 0;
 }
 
 static const struct of_device_id priority_control_manager_dt_ids[] = {

@@ -28,7 +28,7 @@ struct carveout_heap {
 };
 
 static struct dma_buf *carveout_heap_allocate(struct dma_heap *heap, unsigned long len,
-					      unsigned long fd_flags, unsigned long heap_flags)
+					      u32 fd_flags, u64 heap_flags)
 {
 	struct samsung_dma_heap *samsung_dma_heap = dma_heap_get_drvdata(heap);
 	struct carveout_heap *carveout_heap = samsung_dma_heap->priv;
@@ -116,6 +116,7 @@ static int carveout_heap_probe(struct platform_device *pdev)
 
 	rmem_np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	rmem = of_reserved_mem_lookup(rmem_np);
+	of_node_put(rmem_np);
 	if (!rmem) {
 		perrdev(&pdev->dev, "memory-region handle not found");
 		return -ENODEV;

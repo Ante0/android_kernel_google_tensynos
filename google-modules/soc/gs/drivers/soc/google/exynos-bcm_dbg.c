@@ -33,6 +33,8 @@
 #include <soc/google/cal-if.h>
 #include <soc/google/exynos-itmon.h>
 
+#include "exynos-bcm_dbg-priv.h"
+
 #define BCM_FILE_ENTRY_RO(name)		{ #name, 0440, show_ ## name, NULL }
 #define BCM_FILE_ENTRY_WR(name)		{ #name, 0640, show_ ## name, store_ ## name }
 
@@ -3963,6 +3965,7 @@ err_early_init:
 	exynos_bcm_dbg_ipc_channel_release(data);
 err_ipc_channel:
 err_parse_dt:
+	of_node_put(data->ipc_node);
 	kfree(data);
 	data = NULL;
 	bcm_dbg_data = NULL;
@@ -3970,7 +3973,7 @@ err_data:
 	return ret;
 }
 
-static int exynos_bcm_dbg_remove(struct platform_device *pdev)
+static void exynos_bcm_dbg_remove(struct platform_device *pdev)
 {
 	struct exynos_bcm_dbg_data *data =
 					platform_get_drvdata(pdev);
@@ -3980,12 +3983,11 @@ static int exynos_bcm_dbg_remove(struct platform_device *pdev)
 	kfree(bcm_dbg_file_fops);
 	platform_set_drvdata(pdev, NULL);
 	ret = exynos_bcm_dbg_pd_sync_exit(data);
-	if (ret) {
+	if (ret)
 		BCM_ERR("%s: failed to pd_sync_exit\n", __func__);
-		return ret;
-	}
 
 	exynos_bcm_dbg_ipc_channel_release(data);
+	of_node_put(data->ipc_node);
 	kfree(data);
 	data = NULL;
 
@@ -3994,8 +3996,6 @@ static int exynos_bcm_dbg_remove(struct platform_device *pdev)
 #endif
 
 	BCM_INFO("%s: exynos bcm is removed!!\n", __func__);
-
-	return 0;
 }
 
 static struct platform_device_id exynos_bcm_dbg_driver_ids[] = {

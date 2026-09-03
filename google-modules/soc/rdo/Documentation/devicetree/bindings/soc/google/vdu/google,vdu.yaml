@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2024 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/soc/google/vdu/google,vdu.yaml#
+$schema: http://devicetree.org/meta-schemas/base.yaml#
+
+title: Google VDU (Volatile Debug Unlock)
+
+maintainers:
+  - Kanstantsin Yarmash <kyarmash@google.com>
+
+description:
+  This driver offers its interface through sysfs files and a character device,
+  and it enables interaction with the VDU hardware for authentication and
+  status queries. It facilitates device information retrieval, authentication
+  flow support, and status checks, and it is used to establish and manage VDU
+  sessions.
+
+properties:
+  compatible:
+    const: google,volatile-debug-unlock
+
+  memory-region:
+    description:
+      A phandle to a reserved memory region used for DMA buffers to exchange
+      data with the GDMC firmware.
+
+  gdmc-iface:
+    description:
+      A phandle to the mailbox controller used for communication with the GDMC.
+
+  consent-granted:
+    type: boolean
+    description:
+      A boolean property indicating that user consent for the VDU unlock
+      has been granted. The absence of this property implies consent is not
+      granted. The driver will reject directive processing if this property
+      is not present.
+
+  joint-directive-mba:
+    type: boolean
+    description:
+      A boolean property indicating that the GDMC mailbox accepts VDU
+      directive to be sent jointly in a single, combined buffer.
+      If this property is not present, the driver will send the grant
+      and delegate as two separate mailbox requests.
+
+  vdu-directive-max-size:
+    type: integer
+    description:
+      Specifies the maximum allowed size in bytes for the VDU directive buffers
+      (grant and delegate combined). This is a security measure to prevent
+      overly large allocations.
+
+  default-debug-vector:
+    type: string
+    description:
+      A hex string representing the default VDU debug vector.
+
+  default-policy-type:
+    type: array
+    description:
+      A list of default VDU policy types.
+required:
+  - compatible
+  - memory-region
+  - gdmc-iface
+
+additionalProperties: false
+
+examples:
+  - |
+    gvdu: gvdu {
+      compatible = "google,volatile-debug-unlock";
+      gdmc-iface = <&goog_mba_gdmc_iface>;
+      memory-region = <&gvdu_dma_region>;
+      vdu-directive-max-size = <0x00002790>;
+      consent-granted;
+    };

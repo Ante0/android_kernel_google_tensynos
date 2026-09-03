@@ -209,7 +209,7 @@ void panfrost_core_dump(struct panfrost_job *job)
 			goto dump_header;
 		}
 
-		ret = drm_gem_shmem_vmap(&bo->base, &map);
+		ret = drm_gem_vmap_unlocked(&bo->base.base, &map);
 		if (ret) {
 			dev_err(pfdev->dev, "Panfrost Dump: couldn't map Buffer Object\n");
 			iter.hdr->bomap.valid = 0;
@@ -220,23 +220,15 @@ void panfrost_core_dump(struct panfrost_job *job)
 
 		iter.hdr->bomap.data[0] = bomap - bomap_start;
 
-		for_each_sgtable_page(bo->base.sgt, &page_iter, 0) {
-			struct page *page = sg_page_iter_page(&page_iter);
-
-			if (!IS_ERR(page)) {
-				*bomap++ = page_to_phys(page);
-			} else {
-				dev_err(pfdev->dev, "Panfrost Dump: wrong page\n");
-				*bomap++ = 0;
-			}
-		}
+		for_each_sgtable_page(bo->base.sgt, &page_iter, 0)
+			*bomap++ = page_to_phys(sg_page_iter_page(&page_iter));
 
 		iter.hdr->bomap.iova = mapping->mmnode.start << PAGE_SHIFT;
 
 		vaddr = map.vaddr;
 		memcpy(iter.data, vaddr, bo->base.base.size);
 
-		drm_gem_shmem_vunmap(&bo->base, &map);
+		drm_gem_vunmap_unlocked(&bo->base.base, &map);
 
 		iter.hdr->bomap.valid = 1;
 

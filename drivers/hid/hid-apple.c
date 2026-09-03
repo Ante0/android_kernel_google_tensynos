@@ -8,6 +8,8 @@
  *  Copyright (c) 2006-2007 Jiri Kosina
  *  Copyright (c) 2008 Jiri Slaby <jirislaby@gmail.com>
  *  Copyright (c) 2019 Paul Pawlowski <paul@mrarm.io>
+ *  Copyright (c) 2023 Orlando Chamberlain <orlandoch.dev@gmail.com>
+ *  Copyright (c) 2024 Aditya Garg <gargaditya08@live.com>
  */
 
 /*
@@ -22,6 +24,8 @@
 #include <linux/slab.h>
 #include <linux/timer.h>
 #include <linux/string.h>
+#include <linux/leds.h>
+#include <dt-bindings/leds/common.h>
 
 #include "hid-ids.h"
 
@@ -37,11 +41,16 @@
 #define APPLE_RDESC_BATTERY	BIT(9)
 #define APPLE_BACKLIGHT_CTL	BIT(10)
 #define APPLE_IS_NON_APPLE	BIT(11)
+#define APPLE_MAGIC_BACKLIGHT	BIT(12)
 
 #define APPLE_FLAG_FKEY		0x01
 
 #define HID_COUNTRY_INTERNATIONAL_ISO	13
 #define APPLE_BATTERY_TIMEOUT_MS	60000
+
+#define HID_USAGE_MAGIC_BL			0xff00000f
+#define APPLE_MAGIC_REPORT_ID_POWER		3
+#define APPLE_MAGIC_REPORT_ID_BRIGHTNESS	1
 
 static unsigned int fnmode = 3;
 module_param(fnmode, uint, 0644);
@@ -57,7 +66,13 @@ static unsigned int swap_opt_cmd;
 module_param(swap_opt_cmd, uint, 0644);
 MODULE_PARM_DESC(swap_opt_cmd, "Swap the Option (\"Alt\") and Command (\"Flag\") keys. "
 		"(For people who want to keep Windows PC keyboard muscle memory. "
-		"[0] = as-is, Mac layout. 1 = swapped, Windows layout.)");
+		"[0] = as-is, Mac layout. 1 = swapped, Windows layout., 2 = swapped, Swap only left side)");
+
+static unsigned int swap_ctrl_cmd;
+module_param(swap_ctrl_cmd, uint, 0644);
+MODULE_PARM_DESC(swap_ctrl_cmd, "Swap the Control (\"Ctrl\") and Command (\"Flag\") keys. "
+		"(For people who are used to Mac shortcuts involving Command instead of Control. "
+		"[0] = No change. 1 = Swapped.)");
 
 static unsigned int swap_fn_leftctrl;
 module_param(swap_fn_leftctrl, uint, 0644);
@@ -72,7 +87,12 @@ struct apple_non_apple_keyboard {
 struct apple_sc_backlight {
 	struct led_classdev cdev;
 	struct hid_device *hdev;
-	unsigned short backlight_off, backlight_on_min, backlight_on_max;
+};
+
+struct apple_magic_backlight {
+	struct led_classdev cdev;
+	struct hid_report *brightness;
+	struct hid_report *power;
 };
 
 struct apple_sc {
@@ -308,7 +328,21 @@ static const struct apple_key_translation swapped_option_cmd_keys[] = {
 	{ KEY_LEFTALT,	KEY_LEFTMETA },
 	{ KEY_LEFTMETA,	KEY_LEFTALT },
 	{ KEY_RIGHTALT,	KEY_RIGHTMETA },
-	{ KEY_RIGHTMETA,KEY_RIGHTALT },
+	{ KEY_RIGHTMETA, KEY_RIGHTALT },
+	{ }
+};
+
+static const struct apple_key_translation swapped_option_cmd_left_keys[] = {
+	{ KEY_LEFTALT,	KEY_LEFTMETA },
+	{ KEY_LEFTMETA,	KEY_LEFTALT },
+	{ }
+};
+
+static const struct apple_key_translation swapped_ctrl_cmd_keys[] = {
+	{ KEY_LEFTCTRL,	KEY_LEFTMETA },
+	{ KEY_LEFTMETA,	KEY_LEFTCTRL },
+	{ KEY_RIGHTCTRL, KEY_RIGHTMETA },
+	{ KEY_RIGHTMETA, KEY_RIGHTCTRL },
 	{ }
 };
 
@@ -319,10 +353,20 @@ static const struct apple_key_translation swapped_fn_leftctrl_keys[] = {
 };
 
 static const struct apple_non_apple_keyboard non_apple_keyboards[] = {
+	{ "SONiX KN85 Keyboard" },
 	{ "SONiX USB DEVICE" },
+	{ "SONiX AK870 PRO" },
 	{ "Keychron" },
 	{ "AONE" },
-	{ "GANSS" }
+	{ "GANSS" },
+	{ "Hailuck" },
+	{ "Jamesdonkey" },
+	{ "A3R" },
+	{ "hfd.cn" },
+	{ "WKB603" },
+	{ "TH87" },			/* EPOMAKER TH87 BT mode */
+	{ "HFD Epomaker TH87" },	/* EPOMAKER TH87 USB mode */
+	{ "2.4G Wireless Receiver" },	/* EPOMAKER TH87 dongle */
 };
 
 static bool apple_is_non_apple_keyboard(struct hid_device *hdev)
@@ -407,7 +451,17 @@ static int hidinput_apple_event(struct hid_device *hid, struct input_dev *input,
 	}
 
 	if (swap_opt_cmd) {
-		trans = apple_find_translation(swapped_option_cmd_keys, code);
+		if (swap_opt_cmd == 2)
+			trans = apple_find_translation(swapped_option_cmd_left_keys, code);
+		else
+			trans = apple_find_translation(swapped_option_cmd_keys, code);
+
+		if (trans)
+			code = trans->to;
+	}
+
+	if (swap_ctrl_cmd) {
+		trans = apple_find_translation(swapped_ctrl_cmd_keys, code);
 
 		if (trans)
 			code = trans->to;
@@ -578,7 +632,7 @@ static void apple_battery_timer_tick(struct timer_list *t)
  * MacBook JIS keyboard has wrong logical maximum
  * Magic Keyboard JIS has wrong logical maximum
  */
-static __u8 *apple_report_fixup(struct hid_device *hdev, __u8 *rdesc,
+static const __u8 *apple_report_fixup(struct hid_device *hdev, __u8 *rdesc,
 		unsigned int *rsize)
 {
 	struct apple_sc *asc = hid_get_drvdata(hdev);
@@ -609,9 +663,7 @@ static __u8 *apple_report_fixup(struct hid_device *hdev, __u8 *rdesc,
 		hid_info(hdev,
 			 "fixing up Magic Keyboard battery report descriptor\n");
 		*rsize = *rsize - 1;
-		rdesc = kmemdup(rdesc + 1, *rsize, GFP_KERNEL);
-		if (!rdesc)
-			return NULL;
+		rdesc = rdesc + 1;
 
 		rdesc[0] = 0x05;
 		rdesc[1] = 0x01;
@@ -780,6 +832,7 @@ static int apple_backlight_init(struct hid_device *hdev)
 	asc->backlight->cdev.name = "apple::kbd_backlight";
 	asc->backlight->cdev.max_brightness = rep->backlight_on_max;
 	asc->backlight->cdev.brightness_set_blocking = apple_backlight_led_set;
+	asc->backlight->cdev.flags = LED_CORE_SUSPENDRESUME;
 
 	ret = apple_backlight_set(hdev, 0, 0);
 	if (ret < 0) {
@@ -792,6 +845,68 @@ static int apple_backlight_init(struct hid_device *hdev)
 cleanup_and_exit:
 	kfree(rep);
 	return ret;
+}
+
+static void apple_magic_backlight_report_set(struct hid_report *rep, s32 value, u8 rate)
+{
+	rep->field[0]->value[0] = value;
+	rep->field[1]->value[0] = 0x5e; /* Mimic Windows */
+	rep->field[1]->value[0] |= rate << 8;
+
+	hid_hw_request(rep->device, rep, HID_REQ_SET_REPORT);
+}
+
+static void apple_magic_backlight_set(struct apple_magic_backlight *backlight,
+				     int brightness, char rate)
+{
+	apple_magic_backlight_report_set(backlight->power, brightness ? 1 : 0, rate);
+	if (brightness)
+		apple_magic_backlight_report_set(backlight->brightness, brightness, rate);
+}
+
+static int apple_magic_backlight_led_set(struct led_classdev *led_cdev,
+					 enum led_brightness brightness)
+{
+	struct apple_magic_backlight *backlight = container_of(led_cdev,
+			struct apple_magic_backlight, cdev);
+
+	apple_magic_backlight_set(backlight, brightness, 1);
+	return 0;
+}
+
+static int apple_magic_backlight_init(struct hid_device *hdev)
+{
+	struct apple_magic_backlight *backlight;
+	struct hid_report_enum *report_enum;
+
+	/*
+	 * Ensure this usb endpoint is for the keyboard backlight, not touchbar
+	 * backlight.
+	 */
+	if (hdev->collection[0].usage != HID_USAGE_MAGIC_BL)
+		return -ENODEV;
+
+	backlight = devm_kzalloc(&hdev->dev, sizeof(*backlight), GFP_KERNEL);
+	if (!backlight)
+		return -ENOMEM;
+
+	report_enum = &hdev->report_enum[HID_FEATURE_REPORT];
+	backlight->brightness = report_enum->report_id_hash[APPLE_MAGIC_REPORT_ID_BRIGHTNESS];
+	backlight->power = report_enum->report_id_hash[APPLE_MAGIC_REPORT_ID_POWER];
+
+	if (!backlight->brightness || backlight->brightness->maxfield < 2 ||
+	    !backlight->power || backlight->power->maxfield < 2)
+		return -ENODEV;
+
+	backlight->cdev.name = ":white:" LED_FUNCTION_KBD_BACKLIGHT;
+	backlight->cdev.max_brightness = backlight->brightness->field[0]->logical_maximum;
+	backlight->cdev.brightness_set_blocking = apple_magic_backlight_led_set;
+	backlight->cdev.flags = LED_CORE_SUSPENDRESUME;
+
+	apple_magic_backlight_set(backlight, 0, 0);
+
+	return devm_led_classdev_register(&hdev->dev, &backlight->cdev);
+
 }
 
 static int apple_probe(struct hid_device *hdev,
@@ -824,22 +939,38 @@ static int apple_probe(struct hid_device *hdev,
 		return ret;
 	}
 
-	timer_setup(&asc->battery_timer, apple_battery_timer_tick, 0);
-	mod_timer(&asc->battery_timer,
-		  jiffies + msecs_to_jiffies(APPLE_BATTERY_TIMEOUT_MS));
-	apple_fetch_battery(hdev);
+	if (quirks & APPLE_RDESC_BATTERY) {
+		timer_setup(&asc->battery_timer, apple_battery_timer_tick, 0);
+		mod_timer(&asc->battery_timer,
+			  jiffies + msecs_to_jiffies(APPLE_BATTERY_TIMEOUT_MS));
+		apple_fetch_battery(hdev);
+	}
 
 	if (quirks & APPLE_BACKLIGHT_CTL)
 		apple_backlight_init(hdev);
 
+	if (quirks & APPLE_MAGIC_BACKLIGHT) {
+		ret = apple_magic_backlight_init(hdev);
+		if (ret)
+			goto out_err;
+	}
+
 	return 0;
+
+out_err:
+	if (quirks & APPLE_RDESC_BATTERY)
+		del_timer_sync(&asc->battery_timer);
+
+	hid_hw_stop(hdev);
+	return ret;
 }
 
 static void apple_remove(struct hid_device *hdev)
 {
 	struct apple_sc *asc = hid_get_drvdata(hdev);
 
-	del_timer_sync(&asc->battery_timer);
+	if (asc->quirks & APPLE_RDESC_BATTERY)
+		del_timer_sync(&asc->battery_timer);
 
 	hid_hw_stop(hdev);
 }
@@ -1049,6 +1180,8 @@ static const struct hid_device_id apple_devices[] = {
 		.driver_data = APPLE_HAS_FN | APPLE_ISO_TILDE_QUIRK | APPLE_RDESC_BATTERY },
 	{ HID_BLUETOOTH_DEVICE(BT_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_MAGIC_KEYBOARD_NUMPAD_2021),
 		.driver_data = APPLE_HAS_FN | APPLE_ISO_TILDE_QUIRK },
+	{ HID_USB_DEVICE(USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_TOUCHBAR_BACKLIGHT),
+		.driver_data = APPLE_MAGIC_BACKLIGHT },
 
 	{ }
 };
@@ -1067,4 +1200,5 @@ static struct hid_driver apple_driver = {
 };
 module_hid_driver(apple_driver);
 
+MODULE_DESCRIPTION("Apple USB HID quirks support for Linux");
 MODULE_LICENSE("GPL");

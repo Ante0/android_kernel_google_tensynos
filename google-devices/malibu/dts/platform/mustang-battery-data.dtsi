@@ -1,0 +1,178 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Battery device tree entries
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+
+max77779,config {
+
+	/* NOTE: adding or removing nodes from this file requires changes in the bootloader */
+
+	/* MT5_ATL_3752_001_G1.ini.txt.overlay, b/377555786#comment2 */
+	max77779,mt5-atl-1k {
+		status = "disabled";
+		max77779,batt-id-kohm = <1>;
+		max77779,model-version = <2>;
+		max77779,force-reset-model-data;
+		max77779,fg-model = /bits/ 16 <
+			0x9610 0xad50 0xb740 0xb870 0xb9c0 0xbc60 0xbe00 0xc100
+			0xc2b0 0xc690 0xcaa0 0xcef0 0xd2a0 0xd840 0xdb20 0xdea0
+			0x0040 0x01c0 0x1180 0x0c50 0x0d00 0x1260 0x1190 0x0ef0
+			0x06d0 0x0700 0x0710 0x06d0 0x06c0 0x07e0 0x06e0 0x06e0
+		>;
+		max77779,fg-params = /bits/ 16 <
+			/* 0x00C0 */	0xc1b0	/* nnvcfg0 */
+			/* 0x00B6 */	0x083b	/* nrelaxcfg */
+			/* 0x009F */	0x660e	/* nLearnCFG */
+			/* 0x000C */	0x4207	/* Config */
+			/* 0x00AB */	0x0081	/* Config2 */
+			/* 0x00BC */	0x5f00	/* nFullSOCThr */
+			/* 0x00A9 */	0x084d	/* nfullcaprep */
+			/* 0x00B3 */	0x084d	/* ndesigncap */
+			/* 0x0046 */	0x0c80	/* dPacc */
+			/* 0x00A5 */	0x084d	/* nfullcapnom */
+			/* 0x00C6 */	0xa55a	/* nVEmpty */
+			/* 0x00A0 */	0x2e0a	/* nQRTable00 */
+			/* 0x00A1 */	0x1582	/* nQRTable10 */
+			/* 0x00A2 */	0x0a00	/* nQRTable20 */
+			/* 0x00A3 */	0x0780	/* nQRTable30 */
+			/* 0x00A6 */	0x0400	/* nRCOMP0 */
+			/* 0x00A7 */	0x1402	/* nTempCo */
+			/* 0x009C */	0x0298	/* nichgterm */
+			/* 0x00B2 */	0x3870	/* nmisccfg */
+			/* 0x009E */	0x0400	/* nModelCfg */
+			/* 0x00CA */	0xc8ff	/* nThermCfg */
+			/* 0x009D */	0xcea4	/* nFilterCfg */
+		>;
+		max77779,fg_n_regval = /bits/ 16 <
+			0xB7 0x2240	/* nConvgCfg */
+			0xC9 0xC8FF	/* nThermCfg2 Register */
+		>;
+	};
+
+	/* MT5_COS_3753_001_G1.ini.txt.overlay, b/377556072#comment2 */
+	max77779,mt5-cos-2k {
+		status = "disabled";
+		max77779,batt-id-kohm = <2>;
+		max77779,model-version = <2>;
+		max77779,force-reset-model-data;
+		max77779,fg-model = /bits/ 16 <
+			0x9610 0xacb0 0xb620 0xb900 0xba80 0xbd40 0xc030 0xc300
+			0xc680 0xca50 0xce10 0xcf00 0xd200 0xd5c0 0xd8c0 0xdfb0
+			0x0040 0x0210 0x08b0 0x0c20 0x0ef0 0x0eb0 0x0ff0 0x07e0
+			0x06b0 0x06f0 0x0890 0x06b0 0x05f0 0x07e0 0x06f0 0x06f0
+		>;
+		max77779,fg-params = /bits/ 16 <
+			/* 0x00C0 */	0xc1b0	/* nnvcfg0 */
+			/* 0x00B6 */	0x083b	/* nrelaxcfg */
+			/* 0x009F */	0x660e	/* nLearnCFG */
+			/* 0x000C */	0x4207	/* Config */
+			/* 0x00AB */	0x0081	/* Config2 */
+			/* 0x00BC */	0x5f00	/* nFullSOCThr */
+			/* 0x00A9 */	0x084a	/* nfullcaprep */
+			/* 0x00B3 */	0x084a	/* ndesigncap */
+			/* 0x0046 */	0x0c80	/* dPacc */
+			/* 0x00A5 */	0x084a	/* nfullcapnom */
+			/* 0x00C6 */	0xa55a	/* nVEmpty */
+			/* 0x00A0 */	0x1e0c	/* nQRTable00 */
+			/* 0x00A1 */	0x0f06	/* nQRTable10 */
+			/* 0x00A2 */	0x0784	/* nQRTable20 */
+			/* 0x00A3 */	0x0504	/* nQRTable30 */
+			/* 0x00A6 */	0x0380	/* nRCOMP0 */
+			/* 0x00A7 */	0x1402	/* nTempCo */
+			/* 0x009C */	0x0298	/* nichgterm */
+			/* 0x00B2 */	0x3870	/* nmisccfg */
+			/* 0x009E */	0x0400	/* nModelCfg */
+			/* 0x00CA */	0xc8ff	/* nThermCfg */
+			/* 0x009D */	0xcea4	/* nFilterCfg */
+		>;
+		max77779,fg_n_regval = /bits/ 16 <
+			0xB7 0x2240	/* nConvgCfg */
+			0xC9 0xC8FF	/* nThermCfg2 Register */
+		>;
+	};
+
+	/* BC79_MT5_2mOhm_ATL_3501_RC2_Proxy.INI, b/342241505#comment4 */
+	max77779,mt5-atl-1k-temp {
+		status = "disabled";
+		max77779,batt-id-kohm = <17>;
+		max77779,model-version = <1>;
+		max77779,force-reset-model-data;
+		max77779,fg-model = /bits/ 16 <
+			0x975e 0xaf47 0xb7cb 0xb898 0xb8fe 0xbb99 0xbc8d 0xbeae
+			0xc08e 0xc2df 0xc8d2 0xce54 0xd265 0xd697 0xdb99 0xde9b
+			0x0050 0x0170 0x0ec0 0x22b0 0x0c40 0x1260 0x1310 0x1200
+			0x0e60 0x07e0 0x06c0 0x06f0 0x06b0 0x07d0 0x05b0 0x05b0
+		>;
+		max77779,fg-params = /bits/ 16 <
+			/* 0x00C0 */	0xc1b0	/* nNVCfg0 */
+			/* 0x00B6 */	0x083b	/* RelaxCFG */
+			/* 0x009F */	0x660E	/* nLearnCFG */
+			/* 0x000C */	0x4207	/* Config */
+			/* 0x00AB */	0x0081	/* Config2 */
+			/* 0x00BC */	0x5f00	/* nFullSOCthr */
+			/* 0x00A9 */	0x0820	/* nFullCAPRep */
+			/* 0x00B3 */	0x0820	/* nDesignCap */
+			/* 0x0046 */	0x0C80	/* dPacc */
+			/* 0x00A5 */	0x0820	/* nFullCAPNom */
+			/* 0x00C6 */	0xa55a	/* nV_empty */
+			/* 0x00A0 */	0x3382	/* nQRTable00 */
+			/* 0x00A1 */	0x1700	/* nQRTable10 */
+			/* 0x00A2 */	0x0780	/* nQRTable20 */
+			/* 0x00A3 */	0x0501	/* nQRTable30 */
+			/* 0x00A6 */	0x0600	/* nRCOMP0 */
+			/* 0x00A7 */	0x1670	/* nTempCo */
+			/* 0x009C */	0x029B	/* nIChgTerm */
+			/* 0x00B2 */	0x3870	/* nMiscCFG */
+			/* 0x009E */	0x0400	/* nModelCfg */
+			/* 0x00CA */	0xC8FF	/* nThermCfg */
+			/* 0x009D */	0xCEA4	/* nFilterCfg */
+		>;
+		max77779,fg_n_regval = /bits/ 16 <
+			0xC9 0xC8FF    /* nThermCfg2 Register */
+		>;
+	};
+
+	/* BC79_MT5_2mOhm_COS_3501_RC2_Proxy.INI, b/342241505#comment4 */
+	max77779,mt5-cos-2k-temp {
+		status = "disabled";
+		max77779,batt-id-kohm = <18>;
+		max77779,model-version = <1>;
+		max77779,force-reset-model-data;
+		max77779,fg-model = /bits/ 16 <
+			0x975e 0xaf47 0xb7cb 0xb898 0xb8fe 0xbb99 0xbc8d 0xbeae
+			0xc08e 0xc2df 0xc8d2 0xce54 0xd265 0xd697 0xdb99 0xde9b
+			0x0050 0x0170 0x0ec0 0x22b0 0x0c40 0x1260 0x1310 0x1200
+			0x0e60 0x07e0 0x06c0 0x06f0 0x06b0 0x07d0 0x05b0 0x05b0
+		>;
+		max77779,fg-params = /bits/ 16 <
+			/* 0x00C0 */	0xc1b0	/* nNVCfg0 */
+			/* 0x00B6 */	0x083b	/* RelaxCFG */
+			/* 0x009F */	0x660E	/* nLearnCFG */
+			/* 0x000C */	0x4207	/* Config */
+			/* 0x00AB */	0x0081	/* Config2 */
+			/* 0x00BC */	0x5f00	/* nFullSOCthr */
+			/* 0x00A9 */	0x0820	/* nFullCAPRep */
+			/* 0x00B3 */	0x0820	/* nDesignCap */
+			/* 0x0046 */	0x0C80	/* dPacc */
+			/* 0x00A5 */	0x0820	/* nFullCAPNom */
+			/* 0x00C6 */	0xa55a	/* nV_empty */
+			/* 0x00A0 */	0x3382	/* nQRTable00 */
+			/* 0x00A1 */	0x1700	/* nQRTable10 */
+			/* 0x00A2 */	0x0780	/* nQRTable20 */
+			/* 0x00A3 */	0x0501	/* nQRTable30 */
+			/* 0x00A6 */	0x0600	/* nRCOMP0 */
+			/* 0x00A7 */	0x1670	/* nTempCo */
+			/* 0x009C */	0x029B	/* nIChgTerm */
+			/* 0x00B2 */	0x3870	/* nMiscCFG */
+			/* 0x009E */	0x0400	/* nModelCfg */
+			/* 0x00CA */	0xC8FF	/* nThermCfg */
+			/* 0x009D */	0xCEA4	/* nFilterCfg */
+		>;
+		max77779,fg_n_regval = /bits/ 16 <
+			0xC9 0xC8FF    /* nThermCfg2 Register */
+		>;
+	};
+};

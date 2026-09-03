@@ -1,0 +1,60 @@
+What:		/sys/class/drm/card[0-9]/crtc-[0-9]/errors/frame_start_timeout
+Date:		January 2026
+Contact:	Ken Huang <kenbshuang@google.com>
+Description:
+		A read-only file that contains the number of times a frame
+		start interrupt has timed out. A frame start timeout
+		indicates that the DPU failed to start processing a new
+		frame within the expected timeframe.
+
+What:		/sys/class/drm/card[0-9]/crtc-[0-9]/errors/frame_start_missing
+Date:		January 2026
+Contact:	Ken Huang <kenbshuang@google.com>
+Description:
+		A read-only file that contains the number of times a frame
+		start interrupt was missed. This can happen if the system is
+		heavily loaded and the interrupt handler is not scheduled in
+		time.
+
+What:		/sys/class/drm/card[0-9]/crtc-[0-9]/errors/frame_done_timeout
+Date:		January 2026
+Contact:	Ken Huang <kenbshuang@google.com>
+Description:
+		A read-only file that contains the number of times a frame
+		done interrupt has timed out. A frame done timeout
+		indicates that the DPU failed to finish processing a
+		frame within the expected timeframe.
+
+What:		/sys/class/drm/card[0-9]/crtc-[0-9]/errors/frame_done_missing
+Date:		January 2026
+Contact:	Ken Huang <kenbshuang@google.com>
+Description:
+		A read-only file that contains the number of times a frame
+		done interrupt was missed. This can happen if the system is
+		heavily loaded and the interrupt handler is not scheduled in
+		time.
+
+What:		/sys/class/drm/card[0-9]/crtc-[0-9]/errors/underrun_count
+Date:		January 2026
+Contact:	Ken Huang <kenbshuang@google.com>
+Description:
+		A read-only file that contains the number of times the DPU
+		has experienced an underrun. An underrun occurs when the
+		DPU runs out of data to process, which can lead to visual
+		artifacts on the display.
+
+What:		/sys/class/drm/card[0-9]/crtc-[0-9]/recovery_stats/<source>_success
+What:		/sys/class/drm/card[0-9]/crtc-[0-9]/recovery_stats/<source>_failure
+What:		/sys/class/drm/card[0-9]/crtc-[0-9]/recovery_stats/<source>_max_retry
+Date:		January 2026
+Contact:	Ken Lin <lyenting@google.com>
+Description:
+		Read-only files containing statistics for display recovery attempts,
+		grouped by their trigger source (manual, frame_update_timeout, dsi_err, ddic_err).
+
+		- success: Count of successful recovery attempts where the display stack
+		  suspended and resumed without error.
+		- failure: Count of failed recovery attempts where the suspend/resume
+		  sequence encountered an error.
+		- max_retry: Count of times the recovery mechanism reached its maximum
+		  consecutive attempt limit.

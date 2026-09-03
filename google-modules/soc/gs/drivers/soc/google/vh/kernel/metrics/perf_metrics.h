@@ -5,6 +5,9 @@
  * Copyright 2022 Google LLC
  */
 
+#ifndef _PERF_METRICS_H_
+#define _PERF_METRICS_H_
+
 #include <linux/interrupt.h>
 
 #define RESUME_LATENCY_STEP_SMALL 10
@@ -28,3 +31,11 @@
 #define LATENCY_CNT_LARGE ((RESUME_LATENCY_BOUND_MAX - RESUME_LATENCY_BOUND_MID) / \
 	RESUME_LATENCY_STEP_LARGE)
 #define RESUME_LATENCY_ARR_SIZE (LATENCY_CNT_SMALL + LATENCY_CNT_MID + LATENCY_CNT_LARGE + 1)
+
+#if IS_ENABLED(CONFIG_PERF_METRICS)
+int perf_metrics_init(struct kobject *metrics_kobj);
+#else
+static inline int perf_metrics_init(struct kobject *metrics_kobj) { return 0; }
+#endif
+
+#endif /* _PERF_METRICS_H_ */

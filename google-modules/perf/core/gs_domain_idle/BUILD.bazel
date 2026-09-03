@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: MIT
+load(
+    "@kleaf//build/kernel/kleaf:kernel.bzl",
+    "ddk_headers",
+    "ddk_module",
+)
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+# It's here to support the drivers/soc/google/vh/kernel/sched folder of the soc/gs/ repo.
+ddk_headers(
+    name = "headers",
+    hdrs = glob([
+        "include/**/*.h",
+    ]),
+    includes = ["include"],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/sched:__subpackages__",
+    ],
+)
+
+# Kconfig and defconfig files should not be added to the ddk_module rule because
+# CONFIG_GS_DOMAIN_IDLE is referenced in
+# soc/gs/drivers/soc/google/vh/kernel/sched/init.c. This file uses the legacy kernel_module
+# building method and therefore cannot access the Kconfig symbols exposed by ddk_module().
+ddk_module(
+    name = "gs_domain_idle",
+    srcs = [
+        "gs_domain_idle.c",
+    ],
+    out = "gs_domain_idle.ko",
+    hdrs = [
+        "include/perf/core/gs_domain_idle.h",
+    ],
+    includes = [
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+    ],
+)
+
+ddk_module(
+    name = "gs_domain_idle_kunit_test",
+    srcs = [
+        "test/gs_domain_idle_test.c",
+    ],
+    out = "gs_domain_idle_test.ko",
+    hdrs = [
+        "gs_domain_idle.c",
+        "include/perf/core/gs_domain_idle.h",
+    ],
+    defconfig = "test/kunit_defconfig",
+    includes = [
+        "include",
+    ],
+    kconfig = "test/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+    ],
+)
+
+exports_files([
+    "Kconfig",
+])

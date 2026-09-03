@@ -1,0 +1,268 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+&sswrp_aurdsp {
+	aurdsp_funnel0: funnel@a71000 {
+		/* TODO(b/b/426620854): replace this node with remote coresight */
+		status = "disabled";
+		compatible = "arm,coresight-dynamic-funnel", "arm,primecell";
+		reg = <0xa71000 0x1000>;
+
+		clocks = <&osc>;
+		clock-names = "apb_pclk";
+
+		power-domains = <&sswrp_aurdsp_pd>;
+
+		out-ports {
+			port {
+				aurdsp_funnel0_out_port: endpoint {
+					remote-endpoint = <&aurdsp_funnel1_in_port0>;
+				};
+			};
+		};
+
+		in-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				aurdsp_funnel0_in_port0: endpoint {
+					remote-endpoint = <&aurdsp_core0_out_port>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				aurdsp_funnel0_in_port1: endpoint {
+					remote-endpoint = <&aurdsp_core1_out_port>;
+				};
+			};
+
+			port@2 {
+				reg = <2>;
+				aurdsp_funnel0_in_port2: endpoint {
+					remote-endpoint = <&aurdsp_mcu_instruction_out_port>;
+				};
+			};
+
+			port@3 {
+				reg = <3>;
+				aurdsp_funnel0_in_port3: endpoint {
+					remote-endpoint = <&aurdsp_mcu_data_out_port>;
+				};
+			};
+
+			port@4 {
+				reg = <4>;
+				aurdsp_funnel0_in_port4: endpoint {
+					remote-endpoint = <&aurdsp_tcu_ela_out_port>;
+				};
+			};
+
+			port@5 {
+				reg = <5>;
+				aurdsp_funnel0_in_port5: endpoint {
+					remote-endpoint = <&aurdsp_mcu_gem_out_port>;
+				};
+			};
+
+			port@6 {
+				reg = <6>;
+				aurdsp_funnel0_in_port6: endpoint {
+					remote-endpoint = <&aurdsp_core0_gem_out_port>;
+				};
+			};
+
+			port@7 {
+				reg = <7>;
+				aurdsp_funnel0_in_port7: endpoint {
+					remote-endpoint = <&aurdsp_core1_gem_out_port>;
+				};
+			};
+		};
+	};
+
+	aurdsp_etf: etf@a72000 {
+		/* TODO(b/b/426620854): replace this node with remote coresight */
+		status = "disabled";
+		compatible = "arm,coresight-tmc", "arm,primecell";
+		reg = <0xa72000 0x1000>;
+
+		clocks = <&osc>;
+		clock-names = "apb_pclk";
+
+		power-domains = <&sswrp_aurdsp_pd>;
+
+		in-ports {
+			port {
+				aurdsp_etf_in_port: endpoint {
+					remote-endpoint = <&aurdsp_funnel1_out_port>;
+				};
+			};
+		};
+
+		out-ports {
+			port {
+				aurdsp_etf_out_port: endpoint {
+					remote-endpoint = <&l3_funnel_in_port3>;
+				};
+			};
+		};
+	};
+
+	aurdsp_funnel1: funnel@a74000 {
+		/* TODO(b/b/426620854): replace this node with remote coresight */
+		status = "disabled";
+		compatible = "arm,coresight-dynamic-funnel", "arm,primecell";
+		reg = <0xa74000 0x1000>;
+
+		clocks = <&osc>;
+		clock-names = "apb_pclk";
+
+		power-domains = <&sswrp_aurdsp_pd>;
+
+		out-ports {
+			port {
+				aurdsp_funnel1_out_port: endpoint {
+					remote-endpoint = <&aurdsp_etf_in_port>;
+				};
+			};
+		};
+
+		in-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				aurdsp_funnel1_in_port0: endpoint {
+					remote-endpoint = <&aurdsp_funnel0_out_port>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				aurdsp_funnel1_in_port1: endpoint {
+					remote-endpoint = <&aurdsp_tcu_gem_out_port>;
+				};
+			};
+		};
+	};
+
+	aurdsp-core0 {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				aurdsp_core0_out_port: endpoint {
+					remote-endpoint = <&aurdsp_funnel0_in_port0>;
+				};
+			};
+		};
+	};
+
+	aurdsp-core1 {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				aurdsp_core1_out_port: endpoint {
+					remote-endpoint = <&aurdsp_funnel0_in_port1>;
+				};
+			};
+		};
+	};
+
+	aurdsp-mcu-instruction {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				aurdsp_mcu_instruction_out_port: endpoint {
+					remote-endpoint = <&aurdsp_funnel0_in_port2>;
+				};
+			};
+		};
+	};
+
+	aurdsp-mcu-data {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				aurdsp_mcu_data_out_port: endpoint {
+					remote-endpoint = <&aurdsp_funnel0_in_port3>;
+				};
+			};
+		};
+	};
+
+	aurdsp-tcu-ela {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				aurdsp_tcu_ela_out_port: endpoint {
+					remote-endpoint = <&aurdsp_funnel0_in_port4>;
+				};
+			};
+		};
+	};
+
+	aurdsp-mcu-gem {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				aurdsp_mcu_gem_out_port: endpoint {
+					remote-endpoint = <&aurdsp_funnel0_in_port5>;
+				};
+			};
+		};
+	};
+
+	aurdsp-core0-gem {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				aurdsp_core0_gem_out_port: endpoint {
+					remote-endpoint = <&aurdsp_funnel0_in_port6>;
+				};
+			};
+		};
+	};
+
+	aurdsp-core1-gem {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				aurdsp_core1_gem_out_port: endpoint {
+					remote-endpoint = <&aurdsp_funnel0_in_port7>;
+				};
+			};
+		};
+	};
+
+	aurdsp-tcu-gem {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				aurdsp_tcu_gem_out_port: endpoint {
+					remote-endpoint = <&aurdsp_funnel1_in_port1>;
+				};
+			};
+		};
+	};
+};

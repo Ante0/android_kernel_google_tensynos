@@ -350,7 +350,7 @@ static int __mfc_force_close_inst(struct mfc_core *core, struct mfc_ctx *ctx)
 	return 0;
 }
 
-int __mfc_core_instance_init(struct mfc_core *core, struct mfc_ctx *ctx)
+static int __mfc_core_instance_init(struct mfc_core *core, struct mfc_ctx *ctx)
 {
 	struct mfc_core_ctx *core_ctx = NULL;
 	int ret = 0;

@@ -74,11 +74,7 @@ static inline bool oom_task_origin(const struct task_struct *p)
 
 static inline bool tsk_is_oom_victim(struct task_struct * tsk)
 {
-#ifdef CONFIG_ANDROID_SIMPLE_LMK
-	return test_ti_thread_flag(task_thread_info(tsk), TIF_MEMDIE);
-#else
 	return tsk->signal->oom_mm;
-#endif
 }
 
 /*
@@ -115,8 +111,9 @@ extern bool oom_killer_disable(signed long timeout);
 extern void oom_killer_enable(void);
 extern bool __oom_reap_task_mm(struct mm_struct *mm);
 
+extern void dump_tasks(struct oom_control *oc);
+
 extern struct task_struct *find_lock_task_mm(struct task_struct *p);
 
-/* call for adding killed process to reaper. */
-extern void add_to_oom_reaper(struct task_struct *p);
+void add_to_oom_reaper(struct task_struct *p);
 #endif /* _INCLUDE_LINUX_OOM_H */

@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "google_cpufreq.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules/soc/rdo:__pkg__",
+    ],
+)
+
+ddk_headers(
+    name = "trace_headers",
+    hdrs = [
+        "cpufreq_trace.h",
+    ],
+    includes = ["."],
+)
+
+ddk_module(
+    name = "google_cpufreq",
+    out = "google_cpufreq.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_CPU_FREQ": {
+            True: [
+                "google_cpufreq.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":trace_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/core/google_pm_qos:google_vote_manager",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google/cdd:gcdd",
+        "//private/google-modules/soc/rdo/drivers/soc/google/dvfs-helper:dvfs_helper",
+    ],
+)

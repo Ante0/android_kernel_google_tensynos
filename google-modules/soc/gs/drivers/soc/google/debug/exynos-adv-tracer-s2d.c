@@ -48,7 +48,7 @@ struct plugin_s2d_info {
 
 static struct plugin_s2d_info plugin_s2d;
 
-int adv_tracer_s2d_scandump(void)
+static int adv_tracer_s2d_scandump(void)
 {
 	if (!plugin_s2d.burnin_ctrl || plugin_s2d.sel_scanmode < 0 ||
 			plugin_s2d.dbgsel_sw < 0) {
@@ -64,7 +64,7 @@ int adv_tracer_s2d_scandump(void)
 	return 0;
 }
 
-int adv_tracer_s2d_arraydump(void)
+static int adv_tracer_s2d_arraydump(void)
 {
 	struct adv_tracer_ipc_cmd cmd = { 0 };
 	int ret = 0;
@@ -145,35 +145,7 @@ static int adv_tracer_s2d_get_all_blk(unsigned long *p_blocks)
 	return 0;
 }
 
-int adv_tracer_s2d_get_blk_by_idx(unsigned int index)
-{
-	unsigned long blocks;
-	int ret;
-
-	if (index >= plugin_s2d.blk_count)
-		return -EINVAL;
-
-	ret = adv_tracer_s2d_get_all_blk(&blocks);
-
-	if (ret)
-		return ret;
-
-	return !!(blocks & BIT(index));
-}
-
-int adv_tracer_s2d_get_blk_by_name(const char *name)
-{
-	unsigned int i;
-
-	for (i = 0; i < plugin_s2d.blk_count; i++) {
-		if (!strcmp(name, plugin_s2d.blk_names[i]))
-			return adv_tracer_s2d_get_blk_by_idx(i);
-	}
-
-	return -EINVAL;
-}
-
-int adv_tracer_s2d_set_blk_by_idx(bool enabled, unsigned int index)
+static int adv_tracer_s2d_set_blk_by_idx(bool enabled, unsigned int index)
 {
 	struct adv_tracer_ipc_cmd cmd = { 0 };
 	int ret = 0;
@@ -202,7 +174,7 @@ int adv_tracer_s2d_set_blk_by_idx(bool enabled, unsigned int index)
 	return 0;
 }
 
-int adv_tracer_s2d_set_blk_by_name(bool enabled, const char *name)
+static int adv_tracer_s2d_set_blk_by_name(bool enabled, const char *name)
 {
 	unsigned int i;
 
@@ -214,7 +186,7 @@ int adv_tracer_s2d_set_blk_by_name(bool enabled, const char *name)
 	return -ENOENT;
 }
 
-int adv_tracer_s2d_set_all_blk(bool en)
+static int adv_tracer_s2d_set_all_blk(bool en)
 {
 	struct adv_tracer_ipc_cmd cmd = { 0 };
 	int ret = 0;
@@ -540,13 +512,11 @@ err_s2d_info:
 	return ret;
 }
 
-static int adv_tracer_s2d_remove(struct platform_device *pdev)
+static void adv_tracer_s2d_remove(struct platform_device *pdev)
 {
 	struct adv_tracer_plugin *s2d = platform_get_drvdata(pdev);
 
 	adv_tracer_ipc_release_channel(s2d->id);
-
-	return 0;
 }
 
 static const struct of_device_id adv_tracer_s2d_match[] = {

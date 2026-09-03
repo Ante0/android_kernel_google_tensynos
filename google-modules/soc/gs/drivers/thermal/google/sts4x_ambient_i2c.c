@@ -138,8 +138,7 @@ static struct thermal_zone_device_ops sts4x_tzd_ops = {
 	.get_temp = sts4x_get_temp,
 };
 
-static int sts4x_probe(struct i2c_client *client,
-		       const struct i2c_device_id *sts4x_id)
+static int sts4x_probe(struct i2c_client *client)
 {
 	struct sts4x_data *data;
 	u8 cmd[] = {STS4X_CMD_RESET};
@@ -163,8 +162,7 @@ static int sts4x_probe(struct i2c_client *client,
 	data->client = client;
 
 	// Register thermal zone.
-	data->tzd = thermal_zone_device_register("ambient",
-				0, 0, data, &sts4x_tzd_ops, NULL, 0, 0);
+	data->tzd = thermal_tripless_zone_device_register("ambient", data, &sts4x_tzd_ops, NULL);
 	if (IS_ERR(data->tzd)) {
 		err = PTR_ERR(data->tzd);
 		dev_err(&client->dev, "Failed to register ambient thermal zone: %d", err);

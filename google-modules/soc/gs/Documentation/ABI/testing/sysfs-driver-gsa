@@ -1,0 +1,29 @@
+What:			/sys/devices/platform/<....>.gsa-ns/gsa/gsa0/device/log_main
+Date:			Sep, 2022
+KernelVersion:	5.15
+Contact:		"Thomas Flucke" <tflucke@google.com>
+Description:
+		Read the current value of the GSA rotating log.
+
+What:			/sys/devices/platform/<....>.gsa-ns/gsa/gsa0/device/log_intermediate
+Date:			Sep, 2022
+KernelVersion:	5.15
+Contact:		"Thomas Flucke" <tflucke@google.com>
+Description:
+		Read the value of the GSA intermediate log.
+        This contains the last value of the gsa main log before a device crash.
+        On a cold boot, this log will be empty.
+
+What:			/sys/devices/platform/<....>.gsa-ns/gsa/gsa0/device/rom_patch
+Date:			Feb, 2025
+KernelVersion:	6.6
+Contact:		"Thomas Flucke" <tflucke@google.com>
+Description:
+		Read the GSA ROM patch version.
+
+What:			/sys/devices/platform/<....>.gsa-ns/gsa/gsa0/device/version
+Date:			Nov, 2023
+KernelVersion:	6.1
+Contact:		"Thomas Flucke" <tflucke@google.com>
+Description:
+		Read the GSA FW version.

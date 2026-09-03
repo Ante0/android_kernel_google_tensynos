@@ -1,0 +1,94 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch")
+load("//private/devices/google/common/kleaf:device_build.bzl", "device_build")
+load("//private/devices/google/malibu:constants.bzl", "MALIBU_DTBS", "MALIBU_MODULE_OUTS")
+load(":constants.bzl", "SPACECRAFT_DTBOS")
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+device_build(
+    name = "spacecraft",
+    base_device = "//private/devices/google/malibu:malibu_base",
+    build_dtb = True,
+    build_dtbo = True,
+    build_system_dlkm = True,
+    build_vendor_dlkm = True,
+    build_vendor_kernel_boot = True,
+    ddk_uapi_headers = [
+        "//private/google-modules/gps/mediatek/t900:gps_dump_uapi_headers",
+    ],
+    defconfig_fragments = ["spacecraft_defconfig"],
+    dtb_outs = MALIBU_DTBS,
+    dtbo_outs = SPACECRAFT_DTBOS,
+    dts_makefile = "dts/Makefile",
+    dts_srcs = glob(["dts/**"]) + [
+        "//private/google-modules/soc/gs:gs.dt-bindings",
+        "//private/google-modules/soc/rdo:rdo.dt-bindings",
+    ],
+    fs_type = "erofs",
+    insmod_cfgs = glob(["insmod_cfg/*.cfg"]),
+    kconfig_exts = ["Kconfig.ext.spacecraft"],
+    kconfigs = [
+        # keep sorted
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3:tmi3.kconfig",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/google:radio_google.kconfig",
+        "//private/google-modules/touch/sec/p26:sec.kconfig",
+    ],
+    module_outs = MALIBU_MODULE_OUTS,
+    vendor_dlkm_modules = [
+        # keep sorted
+        "//private/google-modules/amplifiers/cs40l26:cl_dsp-core",
+        "//private/google-modules/amplifiers/cs40l26:cs40l26-core",
+        "//private/google-modules/amplifiers/cs40l26:snd-soc-cs40l26",
+        "//private/google-modules/bluetooth/broadcom:nitrous",
+        "//private/google-modules/fingerprint/goodix/gf3626:goodixfp",
+        "//private/google-modules/fingerprint/qcom/qfs4008:qbt_handler",
+        "//private/google-modules/gps/mediatek/t900:t900_gps_dump",
+        "//private/google-modules/nfc:st21nfc",
+        "//private/google-modules/nfc/ese:st33spi",
+        "//private/google-modules/radio/mediatek/t900/wwan/pwrctl:wwan_gpio_pwrctl",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/adsp:mtk_pcimsg_google",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/google:radio_google",
+        "//private/google-modules/uwb/slsi/u100",
+        "//private/google-modules/wlan/linux:cfg80211",
+        "//private/google-modules/wlan/linux:mac80211",
+        "//private/google-modules/wlan/wonder",
+    ],
+    vendor_dlkm_modules_blocklisted = [
+        # keep sorted
+        "//private/google-modules/amplifiers/cs40l26:cs40l26-i2c",
+        "//private/google-modules/soc/rdo/usb:dwc3-google-aux",
+        "//private/google-modules/touch/focaltech/ft3683u:focal_touch",
+        "//private/google-modules/touch/sec/p26:sec_touch",
+        "//private/google-modules/touch/synaptics/p26:syna_touch",
+        "//private/google-modules/wlan/bcmdhd/bcm4383:bcmdhd4383",
+        "//private/google-modules/wlan/bcmdhd/bcm4390v2:bcmdhd4390",
+    ],
+    vendor_ramdisk_modules = [
+        # keep sorted
+        "//private/google-modules/amplifiers/aw882xx:snd-soc-aw882xx",
+        "//private/google-modules/amplifiers/tas25xx:snd-soc-tas25xx",
+        "//private/google-modules/display/panels/muzel:panel-gs-bmea",
+        "//private/google-modules/display/panels/muzel:panel-gs-flea",
+        "//private/google-modules/display/panels/spacecraft:panel-gs-dcsda",
+        "//private/google-modules/display/panels/spacecraft:panel-gs-dcsdb",
+        "//private/google-modules/display/panels/spacecraft:panel-gs-pkcgda",
+        "//private/google-modules/nfc/ese:st54spi",
+    ],
+)
+
+# For compatibility
+alias(
+    name = "malibu_spacecraft_dist",
+    actual = ":spacecraft/dist",
+)
+
+alias(
+    name = "kernel_compile_commands",
+    actual = ":spacecraft/kernel_compile_commands",
+)

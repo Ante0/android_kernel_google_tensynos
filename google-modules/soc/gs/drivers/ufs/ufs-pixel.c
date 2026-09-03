@@ -7,20 +7,26 @@
  * Authors: Jaegeuk Kim <jaegeuk@google.com>
  */
 
-#include <core/ufshcd-priv.h>
 #include <linux/workqueue.h>
+#include <trace/hooks/ufshcd.h>
+#include <ufs/ufs.h>
+#include <ufs/ufshcd.h>
+
 #include <misc/sbbm.h>
-#include "ufs-pixel.h"
+
+#ifndef HAVE_UFSHCD_RPM_GET_SYNC
+#include <drivers/ufs/core/ufshcd-priv.h>
+#endif
+
 #include "ufs-pixel-crypto.h"
 #if IS_ENABLED(CONFIG_SCSI_UFS_PIXEL_FIPS140)
 #include "ufs-pixel-fips.h"
 #endif
+#include "ufs-pixel.h"
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/ufs_pixel.h>
-
 #undef CREATE_TRACE_POINTS
-#include <trace/hooks/ufshcd.h>
 
 /* UFSHCD error handling flags */
 enum {
@@ -337,7 +343,7 @@ static inline void record_ufs_stats(struct ufs_hba *hba)
 	}
 }
 
-void pixel_ufs_update_req_stats(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
+static void pixel_ufs_update_req_stats(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
 {
 	struct pixel_ufs *ufs = to_pixel_ufs(hba);
 	struct pixel_req_stats *rst;
@@ -696,7 +702,6 @@ static void pixel_ufs_check_int_errors(void *data, struct ufs_hba *hba,
 				bool queue_eh_work)
 {
 	enum pixel_event_type event = EVENT_UNDEF;
-	u32 status = 0;
 
 	if (!queue_eh_work)
 		return;
@@ -705,7 +710,6 @@ static void pixel_ufs_check_int_errors(void *data, struct ufs_hba *hba,
 		event = EVENT_INTR_FATAL_ERR;
 	else if (hba->errors & UIC_ERROR) {
 		event = EVENT_INTR_UIC_ERR;
-		status = hba->uic_error;
 	} else if (hba->errors & UFSHCD_UIC_HIBERN8_MASK) {
 		event = EVENT_INTR_H8_ERR;
 	}
@@ -721,29 +725,12 @@ static void pixel_ufs_send_command(void *data, struct ufs_hba *hba,
 	pixel_ufs_trace_upiu_cmd(hba, lrbp, true);
 }
 
-static inline int ufshcd_get_tr_ocs(struct ufshcd_lrb *lrbp)
-{
-	return le32_to_cpu(lrbp->utr_descriptor_ptr->header.dword_2) & MASK_OCS;
-}
-
-static inline int ufshcd_get_req_rsp(struct utp_upiu_rsp *ucd_rsp_ptr)
-{
-	return be32_to_cpu(ucd_rsp_ptr->header.dword_0) >> 24;
-}
-
-static inline int ufshcd_get_rsp_upiu_result(struct utp_upiu_rsp *ucd_rsp_ptr)
-{
-	return be32_to_cpu(ucd_rsp_ptr->header.dword_1) & MASK_RSP_UPIU_RESULT;
-}
-
 static void pixel_ufs_compl_command(void *data, struct ufs_hba *hba,
 					struct ufshcd_lrb *lrbp)
 {
-	if (IS_ENABLED(ENABLE_UFS_STATS)) {
-		pixel_ufs_update_io_stats(hba, lrbp, false);
-		pixel_ufs_update_req_stats(hba, lrbp);
-		pixel_ufs_trace_upiu_cmd(hba, lrbp, false);
-	}
+	pixel_ufs_update_io_stats(hba, lrbp, false);
+	pixel_ufs_update_req_stats(hba, lrbp);
+	pixel_ufs_trace_upiu_cmd(hba, lrbp, false);
 }
 
 static void pixel_ufs_prepare_command(void *data, struct ufs_hba *hba,
@@ -939,10 +926,8 @@ static ssize_t manual_gc_store(struct device *dev,
 		}
 	}
 
-	if (!ufs->manual_gc.hagc_support) {
-		err = ufshcd_bkops_ctrl(hba, (value == MANUAL_GC_ON) ?
-					BKOPS_STATUS_NON_CRITICAL:
-					BKOPS_STATUS_CRITICAL);
+	if (!ufs->manual_gc.hagc_support && value == MANUAL_GC_ON) {
+		err = ufshcd_bkops_ctrl(hba);
 		if (!hba->auto_bkops_enabled)
 			err = -EAGAIN;
 	}
@@ -1784,7 +1769,7 @@ static ssize_t _name##_show(struct device *dev,			\
 	struct ufs_hba *hba = dev_get_drvdata(dev);			\
 	u32 value;						\
 	pm_runtime_get_sync(hba->dev);			\
-	ufshcd_hold(hba, false);			\
+	ufshcd_hold(hba);			\
 	value = ufshcd_readl(hba, REG##_uname);			\
 	ufshcd_release(hba);			\
 	pm_runtime_put(hba->dev);			\
@@ -1794,8 +1779,8 @@ static DEVICE_ATTR_RO(_name)
 
 PIXEL_HC_REG_ATTR(cap, _CONTROLLER_CAPABILITIES);
 PIXEL_HC_REG_ATTR(ver, _UFS_VERSION);
-PIXEL_HC_REG_ATTR(hcpid, _CONTROLLER_DEV_ID);
-PIXEL_HC_REG_ATTR(hcmid, _CONTROLLER_PROD_ID);
+PIXEL_HC_REG_ATTR(hcpid, _CONTROLLER_PID);
+PIXEL_HC_REG_ATTR(hcmid, _CONTROLLER_MID);
 PIXEL_HC_REG_ATTR(ahit, _AUTO_HIBERNATE_IDLE_TIMER);
 PIXEL_HC_REG_ATTR(is, _INTERRUPT_STATUS);
 PIXEL_HC_REG_ATTR(ie, _INTERRUPT_ENABLE);
@@ -1859,7 +1844,7 @@ static struct attribute *pixel_sysfs_power_info[] = {
 };
 
 static const struct attribute_group pixel_sysfs_power_info_group = {
-	.name = "power_info",
+	.name = "pixel_power_info",
 	.attrs = pixel_sysfs_power_info,
 };
 
@@ -1946,19 +1931,13 @@ static void pixel_ufs_update_sysfs(void *data, struct ufs_hba *hba)
 	queue_work(system_highpri_wq, &ufs->update_sysfs_work);
 }
 
-static void pixel_ufs_update_sdev(void *data, struct scsi_device *sdev)
-{
-	/* do not use slow FUA */
-	sdev->broken_fua = 1;
-}
-
 void pixel_print_cmd_log(struct ufs_hba *hba)
 {
 	struct pixel_ufs *ufs = to_pixel_ufs(hba);
 	struct pixel_cmd_log_entry *entry = NULL;
 	int i;
 
-	if (!IS_ENABLED(ENABLE_UFS_STATS) || !ufs->enable_cmd_log)
+	if (!ufs->enable_cmd_log)
 		return;
 
 	for (i = 1; i <= MAX_CMD_ENTRY_NUM; i++) {
@@ -1984,8 +1963,6 @@ static void pixel_ufs_init(struct pixel_ufs *ufs)
 
 	/* init power event monitoring */
 	spin_lock_init(&ufs->power_event_lock);
-
-	INIT_WORK(&ufs->update_sysfs_work, pixel_ufs_update_sysfs_work);
 }
 
 int pixel_init(struct ufs_hba *hba, struct device *pdev,
@@ -2014,42 +1991,34 @@ int pixel_init(struct ufs_hba *hba, struct device *pdev,
 	if (ret)
 		return ret;
 
-	if (IS_ENABLED(ENABLE_UFS_STATS)) {
-		ret = register_trace_android_vh_ufs_send_command(
-					pixel_ufs_send_command, NULL);
-		if (ret)
-			return ret;
-	}
+	ret = register_trace_android_vh_ufs_send_command(
+				pixel_ufs_send_command, NULL);
+	if (ret)
+		return ret;
 
 	ret = register_trace_android_vh_ufs_compl_command(
 				pixel_ufs_compl_command, NULL);
 	if (ret)
 		return ret;
 
-	if (IS_ENABLED(ENABLE_UFS_STATS)) {
-		ret = register_trace_android_vh_ufs_send_uic_command(
-					pixel_ufs_send_uic_command, NULL);
-		if (ret)
-			return ret;
-
-		ret = register_trace_android_vh_ufs_send_tm_command(
-					pixel_ufs_send_tm_command, NULL);
-		if (ret)
-			return ret;
-
-		ret = register_trace_android_vh_ufs_check_int_errors(
-					pixel_ufs_check_int_errors, NULL);
-		if (ret)
-			return ret;
-	}
-
-	ret = register_trace_android_vh_ufs_update_sdev(
-				pixel_ufs_update_sdev, NULL);
+	ret = register_trace_android_vh_ufs_send_uic_command(
+				pixel_ufs_send_uic_command, NULL);
 	if (ret)
 		return ret;
 
-	if (IS_ENABLED(ENABLE_UFS_STATS))
-		pixel_ufs_init_cmd_log(hba);
+	ret = register_trace_android_vh_ufs_send_tm_command(
+				pixel_ufs_send_tm_command, NULL);
+	if (ret)
+		return ret;
+
+	ret = register_trace_android_vh_ufs_check_int_errors(
+				pixel_ufs_check_int_errors, NULL);
+	if (ret)
+		return ret;
+
+	pixel_ufs_init_cmd_log(hba);
+
+	INIT_WORK(&ufs->update_sysfs_work, pixel_ufs_update_sysfs_work);
 
 	pixel_init_manual_gc(hba);
 

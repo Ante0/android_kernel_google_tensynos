@@ -35,7 +35,7 @@ TRACE_EVENT(gs_lat_governor,
 	),
 
 	TP_fast_assign(
-		__assign_str(name, name);
+		__assign_str(name);
 		__entry->cpu = cpu;
 		__entry->ratio = ratio;
 		__entry->stall = stall;

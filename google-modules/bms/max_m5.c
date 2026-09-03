@@ -29,7 +29,7 @@
 
 #include "max_m5.h"
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 #include <linux/debugfs.h>
 #endif
 
@@ -1508,7 +1508,7 @@ int max_m5_recal_cycle(const struct max_m5_data *m5_data)
 /* Initial values??? */
 #define CGAIN_RESET_VAL 0x0400
 int m5_init_custom_parameters(struct device *dev, struct max_m5_data *m5_data,
-			      struct device_node *node)
+			      const struct device_node *node)
 {
 	struct max_m5_custom_parameters *cp = &m5_data->parameters;
 	const char *propname = "maxim,fg-params";
@@ -1548,7 +1548,7 @@ void max_m5_free_data(struct max_m5_data *m5_data)
 		devm_kfree(m5_data->dev, m5_data);
 }
 
-void *max_m5_init_data(struct device *dev, struct device_node *node,
+void *max_m5_init_data(struct device *dev, const struct device_node *node,
 		       struct maxfg_regmap *regmap)
 {
 	const char *propname = "maxim,fg-model";
@@ -1667,6 +1667,7 @@ const struct maxfg_reg max_m5[] = {
 	[MAXFG_TAG_fullsocthr] = { ATOM_INIT_REG16(MAX_M5_FULLSOCTHR)},
 	[MAXFG_TAG_misccfg] = { ATOM_INIT_REG16(MAX_M5_MISCCFG)},
 	[MAXFG_TAG_ichgterm] = { ATOM_INIT_REG16(MAX_M5_ICHGTERM)},
+	[MAXFG_TAG_timer] = { ATOM_INIT_REG16(MAX_M5_TIMER)},
 };
 
 int max_m5_regmap_init(struct maxfg_regmap *regmap, struct i2c_client *clnt)
@@ -1688,7 +1689,7 @@ int max_m5_regmap_init(struct maxfg_regmap *regmap, struct i2c_client *clnt)
  *  - before the model data is loaded using max1720x_model_load,
  *    these values must be updated based on aafv.
  */
-void max_m5_model_apply_aaf_fullsoc(struct max_m5_data *m5_data, const struct aafv_fg_config *cfg)
+void max_m5_model_apply_aafv_fullsoc(struct max_m5_data *m5_data, const struct aafv_fg_config *cfg)
 {
 	struct max_m5_custom_parameters *cp = &m5_data->parameters;
 

@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Kodiak low speed interfaces configuration
+ *
+ * Copyright 2026 Google LLC
+ *
+ * Intended to be used for versions between proto and evt inclusive.
+ */
+
+// Bug: 479266232 - Keep the old DRV value
+&xlsios_i23c3_scl {
+	drive-strength = <2>;
+};
+
+// Bug: 479266232 - Keep the old DRV value
+&xlsios_i23c3_sda {
+	drive-strength = <2>;
+};

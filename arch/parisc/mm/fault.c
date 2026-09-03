@@ -197,31 +197,31 @@ int fixup_exception(struct pt_regs *regs)
  * For implementation see handle_interruption() in traps.c
  */
 static const char * const trap_description[] = {
-	[1] "High-priority machine check (HPMC)",
-	[2] "Power failure interrupt",
-	[3] "Recovery counter trap",
-	[5] "Low-priority machine check",
-	[6] "Instruction TLB miss fault",
-	[7] "Instruction access rights / protection trap",
-	[8] "Illegal instruction trap",
-	[9] "Break instruction trap",
-	[10] "Privileged operation trap",
-	[11] "Privileged register trap",
-	[12] "Overflow trap",
-	[13] "Conditional trap",
-	[14] "FP Assist Exception trap",
-	[15] "Data TLB miss fault",
-	[16] "Non-access ITLB miss fault",
-	[17] "Non-access DTLB miss fault",
-	[18] "Data memory protection/unaligned access trap",
-	[19] "Data memory break trap",
-	[20] "TLB dirty bit trap",
-	[21] "Page reference trap",
-	[22] "Assist emulation trap",
-	[25] "Taken branch trap",
-	[26] "Data memory access rights trap",
-	[27] "Data memory protection ID trap",
-	[28] "Unaligned data reference trap",
+	[1] =	"High-priority machine check (HPMC)",
+	[2] =	"Power failure interrupt",
+	[3] =	"Recovery counter trap",
+	[5] =	"Low-priority machine check",
+	[6] =	"Instruction TLB miss fault",
+	[7] =	"Instruction access rights / protection trap",
+	[8] =	"Illegal instruction trap",
+	[9] =	"Break instruction trap",
+	[10] =	"Privileged operation trap",
+	[11] =	"Privileged register trap",
+	[12] =	"Overflow trap",
+	[13] =	"Conditional trap",
+	[14] =	"FP Assist Exception trap",
+	[15] =	"Data TLB miss fault",
+	[16] =	"Non-access ITLB miss fault",
+	[17] =	"Non-access DTLB miss fault",
+	[18] =	"Data memory protection/unaligned access trap",
+	[19] =	"Data memory break trap",
+	[20] =	"TLB dirty bit trap",
+	[21] =	"Page reference trap",
+	[22] =	"Assist emulation trap",
+	[25] =	"Taken branch trap",
+	[26] =	"Data memory access rights trap",
+	[27] =	"Data memory protection ID trap",
+	[28] =	"Unaligned data reference trap",
 };
 
 const char *trap_name(unsigned long code)
@@ -294,7 +294,7 @@ retry:
 	mmap_read_lock(mm);
 	vma = find_vma_prev(mm, address, &prev_vma);
 	if (!vma || address < vma->vm_start) {
-		if (!prev || !(prev->vm_flags & VM_GROWSUP))
+		if (!prev_vma || !(prev_vma->vm_flags & VM_GROWSUP))
 			goto bad_area;
 		vma = expand_stack(mm, address);
 		if (!vma)
@@ -317,8 +317,13 @@ retry:
 
 	fault = handle_mm_fault(vma, address, flags, regs);
 
-	if (fault_signal_pending(fault, regs))
+	if (fault_signal_pending(fault, regs)) {
+		if (!user_mode(regs)) {
+			msg = "Page fault: fault signal on kernel memory";
+			goto no_context;
+		}
 		return;
+	}
 
 	/* The fault is fully completed (including releasing mmap lock) */
 	if (fault & VM_FAULT_COMPLETED)
@@ -358,6 +363,10 @@ bad_area:
 	mmap_read_unlock(mm);
 
 bad_area_nosemaphore:
+	if (!user_mode(regs) && fixup_exception(regs)) {
+		return;
+	}
+
 	if (user_mode(regs)) {
 		int signo, si_code;
 

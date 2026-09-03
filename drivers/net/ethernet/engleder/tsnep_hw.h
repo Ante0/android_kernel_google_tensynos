@@ -48,6 +48,13 @@
 #define ECM_COUNTER_LOW 0x0028
 #define ECM_COUNTER_HIGH 0x002C
 
+/* interrupt delay */
+#define ECM_INT_DELAY 0x0030
+#define ECM_INT_DELAY_MASK 0xF0
+#define ECM_INT_DELAY_SHIFT 4
+#define ECM_INT_DELAY_BASE_US 16
+#define ECM_INT_DELAY_OFFSET 1
+
 /* control and status */
 #define ECM_STATUS 0x0080
 #define ECM_LINK_MODE_OFF 0x01000000
@@ -174,6 +181,8 @@ struct tsnep_gcl_operation {
 #define TSNEP_DESC_SIZE 256
 #define TSNEP_DESC_SIZE_DATA_AFTER 2048
 #define TSNEP_DESC_OFFSET 128
+#define TSNEP_DESC_SIZE_DATA_AFTER_INLINE (64 - sizeof(struct tsnep_tx_desc) + \
+					   sizeof_field(struct tsnep_tx_desc, tx))
 #define TSNEP_DESC_OWNER_COUNTER_MASK 0xC0000000
 #define TSNEP_DESC_OWNER_COUNTER_SHIFT 30
 #define TSNEP_DESC_LENGTH_MASK 0x00003FFF

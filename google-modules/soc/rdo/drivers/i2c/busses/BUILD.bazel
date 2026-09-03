@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "headers",
+    hdrs = [
+        "i2c-trace.h",
+    ],
+    includes = [
+        ".",
+    ],
+)
+
+ddk_module(
+    name = "i2c-designware-core",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "i2c-designware-core.ko",
+    conditional_srcs = {
+        "CONFIG_I2C_DW_GOOGLE_CORE": {
+            True: [
+                "i2c-designware-common.c",
+                "i2c-designware-master.c",
+                "i2c-trace.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "i2c-designware-platform",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "i2c-designware-platform.ko",
+    conditional_srcs = {
+        "CONFIG_I2C_DW_GOOGLE_QUIRKS": {
+            True: [
+                "i2c-designware-platdrv.c",
+                "i2c-trace.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        ":i2c-designware-core",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)

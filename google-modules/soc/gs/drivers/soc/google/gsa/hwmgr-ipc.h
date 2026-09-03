@@ -2,6 +2,14 @@
  *
  * Copyright (C) 2021 Google LLC
  */
+
+/* This header is internal only.
+ *
+ * Public APIs are in //private/google-modules/soc/gs/include/linux/gsa/
+ *
+ * Include via //private/google-modules/soc/gs:gs_soc_headers
+ */
+
 #ifndef __LINUX_HWMGR_IPC_H
 #define __LINUX_HWMGR_IPC_H
 

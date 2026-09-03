@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "g2d_trace_header",
+    hdrs = [
+        "g2d_trace.h",
+    ],
+    includes = ["."],
+)
+
+ddk_module(
+    name = "g2d",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "g2d.ko",
+    conditional_srcs = {
+        "CONFIG_EXYNOS_GRAPHICS_G2D": {
+            True: [
+                "g2d_command.c",
+                "g2d_debug.c",
+                "g2d_drv.c",
+                "g2d_fence.c",
+                "g2d_perf.c",
+                "g2d_regs.c",
+                "g2d_task.c",
+                "g2d_uapi_process.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":g2d_trace_header",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/bts",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos_pm_qos",
+        "//private/google-modules/soc/gs/drivers/soc/google/debug:itmon",
+    ] + select({
+        "//private/devices/google/common:soc_is_gs201_or_before": [
+            "//private/google-modules/soc/gs/drivers/devfreq-whi/google:exynos_devfreq",
+        ],
+        "//conditions:default": [
+            "//private/google-modules/soc/gs/drivers/devfreq/google:exynos_devfreq",
+        ],
+    }),
+)

@@ -1,0 +1,182 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+/*
+ * Device tree source for DPA.
+ *
+ * Copyright 2025 Google LLC
+ */
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	// NCP/APC RPC, Wifi Event
+	ncp_doorbell_0: doorbell@5720020 {
+		compatible = "google,dpa-doorbell";
+		reg = <0x0 0x5720000 0x0 0x110>;
+		interrupts = <GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_NCP_MBA_AP_NS0_DB_IRQ
+				IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&pcie_dpa_pd>, <&pcie_dpa_pd>;
+		status = "disabled";
+	};
+
+	// NCP/APC RPC, Modem Event
+	ncp_doorbell_1: doorbell@5721020 {
+		compatible = "google,dpa-doorbell";
+		reg = <0x0 0x5721000 0x0 0x110>;
+		interrupts = <GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_NCP_MBA_AP_NS1_DB_IRQ
+				IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&pcie_dpa_pd>, <&pcie_dpa_pd>;
+		status = "disabled";
+	};
+
+	// NCP/APC Modem Rings
+	ncp_doorbell_2: doorbell@5722020 {
+		compatible = "google,dpa-doorbell";
+		reg = <0x0 0x5722000 0x0 0x110>;
+		interrupts = <GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_S_NCP_MBA_AP_S0_DB_IRQ
+				IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&pcie_dpa_pd>, <&pcie_dpa_pd>;
+		status = "disabled";
+	};
+
+	// AP Wifi Ring
+	nep_doorbell_0: doorbell@5760020 {
+		compatible = "google,dpa-doorbell";
+		reg = <0x0 0x5760000 0x0 0x110>;
+		interrupts = <GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_NEP_MBA_AP_NS0_DB_IRQ
+				IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&pcie_dpa_pd>, <&pcie_dpa_pd>;
+		status = "disabled";
+	};
+
+	// Modem Ring(VPN)
+	nep_doorbell_1: doorbell@5761020 {
+		compatible = "google,dpa-doorbell";
+		reg = <0x0 0x5761000 0x0 0x110>;
+		interrupts = <GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_NEP_MBA_AP_NS1_DB_IRQ
+			IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&pcie_dpa_pd>, <&pcie_dpa_pd>;
+		status = "disabled";
+	};
+
+	// NEP/APC RPC
+	nep_doorbell_2: doorbell@5762020 {
+		compatible = "google,dpa-doorbell";
+		reg = <0x0 0x5762000 0x0 0x110>;
+		interrupts = <GIC_SPI SSWRP_PCIE_PCIE_AP_INTR_NS_NEP_MBA_AP_NS2_DB_IRQ
+				IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&pcie_dpa_pd>, <&pcie_dpa_pd>;
+		status = "disabled";
+	};
+
+	dpa_iova_config: dpa-iova-config {
+		dpa_resv: dpa-resv {
+			/*
+			 * The DPA DMA aperture starts at 0x60000000. Prevent DMA allocations in
+			 * that range.
+			 */
+			iommu-addresses = <&dpa 0x00000000 0x00000000 0x00000000 0x60000000>,
+					  <&dpa 0x00000000 0xA0000000 0x00000000 0x60000000>;
+		};
+
+		dpa_non_cache: dpa-non-cache {
+			/* Carve-out hole for address used by non cache region. Prevent DMA
+			 * allocations in that range.
+			 */
+			iommu-addresses = <&dpa 0x00000000 0x98000000 0x00000000 0x8000000>;
+		};
+
+		dpa_cpm_resv: dpa-cpm-resv {
+			/* Carve-out hole for address used by FW to access CPM registers. */
+			iommu-addresses = <&dpa 0x00000000 0x0E800000 0x00000000 0x00800000>;
+		};
+
+		dpa_ext_code: dpa-ext-code {
+			/*
+			 * Carve-out 4MB hole for external RAM.
+			 * The actual DRAM region is dynamically allocated based on
+			 * the resource table.
+			 */
+			iommu-addresses = <&dpa 0x00000000 0x60000000 0x00000000 0x00400000>;
+		};
+
+		dpa_ext_buffer: dpa-ext-buffer {
+			/*
+			 * Carved-out 4MB DRAM for non-latency-sensitive data.
+			 * The actual DRAM region is dynamically allocated based on
+			 * the resource table.
+			 */
+			iommu-addresses = <&dpa 0x00000000 0x60400000 0x00000000 0x00400000>;
+		};
+	};
+
+	dpa: dpa@5400000 {
+		compatible = "google,dpa";
+		reg = <0x0 0x5400000 0x0 0x3ff08c>,
+		      <0x0 0x4809000 0x0 0xc00c>;
+		reg-names = "dpa",
+			    "lpm";
+		power-domains = <&pcie_dpa_pd>, <&pcie_dpa_pd>;
+		gdmc-iface = <&goog_mba_gdmc_iface>;
+		clocks = <&pcie_dpa_uart_clk>;
+		clock-names = "dpa_uart_clk";
+		resets = <&pcie_resets RST_PCIE_DPA_UART_CLK>;
+		reset-names = "dpa_uart_clk";
+		memory-region = <&dpa_resv>, <&dpa_ext_code>, <&dpa_ext_buffer>,
+				<&dpa_cpm_resv>, <&dpa_non_cache>;
+		iommus = <&amb_smmu 0x8340>, // NCP
+			 <&amb_smmu 0x8341>, // NEP
+			 <&amb_smmu 0x8342>, // DMA channel 0
+			 <&amb_smmu 0x8343>, // DMA channel 1
+			 <&amb_smmu 0x8344>, // DMA channel 2
+			 <&amb_smmu 0x8345>, // DMA channel 3
+			 <&amb_smmu 0x8346>, // DMA channel 4
+			 <&amb_smmu 0x8347>, // DMA channel 5
+			 <&amb_smmu 0x8348>, // DMA channel 6
+			 <&amb_smmu 0x8349>, // DMA channel 7
+			 <&amb_smmu 0x834a>; // IPSec
+		doorbells = <&ncp_doorbell_0>, <&ncp_doorbell_1>, <&ncp_doorbell_2>,
+				<&nep_doorbell_0>, <&nep_doorbell_1>, <&nep_doorbell_2>;
+		doorbell_ids = "ncp_doorbell_0", "ncp_doorbell_1", "ncp_doorbell_2",
+				"nep_doorbell_0", "nep_doorbell_1", "nep_doorbell_2";
+		status = "disabled";
+	};
+
+	dpa_ring_manager: dpa_ring_manager {
+		compatible = "google,dpa-ring-manager";
+		dpa = <&dpa>;
+		status = "disabled";
+	};
+
+	dpa_netengine_manager: dpa_netengine_manager {
+		compatible = "google,dpa-netengine-manager";
+		dpa = <&dpa>;
+		status = "disabled";
+	};
+
+	dpa_md: dpa_md {
+		compatible = "google,dpa-md";
+		dpa = <&dpa>;
+		doorbells = <&ncp_doorbell_1>, <&ncp_doorbell_2>, <&nep_doorbell_1>,
+				<&nep_doorbell_2>;
+		doorbell_ids = "ncp_doorbell_1", "ncp_doorbell_2", "nep_doorbell_1",
+				"nep_doorbell_2";
+		status = "disabled";
+	};
+
+	dpa_wlan: dpa_wlan {
+		compatible = "google,dpa-wlan";
+		dpa = <&dpa>;
+		doorbells = <&ncp_doorbell_0>, <&ncp_doorbell_1>, <&nep_doorbell_0>,
+				<&nep_doorbell_2>;
+		doorbell_ids = "ncp_doorbell_0", "ncp_doorbell_1", "nep_doorbell_0",
+				"nep_doorbell_2";
+		status = "disabled";
+	};
+
+	dpa_test_harness:  dpa_test_harness {
+		compatible = "google,dpa-test-harness";
+		dpa = <&dpa>;
+	};
+
+};

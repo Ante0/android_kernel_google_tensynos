@@ -10,6 +10,7 @@
 #include <linux/io.h>
 #include "phy-samsung-usb-cal.h"
 
+#include "exynos-usb-blkcon.h"
 #include "exynos-usb-blkcon-sfr.h"
 
 static void ready_rewa(struct exynos_usbphy_info *cal_info);

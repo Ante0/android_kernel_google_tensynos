@@ -25,7 +25,7 @@
 #endif
 
 /* avoid checking rx elecidle when access DBI */
-void exynos_pcie_rc_phy_check_rx_elecidle(void *phy_pcs_base_regs, int val, int ch_num)
+static void exynos_pcie_rc_phy_check_rx_elecidle(void *phy_pcs_base_regs, int val, int ch_num)
 {
 	/*
 	 * Todo: need guide
@@ -33,7 +33,7 @@ void exynos_pcie_rc_phy_check_rx_elecidle(void *phy_pcs_base_regs, int val, int 
 }
 
 /* PHY all power down */
-void exynos_pcie_rc_phy_all_pwrdn(struct exynos_pcie *exynos_pcie, int ch_num)
+static void exynos_pcie_rc_phy_all_pwrdn(struct exynos_pcie *exynos_pcie, int ch_num)
 {
 	void __iomem *phy_base_regs = exynos_pcie->phy_base;
 
@@ -59,7 +59,7 @@ void exynos_pcie_rc_phy_all_pwrdn(struct exynos_pcie *exynos_pcie, int ch_num)
 }
 
 /* PHY all power down clear */
-void exynos_pcie_rc_phy_all_pwrdn_clear(struct exynos_pcie *exynos_pcie, int ch_num)
+static void exynos_pcie_rc_phy_all_pwrdn_clear(struct exynos_pcie *exynos_pcie, int ch_num)
 {
 	void __iomem *phy_base_regs = exynos_pcie->phy_base;
 
@@ -96,7 +96,7 @@ void exynos_pcie_rc_pcie_phy_otp_config(void *phy_base_regs, int ch_num)
 
 #define LCPLL_REF_CLK_SEL	(0x3 << 4)
 
-void exynos_pcie_rc_pcie_phy_config(struct exynos_pcie *exynos_pcie, int ch_num)
+static void exynos_pcie_rc_pcie_phy_config(struct exynos_pcie *exynos_pcie, int ch_num)
 {
 	void __iomem *elbi_base_regs = exynos_pcie->elbi_base;
 	void __iomem *phy_base_regs = exynos_pcie->phy_base;
@@ -337,9 +337,8 @@ void exynos_pcie_rc_pcie_phy_config(struct exynos_pcie *exynos_pcie, int ch_num)
 	dev_info(exynos_pcie->pci->dev, "[%s] XO clock configuration : 0x%x\n",
 			__func__, readl(phy_base_regs + 0x5D0));
 }
-EXPORT_SYMBOL_GPL(exynos_pcie_rc_pcie_phy_config);
 
-int exynos_pcie_rc_eom(struct device *dev, void *phy_base_regs)
+static int exynos_pcie_rc_eom(struct device *dev, void *phy_base_regs)
 {
 	struct exynos_pcie *exynos_pcie = dev_get_drvdata(dev);
 	struct exynos_pcie_ops *pcie_ops = &exynos_pcie->exynos_pcie_ops;

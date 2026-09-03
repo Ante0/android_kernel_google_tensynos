@@ -13,6 +13,9 @@
 #define GXP_DRIVER_NAME "gxp_platform"
 #define DSP_FIRMWARE_DEFAULT_PREFIX "gxp_fw_core"
 
+/* Maximum size of the DSP FW */
+#define DSP_FIRMWARE_IMAGE_SIZE 0x00100000
+
 #define AUR_DVFS_DOMAIN 17
 
 #define GXP_NUM_CORES 4

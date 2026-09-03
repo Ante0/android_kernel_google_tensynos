@@ -1,0 +1,86 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+/ {
+	amb_smmu: amb_smmu@4190000 {
+		compatible = "arm,smmu-v3";
+		reg = <0x0 0x04190000 0x0 0x20000>;
+		dma-coherent;
+		interrupts-extended = <&fabstby_pulse_aggr_0 FABSTBY_GIA_PULSE_AGGR_0_IP_IP_AON_TCU_WRAPPER_EVENT_Q_IRPT_NS>,
+			<&fabstby_pulse_aggr_0 FABSTBY_GIA_PULSE_AGGR_0_IP_IP_AON_TCU_WRAPPER_GLOBAL_IRPT_NS>,
+			<&fabstby_pulse_aggr_0 FABSTBY_GIA_PULSE_AGGR_0_IP_IP_AON_TCU_WRAPPER_PRI_Q_IRPT_NS>;
+		interrupt-names = "eventq", "gerror", "priq";
+		#iommu-cells = <1>;
+		arm,max-sid-bits = <16>;
+		non-coherent-s2-ttw;
+	};
+
+	disp_smmu: disp_smmu@f190000 {
+		compatible = "arm,smmu-v3";
+		reg = <0x0 0x0f190000 0x0 0x20000>;
+		dma-coherent;
+		interrupts-extended = <&fabdisp_pulse_aggr_0 FABDISP_GIA_PULSE_AGGR_0_IP_IP_AON_TCU_WRAPPER_EVENT_Q_IRPT_NS>,
+			<&fabdisp_pulse_aggr_0 FABDISP_GIA_PULSE_AGGR_0_IP_IP_AON_TCU_WRAPPER_GLOBAL_IRPT_NS>,
+			<&fabdisp_pulse_aggr_0 FABDISP_GIA_PULSE_AGGR_0_IP_IP_AON_TCU_WRAPPER_PRI_Q_IRPT_NS>;
+		interrupt-names = "eventq", "gerror", "priq";
+		#iommu-cells = <1>;
+		power-domains = <&sswrp_dpu_pd>;
+		arm,max-sid-bits = <16>;
+		non-coherent-ttw;
+		non-coherent-s2-ttw;
+	};
+
+	gpu_smmu: gpu_smmu@34c00000 {
+		compatible = "arm,smmu-v3";
+		reg = <0x0 0x34c00000 0x0 0x20000>;
+		dma-coherent;
+		interrupts-extended = <&gpu_pulse_aggr_1 GPU_GIA_PULSE_AGGR_1_AUX_DS_INST_SMMU_TCU_EVENT_Q_IRPT_NS>,
+			<&gpu_pulse_aggr_1 GPU_GIA_PULSE_AGGR_1_AUX_DS_INST_SMMU_TCU_GLOBAL_IRPT_NS>,
+			<&gpu_pulse_aggr_1 GPU_GIA_PULSE_AGGR_1_AUX_DS_INST_SMMU_TCU_PRI_Q_IRPT_NS>;
+		interrupt-names = "eventq", "gerror", "priq";
+		#iommu-cells = <1>;
+		power-domains = <&sswrp_gpu_pd>;
+		arm,max-sid-bits = <8>;
+		non-coherent-s2-ttw;
+		synchronize-fw;
+	};
+
+	tpu_smmu: tpu_smmu@36100000 {
+		compatible = "arm,smmu-v3";
+		reg = <0x0 0x36100000 0x0 0x20000>;
+		dma-coherent;
+		interrupts-extended = <&tpu_pulse_aggr_0 TPU_GIA_PULSE_AGGR_0_AUX_LOGIC_SMMU_WRAPPER_TCU_EVENT_Q_IRPT_NS>,
+			<&tpu_pulse_aggr_0 TPU_GIA_PULSE_AGGR_0_AUX_LOGIC_SMMU_WRAPPER_TCU_GLOBAL_IRPT_NS>,
+			<&tpu_pulse_aggr_0 TPU_GIA_PULSE_AGGR_0_AUX_LOGIC_SMMU_WRAPPER_TCU_PRI_Q_IRPT_NS>;
+		interrupt-names = "eventq", "gerror", "priq";
+		#iommu-cells = <1>;
+		power-domains = <&sswrp_tpu_pd>;
+		arm,max-sid-bits = <9>;
+		non-coherent-ttw;
+	};
+
+	aurdsp_smmu: aurdsp_smmu@385be000 {
+		compatible = "arm,smmu-v3";
+		reg = <0x0 0x385be000 0x0 0x20000>;
+		dma-coherent;
+		interrupts-extended = <&aurora_pulse_aggr_0 AURORA_GIA_PULSE_AGGR_0_AUX_SMMU_TCU_EVENT_Q_IRPT_NS>,
+			<&aurora_pulse_aggr_0 AURORA_GIA_PULSE_AGGR_0_AUX_SMMU_TCU_GLOBAL_IRPT_NS>,
+			<&aurora_pulse_aggr_0 AURORA_GIA_PULSE_AGGR_0_AUX_SMMU_TCU_PRI_Q_IRPT_NS>;
+		interrupt-names = "eventq", "gerror", "priq";
+		#iommu-cells = <1>;
+		power-domains = <&sswrp_aurdsp_pd>;
+		arm,max-sid-bits = <8>;
+	};
+
+	med_smmu: med_smmu@3d190000 {
+		compatible = "arm,smmu-v3";
+		reg = <0x0 0x3d190000 0x0 0x20000>;
+		dma-coherent;
+		interrupts-extended = <&fabmed_pulse_aggr_0 FABMED_GIA_PULSE_AGGR_0_IP_IP_AON_TCU_WRAPPER_EVENT_Q_IRPT_NS>,
+			<&fabmed_pulse_aggr_0 FABMED_GIA_PULSE_AGGR_0_IP_IP_AON_TCU_WRAPPER_GLOBAL_IRPT_NS>,
+			<&fabmed_pulse_aggr_0 FABMED_GIA_PULSE_AGGR_0_IP_IP_AON_TCU_WRAPPER_PRI_Q_IRPT_NS>;
+		interrupt-names = "eventq", "gerror", "priq";
+		#iommu-cells = <1>;
+		arm,max-sid-bits = <16>;
+		non-coherent-ttw;
+	};
+};

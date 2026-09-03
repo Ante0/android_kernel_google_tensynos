@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_MODEM_UART
+	tristate "Google Modem UART"
+	help
+	  This driver provides an interface for userspace to manage and retrieve
+	  UART logs from the Alcedo modem.
+	  This is primarily intended for debugging and diagnostic purposes on
+	  devices utilizing GDMC for log routing to DRAM.

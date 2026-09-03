@@ -71,7 +71,7 @@ static void list_sort_test(struct kunit *test)
 		KUNIT_ASSERT_NOT_ERR_OR_NULL(test, el);
 
 		 /* force some equivalencies */
-		el->value = prandom_u32_max(TEST_LIST_LEN / 3);
+		el->value = get_random_u32_below(TEST_LIST_LEN / 3);
 		el->serial = i;
 		el->poison1 = TEST_POISON1;
 		el->poison2 = TEST_POISON2;
@@ -119,4 +119,5 @@ static struct kunit_suite list_sort_suite = {
 
 kunit_test_suites(&list_sort_suite);
 
+MODULE_DESCRIPTION("list_sort() KUnit test suite");
 MODULE_LICENSE("GPL");

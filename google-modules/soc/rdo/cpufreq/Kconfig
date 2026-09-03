@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_CPU_FREQ
+	tristate "Google CPU freq driver"
+	depends on ARCH_GOOGLE
+	depends on CPU_FREQ
+	depends on GOOGLE_DVFS_HELPER
+	select PM_OPP
+	help
+	  Enable support for Google CPU freq driver

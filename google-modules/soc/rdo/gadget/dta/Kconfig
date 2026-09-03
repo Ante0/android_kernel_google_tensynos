@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config GOOGLE_DTA_GADGET
+	tristate "Google DTA Gadget"
+	depends on ARCH_GOOGLE
+	depends on USB_SUPPORT && USB_GADGET
+	help
+	  Google's gadget driver to enable USB debug tracing.

@@ -1,0 +1,265 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * camera PMIC device tree for MBU device
+ *
+ * Copyright 2025 Google LLC.
+ *
+ */
+
+/ {
+	fragment@rcam_supply {
+		target-path = "/";
+		__overlay__ {
+			/* SN62088AYFPR */
+			cam_pp1350_mvbuck: cam_supply@0 {
+				compatible = "regulator-fixed";
+				status = "okay";
+				regulator-name = "PP1350_CAM";
+				regulator-min-microvolt = <1350000>;
+				regulator-max-microvolt = <1350000>;
+				/* 1.25ms */
+				regulator-enable-ramp-delay = <1250>;
+				enable-active-high;
+				/* MVBUCK_EN */
+				gpio = <PMICS2CAM_MVBUCK_EN(GPIO_ACTIVE_HIGH)>;
+			};
+
+			/* SN62088AYFPR */
+			rcam_lvbuck: rcam_supply@0 {
+				compatible = "regulator-fixed";
+				status = "okay";
+				regulator-name = "RCAM_VDIG";
+				regulator-min-microvolt = <850000>;
+				regulator-max-microvolt = <850000>;
+				/* 1.25ms */
+				regulator-enable-ramp-delay = <1250>;
+				enable-active-high;
+				/* VDIG_EN */
+				gpio = <PMICM2RCAM_VDIG_EN(GPIO_ACTIVE_HIGH)>;
+			};
+
+			/* TPS7A20225PDQNR */
+			rcam_vana: rcam_supply@1 {
+				compatible = "regulator-fixed";
+				status = "okay";
+				regulator-name = "RCAM_VANA";
+				regulator-min-microvolt = <2250000>;
+				regulator-max-microvolt = <2250000>;
+				/* 1.15ms */
+				regulator-enable-ramp-delay = <1150>;
+				enable-active-high;
+				/* VANA_EN */
+				gpio = <PMICM2RCAM_VANA_EN(GPIO_ACTIVE_HIGH)>;
+			};
+
+			/* TLV75532PDQNR */
+			rcam_oisvm: rcam_supply@2 {
+				compatible = "regulator-fixed";
+				status = "okay";
+				regulator-name = "PP3200_RCAM_OIS_VM";
+				regulator-min-microvolt = <3200000>;
+				regulator-max-microvolt = <3200000>;
+				/* 0.55ms */
+				regulator-enable-ramp-delay = <550>;
+				enable-active-high;
+				/* PMICM2RCAM_OIS_VM_EN */
+				gpio = <&da9188_gpio GPIO_1 GPIO_ACTIVE_HIGH>;
+			};
+
+			/* TLV75532PDQNR */
+			rtcam_afoisvm: rcam_supply@3 {
+				compatible = "regulator-fixed";
+				status = "okay";
+				regulator-name = "PP3200_RTCAM_AFOIS_VM";
+				regulator-min-microvolt = <3200000>;
+				regulator-max-microvolt = <3200000>;
+				/* 0.55ms */
+				regulator-enable-ramp-delay = <550>;
+				enable-active-high;
+				/* PMICS2RTCAM_AFOIS_VM_EN */
+				gpio = <&da9188_gpio GPIO_16 GPIO_ACTIVE_HIGH>;
+			};
+		};
+	};
+};
+
+&buck_boost_reg {
+	regulator-min-microvolt = <3550000>;
+	regulator-max-microvolt = <3550000>;
+};
+
+&lsioe_i2c0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	camera_buck_boost: rt6166@77 {
+		compatible = "richtek,rt6160";
+		reg = <0x77>;
+		/* PMICS2CAM_BBPMIC_E */
+		enable-gpios = <&da9188_gpio 9 GPIO_ACTIVE_HIGH>;
+		status = "ok";
+		regulator-name = "rt6166-regulator";
+		regulator-min-microvolt = <3200000>;
+		regulator-max-microvolt = <3200000>;
+		regulator-always-on;
+		/* 2ms */
+		regulator-enable-ramp-delay = <2000>;
+		/* RT6160_MODE_AUTO */
+		regulator-initial-mode = <0x0>;
+		/* Allow for NORMAL (auto) and FAST (FPWM) mode */
+		regulator-allowed-modes = <0x0>, <0x1>;
+	};
+
+	sgm38122_csia: sgm38122@29 {
+		compatible = "sgm,sgm38122";
+		reg = <0x29>;
+		enable-supply = <&camera_buck_boost>;
+		status = "ok";
+
+		regulators {
+			sgm38122_dvdd_csia: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+				in1-supply = <&cam_pp1350_mvbuck>;
+			};
+
+			sgm38122_avdd1_csia: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38122_avdd2_csia: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38122_avdd3_csia: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in3-supply = <&camera_buck_boost>;
+			};
+		};
+	};
+};
+
+/ {
+	fragment@lwiscamera {
+		target-path = "/";
+		__overlay__ {
+			flash0: flash@0 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "flash-lm3644";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c0>;
+				i2c-addr = <0x63>;
+
+				/* Registers */
+				reg-addr-bitwidth = <8>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				/* AP2FLASH_EN */
+				enable-gpios = <&lsios_pinctrl XLSIOS_GPIO3 GPIO_ACTIVE_HIGH>;
+
+				power-up-seqs = "enable";
+				power-up-seq-types = "gpio";
+				power-up-seq-delays-us = <0>;
+
+				power-down-seqs = "enable";
+				power-down-seq-types = "gpio";
+				power-down-seq-delays-us = <0>;
+			};
+		};
+	};
+};
+
+&lsios_i2c1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	sgm38122_csie: sgm38122@29 {
+		compatible = "sgm,sgm38122";
+		reg = <0x29>;
+		enable-supply = <&camera_buck_boost>;
+		status = "ok";
+
+		regulators {
+			sgm38122_dvdd_csie: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+				in1-supply = <&cam_pp1350_mvbuck>;
+			};
+
+			sgm38122_avdd1_csie: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38122_avdd2_csie: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38122_avdd3_csie: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+		};
+	};
+};
+
+&lsioe_i2c3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	sgm38122_csif: sgm38122@29 {
+		compatible = "sgm,sgm38122";
+		reg = <0x29>;
+		enable-supply = <&camera_buck_boost>;
+		status = "ok";
+
+		regulators {
+			sgm38122_dvdd_csif: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+				in1-supply = <&cam_pp1350_mvbuck>;
+			};
+
+			sgm38122_avdd1_csif: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38122_avdd2_csif: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38122_avdd3_csif: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in3-supply = <&buck_boost_reg>;
+			};
+		};
+	};
+};

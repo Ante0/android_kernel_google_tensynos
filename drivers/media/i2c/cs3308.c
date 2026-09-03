@@ -64,8 +64,7 @@ static const struct v4l2_subdev_ops cs3308_ops = {
 
 /* ----------------------------------------------------------------------- */
 
-static int cs3308_probe(struct i2c_client *client,
-			const struct i2c_device_id *id)
+static int cs3308_probe(struct i2c_client *client)
 {
 	struct v4l2_subdev *sd;
 	unsigned i;
@@ -110,7 +109,7 @@ static void cs3308_remove(struct i2c_client *client)
 /* ----------------------------------------------------------------------- */
 
 static const struct i2c_device_id cs3308_id[] = {
-	{ "cs3308", 0 },
+	{ "cs3308" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, cs3308_id);

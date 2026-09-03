@@ -1,0 +1,103 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2025 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/thermal/google,thermal-pressure-tj.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google tj thermal pressure driver
+
+
+maintainers:
+  - Sayanna Chandula <sayanna@google.com>
+
+description: |
+  Thermal pressure driver reads tj thermal throttling info from shared memory and
+  applies thermal pressure to scheduler using exported API from cpufreq. Thermal
+  pressure indicates the frequency capping applied by tj loops to control
+  junction temperature. Such frequency capping would result in change in
+  CPU capacity. Applying thermal pressure lets the scheduler be aware of
+  change in CPU capacity.
+
+properties:
+  compatible:
+    const: google,thermal-pressure-tj
+
+  "active-polling-delay-ms":
+    $ref: /schemas/types.yaml#/definitions/uint32
+    maxItems: 1
+    description: |
+      Polling delay in milli seconds during active polling.
+      Active polling refers to faster polling interval at which we want to
+      apply thermal pressure during active tj thermal throttling. Active polling
+      triggers when one of the CPU thermal zones is switched_on.
+
+  "passive-polling-delay-ms":
+    $ref: /schemas/types.yaml#/definitions/uint32
+    maxItems: 1
+    description:
+      Polling delay in milli seconds during passing polling.
+      Passive polling refers to slower polling interval at which we want to
+      monitor thermal pressure when there is no active tj throttling. This is enabled
+      when all of the CPU thermal zones are in switched_off state.
+
+  "cluster_config":
+    type: object
+    description:
+      List of configs defining CPU clusters.
+
+    patternProperties:
+      "thermal-pressure-[A-Za-z0-9]+":
+        type: object
+
+        properties:
+          "first-cpu":
+            maxItems: 1
+            description:
+              phandle for first CPU in a CPU cluster.
+
+          "cdev-id":
+            $ref: /schemas/types.yaml#/definitions/uint32
+            maxItems: 1
+            description:
+              Cooling device id attached to a CPU cluster as defined in below header.
+              "dt-bindings/soc/google/google-thermal-def.h".
+
+  required:
+    - compatible
+    - "active-polling-delay-ms"
+    - "passive-polling-delay-ms"
+    - "cluster_config"
+    - "first-cpu"
+    - "cdev-id"
+
+additionalProperties: false
+
+examples:
+  - |
+        thermal_pressure: thermal_pressure {
+          compatible = "google,thermal-pressure-tj";
+          group-name = "tmu";
+
+          active-polling-delay-ms = <100>;
+          passive-polling-delay-ms = <2500>;
+
+          cluster_config {
+            thermal-pressure-big {
+              first-cpu = <&hunterelp_0>;
+              cdev-id = <HW_DT_CDEV_BIG>;
+            };
+            thermal-pressure-big-mid {
+              first-cpu = <&hunter_3>;
+              cdev-id = <HW_DT_CDEV_BIG_MID>;
+            };
+            thermal-pressure-mid {
+              first-cpu = <&hunter_0>;
+              cdev-id = <HW_DT_CDEV_MID>;
+            };
+            thermal-pressure-little {
+              first-cpu = <&hayes_0>;
+              cdev-id = <HW_DT_CDEV_LIT>;
+            };
+          };
+        };

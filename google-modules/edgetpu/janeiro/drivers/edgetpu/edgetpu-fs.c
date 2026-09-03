@@ -223,7 +223,7 @@ static int edgetpu_ioctl_join_group(struct edgetpu_client *client,
 				    u64 leader_fd)
 {
 	struct fd f = fdget(leader_fd);
-	struct file *file = f.file;
+	struct file *file = fd_file(f);
 	struct edgetpu_client *leader;
 	int ret;
 	struct edgetpu_device_group *group;
@@ -302,12 +302,8 @@ static int edgetpu_ioctl_map_buffer(struct edgetpu_client *client,
 	if (ret)
 		goto out;
 
-	if (copy_to_user(argp, &ibuf, sizeof(ibuf))) {
-		edgetpu_device_group_unmap(group, ibuf.die_index,
-					   ibuf.device_address,
-					   EDGETPU_MAP_SKIP_CPU_SYNC);
+	if (copy_to_user(argp, &ibuf, sizeof(ibuf)))
 		ret = -EFAULT;
-	}
 
 out:
 	edgetpu_device_group_put(group);
@@ -380,11 +376,8 @@ edgetpu_ioctl_map_dmabuf(struct edgetpu_client *client,
 	if (ret)
 		goto out;
 
-	if (copy_to_user(argp, &ibuf, sizeof(ibuf))) {
-		edgetpu_unmap_dmabuf(group, ibuf.die_index,
-				     ibuf.device_address);
+	if (copy_to_user(argp, &ibuf, sizeof(ibuf)))
 		ret = -EFAULT;
-	}
 
 out:
 	edgetpu_device_group_put(group);
@@ -1161,7 +1154,6 @@ static const struct attribute_group edgetpu_attr_group = {
 
 const struct file_operations edgetpu_fops = {
 	.owner = THIS_MODULE,
-	.llseek = no_llseek,
 	.mmap = edgetpu_fs_mmap,
 	.open = edgetpu_fs_open,
 	.release = edgetpu_fs_release,

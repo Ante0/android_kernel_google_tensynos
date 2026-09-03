@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_SPMI_MBA
+	tristate "Google SPMI over mailbox driver"
+	depends on ARCH_GOOGLE
+	help
+	  This enables the SPMI controller for accessing the SPMI bus over
+	  the MBA interface.
+
+config GOOGLE_REGMAP_SPMI
+	tristate "Google SPMI regmap inteface"
+	depends on ARCH_GOOGLE
+	help
+	  This enables the SPMI regmap interface
+
+config SPMI_SMARTDV
+	tristate "SmartDV SPMI Controller"
+	select IRQ_DOMAIN_HIERARCHY
+	depends on HAS_IOMEM
+	depends on SPMI
+	help
+	  If you say yes to this option, support will be included for the
+	  SmartDV IP Solutions SPMI controller driver.
+
+	  This is required for communicating with devices that have the
+	  SPMI interface.

@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_MODEM_CDD
+	bool "Enable Crash Debug Dump reporting"
+	depends on GOOGLE_CRASH_DEBUG_DUMP
+	default n
+
+config GOOGLE_MD2AP_WAKEUP_MONITOR
+	bool "Enable MD-to-AP wakeup monitor"
+	default n
+
+config GOOGLE_MODEM_DATA_EXT
+	bool "Enable Google Data Extensions"
+	depends on ARCH_GOOGLE
+	default y
+	help
+	  Main switch for all Google-specific data plane enhancements.
+
+config GOOGLE_MODEM_DATA_FAST_DMA_SYNC
+	bool "Fast DMA Sync Optimization"
+	depends on GOOGLE_MODEM_DATA_EXT
+	default y
+
+config GOOGLE_MODEM_DATA_AFFINITY
+	bool "Google Custom CPU Affinity"
+	depends on GOOGLE_MODEM_DATA_EXT
+	default y
+	help
+	  Use Google's custom CPU affinity tables instead of vendor defaults.
+	  Includes a runtime size check to ensure safety.
+
+config GOOGLE_MODEM_SOC_BW_QOS
+	depends on GOOGLE_IRM && GOOGLE_MODEM_DATA_EXT
+	bool "Enable modem SOC QOS for DDR bandwidth"
+	default n
+
+config GOOGLE_MODEM_DATA_LRO_SIZE_LIMIT
+	bool "Limit RX LRO packets max size"
+	depends on GOOGLE_MODEM_DATA_EXT
+	default y
+	help
+	  Limit max Large Receive Offload (LRO) size to avoid skb_over_panic on
+	  certain network device (e.g. USB NCM).

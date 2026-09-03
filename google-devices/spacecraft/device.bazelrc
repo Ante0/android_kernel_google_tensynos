@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Copyright (C) 2024 Google LLC
+
+build:spacecraft --config=malibu_base
+build:spacecraft --//private/devices/google/common:kernel=//private/devices/google/spacecraft:spacecraft/kernel
+build:spacecraft --//private/google-modules/touch/common:api_version=2
+build:spacecraft --//private/google-modules/amplifiers/cs40l26:version=v16.4.0+v5.1.0
+build:spacecraft --//private/google-modules/amplifiers/cs40l26:max_transmission_length=256

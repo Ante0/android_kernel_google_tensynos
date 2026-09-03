@@ -16,10 +16,11 @@
 #ifndef __P9221_CHARGER_H__
 #define __P9221_CHARGER_H__
 
-#include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
+#include <linux/gpio/driver.h>
 #include <linux/crc8.h>
-#include <misc/gvotable.h>
 #include "gbms_power_supply.h"
+#include "google_bms_usecase.h"
 
 #define P9221_WLC_VOTER				"WLC_VOTER"
 #define P9221_USER_VOTER			"WLC_USER_VOTER"
@@ -38,7 +39,7 @@
 #define P9221_ALIGN_VOTER			"WLC_ALIGN_VOTER"
 #define WLC_MFG_GOOGLE				0x72
 #define WLC_MFG_108_FOR_GOOGLE			0x108
-#define P9221_DC_ICL_BPP_UA			900000
+#define P9221_DC_ICL_BPP_UA			700000
 #define P9221_DC_ICL_BPP_RAMP_DEFAULT_UA	900000
 #define P9221_DC_ICL_BPP_RAMP_DELAY_DEFAULT_MS	(7 * 60 * 1000)  /* 7 mins */
 #define P9221_DC_ICL_EPP_UA			1100000
@@ -59,10 +60,17 @@
 #define P9222_RX_ILIM_MAX_MA			1500
 #define P9382A_RTX_ICL_MAX_MA			1350
 #define P9221R5_OVER_CHECK_NUM			3
+#define USECASE_WLC_CHARGE_DISABLE_INLIM_LIMIT	200000
+#define NOTIFIER_REGISTER_RETRY_MS		1000
 
 #define P9412_VOUT_SET_MIN_MV			3520
 #define P9412_VOUT_SET_MAX_MV			20000
 #define P9412_RX_ILIM_MAX_MA			1900
+
+#define P9221_READING_MAX_IOUT_MA		10000
+#define P9221_READING_MAX_VOLT_MV		25000
+#define P9221_READING_MAX_FREQ_KHZ		1000
+#define P9221_READING_MAX_TEMP_C		1000
 
 #define P9221_TX_TIMEOUT_MS			(20 * 1000)
 #define P9221_DCIN_TIMEOUT_MS			(1 * 1000)
@@ -742,25 +750,23 @@ struct wlc_receiver_state_1_fields {
 };
 
 struct p9221_charger_platform_data {
-	int				irq_gpio;
+	struct gpio_desc		*irq_gpio;
 	int				irq_int;
 	u64				irq_flag;
-	int				irq_det_gpio;
+	struct gpio_desc		*irq_det_gpio;
 	int				irq_det_int;
-	int				qien_gpio;
-	int				ldo_en_gpio;
-	int				slct_gpio;
+	struct gpio_desc		*qien_gpio;
+	struct gpio_desc		*ldo_en_gpio;
+	struct gpio_desc		*slct_gpio;
 	int				slct_value;
-	int				ben_gpio;
-	int				ext_ben_gpio;
-	int				switch_gpio;
-	int				boost_gpio;
-	int				dc_switch_gpio;
-	int				wcin_inlim_en_gpio;
-	int				qi_vbus_en;
-	int				qi_vbus_en_act_low;
-	int				wlc_en;
-	int				wlc_en_act_low;
+	struct gpio_desc		*ben_gpio;
+	struct gpio_desc		*ext_ben_gpio;
+	struct gpio_desc		*switch_gpio;
+	struct gpio_desc		*boost_gpio;
+	struct gpio_desc		*dc_switch_gpio;
+	struct gpio_desc		*wcin_inlim_en_gpio;
+	struct gpio_desc		*qi_vbus_en;
+	struct gpio_desc		*wlc_en;
 	int				max_vout_mv;
 	int				epp_vout_mv;
 	u8				fod[P9221R5_NUM_FOD];
@@ -850,6 +856,7 @@ struct p9221_charger_platform_data {
 	u32				freq_109_icl;
 	u32				freq_109_vout;
 	int				qispec;
+	bool				support_usecase_cb;
 };
 
 struct p9221_charger_ints_bit {
@@ -931,9 +938,12 @@ struct p9221_charger_data {
 	struct delayed_work		chk_rtx_ocp_work;
 	struct delayed_work		chk_fod_work;
 	struct delayed_work		set_rf_work;
+	struct delayed_work		register_usecase_work;
 	struct delayed_work		presence_check_work;
 	struct delayed_work		icl_stable_work;
-	struct work_struct		uevent_work;
+	struct work_struct		wlc_uevent_work;
+	struct work_struct		fan_uevent_work;
+	struct work_struct		rtx_uevent_work;
 	struct work_struct		calibration_work;
 	struct work_struct		rtx_disable_work;
 	struct work_struct		rtx_reset_work;
@@ -987,6 +997,7 @@ struct p9221_charger_data {
 	bool				force_bpp;
 	u32				dc_icl_epp_neg;
 	u32				dc_icl_bpp;
+	u32				hpp_req_pwr;
 	int				align;
 	int				align_count;
 	int				alignment;
@@ -1076,6 +1087,7 @@ struct p9221_charger_data {
 	int				fan_last_level;
 	int				compatibility;
 	int				disconnect_total_count;
+	int				ad_type;
 	int				irq_error_count;
 
 #if IS_ENABLED(CONFIG_GPIOLIB)
@@ -1166,6 +1178,8 @@ struct p9221_charger_data {
 	int (*chip_tx_mode_en)(struct p9221_charger_data *chgr, bool en);
 	int (*chip_renegotiate_pwr)(struct p9221_charger_data *chrg);
 	int (*chip_prop_mode_en)(struct p9221_charger_data *chgr, int req_pwr);
+	int (*chip_prop_mode_setup)(struct p9221_charger_data *chgr);
+	int (*chip_prop_mode_transition)(struct p9221_charger_data *chgr);
 	void (*chip_check_neg_power)(struct p9221_charger_data *chgr);
 	int (*chip_send_txid)(struct p9221_charger_data *chgr);
 	int (*chip_send_csp_in_txmode)(struct p9221_charger_data *chgr, u8 stat);
@@ -1184,7 +1198,7 @@ bool p9xxx_is_capdiv_en(struct p9221_charger_data *charger);
 int p9221_wlc_disable(struct p9221_charger_data *charger, int disable, u8 reason);
 int p9221_set_auth_dc_icl(struct p9221_charger_data *charger, bool enable);
 int p9xxx_sw_ramp_icl(struct p9221_charger_data *charger, const int icl_target);
-int p9xxx_gpio_set_value(struct p9221_charger_data *charger, int gpio, int value);
+int p9xxx_gpio_set_value(struct p9221_charger_data *charger, struct gpio_desc *gpio, int value);
 bool is_ping_freq_fixed_at(struct p9221_charger_data *charger, u32 khz);
 void p9221_uevent(struct p9221_charger_data *charger, u8 id);
 
@@ -1237,6 +1251,10 @@ enum p9xxx_renego_state {
 };
 
 #define UEVENT_ENVP_LEN 20
+
+static char *uevent_source_str[] = {
+	"WLC", "FAN", "RTX"
+};
 
 enum uevent_source {
 	UEVENT_WLC = 0,
@@ -1303,7 +1321,7 @@ enum compatibility_type {
 #define p9xxx_chip_set_ask_mod_fet(chgr, data) ((chgr->reg_ask_mod_fet_addr == 0 || data == 0) ? \
       -ENOTSUPP : chgr->reg_write_8(chgr, chgr->reg_ask_mod_fet_addr, data))
 #define p9xxx_chip_get_nego_power(chgr, data) (chgr->reg_nego_power_addr < 0 ? \
-      -ENOTSUPP : chgr->reg_read_8(chgr, chgr->reg_nego_power_addr, data))
+	-EOPNOTSUPP : chgr->reg_read_8(chgr, chgr->reg_nego_power_addr, data))
 #define logbuffer_prlog(p, fmt, ...)     \
       gbms_logbuffer_prlog(p, LOGLEVEL_INFO, 0, LOGLEVEL_DEBUG, fmt, ##__VA_ARGS__)
 #endif /* __P9221_CHARGER_H__ */

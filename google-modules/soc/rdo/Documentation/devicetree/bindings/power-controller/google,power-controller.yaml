@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2024 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/power/google,power-controller.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google Power Controller
+
+maintainers:
+  - Jakub Glowacki <jglow@google.com>
+  - Mahesh Sivasubramanian <msivasub@google.com>
+  - Ben Schwartz <bsschwar@google.com>
+
+description: |
+  This binding describes the top-level power controller for a Google SoC.
+  This node acts as a container for multiple power domain subnodes, which
+  define the properties of each individual power domain.
+
+properties:
+  compatible:
+    description: The platform version of the power controller.
+    enum:
+      - google,lga-power-controller
+      - google,mbu-power-controller
+
+  mboxes:
+    description: Phandle and specifier for the CPM mailbox client.
+
+required:
+  - compatible
+  - mboxes
+
+examples:
+  - |
+    /* Power controller with MBA communication */
+    power_controller: power_controller {
+        compatible = "google,lga-power-controller";
+        mboxes = <&goog_mba_cpm_iface>;
+        #address-cells = <2>;
+        #size-cells = <2>;
+        ranges;
+
+        sswrp_hsio_n_pd: sswrp_hsio_n_pd {
+            #power-domain-cells = <0>;
+            sswrp-id = <GENPD_LGA_SSWRP_HSIO_N_ID>;
+            on-at-init;
+        };
+
+        hsio_n_usb_pd: hsio_n_usb_pd {
+            #power-domain-cells = <0>;
+            sswrp-id = <GENPD_LGA_SSWRP_HSIO_N_ID>;
+            power-domains = <&sswrp_hsio_n_pd>;
+            subdomain-id = <GENPD_LGA_HSIO_N_USB_ID>;
+            on-at-init;
+            active-wakeup;
+        };
+    };
+
+  - |
+    /* Power controller with MBFS communication */
+    power_controller: power_controller {
+        compatible = "google,mbu-power-controller";
+        mboxes = <&mbfs_cpm_backend0_label>;
+        #address-cells = <2>;
+        #size-cells = <2>;
+        ranges;
+
+        aurdsp_pd: power-domain@2 {
+            #power-domain-cells = <0>;
+            pm-resource-id = <SYSPM_RESOURCE_SID_LPB_AURDSP>;
+            mbfs-node-name = "aurdsp.v";
+        };
+    };

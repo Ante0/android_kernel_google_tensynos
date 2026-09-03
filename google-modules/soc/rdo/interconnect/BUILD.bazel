@@ -1,0 +1,147 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "google_icc_trace_headers",
+    hdrs = [
+        "google_icc_trace.h",
+    ],
+    includes = [
+        ".",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "google_icc",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "google_icc.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_IRM": {
+            True: [
+                "google_icc_helper.c",
+                "google_icc_provider.c",
+            ],
+        },
+        "CONFIG_SOC_LGA": {
+            True: [
+                "lga.c",
+            ],
+        },
+        "CONFIG_SOC_MBU": {
+            True: [
+                "mbu.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":google_icc_trace_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:google_gtc",
+    ],
+)
+
+ddk_headers(
+    name = "google_irm_trace_headers",
+    hdrs = [
+        "google_irm_trace.h",
+    ],
+    includes = [
+        ".",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "google_irm",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "google_irm.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_IRM": {
+            True: [
+                "google_irm_core.c",
+                "google_irm_debugfs.c",
+                "google_irm_of.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":google_irm_trace_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-cpm-iface",
+        "//private/google-modules/soc/rdo/drivers/soc/google:google_gtc",
+    ],
+)
+
+ddk_module(
+    name = "google-irm-stub",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "google-irm-stub.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_IRM": {
+            True: [
+                "google_irm_stub.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "google-icc-helper-mock-client",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "google-icc-helper-mock-client.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_ICC_HELPER_MOCK_CLIENT": {
+            True: [
+                "google_icc_helper_mock_client.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":google_icc",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)

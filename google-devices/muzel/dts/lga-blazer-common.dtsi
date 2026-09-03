@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Blazer common device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+#include "lga-blazer-pmic.dtsi"
+#include "lga-blazer-display.dtsi"
+#include "lga-blazer-touch.dtsi"
+#include "google-base/platform/lga-platform-charging-premium.dtsi"
+#include "lga-blazer-audio.dtsi"
+#include "lga-blazer-lsio.dtsi"
+#include "lga-blazer-wcharger.dtsi"
+#include "lga-muzel-h2omg.dtsi"
+#include "google-base/platform/lga-platform-battery.dtsi"
+#include "google-base/platform/lga-platform-uwb.dtsi"
+#include "lga-blazer-usecases.dtsi"
+#include "lga-deepspace-bcl.dtsi"
+#include "lga-blazer-battery.dtsi"
+#include "lga-blazer-usbdp-phy.dtsi"

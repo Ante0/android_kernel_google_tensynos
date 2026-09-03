@@ -1,0 +1,49 @@
+1) GIA Header Generation:
+-------------------------
+
+Set up:
+Download the interrupt database and pass it to gen-gia-intr-header.py
+
+Usage:
+$ python3 <base_path>/gen-gia-intr-header.py <root_dir_of_interrupt_tracker_data> > irq-gia-google-lga.txt
+
+-------------------------
+2) GIA Device Tree Generation
+-------------------------
+
+Setup:
+* Download the interrupt tracker database (TODO: Add instructions to readme. b/359937751)
+* Download the base address map for the chipset you want as CSV. For MBU, this is go/mbu-soc-memory-map
+
+Usage:
+$ python gen-gia-device-tree.py -i <root_of_interrupt_tracker_data> -b <sswrp_base_addr_map_csv> [OPTIONAL: -s <soc> | -a <manual_address_csv> | -d | -p <power_domains_csv>]
+
+Arguments:
+--addresses, -a:	Provide a CSV with format <gia_name>, <address offset>.
+			This is used to manually specify the address for GIA nodes which are missing from interrupt tracker data.
+			Any GIAs where address cannot be found will be output with an address ending in 'ffff' and the node disabled
+--base_addr_map, -b:	Provide a base addr map CSV like go/mbu-soc-memory-map.
+-d:			Turns on debug logging
+--hack-pds, -H:		Sets power domains to sswrp_<sswrp>_pd, if one exists in the power-controller DT node for the SSWRP. When combined with -p, the power domain CSV takes precedence
+--intr_tracker, -i:	Provide the base directory of the interrupt tracker.
+			This path will be searched recursively for files named *_launch_o.csv and *_gia_map.csv to generate the device tree. Small note on perfomance: the amount of path traversal in this directory is the single largest factor in script execution time.
+--power_domains, -p:	Provide a CSV with format <gia_name>, <power_domain>
+			This is used to generate a device tree with power domains
+			Not providing this will generate nodes with no power domains
+--soc, -s:		Provide the 3 letter SOC name.
+			If not provided, defaults to MBU
+
+-------------------------
+3) GIC Header Generation
+-------------------------
+
+Setup:
+* Download the Interrupt CSV for the chipset & label you want
+
+Usage:
+$ python gen-gic-intr-header.py <interrupts.csv> -s <SOC> [OPTIONAL -d | -c <YEAR>] > <soc_gic.h>
+
+Arguments:
+'-c', '--copyright_year': 	Provide the copyright year to use. If not provided, defaults to today's year
+-d:				Turns on debug logging
+--soc, -s:			Provide the 3 letter SOC name. If not provided, defaults to MBU

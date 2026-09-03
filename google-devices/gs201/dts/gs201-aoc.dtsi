@@ -70,7 +70,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&aoc_vsync_pins>;
 
-		gsa-enabled = "true";
+		gsa-enabled;
 
 		iommus = <&sysmmu_asoc>;
 		memory-region = <&aoc_reserve>;
@@ -145,10 +145,11 @@
 		channel-max-pending-msgs = <128>;
 		block-channel-threshold = <64>;
 
-		notify-on-state-transition = "true";
-		hotword-supported = "true";
-		chre-supported = "true";
+		notify-on-state-transition;
+		hotword-supported;
+		chre-supported;
 		skip-mmap-offload = "true";
+		mmap-use-kernel-heap;
 	};
 	aoc_gpiochip: aoc_gpiochip {
 		compatible = "google,aoc_uwb_rst";

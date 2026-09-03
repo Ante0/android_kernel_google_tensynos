@@ -51,6 +51,7 @@
 		gxp-memory-per-core = <0 512>;
 		gxp,shareability = <0x20a40700>; /* SYSREG_AUR0 */
 		gsa-device=<&gsa>;
+		iif-device = <&iif>;
 		gcip-dvfs-table-size = <7 2>; /*<row col>*/
 		gcip-dvfs-table = <
 			/*
@@ -66,8 +67,6 @@
 			 256000   16
 			 178000   13
 		>;
-		iif-fence-wait-table-region = <&iif_wait_table_reserved>;
-		iif-fence-signal-table-region = <&iif_signal_table_reserved>;
 		pmu-aur-status = <0x15462304>;
 	};
 	gxp_cooling: gxp-cooling {

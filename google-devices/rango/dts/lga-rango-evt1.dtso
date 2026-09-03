@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * rango device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+/dts-v1/;
+/plugin/;
+
+#define RANGO_PROTO_EVT_EXT_BST_EN
+
+#include "lga-rango-evt1-pinctrl.dtsi"
+#include "lga-rango-common.dtsi"
+#include "lga-rango-battery.dtsi"
+#include "lga-rango-camera.dtsi"
+#include "lga-rango-inner-touch-proto1_1.dtsi"
+#include "lga-rango-charging-thermal.dtsi"
+#include "lga-rango-evt1-charging.dtsi"
+#include "google-base/platform/lga-uwb-u100-power-switch.dtsi"
+
+/ {
+	board_id = <0x70603>;
+	board_rev = <0x010000>;
+	fragment@boardbase {
+		target-path = "/";
+		__overlay__ {
+			model = "RANGO EVT 1.0 based on LGA";
+			compatible = "google,lga-rango", "google,lga";
+		};
+	};
+};
+

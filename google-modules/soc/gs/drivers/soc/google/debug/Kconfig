@@ -130,6 +130,14 @@ menuconfig EXYNOS_CORESIGHT_ETM
           ETM is the source of coresight component. ETM generates trace data
 	  for output through the ATB.
 
+config EXYNOS_DISABLE_IDLE_STATES
+	bool "Enable the function exynos_disable_idle_states"
+	depends on EXYNOS_CORESIGHT_ETM
+	default n
+	help
+	  This config is used to enable/disable the function
+	  exynos_disable_idle_states.
+
 config EXYNOS_CORESIGHT_ETF
         bool "Enable ETF (FIFO or Buffer)"
         depends on EXYNOS_CORESIGHT_ETM

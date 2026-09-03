@@ -56,7 +56,7 @@ static const unsigned freqs[] = { 400000, 300000, 200000, 100000 };
 /*
  * Enabling software CRCs on the data blocks can be a significant (30%)
  * performance cost, and for other reasons may not always be desired.
- * So we allow it it to be disabled.
+ * So we allow it to be disabled.
  */
 bool use_spi_crc = 1;
 module_param(use_spi_crc, bool, 0);
@@ -97,8 +97,8 @@ static void mmc_should_fail_request(struct mmc_host *host,
 	    !should_fail(&host->fail_mmc_request, data->blksz * data->blocks))
 		return;
 
-	data->error = data_errors[prandom_u32_max(ARRAY_SIZE(data_errors))];
-	data->bytes_xfered = prandom_u32_max(data->bytes_xfered >> 9) << 9;
+	data->error = data_errors[get_random_u32_below(ARRAY_SIZE(data_errors))];
+	data->bytes_xfered = get_random_u32_below(data->bytes_xfered >> 9) << 9;
 }
 
 #else /* CONFIG_FAIL_MMC_REQUEST */
@@ -526,7 +526,7 @@ EXPORT_SYMBOL(mmc_cqe_post_req);
  * mmc_cqe_recovery - Recover from CQE errors.
  * @host: MMC host to recover
  *
- * Recovery consists of stopping CQE, stopping eMMC, discarding the queue in
+ * Recovery consists of stopping CQE, stopping eMMC, discarding the queue
  * in eMMC, and discarding the queue in CQE. CQE must call
  * mmc_cqe_request_done() on all requests. An error is returned if the eMMC
  * fails to discard its queue.
@@ -921,7 +921,6 @@ void mmc_set_clock(struct mmc_host *host, unsigned int hz)
 	host->ios.clock = hz;
 	mmc_set_ios(host);
 }
-EXPORT_SYMBOL_GPL(mmc_set_clock);
 
 int mmc_execute_tuning(struct mmc_card *card)
 {
@@ -956,7 +955,6 @@ int mmc_execute_tuning(struct mmc_card *card)
 
 	return err;
 }
-EXPORT_SYMBOL_GPL(mmc_execute_tuning);
 
 /*
  * Change the bus mode (open drain/push-pull) of a host.
@@ -966,7 +964,6 @@ void mmc_set_bus_mode(struct mmc_host *host, unsigned int mode)
 	host->ios.bus_mode = mode;
 	mmc_set_ios(host);
 }
-EXPORT_SYMBOL_GPL(mmc_set_bus_mode);
 
 /*
  * Change data bus width of a host.
@@ -976,7 +973,6 @@ void mmc_set_bus_width(struct mmc_host *host, unsigned int width)
 	host->ios.bus_width = width;
 	mmc_set_ios(host);
 }
-EXPORT_SYMBOL_GPL(mmc_set_bus_width);
 
 /*
  * Set initial state after a power cycle or a hw_reset.
@@ -1010,7 +1006,6 @@ void mmc_set_initial_state(struct mmc_host *host)
 
 	mmc_crypto_set_initial_state(host);
 }
-EXPORT_SYMBOL_GPL(mmc_set_initial_state);
 
 /**
  * mmc_vdd_to_ocrbitnum - Convert a voltage to the OCR bit number
@@ -1280,7 +1275,6 @@ void mmc_set_timing(struct mmc_host *host, unsigned int timing)
 	host->ios.timing = timing;
 	mmc_set_ios(host);
 }
-EXPORT_SYMBOL_GPL(mmc_set_timing);
 
 /*
  * Select appropriate driver type for host.
@@ -2268,6 +2262,11 @@ void mmc_rescan(struct work_struct *work)
 			break;
 	}
 
+	/* A non-removable card should have been detected by now. */
+	if (!mmc_card_is_removable(host) && !host->bus_ops)
+		pr_info("%s: Failed to initialize a non-removable card",
+			mmc_hostname(host));
+
 	/*
 	 * Ignore the command timeout errors observed during
 	 * the card init as those are excepted.
@@ -2366,4 +2365,5 @@ static void __exit mmc_exit(void)
 subsys_initcall(mmc_init);
 module_exit(mmc_exit);
 
+MODULE_DESCRIPTION("MMC core driver");
 MODULE_LICENSE("GPL");

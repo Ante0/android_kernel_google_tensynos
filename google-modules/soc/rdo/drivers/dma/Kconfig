@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config PL330_DMA_GOOGLE
+	tristate "DMA API Driver for PL330 in Google SoCs"
+	select DMA_ENGINE
+	depends on ARCH_GOOGLE
+	depends on ARM_AMBA
+	help
+	  Select if your platform is a Google SoC
+	  and has one or more PL330 DMACs,
+	  and you need GOOGLE_GPDMA config.
+	  If unsure select "N".
+
+config GOOGLE_GPDMA
+	tristate "Google General Purpose DMA Driver"
+	depends on ARCH_GOOGLE
+	depends on DMA_OF
+	depends on PL330_DMA_GOOGLE
+	help
+	  Driver to configure Google specific wrapper components around a DMA controller
+	  (currently supporting only PL330) which houses a REQ-ACK matrix present in
+	  Google SOCs to route Peripheral request/acknowledge signals to DMA inputs when
+	  the number of peripherals present in the SOC are more then the interfaces
+	  supported by the DMA Controller and also program other Quality Of Service
+	  related components.
+	  If unsure select "N".

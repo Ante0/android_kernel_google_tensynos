@@ -1,0 +1,133 @@
+What:		/sys/kernel/debug/[0-9]+.dpa/(ncp|nep)/shell_cmd
+Date:		May 2025
+KernelVersion:	6.12
+Contact:	koudai@google.com
+Description: 	Issue a ShellCommand to the remote MCU
+
+		Write:
+		Accepts a String command to forward to the remote ShellCommand service.
+		Returns negative error code on error, 0 on success.
+
+What:		/sys/kernel/debug/[0-9]+.dpa/(ncp|nep)/mcu_read_word
+Date:		May 2025
+KernelVersion:	6.12
+Contact:	koudai@google.com
+Description: 	Request the MCU to read a word of data at the requested address
+
+		Write:
+		Accepts a 32bit address as input, which triggers a read from the MCU to that
+		address.
+		Returns negative error code on error, 0 on success.
+
+		Read:
+		Returns back the last value read by the MCU
+
+What:		/sys/devices/platform/[0-9]+.dpa/dma_alloc
+Date:		May 2025
+KernelVersion:	6.12
+Contact:	koudai@google.com
+Description:	Allocates a pair of DMA buffers (src and dst) for the DPA to operate on
+
+		Write:
+		Accepts the size of the buffer to allocate. Allocates two DMA buffers of the given
+		size, and a subdirectory dma_buffer_N with further functions to operate on those
+		buffers (where N is the number of times this interface has been called)
+
+		Example usage:
+
+		$ echo 5 > dma_alloc
+		$ cd dma_buffer_0
+		$ echo "test" > src_buf
+		$ echo 1 > ncp_memcpy
+		$ cat dst_buf
+		test
+
+What:		/sys/devices/platform/[0-9]+.dpa/dma_buffer_[0-9]+/(ncp|nep)_memcpy
+Date:		May 2025
+KernelVersion:	6.12
+Contact:	koudai@google.com
+Description:	Request the NCP or NEP to copy data from the src buffer to the dst buffer.
+
+What:		/sys/devices/platform/[0-9]+.dpa/dma_buffer_[0-9]+/size
+Date:		May 2025
+KernelVersion:	6.12
+Contact:	koudai@google.com
+Description:	Returns the size of the allocated buffers.
+
+What:		/sys/devices/platform/[0-9]+.dpa/dma_buffer_[0-9]+/(src|dst)_buf
+Date:		May 2025
+KernelVersion:	6.12
+Contact:	koudai@google.com
+Description:	Reads or writes the content of the src or dst buffer
+
+What:		/sys/devices/platform/[0-9]+.dpa/dma_buffer_[0-9]+/(src|dst)_addr
+Date:		May 2025
+KernelVersion:	6.12
+Contact:	koudai@google.com
+Description:	Returns the kernel virtual address for the src or dst buffer.
+
+What:		/sys/devices/platform/[0-9]+.dpa/dma_buffer_[0-9]+/(src|dst)_dma_addr
+Date:		May 2025
+KernelVersion:	6.12
+Contact:	koudai@google.com
+Description:	Returns the device virtual address (aka iova aka dma address) for the src or dst
+		buffer.
+
+What:		/sys/devices/platform/[0-9]+.dpa/dma_free_all
+Date:		May 2025
+KernelVersion:	6.12
+Contact:	koudai@google.com
+Description:	Free all buffers and directories created by previous writes to dma_alloc
+
+What:		/sys/devices/platform/[0-9]+.dpa/ipsec/pusher/data
+Date:		June 2025
+KernelVersion:	6.12
+Contact:	bgillon@google.com
+Description:	Send data over to IPSec tester service.
+
+		Write:
+		Accepts at least 4 bytes. The first 4 bytes are representing
+		a big endian number that is the size of the data to be pushed.
+		The next bytes are the data to be transferred into the IPSec
+		tester service.
+		Returns negative error code on error, 0 on success.
+
+		Example usage:
+
+		$ echo -en "\x00\x00\x00\x05\x01\x02\x03\x04\x05" > data
+
+What:		/sys/devices/platform/[0-9]+.dpa/ipsec/pusher/status
+Date:		June 2025
+KernelVersion:	6.12
+Contact:	bgillon@google.com
+Description:	Read the current status of the IPSec tester service.
+
+		The status will be one of:
+
+		- "Idle"
+		- "InProgress"
+		- "CompletedOK"
+		- "Error"
+		- "PendingData"
+		- "Unknown State (<ERROR_CODE>)"
+
+		"Idle" means the driver is ready for a new data
+		transfer
+
+		"InProgress" means all the data is being transmitted.
+		While in progress, no data should be send to the driver
+
+		"CompletedOk" means the data transfer was successful.
+		A new data transfer is possible.
+
+		"Error" means the driver encountered an error
+
+		"PendingData" means the driver is waiting for more data
+
+		"Unknown State (<ERROR_CODE>)" means the driver ended up in an
+		unknown state
+
+		Example usage:
+
+		$ cat status
+		CompletedOK

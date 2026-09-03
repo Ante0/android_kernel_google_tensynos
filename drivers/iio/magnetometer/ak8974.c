@@ -327,10 +327,7 @@ static int ak8974_trigmeas(struct ak8974 *ak8974)
 	}
 
 	/* Force a measurement */
-	return regmap_update_bits(ak8974->map,
-				  AK8974_CTRL3,
-				  AK8974_CTRL3_FORCE,
-				  AK8974_CTRL3_FORCE);
+	return regmap_set_bits(ak8974->map, AK8974_CTRL3, AK8974_CTRL3_FORCE);
 }
 
 static int ak8974_await_drdy(struct ak8974 *ak8974)
@@ -438,10 +435,7 @@ static int ak8974_selftest(struct ak8974 *ak8974)
 	}
 
 	/* Trigger self-test */
-	ret = regmap_update_bits(ak8974->map,
-			AK8974_CTRL3,
-			AK8974_CTRL3_SELFTEST,
-			AK8974_CTRL3_SELFTEST);
+	ret = regmap_set_bits(ak8974->map, AK8974_CTRL3, AK8974_CTRL3_SELFTEST);
 	if (ret) {
 		dev_err(dev, "could not write CTRL3\n");
 		return ret;
@@ -814,8 +808,7 @@ static const struct regmap_config ak8974_regmap_config = {
 	.precious_reg = ak8974_precious_reg,
 };
 
-static int ak8974_probe(struct i2c_client *i2c,
-			const struct i2c_device_id *id)
+static int ak8974_probe(struct i2c_client *i2c)
 {
 	struct iio_dev *indio_dev;
 	struct ak8974 *ak8974;
@@ -1026,10 +1019,10 @@ static DEFINE_RUNTIME_DEV_PM_OPS(ak8974_dev_pm_ops, ak8974_runtime_suspend,
 				 ak8974_runtime_resume, NULL);
 
 static const struct i2c_device_id ak8974_id[] = {
-	{"ami305", 0 },
-	{"ami306", 0 },
-	{"ak8974", 0 },
-	{"hscdtd008a", 0 },
+	{ "ami305" },
+	{ "ami306" },
+	{ "ak8974" },
+	{ "hscdtd008a" },
 	{}
 };
 MODULE_DEVICE_TABLE(i2c, ak8974_id);
@@ -1047,7 +1040,7 @@ static struct i2c_driver ak8974_driver = {
 		.pm = pm_ptr(&ak8974_dev_pm_ops),
 		.of_match_table = ak8974_of_match,
 	},
-	.probe	  = ak8974_probe,
+	.probe = ak8974_probe,
 	.remove	  = ak8974_remove,
 	.id_table = ak8974_id,
 };

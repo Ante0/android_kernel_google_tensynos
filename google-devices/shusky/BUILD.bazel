@@ -1,8 +1,14 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch")
 load("//private/devices/google/common/kleaf:device_build.bzl", "device_build")
 load("//private/devices/google/zuma:constants.bzl", "ZUMA_DPM_DTBOS", "ZUMA_DTBS", "ZUMA_MODULE_OUTS")
 load(":constants.bzl", "SHUSKY_DTBOS")
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
 
 device_build(
     name = "shusky",
@@ -20,36 +26,54 @@ device_build(
     dts_srcs = glob(["dts/**"]) + [
         "//private/google-modules/soc/gs:gs.dt-bindings",
     ],
-    ext_modules = [
-        # keep sorted
-        "//private/devices/google/shusky/display:drm_panel.google",
-        "//private/google-modules/amplifiers/cs35l41",
-        "//private/google-modules/amplifiers/cs40l26",
-        "//private/google-modules/amplifiers/snd_soc_wm_adsp:snd-soc-wm-adsp",
-        "//private/google-modules/bluetooth/broadcom:bluetooth.broadcom",
-        "//private/google-modules/gps/broadcom/bcm47765",
-        "//private/google-modules/nfc",
-        "//private/google-modules/radio/samsung/s5300:cpif",
-        "//private/google-modules/touch/common:touch.common",
-        "//private/google-modules/touch/fts/ftm5",
-        "//private/google-modules/touch/goodix",
-        "//private/google-modules/touch/sec",
-        "//private/google-modules/uwb/qorvo/qm35/qm35s:uwb.qm35",
-        "//private/google-modules/wlan/bcm4398:bcmdhd4398",
-        "//private/google-modules/wlan/wlan_ptracker",
-    ],
     insmod_cfgs = glob(["insmod_cfg/*.cfg"]),
     kconfig_exts = ["Kconfig.ext.shusky"],
     kconfigs = [
         # keep sorted
         "//private/google-modules/radio/samsung/s5300:cpif.kconfig",
-        "//private/google-modules/touch/common:touch.common.kconfig",
         "//private/google-modules/touch/fts/ftm5:ftm5.kconfig",
-        "//private/google-modules/touch/sec:sec.kconfig",
+        "//private/google-modules/touch/sec/legacy:sec.kconfig",
     ],
     module_outs = ZUMA_MODULE_OUTS,
-    vendor_dlkm_modules_blocklists = ["vendor_dlkm.blocklist.shusky"],
-    vendor_ramdisk_modules_lists = ["vendor_ramdisk.modules.shusky"],
+    vendor_dlkm_modules = [
+        # keep sorted
+        "//private/google-modules/amplifiers/cs35l41:snd-soc-cs35l41",
+        "//private/google-modules/amplifiers/cs35l41:snd-soc-cs35l41-i2c",
+        "//private/google-modules/amplifiers/cs35l41:snd-soc-cs35l41-spi",
+        "//private/google-modules/amplifiers/cs40l26:cl_dsp-core",
+        "//private/google-modules/amplifiers/cs40l26:cs40l26-core",
+        "//private/google-modules/amplifiers/cs40l26:snd-soc-cs40l26",
+        "//private/google-modules/amplifiers/snd_soc_wm_adsp:snd-soc-wm-adsp",
+        "//private/google-modules/bluetooth/broadcom:nitrous",
+        "//private/google-modules/gps/broadcom/bcm47765:bbd_pps_gpio",
+        "//private/google-modules/nfc/ese:st33spi",
+        "//private/google-modules/radio/samsung/s5300:cp_thermal_zone",
+        "//private/google-modules/uwb/qorvo/qm35/qm35s:qm35",
+        "//private/google-modules/wlan/wlan_ptracker",
+    ],
+    vendor_dlkm_modules_blocklisted = [
+        # keep sorted
+        "//private/google-modules/amplifiers/cs40l26:cs40l26-i2c",
+        "//private/google-modules/soc/gs/drivers/regulator:rt6160-regulator",
+        "//private/google-modules/soc/gs/drivers/soc/google/gnssif_spi:gnss_spi",
+        "//private/google-modules/soc/gs/drivers/soc/google/gnssif_spi:gnssif",
+        "//private/google-modules/touch/fts/ftm5",
+        "//private/google-modules/touch/goodix:goodix_brl_touch",
+        "//private/google-modules/touch/sec/legacy:sec_touch",
+        "//private/google-modules/wlan/bcmdhd/bcm4398:bcmdhd4398",
+    ],
+    vendor_ramdisk_modules = [
+        # keep sorted
+        "//private/devices/google/shusky/display:panel-google-bigsurf",
+        "//private/devices/google/shusky/display:panel-google-hk3",
+        "//private/devices/google/shusky/display:panel-google-shoreline",
+        "//private/google-modules/gps/broadcom/bcm47765:bcm47765_ko",
+        "//private/google-modules/nfc:st21nfc",
+        "//private/google-modules/nfc/ese:st54spi",
+        "//private/google-modules/radio/samsung/s5300:cpif_ko",
+        "//private/google-modules/radio/samsung/s5300:cpif_page",
+        "//private/google-modules/radio/samsung/s5300:shm_ipc",
+    ],
 )
 
 # For compatibility

@@ -1,0 +1,144 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# the CMUCAL drivers.
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "headers",
+    hdrs = glob([
+        "**/*.h",
+    ]),
+    includes = ["."],
+    visibility = [
+        "//private/google-modules/soc/gs:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "cal_data_c_files",
+    hdrs = [
+        "gs101/asv_gs101.c",
+        "gs101/clkout_gs101.c",
+        "gs101/cmucal-node.c",
+        "gs101/cmucal-qch.c",
+        "gs101/cmucal-sfr.c",
+        "gs101/cmucal-vclk.c",
+        "gs101/cmucal-vclklut.c",
+        "gs201/asv_gs201.c",
+        "gs201/clkout_gs201.c",
+        "gs201/cmucal-node.c",
+        "gs201/cmucal-qch.c",
+        "gs201/cmucal-sfr.c",
+        "gs201/cmucal-vclk.c",
+        "gs201/cmucal-vclklut.c",
+        "zuma/asv_zuma.c",
+        "zuma/clkout_zuma.c",
+        "zuma/cmucal-node.c",
+        "zuma/cmucal-qch.c",
+        "zuma/cmucal-sfr.c",
+        "zuma/cmucal-vclk.c",
+        "zuma/cmucal-vclklut.c",
+    ],
+    visibility = [
+        "//visibility:private",
+    ],
+)
+
+ddk_module(
+    name = "cmupmucal",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "cmupmucal.ko",
+    conditional_srcs = {
+        "CONFIG_ACPM_DVFS": {
+            True: [
+                "acpm_dvfs.c",
+                "fvmap.c",
+            ],
+        },
+        "CONFIG_CAL_IF": {
+            True: [
+                "cal-if.c",
+                "cmucal-debug.c",
+                "cmucal.c",
+                "pll_spec.c",
+                "ra.c",
+                "vclk.c",
+            ],
+        },
+        "CONFIG_CP_PMUCAL": {
+            True: [
+                "pmucal_cp.c",
+            ],
+        },
+        "CONFIG_PMUCAL": {
+            True: [
+                "pmucal_cpu.c",
+                "pmucal_local.c",
+                "pmucal_powermode.c",
+                "pmucal_rae.c",
+                "pmucal_system.c",
+            ],
+        },
+        "CONFIG_PMUCAL_DBG": {
+            True: [
+                "pmucal_dbg.c",
+            ],
+        },
+        "CONFIG_SOC_GS101": {
+            True: [
+                "gs101/cal_data.c",
+            ],
+        },
+        "CONFIG_SOC_GS201": {
+            True: [
+                "gs201/cal_data.c",
+            ],
+        },
+        "CONFIG_SOC_ZUMA": {
+            True: [
+                "zuma/cal_data.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":cal_data_c_files",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google:ect_parser",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-pd_el3",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-pmu-if",
+        "//private/google-modules/soc/gs/drivers/soc/google:gs-chipid",
+        "//private/google-modules/soc/gs/drivers/soc/google/acpm:gs_acpm",
+        "//private/google-modules/soc/gs/drivers/soc/google/acpm:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/debug:dss",
+    ],
+)
+
+ddk_module(
+    name = "cmu_ewf",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "cmu_ewf.ko",
+    conditional_srcs = {
+        "CONFIG_CMU_EWF": {
+            True: [
+                "cmu_ewf.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

@@ -1,0 +1,104 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+&sswrp_cpuacc {
+	cpuacc_funnel: funnel@1e0000 {
+		compatible = "arm,coresight-dynamic-funnel", "arm,primecell";
+		reg = <0x1e0000 0x1000>;
+
+		clocks = <&osc>;
+		clock-names = "apb_pclk";
+
+		out-ports {
+			port {
+				cpuacc_funnel_out_port: endpoint {
+					remote-endpoint = <&l0_funnel_in_port5>;
+				};
+			};
+		};
+
+		in-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				cpuacc_funnel_in_port0: endpoint {
+					remote-endpoint = <&ssu_itm_out_port>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				cpuacc_funnel_in_port1: endpoint {
+					remote-endpoint = <&ssu_etm_out_port>;
+				};
+			};
+
+			port@2 {
+				reg = <2>;
+				cpuacc_funnel_in_port2: endpoint {
+					remote-endpoint = <&gic_gem_out_port>;
+				};
+			};
+
+			port@3 {
+				reg = <3>;
+				cpuacc_funnel_in_port3: endpoint {
+					remote-endpoint = <&gpdma_gem_out_port>;
+				};
+			};
+		};
+	};
+
+	ssu-itm {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				ssu_itm_out_port: endpoint {
+					remote-endpoint = <&cpuacc_funnel_in_port0>;
+				};
+			};
+		};
+	};
+
+	ssu-etm {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				ssu_etm_out_port: endpoint {
+					remote-endpoint = <&cpuacc_funnel_in_port1>;
+				};
+			};
+		};
+	};
+
+	gic-gem {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				gic_gem_out_port: endpoint {
+					remote-endpoint = <&cpuacc_funnel_in_port2>;
+				};
+			};
+		};
+	};
+
+	gpdma-gem {
+		compatible = "arm,coresight-dummy-source";
+		status = "disabled";
+
+		out-ports {
+			port {
+				gpdma_gem_out_port: endpoint {
+					remote-endpoint = <&cpuacc_funnel_in_port3>;
+				};
+			};
+		};
+	};
+};

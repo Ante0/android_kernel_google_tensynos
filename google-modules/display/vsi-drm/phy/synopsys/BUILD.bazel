@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+load("//private/google-modules/display/vsi-drm/phy/synopsys:dw-mipi-cdphy-cflags.bzl", "DW_MIPI_CDPHY_COPTS")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "mipi-cdphy",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "dw-mipi-cdphy.c",
+        "dw-mipi-cdphy-g301.c",
+        "dw-mipi-cdphy-g301-clock-calc.c",
+    ],
+    out = "mipi-cdphy.ko",
+    copts = DW_MIPI_CDPHY_COPTS,
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common/gs_drm:gs-drm-connector",
+        "//private/google-modules/display/vsi-drm:ddk_headers",
+    ],
+)
+
+exports_files(
+    [
+        "Kconfig",
+    ],
+    [
+        "//private/google-modules/display/vsi-drm:__pkg__",
+    ],
+)

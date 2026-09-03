@@ -17,14 +17,7 @@
 #include <linux/workqueue.h>
 
 #include "thermal_core.h"
-#if IS_ENABLED(CONFIG_VH_SCHED)
-#include "../../soc/google/vh/include/sched.h"
-#else
-static inline int sched_thermal_freq_cap(unsigned int cpu, unsigned int freq)
-{
-	return 0;
-}
-#endif
+#include "sched.h"
 
 struct thermal_uclamp_cdev {
 	unsigned int cpu;
@@ -63,6 +56,7 @@ static int thermal_uclamp_set_cur_state(struct thermal_cooling_device *cdev,
 					unsigned long state)
 {
 	struct thermal_uclamp_cdev *uclamp_cdev = cdev->devdata;
+	struct em_perf_state *table;
 	int idx = 0;
 
 	if (state > uclamp_cdev->max_state)
@@ -70,13 +64,16 @@ static int thermal_uclamp_set_cur_state(struct thermal_cooling_device *cdev,
 
 	mutex_lock(&therm_cdev_list_lock);
 	if (state != uclamp_cdev->cur_state) {
+		rcu_read_lock();
+		table = em_perf_state_from_pd(uclamp_cdev->em);
 		idx = uclamp_cdev->max_state - state;
 		pr_debug("cdev:[%s] new state request:[%lu] frequeny:[%lu]\n",
 			 cdev->type, state,
-			 uclamp_cdev->em->table[idx].frequency);
+			 table[idx].frequency);
 		uclamp_cdev->cur_state = state;
 		sched_thermal_freq_cap(uclamp_cdev->cpu,
-				       uclamp_cdev->em->table[idx].frequency);
+				       table[idx].frequency);
+		rcu_read_unlock();
 	}
 	mutex_unlock(&therm_cdev_list_lock);
 
@@ -87,11 +84,15 @@ static unsigned long thermal_uclamp_cpupower_to_state(struct thermal_uclamp_cdev
 				    u32 power)
 {
 	unsigned long idx = 0;
+	struct em_perf_state *table;
 
+	rcu_read_lock();
+	table = em_perf_state_from_pd(uclamp_cdev->em);
 	for (idx = 0; idx < uclamp_cdev->max_state; idx++) {
-		if (uclamp_cdev->em->table[idx].power >= power)
+		if (table[idx].power >= power)
 			break;
 	}
+	rcu_read_unlock();
 
 	return idx;
 }
@@ -100,11 +101,15 @@ static unsigned long thermal_uclamp_cpufreq_to_state(struct thermal_uclamp_cdev 
 					   unsigned long freq)
 {
 	unsigned long idx = 0;
+	struct em_perf_state *table;
 
+	rcu_read_lock();
+	table = em_perf_state_from_pd(uclamp_cdev->em);
 	for (idx = 0; idx < uclamp_cdev->max_state; idx++) {
-		if (uclamp_cdev->em->table[idx].frequency >= freq)
+		if (table[idx].frequency >= freq)
 			break;
 	}
+	rcu_read_unlock();
 
 	return idx;
 }
@@ -114,12 +119,16 @@ static int thermal_uclamp_state2power(struct thermal_cooling_device *cdev,
 {
 	struct thermal_uclamp_cdev *uclamp_cdev = cdev->devdata;
 	unsigned int idx = 0;
+	struct em_perf_state *table;
 
 	if (state > uclamp_cdev->max_state)
 		return -EINVAL;
 
+	rcu_read_lock();
+	table = em_perf_state_from_pd(uclamp_cdev->em);
 	idx = uclamp_cdev->max_state - state;
-	*power = uclamp_cdev->em->table[idx].power * uclamp_cdev->related_cpu_cnt;
+	*power = table[idx].power * uclamp_cdev->related_cpu_cnt;
+	rcu_read_unlock();
 
 	return 0;
 }
@@ -130,12 +139,16 @@ static int thermal_uclamp_get_requested_power(struct thermal_cooling_device *cde
 	struct thermal_uclamp_cdev *uclamp_cdev = cdev->devdata;
 	unsigned long freq = 0, state = 0;
 	unsigned int idx = 0;
+	struct em_perf_state *table;
 
 	freq = cpufreq_quick_get(uclamp_cdev->cpu);
 	state = thermal_uclamp_cpufreq_to_state(uclamp_cdev, freq);
 	idx = uclamp_cdev->max_state - state;
 
-	*power = uclamp_cdev->em->table[idx].power * uclamp_cdev->related_cpu_cnt;
+	rcu_read_lock();
+	table = em_perf_state_from_pd(uclamp_cdev->em);
+	*power = table[idx].power * uclamp_cdev->related_cpu_cnt;
+	rcu_read_unlock();
 
 	return 0;
 }
@@ -159,8 +172,7 @@ static struct thermal_cooling_device_ops thermal_uclamp_cdev_ops = {
 	.power2state = thermal_uclamp_power2state,
 };
 
-static ssize_t
-state2power_table_show(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t state2power_table_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct thermal_cooling_device *cdev = to_cooling_device(dev);
 	struct thermal_uclamp_cdev *uclamp_cdev = cdev->devdata;
@@ -184,6 +196,7 @@ static DEVICE_ATTR_RO(state2power_table);
 static void thermal_uclamp_cleanup(void)
 {
 	struct thermal_uclamp_cdev *uclamp_cdev = NULL, *n;
+	struct em_perf_state *table;
 
 	mutex_lock(&therm_cdev_list_lock);
 	list_for_each_entry_safe(uclamp_cdev, n, &therm_uclamp_cdev_list, cdev_list) {
@@ -196,9 +209,14 @@ static void thermal_uclamp_cleanup(void)
 			thermal_cooling_device_unregister(uclamp_cdev->cdev);
 			uclamp_cdev->cdev = NULL;
 		}
+
+		rcu_read_lock();
+		table = em_perf_state_from_pd(uclamp_cdev->em);
 		sched_thermal_freq_cap(
 				uclamp_cdev->cpu,
-				uclamp_cdev->em->table[uclamp_cdev->max_state].frequency);
+				table[uclamp_cdev->max_state].frequency);
+		rcu_read_unlock();
+
 		kfree(uclamp_cdev);
 	}
 	mutex_unlock(&therm_cdev_list_lock);
@@ -211,6 +229,7 @@ static int __init thermal_uclamp_init(void)
 	struct cpufreq_policy *policy = 0;
 	struct thermal_uclamp_cdev *uclamp_cdev = NULL;
 	char *name = NULL;
+	struct em_perf_state *table;
 
 	if (!list_empty(&therm_uclamp_cdev_list)) {
 		pr_err("Thermal uclamp cdev already initialized\n");
@@ -252,9 +271,14 @@ static int __init thermal_uclamp_init(void)
 		policy = NULL;
 
 		list_add_tail(&uclamp_cdev->cdev_list, &therm_uclamp_cdev_list);
+
+		rcu_read_lock();
+		table = em_perf_state_from_pd(uclamp_cdev->em);
 		sched_thermal_freq_cap(
 				uclamp_cdev->cpu,
-				uclamp_cdev->em->table[uclamp_cdev->max_state].frequency);
+				table[uclamp_cdev->max_state].frequency);
+		rcu_read_unlock();
+
 		name = kasprintf(GFP_KERNEL, "thermal-uclamp-%d", uclamp_cdev->cpu);
 		uclamp_cdev->cdev = thermal_cooling_device_register(name, uclamp_cdev,
 								    &thermal_uclamp_cdev_ops);

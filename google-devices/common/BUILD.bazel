@@ -1,0 +1,191 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
+load("@kleaf//build/kernel/kleaf:hermetic_tools.bzl", "hermetic_genrule")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_prebuilt_module")
+load("//private/devices/google/common/kleaf:create_file.bzl", "create_file")
+
+package(
+    default_visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+label_flag(
+    name = "kernel",
+    build_setting_default = "//common:kernel_aarch64",
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules:__subpackages__",
+    ],
+)
+
+string_flag(
+    name = "soc",
+    build_setting_default = "",
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules:__subpackages__",
+    ],
+)
+
+config_setting(
+    name = "soc_is_malibu",
+    flag_values = {":soc": "malibu"},
+)
+
+config_setting(
+    name = "soc_is_laguna",
+    flag_values = {":soc": "laguna"},
+)
+
+config_setting(
+    name = "soc_is_zumapro",
+    flag_values = {":soc": "zumapro"},
+)
+
+config_setting(
+    name = "soc_is_zuma",
+    flag_values = {":soc": "zuma"},
+)
+
+config_setting(
+    name = "soc_is_gs201",
+    flag_values = {":soc": "gs201"},
+)
+
+config_setting(
+    name = "soc_is_gs101",
+    flag_values = {":soc": "gs101"},
+)
+
+selects.config_setting_group(
+    name = "soc_is_laguna_or_later",
+    match_any = [
+        ":soc_is_malibu",
+        ":soc_is_laguna",
+    ],
+)
+
+selects.config_setting_group(
+    name = "soc_is_zumapro_or_before",
+    match_any = [
+        ":soc_is_zumapro",
+        ":soc_is_zuma",
+        ":soc_is_gs201",
+        ":soc_is_gs101",
+    ],
+)
+
+selects.config_setting_group(
+    name = "soc_is_zuma_or_zumapro",
+    match_any = [
+        ":soc_is_zumapro",
+        ":soc_is_zuma",
+    ],
+)
+
+selects.config_setting_group(
+    name = "soc_is_gs201_or_before",
+    match_any = [
+        ":soc_is_gs201",
+        ":soc_is_gs101",
+    ],
+)
+
+bool_flag(
+    name = "use_prebuilt_fips140",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "use_prebuilt_fips140_is_true",
+    flag_values = {":use_prebuilt_fips140": "1"},
+)
+
+_FIPS140_KO = "//prebuilts/gki/kernel_aarch64_fips140:fips140.ko"
+
+hermetic_genrule(
+    name = "fips140_ko",
+    srcs = [_FIPS140_KO],
+    outs = ["fips140.ko"],
+    cmd = """
+        llvm-strip --strip-debug -o $(location fips140.ko) $(location {fips140_ko})
+    """.format(fips140_ko = _FIPS140_KO),
+    use_cc_toolchain = True,
+)
+
+create_file(
+    name = "fips140_modules_order",
+    out = "fips140_modules.order",
+    contents = [
+        "extra/private/devices/google/common/fips140.ko",
+    ],
+)
+
+ddk_prebuilt_module(
+    name = "fips140",
+    src = ":fips140_ko",
+    kernel_build = ":kernel",
+    modules_order = ":fips140_modules_order",
+)
+
+bool_flag(
+    name = "factory",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "factory_build",
+    flag_values = {
+        ":factory": "true",
+    },
+)
+
+filegroup(
+    name = "sepolicy",
+    srcs = glob([
+        "sepolicy/*",
+    ]),
+)
+
+filegroup(
+    name = "user_ddk_unsafe_headers",
+    srcs = [
+        "//common:arch/arm64/kvm/hyp/include/nvhe/alloc.h",
+        "//common:arch/arm64/kvm/hyp/include/nvhe/gfp.h",
+        "//common:arch/arm64/kvm/hyp/include/nvhe/mem_protect.h",
+        "//common:arch/arm64/kvm/hyp/include/nvhe/memory.h",
+        "//common:arch/arm64/kvm/hyp/include/nvhe/mm.h",
+        "//common:arch/arm64/kvm/hyp/include/nvhe/pkvm.h",
+        "//common:arch/arm64/kvm/hyp/include/nvhe/refcount.h",
+        "//common:arch/arm64/kvm/hyp/include/nvhe/rwlock.h",
+        "//common:arch/arm64/kvm/hyp/include/nvhe/trap_handler.h",
+        "//common:drivers/android/binder_internal.h",
+        "//common:drivers/android/debug_kinfo.h",
+        "//common:drivers/hwtracing/coresight/coresight-etm4x.h",
+        "//common:drivers/hwtracing/coresight/coresight-priv.h",
+        "//common:drivers/iommu/dma-iommu.h",
+        "//common:drivers/pinctrl/pinctrl-utils.h",
+        "//common:drivers/pinctrl/samsung/pinctrl-samsung.h",
+        "//common:drivers/spi/spi-dw.h",
+        "//common:drivers/ufs/core/ufshcd-crypto.h",
+        "//common:drivers/ufs/host/ufshcd-pltfrm.h",
+        "//common:drivers/usb/core/hub.h",
+        "//common:drivers/usb/dwc3/gadget.h",
+        "//common:drivers/usb/gadget/configfs.h",
+        "//common:drivers/usb/host/xhci.h",
+        "//common:drivers/usb/host/xhci-mvebu.h",
+        "//common:drivers/usb/host/xhci-plat.h",
+        "//common:kernel/sched/autogroup.h",
+        "//common:kernel/sched/pelt.h",
+        "//common:kernel/sched/sched.h",
+        "//common:kernel/sched/sched-pelt.h",
+    ],
+)

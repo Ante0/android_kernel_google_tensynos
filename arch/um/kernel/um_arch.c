@@ -23,6 +23,7 @@
 #include <asm/cpufeature.h>
 #include <asm/sections.h>
 #include <asm/setup.h>
+#include <asm/text-patching.h>
 #include <as-layout.h>
 #include <arch.h>
 #include <init.h>
@@ -97,7 +98,7 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 
 static void *c_start(struct seq_file *m, loff_t *pos)
 {
-	return *pos < nr_cpu_ids ? cpu_data + *pos : NULL;
+	return *pos < nr_cpu_ids ? &boot_cpu_data + *pos : NULL;
 }
 
 static void *c_next(struct seq_file *m, void *v, loff_t *pos)
@@ -124,9 +125,6 @@ EXPORT_SYMBOL(uml_physmem);
 unsigned long uml_reserved; /* Also modified in mem_init */
 unsigned long start_vm;
 unsigned long end_vm;
-
-/* Set in uml_ncpus_setup */
-int ncpus = 1;
 
 /* Set in early boot */
 static int have_root __initdata;
@@ -327,9 +325,13 @@ int __init linux_main(int argc, char **argv)
 		add_arg(DEFAULT_COMMAND_LINE_CONSOLE);
 
 	host_task_size = os_get_top_address();
-	/* reserve two pages for the stubs */
-	host_task_size -= 2 * PAGE_SIZE;
-	stub_start = host_task_size;
+	/* reserve a few pages for the stubs (taking care of data alignment) */
+	/* align the data portion */
+	BUILD_BUG_ON(!is_power_of_2(STUB_DATA_PAGES));
+	stub_start = (host_task_size - 1) & ~(STUB_DATA_PAGES * PAGE_SIZE - 1);
+	/* another page for the code portion */
+	stub_start -= PAGE_SIZE;
+	host_task_size = stub_start;
 
 	/*
 	 * TASK_SIZE needs to be PGDIR_SIZE aligned or else exit_mmap craps
@@ -369,10 +371,10 @@ int __init linux_main(int argc, char **argv)
 	max_physmem = TASK_SIZE - uml_physmem - iomem_size - MIN_VMALLOC;
 
 	/*
-	 * Zones have to begin on a 1 << MAX_ORDER page boundary,
+	 * Zones have to begin on a 1 << MAX_PAGE_ORDER page boundary,
 	 * so this makes sure that's true for highmem
 	 */
-	max_physmem &= ~((1 << (PAGE_SHIFT + MAX_ORDER)) - 1);
+	max_physmem &= ~((1 << (PAGE_SHIFT + MAX_PAGE_ORDER)) - 1);
 	if (physmem_size + iomem_size > max_physmem) {
 		highmem = physmem_size + iomem_size - max_physmem;
 		physmem_size -= highmem;
@@ -433,7 +435,7 @@ void __init arch_cpu_finalize_init(void)
 	os_check_bugs();
 }
 
-void apply_ibt_endbr(s32 *start, s32 *end)
+void apply_seal_endbr(s32 *start, s32 *end)
 {
 }
 
@@ -442,6 +444,11 @@ void apply_retpolines(s32 *start, s32 *end)
 }
 
 void apply_returns(s32 *start, s32 *end)
+{
+}
+
+void apply_fineibt(s32 *start_retpoline, s32 *end_retpoline,
+		   s32 *start_cfi, s32 *end_cfi)
 {
 }
 

@@ -63,17 +63,24 @@ static inline struct aa_label *aa_get_newest_cred_label(const struct cred *cred)
 	return aa_get_newest_label(aa_cred_raw_label(cred));
 }
 
-/**
- * __aa_task_raw_label - retrieve another task's label
- * @task: task to query  (NOT NULL)
- *
- * Returns: @task's label without incrementing its ref count
- *
- * If @task != current needs to be called in RCU safe critical section
- */
-static inline struct aa_label *__aa_task_raw_label(struct task_struct *task)
+static inline struct aa_label *aa_get_newest_cred_label_condref(const struct cred *cred,
+								bool *needput)
 {
-	return aa_cred_raw_label(__task_cred(task));
+	struct aa_label *l = aa_cred_raw_label(cred);
+
+	if (unlikely(label_is_stale(l))) {
+		*needput = true;
+		return aa_get_newest_label(l);
+	}
+
+	*needput = false;
+	return l;
+}
+
+static inline void aa_put_label_condref(struct aa_label *l, bool needput)
+{
+	if (unlikely(needput))
+		aa_put_label(l);
 }
 
 /**

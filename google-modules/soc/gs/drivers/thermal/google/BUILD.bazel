@@ -1,0 +1,109 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg13_spmic_thermal",
+    out = "s2mpg13_spmic_thermal.ko",
+    conditional_srcs = {
+        "CONFIG_GSOC_PMIC_THERMAL": {
+            True: [
+                "s2mpg13_spmic_thermal.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/mfd:s2mpg13-mfd",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/metrics:pixel_metrics",
+    ],
+)
+
+ddk_module(
+    name = "gs101_spmic_thermal",
+    out = "gs101_spmic_thermal.ko",
+    conditional_srcs = {
+        "CONFIG_GSOC_PMIC_THERMAL": {
+            True: [
+                "gs101_spmic_thermal.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg15_spmic_thermal",
+    out = "s2mpg15_spmic_thermal.ko",
+    conditional_srcs = {
+        "CONFIG_GSOC_PMIC_THERMAL_CAMBRIA": {
+            True: [
+                "s2mpg15_spmic_thermal.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/mfd:s2mpg15-mfd",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/metrics:pixel_metrics",
+    ],
+)
+
+ddk_module(
+    name = "sts4x_ambient_i2c",
+    out = "sts4x_ambient_i2c.ko",
+    conditional_srcs = {
+        "CONFIG_THERMAL_SENSOR_STS4X": {
+            True: [
+                "sts4x_ambient_i2c.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "cdev_uclamp",
+    out = "cdev_uclamp.ko",
+    conditional_srcs = {
+        "CONFIG_THERMAL_UCLAMP_COOLING_DEVICE": {
+            True: [
+                "cdev_uclamp.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/sched:vh_sched",
+    ],
+)

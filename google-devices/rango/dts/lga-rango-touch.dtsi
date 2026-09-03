@@ -1,0 +1,77 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * LGA rango common touch device tree source
+ *
+ * Copyright 2024 Google, LLC.
+ */
+
+/ {
+	fragment@touch_bus_negotiator {
+		target-path = "/";
+		__overlay__ {
+			tbn: tbn {
+				compatible = "touch_bus_negotiator";
+				tbn,mode = <2>;
+			};
+		};
+	};
+};
+
+/*
+ * Inner touch is connected to XAOC_SPI2, pins:
+ * CLK=AOC_INT_GPIO67, MOSI=AOC_INT_GPIO68, MISO=AOC_INT_GPIO69
+ * CS=AOC_INT_GPIO70
+ * TS0_RESET = ANACAPA SUB GPIO_18
+ * TS0_INT = XAOC_GPIO13
+ *
+ * DVDD = PP1800_L24M_TS1_DVDD = VLDO24M
+ * AVDD = PP3300_L26M_TS1_AVDD  = VLDO26M
+ */
+
+&lsion_cli19_int2_spi {
+	google,cs-clock-delay-us = <10>;
+	polling-busy-wait-mode;
+
+	inner_touch: touchscreen@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		status = "disabled";
+		reg = <0>;
+		pinctrl-names = "ts_active", "ts_suspend";
+		pinctrl-0 = <&ts1_2_aoc_int_l_1v2 &pmics2ts1_reset_l_1v2>; /* TODO: pinctrl */
+		pinctrl-1 = <>;
+
+		vdd-supply = <&ldo_24m_reg>;
+		avdd-supply = <&ldo_26m_reg>;
+	};
+};
+
+/*
+ * Outer touch is connected to XAOC_SPI3, pins:
+ * CLK=AOC_INT_GPIO63, MOSI=AOC_INT_GPIO64, MISO=AOC_INT_GPIO65
+ * CS=AOC_INT_GPIO66
+ * TS1_RESET = ANACAPA SUB GPIO_17
+ * TS1_INT = XAOC_GPIO12
+ *
+ * DVDD = PP1800_L27S_TS2_DVDD = VLDO27S
+ * AVDD = PP3300_L26S_TS2_AVDD  = VLDO26S
+ */
+
+&lsion_cli20_int3_spi {
+	polling-busy-wait-mode;
+
+	outer_touch: touchscreen@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		status = "disabled";
+		reg = <0>;
+		pinctrl-names = "ts_active", "ts_suspend";
+		pinctrl-0 = <&ts0_2_aoc_int_l_1v2 &pmics2ts0_reset_l_1v2>; /* TODO: pinctrl */
+		pinctrl-1 = <>;
+
+		vdd-supply = <&ldo_27s_reg>;
+		avdd-supply = <&ldo_26s_reg>;
+	};
+};

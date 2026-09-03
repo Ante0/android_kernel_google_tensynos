@@ -74,7 +74,7 @@ required:
   - reg
   - gpio-controller
   - "#gpio-cells"
-  - "brcm,gpio-bank-widths"
+  - brcm,gpio-bank-widths
 
 additionalProperties: false
 

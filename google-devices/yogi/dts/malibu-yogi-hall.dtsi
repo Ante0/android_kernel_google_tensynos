@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: GPL-2.0-only or BSD-2-clause.
+/*
+ * Google Yogi-specific hall sensor device tree source.
+ *
+ * Copyright 2026 Google, LLC.
+ */
+
+/ {
+	fragment@hall {
+		target-path = "/";
+		__overlay__ {
+			hall_sensor:hall_sensor {
+				staus = "ok";
+				compatible = "hall,drv5032";
+				interrupt-parent = <&aoss_audio_pinctrl>;
+				interrupts = <XAOSS_SC_I2S1_WS GPIO_ACTIVE_LOW>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&hall1_out_aoss_l_1v2>;
+				hall,gpio = <HALL1_OUT_AOSS_L_1V2(GPIO_ACTIVE_LOW)>;
+			};
+		};
+	};
+};

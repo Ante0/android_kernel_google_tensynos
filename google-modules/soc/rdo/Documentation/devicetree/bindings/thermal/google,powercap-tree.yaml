@@ -1,0 +1,169 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/thermal/google,powercap-tree.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google Powercap Tree
+
+maintainers:
+  - Ram Chandrasekar <rchandrasekar@google.com>
+
+description: |
+  This binding describes the Google powercap tree, which represents a hierarchy
+  of power-capping zones. The tree is composed of virtual nodes, which act as
+  containers for other nodes, and leaf nodes, which are associated with specific
+  hardware devices like CPUs or devfreq-managed devices.
+
+properties:
+  compatible:
+    const: google,powercap-tree
+
+patternProperties:
+  "^[a-zA-Z0-9,-_]+$":
+    $ref: "#/$defs/powercap-node"
+
+required:
+  - compatible
+
+additionalProperties: false
+
+$defs:
+  powercap-node:
+    type: object
+    description: |
+      Represents a node in the powercap tree. It can be a virtual node (a container)
+      or a leaf node representing a hardware component.
+
+    properties:
+      google,node-type:
+        description: |
+          Specifies the type of the powercap node. The values should correspond
+          to definitions in <dt-bindings/soc/google/google-thermal-def.h>.
+          - GPOWERCAP_NODE_VIRTUAL: A virtual node that acts as a container.
+          - GPOWERCAP_NODE_CPU: A node associated with a CPU cluster.
+          - GPOWERCAP_NODE_DEVFREQ: A node associated with a devfreq device.
+          - GPOWERCAP_NODE_VIRTUAL_VOLTAGE: A virtual node that distributes power based on voltage.
+          - GPOWERCAP_NODE_VIRTUAL_WEIGHTS: A virtual node that distributes power based on weights.
+        $ref: /schemas/types.yaml#/definitions/uint32
+
+      power-distribution-weights:
+        description:
+          A list of strings representing pairs of child node names and their
+          initial weights. Each pair consists of the child node name followed by
+          its weight as a string.
+        $ref: /schemas/types.yaml#/definitions/string-array
+
+      google,device-phandle:
+        description:
+          A phandle to the device associated with this powercap node (e.g., a CPU
+          or GPU device). This is required for non-virtual (leaf) nodes.
+        $ref: /schemas/types.yaml#/definitions/phandle
+
+      google,cdev-id:
+        description:
+          The cooling device ID associated with this powercap node. This is
+          required for non-virtual (leaf) nodes. e.g., <HW_DT_CDEV_BIG>,
+          <HW_DT_CDEV_GPU>. The values should correspond to definitions in
+          <dt-bindings/soc/google/google-thermal-def.h>.
+        $ref: /schemas/types.yaml#/definitions/uint32
+
+      odpm-rail-name:
+        description:
+          The string name of the power rail regulator for On-Device Power
+          Measurement (ODPM). If this property is present, dynamic power
+          capping based on real-time power measurement is enabled for this node.
+        $ref: /schemas/types.yaml#/definitions/string
+
+      polling-interval-ms:
+        description:
+          The desired polling interval in milliseconds for ODPM. This property
+          is used in conjunction with 'odpm-rail-name'. A value of 0 disables
+          ODPM for this node.
+        $ref: /schemas/types.yaml#/definitions/uint32
+
+    required:
+      - google,node-type
+
+    patternProperties:
+      "^[a-zA-Z0-9,-_]+$":
+        $ref: "#/$defs/powercap-node"
+
+    allOf:
+      - if:
+          properties:
+            google,node-type:
+              enum:
+                - 2 # GPOWERCAP_NODE_VIRTUAL
+                - 3 # GPOWERCAP_NODE_VIRTUAL_VOLTAGE
+                - 4 # GPOWERCAP_NODE_VIRTUAL_WEIGHTS
+        then:
+          properties:
+            google,device-phandle: false
+            google,cdev-id: false
+            odpm-rail-name: false
+            polling-interval-ms: false
+        else:
+          required:
+            - google,device-phandle
+            - google,cdev-id
+
+      - if:
+          not:
+            properties:
+              google,node-type:
+                const: 4 # GPOWERCAP_NODE_VIRTUAL_WEIGHTS
+        then:
+          properties:
+            power-distribution-weights: false
+
+    additionalProperties: false
+
+example: |
+  The following shows an example of a powercap tree structure:
+
+  soc
+  |── big-cluster
+  └── gpu
+
+  #include <dt-bindings/soc/google/google-thermal-def.h>
+
+  powercap-tree {
+      compatible = "google,powercap-tree";
+
+      soc {
+          google,node-type = <GPOWERCAP_NODE_VIRTUAL>;
+
+          big-cluster {
+              google,node-type = <GPOWERCAP_NODE_CPU>;
+              google,device-phandle = <&travis_0>;
+              google,cdev-id = <HW_DT_CDEV_BIG>;
+              odpm-rail-name = "S2M_VDD_CPU2";
+              polling-interval-ms = <100>;
+          };
+
+          gpu {
+              google,node-type = <GPOWERCAP_NODE_DEVFREQ>;
+              google,device-phandle = <&gpu>;
+              google,cdev-id = <HW_DT_CDEV_GPU>;
+          };
+
+          weighted_domain {
+              google,node-type = <GPOWERCAP_NODE_VIRTUAL_WEIGHTS>;
+              power-distribution-weights = "tpu", "10",
+                                              "aurora", "10";
+
+              tpu {
+                  google,node-type = <GPOWERCAP_NODE_DEVFREQ>;
+                  google,device-phandle = <&tpu>;
+                  google,cdev-id = <HW_DT_CDEV_TPU>;
+              };
+
+              aurora {
+                  google,node-type = <GPOWERCAP_NODE_DEVFREQ>;
+                  google,device-phandle = <&aurora>;
+                  google,cdev-id = <HW_DT_CDEV_AUR>;
+              };
+          };
+      };
+  };

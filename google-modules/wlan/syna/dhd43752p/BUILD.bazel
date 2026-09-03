@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_headers(
+    name = "synadhd_headers",
+    hdrs = glob(
+        [
+            "**/*.h",
+            "**/*.mk",
+        ],
+        allow_empty = True,
+    ) + [
+        "//private/google-modules/soc/gs:headers",
+    ],
+    includes = [
+        ".",
+        "include",
+    ],
+)
+
+ddk_module(
+    name = "synadhd",
+    srcs = [
+        "aiutils.c",
+        "bcm_app_utils.c",
+        "bcmbloom.c",
+        "bcmevent.c",
+        "bcmstdlib_s.c",
+        "bcmutils.c",
+        "bcmwifi_channels.c",
+        "bcmxtlv.c",
+        "dhd_cfg80211.c",
+        "dhd_common.c",
+        "dhd_custom_google.c",
+        "dhd_custom_gpio.c",
+        "dhd_custom_memprealloc.c",
+        "dhd_dbg_ring.c",
+        "dhd_debug.c",
+        "dhd_debug_linux.c",
+        "dhd_event_log_filter.c",
+        "dhd_flowring.c",
+        "dhd_ip.c",
+        "dhd_linux.c",
+        "dhd_linux_exportfs.c",
+        "dhd_linux_lb.c",
+        "dhd_linux_pktdump.c",
+        "dhd_linux_platdev.c",
+        "dhd_linux_sched.c",
+        "dhd_linux_wq.c",
+        "dhd_mschdbg.c",
+        "dhd_msgbuf.c",
+        "dhd_pcie.c",
+        "dhd_pcie_linux.c",
+        "dhd_pktlog.c",
+        "dhd_pno.c",
+        "dhd_rtt.c",
+        "dhd_statlog.c",
+        "frag.c",
+        "hnd_pktpool.c",
+        "hnd_pktq.c",
+        "hndpmu.c",
+        "linux_osl.c",
+        "linux_pkt.c",
+        "pcie_core.c",
+        "sbutils.c",
+        "siutils.c",
+        "wb_regon_coordinator.c",
+        "wl_android.c",
+        "wl_cfg80211.c",
+        "wl_cfg_btcoex.c",
+        "wl_cfgnan.c",
+        "wl_cfgp2p.c",
+        "wl_cfgscan.c",
+        "wl_cfgvendor.c",
+        "wl_cfgvif.c",
+        "wl_linux_mon.c",
+        "wl_roam.c",
+        "wldev_common.c",
+    ] + glob([
+        "**/*.h",
+    ]),
+    out = "synadhd.ko",
+    copts = [
+        "-include",
+        "$(execpath dhd_defines.h)",
+        "-I$(ROOT_DIR)/private/google-modules/soc/gs/include",
+        "-Wno-missing-prototypes",
+        "-Wno-unused-function",
+        "-fstrict-flex-arrays=0",
+    ],
+    includes = [
+        ".",
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":synadhd_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs/drivers/pci/controller/dwc-whi:pcie-exynos-gs",
+    ],
+)

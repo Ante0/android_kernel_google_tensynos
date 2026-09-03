@@ -1220,14 +1220,12 @@ err_clk:
 	return ret;
 }
 
-static int msm8916_wcd_digital_remove(struct platform_device *pdev)
+static void msm8916_wcd_digital_remove(struct platform_device *pdev)
 {
 	struct msm8916_wcd_digital_priv *priv = dev_get_drvdata(&pdev->dev);
 
 	clk_disable_unprepare(priv->mclk);
 	clk_disable_unprepare(priv->ahbclk);
-
-	return 0;
 }
 
 static const struct of_device_id msm8916_wcd_digital_match_table[] = {

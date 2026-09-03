@@ -16,6 +16,9 @@
 #include "lwis_io_buffer.h"
 #include "lwis_util.h"
 
+bool lwis_io_buffer_debug;
+module_param(lwis_io_buffer_debug, bool, 0644);
+
 struct pdma_buffer {
 	struct iosys_map io_sys_map;
 	struct dma_buf *dma_buf;
@@ -31,6 +34,9 @@ int lwis_io_buffer_map(struct lwis_device *lwis_dev, struct lwis_io_entry *entry
 	pdma_buffer = kmalloc(sizeof(struct pdma_buffer), GFP_KERNEL);
 	if (!pdma_buffer)
 		return -ENOMEM;
+
+	if (lwis_io_buffer_debug)
+		dev_info(lwis_dev->dev, "write_to_buffer.fd = %d\n", entry->write_to_buffer.fd);
 
 	k_data_to_write = kmalloc(entry->write_to_buffer.size_in_bytes, GFP_KERNEL);
 	if (!k_data_to_write) {
@@ -53,7 +59,7 @@ int lwis_io_buffer_map(struct lwis_device *lwis_dev, struct lwis_io_entry *entry
 		goto err_free_buf;
 	}
 
-	ret = dma_buf_vmap(dma_buffer, &pdma_buffer->io_sys_map);
+	ret = dma_buf_vmap_unlocked(dma_buffer, &pdma_buffer->io_sys_map);
 	if (ret) {
 		dev_err(lwis_dev->dev, "PDMA buffer IO failed because vmap failed");
 		goto err_dma_put;
@@ -73,7 +79,7 @@ int lwis_io_buffer_map(struct lwis_device *lwis_dev, struct lwis_io_entry *entry
 	return 0;
 
 err_dma_vunmap:
-	dma_buf_vunmap(dma_buffer, &pdma_buffer->io_sys_map);
+	dma_buf_vunmap_unlocked(dma_buffer, &pdma_buffer->io_sys_map);
 err_dma_put:
 	dma_buf_put(dma_buffer);
 err_free_buf:
@@ -88,7 +94,7 @@ void lwis_io_buffer_unmap(struct lwis_io_entry *entry)
 	struct pdma_buffer *pdma_buffer = entry->write_to_buffer.buffer;
 
 	dma_buf_end_cpu_access(pdma_buffer->dma_buf, DMA_BIDIRECTIONAL);
-	dma_buf_vunmap(pdma_buffer->dma_buf, &pdma_buffer->io_sys_map);
+	dma_buf_vunmap_unlocked(pdma_buffer->dma_buf, &pdma_buffer->io_sys_map);
 	dma_buf_put(pdma_buffer->dma_buf);
 	kfree(entry->write_to_buffer.bytes);
 	kfree(entry->write_to_buffer.buffer);
@@ -101,11 +107,29 @@ int lwis_io_buffer_write(struct lwis_device *lwis_dev, struct lwis_io_entry *ent
 {
 	struct pdma_buffer *pdma_buffer = entry->write_to_buffer.buffer;
 	void *kernel_address;
+	size_t end;
+
+	if (check_add_overflow(entry->write_to_buffer.offset,
+			       (uint64_t)entry->write_to_buffer.size_in_bytes, &end) ||
+	    end > pdma_buffer->dma_buf->size) {
+		dev_err(lwis_dev->dev, "PDMA buffer IO failed because write is out of bounds");
+		return -EINVAL;
+	}
 
 	if (pdma_buffer->io_sys_map.is_iomem)
 		kernel_address = pdma_buffer->io_sys_map.vaddr_iomem;
 	else
 		kernel_address = pdma_buffer->io_sys_map.vaddr;
+
+	if (lwis_io_buffer_debug) {
+		dev_info(lwis_dev->dev, "kernel_address %p offset %llu size_in_bytes %llu\n",
+			 kernel_address, entry->write_to_buffer.offset,
+			 (unsigned long long)entry->write_to_buffer.size_in_bytes);
+
+		print_hex_dump_bytes("data dump: ", DUMP_PREFIX_NONE,
+				     entry->write_to_buffer.bytes,
+				     min_t(size_t, entry->write_to_buffer.size_in_bytes, 16));
+	}
 
 	memcpy(kernel_address + entry->write_to_buffer.offset, entry->write_to_buffer.bytes,
 	       entry->write_to_buffer.size_in_bytes);

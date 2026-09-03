@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Battery device tree entries specific to the lga paltform
+ *
+ * Copyright 2024 Google LLC
+ *
+ */
+
+#include "lga-battery.dtsi"
+#include "lga-max777xx_fwupdate.dtsi"
+
+&max77779_i2cm {
+#ifdef BATTERY_EEPROM_1K
+	pack_bee: m24c08@50 {
+		compatible = "at,24c08";
+
+		reg = <0x50>;
+	};
+#else
+	pack_bee: m24c64@50 {
+		compatible = "at,24c64";
+
+		reg = <0x50>;
+	};
+#endif
+};
+
+&google_battery {
+	google,fg-psy-name = "max77779fg";
+};
+
+&max77779_fwupdate {
+	/* 0: disable, 1: enable */
+	fwu,enabled = <1>;
+};

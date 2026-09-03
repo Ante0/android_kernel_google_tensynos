@@ -1,0 +1,4109 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Frankel GPIO and pinctrl mappings
+ *
+ * Copyright 2025 Google LLC
+ *
+ * These pinctrl mappings are generated based on the Platform IO pin definitions.
+ * Build id: 14551731
+ */
+
+#include <dt-bindings/gpio/google,lga.h>
+#include <dt-bindings/gpio/google,pmic-da9188-gpio.h>
+&aoc_pinctrl {
+	gpio-line-names =
+		"",
+		"",
+		"DMIC2_DATA",
+		"DMIC2_CLK_R",
+		"DMIC3_DATA",
+		"DMIC3_CLK_R",
+		"DMIC1_DATA",
+		"DMIC1_CLK_R",
+		"AOC2BT_I2S_BCLK_1V2",
+		"AOC2BT_I2S_FS_1V2",
+		"AOC2BT_I2S_SDA_1V2",
+		"BT2AOC_I2S_SDA_1V2",
+		"LDAF2AOC_IRQ_OD_L_1V2",
+		"AOC2BT_DEV_WAKE_1V2",
+		"BT2AOC_AP_UART_SDA_LOGI",
+		"AOC_AP2BT_UART_SDA_LOGI",
+		"AOC_AP2BT_UART_FC_LOGI",
+		"BT2AOC_AP_UART_FC_LOGI",
+		"CP2AOC_UART_SDA_1V2",
+		"AOC2CP_UART_SDA_1V2",
+		"AOC2CP_WAKE_1V2",
+		"CP2AOC_WAKE_1V2",
+		"BT2AOC_HOST_WAKE_1V2",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"AP_XAOC_OUT_MCLK_1V2_TP",
+		"SPFL_PDM_DAT",
+		"SPFL_PDM_CLK",
+		"AOC_SNS_I2C2_SCL",
+		"AOC_SNS_I2C2_SDA",
+		"AOC_SNS_I3C4_SCL",
+		"AOC_SNS_I3C4_SDA",
+		"",
+		"",
+		"",
+		"",
+		"AOC2AMP2_SPI_CS_L_1V2",
+		"AOC2AMP1_SPI_CS_L_1V2",
+		"AOC2AUDIO_SPI_CLK_R_1V2",
+		"AOC2AUDIO_SPI_MOSI_R_1V2",
+		"AUDIO2AOC_SPI_MISO_1V2",
+		"AOC2GNSS_MCU_REQ_1V2",
+		"AOC2AMP_TDM_BCLK_R_1V2",
+		"AOC2AMP_TDM_FS_R_1V2",
+		"AOC2AMP_TDM_SDA_R_1V2",
+		"AMP2AOC_TDM_SDA_1V2",
+		"",
+		"",
+		"GNSS_TIME_MARK_1V2",
+		"",
+		"IMU2AOC_INT_OD_L_1V2",
+		"CP2AOC_GNSS_TIME_SYNC_1V2",
+		"",
+		"GNSS2AOC_HOST_REQ_1V2",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"TS0_2_AOC_INT_L_1V2",
+		"",
+		"AOC_SNS_I3C0_SCL_1V2",
+		"AOC_SNS_I3C0_SDA_1V2",
+		"",
+		"",
+		"AOC2TS0_SPI_CLK_1V2",
+		"AOC2TS0_SPI_MOSI_1V2",
+		"TS0_2_AOC_SPI_MISO_1V2",
+		"AOC2TS0_SPI_CS_L_1V2",
+		"AOC2LDAF_SPI_CLK_1V2",
+		"AOC2LDAF_SPI_MOSI_1V2",
+		"LDAF2AOC_SPI_MISO_1V2",
+		"AOC2LDAF_SPI_CS_L_1V2",
+		"WLAN2AOC_UART_SDA_1V2",
+		"AOC2WLAN_UART_SDA_1V2",
+		"AOC2WLAN_WAKE_1V2",
+		"WLAN2AOC_WAKE_1V2",
+		"CP2AOC_PCM_VALID_1V2",
+		"",
+		"BARO2AOC_INT_OD_L_1V2",
+		"PROX0_2_AOC_INT_OD_L_1V2",
+		"GNSS2AOC_UART_SDA_1V2",
+		"AOC2GNSS_UART_SDA_1V2",
+		"",
+		"";
+
+	amp2aoc_tdm_sda_1v2: amp2aoc_tdm_sda_1v2 {
+		/* Audio - Amp */
+		pins = "XAOC_TDM1_SDI";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_tdm1";
+	};
+
+	amp2aoc_tdm_sda_1v2_sleep: amp2aoc_tdm_sda_1v2_sleep {
+		/* Audio - Amp - Sleep */
+		pins = "XAOC_TDM1_SDI";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	aoc2amp_tdm_bclk_r_1v2: aoc2amp_tdm_bclk_r_1v2 {
+		/* Audio - Amp */
+		pins = "XAOC_TDM1_BCLK";
+		bias-disable;
+		drive-strength = <7>;
+		input-enable;
+		output-enable;
+		function = "aoc_tdm1";
+	};
+
+	aoc2amp_tdm_fs_r_1v2: aoc2amp_tdm_fs_r_1v2 {
+		/* Audio - Amp */
+		pins = "XAOC_TDM1_WS";
+		bias-disable;
+		drive-strength = <7>;
+		input-enable;
+		output-enable;
+		function = "aoc_tdm1";
+	};
+
+	aoc2amp_tdm_fs_r_1v2_sleep: aoc2amp_tdm_fs_r_1v2_sleep {
+		/* Audio - Amp - Sleep */
+		pins = "XAOC_TDM1_WS";
+		input-enable;
+		output-low;
+		function = "aoc_int_gpio";
+	};
+
+	aoc2amp_tdm_sda_r_1v2: aoc2amp_tdm_sda_r_1v2 {
+		/* Audio - Amp */
+		pins = "XAOC_TDM1_SDO";
+		bias-disable;
+		drive-strength = <7>;
+		input-enable;
+		output-enable;
+		function = "aoc_tdm1";
+	};
+
+	aoc2amp_tdm_sda_r_1v2_sleep: aoc2amp_tdm_sda_r_1v2_sleep {
+		/* Audio - Amp - Sleep */
+		pins = "XAOC_TDM1_SDO";
+		input-enable;
+		output-low;
+		function = "aoc_int_gpio";
+	};
+
+	aoc2bt_dev_wake_1v2: aoc2bt_dev_wake_1v2 {
+		/* Connectivity - Bluetooth */
+		pins = "XAOC_GPIO1";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "aoc_cpm_eint";
+	};
+
+	aoc2bt_dev_wake_1v2_sleep: aoc2bt_dev_wake_1v2_sleep {
+		/* Connectivity - Bluetooth - Sleep */
+		pins = "XAOC_GPIO1";
+		input-enable;
+		output-low;
+		function = "aoc_int_gpio";
+	};
+
+	aoc2bt_i2s_bclk_1v2: aoc2bt_i2s_bclk_1v2 {
+		/* Connectivity - Bluetooth */
+		pins = "XAOC_I2S0_BCLK";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "aoc_i2s";
+	};
+
+	aoc2bt_i2s_fs_1v2: aoc2bt_i2s_fs_1v2 {
+		/* Connectivity - Bluetooth */
+		pins = "XAOC_I2S0_WS";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "aoc_i2s";
+	};
+
+	aoc2bt_i2s_fs_1v2_sleep: aoc2bt_i2s_fs_1v2_sleep {
+		/* Connectivity - Bluetooth - Sleep */
+		pins = "XAOC_I2S0_WS";
+		input-enable;
+		output-low;
+		function = "aoc_int_gpio";
+	};
+
+	aoc2bt_i2s_sda_1v2: aoc2bt_i2s_sda_1v2 {
+		/* Connectivity - Bluetooth */
+		pins = "XAOC_I2S0_SDO";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "aoc_i2s";
+	};
+
+	aoc2bt_i2s_sda_1v2_sleep: aoc2bt_i2s_sda_1v2_sleep {
+		/* Connectivity - Bluetooth - Sleep */
+		pins = "XAOC_I2S0_SDO";
+		input-enable;
+		output-low;
+		function = "aoc_int_gpio";
+	};
+
+	aoc2cp_wake_1v2: aoc2cp_wake_1v2 {
+		/* Connectivity - Modem */
+		pins = "XAOC_UART3_RTSn";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "aoc_int_gpio";
+	};
+
+	aoc2cp_wake_1v2_sleep: aoc2cp_wake_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XAOC_UART3_RTSn";
+		input-enable;
+		output-enable;
+		function = "aoc_int_gpio";
+	};
+
+	aoc2gnss_mcu_req_1v2: aoc2gnss_mcu_req_1v2 {
+		/* Connectivity - GNSS */
+		pins = "XAOC_SPI1_SSB";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "aoc_int_gpio";
+	};
+
+	aoc2gnss_mcu_req_1v2_sleep: aoc2gnss_mcu_req_1v2_sleep {
+		/* Connectivity - GNSS - Sleep */
+		pins = "XAOC_SPI1_SSB";
+		input-enable;
+		output-enable;
+		function = "aoc_int_gpio";
+	};
+
+	aoc2wlan_wake_1v2: aoc2wlan_wake_1v2 {
+		/* Connectivity - WLAN */
+		pins = "XAOC_UART1_RTSn";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "aoc_int_gpio";
+	};
+
+	aoc2wlan_wake_1v2_sleep: aoc2wlan_wake_1v2_sleep {
+		/* Connectivity - WLAN - Sleep */
+		pins = "XAOC_UART1_RTSn";
+		input-enable;
+		output-enable;
+		function = "aoc_int_gpio";
+	};
+
+	aoc_ap2bt_uart_fc_logi: aoc_ap2bt_uart_fc_logi {
+		/* Connectivity - Bluetooth */
+		pins = "XAOC_UART0_RTSn";
+		bias-disable;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	aoc_ap2bt_uart_fc_logi_sleep: aoc_ap2bt_uart_fc_logi_sleep {
+		/* Connectivity - Bluetooth - Sleep */
+		pins = "XAOC_UART0_RTSn";
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	aoc_ap2bt_uart_sda_logi: aoc_ap2bt_uart_sda_logi {
+		/* Connectivity - Bluetooth */
+		pins = "XAOC_UART0_TXD";
+		bias-disable;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	aoc_ap2bt_uart_sda_logi_sleep: aoc_ap2bt_uart_sda_logi_sleep {
+		/* Connectivity - Bluetooth - Sleep */
+		pins = "XAOC_UART0_TXD";
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	ap_xaoc_out_mclk_1v2_tp: ap_xaoc_out_mclk_1v2_tp {
+		/* System - Clock */
+		pins = "XAOC_OUT_MCLK";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "aoc_out_mclk";
+	};
+
+	baro2aoc_int_od_l_1v2: baro2aoc_int_od_l_1v2 {
+		/* Sensors - Baro */
+		pins = "XAOC_UART4_RTSn";
+		bias-disable;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	baro2aoc_int_od_l_1v2_sleep: baro2aoc_int_od_l_1v2_sleep {
+		/* Sensors - Baro - Sleep */
+		pins = "XAOC_UART4_RTSn";
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	bt2aoc_ap_uart_fc_logi: bt2aoc_ap_uart_fc_logi {
+		/* Connectivity - Bluetooth */
+		pins = "XAOC_UART0_CTSn";
+		bias-disable;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	bt2aoc_ap_uart_fc_logi_sleep: bt2aoc_ap_uart_fc_logi_sleep {
+		/* Connectivity - Bluetooth - Sleep */
+		pins = "XAOC_UART0_CTSn";
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	bt2aoc_ap_uart_sda_logi: bt2aoc_ap_uart_sda_logi {
+		/* Connectivity - Bluetooth */
+		pins = "XAOC_UART0_RXD";
+		bias-disable;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	bt2aoc_ap_uart_sda_logi_sleep: bt2aoc_ap_uart_sda_logi_sleep {
+		/* Connectivity - Bluetooth - Sleep */
+		pins = "XAOC_UART0_RXD";
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	bt2aoc_host_wake_1v2: bt2aoc_host_wake_1v2 {
+		/* Connectivity - Bluetooth */
+		pins = "XAOC_GPIO2";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_cpm_eint";
+	};
+
+	bt2aoc_host_wake_1v2_sleep: bt2aoc_host_wake_1v2_sleep {
+		/* Connectivity - Bluetooth - Sleep */
+		pins = "XAOC_GPIO2";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	bt2aoc_i2s_sda_1v2: bt2aoc_i2s_sda_1v2 {
+		/* Connectivity - Bluetooth */
+		pins = "XAOC_I2S0_SDI";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_i2s";
+	};
+
+	bt2aoc_i2s_sda_1v2_sleep: bt2aoc_i2s_sda_1v2_sleep {
+		/* Connectivity - Bluetooth - Sleep */
+		pins = "XAOC_I2S0_SDI";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	cp2aoc_gnss_time_sync_1v2: cp2aoc_gnss_time_sync_1v2 {
+		/* Connectivity - GNSS */
+		pins = "XAOC_GPIO9";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_fiq";
+	};
+
+	cp2aoc_gnss_time_sync_1v2_sleep: cp2aoc_gnss_time_sync_1v2_sleep {
+		/* Connectivity - GNSS - Sleep */
+		pins = "XAOC_GPIO9";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	cp2aoc_pcm_valid_1v2: cp2aoc_pcm_valid_1v2 {
+		/* Connectivity - Modem */
+		pins = "XAOC_UART4_RXD";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_fiq";
+	};
+
+	cp2aoc_pcm_valid_1v2_sleep: cp2aoc_pcm_valid_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XAOC_UART4_RXD";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	cp2aoc_wake_1v2: cp2aoc_wake_1v2 {
+		/* Connectivity - Modem */
+		pins = "XAOC_UART3_CTSn";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	cp2aoc_wake_1v2_sleep: cp2aoc_wake_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XAOC_UART3_CTSn";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	dmic1_clk_r: dmic1_clk_r {
+		/* Audio - Microphone */
+		pins = "XAOC_PDM0_MIC_CLK";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "aoc_pdm";
+	};
+
+	dmic1_data: dmic1_data {
+		/* Audio - Microphone */
+		pins = "XAOC_PDM0_MIC_IN";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_pdm";
+	};
+
+	dmic1_data_sleep: dmic1_data_sleep {
+		/* Audio - Microphone - Sleep */
+		pins = "XAOC_PDM0_MIC_IN";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	dmic2_clk_r: dmic2_clk_r {
+		/* Audio - Microphone */
+		pins = "XAOC_PDM2_MIC_CLK";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "aoc_pdm2";
+	};
+
+	dmic2_data: dmic2_data {
+		/* Audio - Microphone */
+		pins = "XAOC_PDM2_MIC_IN";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_pdm2";
+	};
+
+	dmic2_data_sleep: dmic2_data_sleep {
+		/* Audio - Microphone - Sleep */
+		pins = "XAOC_PDM2_MIC_IN";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	dmic3_clk_r: dmic3_clk_r {
+		/* Audio - Microphone */
+		pins = "XAOC_PDM3_MIC_CLK";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "aoc_pdm3";
+	};
+
+	dmic3_data: dmic3_data {
+		/* Audio - Microphone */
+		pins = "XAOC_PDM3_MIC_IN";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_pdm3";
+	};
+
+	dmic3_data_sleep: dmic3_data_sleep {
+		/* Audio - Microphone - Sleep */
+		pins = "XAOC_PDM3_MIC_IN";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	gnss2aoc_host_req_1v2: gnss2aoc_host_req_1v2 {
+		/* Connectivity - GNSS */
+		pins = "XAOC_GPIO11";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	gnss2aoc_host_req_1v2_sleep: gnss2aoc_host_req_1v2_sleep {
+		/* Connectivity - GNSS - Sleep */
+		pins = "XAOC_GPIO11";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	gnss_time_mark_1v2: gnss_time_mark_1v2 {
+		/* Connectivity - GNSS */
+		pins = "XAOC_SPI4_MISO";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_fiq";
+	};
+
+	gnss_time_mark_1v2_sleep: gnss_time_mark_1v2_sleep {
+		/* Connectivity - GNSS - Sleep */
+		pins = "XAOC_SPI4_MISO";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	imu2aoc_int_od_l_1v2: imu2aoc_int_od_l_1v2 {
+		/* Sensors - IMU */
+		pins = "XAOC_GPIO8";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	imu2aoc_int_od_l_1v2_sleep: imu2aoc_int_od_l_1v2_sleep {
+		/* Sensors - IMU - Sleep */
+		pins = "XAOC_GPIO8";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	ldaf2aoc_irq_od_l_1v2: ldaf2aoc_irq_od_l_1v2 {
+		/* Imagers - LDAF */
+		pins = "XAOC_GPIO0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_cpm_eint";
+	};
+
+	ldaf2aoc_irq_od_l_1v2_sleep: ldaf2aoc_irq_od_l_1v2_sleep {
+		/* Imagers - LDAF - Sleep */
+		pins = "XAOC_GPIO0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	prox0_2_aoc_int_od_l_1v2: prox0_2_aoc_int_od_l_1v2 {
+		/* Sensors - ALS */
+		pins = "XAOC_UART4_CTSn";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	prox0_2_aoc_int_od_l_1v2_sleep: prox0_2_aoc_int_od_l_1v2_sleep {
+		/* Sensors - ALS - Sleep */
+		pins = "XAOC_UART4_CTSn";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	spfl_pdm_clk: spfl_pdm_clk {
+		/* Imagers - Flicker */
+		pins = "XAOC_PDM0_FLCKR_CLK";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "aoc_pdm0_flckr";
+	};
+
+	spfl_pdm_dat: spfl_pdm_dat {
+		/* Imagers - Flicker */
+		pins = "XAOC_PDM0_FLCKR_IN";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_pdm0_flckr";
+	};
+
+	spfl_pdm_dat_sleep: spfl_pdm_dat_sleep {
+		/* Imagers - Flicker - Sleep */
+		pins = "XAOC_PDM0_FLCKR_IN";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	ts0_2_aoc_int_l_1v2: ts0_2_aoc_int_l_1v2 {
+		/* Display - Touch */
+		pins = "XAOC_GPIO12";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_cpm_eint";
+	};
+
+	ts0_2_aoc_int_l_1v2_sleep: ts0_2_aoc_int_l_1v2_sleep {
+		/* Display - Touch - Sleep */
+		pins = "XAOC_GPIO12";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	wlan2aoc_wake_1v2: wlan2aoc_wake_1v2 {
+		/* Connectivity - WLAN */
+		pins = "XAOC_UART1_CTSn";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	wlan2aoc_wake_1v2_sleep: wlan2aoc_wake_1v2_sleep {
+		/* Connectivity - WLAN - Sleep */
+		pins = "XAOC_UART1_CTSn";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_gpio6_e4: xaoc_gpio6_e4 {
+		/* Audio - Amp */
+		pins = "XAOC_GPIO6";
+		bias-disable;
+		drive-strength = <15>;
+		input-enable;
+		output-enable;
+		function = "aoc_cpm_eint";
+	};
+
+	xaoc_gpio6_e4_sleep: xaoc_gpio6_e4_sleep {
+		/* Audio - Amp - Sleep */
+		pins = "XAOC_GPIO6";
+		input-enable;
+		output-high;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_gpio7_e3: xaoc_gpio7_e3 {
+		/* Audio - Amp */
+		pins = "XAOC_GPIO7";
+		bias-disable;
+		drive-strength = <15>;
+		input-enable;
+		output-enable;
+		function = "aoc_cpm_eint";
+	};
+
+	xaoc_gpio7_e3_sleep: xaoc_gpio7_e3_sleep {
+		/* Audio - Amp - Sleep */
+		pins = "XAOC_GPIO7";
+		input-enable;
+		output-high;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_i2c2_scl: xaoc_i2c2_scl {
+		/* Sensors - Sensors */
+		pins = "XAOC_I2C2_SCL";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		output-high;
+		function = "aoc_i2c2";
+	};
+
+	xaoc_i2c2_scl_sleep: xaoc_i2c2_scl_sleep {
+		/* Sensors - Sensors - Sleep */
+		pins = "XAOC_I2C2_SCL";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_i2c2_sda: xaoc_i2c2_sda {
+		/* Sensors - Sensors */
+		pins = "XAOC_I2C2_SDA";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		output-high;
+		function = "aoc_i2c2";
+	};
+
+	xaoc_i2c2_sda_sleep: xaoc_i2c2_sda_sleep {
+		/* Sensors - Sensors - Sleep */
+		pins = "XAOC_I2C2_SDA";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_i2c4_scl: xaoc_i2c4_scl {
+		/* Sensors - Sensors */
+		pins = "XAOC_I2C4_SCL";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "aoc_i3c4";
+	};
+
+	xaoc_i2c4_scl_sleep: xaoc_i2c4_scl_sleep {
+		/* Sensors - Sensors - Sleep */
+		pins = "XAOC_I2C4_SCL";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_i2c4_sda: xaoc_i2c4_sda {
+		/* Sensors - Sensors */
+		pins = "XAOC_I2C4_SDA";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "aoc_i3c4";
+	};
+
+	xaoc_i2c4_sda_sleep: xaoc_i2c4_sda_sleep {
+		/* Sensors - Sensors - Sleep */
+		pins = "XAOC_I2C4_SDA";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_i3c0_scl: xaoc_i3c0_scl {
+		/* Sensors - Sensors */
+		pins = "XAOC_I3C0_SCL";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "aoc_i3c0";
+	};
+
+	xaoc_i3c0_scl_sleep: xaoc_i3c0_scl_sleep {
+		/* Sensors - Sensors - Sleep */
+		pins = "XAOC_I3C0_SCL";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_i3c0_sda: xaoc_i3c0_sda {
+		/* Sensors - Sensors */
+		pins = "XAOC_I3C0_SDA";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "aoc_i3c0";
+	};
+
+	xaoc_i3c0_sda_sleep: xaoc_i3c0_sda_sleep {
+		/* Sensors - Sensors - Sleep */
+		pins = "XAOC_I3C0_SDA";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_spi1_miso: xaoc_spi1_miso {
+		/* Audio - Amp */
+		pins = "XAOC_SPI1_MISO";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_cli_int_1";
+	};
+
+	xaoc_spi1_miso_sleep: xaoc_spi1_miso_sleep {
+		/* Audio - Amp - Sleep */
+		pins = "XAOC_SPI1_MISO";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_spi1_mosi: xaoc_spi1_mosi {
+		/* Audio - Amp */
+		pins = "XAOC_SPI1_MOSI";
+		bias-disable;
+		drive-strength = <15>;
+		input-enable;
+		output-enable;
+		function = "aoc_cli_int_1";
+	};
+
+	xaoc_spi1_mosi_sleep: xaoc_spi1_mosi_sleep {
+		/* Audio - Amp - Sleep */
+		pins = "XAOC_SPI1_MOSI";
+		input-enable;
+		output-low;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_spi1_sclk: xaoc_spi1_sclk {
+		/* Audio - Amp */
+		pins = "XAOC_SPI1_SCLK";
+		bias-disable;
+		drive-strength = <15>;
+		input-enable;
+		output-enable;
+		function = "aoc_cli_int_1";
+	};
+
+	xaoc_spi1_sclk_sleep: xaoc_spi1_sclk_sleep {
+		/* Audio - Amp - Sleep */
+		pins = "XAOC_SPI1_SCLK";
+		input-enable;
+		output-low;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_spi2_miso: xaoc_spi2_miso {
+		/* Imagers - LDAF */
+		pins = "XAOC_SPI2_MISO";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_cli_int_2";
+	};
+
+	xaoc_spi2_miso_sleep: xaoc_spi2_miso_sleep {
+		/* Imagers - LDAF - Sleep */
+		pins = "XAOC_SPI2_MISO";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_spi2_mosi: xaoc_spi2_mosi {
+		/* Imagers - LDAF */
+		pins = "XAOC_SPI2_MOSI";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "aoc_cli_int_2";
+	};
+
+	xaoc_spi2_mosi_sleep: xaoc_spi2_mosi_sleep {
+		/* Imagers - LDAF - Sleep */
+		pins = "XAOC_SPI2_MOSI";
+		input-enable;
+		output-low;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_spi2_sclk: xaoc_spi2_sclk {
+		/* Imagers - LDAF */
+		pins = "XAOC_SPI2_SCLK";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "aoc_cli_int_2";
+	};
+
+	xaoc_spi2_sclk_sleep: xaoc_spi2_sclk_sleep {
+		/* Imagers - LDAF - Sleep */
+		pins = "XAOC_SPI2_SCLK";
+		input-enable;
+		output-low;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_spi2_ssb_n7: xaoc_spi2_ssb_n7 {
+		/* Imagers - LDAF */
+		pins = "XAOC_SPI2_SSB";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_spi2_ssb_n7_sleep: xaoc_spi2_ssb_n7_sleep {
+		/* Imagers - LDAF - Sleep */
+		pins = "XAOC_SPI2_SSB";
+		input-enable;
+		output-high;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_spi3_miso: xaoc_spi3_miso {
+		/* Display - Touch */
+		pins = "XAOC_SPI3_MISO";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_cli_int_3";
+	};
+
+	xaoc_spi3_miso_sleep: xaoc_spi3_miso_sleep {
+		/* Display - Touch - Sleep */
+		pins = "XAOC_SPI3_MISO";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_spi3_mosi: xaoc_spi3_mosi {
+		/* Display - Touch */
+		pins = "XAOC_SPI3_MOSI";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "aoc_cli_int_3";
+	};
+
+	xaoc_spi3_mosi_sleep: xaoc_spi3_mosi_sleep {
+		/* Display - Touch - Sleep */
+		pins = "XAOC_SPI3_MOSI";
+		input-enable;
+		output-low;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_spi3_sclk: xaoc_spi3_sclk {
+		/* Display - Touch */
+		pins = "XAOC_SPI3_SCLK";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "aoc_cli_int_3";
+	};
+
+	xaoc_spi3_sclk_sleep: xaoc_spi3_sclk_sleep {
+		/* Display - Touch - Sleep */
+		pins = "XAOC_SPI3_SCLK";
+		input-enable;
+		output-low;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_spi3_ssb_m4: xaoc_spi3_ssb_m4 {
+		/* Display - Touch */
+		pins = "XAOC_SPI3_SSB";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_spi3_ssb_m4_sleep: xaoc_spi3_ssb_m4_sleep {
+		/* Display - Touch - Sleep */
+		pins = "XAOC_SPI3_SSB";
+		input-enable;
+		output-high;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_spi5_mosi: xaoc_spi5_mosi {
+		/* Connectivity - GNSS */
+		pins = "XAOC_SPI5_MOSI";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "aoc_uart5";
+	};
+
+	xaoc_spi5_mosi_sleep: xaoc_spi5_mosi_sleep {
+		/* Connectivity - GNSS - Sleep */
+		pins = "XAOC_SPI5_MOSI";
+		input-enable;
+		output-high;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_spi5_sclk: xaoc_spi5_sclk {
+		/* Connectivity - GNSS */
+		pins = "XAOC_SPI5_SCLK";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_uart5";
+	};
+
+	xaoc_spi5_sclk_sleep: xaoc_spi5_sclk_sleep {
+		/* Connectivity - GNSS - Sleep */
+		pins = "XAOC_SPI5_SCLK";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_uart1_rxd: xaoc_uart1_rxd {
+		/* Connectivity - WLAN */
+		pins = "XAOC_UART1_RXD";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_uart1";
+	};
+
+	xaoc_uart1_rxd_sleep: xaoc_uart1_rxd_sleep {
+		/* Connectivity - WLAN - Sleep */
+		pins = "XAOC_UART1_RXD";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_uart1_txd: xaoc_uart1_txd {
+		/* Connectivity - WLAN */
+		pins = "XAOC_UART1_TXD";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "aoc_uart1";
+	};
+
+	xaoc_uart1_txd_sleep: xaoc_uart1_txd_sleep {
+		/* Connectivity - WLAN - Sleep */
+		pins = "XAOC_UART1_TXD";
+		input-enable;
+		output-high;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_uart3_rxd: xaoc_uart3_rxd {
+		/* Connectivity - Modem */
+		pins = "XAOC_UART3_RXD";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_uart3";
+	};
+
+	xaoc_uart3_rxd_sleep: xaoc_uart3_rxd_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XAOC_UART3_RXD";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoc_int_gpio";
+	};
+
+	xaoc_uart3_txd: xaoc_uart3_txd {
+		/* Connectivity - Modem */
+		pins = "XAOC_UART3_TXD";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "aoc_uart3";
+	};
+
+	xaoc_uart3_txd_sleep: xaoc_uart3_txd_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XAOC_UART3_TXD";
+		input-enable;
+		output-high;
+		function = "aoc_int_gpio";
+	};
+};
+
+&cpm_pinctrl {
+	gpio-line-names =
+		"",
+		"",
+		"AP2PMICM_PWR_REQ_1V2",
+		"APPMIC2AP_RESET_OD_L_1V2",
+		"APPMIC2AP_WRESET_OD_L_1V2",
+		"CPM_RESETO_L_1V2_TP",
+		"CPM_PMIC_SPMI_SCLK_1V2_R",
+		"CPM_PMIC_SPMI_SDATA_1V2_R",
+		"APPMIC2AP_PRE_UVLO_1V2",
+		"PRE_OCP_TPU_1V2",
+		"PMICS2AP_IRQ_L_1V2",
+		"CP2AP_ACTIVE_1V2",
+		"SOFT_PRE_OCP_TPU_1V2",
+		"PRE_OCP_CPUCL1_1V2",
+		"PRE_OCP_CPUCL2_1V2",
+		"SOFT_PRE_OCP_CPUCL1_1V2",
+		"SOFT_PRE_OCP_CPUCL2_1V2",
+		"",
+		"DRIP2AP_INT_OD_L_1V2",
+		"PMICM2AP_IRQ_L_1V2",
+		"GNSS2AP_HOST_REQ_1V2",
+		"AP2NFC_CLK_19P2MHZ_1V2",
+		"NFC2AP_CLK_REQ_1V2",
+		"CPM_CLKOUT1_1V2_TP",
+		"CPM_CLKOUT1_EN_1V2_TP",
+		"CP2AP_WAKEUP_1V2",
+		"CP2AP_WRSTBI_L_1V2",
+		"",
+		"M0_BOOT_SEL_1V2",
+		"OTP_EMU_MODE_1V2_TP",
+		"",
+		"UDFPS2AP_INT_L_1V2",
+		"WLAN2AP_HOST_WAKE_1V2",
+		"",
+		"VSYS_VDROOP1_1V2_AW2",
+		"VSYS_VDROOP2_1V2_AV6",
+		"IFPMIC_SPMI_SCLK_R1_1V2",
+		"IFPMIC_SPMI_SDATA_R_1V2",
+		"IFPMIC2AP_INT_L_1V2_AW3",
+		"IFPMIC2AP_ALERT_L_1V2_AY3",
+		"",
+		"AMP2AP_IRQ_OD_L_1V2",
+		"HAPTICS2AP_ALERT_OD_L_1V2",
+		"",
+		"CPM_M0_BOOT_SPI_CLK",
+		"CPM_M0_BOOT_SPI_MOSI",
+		"CPM_M0_BOOT_SPI_MISO",
+		"CPM_M0_BOOT_SPI_CS_L",
+		"PMICM2AP_GSC_PWRON_OD_L",
+		"AP2CLKBUF_ON",
+		"CPM_OM0",
+		"VOL_DN_L",
+		"VOL_UP_L",
+		"",
+		"GSC2AP_IRQ",
+		"",
+		"";
+
+	amp2ap_irq_od_l_1v2: amp2ap_irq_od_l_1v2 {
+		/* Audio - Amp */
+		pins = "XCPM_SRC_OPT1";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	amp2ap_irq_od_l_1v2_sleep: amp2ap_irq_od_l_1v2_sleep {
+		/* Audio - Amp - Sleep */
+		pins = "XCPM_SRC_OPT1";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	ap2clkbuf_on: ap2clkbuf_on {
+		/* System - Clock */
+		pins = "XCPM_CLKBUF_ON";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "cpm_clkbuf";
+	};
+
+	ap2nfc_clk_19p2mhz_1v2: ap2nfc_clk_19p2mhz_1v2 {
+		/* Connectivity - NFC */
+		pins = "XCPM_CLKOUT0";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "cpm_clkout";
+	};
+
+	ap2nfc_clk_19p2mhz_1v2_sleep: ap2nfc_clk_19p2mhz_1v2_sleep {
+		/* Connectivity - NFC - Sleep */
+		pins = "XCPM_CLKOUT0";
+		input-enable;
+		output-low;
+		function = "cpm_int";
+	};
+
+	ap2pmicm_pwr_req_1v2: ap2pmicm_pwr_req_1v2 {
+		/* PMIC - IPC */
+		pins = "XCPM_PWR_REQ";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "cpm_pwr";
+	};
+
+	appmic2ap_pre_uvlo_1v2: appmic2ap_pre_uvlo_1v2 {
+		/* PMIC - IPC */
+		pins = "XCPM_PRE_UVLO";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_pre";
+	};
+
+	appmic2ap_reset_od_l_1v2: appmic2ap_reset_od_l_1v2 {
+		/* System - Reset */
+		pins = "XCPM_XnRESET";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_reset";
+	};
+
+	appmic2ap_wreset_od_l_1v2: appmic2ap_wreset_od_l_1v2 {
+		/* System - Reset */
+		pins = "XCPM_XnWRESET";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_reset";
+	};
+
+	cp2ap_active_1v2: cp2ap_active_1v2 {
+		/* Connectivity - Modem */
+		pins = "XCPM_EINT_1";
+		bias-disable;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	cp2ap_active_1v2_sleep: cp2ap_active_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XCPM_EINT_1";
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	cp2ap_wakeup_1v2: cp2ap_wakeup_1v2 {
+		/* Connectivity - Modem */
+		pins = "XCPM_EINT_4";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	cp2ap_wakeup_1v2_sleep: cp2ap_wakeup_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XCPM_EINT_4";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	cp2ap_wrstbi_l_1v2: cp2ap_wrstbi_l_1v2 {
+		/* Connectivity - Modem */
+		pins = "XCPM_EINT_5";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	cp2ap_wrstbi_l_1v2_sleep: cp2ap_wrstbi_l_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XCPM_EINT_5";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	cpm_clkout1_1v2_tp: cpm_clkout1_1v2_tp {
+		/* System - Clock */
+		pins = "XCPM_CLKOUT1";
+		bias-disable;
+		drive-strength = <7>;
+		input-enable;
+		output-enable;
+		function = "cpm_clkout";
+	};
+
+	cpm_clkout1_en_1v2_tp: cpm_clkout1_en_1v2_tp {
+		/* System - Clock */
+		pins = "XCPM_CLKOUT1_EN";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_clkout";
+	};
+
+	cpm_om0: cpm_om0 {
+		/* System - Boot Selection */
+		pins = "XCPM_XOM_0";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_xom";
+	};
+
+	cpm_pmic_spmi_sclk_1v2_r: cpm_pmic_spmi_sclk_1v2_r {
+		/* PMIC - IPC */
+		pins = "XCPM_SPMI0_SCLK";
+		bias-disable;
+		drive-strength = <7>;
+		input-enable;
+		output-enable;
+		function = "cpm_spmi";
+	};
+
+	cpm_pmic_spmi_sclk_1v2_r_sleep: cpm_pmic_spmi_sclk_1v2_r_sleep {
+		/* PMIC - IPC - Sleep */
+		pins = "XCPM_SPMI0_SCLK";
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	cpm_pmic_spmi_sdata_1v2_r: cpm_pmic_spmi_sdata_1v2_r {
+		/* PMIC - IPC */
+		pins = "XCPM_SPMI0_SDATA";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "cpm_spmi";
+	};
+
+	cpm_pmic_spmi_sdata_1v2_r_sleep: cpm_pmic_spmi_sdata_1v2_r_sleep {
+		/* PMIC - IPC - Sleep */
+		pins = "XCPM_SPMI0_SDATA";
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	cpm_reseto_l_1v2_tp: cpm_reseto_l_1v2_tp {
+		/* System - Reset */
+		pins = "XCPM_XnRESET_OUT";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "cpm_reset";
+	};
+
+	drip2ap_int_od_l_1v2: drip2ap_int_od_l_1v2 {
+		/* Sensors - Sensors */
+		pins = "XCPM_SOFT_PRE_OCP_CPU0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	drip2ap_int_od_l_1v2_sleep: drip2ap_int_od_l_1v2_sleep {
+		/* Sensors - Sensors - Sleep */
+		pins = "XCPM_SOFT_PRE_OCP_CPU0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	gnss2ap_host_req_1v2: gnss2ap_host_req_1v2 {
+		/* Connectivity - GNSS */
+		pins = "XCPM_EINT_3";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	gnss2ap_host_req_1v2_sleep: gnss2ap_host_req_1v2_sleep {
+		/* Connectivity - GNSS - Sleep */
+		pins = "XCPM_EINT_3";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	gsc2ap_irq: gsc2ap_irq {
+		/* Security - GSC */
+		pins = "XCPM_EINT_14";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	gsc2ap_irq_sleep: gsc2ap_irq_sleep {
+		/* Security - GSC - Sleep */
+		pins = "XCPM_EINT_14";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	haptics2ap_alert_od_l_1v2: haptics2ap_alert_od_l_1v2 {
+		/* Audio - Haptics */
+		pins = "XCPM_SRC_OPT2";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	haptics2ap_alert_od_l_1v2_sleep: haptics2ap_alert_od_l_1v2_sleep {
+		/* Audio - Haptics - Sleep */
+		pins = "XCPM_SRC_OPT2";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	ifpmic2ap_alert_l_1v2_ay3: ifpmic2ap_alert_l_1v2_ay3 {
+		/* Input Power - IF-PMIC */
+		pins = "XCPM_EINT_11";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	ifpmic2ap_alert_l_1v2_ay3_sleep: ifpmic2ap_alert_l_1v2_ay3_sleep {
+		/* Input Power - IF-PMIC - Sleep */
+		pins = "XCPM_EINT_11";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	ifpmic2ap_int_l_1v2_aw3: ifpmic2ap_int_l_1v2_aw3 {
+		/* Input Power - IF-PMIC */
+		pins = "XCPM_EINT_10";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	ifpmic2ap_int_l_1v2_aw3_sleep: ifpmic2ap_int_l_1v2_aw3_sleep {
+		/* Input Power - IF-PMIC - Sleep */
+		pins = "XCPM_EINT_10";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	ifpmic_spmi_sclk_r1_1v2: ifpmic_spmi_sclk_r1_1v2 {
+		/* Input Power - IF-PMIC */
+		pins = "XCPM_I2C0_SCL";
+		bias-disable;
+		drive-strength = <15>;
+		input-enable;
+		output-enable;
+		function = "cpm_spmi";
+	};
+
+	ifpmic_spmi_sclk_r1_1v2_sleep: ifpmic_spmi_sclk_r1_1v2_sleep {
+		/* Input Power - IF-PMIC - Sleep */
+		pins = "XCPM_I2C0_SCL";
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	ifpmic_spmi_sdata_r_1v2: ifpmic_spmi_sdata_r_1v2 {
+		/* Input Power - IF-PMIC */
+		pins = "XCPM_I2C0_SDA";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "cpm_spmi";
+	};
+
+	ifpmic_spmi_sdata_r_1v2_sleep: ifpmic_spmi_sdata_r_1v2_sleep {
+		/* Input Power - IF-PMIC - Sleep */
+		pins = "XCPM_I2C0_SDA";
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	m0_boot_sel_1v2: m0_boot_sel_1v2 {
+		/* Dev - Spare */
+		pins = "XCPM_M0_BOOT_SEL";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_boot";
+	};
+
+	nfc2ap_clk_req_1v2: nfc2ap_clk_req_1v2 {
+		/* Connectivity - NFC */
+		pins = "XCPM_CLKOUT0_EN";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_clkout";
+	};
+
+	nfc2ap_clk_req_1v2_sleep: nfc2ap_clk_req_1v2_sleep {
+		/* Connectivity - NFC - Sleep */
+		pins = "XCPM_CLKOUT0_EN";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	otp_emu_mode_1v2_tp: otp_emu_mode_1v2_tp {
+		/* Dev - Spare */
+		pins = "XCPM_OTP_EMU_MODE";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_otp_emu";
+	};
+
+	pmicm2ap_gsc_pwron_od_l: pmicm2ap_gsc_pwron_od_l {
+		/* User Input - Buttons */
+		pins = "XCPM_GPI0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	pmicm2ap_gsc_pwron_od_l_sleep: pmicm2ap_gsc_pwron_od_l_sleep {
+		/* User Input - Buttons - Sleep */
+		pins = "XCPM_GPI0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	pmicm2ap_irq_l_1v2: pmicm2ap_irq_l_1v2 {
+		/* PMIC - IPC */
+		pins = "XCPM_EINT_2";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_irq";
+	};
+
+	pmics2ap_irq_l_1v2: pmics2ap_irq_l_1v2 {
+		/* PMIC - IPC */
+		pins = "XCPM_EINT_0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_irq";
+	};
+
+	pre_ocp_cpucl1_1v2: pre_ocp_cpucl1_1v2 {
+		/* PMIC - IPC */
+		pins = "XCPM_PRE_OCP_CPU1";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_pre";
+	};
+
+	pre_ocp_cpucl2_1v2: pre_ocp_cpucl2_1v2 {
+		/* PMIC - IPC */
+		pins = "XCPM_PRE_OCP_CPU2";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_pre";
+	};
+
+	pre_ocp_tpu_1v2: pre_ocp_tpu_1v2 {
+		/* PMIC - IPC */
+		pins = "XCPM_PRE_OCP_TPU";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_pre";
+	};
+
+	soft_pre_ocp_cpucl1_1v2: soft_pre_ocp_cpucl1_1v2 {
+		/* PMIC - IPC */
+		pins = "XCPM_SOFT_PRE_OCP_CPU1";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_pre";
+	};
+
+	soft_pre_ocp_cpucl2_1v2: soft_pre_ocp_cpucl2_1v2 {
+		/* PMIC - IPC */
+		pins = "XCPM_SOFT_PRE_OCP_CPU2";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_pre";
+	};
+
+	soft_pre_ocp_tpu_1v2: soft_pre_ocp_tpu_1v2 {
+		/* PMIC - IPC */
+		pins = "XCPM_SOFT_PRE_OCP_TPU";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_pre";
+	};
+
+	udfps2ap_int_l_1v2: udfps2ap_int_l_1v2 {
+		/* User Input - FPS */
+		pins = "XCPM_EINT_7";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	udfps2ap_int_l_1v2_sleep: udfps2ap_int_l_1v2_sleep {
+		/* User Input - FPS - Sleep */
+		pins = "XCPM_EINT_7";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	vol_dn_l: vol_dn_l {
+		/* User Input - Buttons */
+		pins = "XCPM_GPI1";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	vol_dn_l_sleep: vol_dn_l_sleep {
+		/* User Input - Buttons - Sleep */
+		pins = "XCPM_GPI1";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	vol_up_l: vol_up_l {
+		/* User Input - Buttons */
+		pins = "XCPM_EINT_12";
+		bias-disable;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	vol_up_l_sleep: vol_up_l_sleep {
+		/* User Input - Buttons - Sleep */
+		pins = "XCPM_EINT_12";
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	vsys_vdroop1_1v2_aw2: vsys_vdroop1_1v2_aw2 {
+		/* Input Power - Input Power */
+		pins = "XCPM_VDROOP1";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_vdroop";
+	};
+
+	vsys_vdroop2_1v2_av6: vsys_vdroop2_1v2_av6 {
+		/* Input Power - Input Power */
+		pins = "XCPM_VDROOP2";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_vdroop";
+	};
+
+	wlan2ap_host_wake_1v2: wlan2ap_host_wake_1v2 {
+		/* Connectivity - WLAN */
+		pins = "XCPM_EINT_8";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	wlan2ap_host_wake_1v2_sleep: wlan2ap_host_wake_1v2_sleep {
+		/* Connectivity - WLAN - Sleep */
+		pins = "XCPM_EINT_8";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	xcpm_spi0_miso: xcpm_spi0_miso {
+		/* System - gChips */
+		pins = "XCPM_SPI0_MISO";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "cpm_spi";
+	};
+
+	xcpm_spi0_miso_sleep: xcpm_spi0_miso_sleep {
+		/* System - gChips - Sleep */
+		pins = "XCPM_SPI0_MISO";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "cpm_int";
+	};
+
+	xcpm_spi0_mosi: xcpm_spi0_mosi {
+		/* System - gChips */
+		pins = "XCPM_SPI0_MOSI";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "cpm_spi";
+	};
+
+	xcpm_spi0_mosi_sleep: xcpm_spi0_mosi_sleep {
+		/* System - gChips - Sleep */
+		pins = "XCPM_SPI0_MOSI";
+		input-enable;
+		output-low;
+		function = "cpm_int";
+	};
+
+	xcpm_spi0_sclk: xcpm_spi0_sclk {
+		/* System - gChips */
+		pins = "XCPM_SPI0_SCLK";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "cpm_spi";
+	};
+
+	xcpm_spi0_sclk_sleep: xcpm_spi0_sclk_sleep {
+		/* System - gChips - Sleep */
+		pins = "XCPM_SPI0_SCLK";
+		input-enable;
+		output-low;
+		function = "cpm_int";
+	};
+
+	xcpm_spi0_ssb_aj5: xcpm_spi0_ssb_aj5 {
+		/* System - gChips */
+		pins = "XCPM_SPI0_SSB";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "cpm_spi";
+	};
+
+	xcpm_spi0_ssb_aj5_sleep: xcpm_spi0_ssb_aj5_sleep {
+		/* System - gChips - Sleep */
+		pins = "XCPM_SPI0_SSB";
+		input-enable;
+		output-high;
+		function = "cpm_int";
+	};
+};
+
+&da9188_gpio {
+
+	pmic_m_gpio0_tp: pmic_m_gpio0_tp {
+		/* Dev - Spare */
+		pins = "gpio0";
+	};
+
+	pmic_s_gpio10_tp: pmic_s_gpio10_tp {
+		/* Dev - Spare */
+		pins = "gpio10";
+	};
+
+	pmicm2rcam_vana_en: pmicm2rcam_vana_en {
+		/* Imagers - Rear Wide */
+		pins = "gpio2";
+	};
+
+	pmicm2rcam_vdig_en: pmicm2rcam_vdig_en {
+		/* Imagers - Rear Wide */
+		pins = "gpio5";
+	};
+
+	pmics2cam_bb_en: pmics2cam_bb_en {
+		/* Imagers - Imagers */
+		pins = "gpio9";
+	};
+
+	pmics2cam_mvbuck_en: pmics2cam_mvbuck_en {
+		/* Imagers - Imagers */
+		pins = "gpio15";
+	};
+
+	pmics2cam_pmic_en: pmics2cam_pmic_en {
+		/* Imagers - Imagers */
+		pins = "gpio8";
+	};
+
+	pmics2disp0_buck_en: pmics2disp0_buck_en {
+		/* Display - Display */
+		pins = "gpio13";
+	};
+
+	pmics2disp0_reset_l: pmics2disp0_reset_l {
+		/* Display - Display */
+		pins = "gpio11";
+	};
+
+	pmics2hac_amp_en: pmics2hac_amp_en {
+		/* Audio - Amp */
+		pins = "gpio14";
+	};
+
+	pmics2ts0_reset_l_1v2: pmics2ts0_reset_l_1v2 {
+		/* Display - Touch */
+		pins = "gpio17";
+	};
+};
+
+&dpu_pinctrl {
+	gpio-line-names =
+		"DISP0_2_AP_TE",
+		"";
+
+	disp0_2_ap_te: disp0_2_ap_te {
+		/* Display - Display */
+		pins = "XDPU_TE0";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "dpu_te";
+	};
+
+	disp0_2_ap_te_sleep: disp0_2_ap_te_sleep {
+		/* Display - Display - Sleep */
+		pins = "XDPU_TE0";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "dpu_gpio";
+	};
+};
+
+&gdmc_pinctrl {
+	gpio-line-names =
+		"ESE2AP_IRQ_L_1V2",
+		"",
+		"CP_PS_HOLD_1V2",
+		"NFC2AP_HOST_IRQ_1V2",
+		"CP2AP_UART_SDA_1V2_AF1",
+		"AP2CP_UART_SDA_1V2_AF2",
+		"AP_JTAG_DBGSEL",
+		"AP_JTAG_TRST_L",
+		"AP_JTAG_SRST_L",
+		"AP_JTAG_SWDIO",
+		"AP_JTAG_SWDCLK",
+		"AP_JTAG_TDI_LOGI",
+		"AP_JTAG_TDO_LOGI",
+		"DBG2AP_UART_SDA",
+		"AP2DBG_UART_SDA",
+		"DISP0_2_AP_ERR_FG",
+		"GSC2GSA_UART_SDA",
+		"GSA2GSC_UART_SDA",
+		"IFPMIC2AP_DBG0_1V2_AH3",
+		"IFPMIC2AP_DBG_CBL_ID0_1V2_AH2",
+		"";
+
+	ap2dbg_uart_sda: ap2dbg_uart_sda {
+		/* Debug - UART */
+		pins = "XGDMC_SOC_DEBUG_UART_TXD";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "gdmc_debug";
+	};
+
+	ap_jtag_dbgsel: ap_jtag_dbgsel {
+		/* Debug - JTAG */
+		pins = "XGDMC_DBGSEL";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "gdmc_dbgsel";
+	};
+
+	ap_jtag_srst_l: ap_jtag_srst_l {
+		/* Debug - JTAG */
+		pins = "XGDMC_JTAG_SRST_n";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "gdmc_jtag";
+	};
+
+	ap_jtag_swdclk: ap_jtag_swdclk {
+		/* Debug - JTAG / SWD */
+		pins = "XGDMC_JTAG_TCK";
+		bias-pull-down;
+		drive-strength = <2>;
+		input-enable;
+		output-disable;
+		function = "gdmc_jtag";
+	};
+
+	ap_jtag_swdio: ap_jtag_swdio {
+		/* Debug - JTAG / SWD */
+		pins = "XGDMC_JTAG_TMS";
+		bias-pull-up;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "gdmc_jtag";
+	};
+
+	ap_jtag_tdi_logi: ap_jtag_tdi_logi {
+		/* Debug - JTAG */
+		pins = "XGDMC_JTAG_TDI";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "gdmc_jtag";
+	};
+
+	ap_jtag_tdo_logi: ap_jtag_tdo_logi {
+		/* Debug - JTAG */
+		pins = "XGDMC_JTAG_TDO";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "gdmc_jtag";
+	};
+
+	ap_jtag_trst_l: ap_jtag_trst_l {
+		/* Debug - JTAG */
+		pins = "XGDMC_JTAG_TRST_n";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "gdmc_jtag";
+	};
+
+	cp_ps_hold_1v2: cp_ps_hold_1v2 {
+		/* Connectivity - Modem */
+		pins = "XGDMC_IN_DEBUG_1";
+		bias-disable;
+		input-enable;
+		output-disable;
+		function = "gdmc_int";
+	};
+
+	cp_ps_hold_1v2_sleep: cp_ps_hold_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XGDMC_IN_DEBUG_1";
+		input-enable;
+		output-disable;
+		function = "gdmc_int";
+	};
+
+	dbg2ap_uart_sda: dbg2ap_uart_sda {
+		/* Debug - UART */
+		pins = "XGDMC_SOC_DEBUG_UART_RXD";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "gdmc_debug";
+	};
+
+	disp0_2_ap_err_fg: disp0_2_ap_err_fg {
+		/* Display - Display */
+		pins = "XGDMC_CTI_0";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "gdmc_int";
+	};
+
+	disp0_2_ap_err_fg_sleep: disp0_2_ap_err_fg_sleep {
+		/* Display - Display - Sleep */
+		pins = "XGDMC_CTI_0";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "gdmc_int";
+	};
+
+	ese2ap_irq_l_1v2: ese2ap_irq_l_1v2 {
+		/* Security - ESE */
+		pins = "XGDMC_UART0_RXD";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "gdmc_int";
+	};
+
+	ese2ap_irq_l_1v2_sleep: ese2ap_irq_l_1v2_sleep {
+		/* Security - ESE - Sleep */
+		pins = "XGDMC_UART0_RXD";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "gdmc_int";
+	};
+
+	ifpmic2ap_dbg0_1v2_ah3: ifpmic2ap_dbg0_1v2_ah3 {
+		/* Debug - Debug */
+		pins = "XGDMC_IN_DEBUG_0";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "gdmc_debug";
+	};
+
+	ifpmic2ap_dbg_cbl_id0_1v2_ah2: ifpmic2ap_dbg_cbl_id0_1v2_ah2 {
+		/* Input Power - Input Power */
+		pins = "XGDMC_DEBUG_DEFAULT_0";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "gdmc_debug";
+	};
+
+	nfc2ap_host_irq_1v2: nfc2ap_host_irq_1v2 {
+		/* Connectivity - NFC */
+		pins = "XGDMC_DEBUG_DEFAULT_1";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "gdmc_int";
+	};
+
+	nfc2ap_host_irq_1v2_sleep: nfc2ap_host_irq_1v2_sleep {
+		/* Connectivity - NFC - Sleep */
+		pins = "XGDMC_DEBUG_DEFAULT_1";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "gdmc_int";
+	};
+
+	xgdmc_uart_gsc_rxd: xgdmc_uart_gsc_rxd {
+		/* Debug - UART */
+		pins = "XGDMC_UART_GSC_RXD";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "gdmc_uart";
+	};
+
+	xgdmc_uart_gsc_rxd_sleep: xgdmc_uart_gsc_rxd_sleep {
+		/* Debug - UART - Sleep */
+		pins = "XGDMC_UART_GSC_RXD";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "gdmc_int";
+	};
+
+	xgdmc_uart_gsc_txd: xgdmc_uart_gsc_txd {
+		/* Debug - UART */
+		pins = "XGDMC_UART_GSC_TXD";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "gdmc_uart";
+	};
+
+	xgdmc_uart_gsc_txd_sleep: xgdmc_uart_gsc_txd_sleep {
+		/* Debug - UART - Sleep */
+		pins = "XGDMC_UART_GSC_TXD";
+		input-enable;
+		output-high;
+		function = "gdmc_int";
+	};
+
+	xgdmc_uart_modem_rxd: xgdmc_uart_modem_rxd {
+		/* Connectivity - Modem */
+		pins = "XGDMC_UART_MODEM_RXD";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "gdmc_uart";
+	};
+
+	xgdmc_uart_modem_rxd_sleep: xgdmc_uart_modem_rxd_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XGDMC_UART_MODEM_RXD";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "gdmc_int";
+	};
+
+	xgdmc_uart_modem_txd: xgdmc_uart_modem_txd {
+		/* Connectivity - Modem */
+		pins = "XGDMC_UART_MODEM_TXD";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "gdmc_uart";
+	};
+
+	xgdmc_uart_modem_txd_sleep: xgdmc_uart_modem_txd_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XGDMC_UART_MODEM_TXD";
+		input-enable;
+		output-high;
+		function = "gdmc_int";
+	};
+};
+
+&hsion_pinctrl {
+	gpio-line-names =
+		"CP2AP_PCIE_CLKREQ0_L_1V2",
+		"AP2NFC_CHIP_EN_1V2",
+		"AP2CP_PCIE_PERST0_L_1V2",
+		"NFC2AP_PWR_STATE_1V2",
+		"",
+		"AP2ESE_SPI_RESET_L_1V2",
+		"AP2ESE_CHIP_EN_1V2",
+		"NFC2AP_COEX_1V2",
+		"AP2NFC_COEX_1V2",
+		"ESE2AP_PWR_STATE_1V2",
+		"AP2NFC_WAKEUP_REQ_1V2",
+		"";
+
+	ap2cp_pcie_perst0_l_1v2: ap2cp_pcie_perst0_l_1v2 {
+		/* Connectivity - Modem */
+		pins = "XHSION_PCIE0_PERSTN0";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsion_gpio";
+	};
+
+	ap2cp_pcie_perst0_l_1v2_sleep: ap2cp_pcie_perst0_l_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XHSION_PCIE0_PERSTN0";
+		input-enable;
+		output-enable;
+		function = "hsion_gpio";
+	};
+
+	ap2ese_chip_en_1v2: ap2ese_chip_en_1v2 {
+		/* Security - ESE */
+		pins = "XHSION_GPIO2";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsion_gpio";
+	};
+
+	ap2ese_chip_en_1v2_sleep: ap2ese_chip_en_1v2_sleep {
+		/* Security - ESE - Sleep */
+		pins = "XHSION_GPIO2";
+		input-enable;
+		output-high;
+		function = "hsion_gpio";
+	};
+
+	ap2ese_spi_reset_l_1v2: ap2ese_spi_reset_l_1v2 {
+		/* Security - ESE */
+		pins = "XHSION_GPIO1";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsion_gpio";
+	};
+
+	ap2ese_spi_reset_l_1v2_sleep: ap2ese_spi_reset_l_1v2_sleep {
+		/* Security - ESE - Sleep */
+		pins = "XHSION_GPIO1";
+		input-enable;
+		output-high;
+		function = "hsion_gpio";
+	};
+
+	ap2nfc_chip_en_1v2: ap2nfc_chip_en_1v2 {
+		/* Connectivity - NFC */
+		pins = "XHSION_GPIO7";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsion_gpio";
+	};
+
+	ap2nfc_chip_en_1v2_sleep: ap2nfc_chip_en_1v2_sleep {
+		/* Connectivity - NFC - Sleep */
+		pins = "XHSION_GPIO7";
+		input-enable;
+		output-high;
+		function = "hsion_gpio";
+	};
+
+	ap2nfc_coex_1v2: ap2nfc_coex_1v2 {
+		/* Connectivity - NFC */
+		pins = "XHSION_GPIO4";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsion_gpio";
+	};
+
+	ap2nfc_coex_1v2_sleep: ap2nfc_coex_1v2_sleep {
+		/* Connectivity - NFC - Sleep */
+		pins = "XHSION_GPIO4";
+		input-enable;
+		output-low;
+		function = "hsion_gpio";
+	};
+
+	ap2nfc_wakeup_req_1v2: ap2nfc_wakeup_req_1v2 {
+		/* Connectivity - NFC */
+		pins = "XHSION_GPIO6";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsion_gpio";
+	};
+
+	ap2nfc_wakeup_req_1v2_sleep: ap2nfc_wakeup_req_1v2_sleep {
+		/* Connectivity - NFC - Sleep */
+		pins = "XHSION_GPIO6";
+		input-enable;
+		output-low;
+		function = "hsion_gpio";
+	};
+
+	cp2ap_pcie_clkreq0_l_1v2: cp2ap_pcie_clkreq0_l_1v2 {
+		/* Connectivity - Modem */
+		pins = "XHSION_PCIE0_CLKREQN0";
+		bias-disable;
+		input-enable;
+		output-disable;
+		function = "hsion_pcie0";
+	};
+
+	ese2ap_pwr_state_1v2: ese2ap_pwr_state_1v2 {
+		/* Security - ESE */
+		pins = "XHSION_GPIO5";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "hsion_gpio";
+	};
+
+	ese2ap_pwr_state_1v2_sleep: ese2ap_pwr_state_1v2_sleep {
+		/* Security - ESE - Sleep */
+		pins = "XHSION_GPIO5";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "hsion_gpio";
+	};
+
+	nfc2ap_coex_1v2: nfc2ap_coex_1v2 {
+		/* Connectivity - NFC */
+		pins = "XHSION_GPIO3";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "hsion_gpio";
+	};
+
+	nfc2ap_coex_1v2_sleep: nfc2ap_coex_1v2_sleep {
+		/* Connectivity - NFC - Sleep */
+		pins = "XHSION_GPIO3";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "hsion_gpio";
+	};
+
+	nfc2ap_pwr_state_1v2: nfc2ap_pwr_state_1v2 {
+		/* Connectivity - NFC */
+		pins = "XHSION_GPIO8";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "hsion_gpio";
+	};
+
+	nfc2ap_pwr_state_1v2_sleep: nfc2ap_pwr_state_1v2_sleep {
+		/* Connectivity - NFC - Sleep */
+		pins = "XHSION_GPIO8";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "hsion_gpio";
+	};
+};
+
+&hsios_pinctrl {
+	gpio-line-names =
+		"AP2UFS_RESET_L_1V2",
+		"",
+		"AP2CP_NRESET_L_1V2",
+		"AP2CP_DUMP_NOTI_1V2",
+		"AP2CP_ACTIVE_1V2",
+		"AP2CP_WRESET_L_1V2",
+		"AP2CP_PWR_ON_1V2",
+		"AP2CP_WRSTB_L_1V2",
+		"AP2PMIC_UFS_EN_1V2",
+		"",
+		"WLAN2AP_PCIE_CLKREQ0_L_1V2",
+		"AP2WLAN_PCIE_PERST0_L_1V2",
+		"AP2WLAN_DEV_WAKE_1V2",
+		"AP2WLAN_REG_ON_1V2",
+		"";
+
+	ap2cp_active_1v2: ap2cp_active_1v2 {
+		/* Connectivity - Modem */
+		pins = "XHSIOS_GPIO1";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+
+	ap2cp_active_1v2_sleep: ap2cp_active_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XHSIOS_GPIO1";
+		input-enable;
+		output-low;
+		function = "hsios_gpio";
+	};
+
+	ap2cp_dump_noti_1v2: ap2cp_dump_noti_1v2 {
+		/* Connectivity - Modem */
+		pins = "XHSIOS_GPIO0";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+
+	ap2cp_dump_noti_1v2_sleep: ap2cp_dump_noti_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XHSIOS_GPIO0";
+		input-enable;
+		output-low;
+		function = "hsios_gpio";
+	};
+
+	ap2cp_nreset_l_1v2: ap2cp_nreset_l_1v2 {
+		/* Connectivity - Modem */
+		pins = "XHSIOS_GPIO8";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+
+	ap2cp_nreset_l_1v2_sleep: ap2cp_nreset_l_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XHSIOS_GPIO8";
+		input-enable;
+		output-high;
+		function = "hsios_gpio";
+	};
+
+	ap2cp_pwr_on_1v2: ap2cp_pwr_on_1v2 {
+		/* Connectivity - Modem */
+		pins = "XHSIOS_GPIO3";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+
+	ap2cp_pwr_on_1v2_sleep: ap2cp_pwr_on_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XHSIOS_GPIO3";
+		input-enable;
+		output-high;
+		function = "hsios_gpio";
+	};
+
+	ap2cp_wreset_l_1v2: ap2cp_wreset_l_1v2 {
+		/* Connectivity - Modem */
+		pins = "XHSIOS_GPIO2";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+
+	ap2cp_wreset_l_1v2_sleep: ap2cp_wreset_l_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XHSIOS_GPIO2";
+		input-enable;
+		output-high;
+		function = "hsios_gpio";
+	};
+
+	ap2cp_wrstb_l_1v2: ap2cp_wrstb_l_1v2 {
+		/* Connectivity - Modem */
+		pins = "XHSIOS_GPIO4";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+
+	ap2cp_wrstb_l_1v2_sleep: ap2cp_wrstb_l_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XHSIOS_GPIO4";
+		input-enable;
+		output-high;
+		function = "hsios_gpio";
+	};
+
+	ap2pmic_ufs_en_1v2: ap2pmic_ufs_en_1v2 {
+		/* PMIC - IPC */
+		pins = "XHSIOS_UFS_PWR_EN";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_ufs";
+	};
+
+	ap2ufs_reset_l_1v2: ap2ufs_reset_l_1v2 {
+		/* System - UFS */
+		pins = "XHSIOS_UFS_RESETB";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "hsios_ufs";
+	};
+
+	ap2wlan_dev_wake_1v2: ap2wlan_dev_wake_1v2 {
+		/* Connectivity - WLAN */
+		pins = "XHSIOS_GPIO5";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+
+	ap2wlan_dev_wake_1v2_sleep: ap2wlan_dev_wake_1v2_sleep {
+		/* Connectivity - WLAN - Sleep */
+		pins = "XHSIOS_GPIO5";
+		input-enable;
+		output-low;
+		function = "hsios_gpio";
+	};
+
+	ap2wlan_pcie_perst0_l_1v2: ap2wlan_pcie_perst0_l_1v2 {
+		/* Connectivity - WLAN */
+		pins = "XHSIOS_PCIE1_PERSTN0";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+
+	ap2wlan_pcie_perst0_l_1v2_sleep: ap2wlan_pcie_perst0_l_1v2_sleep {
+		/* Connectivity - WLAN - Sleep */
+		pins = "XHSIOS_PCIE1_PERSTN0";
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+
+	ap2wlan_reg_on_1v2: ap2wlan_reg_on_1v2 {
+		/* Connectivity - WLAN */
+		pins = "XHSIOS_GPIO6";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+
+	ap2wlan_reg_on_1v2_sleep: ap2wlan_reg_on_1v2_sleep {
+		/* Connectivity - WLAN - Sleep */
+		pins = "XHSIOS_GPIO6";
+		input-enable;
+		output-high;
+		function = "hsios_gpio";
+	};
+
+	wlan2ap_pcie_clkreq0_l_1v2: wlan2ap_pcie_clkreq0_l_1v2 {
+		/* Connectivity - WLAN */
+		pins = "XHSIOS_PCIE1_CLKREQN0";
+		bias-disable;
+		input-enable;
+		output-disable;
+		function = "hsios_pcie1";
+	};
+};
+
+&hsios_stby_pinctrl {
+	gpio-line-names =
+		"AP_FAR_CLK_76P8MHZ_R",
+		"AP2UFS_REF_CLK_38P4MHZ_1V2";
+
+	ap2ufs_ref_clk_38p4mhz_1v2: ap2ufs_ref_clk_38p4mhz_1v2 {
+		/* System - UFS */
+		pins = "XHSIOS_UFS_REFCLK";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "hsios_stby_ufs";
+	};
+
+	ap_far_clk_76p8mhz_r: ap_far_clk_76p8mhz_r {
+		/* System - Clock */
+		pins = "XHSIOS_CLKBUF_1";
+		input-enable;
+		output-disable;
+		function = "hsios_stby_clkbuf";
+	};
+};
+
+&lsioe_pinctrl {
+	gpio-line-names =
+		"NORTH_I2C_SCL",
+		"NORTH_I2C_SDA",
+		"",
+		"AP2QI_CLOAK_EN",
+		"FCAM_I2C_SCL",
+		"FCAM_I2C_SDA",
+		"AP2FCAM_RST_L",
+		"EXT_BOOST_EN",
+		"RUWCAM_I2C_SCL",
+		"RUWCAM_I2C_SDA",
+		"AP2RUWCAM_RST_L",
+		"",
+		"CP2AP_UART_SDA_1V2_BA16",
+		"AP2CP_UART_SDA_1V2_BA17",
+		"AP2CP_PARTIAL_RESET_L_1V2",
+		"CP2AP_PCIE_DIAG_1V2",
+		"SOUTH_I2C_SCL_1V2",
+		"SOUTH_I2C_SDA_1V2",
+		"AP2GNSS_MCU_REQ_1V2",
+		"",
+		"",
+		"",
+		"AP2CP_OCP_WARN_MODEM_1V2",
+		"AP2CP_OCP_WARN_RFFE_1V2",
+		"BT2AOC_AP_UART_SDA_1V2",
+		"AOC_AP2BT_UART_SDA_1V2",
+		"AOC_AP2BT_UART_FC_1V2",
+		"BT2AOC_AP_UART_FC_1V2",
+		"DISPPMIC_I2C_SCL_1V2",
+		"DISPPMIC_I2C_SDA_1V2",
+		"AP2HAPTICS_TRIG_1V2",
+		"AP2HAPTICS_RESET_L_1V2";
+
+	ap2cp_ocp_warn_modem_1v2: ap2cp_ocp_warn_modem_1v2 {
+		/* Connectivity - Modem */
+		pins = "XLSIOE_CLI11_PIN2";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	ap2cp_ocp_warn_modem_1v2_sleep: ap2cp_ocp_warn_modem_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XLSIOE_CLI11_PIN2";
+		input-enable;
+		output-low;
+		function = "lsioe_gpio";
+	};
+
+	ap2cp_ocp_warn_rffe_1v2: ap2cp_ocp_warn_rffe_1v2 {
+		/* Connectivity - Modem */
+		pins = "XLSIOE_CLI11_PIN3";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	ap2cp_ocp_warn_rffe_1v2_sleep: ap2cp_ocp_warn_rffe_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XLSIOE_CLI11_PIN3";
+		input-enable;
+		output-low;
+		function = "lsioe_gpio";
+	};
+
+	ap2cp_partial_reset_l_1v2: ap2cp_partial_reset_l_1v2 {
+		/* Connectivity - Modem */
+		pins = "XLSIOE_CLI9_PIN2";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	ap2cp_partial_reset_l_1v2_sleep: ap2cp_partial_reset_l_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XLSIOE_CLI9_PIN2";
+		input-enable;
+		output-high;
+		function = "lsioe_gpio";
+	};
+
+	ap2fcam_rst_l: ap2fcam_rst_l {
+		/* Imagers - Front */
+		pins = "XLSIOE_CLI8_PIN2";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	ap2fcam_rst_l_sleep: ap2fcam_rst_l_sleep {
+		/* Imagers - Front - Sleep */
+		pins = "XLSIOE_CLI8_PIN2";
+		input-enable;
+		output-low;
+		function = "lsioe_gpio";
+	};
+
+	ap2gnss_mcu_req_1v2: ap2gnss_mcu_req_1v2 {
+		/* Connectivity - GNSS */
+		pins = "XLSIOE_CLI10_PIN2";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	ap2gnss_mcu_req_1v2_sleep: ap2gnss_mcu_req_1v2_sleep {
+		/* Connectivity - GNSS - Sleep */
+		pins = "XLSIOE_CLI10_PIN2";
+		input-enable;
+		output-low;
+		function = "lsioe_gpio";
+	};
+
+	ap2haptics_reset_l_1v2: ap2haptics_reset_l_1v2 {
+		/* Audio - Haptics */
+		pins = "XLSIOE_CLI14_PIN3";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	ap2haptics_reset_l_1v2_sleep: ap2haptics_reset_l_1v2_sleep {
+		/* Audio - Haptics - Sleep */
+		pins = "XLSIOE_CLI14_PIN3";
+		input-enable;
+		output-high;
+		function = "lsioe_gpio";
+	};
+
+	ap2haptics_trig_1v2: ap2haptics_trig_1v2 {
+		/* Audio - Haptics */
+		pins = "XLSIOE_CLI14_PIN2";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	ap2haptics_trig_1v2_sleep: ap2haptics_trig_1v2_sleep {
+		/* Audio - Haptics - Sleep */
+		pins = "XLSIOE_CLI14_PIN2";
+		input-enable;
+		output-low;
+		function = "lsioe_gpio";
+	};
+
+	ap2qi_cloak_en: ap2qi_cloak_en {
+		/* Input Power - WLC */
+		pins = "XLSIOE_CLI7_PIN3";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	ap2qi_cloak_en_sleep: ap2qi_cloak_en_sleep {
+		/* Input Power - WLC - Sleep */
+		pins = "XLSIOE_CLI7_PIN3";
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	ap2ruwcam_rst_l: ap2ruwcam_rst_l {
+		/* Imagers - Rear UW */
+		pins = "XLSIOE_CLI13_PIN2";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	ap2ruwcam_rst_l_sleep: ap2ruwcam_rst_l_sleep {
+		/* Imagers - Rear UW - Sleep */
+		pins = "XLSIOE_CLI13_PIN2";
+		input-enable;
+		output-low;
+		function = "lsioe_gpio";
+	};
+
+	cp2ap_pcie_diag_1v2: cp2ap_pcie_diag_1v2 {
+		/* Connectivity - Modem */
+		pins = "XLSIOE_CLI9_PIN3";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	cp2ap_pcie_diag_1v2_sleep: cp2ap_pcie_diag_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XLSIOE_CLI9_PIN3";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	ext_boost_en: ext_boost_en {
+		/* Input Power - WLC */
+		pins = "XLSIOE_CLI8_PIN3";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	ext_boost_en_sleep: ext_boost_en_sleep {
+		/* Input Power - WLC - Sleep */
+		pins = "XLSIOE_CLI8_PIN3";
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_cli10_pin0: xlsioe_cli10_pin0 {
+		/* Connectivity - NFC */
+		pins = "XLSIOE_CLI10_PIN0";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsioe_cli10";
+	};
+
+	xlsioe_cli10_pin0_sleep: xlsioe_cli10_pin0_sleep {
+		/* Connectivity - NFC - Sleep */
+		pins = "XLSIOE_CLI10_PIN0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_cli10_pin1: xlsioe_cli10_pin1 {
+		/* Connectivity - NFC */
+		pins = "XLSIOE_CLI10_PIN1";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsioe_cli10";
+	};
+
+	xlsioe_cli10_pin1_sleep: xlsioe_cli10_pin1_sleep {
+		/* Connectivity - NFC - Sleep */
+		pins = "XLSIOE_CLI10_PIN1";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_cli12_pin0: xlsioe_cli12_pin0 {
+		/* Connectivity - Bluetooth */
+		pins = "XLSIOE_CLI12_PIN0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsioe_cli12";
+	};
+
+	xlsioe_cli12_pin0_sleep: xlsioe_cli12_pin0_sleep {
+		/* Connectivity - Bluetooth - Sleep */
+		pins = "XLSIOE_CLI12_PIN0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_cli12_pin1: xlsioe_cli12_pin1 {
+		/* Connectivity - Bluetooth */
+		pins = "XLSIOE_CLI12_PIN1";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsioe_cli12";
+	};
+
+	xlsioe_cli12_pin1_sleep: xlsioe_cli12_pin1_sleep {
+		/* Connectivity - Bluetooth - Sleep */
+		pins = "XLSIOE_CLI12_PIN1";
+		input-enable;
+		output-high;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_cli12_pin2: xlsioe_cli12_pin2 {
+		/* Connectivity - Bluetooth */
+		pins = "XLSIOE_CLI12_PIN2";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsioe_cli12";
+	};
+
+	xlsioe_cli12_pin2_sleep: xlsioe_cli12_pin2_sleep {
+		/* Connectivity - Bluetooth - Sleep */
+		pins = "XLSIOE_CLI12_PIN2";
+		input-enable;
+		output-high;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_cli12_pin3: xlsioe_cli12_pin3 {
+		/* Connectivity - Bluetooth */
+		pins = "XLSIOE_CLI12_PIN3";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsioe_cli12";
+	};
+
+	xlsioe_cli12_pin3_sleep: xlsioe_cli12_pin3_sleep {
+		/* Connectivity - Bluetooth - Sleep */
+		pins = "XLSIOE_CLI12_PIN3";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_cli13_pin0: xlsioe_cli13_pin0 {
+		/* Imagers - Rear UW */
+		pins = "XLSIOE_CLI13_PIN0";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsioe_cli13";
+	};
+
+	xlsioe_cli13_pin0_sleep: xlsioe_cli13_pin0_sleep {
+		/* Imagers - Rear UW - Sleep */
+		pins = "XLSIOE_CLI13_PIN0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_cli13_pin1: xlsioe_cli13_pin1 {
+		/* Imagers - Rear UW */
+		pins = "XLSIOE_CLI13_PIN1";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsioe_cli13";
+	};
+
+	xlsioe_cli13_pin1_sleep: xlsioe_cli13_pin1_sleep {
+		/* Imagers - Rear UW - Sleep */
+		pins = "XLSIOE_CLI13_PIN1";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_cli14_pin0: xlsioe_cli14_pin0 {
+		/* Display - Display */
+		pins = "XLSIOE_CLI14_PIN0";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsioe_cli14";
+	};
+
+	xlsioe_cli14_pin0_sleep: xlsioe_cli14_pin0_sleep {
+		/* Display - Display - Sleep */
+		pins = "XLSIOE_CLI14_PIN0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_cli14_pin1: xlsioe_cli14_pin1 {
+		/* Display - Display */
+		pins = "XLSIOE_CLI14_PIN1";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsioe_cli14";
+	};
+
+	xlsioe_cli14_pin1_sleep: xlsioe_cli14_pin1_sleep {
+		/* Display - Display - Sleep */
+		pins = "XLSIOE_CLI14_PIN1";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_cli7_pin0: xlsioe_cli7_pin0 {
+		/* Imagers - Imagers */
+		pins = "XLSIOE_CLI7_PIN0";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsioe_cli7";
+	};
+
+	xlsioe_cli7_pin0_sleep: xlsioe_cli7_pin0_sleep {
+		/* Imagers - Imagers - Sleep */
+		pins = "XLSIOE_CLI7_PIN0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_cli7_pin1: xlsioe_cli7_pin1 {
+		/* Imagers - Imagers */
+		pins = "XLSIOE_CLI7_PIN1";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsioe_cli7";
+	};
+
+	xlsioe_cli7_pin1_sleep: xlsioe_cli7_pin1_sleep {
+		/* Imagers - Imagers - Sleep */
+		pins = "XLSIOE_CLI7_PIN1";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_cli8_pin0: xlsioe_cli8_pin0 {
+		/* Imagers - Front */
+		pins = "XLSIOE_CLI8_PIN0";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsioe_cli8";
+	};
+
+	xlsioe_cli8_pin0_sleep: xlsioe_cli8_pin0_sleep {
+		/* Imagers - Front - Sleep */
+		pins = "XLSIOE_CLI8_PIN0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_cli8_pin1: xlsioe_cli8_pin1 {
+		/* Imagers - Front */
+		pins = "XLSIOE_CLI8_PIN1";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsioe_cli8";
+	};
+
+	xlsioe_cli8_pin1_sleep: xlsioe_cli8_pin1_sleep {
+		/* Imagers - Front - Sleep */
+		pins = "XLSIOE_CLI8_PIN1";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_cli9_pin0: xlsioe_cli9_pin0 {
+		/* Connectivity - Modem */
+		pins = "XLSIOE_CLI9_PIN0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsioe_cli9";
+	};
+
+	xlsioe_cli9_pin0_sleep: xlsioe_cli9_pin0_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XLSIOE_CLI9_PIN0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_cli9_pin1: xlsioe_cli9_pin1 {
+		/* Connectivity - Modem */
+		pins = "XLSIOE_CLI9_PIN1";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsioe_cli9";
+	};
+
+	xlsioe_cli9_pin1_sleep: xlsioe_cli9_pin1_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XLSIOE_CLI9_PIN1";
+		input-enable;
+		output-high;
+		function = "lsioe_gpio";
+	};
+};
+
+&lsion_pinctrl {
+	gpio-line-names =
+		"AP2ESE_SPI_CLK_1V2",
+		"AP2ESE_SPI_MOSI_1V2",
+		"ESE2AP_SPI_MISO_1V2",
+		"AP2ESE_SPI_CS_L_1V2",
+		"",
+		"",
+		"AP2AMP_RESET_L_1V2",
+		"AP2EUSB2_RESET_L_1V2";
+
+	ap2amp_reset_l_1v2: ap2amp_reset_l_1v2 {
+		/* Audio - Amp */
+		pins = "XLSION_CLI16_PIN2";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsion_gpio";
+	};
+
+	ap2amp_reset_l_1v2_sleep: ap2amp_reset_l_1v2_sleep {
+		/* Audio - Amp - Sleep */
+		pins = "XLSION_CLI16_PIN2";
+		input-enable;
+		output-high;
+		function = "lsion_gpio";
+	};
+
+	ap2eusb2_reset_l_1v2: ap2eusb2_reset_l_1v2 {
+		/* Input Power - Input Power */
+		pins = "XLSION_CLI16_PIN3";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsion_gpio";
+	};
+
+	ap2eusb2_reset_l_1v2_sleep: ap2eusb2_reset_l_1v2_sleep {
+		/* Input Power - Input Power - Sleep */
+		pins = "XLSION_CLI16_PIN3";
+		input-enable;
+		output-high;
+		function = "lsion_gpio";
+	};
+
+	xlsion_cli15_pin0: xlsion_cli15_pin0 {
+		/* Security - ESE */
+		pins = "XLSION_CLI15_PIN0";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsion_cli15";
+	};
+
+	xlsion_cli15_pin0_sleep: xlsion_cli15_pin0_sleep {
+		/* Security - ESE - Sleep */
+		pins = "XLSION_CLI15_PIN0";
+		input-enable;
+		output-low;
+		function = "lsion_gpio";
+	};
+
+	xlsion_cli15_pin1: xlsion_cli15_pin1 {
+		/* Security - ESE */
+		pins = "XLSION_CLI15_PIN1";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsion_cli15";
+	};
+
+	xlsion_cli15_pin1_sleep: xlsion_cli15_pin1_sleep {
+		/* Security - ESE - Sleep */
+		pins = "XLSION_CLI15_PIN1";
+		input-enable;
+		output-low;
+		function = "lsion_gpio";
+	};
+
+	xlsion_cli15_pin2: xlsion_cli15_pin2 {
+		/* Security - ESE */
+		pins = "XLSION_CLI15_PIN2";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsion_cli15";
+	};
+
+	xlsion_cli15_pin2_sleep: xlsion_cli15_pin2_sleep {
+		/* Security - ESE - Sleep */
+		pins = "XLSION_CLI15_PIN2";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsion_gpio";
+	};
+
+	xlsion_cli15_pin3_ac6: xlsion_cli15_pin3_ac6 {
+		/* Security - ESE */
+		pins = "XLSION_CLI15_PIN3";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsion_gpio";
+	};
+
+	xlsion_cli15_pin3_ac6_sleep: xlsion_cli15_pin3_ac6_sleep {
+		/* Security - ESE - Sleep */
+		pins = "XLSION_CLI15_PIN3";
+		input-enable;
+		output-high;
+		function = "lsion_gpio";
+	};
+};
+
+&lsios_pinctrl {
+	gpio-line-names =
+		"AP2RUWCAM_MCLK_24MHZ",
+		"AP2RCAM_MCLK_24MHZ",
+		"AP2FCAM_MCLK_24MHZ",
+		"",
+		"",
+		"AP2RTCAM_MCLK_24MHZ",
+		"",
+		"",
+		"",
+		"",
+		"AP2CSIMUX_SEL",
+		"RCAM_I3C_SCL",
+		"RCAM_I3C_SDA",
+		"AP2RCAM_RST_L",
+		"AP2RCAM_I2C_SEL",
+		"",
+		"",
+		"",
+		"",
+		"RTCAM_I2C_SCL",
+		"RTCAM_I2C_SDA",
+		"AP2RTCAM_RST_L",
+		"AP2FLASH_EN",
+		"AP2FLASH_STROBE",
+		"",
+		"RUWCAM2AP_VSYNC",
+		"RCAM2AP_VSYNC",
+		"FCAM2AP_VSYNC",
+		"RTCAM2AP_VSYNC",
+		"DISP0_2_AP_PROX0_TOUT",
+		"AP2RTCAM_AF_OIS_RST",
+		"",
+		"CP_SPMI_SCL",
+		"CP_SPMI_SDA",
+		"",
+		"",
+		"",
+		"",
+		"AP2CP_WAKEUP_1V2",
+		"",
+		"AP2UDFPS_SPI_CLK_1V2",
+		"AP2UDFPS_SPI_MOSI_1V2",
+		"UDFPS2AP_SPI_MISO_1V2",
+		"AP2UDFPS_SPI_CS_L_1V2",
+		"",
+		"",
+		"",
+		"PRE_OCP_GPU_1V2",
+		"SOFT_PRE_OCP_GPU_1V2",
+		"",
+		"AP2GNSS_SPI_CLK_1V2",
+		"AP2GNSS_SPI_MOSI_1V2",
+		"GNSS2AP_SPI_MISO_1V2",
+		"AP2GNSS_SPI_CS_L_1V2",
+		"";
+
+	ap2cp_wakeup_1v2: ap2cp_wakeup_1v2 {
+		/* Connectivity - Modem */
+		pins = "XLSIOS_GPIO3";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	ap2cp_wakeup_1v2_sleep: ap2cp_wakeup_1v2_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XLSIOS_GPIO3";
+		input-enable;
+		output-low;
+		function = "lsios_gpio";
+	};
+
+	ap2csimux_sel: ap2csimux_sel {
+		/* Imagers - Imagers */
+		pins = "XLSIOS_CLI0_PIN3";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	ap2csimux_sel_sleep: ap2csimux_sel_sleep {
+		/* Imagers - Imagers - Sleep */
+		pins = "XLSIOS_CLI0_PIN3";
+		input-enable;
+		output-low;
+		function = "lsios_gpio";
+	};
+
+	ap2fcam_mclk_24mhz: ap2fcam_mclk_24mhz {
+		/* Imagers - Front */
+		pins = "XLSIOS_MCLK3";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsios_mclk";
+	};
+
+	ap2fcam_mclk_24mhz_sleep: ap2fcam_mclk_24mhz_sleep {
+		/* Imagers - Front - Sleep */
+		pins = "XLSIOS_MCLK3";
+		input-enable;
+		output-low;
+		function = "lsios_gpio";
+	};
+
+	ap2flash_en: ap2flash_en {
+		/* Imagers - Imagers */
+		pins = "XLSIOS_CLI3_PIN3";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	ap2flash_en_sleep: ap2flash_en_sleep {
+		/* Imagers - Imagers - Sleep */
+		pins = "XLSIOS_CLI3_PIN3";
+		input-enable;
+		output-low;
+		function = "lsios_gpio";
+	};
+
+	ap2flash_strobe: ap2flash_strobe {
+		/* Imagers - Imagers */
+		pins = "XLSIOS_PWM_0";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	ap2flash_strobe_sleep: ap2flash_strobe_sleep {
+		/* Imagers - Imagers - Sleep */
+		pins = "XLSIOS_PWM_0";
+		input-enable;
+		output-low;
+		function = "lsios_gpio";
+	};
+
+	ap2rcam_i2c_sel: ap2rcam_i2c_sel {
+		/* Imagers - Imagers */
+		pins = "XLSIOS_CLI1_PIN3";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	ap2rcam_i2c_sel_sleep: ap2rcam_i2c_sel_sleep {
+		/* Imagers - Imagers - Sleep */
+		pins = "XLSIOS_CLI1_PIN3";
+		input-enable;
+		output-low;
+		function = "lsios_gpio";
+	};
+
+	ap2rcam_mclk_24mhz: ap2rcam_mclk_24mhz {
+		/* Imagers - Rear Wide */
+		pins = "XLSIOS_MCLK2";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsios_mclk";
+	};
+
+	ap2rcam_mclk_24mhz_sleep: ap2rcam_mclk_24mhz_sleep {
+		/* Imagers - Rear Wide - Sleep */
+		pins = "XLSIOS_MCLK2";
+		input-enable;
+		output-low;
+		function = "lsios_gpio";
+	};
+
+	ap2rcam_rst_l: ap2rcam_rst_l {
+		/* Imagers - Rear Wide */
+		pins = "XLSIOS_CLI1_PIN2";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	ap2rcam_rst_l_sleep: ap2rcam_rst_l_sleep {
+		/* Imagers - Rear Wide - Sleep */
+		pins = "XLSIOS_CLI1_PIN2";
+		input-enable;
+		output-low;
+		function = "lsios_gpio";
+	};
+
+	ap2rtcam_af_ois_rst: ap2rtcam_af_ois_rst {
+		/* Imagers - Rear Tele */
+		pins = "XLSIOS_PWM_2";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	ap2rtcam_af_ois_rst_sleep: ap2rtcam_af_ois_rst_sleep {
+		/* Imagers - Rear Tele - Sleep */
+		pins = "XLSIOS_PWM_2";
+		input-enable;
+		output-low;
+		function = "lsios_gpio";
+	};
+
+	ap2rtcam_mclk_24mhz: ap2rtcam_mclk_24mhz {
+		/* Imagers - Rear Tele */
+		pins = "XLSIOS_MCLK6";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsios_mclk";
+	};
+
+	ap2rtcam_mclk_24mhz_sleep: ap2rtcam_mclk_24mhz_sleep {
+		/* Imagers - Rear Tele - Sleep */
+		pins = "XLSIOS_MCLK6";
+		input-enable;
+		output-low;
+		function = "lsios_gpio";
+	};
+
+	ap2rtcam_rst_l: ap2rtcam_rst_l {
+		/* Imagers - Rear Tele */
+		pins = "XLSIOS_CLI3_PIN2";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	ap2rtcam_rst_l_sleep: ap2rtcam_rst_l_sleep {
+		/* Imagers - Rear Tele - Sleep */
+		pins = "XLSIOS_CLI3_PIN2";
+		input-enable;
+		output-low;
+		function = "lsios_gpio";
+	};
+
+	ap2ruwcam_mclk_24mhz: ap2ruwcam_mclk_24mhz {
+		/* Imagers - Rear UW */
+		pins = "XLSIOS_MCLK1";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsios_mclk";
+	};
+
+	ap2ruwcam_mclk_24mhz_sleep: ap2ruwcam_mclk_24mhz_sleep {
+		/* Imagers - Rear UW - Sleep */
+		pins = "XLSIOS_MCLK1";
+		input-enable;
+		output-low;
+		function = "lsios_gpio";
+	};
+
+	cp_spmi_scl: cp_spmi_scl {
+		/* Connectivity - Modem */
+		pins = "XLSIOS_GPIO1";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	cp_spmi_scl_sleep: cp_spmi_scl_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XLSIOS_GPIO1";
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	cp_spmi_sda: cp_spmi_sda {
+		/* Connectivity - Modem */
+		pins = "XLSIOS_GPIO2";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	cp_spmi_sda_sleep: cp_spmi_sda_sleep {
+		/* Connectivity - Modem - Sleep */
+		pins = "XLSIOS_GPIO2";
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	disp0_2_ap_prox0_tout: disp0_2_ap_prox0_tout {
+		/* Display - Display */
+		pins = "XLSIOS_VSYNC7";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_vsync";
+	};
+
+	disp0_2_ap_prox0_tout_sleep: disp0_2_ap_prox0_tout_sleep {
+		/* Display - Display - Sleep */
+		pins = "XLSIOS_VSYNC7";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	fcam2ap_vsync: fcam2ap_vsync {
+		/* Imagers - Front */
+		pins = "XLSIOS_VSYNC3";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_vsync";
+	};
+
+	fcam2ap_vsync_sleep: fcam2ap_vsync_sleep {
+		/* Imagers - Front - Sleep */
+		pins = "XLSIOS_VSYNC3";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	pre_ocp_gpu_1v2: pre_ocp_gpu_1v2 {
+		/* PMIC - IPC */
+		pins = "XLSIOS_PRE_OCP_GPU";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_pre_ocp_gpu";
+	};
+
+	rcam2ap_vsync: rcam2ap_vsync {
+		/* Imagers - Rear Wide */
+		pins = "XLSIOS_VSYNC2";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_vsync";
+	};
+
+	rcam2ap_vsync_sleep: rcam2ap_vsync_sleep {
+		/* Imagers - Rear Wide - Sleep */
+		pins = "XLSIOS_VSYNC2";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	rtcam2ap_vsync: rtcam2ap_vsync {
+		/* Imagers - Rear Tele */
+		pins = "XLSIOS_VSYNC6";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_vsync";
+	};
+
+	rtcam2ap_vsync_sleep: rtcam2ap_vsync_sleep {
+		/* Imagers - Rear Tele - Sleep */
+		pins = "XLSIOS_VSYNC6";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	ruwcam2ap_vsync: ruwcam2ap_vsync {
+		/* Imagers - Rear UW */
+		pins = "XLSIOS_VSYNC1";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_vsync";
+	};
+
+	ruwcam2ap_vsync_sleep: ruwcam2ap_vsync_sleep {
+		/* Imagers - Rear UW - Sleep */
+		pins = "XLSIOS_VSYNC1";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	soft_pre_ocp_gpu_1v2: soft_pre_ocp_gpu_1v2 {
+		/* PMIC - IPC */
+		pins = "XLSIOS_SOFT_PRE_OCP_GPU";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_soft_pre_ocp_gpu";
+	};
+
+	xlsios_cli1_pin0: xlsios_cli1_pin0 {
+		/* Imagers - Rear Wide */
+		pins = "XLSIOS_CLI1_PIN0";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsios_cli1";
+	};
+
+	xlsios_cli1_pin0_sleep: xlsios_cli1_pin0_sleep {
+		/* Imagers - Rear Wide - Sleep */
+		pins = "XLSIOS_CLI1_PIN0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_cli1_pin1: xlsios_cli1_pin1 {
+		/* Imagers - Rear Wide */
+		pins = "XLSIOS_CLI1_PIN1";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsios_cli1";
+	};
+
+	xlsios_cli1_pin1_sleep: xlsios_cli1_pin1_sleep {
+		/* Imagers - Rear Wide - Sleep */
+		pins = "XLSIOS_CLI1_PIN1";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_cli3_pin0: xlsios_cli3_pin0 {
+		/* Imagers - Rear Tele */
+		pins = "XLSIOS_CLI3_PIN0";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsios_cli3";
+	};
+
+	xlsios_cli3_pin0_sleep: xlsios_cli3_pin0_sleep {
+		/* Imagers - Rear Tele - Sleep */
+		pins = "XLSIOS_CLI3_PIN0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_cli3_pin1: xlsios_cli3_pin1 {
+		/* Imagers - Rear Tele */
+		pins = "XLSIOS_CLI3_PIN1";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsios_cli3";
+	};
+
+	xlsios_cli3_pin1_sleep: xlsios_cli3_pin1_sleep {
+		/* Imagers - Rear Tele - Sleep */
+		pins = "XLSIOS_CLI3_PIN1";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_cli4_pin0: xlsios_cli4_pin0 {
+		/* User Input - FPS */
+		pins = "XLSIOS_CLI4_PIN0";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "lsios_cli4";
+	};
+
+	xlsios_cli4_pin0_sleep: xlsios_cli4_pin0_sleep {
+		/* User Input - FPS - Sleep */
+		pins = "XLSIOS_CLI4_PIN0";
+		input-enable;
+		output-low;
+		function = "lsios_gpio";
+	};
+
+	xlsios_cli4_pin1: xlsios_cli4_pin1 {
+		/* User Input - FPS */
+		pins = "XLSIOS_CLI4_PIN1";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "lsios_cli4";
+	};
+
+	xlsios_cli4_pin1_sleep: xlsios_cli4_pin1_sleep {
+		/* User Input - FPS - Sleep */
+		pins = "XLSIOS_CLI4_PIN1";
+		input-enable;
+		output-low;
+		function = "lsios_gpio";
+	};
+
+	xlsios_cli4_pin2: xlsios_cli4_pin2 {
+		/* User Input - FPS */
+		pins = "XLSIOS_CLI4_PIN2";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_cli4";
+	};
+
+	xlsios_cli4_pin2_sleep: xlsios_cli4_pin2_sleep {
+		/* User Input - FPS - Sleep */
+		pins = "XLSIOS_CLI4_PIN2";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_cli4_pin3_p40: xlsios_cli4_pin3_p40 {
+		/* User Input - FPS */
+		pins = "XLSIOS_CLI4_PIN3";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_cli4_pin3_p40_sleep: xlsios_cli4_pin3_p40_sleep {
+		/* User Input - FPS - Sleep */
+		pins = "XLSIOS_CLI4_PIN3";
+		input-enable;
+		output-high;
+		function = "lsios_gpio";
+	};
+
+	xlsios_cli6_pin0: xlsios_cli6_pin0 {
+		/* Connectivity - GNSS */
+		pins = "XLSIOS_CLI6_PIN0";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "lsios_cli6";
+	};
+
+	xlsios_cli6_pin0_sleep: xlsios_cli6_pin0_sleep {
+		/* Connectivity - GNSS - Sleep */
+		pins = "XLSIOS_CLI6_PIN0";
+		input-enable;
+		output-low;
+		function = "lsios_gpio";
+	};
+
+	xlsios_cli6_pin1: xlsios_cli6_pin1 {
+		/* Connectivity - GNSS */
+		pins = "XLSIOS_CLI6_PIN1";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "lsios_cli6";
+	};
+
+	xlsios_cli6_pin1_sleep: xlsios_cli6_pin1_sleep {
+		/* Connectivity - GNSS - Sleep */
+		pins = "XLSIOS_CLI6_PIN1";
+		input-enable;
+		output-low;
+		function = "lsios_gpio";
+	};
+
+	xlsios_cli6_pin2: xlsios_cli6_pin2 {
+		/* Connectivity - GNSS */
+		pins = "XLSIOS_CLI6_PIN2";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_cli6";
+	};
+
+	xlsios_cli6_pin2_sleep: xlsios_cli6_pin2_sleep {
+		/* Connectivity - GNSS - Sleep */
+		pins = "XLSIOS_CLI6_PIN2";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_cli6_pin3_l41: xlsios_cli6_pin3_l41 {
+		/* Connectivity - GNSS */
+		pins = "XLSIOS_CLI6_PIN3";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_cli6_pin3_l41_sleep: xlsios_cli6_pin3_l41_sleep {
+		/* Connectivity - GNSS - Sleep */
+		pins = "XLSIOS_CLI6_PIN3";
+		input-enable;
+		output-high;
+		function = "lsios_gpio";
+	};
+};
+
+#define AMP2AOC_TDM_SDA_1V2(x) &aoc_pinctrl XAOC_TDM1_SDI x
+#define AOC2AMP_TDM_BCLK_R_1V2(x) &aoc_pinctrl XAOC_TDM1_BCLK x
+#define AOC2AMP_TDM_FS_R_1V2(x) &aoc_pinctrl XAOC_TDM1_WS x
+#define AOC2AMP_TDM_SDA_R_1V2(x) &aoc_pinctrl XAOC_TDM1_SDO x
+#define AOC2BT_DEV_WAKE_1V2(x) &aoc_pinctrl XAOC_GPIO1 x
+#define AOC2BT_I2S_BCLK_1V2(x) &aoc_pinctrl XAOC_I2S0_BCLK x
+#define AOC2BT_I2S_FS_1V2(x) &aoc_pinctrl XAOC_I2S0_WS x
+#define AOC2BT_I2S_SDA_1V2(x) &aoc_pinctrl XAOC_I2S0_SDO x
+#define AOC2CP_WAKE_1V2(x) &aoc_pinctrl XAOC_UART3_RTSn x
+#define AOC2GNSS_MCU_REQ_1V2(x) &aoc_pinctrl XAOC_SPI1_SSB x
+#define AOC2WLAN_WAKE_1V2(x) &aoc_pinctrl XAOC_UART1_RTSn x
+#define AOC_AP2BT_UART_FC_LOGI(x) &aoc_pinctrl XAOC_UART0_RTSn x
+#define AOC_AP2BT_UART_SDA_LOGI(x) &aoc_pinctrl XAOC_UART0_TXD x
+#define AP_XAOC_OUT_MCLK_1V2_TP(x) &aoc_pinctrl XAOC_OUT_MCLK x
+#define BARO2AOC_INT_OD_L_1V2(x) &aoc_pinctrl XAOC_UART4_RTSn x
+#define BT2AOC_AP_UART_FC_LOGI(x) &aoc_pinctrl XAOC_UART0_CTSn x
+#define BT2AOC_AP_UART_SDA_LOGI(x) &aoc_pinctrl XAOC_UART0_RXD x
+#define BT2AOC_HOST_WAKE_1V2(x) &aoc_pinctrl XAOC_GPIO2 x
+#define BT2AOC_I2S_SDA_1V2(x) &aoc_pinctrl XAOC_I2S0_SDI x
+#define CP2AOC_GNSS_TIME_SYNC_1V2(x) &aoc_pinctrl XAOC_GPIO9 x
+#define CP2AOC_PCM_VALID_1V2(x) &aoc_pinctrl XAOC_UART4_RXD x
+#define CP2AOC_WAKE_1V2(x) &aoc_pinctrl XAOC_UART3_CTSn x
+#define DMIC1_CLK_R(x) &aoc_pinctrl XAOC_PDM0_MIC_CLK x
+#define DMIC1_DATA(x) &aoc_pinctrl XAOC_PDM0_MIC_IN x
+#define DMIC2_CLK_R(x) &aoc_pinctrl XAOC_PDM2_MIC_CLK x
+#define DMIC2_DATA(x) &aoc_pinctrl XAOC_PDM2_MIC_IN x
+#define DMIC3_CLK_R(x) &aoc_pinctrl XAOC_PDM3_MIC_CLK x
+#define DMIC3_DATA(x) &aoc_pinctrl XAOC_PDM3_MIC_IN x
+#define GNSS2AOC_HOST_REQ_1V2(x) &aoc_pinctrl XAOC_GPIO11 x
+#define GNSS_TIME_MARK_1V2(x) &aoc_pinctrl XAOC_SPI4_MISO x
+#define IMU2AOC_INT_OD_L_1V2(x) &aoc_pinctrl XAOC_GPIO8 x
+#define LDAF2AOC_IRQ_OD_L_1V2(x) &aoc_pinctrl XAOC_GPIO0 x
+#define PROX0_2_AOC_INT_OD_L_1V2(x) &aoc_pinctrl XAOC_UART4_CTSn x
+#define SPFL_PDM_CLK(x) &aoc_pinctrl XAOC_PDM0_FLCKR_CLK x
+#define SPFL_PDM_DAT(x) &aoc_pinctrl XAOC_PDM0_FLCKR_IN x
+#define TS0_2_AOC_INT_L_1V2(x) &aoc_pinctrl XAOC_GPIO12 x
+#define WLAN2AOC_WAKE_1V2(x) &aoc_pinctrl XAOC_UART1_CTSn x
+#define XAOC_GPIO6_E4(x) &aoc_pinctrl XAOC_GPIO6 x
+#define XAOC_GPIO7_E3(x) &aoc_pinctrl XAOC_GPIO7 x
+#define XAOC_SPI2_SSB_N7(x) &aoc_pinctrl XAOC_SPI2_SSB x
+#define XAOC_SPI3_SSB_M4(x) &aoc_pinctrl XAOC_SPI3_SSB x
+#define AMP2AP_IRQ_OD_L_1V2(x) &cpm_pinctrl XCPM_SRC_OPT1 x
+#define AP2CLKBUF_ON(x) &cpm_pinctrl XCPM_CLKBUF_ON x
+#define AP2NFC_CLK_19P2MHZ_1V2(x) &cpm_pinctrl XCPM_CLKOUT0 x
+#define AP2PMICM_PWR_REQ_1V2(x) &cpm_pinctrl XCPM_PWR_REQ x
+#define APPMIC2AP_PRE_UVLO_1V2(x) &cpm_pinctrl XCPM_PRE_UVLO x
+#define APPMIC2AP_RESET_OD_L_1V2(x) &cpm_pinctrl XCPM_XnRESET x
+#define APPMIC2AP_WRESET_OD_L_1V2(x) &cpm_pinctrl XCPM_XnWRESET x
+#define CP2AP_ACTIVE_1V2(x) &cpm_pinctrl XCPM_EINT_1 x
+#define CP2AP_WAKEUP_1V2(x) &cpm_pinctrl XCPM_EINT_4 x
+#define CP2AP_WRSTBI_L_1V2(x) &cpm_pinctrl XCPM_EINT_5 x
+#define CPM_CLKOUT1_1V2_TP(x) &cpm_pinctrl XCPM_CLKOUT1 x
+#define CPM_CLKOUT1_EN_1V2_TP(x) &cpm_pinctrl XCPM_CLKOUT1_EN x
+#define CPM_OM0(x) &cpm_pinctrl XCPM_XOM_0 x
+#define CPM_PMIC_SPMI_SCLK_1V2_R(x) &cpm_pinctrl XCPM_SPMI0_SCLK x
+#define CPM_PMIC_SPMI_SDATA_1V2_R(x) &cpm_pinctrl XCPM_SPMI0_SDATA x
+#define CPM_RESETO_L_1V2_TP(x) &cpm_pinctrl XCPM_XnRESET_OUT x
+#define DRIP2AP_INT_OD_L_1V2(x) &cpm_pinctrl XCPM_SOFT_PRE_OCP_CPU0 x
+#define GNSS2AP_HOST_REQ_1V2(x) &cpm_pinctrl XCPM_EINT_3 x
+#define GSC2AP_IRQ(x) &cpm_pinctrl XCPM_EINT_14 x
+#define HAPTICS2AP_ALERT_OD_L_1V2(x) &cpm_pinctrl XCPM_SRC_OPT2 x
+#define IFPMIC2AP_ALERT_L_1V2_AY3(x) &cpm_pinctrl XCPM_EINT_11 x
+#define IFPMIC2AP_INT_L_1V2_AW3(x) &cpm_pinctrl XCPM_EINT_10 x
+#define IFPMIC_SPMI_SCLK_R1_1V2(x) &cpm_pinctrl XCPM_I2C0_SCL x
+#define IFPMIC_SPMI_SDATA_R_1V2(x) &cpm_pinctrl XCPM_I2C0_SDA x
+#define M0_BOOT_SEL_1V2(x) &cpm_pinctrl XCPM_M0_BOOT_SEL x
+#define NFC2AP_CLK_REQ_1V2(x) &cpm_pinctrl XCPM_CLKOUT0_EN x
+#define OTP_EMU_MODE_1V2_TP(x) &cpm_pinctrl XCPM_OTP_EMU_MODE x
+#define PMICM2AP_GSC_PWRON_OD_L(x) &cpm_pinctrl XCPM_GPI0 x
+#define PMICM2AP_IRQ_L_1V2(x) &cpm_pinctrl XCPM_EINT_2 x
+#define PMICS2AP_IRQ_L_1V2(x) &cpm_pinctrl XCPM_EINT_0 x
+#define PRE_OCP_CPUCL1_1V2(x) &cpm_pinctrl XCPM_PRE_OCP_CPU1 x
+#define PRE_OCP_CPUCL2_1V2(x) &cpm_pinctrl XCPM_PRE_OCP_CPU2 x
+#define PRE_OCP_TPU_1V2(x) &cpm_pinctrl XCPM_PRE_OCP_TPU x
+#define SOFT_PRE_OCP_CPUCL1_1V2(x) &cpm_pinctrl XCPM_SOFT_PRE_OCP_CPU1 x
+#define SOFT_PRE_OCP_CPUCL2_1V2(x) &cpm_pinctrl XCPM_SOFT_PRE_OCP_CPU2 x
+#define SOFT_PRE_OCP_TPU_1V2(x) &cpm_pinctrl XCPM_SOFT_PRE_OCP_TPU x
+#define UDFPS2AP_INT_L_1V2(x) &cpm_pinctrl XCPM_EINT_7 x
+#define VOL_DN_L(x) &cpm_pinctrl XCPM_GPI1 x
+#define VOL_UP_L(x) &cpm_pinctrl XCPM_EINT_12 x
+#define VSYS_VDROOP1_1V2_AW2(x) &cpm_pinctrl XCPM_VDROOP1 x
+#define VSYS_VDROOP2_1V2_AV6(x) &cpm_pinctrl XCPM_VDROOP2 x
+#define WLAN2AP_HOST_WAKE_1V2(x) &cpm_pinctrl XCPM_EINT_8 x
+#define XCPM_SPI0_SSB_AJ5(x) &cpm_pinctrl XCPM_SPI0_SSB x
+#define PMIC_M_GPIO0_TP(x) &da9188_gpio GPIO_0 x
+#define PMIC_S_GPIO10_TP(x) &da9188_gpio GPIO_10 x
+#define PMICM2RCAM_VANA_EN(x) &da9188_gpio GPIO_2 x
+#define PMICM2RCAM_VDIG_EN(x) &da9188_gpio GPIO_5 x
+#define PMICS2CAM_BB_EN(x) &da9188_gpio GPIO_9 x
+#define PMICS2CAM_MVBUCK_EN(x) &da9188_gpio GPIO_15 x
+#define PMICS2CAM_PMIC_EN(x) &da9188_gpio GPIO_8 x
+#define PMICS2DISP0_BUCK_EN(x) &da9188_gpio GPIO_13 x
+#define PMICS2DISP0_RESET_L(x) &da9188_gpio GPIO_11 x
+#define PMICS2HAC_AMP_EN(x) &da9188_gpio GPIO_14 x
+#define PMICS2TS0_RESET_L_1V2(x) &da9188_gpio GPIO_17 x
+#define DISP0_2_AP_TE(x) &dpu_pinctrl XDPU_TE0 x
+#define AP2DBG_UART_SDA(x) &gdmc_pinctrl XGDMC_SOC_DEBUG_UART_TXD x
+#define AP_JTAG_DBGSEL(x) &gdmc_pinctrl XGDMC_DBGSEL x
+#define AP_JTAG_SRST_L(x) &gdmc_pinctrl XGDMC_JTAG_SRST_n x
+#define AP_JTAG_SWDCLK(x) &gdmc_pinctrl XGDMC_JTAG_TCK x
+#define AP_JTAG_SWDIO(x) &gdmc_pinctrl XGDMC_JTAG_TMS x
+#define AP_JTAG_TDI_LOGI(x) &gdmc_pinctrl XGDMC_JTAG_TDI x
+#define AP_JTAG_TDO_LOGI(x) &gdmc_pinctrl XGDMC_JTAG_TDO x
+#define AP_JTAG_TRST_L(x) &gdmc_pinctrl XGDMC_JTAG_TRST_n x
+#define CP_PS_HOLD_1V2(x) &gdmc_pinctrl XGDMC_IN_DEBUG_1 x
+#define DBG2AP_UART_SDA(x) &gdmc_pinctrl XGDMC_SOC_DEBUG_UART_RXD x
+#define DISP0_2_AP_ERR_FG(x) &gdmc_pinctrl XGDMC_CTI_0 x
+#define ESE2AP_IRQ_L_1V2(x) &gdmc_pinctrl XGDMC_UART0_RXD x
+#define IFPMIC2AP_DBG0_1V2_AH3(x) &gdmc_pinctrl XGDMC_IN_DEBUG_0 x
+#define IFPMIC2AP_DBG_CBL_ID0_1V2_AH2(x) &gdmc_pinctrl XGDMC_DEBUG_DEFAULT_0 x
+#define NFC2AP_HOST_IRQ_1V2(x) &gdmc_pinctrl XGDMC_DEBUG_DEFAULT_1 x
+#define AP2CP_PCIE_PERST0_L_1V2(x) &hsion_pinctrl XHSION_PCIE0_PERSTN0 x
+#define AP2ESE_CHIP_EN_1V2(x) &hsion_pinctrl XHSION_GPIO2 x
+#define AP2ESE_SPI_RESET_L_1V2(x) &hsion_pinctrl XHSION_GPIO1 x
+#define AP2NFC_CHIP_EN_1V2(x) &hsion_pinctrl XHSION_GPIO7 x
+#define AP2NFC_COEX_1V2(x) &hsion_pinctrl XHSION_GPIO4 x
+#define AP2NFC_WAKEUP_REQ_1V2(x) &hsion_pinctrl XHSION_GPIO6 x
+#define CP2AP_PCIE_CLKREQ0_L_1V2(x) &hsion_pinctrl XHSION_PCIE0_CLKREQN0 x
+#define ESE2AP_PWR_STATE_1V2(x) &hsion_pinctrl XHSION_GPIO5 x
+#define NFC2AP_COEX_1V2(x) &hsion_pinctrl XHSION_GPIO3 x
+#define NFC2AP_PWR_STATE_1V2(x) &hsion_pinctrl XHSION_GPIO8 x
+#define AP2CP_ACTIVE_1V2(x) &hsios_pinctrl XHSIOS_GPIO1 x
+#define AP2CP_DUMP_NOTI_1V2(x) &hsios_pinctrl XHSIOS_GPIO0 x
+#define AP2CP_NRESET_L_1V2(x) &hsios_pinctrl XHSIOS_GPIO8 x
+#define AP2CP_PWR_ON_1V2(x) &hsios_pinctrl XHSIOS_GPIO3 x
+#define AP2CP_WRESET_L_1V2(x) &hsios_pinctrl XHSIOS_GPIO2 x
+#define AP2CP_WRSTB_L_1V2(x) &hsios_pinctrl XHSIOS_GPIO4 x
+#define AP2PMIC_UFS_EN_1V2(x) &hsios_pinctrl XHSIOS_UFS_PWR_EN x
+#define AP2UFS_RESET_L_1V2(x) &hsios_pinctrl XHSIOS_UFS_RESETB x
+#define AP2WLAN_DEV_WAKE_1V2(x) &hsios_pinctrl XHSIOS_GPIO5 x
+#define AP2WLAN_PCIE_PERST0_L_1V2(x) &hsios_pinctrl XHSIOS_PCIE1_PERSTN0 x
+#define AP2WLAN_REG_ON_1V2(x) &hsios_pinctrl XHSIOS_GPIO6 x
+#define WLAN2AP_PCIE_CLKREQ0_L_1V2(x) &hsios_pinctrl XHSIOS_PCIE1_CLKREQN0 x
+#define AP2UFS_REF_CLK_38P4MHZ_1V2(x) &hsios_stby_pinctrl XHSIOS_UFS_REFCLK x
+#define AP_FAR_CLK_76P8MHZ_R(x) &hsios_stby_pinctrl XHSIOS_CLKBUF_1 x
+#define AP2CP_OCP_WARN_MODEM_1V2(x) &lsioe_pinctrl XLSIOE_CLI11_PIN2 x
+#define AP2CP_OCP_WARN_RFFE_1V2(x) &lsioe_pinctrl XLSIOE_CLI11_PIN3 x
+#define AP2CP_PARTIAL_RESET_L_1V2(x) &lsioe_pinctrl XLSIOE_CLI9_PIN2 x
+#define AP2FCAM_RST_L(x) &lsioe_pinctrl XLSIOE_CLI8_PIN2 x
+#define AP2GNSS_MCU_REQ_1V2(x) &lsioe_pinctrl XLSIOE_CLI10_PIN2 x
+#define AP2HAPTICS_RESET_L_1V2(x) &lsioe_pinctrl XLSIOE_CLI14_PIN3 x
+#define AP2HAPTICS_TRIG_1V2(x) &lsioe_pinctrl XLSIOE_CLI14_PIN2 x
+#define AP2QI_CLOAK_EN(x) &lsioe_pinctrl XLSIOE_CLI7_PIN3 x
+#define AP2RUWCAM_RST_L(x) &lsioe_pinctrl XLSIOE_CLI13_PIN2 x
+#define CP2AP_PCIE_DIAG_1V2(x) &lsioe_pinctrl XLSIOE_CLI9_PIN3 x
+#define EXT_BOOST_EN(x) &lsioe_pinctrl XLSIOE_CLI8_PIN3 x
+#define AP2AMP_RESET_L_1V2(x) &lsion_pinctrl XLSION_CLI16_PIN2 x
+#define AP2EUSB2_RESET_L_1V2(x) &lsion_pinctrl XLSION_CLI16_PIN3 x
+#define XLSION_CLI15_PIN3_AC6(x) &lsion_pinctrl XLSION_CLI15_PIN3 x
+#define AP2CP_WAKEUP_1V2(x) &lsios_pinctrl XLSIOS_GPIO3 x
+#define AP2CSIMUX_SEL(x) &lsios_pinctrl XLSIOS_CLI0_PIN3 x
+#define AP2FCAM_MCLK_24MHZ(x) &lsios_pinctrl XLSIOS_MCLK3 x
+#define AP2FLASH_EN(x) &lsios_pinctrl XLSIOS_CLI3_PIN3 x
+#define AP2FLASH_STROBE(x) &lsios_pinctrl XLSIOS_PWM_0 x
+#define AP2RCAM_I2C_SEL(x) &lsios_pinctrl XLSIOS_CLI1_PIN3 x
+#define AP2RCAM_MCLK_24MHZ(x) &lsios_pinctrl XLSIOS_MCLK2 x
+#define AP2RCAM_RST_L(x) &lsios_pinctrl XLSIOS_CLI1_PIN2 x
+#define AP2RTCAM_AF_OIS_RST(x) &lsios_pinctrl XLSIOS_PWM_2 x
+#define AP2RTCAM_MCLK_24MHZ(x) &lsios_pinctrl XLSIOS_MCLK6 x
+#define AP2RTCAM_RST_L(x) &lsios_pinctrl XLSIOS_CLI3_PIN2 x
+#define AP2RUWCAM_MCLK_24MHZ(x) &lsios_pinctrl XLSIOS_MCLK1 x
+#define CP_SPMI_SCL(x) &lsios_pinctrl XLSIOS_GPIO1 x
+#define CP_SPMI_SDA(x) &lsios_pinctrl XLSIOS_GPIO2 x
+#define DISP0_2_AP_PROX0_TOUT(x) &lsios_pinctrl XLSIOS_VSYNC7 x
+#define FCAM2AP_VSYNC(x) &lsios_pinctrl XLSIOS_VSYNC3 x
+#define PRE_OCP_GPU_1V2(x) &lsios_pinctrl XLSIOS_PRE_OCP_GPU x
+#define RCAM2AP_VSYNC(x) &lsios_pinctrl XLSIOS_VSYNC2 x
+#define RTCAM2AP_VSYNC(x) &lsios_pinctrl XLSIOS_VSYNC6 x
+#define RUWCAM2AP_VSYNC(x) &lsios_pinctrl XLSIOS_VSYNC1 x
+#define SOFT_PRE_OCP_GPU_1V2(x) &lsios_pinctrl XLSIOS_SOFT_PRE_OCP_GPU x
+#define XLSIOS_CLI4_PIN3_P40(x) &lsios_pinctrl XLSIOS_CLI4_PIN3 x
+#define XLSIOS_CLI6_PIN3_L41(x) &lsios_pinctrl XLSIOS_CLI6_PIN3 x

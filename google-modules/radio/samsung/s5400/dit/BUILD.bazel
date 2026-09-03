@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "exynos_dit",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "dit.c",
+        "dit_2_1_0.c",
+        "dit_hal.c",
+        "dit_net.c",
+    ],
+    out = "exynos_dit.ko",
+    copts = [
+        "-Wformat",
+        "-Wformat-zero-length",
+        "-Wno-missing-prototypes",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+    ],
+)

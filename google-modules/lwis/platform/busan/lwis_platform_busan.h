@@ -19,4 +19,6 @@ struct lwis_platform {
 	/* struct exynos_pm_qos_request pm_qos_hpg; */
 };
 
+struct lwis_platform_top_device {};
+
 #endif /* LWIS_PLATFORM_BUSAN_H_ */

@@ -1,0 +1,319 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,mbu.h>
+
+&lsios_pinctrl {
+	xlsios_vsync2_default: xlsios_vsync2_default {
+		bias-pull-up;
+		output-high;
+	};
+
+	xlsios_spiu3_csn_ctsn_default: xlsios_spiu3_csn_ctsn_default {
+		pins = "XLSIOS_SPIU3_CSn_CTSn";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_camera_mute_n_default: xlsios_camera_mute_n_default {
+		bias-pull-up;
+		output-high;
+	};
+
+	xlsios_spiu3_mosi_txd_default: xlsios_spiu3_mosi_txd_default {
+		pins = "XLSIOS_SPIU3_MOSI_TXD";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "lsios_spi3";
+	};
+
+	xlsios_vsync5_default: xlsios_vsync5_default {
+		bias-pull-up;
+		output-high;
+	};
+
+	xlsios_spiu3_sclk_rtsn_default: xlsios_spiu3_sclk_rtsn_default {
+		pins = "XLSIOS_SPIU3_SCLK_RTSn";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "lsios_spi3";
+	};
+
+	xlsios_spiu0_csn_ctsn_default: xlsios_spiu0_csn_ctsn_default {
+		pins = "XLSIOS_SPIU0_CSn_CTSn";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_spiu1_miso_rxd_default: xlsios_spiu1_miso_rxd_default {
+		pins = "XLSIOS_SPIU1_MISO_RXD";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_spi1";
+	};
+
+	xlsios_i23c0_scl_default: xlsios_i23c0_scl_default {
+		pins = "XLSIOS_I23C0_SCL";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsios_i2c0";
+	};
+
+	xlsios_gpio14_default: xlsios_gpio14_default {
+		pins = "XLSIOS_GPIO14";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_pwm_2_default: xlsios_pwm_2_default {
+		pins = "XLSIOS_PWM_2";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_spiu1_csn_ctsn_default: xlsios_spiu1_csn_ctsn_default {
+		pins = "XLSIOS_SPIU1_CSn_CTSn";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_spiu3_miso_rxd_default: xlsios_spiu3_miso_rxd_default {
+		pins = "XLSIOS_SPIU3_MISO_RXD";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_spi3";
+	};
+
+	xlsios_gpio3_default: xlsios_gpio3_default {
+		pins = "XLSIOS_GPIO3";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_vsync3_default: xlsios_vsync3_default {
+		bias-pull-up;
+		output-high;
+	};
+
+	xlsios_vsync1_default: xlsios_vsync1_default {
+		bias-pull-up;
+		output-high;
+	};
+
+	xlsios_pwm_1_default: xlsios_pwm_1_default {
+		pins = "XLSIOS_PWM_1";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_i23c2_sda_default: xlsios_i23c2_sda_default {
+		pins = "XLSIOS_I23C2_SDA";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsios_i3c2";
+	};
+
+	xlsios_i23c4_sda_default: xlsios_i23c4_sda_default {
+		pins = "XLSIOS_I23C4_SDA";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsios_i2c4";
+	};
+
+	xlsios_i23c3_scl_default: xlsios_i23c3_scl_default {
+		pins = "XLSIOS_I23C3_SCL";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsios_i2c3";
+	};
+
+	xlsios_spiu2_miso_rxd_default: xlsios_spiu2_miso_rxd_default {
+		pins = "XLSIOS_SPIU2_MISO_RXD";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_spi2";
+	};
+
+	xlsios_spiu2_csn_ctsn_default: xlsios_spiu2_csn_ctsn_default {
+		pins = "XLSIOS_SPIU2_CSn_CTSn";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_gpio0_default: xlsios_gpio0_default {
+		pins = "XLSIOS_GPIO0";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_vsync4_default: xlsios_vsync4_default {
+		pins = "XLSIOS_VSYNC4";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_i23c4_scl_default: xlsios_i23c4_scl_default {
+		pins = "XLSIOS_I23C4_SCL";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsios_i2c4";
+	};
+
+	xlsios_gpio11_default: xlsios_gpio11_default {
+		pins = "XLSIOS_GPIO11";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_i23c2_scl_default: xlsios_i23c2_scl_default {
+		pins = "XLSIOS_I23C2_SCL";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsios_i3c2";
+	};
+
+	xlsios_vsync0_default: xlsios_vsync0_default {
+		pins = "XLSIOS_VSYNC0";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_gpio2_default: xlsios_gpio2_default {
+		pins = "XLSIOS_GPIO2";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_gpio13_default: xlsios_gpio13_default {
+		pins = "XLSIOS_GPIO13";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_spiu1_sclk_rtsn_default: xlsios_spiu1_sclk_rtsn_default {
+		pins = "XLSIOS_SPIU1_SCLK_RTSn";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsios_spi1";
+	};
+
+	xlsios_spiu1_mosi_txd_default: xlsios_spiu1_mosi_txd_default {
+		pins = "XLSIOS_SPIU1_MOSI_TXD";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsios_spi1";
+	};
+
+	xlsios_i23c0_sda_default: xlsios_i23c0_sda_default {
+		pins = "XLSIOS_I23C0_SDA";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsios_i2c0";
+	};
+
+	xlsios_i23c3_sda_default: xlsios_i23c3_sda_default {
+		pins = "XLSIOS_I23C3_SDA";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsios_i2c3";
+	};
+
+	xlsios_spiu2_mosi_txd_default: xlsios_spiu2_mosi_txd_default {
+		pins = "XLSIOS_SPIU2_MOSI_TXD";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsios_spi2";
+	};
+
+	xlsios_gpio12_default: xlsios_gpio12_default {
+		pins = "XLSIOS_GPIO12";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsios_gpio";
+	};
+
+	xlsios_vsync6_default: xlsios_vsync6_default {
+		bias-pull-up;
+		output-high;
+	};
+
+	xlsios_spiu2_sclk_rtsn_default: xlsios_spiu2_sclk_rtsn_default {
+		pins = "XLSIOS_SPIU2_SCLK_RTSn";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsios_spi2";
+	};
+};

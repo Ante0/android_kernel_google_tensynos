@@ -14,10 +14,7 @@
  */
 struct irq_data;
 struct cpumask;
-struct gic_chip_data_v3;
-DECLARE_HOOK(android_vh_gic_v3_affinity_init,
-	TP_PROTO(int irq, u32 offset, u64 *affinity),
-	TP_ARGS(irq, offset, affinity));
+struct gic_chip_data;
 DECLARE_RESTRICTED_HOOK(android_rvh_gic_v3_set_affinity,
 	TP_PROTO(struct irq_data *d, const struct cpumask *mask_val,
 		 u64 *affinity, bool force, void __iomem *base,
@@ -25,8 +22,8 @@ DECLARE_RESTRICTED_HOOK(android_rvh_gic_v3_set_affinity,
 	TP_ARGS(d, mask_val, affinity, force, base, rbase, redist_stride),
 	1);
 DECLARE_HOOK(android_vh_gic_v3_suspend,
-	TP_PROTO(struct gic_chip_data_v3 *gd),
-	TP_ARGS(gd));
+	TP_PROTO(struct gic_chip_data *gd, int *ret),
+	TP_ARGS(gd, ret));
 
 #endif /* _TRACE_HOOK_GIC_V3_H */
 /* This part must be outside protection */

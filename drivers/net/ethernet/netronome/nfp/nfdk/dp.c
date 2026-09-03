@@ -6,6 +6,7 @@
 #include <linux/overflow.h>
 #include <linux/sizes.h>
 #include <linux/bitfield.h>
+#include <net/xfrm.h>
 
 #include "../nfp_app.h"
 #include "../nfp_net.h"
@@ -39,20 +40,23 @@ static __le64
 nfp_nfdk_tx_tso(struct nfp_net_r_vector *r_vec, struct nfp_nfdk_tx_buf *txbuf,
 		struct sk_buff *skb)
 {
-	u32 segs, hdrlen, l3_offset, l4_offset;
+	u32 segs, hdrlen, l3_offset, l4_offset, l4_hdrlen;
 	struct nfp_nfdk_tx_desc txd;
 	u16 mss;
 
 	if (!skb->encapsulation) {
 		l3_offset = skb_network_offset(skb);
 		l4_offset = skb_transport_offset(skb);
-		hdrlen = skb_tcp_all_headers(skb);
+		l4_hdrlen = (skb_shinfo(skb)->gso_type & SKB_GSO_UDP_L4) ?
+			    sizeof(struct udphdr) : tcp_hdrlen(skb);
 	} else {
 		l3_offset = skb_inner_network_offset(skb);
 		l4_offset = skb_inner_transport_offset(skb);
-		hdrlen = skb_inner_tcp_all_headers(skb);
+		l4_hdrlen = (skb_shinfo(skb)->gso_type & SKB_GSO_UDP_L4) ?
+			    sizeof(struct udphdr) : inner_tcp_hdrlen(skb);
 	}
 
+	hdrlen = l4_offset + l4_hdrlen;
 	segs = skb_shinfo(skb)->gso_segs;
 	mss = skb_shinfo(skb)->gso_size & NFDK_DESC_TX_MSS_MASK;
 
@@ -172,25 +176,32 @@ close_block:
 
 static int
 nfp_nfdk_prep_tx_meta(struct nfp_net_dp *dp, struct nfp_app *app,
-		      struct sk_buff *skb)
+		      struct sk_buff *skb, bool *ipsec)
 {
 	struct metadata_dst *md_dst = skb_metadata_dst(skb);
+	struct nfp_ipsec_offload offload_info;
 	unsigned char *data;
 	bool vlan_insert;
 	u32 meta_id = 0;
 	int md_bytes;
+
+#ifdef CONFIG_NFP_NET_IPSEC
+	if (xfrm_offload(skb))
+		*ipsec = nfp_net_ipsec_tx_prep(dp, skb, &offload_info);
+#endif
 
 	if (unlikely(md_dst && md_dst->type != METADATA_HW_PORT_MUX))
 		md_dst = NULL;
 
 	vlan_insert = skb_vlan_tag_present(skb) && (dp->ctrl & NFP_NET_CFG_CTRL_TXVLAN_V2);
 
-	if (!(md_dst || vlan_insert))
+	if (!(md_dst || vlan_insert || *ipsec))
 		return 0;
 
 	md_bytes = sizeof(meta_id) +
-		   !!md_dst * NFP_NET_META_PORTID_SIZE +
-		   vlan_insert * NFP_NET_META_VLAN_SIZE;
+		   (!!md_dst ? NFP_NET_META_PORTID_SIZE : 0) +
+		   (vlan_insert ? NFP_NET_META_VLAN_SIZE : 0) +
+		   (*ipsec ? NFP_NET_META_IPSEC_FIELD_SIZE : 0);
 
 	if (unlikely(skb_cow_head(skb, md_bytes)))
 		return -ENOMEM;
@@ -210,6 +221,17 @@ nfp_nfdk_prep_tx_meta(struct nfp_net_dp *dp, struct nfp_app *app,
 		put_unaligned_be16(skb_vlan_tag_get(skb), data + sizeof(skb->vlan_proto));
 		meta_id <<= NFP_NET_META_FIELD_SIZE;
 		meta_id |= NFP_NET_META_VLAN;
+	}
+
+	if (*ipsec) {
+		data -= NFP_NET_META_IPSEC_SIZE;
+		put_unaligned_be32(offload_info.seq_hi, data);
+		data -= NFP_NET_META_IPSEC_SIZE;
+		put_unaligned_be32(offload_info.seq_low, data);
+		data -= NFP_NET_META_IPSEC_SIZE;
+		put_unaligned_be32(offload_info.handle - 1, data);
+		meta_id <<= NFP_NET_META_IPSEC_FIELD_SIZE;
+		meta_id |= NFP_NET_META_IPSEC << 8 | NFP_NET_META_IPSEC << 4 | NFP_NET_META_IPSEC;
 	}
 
 	meta_id = FIELD_PREP(NFDK_META_LEN, md_bytes) |
@@ -243,6 +265,7 @@ netdev_tx_t nfp_nfdk_tx(struct sk_buff *skb, struct net_device *netdev)
 	struct nfp_net_dp *dp;
 	int nr_frags, wr_idx;
 	dma_addr_t dma_addr;
+	bool ipsec = false;
 	u64 metadata;
 
 	dp = &nn->dp;
@@ -263,7 +286,7 @@ netdev_tx_t nfp_nfdk_tx(struct sk_buff *skb, struct net_device *netdev)
 		return NETDEV_TX_BUSY;
 	}
 
-	metadata = nfp_nfdk_prep_tx_meta(dp, nn->app, skb);
+	metadata = nfp_nfdk_prep_tx_meta(dp, nn->app, skb, &ipsec);
 	if (unlikely((int)metadata < 0))
 		goto err_flush;
 
@@ -361,10 +384,14 @@ netdev_tx_t nfp_nfdk_tx(struct sk_buff *skb, struct net_device *netdev)
 
 	(txd - 1)->dma_len_type = cpu_to_le16(dlen_type | NFDK_DESC_TX_EOP);
 
+	if (ipsec)
+		metadata = nfp_nfdk_ipsec_tx(metadata, skb);
+
 	if (!skb_is_gso(skb)) {
 		real_len = skb->len;
 		/* Metadata desc */
-		metadata = nfp_nfdk_tx_csum(dp, r_vec, 1, skb, metadata);
+		if (!ipsec)
+			metadata = nfp_nfdk_tx_csum(dp, r_vec, 1, skb, metadata);
 		txd->raw = cpu_to_le64(metadata);
 		txd++;
 	} else {
@@ -372,7 +399,8 @@ netdev_tx_t nfp_nfdk_tx(struct sk_buff *skb, struct net_device *netdev)
 		(txd + 1)->raw = nfp_nfdk_tx_tso(r_vec, txbuf, skb);
 		real_len = txbuf->real_len;
 		/* Metadata desc */
-		metadata = nfp_nfdk_tx_csum(dp, r_vec, txbuf->pkt_cnt, skb, metadata);
+		if (!ipsec)
+			metadata = nfp_nfdk_tx_csum(dp, r_vec, txbuf->pkt_cnt, skb, metadata);
 		txd->raw = cpu_to_le64(metadata);
 		txd += 2;
 		txbuf++;
@@ -760,6 +788,15 @@ nfp_nfdk_parse_meta(struct net_device *netdev, struct nfp_meta_parsed *meta,
 				return false;
 			data += sizeof(struct nfp_net_tls_resync_req);
 			break;
+#ifdef CONFIG_NFP_NET_IPSEC
+		case NFP_NET_META_IPSEC:
+			/* Note: IPsec packet could have zero saidx, so need add 1
+			 * to indicate packet is IPsec packet within driver.
+			 */
+			meta->ipsec_saidx = get_unaligned_be32(data) + 1;
+			data += 4;
+			break;
+#endif
 		default:
 			return true;
 		}
@@ -1155,7 +1192,7 @@ static int nfp_nfdk_rx(struct nfp_net_rx_ring *rx_ring, int budget)
 				nfp_repr_inc_rx_stats(netdev, pkt_len);
 		}
 
-		skb = build_skb(rxbuf->frag, true_bufsz);
+		skb = napi_build_skb(rxbuf->frag, true_bufsz);
 		if (unlikely(!skb)) {
 			nfp_nfdk_rx_drop(dp, r_vec, rx_ring, rxbuf, NULL);
 			continue;
@@ -1185,6 +1222,13 @@ static int nfp_nfdk_rx(struct nfp_net_rx_ring *rx_ring, int budget)
 			nfp_nfdk_rx_drop(dp, r_vec, rx_ring, NULL, skb);
 			continue;
 		}
+
+#ifdef CONFIG_NFP_NET_IPSEC
+		if (meta.ipsec_saidx != 0 && unlikely(nfp_net_ipsec_rx(&meta, skb))) {
+			nfp_nfdk_rx_drop(dp, r_vec, rx_ring, NULL, skb);
+			continue;
+		}
+#endif
 
 		if (meta_len_xdp)
 			skb_metadata_set(skb, meta_len_xdp);

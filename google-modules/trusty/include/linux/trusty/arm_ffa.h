@@ -20,7 +20,7 @@
 #endif
 
 #define FFA_CURRENT_VERSION_MAJOR (1U)
-#define FFA_CURRENT_VERSION_MINOR (0U)
+#define FFA_CURRENT_VERSION_MINOR (1U)
 
 #define FFA_VERSION_TO_MAJOR(version) ((version) >> 16)
 #define FFA_VERSION_TO_MINOR(version) ((version) & (0xffff))
@@ -208,7 +208,7 @@ struct ffa_emad {
 STATIC_ASSERT(sizeof(struct ffa_emad) == 16);
 
 /**
- * struct ffa_mtd - Memory transaction descriptor.
+ * struct ffa_mtd_v1_0 - Memory transaction descriptor.
  * @sender_id:
  *         Sender endpoint id.
  * @memory_region_attributes:
@@ -228,7 +228,7 @@ STATIC_ASSERT(sizeof(struct ffa_emad) == 16);
  * @emad:
  *         Endpoint memory access descriptor array (see @struct ffa_emad).
  */
-struct ffa_mtd {
+struct ffa_mtd_v1_0 {
 	ffa_endpoint_id16_t sender_id;
 	ffa_mem_attr8_t memory_region_attributes;
 	uint8_t reserved_3;
@@ -239,7 +239,47 @@ struct ffa_mtd {
 	uint32_t emad_count;
 	struct ffa_emad emad[];
 };
-STATIC_ASSERT(sizeof(struct ffa_mtd) == 32);
+STATIC_ASSERT(sizeof(struct ffa_mtd_v1_0) == 32);
+
+/**
+ * struct ffa_mtd_v1_1 - Memory transaction descriptor for FF-A v1.1.
+ * @sender_id:
+ *         Sender endpoint id.
+ * @memory_region_attributes:
+ *         FFA_MEM_ATTR_* values or'ed together (&typedef ffa_mem_attr16_t).
+ * @flags:
+ *         FFA_MTD_FLAG_* values or'ed together (&typedef ffa_mtd_flag32_t).
+ * @handle:
+ *         Id of shared memory object. Must be 0 for MEM_SHARE or MEM_LEND.
+ * @tag:   Client allocated tag. Must match original value.
+ * @emad_size:
+ *         Size of the emad descriptor.
+ * @emad_count:
+ *         Number of entries in the emad array.
+ * @emad_offset:
+ *         Offset from the beginning of the descriptor to the location of the
+ *         memory access descriptor array (see @struct ffa_emad).
+ * @reserved_36_39:
+ *         Reserved bytes 36-39. Must be 0.
+ * @reserved_40_47:
+ *         Reserved bytes 44-47. Must be 0.
+ */
+struct ffa_mtd_v1_1 {
+	ffa_endpoint_id16_t sender_id;
+	uint16_t memory_region_attributes;
+	ffa_mtd_flag32_t flags;
+	uint64_t handle;
+	uint64_t tag;
+	uint32_t emad_size;
+	uint32_t emad_count;
+	uint32_t emad_offset;
+	uint32_t reserved_36_39;
+	uint64_t reserved_40_47;
+};
+STATIC_ASSERT(sizeof(struct ffa_mtd_v1_1) == 48);
+
+
+
 
 /**
  * struct ffa_mem_relinquish_descriptor - Relinquish request descriptor.

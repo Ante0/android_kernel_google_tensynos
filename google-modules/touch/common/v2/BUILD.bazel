@@ -1,0 +1,108 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_headers(
+    name = "ddk_headers",
+    hdrs = glob([
+        "**/*.h",
+    ]),
+    includes = [
+        ".",
+        "include",
+    ],
+    visibility = [
+        "//private/google-modules/touch/common:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "touch.common.uapi_headers",
+    srcs = glob([
+        "include/uapi/**/*.h",
+    ]),
+    visibility = [
+        "//private/google-modules/touch/common:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "touch.common.touch_bus_negotiator",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "touch_bus_negotiator.c",
+    ],
+    visibility = [
+        "//private/google-modules/touch/common:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "touch.common.heatmap",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "heatmap.c",
+    ],
+    visibility = [
+        "//private/google-modules/touch/common:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "touch.common.touch_offload",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "touch_offload.c",
+    ],
+    visibility = [
+        "//private/google-modules/touch/common:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "touch.common.goog_touch_interface",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "gim_drm.c",
+        "goog_interface_manager.c",
+        "goog_touch_interface.c",
+        "gti_debug.c",
+        "gti_fs.c",
+        "gti_pm.c",
+        "gti_sim.c",
+        "gti_sim_sw_emulator.c",
+        "gti_status_event_dev.c",
+    ],
+    visibility = [
+        "//private/google-modules/touch/common:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "touch_test",
+    srcs = [
+        "gti_pm.c",
+        "test/gti_pm_kunit_test.c",
+    ],
+    out = "touch_test.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":ddk_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/touch/common:goog_touch_interface",
+    ],
+)

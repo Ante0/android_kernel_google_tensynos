@@ -1,0 +1,1974 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+
+/*
+ * Laguna camera ISP device tree source
+ *
+ * Copyright 2023 Google LLC.
+ */
+// TODO(b/291686880): Migrate to lga
+#include <dt-bindings/interconnect/google,rdo.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/interrupt-controller/irq-gia-google-lga.h>
+
+#include "lga-devfreq.dtsi"
+#include "lga-isp-event-info.dtsi"
+
+/ {
+	lwis_top: lwis_top {
+		compatible = "google,lwis-top-device";
+
+		/* Device node name */
+		node-name = "top";
+
+		/* Thread priority */
+		transaction-thread-priority = <99>;
+	};
+
+	lwis_dpm: lwis_dpm {
+		compatible = "google,lwis-dpm-device";
+
+		/* Device node name */
+		node-name = "dpm";
+
+		clocks =
+			<&ispfe_pf_state_clk>,
+			<&ispbe_pf_state_clk>,
+			<&gsw_pf_state_clk>;
+		clock-names =
+			"ispfe_pclk",
+			"ispbe_pclk",
+			"gsw_pclk";
+	};
+
+	lwis_test: lwis_test@0 {
+		compatible = "google,lwis-test-device";
+
+		/* Device node name */
+		node-name = "test";
+
+		/* Register space */
+		reg = <0x0 0x0 0x0 0x20>;
+		reg-names = "test";
+		interrupt-names = "test_event_inj";
+		interrupt-event-infos = <&test_event_inj>;
+	};
+
+	sswrp_ispfe: sswrp_ispfe@F000000 {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x0 0x0f000000 0x1000000>;
+
+		lwis_isp_fe: lwis_isp_fe@0 {
+			compatible = "google,lwis-ioreg-device";
+			google,qos_box_dev =
+				<&qos_box_ispfe_1>,
+				<&qos_box_ispfe_2>,
+				<&qos_box_ispfe_3>;
+			google,qos_box_dev_names =
+				"ispfe_data1",
+				"ispfe_data2",
+				"ispfe_data3";
+			power-domains =
+				<&ispfe_csis_pd>,
+				<&ispfe_pipe_pd>;
+
+			/* Device node name */
+			node-name = "isp-fe";
+
+			/* Register space */
+			reg =
+				<0x0 0x000000 0x1000000>, /* ISPFE */
+				<0x0 0x800000 0x0200000>; /* CSIS PHY LINK */
+			reg-names =
+				"isp-fe",
+				"csis-phy-link";
+
+			reg-valid-ranges =
+				<0x0 0x9000 0x2C078>, /* LPCM */
+				<0x0 0x61000 0xE20000>, /* ISPFE */
+				<0x1 0x0 0xFE100>; /* CSIS PHY LINK */
+
+			interrupts-extended =
+				<&ispfe_level_aggr_3_intr 21>,
+				<&ispfe_level_aggr_3_intr 21>,
+				<&ispfe_level_aggr_3_intr 21>,
+				<&ispfe_level_aggr_3_intr 21>,
+				<&ispfe_level_aggr_3_intr 21>,
+				<&ispfe_level_aggr_3_intr 21>,
+				<&ispfe_level_aggr_3_intr 21>,
+				<&ispfe_level_aggr_3_intr 21>,
+				<&ispfe_level_aggr_3_intr 21>,
+				<&ispfe_level_aggr_3_intr 25>,
+				<&ispfe_level_aggr_3_intr 26>,
+				<&ispfe_level_aggr_3_intr 27>,
+				<&ispfe_level_aggr_3_intr 28>,
+				<&ispfe_level_aggr_3_intr 29>,
+				<&ispfe_level_aggr_3_intr 25>,
+				<&ispfe_level_aggr_3_intr 26>,
+				<&ispfe_level_aggr_3_intr 27>,
+				<&ispfe_level_aggr_3_intr 28>,
+				<&ispfe_level_aggr_3_intr 29>,
+				<&ispfe_level_aggr_3_intr 25>,
+				<&ispfe_level_aggr_3_intr 26>,
+				<&ispfe_level_aggr_3_intr 27>,
+				<&ispfe_level_aggr_3_intr 28>,
+				<&ispfe_level_aggr_3_intr 29>,
+				<&ispfe_level_aggr_3_intr 23>,
+				<&ispfe_level_aggr_3_intr 23>,
+				<&ispfe_level_aggr_3_intr 23>,
+				<&ispfe_level_aggr_3_intr 23>,
+				<&ispfe_level_aggr_3_intr 23>,
+				<&ispfe_level_aggr_3_intr 24>,
+				<&ispfe_level_aggr_3_intr 24>,
+				<&ispfe_level_aggr_3_intr 24>,
+				<&ispfe_level_aggr_3_intr 24>,
+				<&ispfe_level_aggr_3_intr 23>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_3_intr 22>,
+				<&ispfe_level_aggr_10_intr 0>,
+				<&ispfe_level_aggr_10_intr 1>,
+				<&ispfe_level_aggr_10_intr 2>,
+				<&ispfe_level_aggr_10_intr 3>,
+				<&ispfe_level_aggr_10_intr 4>,
+				<&ispfe_level_aggr_10_intr 5>,
+				<&ispfe_level_aggr_10_intr 6>,
+				<&ispfe_level_aggr_10_intr 7>,
+				<&ispfe_level_aggr_10_intr 0>,
+				<&ispfe_level_aggr_10_intr 1>,
+				<&ispfe_level_aggr_10_intr 2>,
+				<&ispfe_level_aggr_10_intr 3>,
+				<&ispfe_level_aggr_10_intr 4>,
+				<&ispfe_level_aggr_10_intr 5>,
+				<&ispfe_level_aggr_10_intr 6>,
+				<&ispfe_level_aggr_10_intr 7>,
+				<&ispfe_level_aggr_10_intr 0>,
+				<&ispfe_level_aggr_10_intr 1>,
+				<&ispfe_level_aggr_10_intr 2>,
+				<&ispfe_level_aggr_10_intr 3>,
+				<&ispfe_level_aggr_10_intr 4>,
+				<&ispfe_level_aggr_10_intr 5>,
+				<&ispfe_level_aggr_10_intr 6>,
+				<&ispfe_level_aggr_10_intr 7>,
+				<&ispfe_level_aggr_10_intr 0>,
+				<&ispfe_level_aggr_10_intr 1>,
+				<&ispfe_level_aggr_10_intr 2>,
+				<&ispfe_level_aggr_10_intr 3>,
+				<&ispfe_level_aggr_10_intr 4>,
+				<&ispfe_level_aggr_10_intr 5>,
+				<&ispfe_level_aggr_10_intr 6>,
+				<&ispfe_level_aggr_10_intr 7>,
+				<&ispfe_level_aggr_10_intr 0>,
+				<&ispfe_level_aggr_10_intr 1>,
+				<&ispfe_level_aggr_10_intr 2>,
+				<&ispfe_level_aggr_10_intr 3>,
+				<&ispfe_level_aggr_10_intr 4>,
+				<&ispfe_level_aggr_10_intr 5>,
+				<&ispfe_level_aggr_10_intr 6>,
+				<&ispfe_level_aggr_10_intr 7>,
+				<&ispfe_level_aggr_10_intr 0>,
+				<&ispfe_level_aggr_10_intr 1>,
+				<&ispfe_level_aggr_10_intr 2>,
+				<&ispfe_level_aggr_10_intr 3>,
+				<&ispfe_level_aggr_10_intr 4>,
+				<&ispfe_level_aggr_10_intr 5>,
+				<&ispfe_level_aggr_10_intr 6>,
+				<&ispfe_level_aggr_10_intr 7>,
+				<&ispfe_level_aggr_10_intr 0>,
+				<&ispfe_level_aggr_10_intr 1>,
+				<&ispfe_level_aggr_10_intr 2>,
+				<&ispfe_level_aggr_10_intr 3>,
+				<&ispfe_level_aggr_10_intr 4>,
+				<&ispfe_level_aggr_10_intr 5>,
+				<&ispfe_level_aggr_10_intr 6>,
+				<&ispfe_level_aggr_10_intr 7>,
+				<&ispfe_level_aggr_10_intr 0>,
+				<&ispfe_level_aggr_10_intr 1>,
+				<&ispfe_level_aggr_10_intr 2>,
+				<&ispfe_level_aggr_10_intr 3>,
+				<&ispfe_level_aggr_10_intr 4>,
+				<&ispfe_level_aggr_10_intr 5>,
+				<&ispfe_level_aggr_10_intr 6>,
+				<&ispfe_level_aggr_10_intr 7>,
+				<&ispfe_level_aggr_10_intr 0>,
+				<&ispfe_level_aggr_10_intr 1>,
+				<&ispfe_level_aggr_10_intr 2>,
+				<&ispfe_level_aggr_10_intr 3>,
+				<&ispfe_level_aggr_10_intr 4>,
+				<&ispfe_level_aggr_10_intr 5>,
+				<&ispfe_level_aggr_10_intr 6>,
+				<&ispfe_level_aggr_10_intr 7>,
+				<&ispfe_level_aggr_10_intr 0>,
+				<&ispfe_level_aggr_10_intr 1>,
+				<&ispfe_level_aggr_10_intr 2>,
+				<&ispfe_level_aggr_10_intr 3>,
+				<&ispfe_level_aggr_10_intr 4>,
+				<&ispfe_level_aggr_10_intr 5>,
+				<&ispfe_level_aggr_10_intr 6>,
+				<&ispfe_level_aggr_10_intr 7>,
+				<&ispfe_level_aggr_3_intr 22>;
+			interrupt-names =
+				"ispfe_ctx0_fc_bayer",
+				"ispfe_ctx1_fc_bayer",
+				"ispfe_ctx2_fc_bayer",
+				"ispfe_ctx3_fc_bayer",
+				"ispfe_ctx4_fc_bayer",
+				"ispfe_ctx0_fc_pdaf",
+				"ispfe_ctx1_fc_pdaf",
+				"ispfe_ctx2_fc_pdaf",
+				"ispfe_ctx3_fc_pdaf",
+				"ispfe_ctx0_pdma",
+				"ispfe_ctx1_pdma",
+				"ispfe_ctx2_pdma",
+				"ispfe_ctx3_pdma",
+				"ispfe_ctx4_pdma",
+				"ispfe_ctx0_pdma_err",
+				"ispfe_ctx1_pdma_err",
+				"ispfe_ctx2_pdma_err",
+				"ispfe_ctx3_pdma_err",
+				"ispfe_ctx4_pdma_err",
+				"ispfe_ctx0_pdma_rstctl",
+				"ispfe_ctx1_pdma_rstctl",
+				"ispfe_ctx2_pdma_rstctl",
+				"ispfe_ctx3_pdma_rstctl",
+				"ispfe_ctx4_pdma_rstctl",
+				"ispfe_ctx0_lmp_bayer",
+				"ispfe_ctx1_lmp_bayer",
+				"ispfe_ctx2_lmp_bayer",
+				"ispfe_ctx3_lmp_bayer",
+				"ispfe_ctx4_lmp_bayer",
+				"ispfe_ctx0_lmp_pdaf",
+				"ispfe_ctx1_lmp_pdaf",
+				"ispfe_ctx2_lmp_pdaf",
+				"ispfe_ctx3_lmp_pdaf",
+				"ispfe_lmp_debug",
+				"ispfe_cc_cmn_ctl",
+				"ispfe_cc_ebuf_ctl",
+				"ispfe_loch0_cc_img_abort_done",
+				"ispfe_loch1_cc_img_abort_done",
+				"ispfe_loch2_cc_img_abort_done",
+				"ispfe_loch3_cc_img_abort_done",
+				"ispfe_loch4_cc_img_abort_done",
+				"ispfe_loch5_cc_img_abort_done",
+				"ispfe_loch6_cc_img_abort_done",
+				"ispfe_loch0_cc_img_proc",
+				"ispfe_loch1_cc_img_proc",
+				"ispfe_loch2_cc_img_proc",
+				"ispfe_loch3_cc_img_proc",
+				"ispfe_loch4_cc_img_proc",
+				"ispfe_loch5_cc_img_proc",
+				"ispfe_loch6_cc_img_proc",
+				"ispfe_loch0_cc_img_err",
+				"ispfe_loch1_cc_img_err",
+				"ispfe_loch2_cc_img_err",
+				"ispfe_loch3_cc_img_err",
+				"ispfe_loch4_cc_img_err",
+				"ispfe_loch5_cc_img_err",
+				"ispfe_loch6_cc_img_err",
+				"ispfe_loch0_cc_img_mute",
+				"ispfe_loch1_cc_img_mute",
+				"ispfe_loch2_cc_img_mute",
+				"ispfe_loch3_cc_img_mute",
+				"ispfe_loch4_cc_img_mute",
+				"ispfe_loch5_cc_img_mute",
+				"ispfe_loch6_cc_img_mute",
+				"ispfe_loch0_cc_pd_abort_done",
+				"ispfe_loch1_cc_pd_abort_done",
+				"ispfe_loch2_cc_pd_abort_done",
+				"ispfe_loch3_cc_pd_abort_done",
+				"ispfe_loch4_cc_pd_abort_done",
+				"ispfe_loch5_cc_pd_abort_done",
+				"ispfe_loch6_cc_pd_abort_done",
+				"ispfe_loch0_cc_pd_proc",
+				"ispfe_loch1_cc_pd_proc",
+				"ispfe_loch2_cc_pd_proc",
+				"ispfe_loch3_cc_pd_proc",
+				"ispfe_loch4_cc_pd_proc",
+				"ispfe_loch5_cc_pd_proc",
+				"ispfe_loch6_cc_pd_proc",
+				"ispfe_loch0_cc_pd_err",
+				"ispfe_loch1_cc_pd_err",
+				"ispfe_loch2_cc_pd_err",
+				"ispfe_loch3_cc_pd_err",
+				"ispfe_loch4_cc_pd_err",
+				"ispfe_loch5_cc_pd_err",
+				"ispfe_loch6_cc_pd_err",
+				"ispfe_loch0_cc_pd_mute",
+				"ispfe_loch1_cc_pd_mute",
+				"ispfe_loch2_cc_pd_mute",
+				"ispfe_loch3_cc_pd_mute",
+				"ispfe_loch4_cc_pd_mute",
+				"ispfe_loch5_cc_pd_mute",
+				"ispfe_loch6_cc_pd_mute",
+				"ispfe_loch0_cc_vc_abort_done",
+				"ispfe_loch1_cc_vc_abort_done",
+				"ispfe_loch2_cc_vc_abort_done",
+				"ispfe_loch3_cc_vc_abort_done",
+				"ispfe_loch4_cc_vc_abort_done",
+				"ispfe_loch5_cc_vc_abort_done",
+				"ispfe_loch6_cc_vc_abort_done",
+				"ispfe_loch7_cc_vc_abort_done",
+				"ispfe_loch8_cc_vc_abort_done",
+				"ispfe_loch9_cc_vc_abort_done",
+				"ispfe_loch10_cc_vc_abort_done",
+				"ispfe_loch11_cc_vc_abort_done",
+				"ispfe_loch12_cc_vc_abort_done",
+				"ispfe_loch13_cc_vc_abort_done",
+				"ispfe_loch0_cc_vc_proc",
+				"ispfe_loch1_cc_vc_proc",
+				"ispfe_loch2_cc_vc_proc",
+				"ispfe_loch3_cc_vc_proc",
+				"ispfe_loch4_cc_vc_proc",
+				"ispfe_loch5_cc_vc_proc",
+				"ispfe_loch6_cc_vc_proc",
+				"ispfe_loch7_cc_vc_proc",
+				"ispfe_loch8_cc_vc_proc",
+				"ispfe_loch9_cc_vc_proc",
+				"ispfe_loch10_cc_vc_proc",
+				"ispfe_loch11_cc_vc_proc",
+				"ispfe_loch12_cc_vc_proc",
+				"ispfe_loch13_cc_vc_proc",
+				"ispfe_loch0_cc_vc_err",
+				"ispfe_loch1_cc_vc_err",
+				"ispfe_loch2_cc_vc_err",
+				"ispfe_loch3_cc_vc_err",
+				"ispfe_loch4_cc_vc_err",
+				"ispfe_loch5_cc_vc_err",
+				"ispfe_loch6_cc_vc_err",
+				"ispfe_loch7_cc_vc_err",
+				"ispfe_loch8_cc_vc_err",
+				"ispfe_loch9_cc_vc_err",
+				"ispfe_loch10_cc_vc_err",
+				"ispfe_loch11_cc_vc_err",
+				"ispfe_loch12_cc_vc_err",
+				"ispfe_loch13_cc_vc_err",
+				"ispfe_loch0_cc_vc_mute",
+				"ispfe_loch1_cc_vc_mute",
+				"ispfe_loch2_cc_vc_mute",
+				"ispfe_loch3_cc_vc_mute",
+				"ispfe_loch4_cc_vc_mute",
+				"ispfe_loch5_cc_vc_mute",
+				"ispfe_loch6_cc_vc_mute",
+				"ispfe_loch7_cc_vc_mute",
+				"ispfe_loch8_cc_vc_mute",
+				"ispfe_loch9_cc_vc_mute",
+				"ispfe_loch10_cc_vc_mute",
+				"ispfe_loch11_cc_vc_mute",
+				"ispfe_loch12_cc_vc_mute",
+				"ispfe_loch13_cc_vc_mute",
+				"ispfe_ctx0_cc_rdma_abort_done",
+				"ispfe_ctx1_cc_rdma_abort_done",
+				"ispfe_ctx0_cc_rdma_proc",
+				"ispfe_ctx1_cc_rdma_proc",
+				"ispfe_ctx0_cc_rdma_err",
+				"ispfe_ctx1_cc_rdma_err",
+				"ispfe_cc_cmn_ctl_bus_err",
+				"ispfe_ctx0_csis_int_st_rx",
+				"ispfe_ctx1_csis_int_st_rx",
+				"ispfe_ctx2_csis_int_st_rx",
+				"ispfe_ctx3_csis_int_st_rx",
+				"ispfe_ctx4_csis_int_st_rx",
+				"ispfe_ctx5_csis_int_st_rx",
+				"ispfe_ctx6_csis_int_st_rx",
+				"ispfe_ctx7_csis_int_st_rx",
+				"ispfe_ctx0_csis_int_st_deskew",
+				"ispfe_ctx1_csis_int_st_deskew",
+				"ispfe_ctx2_csis_int_st_deskew",
+				"ispfe_ctx3_csis_int_st_deskew",
+				"ispfe_ctx4_csis_int_st_deskew",
+				"ispfe_ctx5_csis_int_st_deskew",
+				"ispfe_ctx6_csis_int_st_deskew",
+				"ispfe_ctx7_csis_int_st_deskew",
+				"ispfe_ctx0_csis_int_st_timeout",
+				"ispfe_ctx1_csis_int_st_timeout",
+				"ispfe_ctx2_csis_int_st_timeout",
+				"ispfe_ctx3_csis_int_st_timeout",
+				"ispfe_ctx4_csis_int_st_timeout",
+				"ispfe_ctx5_csis_int_st_timeout",
+				"ispfe_ctx6_csis_int_st_timeout",
+				"ispfe_ctx7_csis_int_st_timeout",
+				"ispfe_ctx0_csis_int_st_phy01",
+				"ispfe_ctx1_csis_int_st_phy01",
+				"ispfe_ctx2_csis_int_st_phy01",
+				"ispfe_ctx3_csis_int_st_phy01",
+				"ispfe_ctx4_csis_int_st_phy01",
+				"ispfe_ctx5_csis_int_st_phy01",
+				"ispfe_ctx6_csis_int_st_phy01",
+				"ispfe_ctx7_csis_int_st_phy01",
+				"ispfe_ctx0_csis_int_st_phy23",
+				"ispfe_ctx1_csis_int_st_phy23",
+				"ispfe_ctx2_csis_int_st_phy23",
+				"ispfe_ctx3_csis_int_st_phy23",
+				"ispfe_ctx4_csis_int_st_phy23",
+				"ispfe_ctx5_csis_int_st_phy23",
+				"ispfe_ctx6_csis_int_st_phy23",
+				"ispfe_ctx7_csis_int_st_phy23",
+				"ispfe_ctx0_csis_int_st_sdi",
+				"ispfe_ctx1_csis_int_st_sdi",
+				"ispfe_ctx2_csis_int_st_sdi",
+				"ispfe_ctx3_csis_int_st_sdi",
+				"ispfe_ctx4_csis_int_st_sdi",
+				"ispfe_ctx5_csis_int_st_sdi",
+				"ispfe_ctx6_csis_int_st_sdi",
+				"ispfe_ctx7_csis_int_st_sdi",
+				"ispfe_ctx0_csis_int_st_csi2",
+				"ispfe_ctx1_csis_int_st_csi2",
+				"ispfe_ctx2_csis_int_st_csi2",
+				"ispfe_ctx3_csis_int_st_csi2",
+				"ispfe_ctx4_csis_int_st_csi2",
+				"ispfe_ctx5_csis_int_st_csi2",
+				"ispfe_ctx6_csis_int_st_csi2",
+				"ispfe_ctx7_csis_int_st_csi2",
+				"ispfe_ctx0_csis_int_st_frame",
+				"ispfe_ctx1_csis_int_st_frame",
+				"ispfe_ctx2_csis_int_st_frame",
+				"ispfe_ctx3_csis_int_st_frame",
+				"ispfe_ctx4_csis_int_st_frame",
+				"ispfe_ctx5_csis_int_st_frame",
+				"ispfe_ctx6_csis_int_st_frame",
+				"ispfe_ctx7_csis_int_st_frame",
+				"ispfe_ctx0_csis_int_st_line",
+				"ispfe_ctx1_csis_int_st_line",
+				"ispfe_ctx2_csis_int_st_line",
+				"ispfe_ctx3_csis_int_st_line",
+				"ispfe_ctx4_csis_int_st_line",
+				"ispfe_ctx5_csis_int_st_line",
+				"ispfe_ctx6_csis_int_st_line",
+				"ispfe_ctx7_csis_int_st_line",
+				"ispfe_ctx0_csis_int_st_main",
+				"ispfe_ctx1_csis_int_st_main",
+				"ispfe_ctx2_csis_int_st_main",
+				"ispfe_ctx3_csis_int_st_main",
+				"ispfe_ctx4_csis_int_st_main",
+				"ispfe_ctx5_csis_int_st_main",
+				"ispfe_ctx6_csis_int_st_main",
+				"ispfe_ctx7_csis_int_st_main",
+                                "ispfe_rstctl_wrap_rstctl";
+			interrupt-event-infos =
+				<&ispfe_ctx0_fc_bayer>,
+				<&ispfe_ctx1_fc_bayer>,
+				<&ispfe_ctx2_fc_bayer>,
+				<&ispfe_ctx3_fc_bayer>,
+				<&ispfe_ctx4_fc_bayer>,
+				<&ispfe_ctx0_fc_pdaf>,
+				<&ispfe_ctx1_fc_pdaf>,
+				<&ispfe_ctx2_fc_pdaf>,
+				<&ispfe_ctx3_fc_pdaf>,
+				<&ispfe_ctx0_pdma>,
+				<&ispfe_ctx1_pdma>,
+				<&ispfe_ctx2_pdma>,
+				<&ispfe_ctx3_pdma>,
+				<&ispfe_ctx4_pdma>,
+				<&ispfe_ctx0_pdma_err>,
+				<&ispfe_ctx1_pdma_err>,
+				<&ispfe_ctx2_pdma_err>,
+				<&ispfe_ctx3_pdma_err>,
+				<&ispfe_ctx4_pdma_err>,
+				<&ispfe_ctx0_pdma_rstctl>,
+				<&ispfe_ctx1_pdma_rstctl>,
+				<&ispfe_ctx2_pdma_rstctl>,
+				<&ispfe_ctx3_pdma_rstctl>,
+				<&ispfe_ctx4_pdma_rstctl>,
+				<&ispfe_ctx0_lmp_bayer>,
+				<&ispfe_ctx1_lmp_bayer>,
+				<&ispfe_ctx2_lmp_bayer>,
+				<&ispfe_ctx3_lmp_bayer>,
+				<&ispfe_ctx4_lmp_bayer>,
+				<&ispfe_ctx0_lmp_pdaf>,
+				<&ispfe_ctx1_lmp_pdaf>,
+				<&ispfe_ctx2_lmp_pdaf>,
+				<&ispfe_ctx3_lmp_pdaf>,
+				<&ispfe_lmp_debug>,
+				<&ispfe_cc_cmn_ctl>,
+				<&ispfe_cc_ebuf_ctl>,
+				<&ispfe_loch0_cc_img_abort_done>,
+				<&ispfe_loch1_cc_img_abort_done>,
+				<&ispfe_loch2_cc_img_abort_done>,
+				<&ispfe_loch3_cc_img_abort_done>,
+				<&ispfe_loch4_cc_img_abort_done>,
+				<&ispfe_loch5_cc_img_abort_done>,
+				<&ispfe_loch6_cc_img_abort_done>,
+				<&ispfe_loch0_cc_img_proc>,
+				<&ispfe_loch1_cc_img_proc>,
+				<&ispfe_loch2_cc_img_proc>,
+				<&ispfe_loch3_cc_img_proc>,
+				<&ispfe_loch4_cc_img_proc>,
+				<&ispfe_loch5_cc_img_proc>,
+				<&ispfe_loch6_cc_img_proc>,
+				<&ispfe_loch0_cc_img_err>,
+				<&ispfe_loch1_cc_img_err>,
+				<&ispfe_loch2_cc_img_err>,
+				<&ispfe_loch3_cc_img_err>,
+				<&ispfe_loch4_cc_img_err>,
+				<&ispfe_loch5_cc_img_err>,
+				<&ispfe_loch6_cc_img_err>,
+				<&ispfe_loch0_cc_img_mute>,
+				<&ispfe_loch1_cc_img_mute>,
+				<&ispfe_loch2_cc_img_mute>,
+				<&ispfe_loch3_cc_img_mute>,
+				<&ispfe_loch4_cc_img_mute>,
+				<&ispfe_loch5_cc_img_mute>,
+				<&ispfe_loch6_cc_img_mute>,
+				<&ispfe_loch0_cc_pd_abort_done>,
+				<&ispfe_loch1_cc_pd_abort_done>,
+				<&ispfe_loch2_cc_pd_abort_done>,
+				<&ispfe_loch3_cc_pd_abort_done>,
+				<&ispfe_loch4_cc_pd_abort_done>,
+				<&ispfe_loch5_cc_pd_abort_done>,
+				<&ispfe_loch6_cc_pd_abort_done>,
+				<&ispfe_loch0_cc_pd_proc>,
+				<&ispfe_loch1_cc_pd_proc>,
+				<&ispfe_loch2_cc_pd_proc>,
+				<&ispfe_loch3_cc_pd_proc>,
+				<&ispfe_loch4_cc_pd_proc>,
+				<&ispfe_loch5_cc_pd_proc>,
+				<&ispfe_loch6_cc_pd_proc>,
+				<&ispfe_loch0_cc_pd_err>,
+				<&ispfe_loch1_cc_pd_err>,
+				<&ispfe_loch2_cc_pd_err>,
+				<&ispfe_loch3_cc_pd_err>,
+				<&ispfe_loch4_cc_pd_err>,
+				<&ispfe_loch5_cc_pd_err>,
+				<&ispfe_loch6_cc_pd_err>,
+				<&ispfe_loch0_cc_pd_mute>,
+				<&ispfe_loch1_cc_pd_mute>,
+				<&ispfe_loch2_cc_pd_mute>,
+				<&ispfe_loch3_cc_pd_mute>,
+				<&ispfe_loch4_cc_pd_mute>,
+				<&ispfe_loch5_cc_pd_mute>,
+				<&ispfe_loch6_cc_pd_mute>,
+				<&ispfe_loch0_cc_vc_abort_done>,
+				<&ispfe_loch1_cc_vc_abort_done>,
+				<&ispfe_loch2_cc_vc_abort_done>,
+				<&ispfe_loch3_cc_vc_abort_done>,
+				<&ispfe_loch4_cc_vc_abort_done>,
+				<&ispfe_loch5_cc_vc_abort_done>,
+				<&ispfe_loch6_cc_vc_abort_done>,
+				<&ispfe_loch7_cc_vc_abort_done>,
+				<&ispfe_loch8_cc_vc_abort_done>,
+				<&ispfe_loch9_cc_vc_abort_done>,
+				<&ispfe_loch10_cc_vc_abort_done>,
+				<&ispfe_loch11_cc_vc_abort_done>,
+				<&ispfe_loch12_cc_vc_abort_done>,
+				<&ispfe_loch13_cc_vc_abort_done>,
+				<&ispfe_loch0_cc_vc_proc>,
+				<&ispfe_loch1_cc_vc_proc>,
+				<&ispfe_loch2_cc_vc_proc>,
+				<&ispfe_loch3_cc_vc_proc>,
+				<&ispfe_loch4_cc_vc_proc>,
+				<&ispfe_loch5_cc_vc_proc>,
+				<&ispfe_loch6_cc_vc_proc>,
+				<&ispfe_loch7_cc_vc_proc>,
+				<&ispfe_loch8_cc_vc_proc>,
+				<&ispfe_loch9_cc_vc_proc>,
+				<&ispfe_loch10_cc_vc_proc>,
+				<&ispfe_loch11_cc_vc_proc>,
+				<&ispfe_loch12_cc_vc_proc>,
+				<&ispfe_loch13_cc_vc_proc>,
+				<&ispfe_loch0_cc_vc_err>,
+				<&ispfe_loch1_cc_vc_err>,
+				<&ispfe_loch2_cc_vc_err>,
+				<&ispfe_loch3_cc_vc_err>,
+				<&ispfe_loch4_cc_vc_err>,
+				<&ispfe_loch5_cc_vc_err>,
+				<&ispfe_loch6_cc_vc_err>,
+				<&ispfe_loch7_cc_vc_err>,
+				<&ispfe_loch8_cc_vc_err>,
+				<&ispfe_loch9_cc_vc_err>,
+				<&ispfe_loch10_cc_vc_err>,
+				<&ispfe_loch11_cc_vc_err>,
+				<&ispfe_loch12_cc_vc_err>,
+				<&ispfe_loch13_cc_vc_err>,
+				<&ispfe_loch0_cc_vc_mute>,
+				<&ispfe_loch1_cc_vc_mute>,
+				<&ispfe_loch2_cc_vc_mute>,
+				<&ispfe_loch3_cc_vc_mute>,
+				<&ispfe_loch4_cc_vc_mute>,
+				<&ispfe_loch5_cc_vc_mute>,
+				<&ispfe_loch6_cc_vc_mute>,
+				<&ispfe_loch7_cc_vc_mute>,
+				<&ispfe_loch8_cc_vc_mute>,
+				<&ispfe_loch9_cc_vc_mute>,
+				<&ispfe_loch10_cc_vc_mute>,
+				<&ispfe_loch11_cc_vc_mute>,
+				<&ispfe_loch12_cc_vc_mute>,
+				<&ispfe_loch13_cc_vc_mute>,
+				<&ispfe_ctx0_cc_rdma_abort_done>,
+				<&ispfe_ctx1_cc_rdma_abort_done>,
+				<&ispfe_ctx0_cc_rdma_proc>,
+				<&ispfe_ctx1_cc_rdma_proc>,
+				<&ispfe_ctx0_cc_rdma_err>,
+				<&ispfe_ctx1_cc_rdma_err>,
+				<&ispfe_cc_cmn_ctl_bus_err>,
+				<&ispfe_ctx0_csis_int_st_rx>,
+				<&ispfe_ctx1_csis_int_st_rx>,
+				<&ispfe_ctx2_csis_int_st_rx>,
+				<&ispfe_ctx3_csis_int_st_rx>,
+				<&ispfe_ctx4_csis_int_st_rx>,
+				<&ispfe_ctx5_csis_int_st_rx>,
+				<&ispfe_ctx6_csis_int_st_rx>,
+				<&ispfe_ctx7_csis_int_st_rx>,
+				<&ispfe_ctx0_csis_int_st_deskew>,
+				<&ispfe_ctx1_csis_int_st_deskew>,
+				<&ispfe_ctx2_csis_int_st_deskew>,
+				<&ispfe_ctx3_csis_int_st_deskew>,
+				<&ispfe_ctx4_csis_int_st_deskew>,
+				<&ispfe_ctx5_csis_int_st_deskew>,
+				<&ispfe_ctx6_csis_int_st_deskew>,
+				<&ispfe_ctx7_csis_int_st_deskew>,
+				<&ispfe_ctx0_csis_int_st_timeout>,
+				<&ispfe_ctx1_csis_int_st_timeout>,
+				<&ispfe_ctx2_csis_int_st_timeout>,
+				<&ispfe_ctx3_csis_int_st_timeout>,
+				<&ispfe_ctx4_csis_int_st_timeout>,
+				<&ispfe_ctx5_csis_int_st_timeout>,
+				<&ispfe_ctx6_csis_int_st_timeout>,
+				<&ispfe_ctx7_csis_int_st_timeout>,
+				<&ispfe_ctx0_csis_int_st_phy01>,
+				<&ispfe_ctx1_csis_int_st_phy01>,
+				<&ispfe_ctx2_csis_int_st_phy01>,
+				<&ispfe_ctx3_csis_int_st_phy01>,
+				<&ispfe_ctx4_csis_int_st_phy01>,
+				<&ispfe_ctx5_csis_int_st_phy01>,
+				<&ispfe_ctx6_csis_int_st_phy01>,
+				<&ispfe_ctx7_csis_int_st_phy01>,
+				<&ispfe_ctx0_csis_int_st_phy23>,
+				<&ispfe_ctx1_csis_int_st_phy23>,
+				<&ispfe_ctx2_csis_int_st_phy23>,
+				<&ispfe_ctx3_csis_int_st_phy23>,
+				<&ispfe_ctx4_csis_int_st_phy23>,
+				<&ispfe_ctx5_csis_int_st_phy23>,
+				<&ispfe_ctx6_csis_int_st_phy23>,
+				<&ispfe_ctx7_csis_int_st_phy23>,
+				<&ispfe_ctx0_csis_int_st_sdi>,
+				<&ispfe_ctx1_csis_int_st_sdi>,
+				<&ispfe_ctx2_csis_int_st_sdi>,
+				<&ispfe_ctx3_csis_int_st_sdi>,
+				<&ispfe_ctx4_csis_int_st_sdi>,
+				<&ispfe_ctx5_csis_int_st_sdi>,
+				<&ispfe_ctx6_csis_int_st_sdi>,
+				<&ispfe_ctx7_csis_int_st_sdi>,
+				<&ispfe_ctx0_csis_int_st_csi2>,
+				<&ispfe_ctx1_csis_int_st_csi2>,
+				<&ispfe_ctx2_csis_int_st_csi2>,
+				<&ispfe_ctx3_csis_int_st_csi2>,
+				<&ispfe_ctx4_csis_int_st_csi2>,
+				<&ispfe_ctx5_csis_int_st_csi2>,
+				<&ispfe_ctx6_csis_int_st_csi2>,
+				<&ispfe_ctx7_csis_int_st_csi2>,
+				<&ispfe_ctx0_csis_int_st_frame>,
+				<&ispfe_ctx1_csis_int_st_frame>,
+				<&ispfe_ctx2_csis_int_st_frame>,
+				<&ispfe_ctx3_csis_int_st_frame>,
+				<&ispfe_ctx4_csis_int_st_frame>,
+				<&ispfe_ctx5_csis_int_st_frame>,
+				<&ispfe_ctx6_csis_int_st_frame>,
+				<&ispfe_ctx7_csis_int_st_frame>,
+				<&ispfe_ctx0_csis_int_st_line>,
+				<&ispfe_ctx1_csis_int_st_line>,
+				<&ispfe_ctx2_csis_int_st_line>,
+				<&ispfe_ctx3_csis_int_st_line>,
+				<&ispfe_ctx4_csis_int_st_line>,
+				<&ispfe_ctx5_csis_int_st_line>,
+				<&ispfe_ctx6_csis_int_st_line>,
+				<&ispfe_ctx7_csis_int_st_line>,
+				<&ispfe_ctx0_csis_int_st_main>,
+				<&ispfe_ctx1_csis_int_st_main>,
+				<&ispfe_ctx2_csis_int_st_main>,
+				<&ispfe_ctx3_csis_int_st_main>,
+				<&ispfe_ctx4_csis_int_st_main>,
+				<&ispfe_ctx5_csis_int_st_main>,
+				<&ispfe_ctx6_csis_int_st_main>,
+				<&ispfe_ctx7_csis_int_st_main>,
+                                <&ispfe_rstctl_wrap_rstctl>;
+
+			iommus =
+				<&ispfe_smmu 0x8000>,
+				<&ispfe_smmu 0x8001>,
+				<&ispfe_smmu 0x8002>,
+				<&ispfe_smmu 0x8003>,
+				<&ispfe_smmu 0x8004>,
+				<&ispfe_smmu 0x8005>,
+				<&ispfe_smmu 0x8006>,
+				<&ispfe_smmu 0x8007>,
+				<&ispfe_smmu 0x8008>,
+				<&ispfe_smmu 0x8009>,
+				<&ispfe_smmu 0x800a>,
+				<&ispfe_smmu 0x800b>,
+				<&ispfe_smmu 0x800c>,
+				<&ispfe_smmu 0x800d>,
+				<&ispfe_smmu 0x800e>,
+				<&ispfe_smmu 0x800f>,
+				<&ispfe_smmu 0x8010>,
+				<&ispfe_smmu 0x8011>,
+				<&ispfe_smmu 0x8012>,
+				<&ispfe_smmu 0x8013>,
+				<&ispfe_smmu 0x8014>,
+				<&ispfe_smmu 0x8015>,
+				<&ispfe_smmu 0x8016>,
+				<&ispfe_smmu 0x8017>,
+				<&ispfe_smmu 0x8018>,
+				<&ispfe_smmu 0x8019>,
+				<&ispfe_smmu 0x801a>,
+				<&ispfe_smmu 0x801b>,
+				<&ispfe_smmu 0x801c>,
+				<&ispfe_smmu 0x801d>,
+				<&ispfe_smmu 0x801e>,
+				<&ispfe_smmu 0x801f>,
+				<&ispfe_smmu 0x8020>,
+				<&ispfe_smmu 0x8021>,
+				<&ispfe_smmu 0x8022>,
+				<&ispfe_smmu 0x8023>,
+				<&ispfe_smmu 0x8024>,
+				<&ispfe_smmu 0x8025>,
+				<&ispfe_smmu 0x8026>,
+				<&ispfe_smmu 0x8027>,
+				<&ispfe_smmu 0x8028>,
+				<&ispfe_smmu 0x8029>,
+				<&ispfe_smmu 0x802a>,
+				<&ispfe_smmu 0x802b>,
+				<&ispfe_smmu 0x802c>,
+				<&ispfe_smmu 0x802d>,
+				<&ispfe_smmu 0x802e>,
+				<&ispfe_smmu 0x802f>,
+				<&ispfe_smmu 0x8030>,
+				<&ispfe_smmu 0x8031>,
+				<&ispfe_smmu 0x8032>,
+				<&ispfe_smmu 0x8033>,
+				<&ispfe_smmu 0x8034>,
+				<&ispfe_smmu 0x8035>,
+				<&ispfe_smmu 0x8036>,
+				<&ispfe_smmu 0x8037>,
+				<&ispfe_smmu 0x8038>,
+				<&ispfe_smmu 0x8039>,
+				<&ispfe_smmu 0x803a>,
+				<&ispfe_smmu 0x803b>,
+				<&ispfe_smmu 0x803c>,
+				<&ispfe_smmu 0x803d>,
+				<&ispfe_smmu 0x803e>,
+				<&ispfe_smmu 0x803f>,
+				<&ispfe_smmu 0x8100>,
+				<&ispfe_smmu 0x8101>,
+				<&ispfe_smmu 0x8102>,
+				<&ispfe_smmu 0x8103>,
+				<&ispfe_smmu 0x8104>,
+				<&ispfe_smmu 0x8105>,
+				<&ispfe_smmu 0x8106>,
+				<&ispfe_smmu 0x8107>,
+				<&ispfe_smmu 0x8108>,
+				<&ispfe_smmu 0x8109>,
+				<&ispfe_smmu 0x810a>,
+				<&ispfe_smmu 0x810b>,
+				<&ispfe_smmu 0x810c>,
+				<&ispfe_smmu 0x810d>,
+				<&ispfe_smmu 0x810e>,
+				<&ispfe_smmu 0x810f>,
+				<&ispfe_smmu 0x8110>,
+				<&ispfe_smmu 0x8111>,
+				<&ispfe_smmu 0x8112>,
+				<&ispfe_smmu 0x8113>,
+				<&ispfe_smmu 0x8114>,
+				<&ispfe_smmu 0x8115>,
+				<&ispfe_smmu 0x8116>,
+				<&ispfe_smmu 0x8117>,
+				<&ispfe_smmu 0x8118>,
+				<&ispfe_smmu 0x8119>,
+				<&ispfe_smmu 0x811a>,
+				<&ispfe_smmu 0x811b>,
+				<&ispfe_smmu 0x811c>,
+				<&ispfe_smmu 0x811d>,
+				<&ispfe_smmu 0x811e>,
+				<&ispfe_smmu 0x811f>,
+				<&ispfe_smmu 0x8120>,
+				<&ispfe_smmu 0x8121>,
+				<&ispfe_smmu 0x8122>,
+				<&ispfe_smmu 0x8123>,
+				<&ispfe_smmu 0x8124>,
+				<&ispfe_smmu 0x8125>,
+				<&ispfe_smmu 0x8126>,
+				<&ispfe_smmu 0x8127>,
+				<&ispfe_smmu 0x8128>,
+				<&ispfe_smmu 0x8129>,
+				<&ispfe_smmu 0x812a>,
+				<&ispfe_smmu 0x812b>,
+				<&ispfe_smmu 0x812c>,
+				<&ispfe_smmu 0x812d>,
+				<&ispfe_smmu 0x812e>,
+				<&ispfe_smmu 0x812f>,
+				<&ispfe_smmu 0x8130>,
+				<&ispfe_smmu 0x8131>,
+				<&ispfe_smmu 0x8132>,
+				<&ispfe_smmu 0x8133>,
+				<&ispfe_smmu 0x8134>,
+				<&ispfe_smmu 0x8135>,
+				<&ispfe_smmu 0x8136>,
+				<&ispfe_smmu 0x8137>,
+				<&ispfe_smmu 0x8138>,
+				<&ispfe_smmu 0x8139>,
+				<&ispfe_smmu 0x813a>,
+				<&ispfe_smmu 0x813b>,
+				<&ispfe_smmu 0x813c>,
+				<&ispfe_smmu 0x813d>,
+				<&ispfe_smmu 0x813e>,
+				<&ispfe_smmu 0x813f>,
+				<&ispfe_smmu 0x8200>,
+				<&ispfe_smmu 0x8201>,
+				<&ispfe_smmu 0x8202>,
+				<&ispfe_smmu 0x8203>,
+				<&ispfe_smmu 0x8204>,
+				<&ispfe_smmu 0x8205>,
+				<&ispfe_smmu 0x8206>,
+				<&ispfe_smmu 0x8207>,
+				<&ispfe_smmu 0x8208>,
+				<&ispfe_smmu 0x8209>,
+				<&ispfe_smmu 0x820a>,
+				<&ispfe_smmu 0x820b>,
+				<&ispfe_smmu 0x820c>,
+				<&ispfe_smmu 0x820d>,
+				<&ispfe_smmu 0x820e>,
+				<&ispfe_smmu 0x820f>,
+				<&ispfe_smmu 0x8210>,
+				<&ispfe_smmu 0x8211>,
+				<&ispfe_smmu 0x8212>,
+				<&ispfe_smmu 0x8213>,
+				<&ispfe_smmu 0x8214>,
+				<&ispfe_smmu 0x8215>,
+				<&ispfe_smmu 0x8216>,
+				<&ispfe_smmu 0x8217>,
+				<&ispfe_smmu 0x8218>,
+				<&ispfe_smmu 0x8219>,
+				<&ispfe_smmu 0x821a>,
+				<&ispfe_smmu 0x821b>,
+				<&ispfe_smmu 0x821c>,
+				<&ispfe_smmu 0x821d>,
+				<&ispfe_smmu 0x821e>,
+				<&ispfe_smmu 0x821f>,
+				<&ispfe_smmu 0x8220>,
+				<&ispfe_smmu 0x8221>,
+				<&ispfe_smmu 0x8222>,
+				<&ispfe_smmu 0x8223>,
+				<&ispfe_smmu 0x8224>,
+				<&ispfe_smmu 0x8225>,
+				<&ispfe_smmu 0x8226>,
+				<&ispfe_smmu 0x8227>,
+				<&ispfe_smmu 0x8228>,
+				<&ispfe_smmu 0x8229>,
+				<&ispfe_smmu 0x822a>,
+				<&ispfe_smmu 0x822b>,
+				<&ispfe_smmu 0x822c>,
+				<&ispfe_smmu 0x822d>,
+				<&ispfe_smmu 0x822e>,
+				<&ispfe_smmu 0x822f>,
+				<&ispfe_smmu 0x8230>,
+				<&ispfe_smmu 0x8231>,
+				<&ispfe_smmu 0x8232>,
+				<&ispfe_smmu 0x8233>,
+				<&ispfe_smmu 0x8234>,
+				<&ispfe_smmu 0x8235>,
+				<&ispfe_smmu 0x8236>,
+				<&ispfe_smmu 0x8237>,
+				<&ispfe_smmu 0x8238>,
+				<&ispfe_smmu 0x8239>,
+				<&ispfe_smmu 0x823a>,
+				<&ispfe_smmu 0x823b>,
+				<&ispfe_smmu 0x823c>,
+				<&ispfe_smmu 0x823d>,
+				<&ispfe_smmu 0x823e>,
+				<&ispfe_smmu 0x823f>,
+				<&ispfe_smmu 0x8300>,
+				<&ispfe_smmu 0x8301>,
+				<&ispfe_smmu 0x8302>,
+				<&ispfe_smmu 0x8303>,
+				<&ispfe_smmu 0x8304>,
+				<&ispfe_smmu 0x8305>,
+				<&ispfe_smmu 0x8306>,
+				<&ispfe_smmu 0x8307>,
+				<&ispfe_smmu 0x8308>,
+				<&ispfe_smmu 0x8309>,
+				<&ispfe_smmu 0x830a>,
+				<&ispfe_smmu 0x830b>,
+				<&ispfe_smmu 0x830c>,
+				<&ispfe_smmu 0x830d>,
+				<&ispfe_smmu 0x830e>,
+				<&ispfe_smmu 0x830f>,
+				<&ispfe_smmu 0x8310>,
+				<&ispfe_smmu 0x8311>,
+				<&ispfe_smmu 0x8312>,
+				<&ispfe_smmu 0x8313>,
+				<&ispfe_smmu 0x8314>,
+				<&ispfe_smmu 0x8315>,
+				<&ispfe_smmu 0x8316>,
+				<&ispfe_smmu 0x8317>,
+				<&ispfe_smmu 0x8318>,
+				<&ispfe_smmu 0x8319>,
+				<&ispfe_smmu 0x831a>,
+				<&ispfe_smmu 0x831b>,
+				<&ispfe_smmu 0x831c>,
+				<&ispfe_smmu 0x831d>,
+				<&ispfe_smmu 0x831e>,
+				<&ispfe_smmu 0x831f>,
+				<&ispfe_smmu 0x8320>,
+				<&ispfe_smmu 0x8321>,
+				<&ispfe_smmu 0x8322>,
+				<&ispfe_smmu 0x8323>,
+				<&ispfe_smmu 0x8324>,
+				<&ispfe_smmu 0x8325>,
+				<&ispfe_smmu 0x8326>,
+				<&ispfe_smmu 0x8327>,
+				<&ispfe_smmu 0x8328>,
+				<&ispfe_smmu 0x8329>,
+				<&ispfe_smmu 0x832a>,
+				<&ispfe_smmu 0x832b>,
+				<&ispfe_smmu 0x832c>,
+				<&ispfe_smmu 0x832d>,
+				<&ispfe_smmu 0x832e>,
+				<&ispfe_smmu 0x832f>,
+				<&ispfe_smmu 0x8330>,
+				<&ispfe_smmu 0x8331>,
+				<&ispfe_smmu 0x8332>,
+				<&ispfe_smmu 0x8333>,
+				<&ispfe_smmu 0x8334>,
+				<&ispfe_smmu 0x8335>,
+				<&ispfe_smmu 0x8336>,
+				<&ispfe_smmu 0x8337>,
+				<&ispfe_smmu 0x8338>,
+				<&ispfe_smmu 0x8339>,
+				<&ispfe_smmu 0x833a>,
+				<&ispfe_smmu 0x833b>,
+				<&ispfe_smmu 0x833c>,
+				<&ispfe_smmu 0x833d>,
+				<&ispfe_smmu 0x833e>,
+				<&ispfe_smmu 0x833f>;
+
+			clocks = <&ispfe_pf_state_clk>;
+			clock-names = "ispfe_pclk";
+			devfreq = <&ispfe_freq>;
+
+			interconnects =
+				<&icc_ispfe ISPFE &icc_gmc SSWRP_ISP_SET_0>,
+				<&icc_gmc SSWRP_ISP_SET_0 &icc_gmc GMC>;
+
+			interconnect-names =
+				"ispfe",
+				"ispfe-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+	};
+
+	sswrp_ispbe: sswrp_ispbe@3E400000 {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x0 0x3E400000 0x3F8030>;
+
+		lwis_be_btr: lwis_be_btr@3D0000 {
+			compatible = "google,lwis-ioreg-device";
+			power-domains = <&sswrp_ispbe_pd>;
+
+			/* Device node name */
+			node-name = "be-btr";
+
+			/* Register space */
+			reg =
+				<0x0 0x0 0x3F8030>;
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* gia */
+				<0x0 0x160000 0x6000>,
+				<0x0 0x208000 0x6000>,
+				/* core */
+				<0x0 0x3D0000 0x28030>;
+
+			reg-names =
+				"isp_be";
+
+			/* The irq number may be changed by different released version. */
+			interrupts-extended =
+				<&ispbe_level_aggr_ap 97>,
+				<&ispbe_level_aggr_ap 98>,
+				<&ispbe_level_aggr_ap 98>,
+				<&ispbe_level_aggr_ap 97>,
+				<&ispbe_level_aggr_ap 97>;
+			interrupt-names =
+				"sswrp_ispbe_nac_ns_ap_gtl_framectl_irq_3_btr",
+				"sswrp_ispbe_nac_ns_ap_gtl_rstctl_irq_3_btr",
+				"be_btr_rstctl_irq",
+				"be_btr_framectl_ns_ap_irq_0",
+				"be_btr_framectl_ns_ap_gtl_irq_1";
+			interrupt-event-infos =
+				<&sswrp_ispbe_nac_ns_ap_gtl_framectl_irq_3_btr>,
+				<&sswrp_ispbe_nac_ns_ap_gtl_rstctl_irq_3_btr>,
+				<&be_btr_rstctl_irq>,
+				<&be_btr_framectl_ns_ap_irq_0>,
+				<&be_btr_framectl_ns_ap_gtl_irq_1>;
+
+			clocks = <&ispbe_pf_state_clk>;
+			clock-names = "ispbe_pclk";
+			devfreq = <&ispbe_freq>;
+
+			device-group = <1>;
+
+			iommus =
+				<&inf_smmu 0x8c02>,
+				<&inf_smmu 0x8c03>,
+				<&inf_smmu 0x8c04>,
+				<&inf_smmu 0x8c05>,
+				<&inf_smmu 0x8c06>,
+				<&inf_smmu 0x8c07>,
+				<&inf_smmu 0x8c08>,
+				<&inf_smmu 0x8c09>,
+				<&inf_smmu 0x8c0A>,
+				<&inf_smmu 0x8c0B>,
+				<&inf_smmu 0x8c0C>,
+				<&inf_smmu 0x8c0D>,
+				<&inf_smmu 0x8c0E>,
+				<&inf_smmu 0x8c0F>,
+				<&inf_smmu 0x8d00>,
+				<&inf_smmu 0x8d01>,
+				<&inf_smmu 0x8d02>,
+				<&inf_smmu 0x8d04>,
+				<&inf_smmu 0x8d05>,
+				<&inf_smmu 0x8d06>,
+				<&inf_smmu 0x8d07>,
+				<&inf_smmu 0x8d08>,
+				<&inf_smmu 0x8d09>,
+				<&inf_smmu 0x8d0A>,
+				<&inf_smmu 0x8d0B>,
+				<&inf_smmu 0x8d0C>,
+				<&inf_smmu 0x8d0D>;
+
+			interconnects =
+				<&icc_ispbe ISPBE_BE_BAYER_TNR &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_gmc SSWRP_ISP_SET_1 &icc_gmc GMC>;
+
+			interconnect-names =
+				"ispbe-be-bayer-tnr",
+				"ispbe-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_be_yuv: lwis_be_yuv@380000 {
+			compatible = "google,lwis-ioreg-device";
+			power-domains = <&sswrp_ispbe_pd>;
+
+			/* Device node name */
+			node-name = "be-yuv";
+
+			/* Register space */
+			reg =
+				<0x0 0x0 0x3F8030>;
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* gia */
+				<0x0 0x160000 0x6000>,
+				<0x0 0x208000 0x6000>,
+				/* core */
+				<0x0 0x380000 0x48028>;
+
+			reg-names =
+				"isp_be";
+
+			/* The irq number may be changed by different released version. */
+			interrupts-extended =
+				<&ispbe_level_aggr_ap 95>,
+				<&ispbe_level_aggr_ap 95>,
+				<&ispbe_level_aggr_ap 96>,
+				<&ispbe_level_aggr_ap 96>;
+			interrupt-names =
+				"sswrp_ispbe_nac_ns_ap_gtl_irq_2_yuv",
+				"be_yuv_framectrl_ns_ap_irq",
+				"sswrp_ispbe_nac_ns_ap_gtl_irq_3_yuv",
+				"be_yuv_rstctl_irq";
+			interrupt-event-infos =
+				<&sswrp_ispbe_nac_ns_ap_gtl_irq_2_yuv>,
+				<&be_yuv_framectrl_ns_ap_irq>,
+				<&sswrp_ispbe_nac_ns_ap_gtl_irq_3_yuv>,
+				<&be_yuv_rstctl_irq>;
+
+			clocks = <&ispbe_pf_state_clk>;
+			clock-names = "ispbe_pclk";
+			devfreq = <&ispbe_freq>;
+
+			device-group = <1>;
+
+			iommus =
+				<&inf_smmu 0x8e00>,
+				<&inf_smmu 0x8e01>,
+				<&inf_smmu 0x8e02>,
+				<&inf_smmu 0x8e03>,
+				<&inf_smmu 0x8e04>,
+				<&inf_smmu 0x8e05>,
+				<&inf_smmu 0x8e06>,
+				<&inf_smmu 0x8e07>,
+				<&inf_smmu 0x8e08>,
+				<&inf_smmu 0x8e09>,
+				<&inf_smmu 0x8e0A>,
+				<&inf_smmu 0x8F03>,
+				<&inf_smmu 0x8F04>,
+				<&inf_smmu 0x8F05>,
+				<&inf_smmu 0x8F06>,
+				<&inf_smmu 0x8F07>,
+				<&inf_smmu 0x8F08>,
+				<&inf_smmu 0x8F09>,
+				<&inf_smmu 0x8F0A>;
+
+			interconnects =
+				<&icc_ispbe ISPBE_BE_YUV &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_gmc SSWRP_ISP_SET_1 &icc_gmc GMC>;
+
+			interconnect-names =
+				"ispbe-be-yuv",
+				"ispbe-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_be_msa: lwis_be_msa@350000 {
+			compatible = "google,lwis-ioreg-device";
+			power-domains = <&sswrp_ispbe_pd>;
+
+			/* Device node name */
+			node-name = "be-msa";
+
+			/* Register space */
+			reg =
+				<0x0 0x0 0x3F8030>;
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* gia */
+				<0x0 0x160000 0x6000>,
+				<0x0 0x208000 0x6000>,
+				/* core */
+				<0x0 0x350000 0x28018>;
+
+			reg-names =
+				"isp_be";
+
+			/* The irq number may be changed by different released version. */
+			interrupts-extended =
+				<&ispbe_level_aggr_ap 94>,
+				<&ispbe_level_aggr_ap 93>,
+				<&ispbe_level_aggr_ap 94>,
+				<&ispbe_level_aggr_ap 93>;
+			interrupt-names =
+				"sswrp_ispbe_nac_ns_ap_gtl_rstctl_irq_2_msa",
+				"sswrp_ispbe_nac_ns_ap_gtl_framectl_irq_2_msa",
+				"be_msa_rstctl_irq",
+				"be_msa_framectl_ns_ap_irq";
+			interrupt-event-infos =
+				<&sswrp_ispbe_nac_ns_ap_gtl_rstctl_irq_2_msa>,
+				<&sswrp_ispbe_nac_ns_ap_gtl_framectl_irq_2_msa>,
+				<&be_msa_rstctl_irq>,
+				<&be_msa_framectl_ns_ap_irq>;
+
+			clocks = <&ispbe_pf_state_clk>;
+			clock-names = "ispbe_pclk";
+			devfreq = <&ispbe_freq>;
+
+			device-group = <1>;
+
+			iommus =
+				<&inf_smmu 0x8C00>,
+				<&inf_smmu 0x8F00>,
+				<&inf_smmu 0x8f01>;
+
+			interconnects =
+				<&icc_ispbe ISPBE_TNR_ALIGN &icc_gmc SSWRP_ISP_SET_1>,
+				<&icc_gmc SSWRP_ISP_SET_1 &icc_gmc GMC>;
+
+			interconnect-names =
+				"ispbe-tnr-align",
+				"ispbe-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_ispbe_pdma: lwis_ispbe_pdma@310000 {
+			compatible = "google,lwis-ioreg-device";
+			power-domains = <&sswrp_ispbe_pd>;
+
+			/* Device node name */
+			node-name = "ispbe-pdma";
+
+			/* Register space */
+			reg = <0x0 0x0 0x3F8030>;
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* GIA */
+				<0x0 0x208000 0x40>,
+				/* PDMA core */
+				<0x0 0x310000 0x30018>,
+				/* IP cores */
+				<0x0 0x3D0000 0x28030>,
+				<0x0 0x380000 0x48028>,
+				<0x0 0x350000 0x28018>;
+
+			reg-names = "isp_be";
+
+			device-group = <1>;
+
+			interrupts-extended =
+				<&ispbe_level_aggr_ap 99>,
+				<&ispbe_level_aggr_ap 99>,
+				<&ispbe_level_aggr_ap 99>,
+				<&ispbe_level_aggr_ap 100>,
+				<&ispbe_level_aggr_ap 100>,
+				<&ispbe_level_aggr_ap 100>,
+				<&ispbe_level_aggr_ap 101>,
+				<&ispbe_level_aggr_ap 101>,
+				<&ispbe_level_aggr_ap 101>;
+			interrupt-names =
+				"sswrp_ispbe_nac_ns_ap_gtl_irq_3_pdma0",
+				"ispbe_pdma0_rstctl_ns_ap_irq",
+				"ispbe_pdma0_ns_ap_irq",
+				"sswrp_ispbe_nac_ns_ap_gtl_irq_3_pdma1",
+				"ispbe_pdma1_rstctl_ns_ap_irq",
+				"ispbe_pdma1_ns_ap_irq",
+				"sswrp_ispbe_nac_ns_ap_gtl_irq_3_pdma2",
+				"ispbe_pdma2_rstctl_ns_ap_irq",
+				"ispbe_pdma2_ns_ap_irq";
+			interrupt-event-infos =
+				<&sswrp_ispbe_nac_ns_ap_gtl_irq_3_pdma0>,
+				<&ispbe_pdma0_rstctl_ns_ap_irq>,
+				<&ispbe_pdma0_ns_ap_irq>,
+				<&sswrp_ispbe_nac_ns_ap_gtl_irq_3_pdma1>,
+				<&ispbe_pdma1_rstctl_ns_ap_irq>,
+				<&ispbe_pdma1_ns_ap_irq>,
+				<&sswrp_ispbe_nac_ns_ap_gtl_irq_3_pdma2>,
+				<&ispbe_pdma2_rstctl_ns_ap_irq>,
+				<&ispbe_pdma2_ns_ap_irq>;
+
+			iommus =
+				<&inf_smmu 0x8C01>,
+				<&inf_smmu 0x8D03>,
+				<&inf_smmu 0x8F02>;
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+	};
+
+	sswrp_gsw: sswrp_gsw@3EC00000 {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x0 0x3EC00000 0x24D100>;
+
+		lwis_gsw_gwe: lwis_gsw_gwe@1E0000 {
+			compatible = "google,lwis-ioreg-device";
+			power-domains = <&sswrp_gsw_pd>;
+
+			/* Device node name */
+			node-name = "gsw-gwe";
+
+			/* Register space */
+			reg =
+				<0x0 0x0 0x24D100>;
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* gia */
+				<0x0 0xF0000 0x6000>,
+				<0x0 0x1D0000 0x6000>,
+				/* core */
+				<0x0 0x1D8000 0x20018>;
+
+			reg-names =
+				"isp_gsw";
+
+			/* The irq number may be changed by different released version. */
+			interrupts-extended =
+				<&gsw_level_aggr_01_intr 16>,
+				<&gsw_level_aggr_01_intr 15>,
+				<&gsw_level_aggr_01_intr 16>,
+				<&gsw_level_aggr_01_intr 15>;
+			interrupt-names =
+				"sswrp_gsw_pg_on_nac_rstctl_irq",
+				"sswrp_gsw_pg_on_nac_core_irq",
+				"gwe_rstctl_irq",
+				"gwe_core_gtl_irq";
+			interrupt-event-infos =
+				<&sswrp_gsw_pg_on_nac_rstctl_irq>,
+				<&sswrp_gsw_pg_on_nac_core_irq>,
+				<&gwe_rstctl_irq>,
+				<&gwe_core_gtl_irq>;
+
+			clocks = <&gsw_pf_state_clk>;
+			clock-names = "gsw_pclk";
+			devfreq = <&gsw_freq>;
+
+			device-group = <2>;
+
+			iommus =
+				<&inf_smmu 0x8800>,
+				<&inf_smmu 0x8801>,
+				<&inf_smmu 0x8802>,
+				<&inf_smmu 0x8803>,
+				<&inf_smmu 0x8804>,
+				<&inf_smmu 0x8805>,
+				<&inf_smmu 0x8806>,
+				<&inf_smmu 0x8807>,
+				<&inf_smmu 0x8808>,
+				<&inf_smmu 0x8809>,
+				<&inf_smmu 0x880a>,
+				<&inf_smmu 0x880b>,
+				<&inf_smmu 0x880c>,
+				<&inf_smmu 0x880d>,
+				<&inf_smmu 0x880e>,
+				<&inf_smmu 0x880f>;
+
+			interconnects =
+				<&icc_gsw GSW_GWE &icc_gmc SSWRP_GSW>,
+				<&icc_gmc SSWRP_GSW &icc_gmc GMC>;
+
+			interconnect-names =
+				"gsw-gwe",
+				"gsw-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_gsw_gse: lwis_gsw_gse@200000 {
+			compatible = "google,lwis-ioreg-device";
+			power-domains = <&sswrp_gsw_pd>;
+
+			/* Device node name */
+			node-name = "gsw-gse";
+
+			/* Register space */
+			reg =
+				<0x0 0x0 0x24D100>;
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* gia */
+				<0x0 0xF0000 0x6000>,
+				<0x0 0x1D0000 0x6000>,
+				/* core */
+				<0x0 0x200000 0x2801C>;
+
+			reg-names =
+				"isp_gsw";
+
+			/* The irq number may be changed by different released version. */
+			interrupts-extended =
+				<&gsw_level_aggr_01_intr 13>,
+				<&gsw_level_aggr_01_intr 14>,
+				<&gsw_level_aggr_01_intr 14>,
+				<&gsw_level_aggr_01_intr 13>;
+			interrupt-names =
+				"sswrp_gsw_pg_on_nac_framectl_irq_gse",
+				"sswrp_gsw_pg_on_nac_rstctl_irq_gse",
+				"gse_rstctl_irq",
+				"gse_framectrl_ns_ap_irq";
+			interrupt-event-infos =
+				<&sswrp_gsw_pg_on_nac_framectl_irq_gse>,
+				<&sswrp_gsw_pg_on_nac_rstctl_irq_gse>,
+				<&gse_rstctl_irq>,
+				<&gse_framectrl_ns_ap_irq>;
+
+			clocks = <&gsw_pf_state_clk>;
+			clock-names = "gsw_pclk";
+			devfreq = <&gsw_freq>;
+
+			device-group = <2>;
+
+			iommus =
+				<&inf_smmu 0x8700>,
+				<&inf_smmu 0x8701>,
+				<&inf_smmu 0x8702>,
+				<&inf_smmu 0x8703>,
+				<&inf_smmu 0x8704>,
+				<&inf_smmu 0x8705>,
+				<&inf_smmu 0x8706>,
+				<&inf_smmu 0x8707>,
+				<&inf_smmu 0x8708>,
+				<&inf_smmu 0x8709>,
+				<&inf_smmu 0x870a>,
+				<&inf_smmu 0x870b>,
+				<&inf_smmu 0x870c>,
+				<&inf_smmu 0x870d>;
+
+			interconnects =
+				<&icc_gsw GSW_GSE &icc_gmc SSWRP_GSW>,
+				<&icc_gmc SSWRP_GSW &icc_gmc GMC>;
+
+			interconnect-names =
+				"gsw-gse",
+				"gsw-update-irm";
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+
+		lwis_gsw_pdma: lwis_gsw_pdma@230000 {
+			compatible = "google,lwis-ioreg-device";
+			power-domains = <&sswrp_gsw_pd>;
+
+			/* Device node name */
+			node-name = "gsw-pdma";
+
+			/* Register space */
+			reg = <0x0 0x0 0x24D100>;
+
+			/* Valid ranges */
+			reg-valid-ranges =
+				/* GIA */
+				<0x0 0x1d0000 0x10>,
+				/* PDMA core */
+				<0x0 0x229000 0x24100>,
+				/* IP cores */
+				<0x0 0x1D8000 0x20018>,
+				<0x0 0x200000 0x2801C>;
+
+			reg-names = "isp_gsw";
+
+			device-group = <3>;
+
+			interrupts-extended =
+				<&gsw_level_aggr_01_intr 17>,
+				<&gsw_level_aggr_01_intr 17>,
+				<&gsw_level_aggr_01_intr 17>,
+				<&gsw_level_aggr_01_intr 18>,
+				<&gsw_level_aggr_01_intr 18>,
+				<&gsw_level_aggr_01_intr 18>;
+			interrupt-names =
+				"sswrp_gsw_pg_on_nac_irq_pdma0",
+				"gsw_pdma0_rstctl_ns_ap_irq",
+				"gsw_pdma0_ns_ap_irq",
+				"sswrp_gsw_pg_on_nac_irq_pdma1",
+				"gsw_pdma1_rstctl_ns_ap_irq",
+				"gsw_pdma1_ns_ap_irq";
+			interrupt-event-infos =
+				<&sswrp_gsw_pg_on_nac_irq_pdma0>,
+				<&gsw_pdma0_rstctl_ns_ap_irq>,
+				<&gsw_pdma0_ns_ap_irq>,
+				<&sswrp_gsw_pg_on_nac_irq_pdma1>,
+				<&gsw_pdma1_rstctl_ns_ap_irq>,
+				<&gsw_pdma1_ns_ap_irq>;
+
+			iommus =
+				<&inf_smmu 0x870e>,
+				<&inf_smmu 0x870f>;
+
+			/* Thread priority */
+			transaction-thread-priority = <99>;
+		};
+	};
+
+	lwis_flow_sync: lwis_flow_sync@f15 {
+		compatible = "google,lwis-ioreg-device";
+		power-domains = <&sswrp_ispbe_pd>;
+
+		/* Device node name */
+		node-name = "flow-sync";
+
+		/* Register space */
+		reg =
+			<0x0 0x28400000 0x0 0x40000>,		/* FLS FMC */
+			<0x0 0x3E400000 0x0 0x3F8030>;		/* ISPBE */
+		reg-names =
+			"fls_fmc",
+			"isp_be";
+
+		device-group = <1>;
+
+		/* Interrupts */
+		interrupts-extended =
+			<&memss_level_aggr_fmc_irq_h1_0 0>,
+			<&memss_level_aggr_fmc_irq_h1_0 1>,
+			<&memss_level_aggr_fmc_irq_h1_0 2>,
+			<&memss_level_aggr_fmc_irq_h1_0 3>,
+			<&memss_level_aggr_fmc_irq_h1_0 12>,
+			<&memss_level_aggr_fmc_irq_h1_0 13>,
+			<&memss_level_aggr_fmc_irq_h1_0 14>,
+			<&memss_level_aggr_fmc_irq_h1_0 15>,
+			<&memss_level_aggr_fmc_irq_h1_0 16>,
+			<&memss_level_aggr_fmc_irq_h1_0 17>,
+			<&memss_level_aggr_fmc_irq_h1_0 18>,
+			<&memss_level_aggr_fmc_irq_h1_0 19>,
+			<&memss_level_aggr_fmc_irq_h1_0 20>,
+			<&memss_level_aggr_fmc_irq_h1_0 21>,
+			<&memss_level_aggr_fmc_irq_h1_0 22>,
+			<&memss_level_aggr_fmc_irq_h1_0 23>,
+			<&memss_level_aggr_fmc_irq_h1_0 24>,
+			<&memss_level_aggr_fmc_irq_h1_0 25>,
+			<&memss_level_aggr_fmc_irq_h1_0 26>,
+			<&memss_level_aggr_fmc_irq_h1_0 27>,
+			<&memss_level_aggr_fmc_irq_h1_0 28>,
+			<&memss_level_aggr_fmc_irq_h1_0 29>,
+			<&ispbe_level_aggr_ita_update_0 0>,
+			<&ispbe_level_aggr_ita_error_0 0>,
+			<&ispbe_level_aggr_ita_update_0 1>,
+			<&ispbe_level_aggr_ita_error_0 1>,
+			<&ispbe_level_aggr_ita_update_0 2>,
+			<&ispbe_level_aggr_ita_error_0 2>,
+			<&ispbe_level_aggr_ita_update_0 3>,
+			<&ispbe_level_aggr_ita_error_0 3>,
+			<&ispbe_level_aggr_ita_update_5 0>,
+			<&ispbe_level_aggr_ita_error_5 0>,
+			<&ispbe_level_aggr_ita_update_5 1>,
+			<&ispbe_level_aggr_ita_error_5 1>,
+			<&ispbe_level_aggr_ita_update_5 2>,
+			<&ispbe_level_aggr_ita_error_5 2>,
+			<&ispbe_level_aggr_ita_update_5 3>,
+			<&ispbe_level_aggr_ita_error_5 3>,
+			<&ispbe_level_aggr_ita_update_6 0>,
+			<&ispbe_level_aggr_ita_error_6 0>,
+			<&ispbe_level_aggr_ita_update_6 1>,
+			<&ispbe_level_aggr_ita_error_6 1>,
+			<&ispbe_level_aggr_ita_update_6 2>,
+			<&ispbe_level_aggr_ita_error_6 2>,
+			<&ispbe_level_aggr_ita_update_6 3>,
+			<&ispbe_level_aggr_ita_error_6 3>,
+			<&ispbe_level_aggr_ita_update_7 0>,
+			<&ispbe_level_aggr_ita_error_7 0>,
+			<&ispbe_level_aggr_ita_update_7 1>,
+			<&ispbe_level_aggr_ita_error_7 1>,
+			<&ispbe_level_aggr_ita_update_8 0>,
+			<&ispbe_level_aggr_ita_error_8 0>,
+			<&ispbe_level_aggr_ita_update_8 1>,
+			<&ispbe_level_aggr_ita_error_8 1>,
+			<&ispbe_level_aggr_ita_update_9 0>,
+			<&ispbe_level_aggr_ita_error_9 0>,
+			<&ispbe_level_aggr_ita_update_9 1>,
+			<&ispbe_level_aggr_ita_error_9 1>,
+			<&ispbe_level_aggr_ita_update_10 0>,
+			<&ispbe_level_aggr_ita_error_10 0>,
+			<&ispbe_level_aggr_ita_update_10 1>,
+			<&ispbe_level_aggr_ita_error_10 1>,
+			<&ispbe_level_aggr_ita_update_11 0>,
+			<&ispbe_level_aggr_ita_error_11 0>,
+			<&ispbe_level_aggr_ita_update_11 1>,
+			<&ispbe_level_aggr_ita_error_11 1>,
+			<&ispbe_level_aggr_ita_update_12 0>,
+			<&ispbe_level_aggr_ita_error_12 0>,
+			<&ispbe_level_aggr_ita_update_12 1>,
+			<&ispbe_level_aggr_ita_error_12 1>,
+			<&ispbe_level_aggr_ita_update_12 2>,
+			<&ispbe_level_aggr_ita_error_12 2>,
+			<&ispbe_level_aggr_ita_update_12 3>,
+			<&ispbe_level_aggr_ita_error_12 3>,
+			<&ispbe_level_aggr_ita_update_13 0>,
+			<&ispbe_level_aggr_ita_error_13 0>,
+			<&ispbe_level_aggr_ita_update_13 1>,
+			<&ispbe_level_aggr_ita_error_13 1>,
+			<&ispbe_level_aggr_ita_update_14 0>,
+			<&ispbe_level_aggr_ita_error_14 0>,
+			<&ispbe_level_aggr_ita_update_14 1>,
+			<&ispbe_level_aggr_ita_error_14 1>,
+			<&ispbe_level_aggr_ita_update_15 0>,
+			<&ispbe_level_aggr_ita_error_15 0>,
+			<&ispbe_level_aggr_ita_update_15 1>,
+			<&ispbe_level_aggr_ita_error_15 1>,
+			<&ispbe_level_aggr_ita_update_16 0>,
+			<&ispbe_level_aggr_ita_error_16 0>,
+			<&ispbe_level_aggr_ita_update_16 1>,
+			<&ispbe_level_aggr_ita_error_16 1>,
+			<&ispbe_level_aggr_ita_update_17 0>,
+			<&ispbe_level_aggr_ita_error_17 0>,
+			<&ispbe_level_aggr_ita_update_17 1>,
+			<&ispbe_level_aggr_ita_error_17 1>,
+			<&ispbe_level_aggr_ita_update_18 0>,
+			<&ispbe_level_aggr_ita_error_18 0>,
+			<&ispbe_level_aggr_ita_update_18 1>,
+			<&ispbe_level_aggr_ita_error_18 1>,
+			<&ispbe_level_aggr_ita_update_18 2>,
+			<&ispbe_level_aggr_ita_error_18 2>,
+			<&ispbe_level_aggr_ita_update_18 3>,
+			<&ispbe_level_aggr_ita_error_18 3>,
+			<&ispbe_level_aggr_ita_update_19 0>,
+			<&ispbe_level_aggr_ita_error_19 0>,
+			<&ispbe_level_aggr_ita_update_19 1>,
+			<&ispbe_level_aggr_ita_error_19 1>,
+			<&ispbe_level_aggr_ita_update_19 2>,
+			<&ispbe_level_aggr_ita_error_19 2>,
+			<&ispbe_level_aggr_ita_update_19 3>,
+			<&ispbe_level_aggr_ita_error_19 3>;
+		interrupt-names =
+			"flow_sync_delta_payload_0_fmu_irq",
+			"flow_sync_delta_payload_1_fmu_irq",
+			"flow_sync_delta_header_0_fmu_irq",
+			"flow_sync_delta_header_1_fmu_irq",
+			"flow_sync_y_gl0_payload_0_fmu_irq",
+			"flow_sync_y_gl0_payload_1_fmu_irq",
+			"flow_sync_y_gl0_header_0_fmu_irq",
+			"flow_sync_y_gl0_header_1_fmu_irq",
+			"flow_sync_yuv_gl2_payload_0_fmu_irq",
+			"flow_sync_yuv_gl2_payload_1_fmu_irq",
+			"flow_sync_yuv_gl2_header_0_fmu_irq",
+			"flow_sync_yuv_gl2_header_1_fmu_irq",
+			"flow_sync_yuv_gl3_payload_0_fmu_irq",
+			"flow_sync_yuv_gl3_payload_1_fmu_irq",
+			"flow_sync_yuv_gl4_payload_0_fmu_irq",
+			"flow_sync_yuv_gl4_payload_1_fmu_irq",
+			"flow_sync_var_l2_payload_0_fmu_irq",
+			"flow_sync_var_l2_payload_1_fmu_irq",
+			"flow_sync_var_l3_payload_0_fmu_irq",
+			"flow_sync_var_l3_payload_1_fmu_irq",
+			"flow_sync_var_l4_payload_0_fmu_irq",
+			"flow_sync_var_l4_payload_1_fmu_irq",
+			"flow_sync_delta_p_payload_itv_0_upd_irq",
+			"flow_sync_delta_p_payload_itv_0_err_irq",
+			"flow_sync_delta_p_payload_itv_1_upd_irq",
+			"flow_sync_delta_p_payload_itv_1_err_irq",
+			"flow_sync_delta_p_header_itv_0_upd_irq",
+			"flow_sync_delta_p_header_itv_0_err_irq",
+			"flow_sync_delta_p_header_itv_1_upd_irq",
+			"flow_sync_delta_p_header_itv_1_err_irq",
+			"flow_sync_y_gl0_p_payload_itv_0_upd_irq",
+			"flow_sync_y_gl0_p_payload_itv_0_err_irq",
+			"flow_sync_y_gl0_p_payload_itv_1_upd_irq",
+			"flow_sync_y_gl0_p_payload_itv_1_err_irq",
+			"flow_sync_y_gl0_p_header_itv_0_upd_irq",
+			"flow_sync_y_gl0_p_header_itv_0_err_irq",
+			"flow_sync_y_gl0_p_header_itv_1_upd_irq",
+			"flow_sync_y_gl0_p_header_itv_1_err_irq",
+			"flow_sync_yuv_gl2_p_payload_itv_0_upd_irq",
+			"flow_sync_yuv_gl2_p_payload_itv_0_err_irq",
+			"flow_sync_yuv_gl2_p_payload_itv_1_upd_irq",
+			"flow_sync_yuv_gl2_p_payload_itv_1_err_irq",
+			"flow_sync_yuv_gl2_p_header_itv_0_upd_irq",
+			"flow_sync_yuv_gl2_p_header_itv_0_err_irq",
+			"flow_sync_yuv_gl2_p_header_itv_1_upd_irq",
+			"flow_sync_yuv_gl2_p_header_itv_1_err_irq",
+			"flow_sync_yuv_gl3_p_payload_itv_0_upd_irq",
+			"flow_sync_yuv_gl3_p_payload_itv_0_err_irq",
+			"flow_sync_yuv_gl3_p_payload_itv_1_upd_irq",
+			"flow_sync_yuv_gl3_p_payload_itv_1_err_irq",
+			"flow_sync_yuv_gl4_p_payload_itv_0_upd_irq",
+			"flow_sync_yuv_gl4_p_payload_itv_0_err_irq",
+			"flow_sync_yuv_gl4_p_payload_itv_1_upd_irq",
+			"flow_sync_yuv_gl4_p_payload_itv_1_err_irq",
+			"flow_sync_var_l2_p_payload_itv_0_upd_irq",
+			"flow_sync_var_l2_p_payload_itv_0_err_irq",
+			"flow_sync_var_l2_p_payload_itv_1_upd_irq",
+			"flow_sync_var_l2_p_payload_itv_1_err_irq",
+			"flow_sync_var_l3_p_payload_itv_0_upd_irq",
+			"flow_sync_var_l3_p_payload_itv_0_err_irq",
+			"flow_sync_var_l3_p_payload_itv_1_upd_irq",
+			"flow_sync_var_l3_p_payload_itv_1_err_irq",
+			"flow_sync_var_l4_p_payload_itv_0_upd_irq",
+			"flow_sync_var_l4_p_payload_itv_0_err_irq",
+			"flow_sync_var_l4_p_payload_itv_1_upd_irq",
+			"flow_sync_var_l4_p_payload_itv_1_err_irq",
+			"flow_sync_yuv_gl2_c_payload_itv_0_upd_irq",
+			"flow_sync_yuv_gl2_c_payload_itv_0_err_irq",
+			"flow_sync_yuv_gl2_c_payload_itv_1_upd_irq",
+			"flow_sync_yuv_gl2_c_payload_itv_1_err_irq",
+			"flow_sync_yuv_gl2_c_header_itv_0_upd_irq",
+			"flow_sync_yuv_gl2_c_header_itv_0_err_irq",
+			"flow_sync_yuv_gl2_c_header_itv_1_upd_irq",
+			"flow_sync_yuv_gl2_c_header_itv_1_err_irq",
+			"flow_sync_yuv_gl3_c_payload_itv_0_upd_irq",
+			"flow_sync_yuv_gl3_c_payload_itv_0_err_irq",
+			"flow_sync_yuv_gl3_c_payload_itv_1_upd_irq",
+			"flow_sync_yuv_gl3_c_payload_itv_1_err_irq",
+			"flow_sync_yuv_gl4_c_payload_itv_0_upd_irq",
+			"flow_sync_yuv_gl4_c_payload_itv_0_err_irq",
+			"flow_sync_yuv_gl4_c_payload_itv_1_upd_irq",
+			"flow_sync_yuv_gl4_c_payload_itv_1_err_irq",
+			"flow_sync_var_l2_c_payload_itv_0_upd_irq",
+			"flow_sync_var_l2_c_payload_itv_0_err_irq",
+			"flow_sync_var_l2_c_payload_itv_1_upd_irq",
+			"flow_sync_var_l2_c_payload_itv_1_err_irq",
+			"flow_sync_var_l3_c_payload_itv_0_upd_irq",
+			"flow_sync_var_l3_c_payload_itv_0_err_irq",
+			"flow_sync_var_l3_c_payload_itv_1_upd_irq",
+			"flow_sync_var_l3_c_payload_itv_1_err_irq",
+			"flow_sync_var_l4_c_payload_itv_0_upd_irq",
+			"flow_sync_var_l4_c_payload_itv_0_err_irq",
+			"flow_sync_var_l4_c_payload_itv_1_upd_irq",
+			"flow_sync_var_l4_c_payload_itv_1_err_irq",
+			"flow_sync_delta_c_payload_itv_0_upd_irq",
+			"flow_sync_delta_c_payload_itv_0_err_irq",
+			"flow_sync_delta_c_payload_itv_1_upd_irq",
+			"flow_sync_delta_c_payload_itv_1_err_irq",
+			"flow_sync_delta_c_header_itv_0_upd_irq",
+			"flow_sync_delta_c_header_itv_0_err_irq",
+			"flow_sync_delta_c_header_itv_1_upd_irq",
+			"flow_sync_delta_c_header_itv_1_err_irq",
+			"flow_sync_y_gl0_c_payload_itv_0_upd_irq",
+			"flow_sync_y_gl0_c_payload_itv_0_err_irq",
+			"flow_sync_y_gl0_c_payload_itv_1_upd_irq",
+			"flow_sync_y_gl0_c_payload_itv_1_err_irq",
+			"flow_sync_y_gl0_c_header_itv_0_upd_irq",
+			"flow_sync_y_gl0_c_header_itv_0_err_irq",
+			"flow_sync_y_gl0_c_header_itv_1_upd_irq",
+			"flow_sync_y_gl0_c_header_itv_1_err_irq";
+		interrupt-event-infos =
+			<&flow_sync_delta_payload_0_fmu_irq>,
+			<&flow_sync_delta_payload_1_fmu_irq>,
+			<&flow_sync_delta_header_0_fmu_irq>,
+			<&flow_sync_delta_header_1_fmu_irq>,
+			<&flow_sync_y_gl0_payload_0_fmu_irq>,
+			<&flow_sync_y_gl0_payload_1_fmu_irq>,
+			<&flow_sync_y_gl0_header_0_fmu_irq>,
+			<&flow_sync_y_gl0_header_1_fmu_irq>,
+			<&flow_sync_yuv_gl2_payload_0_fmu_irq>,
+			<&flow_sync_yuv_gl2_payload_1_fmu_irq>,
+			<&flow_sync_yuv_gl2_header_0_fmu_irq>,
+			<&flow_sync_yuv_gl2_header_1_fmu_irq>,
+			<&flow_sync_yuv_gl3_payload_0_fmu_irq>,
+			<&flow_sync_yuv_gl3_payload_1_fmu_irq>,
+			<&flow_sync_yuv_gl4_payload_0_fmu_irq>,
+			<&flow_sync_yuv_gl4_payload_1_fmu_irq>,
+			<&flow_sync_var_l2_payload_0_fmu_irq>,
+			<&flow_sync_var_l2_payload_1_fmu_irq>,
+			<&flow_sync_var_l3_payload_0_fmu_irq>,
+			<&flow_sync_var_l3_payload_1_fmu_irq>,
+			<&flow_sync_var_l4_payload_0_fmu_irq>,
+			<&flow_sync_var_l4_payload_1_fmu_irq>,
+			<&flow_sync_delta_p_payload_itv_0_upd_irq>,
+			<&flow_sync_delta_p_payload_itv_0_err_irq>,
+			<&flow_sync_delta_p_payload_itv_1_upd_irq>,
+			<&flow_sync_delta_p_payload_itv_1_err_irq>,
+			<&flow_sync_delta_p_header_itv_0_upd_irq>,
+			<&flow_sync_delta_p_header_itv_0_err_irq>,
+			<&flow_sync_delta_p_header_itv_1_upd_irq>,
+			<&flow_sync_delta_p_header_itv_1_err_irq>,
+			<&flow_sync_y_gl0_p_payload_itv_0_upd_irq>,
+			<&flow_sync_y_gl0_p_payload_itv_0_err_irq>,
+			<&flow_sync_y_gl0_p_payload_itv_1_upd_irq>,
+			<&flow_sync_y_gl0_p_payload_itv_1_err_irq>,
+			<&flow_sync_y_gl0_p_header_itv_0_upd_irq>,
+			<&flow_sync_y_gl0_p_header_itv_0_err_irq>,
+			<&flow_sync_y_gl0_p_header_itv_1_upd_irq>,
+			<&flow_sync_y_gl0_p_header_itv_1_err_irq>,
+			<&flow_sync_yuv_gl2_p_payload_itv_0_upd_irq>,
+			<&flow_sync_yuv_gl2_p_payload_itv_0_err_irq>,
+			<&flow_sync_yuv_gl2_p_payload_itv_1_upd_irq>,
+			<&flow_sync_yuv_gl2_p_payload_itv_1_err_irq>,
+			<&flow_sync_yuv_gl2_p_header_itv_0_upd_irq>,
+			<&flow_sync_yuv_gl2_p_header_itv_0_err_irq>,
+			<&flow_sync_yuv_gl2_p_header_itv_1_upd_irq>,
+			<&flow_sync_yuv_gl2_p_header_itv_1_err_irq>,
+			<&flow_sync_yuv_gl3_p_payload_itv_0_upd_irq>,
+			<&flow_sync_yuv_gl3_p_payload_itv_0_err_irq>,
+			<&flow_sync_yuv_gl3_p_payload_itv_1_upd_irq>,
+			<&flow_sync_yuv_gl3_p_payload_itv_1_err_irq>,
+			<&flow_sync_yuv_gl4_p_payload_itv_0_upd_irq>,
+			<&flow_sync_yuv_gl4_p_payload_itv_0_err_irq>,
+			<&flow_sync_yuv_gl4_p_payload_itv_1_upd_irq>,
+			<&flow_sync_yuv_gl4_p_payload_itv_1_err_irq>,
+			<&flow_sync_var_l2_p_payload_itv_0_upd_irq>,
+			<&flow_sync_var_l2_p_payload_itv_0_err_irq>,
+			<&flow_sync_var_l2_p_payload_itv_1_upd_irq>,
+			<&flow_sync_var_l2_p_payload_itv_1_err_irq>,
+			<&flow_sync_var_l3_p_payload_itv_0_upd_irq>,
+			<&flow_sync_var_l3_p_payload_itv_0_err_irq>,
+			<&flow_sync_var_l3_p_payload_itv_1_upd_irq>,
+			<&flow_sync_var_l3_p_payload_itv_1_err_irq>,
+			<&flow_sync_var_l4_p_payload_itv_0_upd_irq>,
+			<&flow_sync_var_l4_p_payload_itv_0_err_irq>,
+			<&flow_sync_var_l4_p_payload_itv_1_upd_irq>,
+			<&flow_sync_var_l4_p_payload_itv_1_err_irq>,
+			<&flow_sync_yuv_gl2_c_payload_itv_0_upd_irq>,
+			<&flow_sync_yuv_gl2_c_payload_itv_0_err_irq>,
+			<&flow_sync_yuv_gl2_c_payload_itv_1_upd_irq>,
+			<&flow_sync_yuv_gl2_c_payload_itv_1_err_irq>,
+			<&flow_sync_yuv_gl2_c_header_itv_0_upd_irq>,
+			<&flow_sync_yuv_gl2_c_header_itv_0_err_irq>,
+			<&flow_sync_yuv_gl2_c_header_itv_1_upd_irq>,
+			<&flow_sync_yuv_gl2_c_header_itv_1_err_irq>,
+			<&flow_sync_yuv_gl3_c_payload_itv_0_upd_irq>,
+			<&flow_sync_yuv_gl3_c_payload_itv_0_err_irq>,
+			<&flow_sync_yuv_gl3_c_payload_itv_1_upd_irq>,
+			<&flow_sync_yuv_gl3_c_payload_itv_1_err_irq>,
+			<&flow_sync_yuv_gl4_c_payload_itv_0_upd_irq>,
+			<&flow_sync_yuv_gl4_c_payload_itv_0_err_irq>,
+			<&flow_sync_yuv_gl4_c_payload_itv_1_upd_irq>,
+			<&flow_sync_yuv_gl4_c_payload_itv_1_err_irq>,
+			<&flow_sync_var_l2_c_payload_itv_0_upd_irq>,
+			<&flow_sync_var_l2_c_payload_itv_0_err_irq>,
+			<&flow_sync_var_l2_c_payload_itv_1_upd_irq>,
+			<&flow_sync_var_l2_c_payload_itv_1_err_irq>,
+			<&flow_sync_var_l3_c_payload_itv_0_upd_irq>,
+			<&flow_sync_var_l3_c_payload_itv_0_err_irq>,
+			<&flow_sync_var_l3_c_payload_itv_1_upd_irq>,
+			<&flow_sync_var_l3_c_payload_itv_1_err_irq>,
+			<&flow_sync_var_l4_c_payload_itv_0_upd_irq>,
+			<&flow_sync_var_l4_c_payload_itv_0_err_irq>,
+			<&flow_sync_var_l4_c_payload_itv_1_upd_irq>,
+			<&flow_sync_var_l4_c_payload_itv_1_err_irq>,
+			<&flow_sync_delta_c_payload_itv_0_upd_irq>,
+			<&flow_sync_delta_c_payload_itv_0_err_irq>,
+			<&flow_sync_delta_c_payload_itv_1_upd_irq>,
+			<&flow_sync_delta_c_payload_itv_1_err_irq>,
+			<&flow_sync_delta_c_header_itv_0_upd_irq>,
+			<&flow_sync_delta_c_header_itv_0_err_irq>,
+			<&flow_sync_delta_c_header_itv_1_upd_irq>,
+			<&flow_sync_delta_c_header_itv_1_err_irq>,
+			<&flow_sync_y_gl0_c_payload_itv_0_upd_irq>,
+			<&flow_sync_y_gl0_c_payload_itv_0_err_irq>,
+			<&flow_sync_y_gl0_c_payload_itv_1_upd_irq>,
+			<&flow_sync_y_gl0_c_payload_itv_1_err_irq>,
+			<&flow_sync_y_gl0_c_header_itv_0_upd_irq>,
+			<&flow_sync_y_gl0_c_header_itv_0_err_irq>,
+			<&flow_sync_y_gl0_c_header_itv_1_upd_irq>,
+			<&flow_sync_y_gl0_c_header_itv_1_err_irq>;
+
+		/* Thread priority */
+			transaction-thread-priority = <99>;
+	};
+
+	lwis_slc: lwis_slc@51c {
+		compatible = "google,lwis-slc-device";
+		power-domains =
+			<&sswrp_ispbe_pd>,
+			<&sswrp_gsw_pd>;
+
+		/* Device node name */
+		node-name = "slc";
+
+		/* Register space */
+		reg =
+			<0x0 0x3E400000 0x0 0x400000>,		/* ISPBE */
+			<0x0 0x3EC00000 0x0 0x400000>;		/* ISPGSW */
+		reg-names =
+			"isp_be",
+			"isp_gsw";
+
+		/* SLC partitions */
+		pt_id =
+			"isp_p0",
+			"isp_p1",
+			"isp_p2",
+			"isp_p3",
+			"isp_p4",
+			"isp_p5";
+
+		pt_size = <480 720 890 900 950 1865>;
+	};
+};

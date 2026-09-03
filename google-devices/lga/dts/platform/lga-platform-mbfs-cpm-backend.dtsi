@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright 2024 Google LLC
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	fragment@mbfs_cpm_backend0 {
+		target-path = "/";
+		__overlay__ {
+			mbfs_cpm_backend0_label: mbfs_cpm_backend0 {
+				compatible = "google,mbfs_cpm_backend";
+				mboxes = <&goog_mba_cpm_iface>;
+				service-idx = <0x14>;
+			};
+		};
+	};
+};
+

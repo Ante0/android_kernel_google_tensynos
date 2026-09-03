@@ -1,0 +1,157 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load(
+    "@kleaf//build/kernel/kleaf:kernel.bzl",
+    "checkpatch",
+    "ddk_headers",
+    "ddk_module",
+    "ddk_uapi_headers",
+)
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+filegroup(
+    name = "cnm.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+bool_flag(
+    name = "trusty",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "trusty_is_enabled",
+    flag_values = {":trusty": "true"},
+    visibility = [
+        ":__subpackages__",
+    ],
+)
+
+bool_flag(
+    name = "google_ra",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "google_ra_is_enabled",
+    flag_values = {":google_ra": "true"},
+    visibility = [
+        ":__subpackages__",
+    ],
+)
+
+bool_flag(
+    name = "google_cdd",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "google_cdd_is_enabled",
+    flag_values = {":google_cdd": "true"},
+    visibility = [
+        ":__subpackages__",
+    ],
+)
+
+ddk_uapi_headers(
+    name = "uapi_headers",
+    srcs = glob([
+        "include/uapi/**/*.h",
+    ]),
+    out = "cnm-uapi-headers.tar.gz",
+    kernel_build = "//private/devices/google/common:kernel",
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "headers",
+    hdrs = glob([
+        "include/**/*.h",
+    ]),
+    includes = [
+        "include",
+    ],
+)
+
+ddk_module(
+    name = "vpu",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "vpu.ko",
+    conditional_srcs = {
+        "CONFIG_CODEC3P": {
+            True: [
+                "vpu_debugfs.c",
+                "vpu_ioctl.c",
+                "vpu_of.c",
+                "vpu_pm.c",
+                "vpu_coredump.c",
+            ],
+        },
+        "CONFIG_CODEC3P_SLC": {
+            True: [
+                "vpu_slc.c",
+            ],
+        },
+        "CONFIG_VPU_SECURITY": {
+            True: [
+                "vpu_secure.c",
+            ],
+        },
+    },
+    copts = [
+        "-Wformat",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/core/gs_perf_domain:perf_domain",
+        "//private/google-modules/soc/gs:headers",
+    ] + select({
+        "//private/devices/google/common:soc_is_laguna": [
+            "//private/google-modules/soc/gs/drivers/soc/google/pt:slc_pt",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        ":google_cdd_is_enabled": [
+            "//private/google-modules/soc/rdo:rdo_soc_headers",
+            "//private/google-modules/soc/rdo/drivers/soc/google/cdd:gcdd",
+            "//private/google-modules/soc/rdo/interconnect:google_icc",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        ":trusty_is_enabled": [
+            "//private/google-modules/trusty:trusty-ipc",
+            "//private/google-modules/trusty:trusty_headers",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        ":google_ra_is_enabled": [
+            "//private/google-modules/soc/rdo/drivers/soc/google/ra:google-ra",
+        ],
+        "//conditions:default": [],
+    }),
+)

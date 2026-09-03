@@ -172,4 +172,15 @@ extern const struct dw3000_chip_ops dw3000_chip_c0_ops;
 extern const struct dw3000_chip_ops dw3000_chip_d0_ops;
 extern const struct dw3000_chip_ops dw3000_chip_e0_ops;
 
+int dw3000_c0_get_dgc_dec(struct dw3000 *dw, u8 *value);
+int dw3000_c0_prog_pll_coarse_code(struct dw3000 *dw);
+int dw3000_c0_set_mrxlut(struct dw3000 *dw, const u32 *lut);
+int dw3000_d0_softreset(struct dw3000 *dw);
+int dw3000_d0_init(struct dw3000 *dw);
+int dw3000_d0_coex_init(struct dw3000 *dw);
+const struct dw3000_chip_register *dw3000_d0_get_registers(struct dw3000 *dw,
+							   size_t *count);
+u32 dw3000_d0_compute_rssi(struct dw3000 *dw, struct dw3000_rssi *rssi,
+			   bool rx_tune, u8 sts);
+
 #endif /* __DW3000_CHIP_H */

@@ -81,7 +81,7 @@ extern struct mfc_ctrls_ops decoder_ctrls_ops;
 extern struct vb2_ops mfc_dec_qops;
 extern struct mfc_fmt dec_formats[];
 
-void mfc_butler_worker(struct work_struct *work)
+static void mfc_butler_worker(struct work_struct *work)
 {
 	struct mfc_dev *dev;
 	struct mfc_ctx *ctx;
@@ -125,9 +125,6 @@ static void __mfc_deinit_dec_ctx(struct mfc_ctx *ctx)
 
 	if (dec->ref_info)
 		vfree(dec->ref_info);
-
-	if (dec->hdr10_plus_full)
-		vfree(dec->hdr10_plus_full);
 
 	if (dec->hdr10_plus_info)
 		vfree(dec->hdr10_plus_info);
@@ -1203,7 +1200,7 @@ err_res_mem:
 }
 
 /* Remove the driver */
-static int mfc_remove(struct platform_device *pdev)
+static void mfc_remove(struct platform_device *pdev)
 {
 	struct mfc_dev *dev = platform_get_drvdata(pdev);
 
@@ -1231,7 +1228,6 @@ static int mfc_remove(struct platform_device *pdev)
 	mfc_dev_debug(2, "Will now deinit HW\n");
 
 	dev_dbg(&pdev->dev, "%s--\n", __func__);
-	return 0;
 }
 
 static void mfc_shutdown(struct platform_device *pdev)

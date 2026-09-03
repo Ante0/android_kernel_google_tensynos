@@ -18,7 +18,7 @@ static int try_to_realloc_ndr_blob(struct ndr *n, size_t sz)
 {
 	char *data;
 
-	data = krealloc(n->data, n->offset + sz + 1024, GFP_KERNEL);
+	data = krealloc(n->data, n->offset + sz + 1024, KSMBD_DEFAULT_GFP);
 	if (!data)
 		return -ENOMEM;
 
@@ -174,7 +174,7 @@ int ndr_encode_dos_attr(struct ndr *n, struct xattr_dos_attrib *da)
 
 	n->offset = 0;
 	n->length = 1024;
-	n->data = kzalloc(n->length, GFP_KERNEL);
+	n->data = kzalloc(n->length, KSMBD_DEFAULT_GFP);
 	if (!n->data)
 		return -ENOMEM;
 
@@ -338,7 +338,7 @@ static int ndr_encode_posix_acl_entry(struct ndr *n, struct xattr_smb_acl *acl)
 }
 
 int ndr_encode_posix_acl(struct ndr *n,
-			 struct user_namespace *user_ns,
+			 struct mnt_idmap *idmap,
 			 struct inode *inode,
 			 struct xattr_smb_acl *acl,
 			 struct xattr_smb_acl *def_acl)
@@ -350,7 +350,7 @@ int ndr_encode_posix_acl(struct ndr *n,
 
 	n->offset = 0;
 	n->length = 1024;
-	n->data = kzalloc(n->length, GFP_KERNEL);
+	n->data = kzalloc(n->length, KSMBD_DEFAULT_GFP);
 	if (!n->data)
 		return -ENOMEM;
 
@@ -374,11 +374,11 @@ int ndr_encode_posix_acl(struct ndr *n,
 	if (ret)
 		return ret;
 
-	vfsuid = i_uid_into_vfsuid(user_ns, inode);
+	vfsuid = i_uid_into_vfsuid(idmap, inode);
 	ret = ndr_write_int64(n, from_kuid(&init_user_ns, vfsuid_into_kuid(vfsuid)));
 	if (ret)
 		return ret;
-	vfsgid = i_gid_into_vfsgid(user_ns, inode);
+	vfsgid = i_gid_into_vfsgid(idmap, inode);
 	ret = ndr_write_int64(n, from_kgid(&init_user_ns, vfsgid_into_kgid(vfsgid)));
 	if (ret)
 		return ret;
@@ -401,7 +401,7 @@ int ndr_encode_v4_ntacl(struct ndr *n, struct xattr_ntacl *acl)
 
 	n->offset = 0;
 	n->length = 2048;
-	n->data = kzalloc(n->length, GFP_KERNEL);
+	n->data = kzalloc(n->length, KSMBD_DEFAULT_GFP);
 	if (!n->data)
 		return -ENOMEM;
 
@@ -505,7 +505,7 @@ int ndr_decode_v4_ntacl(struct ndr *n, struct xattr_ntacl *acl)
 		return ret;
 
 	acl->sd_size = n->length - n->offset;
-	acl->sd_buf = kzalloc(acl->sd_size, GFP_KERNEL);
+	acl->sd_buf = kzalloc(acl->sd_size, KSMBD_DEFAULT_GFP);
 	if (!acl->sd_buf)
 		return -ENOMEM;
 

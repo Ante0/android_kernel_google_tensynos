@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -61,8 +61,6 @@ int kutf_add_result(struct kutf_context *context, enum kutf_result_status status
 	struct kutf_result_set *set = context->result_set;
 	/* Create the new result */
 	struct kutf_result *new_result;
-
-	BUG_ON(set == NULL);
 
 	new_result = kutf_mempool_alloc(mempool, sizeof(*new_result));
 	if (!new_result) {

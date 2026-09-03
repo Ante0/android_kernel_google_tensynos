@@ -160,8 +160,8 @@ static unsigned max77802_get_mode(struct regulator_dev *rdev)
  * Enable Control Logic3 by PWRREQ (LDO 3)
  *
  * If setting the regulator mode fails, the function only warns but does
- * not return an error code to avoid the regulator core to stop setting
- * the operating mode for the remaining regulators.
+ * not return a negative error number to avoid the regulator core to stop
+ * setting the operating mode for the remaining regulators.
  */
 static int max77802_set_suspend_mode(struct regulator_dev *rdev,
 				     unsigned int mode)
@@ -554,6 +554,7 @@ MODULE_DEVICE_TABLE(platform, max77802_pmic_id);
 static struct platform_driver max77802_pmic_driver = {
 	.driver = {
 		.name = "max77802-pmic",
+		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 	},
 	.probe = max77802_pmic_probe,
 	.id_table = max77802_pmic_id,

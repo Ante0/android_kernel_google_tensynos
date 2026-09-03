@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * muzel LSIO device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+&spmi_cpm {
+	prescalar = <0x1>;
+	master_arb_en = <1>;
+};

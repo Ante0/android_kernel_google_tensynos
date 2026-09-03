@@ -143,6 +143,11 @@ int tas_dev_interrupt_read(struct tas25xx_priv *p_tas25xx, int chn, int *type)
 		(struct linux_platform *) p_tas25xx->platform_data;
 	struct tas25xx_interrupts *intr_data = &p_tas25xx->intr_data[chn];
 
+	if (p_tas25xx->devs[chn]->is_probed == 0) {
+		dev_info(plat_data->dev, "%s: ignore channel %d\n", __func__, chn);
+		return intr_detected;
+	}
+
 	powered_up = is_power_up_state(p_tas25xx->m_power_state);
 
 	for (i = 0; i < intr_data->count; i++) {

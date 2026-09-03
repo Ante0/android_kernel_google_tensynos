@@ -116,7 +116,7 @@ static void blk_crypto_release(struct kobject *kobj)
 	kfree(container_of(kobj, struct blk_crypto_kobj, kobj));
 }
 
-static struct kobj_type blk_crypto_ktype = {
+static const struct kobj_type blk_crypto_ktype = {
 	.default_groups = blk_crypto_attr_groups,
 	.sysfs_ops	= &blk_crypto_attr_ops,
 	.release	= blk_crypto_release,
@@ -140,8 +140,8 @@ int blk_crypto_sysfs_register(struct gendisk *disk)
 		return -ENOMEM;
 	obj->profile = q->crypto_profile;
 
-	err = kobject_init_and_add(&obj->kobj, &blk_crypto_ktype, &q->kobj,
-				   "crypto");
+	err = kobject_init_and_add(&obj->kobj, &blk_crypto_ktype,
+				   &disk->queue_kobj, "crypto");
 	if (err) {
 		kobject_put(&obj->kobj);
 		return err;

@@ -19,6 +19,7 @@
 #include <linux/bitops.h>
 #include <linux/i2c.h>
 #include <linux/kernel.h>
+#include <linux/kstrtox.h>
 #include <linux/module.h>
 #include <linux/rtc.h>
 
@@ -315,7 +316,7 @@ static int rx8025_init_client(struct i2c_client *client)
 			return hour_reg;
 		rx8025->is_24 = (hour_reg & RX8035_BIT_HOUR_1224);
 	} else {
-		rx8025->is_24 = (ctrl[1] & RX8025_BIT_CTRL1_1224);
+		rx8025->is_24 = (ctrl[0] & RX8025_BIT_CTRL1_1224);
 	}
 out:
 	return err;
@@ -519,9 +520,9 @@ static const struct attribute_group rx8025_attr_group = {
 	.attrs	= rx8025_attrs,
 };
 
-static int rx8025_probe(struct i2c_client *client,
-			const struct i2c_device_id *id)
+static int rx8025_probe(struct i2c_client *client)
 {
+	const struct i2c_device_id *id = i2c_match_id(rx8025_id, client);
 	struct i2c_adapter *adapter = client->adapter;
 	struct rx8025_data *rx8025;
 	int err = 0;

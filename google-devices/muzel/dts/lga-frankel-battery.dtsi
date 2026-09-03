@@ -1,0 +1,88 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Battery device tree entries specific to Frankel
+ *
+ * Copyright 2024 Google LLC
+ *
+ */
+
+&google_battery {
+	google,chg-battery-capacity = <4835>;
+
+	google,chg-cv-limits = <4200000 4300000 4350000 4400000 4500000>;
+	google,chg-temp-limits = <0 100 200 420 460 480 550>;
+	google,chg-cc-limits = <
+		 50   50   30   30    0
+		 70   70   30   30   30
+		120  120  120   50   50
+		120  120  120   50   50
+		 50   50    0    0    0
+		 30    0    0    0    0
+	>;
+
+	google,chg-topoff-limits = <240 240 240 960 960 960>;
+
+	google,vbatt-crit-deadline-sec = <120>;
+
+	google,ttf-temp-idx= <2>;
+	google,ttf-adapter = <4500>;
+	google,ttf-soc-table =  <60 67 74 78 86  89  95 100>;
+	google,ttf-elap-table = <32 42 57 78 83 120 178  93>;
+	google,ttf-tier-table = <0 67 75>;
+	google,ttf-report-max-ratio = <0>;
+
+	google,aacr-config = <1>; /* enabled, no opt out */
+	google,aafv-config = <1>; /* enabled, no opt out */
+
+	/* 90% after 600 cycles, 80% after 1000 cycles */
+	google,aacr-algo = <3>;
+	google,aacr-cliff-capacity-rate = <80>;
+	google,aacr-cycle-max = <1000>;
+
+	google,batt-id-1-atl {
+		google,batt-id = <1>;
+		google,aacr-ref-cycles = <599 600 1000>;
+		google,aacr-ref-fade10 = <  0 100  200>;
+		google,aafv-ref-cycles = <200 400 600 800 1000>;
+		google,aafv-ref-offset = < 20  40  60  80  100>;
+		google,aacc-chg-temp = <0 550>;
+		google,aacc-chg-weights = < /* units: 1/1000 cycles */
+			100 100 100 100 100 100 100 100 100 100 /* soc:  1 ~  10, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 11 ~  20, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 21 ~  30, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 31 ~  40, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 41 ~  50, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 51 ~  60, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 61 ~  70, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 71 ~  80, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 81 ~  90, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 91 ~ 100, temp_idx: 0 */
+		>;
+	};
+	google,batt-id-4-lwn {
+		google,batt-id = <4>;
+		google,aacr-ref-cycles = <500 600 1000>;
+		google,aacr-ref-fade10 = <  1 100  200>;
+		google,aafv-ref-cycles = <200 400 600 800 1000>;
+		google,aafv-ref-offset = < 20  40  60  80  100>;
+		google,aacc-chg-temp = <0 550>;
+		google,aacc-chg-weights = < /* units: 1/1000 cycles */
+			100 100 100 100 100 100 100 100 100 100 /* soc:  1 ~  10, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 11 ~  20, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 21 ~  30, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 31 ~  40, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 41 ~  50, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 51 ~  60, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 61 ~  70, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 71 ~  80, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 81 ~  90, temp_idx: 0 */
+			  0   0   0   0   0   0   0   0   0   0 /* soc: 91 ~ 100, temp_idx: 0 */
+		>;
+	};
+};
+
+&max77779_fg {
+	maxim,fg-data {
+		#include "lga-frankel-battery-data.dtsi"
+	};
+};

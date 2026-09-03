@@ -18,7 +18,10 @@ SECTIONS {
 	HYP_SECTION(.rodata)
 #ifdef CONFIG_TRACING
 	. = ALIGN(PAGE_SIZE);
-	HYP_SECTION(.event_ids)
+	BEGIN_HYP_SECTION(.event_ids)
+		*(SORT(.hyp.event_ids.*))
+	END_HYP_SECTION
+	HYP_SECTION(__patchable_function_entries)
 #endif
 
 	/*

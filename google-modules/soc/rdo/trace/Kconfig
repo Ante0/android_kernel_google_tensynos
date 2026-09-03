@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_TRACE_SOURCE
+	tristate "Google trace source device"
+	depends on CORESIGHT
+	help
+	  Enable support the google trace source
+	  in RDO.
+	  Select Y if you have such device.
+	  If unsure select "N".

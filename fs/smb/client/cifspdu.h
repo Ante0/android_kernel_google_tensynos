@@ -10,7 +10,7 @@
 #define _CIFSPDU_H
 
 #include <net/sock.h>
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 #include "../common/smbfsctl.h"
 
 #define CIFS_PROT   0
@@ -781,7 +781,7 @@ typedef struct smb_com_logoff_andx_rsp {
 	__u16 ByteCount;
 } __attribute__((packed)) LOGOFF_ANDX_RSP;
 
-typedef union smb_com_tree_disconnect {	/* as an altetnative can use flag on
+typedef union smb_com_tree_disconnect {	/* as an alternative can use flag on
 					tree_connect PDU to effect disconnect */
 					/* tdis is probably simplest SMB PDU */
 	struct {
@@ -1226,10 +1226,9 @@ typedef struct smb_com_query_information_rsp {
 typedef struct smb_com_setattr_req {
 	struct smb_hdr hdr; /* wct = 8 */
 	__le16 attr;
-	__le16 time_low;
-	__le16 time_high;
+	__le32 last_write_time;
 	__le16 reserved[5]; /* must be zero */
-	__u16  ByteCount;
+	__le16 ByteCount;
 	__u8   BufferFormat; /* 4 = ASCII */
 	unsigned char fileName[];
 } __attribute__((packed)) SETATTR_REQ;
@@ -1358,7 +1357,7 @@ typedef struct smb_com_transaction_ioctl_rsp {
 	__le32 DataDisplacement;
 	__u8 SetupCount;	/* 1 */
 	__le16 ReturnedDataLen;
-	__u16 ByteCount;
+	__le16 ByteCount;
 } __attribute__((packed)) TRANSACT_IOCTL_RSP;
 
 #define CIFS_ACL_OWNER 1
@@ -1511,7 +1510,7 @@ struct reparse_posix_data {
 	__le16	ReparseDataLength;
 	__u16	Reserved;
 	__le64	InodeType; /* LNK, FIFO, CHR etc. */
-	char	PathBuffer[];
+	__u8	DataBuffer[];
 } __attribute__((packed));
 
 struct cifs_quota_data {
@@ -1754,8 +1753,7 @@ struct smb_com_transaction2_sfi_rsp {
 	struct smb_hdr hdr;	/* wct = 10 + SetupCount */
 	struct trans2_resp t2;
 	__u16 ByteCount;
-	__u16 Reserved2;	/* parameter word reserved -
-					present for infolevels > 100 */
+	__u16 Reserved2; /* parameter word reserved - present for infolevels > 100 */
 } __attribute__((packed));
 
 struct smb_t2_qfi_req {
@@ -1770,8 +1768,7 @@ struct smb_t2_qfi_rsp {
 	struct smb_hdr hdr;     /* wct = 10 + SetupCount */
 	struct trans2_resp t2;
 	__u16 ByteCount;
-	__u16 Reserved2;        /* parameter word reserved -
-				   present for infolevels > 100 */
+	__u16 Reserved2; /* parameter word reserved - present for infolevels > 100 */
 } __attribute__((packed));
 
 /*
@@ -2148,13 +2145,11 @@ typedef struct {
 #define CIFS_UNIX_POSIX_PATH_OPS_CAP    0x00000020 /* Allow new POSIX path based
 						      calls including posix open
 						      and posix unlink */
-#define CIFS_UNIX_LARGE_READ_CAP        0x00000040 /* support reads >128K (up
-						      to 0xFFFF00 */
+#define CIFS_UNIX_LARGE_READ_CAP        0x00000040 /* support reads >128K (up to 0xFFFF00 */
 #define CIFS_UNIX_LARGE_WRITE_CAP       0x00000080
 #define CIFS_UNIX_TRANSPORT_ENCRYPTION_CAP 0x00000100 /* can do SPNEGO crypt */
 #define CIFS_UNIX_TRANSPORT_ENCRYPTION_MANDATORY_CAP  0x00000200 /* must do  */
-#define CIFS_UNIX_PROXY_CAP             0x00000400 /* Proxy cap: 0xACE ioctl and
-						      QFS PROXY call */
+#define CIFS_UNIX_PROXY_CAP             0x00000400 /* Proxy cap: 0xACE ioctl and QFS PROXY call */
 #ifdef CONFIG_CIFS_POSIX
 /* presumably don't need the 0x20 POSIX_PATH_OPS_CAP since we never send
    LockingX instead of posix locking call on unix sess (and we do not expect
@@ -2375,8 +2370,7 @@ typedef struct {
 
 struct file_allocation_info {
 	__le64 AllocationSize; /* Note old Samba srvr rounds this up too much */
-} __attribute__((packed));	/* size used on disk, for level 0x103 for set,
-				   0x105 for query */
+} __packed; /* size used on disk, for level 0x103 for set, 0x105 for query */
 
 struct file_end_of_file_info {
 	__le64 FileSize;		/* offset to end of file */
@@ -2411,13 +2405,12 @@ struct cifs_posix_ace { /* access control entry (ACE) */
 	__le64 cifs_uid; /* or gid */
 } __attribute__((packed));
 
-struct cifs_posix_acl { /* access conrol list  (ACL) */
+struct cifs_posix_acl { /* access control list  (ACL) */
 	__le16	version;
 	__le16	access_entry_count;  /* access ACL - count of entries */
 	__le16	default_entry_count; /* default ACL - count of entries */
 	struct cifs_posix_ace ace_array[];
-	/* followed by
-	struct cifs_posix_ace default_ace_arraay[] */
+	/* followed by struct cifs_posix_ace default_ace_array[] */
 } __attribute__((packed));  /* level 0x204 */
 
 /* types of access control entries already defined in posix_acl.h */
@@ -2436,17 +2429,17 @@ struct cifs_posix_acl { /* access conrol list  (ACL) */
 /* end of POSIX ACL definitions */
 
 /* POSIX Open Flags */
-#define SMB_O_RDONLY 	 0x1
-#define SMB_O_WRONLY 	0x2
-#define SMB_O_RDWR 	0x4
-#define SMB_O_CREAT 	0x10
-#define SMB_O_EXCL 	0x20
-#define SMB_O_TRUNC 	0x40
-#define SMB_O_APPEND 	0x80
-#define SMB_O_SYNC 	0x100
-#define SMB_O_DIRECTORY 0x200
-#define SMB_O_NOFOLLOW 	0x400
-#define SMB_O_DIRECT 	0x800
+#define SMB_O_RDONLY	0x1
+#define SMB_O_WRONLY	0x2
+#define SMB_O_RDWR	0x4
+#define SMB_O_CREAT	0x10
+#define SMB_O_EXCL	0x20
+#define SMB_O_TRUNC	0x40
+#define SMB_O_APPEND	0x80
+#define SMB_O_SYNC	0x100
+#define SMB_O_DIRECTORY	0x200
+#define SMB_O_NOFOLLOW	0x400
+#define SMB_O_DIRECT	0x800
 
 typedef struct {
 	__le32 OpenFlags; /* same as NT CreateX */
@@ -2579,17 +2572,11 @@ typedef struct {
 } __attribute__((packed)) FIND_FILE_STANDARD_INFO; /* level 0x1 FF resp data */
 
 
-struct win_dev {
-	unsigned char type[8]; /* IntxCHR or IntxBLK or LnxFIFO*/
-	__le64 major;
-	__le64 minor;
-} __attribute__((packed));
-
 struct fea {
 	unsigned char EA_flags;
 	__u8 name_len;
 	__le16 value_len;
-	char name[1];
+	char name[];
 	/* optionally followed by value */
 } __attribute__((packed));
 /* flags for _FEA.fEA */
@@ -2597,7 +2584,7 @@ struct fea {
 
 struct fealist {
 	__le32 list_len;
-	struct fea list[1];
+	struct fea list;
 } __attribute__((packed));
 
 /* used to hold an arbitrary blob of data */
@@ -2716,15 +2703,13 @@ typedef struct file_xattr_info {
 	__u32 xattr_value_len;
 	char  xattr_name[];
 	/* followed by xattr_value[xattr_value_len], no pad */
-} __attribute__((packed)) FILE_XATTR_INFO; /* extended attribute info
-					      level 0x205 */
+} __packed FILE_XATTR_INFO; /* extended attribute info level 0x205 */
 
 /* flags for lsattr and chflags commands removed arein uapi/linux/fs.h */
 
 typedef struct file_chattr_info {
 	__le64	mask; /* list of all possible attribute bits */
 	__le64	mode; /* list of actual attribute bits on this inode */
-} __attribute__((packed)) FILE_CHATTR_INFO;  /* ext attributes
-						(chattr, chflags) level 0x206 */
-#endif 				/* POSIX */
+} __packed FILE_CHATTR_INFO;  /* ext attributes (chattr, chflags) level 0x206 */
+#endif				/* POSIX */
 #endif				/* _CIFSPDU_H */

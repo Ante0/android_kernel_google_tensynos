@@ -9,6 +9,7 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/interrupt.h>
+#include <linux/iommu.h>
 #include <linux/platform_device.h>
 #include <linux/if_arp.h>
 #include <linux/version.h>
@@ -28,12 +29,21 @@
 #include <linux/pci.h>
 #include <linux/seq_file.h>
 #include <linux/pm_runtime.h>
+#include <linux/dma-map-ops.h>
 //#include <sound/samsung/abox.h>
 
 #include "modem_prj.h"
 #include "modem_utils.h"
 #include "modem_ctrl.h"
 #include "s51xx_pcie.h"
+
+#if IS_ENABLED(CONFIG_METRICS_COLLECTION_FRAMEWORK)
+#include "metrics_collection.h"
+#endif /* CONFIG_METRICS_COLLECTION_FRAMEWORK */
+
+#define PCIE_ACK_F_ASPM_CONTROL         0x70C
+#define PCIE_L1_ENTRANCE_LATENCY        (0x7 << 27)
+#define PCIE_L1_ENTRANCE_LATENCY_64us   (0x7 << 27)
 
 void s51xx_pcie_chk_ep_conf(struct pci_dev *pdev)
 {
@@ -185,7 +195,7 @@ void s51xx_pcie_save_state(struct pci_dev *pdev)
 	/* pci_pme_active(s51xx_pcie.s51xx_pdev, 0); */
 
 	/* Disable L1.2 before PCIe power off */
-	s51xx_pcie_l1ss_ctrl(0, s51xx_pcie->pcie_channel_num);
+	s51xx_pcie_l1ss_ctrl(0, s51xx_pcie);
 
 	pci_clear_master(pdev);
 
@@ -273,10 +283,10 @@ void s51xx_pcie_restore_state(struct pci_dev *pdev, bool boot_on,
 	}
 	if (mc->l1ss_disable) {
 		/* Disable L1.2 after PCIe power on when booting */
-		s51xx_pcie_l1ss_ctrl(0, s51xx_pcie->pcie_channel_num);
+		s51xx_pcie_l1ss_ctrl(0, s51xx_pcie);
 	} else {
 		/* Enable L1.2 after PCIe power on */
-		s51xx_pcie_l1ss_ctrl(1, s51xx_pcie->pcie_channel_num);
+		s51xx_pcie_l1ss_ctrl(1, s51xx_pcie);
 	}
 
 	s51xx_pcie->link_status = 1;
@@ -288,9 +298,33 @@ int s51xx_check_pcie_link_status(int ch_num)
 	return pcie_check_link_status(ch_num);
 }
 
-void s51xx_pcie_l1ss_ctrl(int enable, int ch_num)
+void s51xx_pcie_l1ss_ctrl(int enable, struct s51xx_pcie *s51xx_pcie)
 {
-	pcie_l1ss_ctrl(enable, ch_num);
+	int aspm_state = 0;
+	u32 val;
+
+	if (enable) {
+		if (s51xx_pcie->l1ss_force) {
+			aspm_state = PCIE_LINK_STATE_L1;
+			if (s51xx_pcie->l11_enable)
+				aspm_state |= PCIE_LINK_STATE_L1_1;
+			if (s51xx_pcie->l12_enable)
+				aspm_state |= PCIE_LINK_STATE_L1_2;
+			dev_dbg(&s51xx_pcie->s51xx_pdev->dev,
+				"force l1ss_enable=%#x\n", aspm_state);
+		} else {
+			aspm_state = PCIE_LINK_STATE_L1 | PCIE_LINK_STATE_CLKPM |
+				     PCIE_LINK_STATE_L1_2;
+		}
+		pci_read_config_dword(s51xx_pcie->s51xx_pdev,
+				      PCIE_ACK_F_ASPM_CONTROL, &val);
+		val &= ~PCIE_L1_ENTRANCE_LATENCY;
+		val |= PCIE_L1_ENTRANCE_LATENCY_64us;
+		pci_write_config_dword(s51xx_pcie->s51xx_pdev,
+				       PCIE_ACK_F_ASPM_CONTROL, val);
+	}
+
+	pcie_l1ss_ctrl(aspm_state, s51xx_pcie->pcie_channel_num);
 }
 
 void disable_msi_int(struct pci_dev *pdev)
@@ -306,23 +340,158 @@ void disable_msi_int(struct pci_dev *pdev)
 	 */
 }
 
-int s51xx_pcie_request_msi_int(struct pci_dev *pdev, int int_num)
+int s51xx_pcie_request_msi_int(struct pci_dev *pdev, int int_num,
+				bool use_exclusive_irq)
 {
 	int err = -EFAULT;
+	/*
+	 * we would like to bind the first 2 msi vector to 1 msi ctrl.
+	 */
+	struct irq_affinity irq_affinity = {
+		.pre_vectors = 2,
+		.post_vectors = 0,
+	};
+	struct irq_affinity *irq_affinity_ptr = NULL;
 
+#if IS_ENABLED(CONFIG_CP_PKTPROC)
+	if (use_exclusive_irq)
+		irq_affinity_ptr = &irq_affinity;
+#endif
 	if (int_num > MAX_MSI_NUM) {
 		mif_err("Too many MSI interrupts are requested(<=16)!!!\n");
 		return -EFAULT;
 	}
 
-	err = pci_alloc_irq_vectors_affinity(pdev, int_num, int_num, PCI_IRQ_MSI, NULL);
-	if (err <= 0) {
-		mif_err("Can't get msi IRQ!!!!!\n");
+	err = pci_alloc_irq_vectors_affinity(pdev, int_num, int_num,
+					     PCI_IRQ_MSI | PCI_IRQ_AFFINITY, irq_affinity_ptr);
+	if (err < int_num) {
+		mif_err("Can't get msi IRQ!!!!! err %d\n", err);
 		return -EFAULT;
 	}
 
 	return pdev->irq;
 }
+
+#ifdef PIXEL_IOMMU
+int setup_iommu_mapping(struct modem_ctl *mc, bool boot_on)
+{
+	int rc, prot;
+	u32 size, id, aoc_addr;
+	unsigned long long phys_addr;
+	int atu_entry = 0;
+
+#if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
+	struct link_device *ld = get_current_link(mc->bootd);
+	struct mem_link_device *mld = to_mem_link_device(ld);
+	struct pktproc_adaptor *ppa = &mld->pktproc;
+#endif
+
+	if (!mc->s51xx_pdev)
+		return -EINVAL;
+
+	for (id = 0; id < MAX_CP_SHMEM; id++) {
+		phys_addr = cp_shmem_get_base(mc->mdm_data->cp_num, id);
+		size = cp_shmem_get_size(mc->mdm_data->cp_num, id);
+		if (!phys_addr)
+			continue;
+
+		/* Skip MSI region after BL2 stage to receive interrupts */
+		if (!boot_on && (id == SHMEM_MSI))
+			continue;
+
+		/*
+		 * Skip GNSS_FW ATU mapping during boot, since we only have
+		 * limited ATU entries. GNSS is loaded after modem boot.
+		 */
+		if (boot_on && (id == SHMEM_GNSS_FW))
+			continue;
+
+		/* AOC SRAM is not mapped through IOMMU, we just need an ATU entry */
+		if (id == SHMEM_VSS) {
+			if (of_property_read_u32(mc->dev->of_node, "pci_aoc_addr", &aoc_addr)) {
+				mif_err("CP AoC base address is not defined in dts!\n");
+				continue;
+			}
+			rc = google_pcie_inbound_atu_cfg(mc->pcie_ch_num, aoc_addr,
+							 phys_addr, size, atu_entry++);
+			if (rc) {
+				mif_err("RC ATU mapping failed for %#x -> %#llx (rc: %d)\n",
+					aoc_addr, phys_addr, rc);
+			}
+			continue;
+		}
+
+#if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
+		if (pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
+			if (id == SHMEM_PKTPROC)
+				size = ppa->buff_rgn_offset;
+		}
+#endif
+		if (iommu_iova_to_phys(iommu_get_domain_for_dev(&mc->s51xx_pdev->dev), phys_addr)) {
+			mif_info("Region %#llx (sz: %#x) already mapped!\n", phys_addr, size);
+			continue;
+		}
+
+		if (dev_is_dma_coherent(&mc->s51xx_pdev->dev))
+			prot = IOMMU_READ | IOMMU_WRITE | IOMMU_CACHE;
+		else
+			prot = IOMMU_READ | IOMMU_WRITE;
+
+		rc = iommu_map(iommu_get_domain_for_dev(&mc->s51xx_pdev->dev),
+				phys_addr, phys_addr, size, prot, GFP_KERNEL);
+		if (rc) {
+			mif_err("iommu_map failed for %#llx (sz: %#x, rc: %d)\n",
+				phys_addr, size, rc);
+			return rc;
+		}
+	}
+	return 0;
+}
+
+int reset_iommu_mapping(struct modem_ctl *mc)
+{
+	u32 size, id;
+	unsigned long long phys_addr;
+	size_t rc;
+
+#if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
+	struct link_device *ld = get_current_link(mc->bootd);
+	struct mem_link_device *mld = to_mem_link_device(ld);
+	struct pktproc_adaptor *ppa = &mld->pktproc;
+#endif
+
+	if (!mc->s51xx_pdev)
+		return -EINVAL;
+
+	for (id = 0; id < MAX_CP_SHMEM; id++) {
+		phys_addr = cp_shmem_get_base(mc->mdm_data->cp_num, id);
+		size = cp_shmem_get_size(mc->mdm_data->cp_num, id);
+
+		if (!phys_addr)
+			continue;
+
+		if (id == SHMEM_VSS)
+			continue;
+
+		if (!iommu_iova_to_phys(iommu_get_domain_for_dev(&mc->s51xx_pdev->dev), phys_addr))
+			continue;
+
+#if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
+		if (pcie_is_sysmmu_enabled(mc->pcie_ch_num)) {
+			if (id == SHMEM_PKTPROC)
+				size = ppa->buff_rgn_offset;
+		}
+#endif
+		rc = iommu_unmap(iommu_get_domain_for_dev(&mc->s51xx_pdev->dev),
+				phys_addr, size);
+		if (rc != size) {
+			mif_err("iommu_unmap failed: %#llx, sz:%#x, rc:%#zx\n",
+				phys_addr, size, rc);
+		}
+	}
+	return 0;
+}
+#endif
 
 static void s51xx_pcie_event_cb(pcie_notify_t *noti)
 {
@@ -333,7 +502,7 @@ static void s51xx_pcie_event_cb(pcie_notify_t *noti)
 
 	mif_err("0x%X pcie event received!\n", event);
 
-	if (event & EXYNOS_PCIE_EVENT_LINKDOWN) {
+	if (event & PCIE_EVENT_LINKDOWN) {
 		if (mc->pcie_powered_on == false) {
 			mif_info("skip cp crash during dislink sequence\n");
 			pcie_set_perst_gpio(mc->pcie_ch_num, 0);
@@ -346,29 +515,260 @@ static void s51xx_pcie_event_cb(pcie_notify_t *noti)
 
 		if (mc->pcie_linkdown_retry_cnt++ < 10) {
 			mif_err("[%d] retry pcie poweron !!!\n", mc->pcie_linkdown_retry_cnt);
-			queue_work(mc->wakeup_wq, &mc->wakeup_work);
+			queue_work_on(2, mc->wakeup_wq, &mc->wakeup_work);
 		} else {
 			mif_err("[%d] force crash !!!\n", mc->pcie_linkdown_retry_cnt);
 			pcie_dump_all_status(mc->pcie_ch_num);
 			s5100_force_crash_exit_ext(CRASH_REASON_PCIE_LINKDOWN_ERROR);
 		}
-	} else if (event & EXYNOS_PCIE_EVENT_CPL_TIMEOUT) {
+	} else if (event & PCIE_EVENT_CPL_TIMEOUT) {
 		mif_err("s51xx CPL_TIMEOUT notification callback function!!!\n");
 		mif_err("CPL: a=%d c=%d\n", mc->pcie_cto_retry_cnt_all++, mc->pcie_cto_retry_cnt);
 
 		if (mc->pcie_cto_retry_cnt++ < 10) {
 			mif_err("[%d] retry pcie poweron !!!\n", mc->pcie_cto_retry_cnt);
-			queue_work(mc->wakeup_wq, &mc->wakeup_work);
+			queue_work_on(2, mc->wakeup_wq, &mc->wakeup_work);
 		} else {
 			mif_err("[%d] force crash !!!\n", mc->pcie_cto_retry_cnt);
 			pcie_dump_all_status(mc->pcie_ch_num);
 			s5100_force_crash_exit_ext(CRASH_REASON_PCIE_CPL_TIMEOUT_ERROR);
 		}
-	} else if (event & EXYNOS_PCIE_EVENT_LINKDOWN_RECOVERY_FAIL) {
+	} else if (event & PCIE_EVENT_LINKDOWN_RECOVERY_FAIL) {
 		mif_err("Link Down recovery fail force crash !!!\n");
 		s5100_force_crash_exit_ext(CRASH_REASON_PCIE_LINKDOWN_RECOVERY_FAILURE);
 	}
 }
+
+static ssize_t l1ss_force_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct s51xx_pcie *s51xx_pcie = dev_get_drvdata(dev);
+
+	return sysfs_emit(buf, "%d\n", s51xx_pcie->l1ss_force);
+}
+
+static ssize_t l1ss_force_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	struct s51xx_pcie *s51xx_pcie = dev_get_drvdata(dev);
+	int ret;
+
+	if (!buf)
+		return -EINVAL;
+
+	ret = kstrtobool(buf, &s51xx_pcie->l1ss_force);
+
+	if (ret < 0)
+		return ret;
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(l1ss_force);
+
+static ssize_t l11_enable_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct s51xx_pcie *s51xx_pcie = dev_get_drvdata(dev);
+
+	return sysfs_emit(buf, "%d\n", s51xx_pcie->l11_enable);
+}
+
+static ssize_t l11_enable_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	struct s51xx_pcie *s51xx_pcie = dev_get_drvdata(dev);
+	int ret;
+
+	if (!buf)
+		return -EINVAL;
+
+	ret = kstrtobool(buf, &s51xx_pcie->l11_enable);
+
+	if (ret < 0)
+		return ret;
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(l11_enable);
+
+static ssize_t l12_enable_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct s51xx_pcie *s51xx_pcie = dev_get_drvdata(dev);
+
+	return sysfs_emit(buf, "%d\n", s51xx_pcie->l12_enable);
+}
+
+static ssize_t l12_enable_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	struct s51xx_pcie *s51xx_pcie = dev_get_drvdata(dev);
+	int ret;
+
+	if (!buf)
+		return -EINVAL;
+
+	ret = kstrtobool(buf, &s51xx_pcie->l12_enable);
+
+	if (ret < 0)
+		return ret;
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(l12_enable);
+
+static struct attribute *l1ss_attrs[] = {
+	&dev_attr_l1ss_force.attr,
+	&dev_attr_l11_enable.attr,
+	&dev_attr_l12_enable.attr,
+	NULL,
+};
+
+static const struct attribute_group l1ss_group = {
+	.attrs = l1ss_attrs,
+	.name = "l1ss",
+};
+
+#if IS_ENABLED(CONFIG_METRICS_COLLECTION_FRAMEWORK)
+static int mcf_pull_pcie_link_state(struct mcf_pcie_link_state_info *data,
+		void *priv)
+{
+	struct s51xx_pcie *s51xx_pcie = priv;
+	int ret = google_pcie_link_state(s51xx_pcie->pcie_channel_num);
+
+	if (ret < 0)
+		return ret;
+
+	data->link_state = (u32)ret;
+	return 0;
+}
+
+static int mcf_pull_pcie_link_updown(struct mcf_pcie_link_updown_info *data,
+		void *priv)
+{
+	struct s51xx_pcie *s51xx_pcie = priv;
+	struct google_pcie_power_stats link_up;
+	struct google_pcie_power_stats link_down;
+
+	int ret = google_pcie_get_power_stats(s51xx_pcie->pcie_channel_num,
+				&link_up, &link_down);
+	if (ret)
+		return ret;
+
+	data->link_up.count = link_up.count;
+	data->link_up.duration_ms = link_up.duration;
+	data->link_up.last_entry_ms = link_up.last_entry_ms;
+
+	data->link_down.count = link_down.count;
+	data->link_down.duration_ms = link_down.duration;
+	data->link_down.last_entry_ms = link_down.last_entry_ms;
+
+	return 0;
+}
+
+static int mcf_pull_pcie_link_duration(struct mcf_pcie_link_duration_info *data,
+		void *priv)
+{
+	struct s51xx_pcie *s51xx_pcie = priv;
+	struct google_pcie_link_duration_stats link_duration;
+	int max_link_speed = min(GPCIE_NUM_LINK_SPEEDS, MCF_MAX_PCIE_LINK_SPEED);
+
+	int ret = google_pcie_get_link_duration(s51xx_pcie->pcie_channel_num,
+				&link_duration);
+	if (ret)
+		return ret;
+
+	data->last_link_speed = link_duration.last_link_speed;
+	for (int i = 0; i < max_link_speed; ++i) {
+		data->speed[i].count = link_duration.speed[i].count;
+		data->speed[i].duration_ms = link_duration.speed[i].duration;
+		data->speed[i].last_entry_ms = link_duration.speed[i].last_entry_ts;
+	}
+
+	return 0;
+}
+
+static int mcf_pull_pcie_link_stats(struct mcf_pcie_link_stats_info *data,
+		void *priv)
+{
+	struct s51xx_pcie *s51xx_pcie = priv;
+	struct google_pcie_link_stats link_stats;
+
+	int ret = google_pcie_get_link_stats(s51xx_pcie->pcie_channel_num,
+				&link_stats);
+	if (ret)
+		return ret;
+
+	data->link_up_failure_count = link_stats.link_up_failure_count;
+	data->link_recovery_failure_count = link_stats.link_recovery_failure_count;
+	data->link_down_irq_count = link_stats.link_down_irq_count;
+	data->cmpl_timeout_irq_count = link_stats.complete_timeout_irq_count;
+	data->link_up_time_avg = link_stats.link_up_time_avg;
+
+	return 0;
+}
+
+static int mcf_register_pcie_statistics(struct s51xx_pcie *s51xx_pcie)
+{
+	int ret;
+
+	ret = mcf_register_pcie_link_state(mcf_pull_pcie_link_state, s51xx_pcie);
+	if (ret) {
+		mif_err("Failed to register PCIe link state to mcf, ret = %d\n", ret);
+		return ret;
+	}
+
+	ret = mcf_register_pcie_link_updown(mcf_pull_pcie_link_updown, s51xx_pcie);
+	if (ret) {
+		mif_err("Failed to register PCIe link updown to mcf, ret = %d\n", ret);
+		return ret;
+	}
+
+	ret = mcf_register_pcie_link_duration(mcf_pull_pcie_link_duration,
+			s51xx_pcie);
+	if (ret) {
+		mif_err("Failed to register PCIe link duration to mcf, ret = %d\n", ret);
+		return ret;
+	}
+
+	ret = mcf_register_pcie_link_stats(mcf_pull_pcie_link_stats,
+			s51xx_pcie);
+	if (ret) {
+		mif_err("Failed to register PCIe link stats to mcf, ret = %d\n", ret);
+		return ret;
+	}
+
+	return ret;
+}
+
+static void mcf_unregister_pcie_statistics(struct s51xx_pcie *s51xx_pcie)
+{
+	int ret;
+
+	ret = mcf_unregister_pcie_link_state(mcf_pull_pcie_link_state, s51xx_pcie);
+	if (ret)
+		mif_err("Failed to unregister PCIe link state from mcf, ret = %d\n", ret);
+
+	ret = mcf_unregister_pcie_link_updown(mcf_pull_pcie_link_updown, s51xx_pcie);
+	if (ret)
+		mif_err("Failed to unregister PCIe link updown from mcf, ret = %d\n", ret);
+
+	ret = mcf_unregister_pcie_link_duration(mcf_pull_pcie_link_duration,
+			s51xx_pcie);
+	if (ret)
+		mif_err("Failed to unregister PCIe link duration from mcf, ret = %d\n", ret);
+
+	ret = mcf_unregister_pcie_link_stats(mcf_pull_pcie_link_stats, s51xx_pcie);
+	if (ret)
+		mif_err("Failed to unregister PCIe link stats from mcf, ret = %d\n", ret);
+}
+#endif /* CONFIG_METRICS_COLLECTION_FRAMEWORK */
 
 static int s51xx_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
@@ -394,7 +794,17 @@ static int s51xx_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *en
 	s51xx_pcie->link_status = 1;
 	s51xx_pcie->pcie_channel_num = mc->pcie_ch_num;
 
+	ret = sysfs_create_group(&pdev->dev.kobj, &l1ss_group);
+	if (ret) {
+		dev_err(dev, "couldn't create sysfs group for l1ss(%d))\n", ret);
+		return ret;
+	}
+
 	mc->s51xx_pdev = pdev;
+
+#ifdef PIXEL_IOMMU
+	setup_iommu_mapping(mc, true);
+#endif
 
 	if (of_property_read_u32(mc_dev->of_node, "pci_db_addr", &db_addr))
 		dev_info(dev, "EP DB base address is not defined!\n");
@@ -468,9 +878,9 @@ static int s51xx_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *en
 
 	mif_info("Register PCIE notification LINKDOWN, CPL_TIMEOUT and LINKDOWN_RECOVERY_FAIL events...\n");
 	s51xx_pcie->pcie_event.events =
-		EXYNOS_PCIE_EVENT_LINKDOWN | EXYNOS_PCIE_EVENT_CPL_TIMEOUT | EXYNOS_PCIE_EVENT_LINKDOWN_RECOVERY_FAIL;
+		PCIE_EVENT_LINKDOWN | PCIE_EVENT_CPL_TIMEOUT | PCIE_EVENT_LINKDOWN_RECOVERY_FAIL;
 	s51xx_pcie->pcie_event.user = pdev;
-	s51xx_pcie->pcie_event.mode = EXYNOS_PCIE_TRIGGER_CALLBACK;
+	s51xx_pcie->pcie_event.mode = PCIE_TRIGGER_CALLBACK;
 	s51xx_pcie->pcie_event.callback = s51xx_pcie_event_cb;
 	pcie_register_event(&s51xx_pcie->pcie_event);
 
@@ -484,7 +894,12 @@ static int s51xx_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *en
 
 	pci_set_drvdata(pdev, s51xx_pcie);
 
-	return 0;
+#if IS_ENABLED(CONFIG_METRICS_COLLECTION_FRAMEWORK)
+	if (mcf_register_pcie_statistics(s51xx_pcie))
+		mif_err("Failed to register PCIe statistics to mcf\n");
+#endif /* CONFIG_METRICS_COLLECTION_FRAMEWORK */
+
+	return ret;
 }
 
 void print_msi_register(struct pci_dev *pdev)
@@ -527,10 +942,16 @@ static void s51xx_pcie_remove(struct pci_dev *pdev)
 
 	mif_err("s51xx PCIe Remove!!!\n");
 
+#if IS_ENABLED(CONFIG_METRICS_COLLECTION_FRAMEWORK)
+	mcf_unregister_pcie_statistics(s51xx_pcie);
+#endif /* CONFIG_METRICS_COLLECTION_FRAMEWORK */
+
 	if (s51xx_pcie->pci_saved_configs)
 		kfree(s51xx_pcie->pci_saved_configs);
 
 	pci_release_regions(pdev);
+
+	sysfs_remove_group(&pdev->dev.kobj, &l1ss_group);
 }
 
 /* For Test */
@@ -565,5 +986,5 @@ int s51xx_pcie_init(struct modem_ctl *mc)
 		mif_err("pci_register_driver() failed, rc:%d\n", ret);
 	}
 
-	return 0;
+	return ret;
 }

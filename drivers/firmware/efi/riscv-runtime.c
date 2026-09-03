@@ -130,14 +130,38 @@ static int __init riscv_enable_runtime_services(void)
 }
 early_initcall(riscv_enable_runtime_services);
 
-void efi_virtmap_load(void)
+static void efi_virtmap_load(void)
 {
 	preempt_disable();
 	switch_mm(current->active_mm, &efi_mm, NULL);
 }
 
-void efi_virtmap_unload(void)
+static void efi_virtmap_unload(void)
 {
 	switch_mm(&efi_mm, current->active_mm, NULL);
 	preempt_enable();
 }
+
+void arch_efi_call_virt_setup(void)
+{
+	sync_kernel_mappings(efi_mm.pgd);
+	efi_virtmap_load();
+}
+
+void arch_efi_call_virt_teardown(void)
+{
+	efi_virtmap_unload();
+}
+
+static int __init riscv_dmi_init(void)
+{
+	/*
+	 * On riscv, DMI depends on UEFI, and dmi_setup() needs to
+	 * be called early because dmi_id_init(), which is an arch_initcall
+	 * itself, depends on dmi_scan_machine() having been called already.
+	 */
+	dmi_setup();
+
+	return 0;
+}
+core_initcall(riscv_dmi_init);

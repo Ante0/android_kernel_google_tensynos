@@ -28,8 +28,75 @@
 
 #if __KERNEL__
 #include <linux/io.h>
-#define copy_to_buffer(dst, src, len) memcpy_toio(dst, src, len)
-#define copy_from_buffer(dst, src, len) memcpy_fromio(dst, src, len)
+#include <linux/module.h>
+#include "aoc_common.h"
+#include <linux/of_device.h>
+#include <linux/of_platform.h>
+#include <linux/of.h>
+#include <linux/platform_device.h>
+#include <linux/compiler.h>
+
+static struct aoc_prvdata *aoc_prvdata_g;
+static DEFINE_SPINLOCK(aoc_prvdata_lock);
+
+static bool check_address_kernel(const void *address, long len)
+{
+	struct aoc_prvdata *aoc_prvdata;
+	void *aoc_dram_base;
+	int aoc_dram_size;
+	unsigned long result;
+	struct device *dev;
+	bool ret = false;
+	unsigned long flags;
+
+	spin_lock_irqsave(&aoc_prvdata_lock, flags);
+
+	aoc_prvdata = aoc_prvdata_g;
+	if (!aoc_prvdata) {
+		pr_err("AoC prvdata not set");
+		goto out_unlock;
+	}
+
+	aoc_dram_base = aoc_prvdata->dram_virt;
+	aoc_dram_size = aoc_prvdata->dram_size;
+	dev = aoc_prvdata->dev;
+
+	if (!aoc_dram_base) {
+		dev_err(dev, "AOC DRAM base not set");
+		goto out_unlock;
+	}
+
+	if (!check_add_overflow((unsigned long)address, len, &result) &&
+	(len >= 0) && ((void *)address >= aoc_dram_base) &&
+	(void *)result <= (aoc_dram_base + aoc_dram_size)) {
+		ret = true;
+	}
+
+	if (!ret)
+		dev_err(dev, "Out of bound memory access");
+out_unlock:
+	spin_unlock_irqrestore(&aoc_prvdata_lock, flags);
+	return ret;
+}
+
+static void copy_to_buffer_kernel(void __iomem *dst, const void *src, long len)
+{
+	if (!check_address_kernel(dst, len))
+		return;
+
+	memcpy_toio(dst, src, len);
+}
+
+static void copy_from_buffer_kernel(void *dst, const void __iomem *src, long len)
+{
+	if (!check_address_kernel(src, len))
+		return;
+
+	memcpy_fromio(dst, src, len);
+}
+
+#define copy_to_buffer(dst, src, len) copy_to_buffer_kernel(dst, src, len)
+#define copy_from_buffer(dst, src, len) copy_from_buffer_kernel(dst, src, len)
 
 #else
 #define copy_to_buffer(dst, src, len) memcpy(dst, src, len)
@@ -48,6 +115,8 @@ static inline u32 ioread32(void *addr)
 }
 
 #define EXPORT_SYMBOL(x)
+#define EXPORT_SYMBOL_GPL(x)
+#define MODULE_LICENSE(x)
 #endif
 
 static inline void _region_advance_tx(struct aoc_ipc_memory_region *r,
@@ -192,6 +261,10 @@ static u32 _aoc_ring_write_buffer(u8 *ring,
 
 	u32 to_write = size;
 
+	/* If wp is outside the bounds of the ring, it's probably corrupted */
+	if (wp < 0 || wp > r->size)
+		return to_write;
+
 	if (to_write > sz) {
 		/* Allow the write, but only commit the beginning */
 		to_write = sz;
@@ -209,6 +282,16 @@ static u32 _aoc_ring_write_buffer(u8 *ring,
 	return to_write;
 }
 
+#if __KERNEL__
+void aoc_service_set_aoc_prvdata(void *prvdata)
+{
+	spin_lock(&aoc_prvdata_lock);
+	aoc_prvdata_g = prvdata;
+	spin_unlock(&aoc_prvdata_lock);
+}
+EXPORT_SYMBOL_GPL(aoc_service_set_aoc_prvdata);
+#endif
+
 const char *aoc_service_name(aoc_service *service)
 {
 	struct aoc_ipc_service_header *header = service;
@@ -217,6 +300,7 @@ const char *aoc_service_name(aoc_service *service)
 
 	return header->name;
 }
+EXPORT_SYMBOL_GPL(aoc_service_name);
 
 static inline int aoc_service_type(aoc_service *service)
 {
@@ -228,11 +312,13 @@ bool aoc_service_is_queue(aoc_service *service)
 {
 	return aoc_service_type(service) == AOC_SERVICE_TYPE_QUEUE;
 }
+EXPORT_SYMBOL_GPL(aoc_service_is_queue);
 
 bool aoc_service_is_ring(aoc_service *service)
 {
 	return aoc_service_type(service) == AOC_SERVICE_TYPE_RING;
 }
+EXPORT_SYMBOL_GPL(aoc_service_is_ring);
 
 bool aoc_service_is_buffer(aoc_service *service)
 {
@@ -241,9 +327,27 @@ bool aoc_service_is_buffer(aoc_service *service)
 
 int aoc_service_irq_index(aoc_service *service)
 {
-        struct aoc_ipc_service_header *header = service;
-        return (header->flags & AOC_SERVICE_IRQ_MASK) >> AOC_SERVICE_IRQ_SHIFT;
+	struct aoc_ipc_service_header *header = service;
+	int irq_index_v1 = (header->flags & AOC_SERVICE_IRQ_MASK) >> AOC_SERVICE_IRQ_SHIFT;
+	if (irq_index_v1)
+		return irq_index_v1;
+
+	return (header->flags & AOC_SERVICE_IRQ_MASK_V2) >> AOC_SERVICE_IRQ_SHIFT_V2;
 }
+EXPORT_SYMBOL_GPL(aoc_service_irq_index);
+
+int aoc_service_irq_logical(aoc_service *service)
+{
+	struct aoc_ipc_service_header *header = service;
+
+	if (header->flags & AOC_SERVICE_FLAG_LOGICAL_SET) {
+		return (header->flags & AOC_SERVICE_LOGICAL_MASK_V2)
+			>> AOC_SERVICE_IRQ_SHIFT_LOGICAL;
+	}
+
+	return 255;
+}
+EXPORT_SYMBOL_GPL(aoc_service_irq_logical);
 
 size_t aoc_ring_bytes_read(aoc_service *service, aoc_direction dir)
 {
@@ -304,6 +408,7 @@ size_t aoc_service_message_size(aoc_service *service, aoc_direction dir)
 		return region->size - header_size;
 	}
 }
+EXPORT_SYMBOL_GPL(aoc_service_message_size);
 
 size_t aoc_service_message_slots(aoc_service *service, aoc_direction dir)
 {
@@ -316,6 +421,7 @@ size_t aoc_service_message_slots(aoc_service *service, aoc_direction dir)
 	region = &header->regions[dir];
 	return ioread32(&region->slots);
 }
+EXPORT_SYMBOL_GPL(aoc_service_message_slots);
 
 size_t aoc_service_total_size(aoc_service *service, aoc_direction dir)
 {
@@ -396,6 +502,7 @@ size_t aoc_service_slots_available_to_read(aoc_service *service,
 		return diff > region->slots ? region->slots : diff;
 	}
 }
+EXPORT_SYMBOL_GPL(aoc_service_slots_available_to_read);
 
 size_t aoc_service_slots_available_to_write(aoc_service *service,
 					    aoc_direction dir)
@@ -471,13 +578,16 @@ size_t aoc_service_current_message_size(aoc_service *service, void *base,
 					aoc_direction dir)
 {
 	struct aoc_ipc_message_header *hdr;
+	u16 length = 0;
 
 	if (!aoc_service_can_read_message(service, dir))
 		return 0;
 
 	hdr = aoc_service_current_read_pointer(service, base, dir);
-	return hdr->length;
+	copy_from_buffer(&length, &hdr->length, sizeof(hdr->length));
+	return length;
 }
+EXPORT_SYMBOL_GPL(aoc_service_current_message_size);
 
 void *aoc_service_current_message_pointer(aoc_service *service, void *base,
 					  aoc_direction dir)
@@ -604,11 +714,13 @@ bool aoc_service_can_read_message(aoc_service *service, aoc_direction dir)
 {
 	return aoc_service_slots_available_to_read(service, dir) > 0;
 }
+EXPORT_SYMBOL_GPL(aoc_service_can_read_message);
 
 bool aoc_service_can_write_message(aoc_service *service, aoc_direction dir)
 {
 	return aoc_service_slots_available_to_write(service, dir) > 0;
 }
+EXPORT_SYMBOL_GPL(aoc_service_can_write_message);
 
 bool aoc_service_read_message(aoc_service *service, void *base,
 			      aoc_direction dir, void *buffer, size_t *size)
@@ -633,10 +745,14 @@ bool aoc_service_read_message(aoc_service *service, void *base,
 
 		_region_advance_rx(r, bytes_read);
 	} else {
+		u16 length = 0;
+
+		BUILD_BUG_ON(sizeof(length) != sizeof(hdr->length));
+
 		ptr = aoc_service_current_read_pointer(service, base, dir);
 		hdr = (struct aoc_ipc_message_header *)ptr;
 		ptr += sizeof(struct aoc_ipc_message_header);
-		u32 length = hdr->length;
+		copy_from_buffer(&length, &hdr->length, sizeof(length));
 		/* Validate length */
 		if (*size < length)
 			return false;
@@ -650,6 +766,7 @@ bool aoc_service_read_message(aoc_service *service, void *base,
 
 	return true;
 }
+EXPORT_SYMBOL_GPL(aoc_service_read_message);
 
 bool aoc_service_write_message(aoc_service *service, void *base,
 			       aoc_direction dir, const void *buffer,
@@ -687,6 +804,7 @@ bool aoc_service_write_message(aoc_service *service, void *base,
 
 	return true;
 }
+EXPORT_SYMBOL_GPL(aoc_service_write_message);
 
 void *aoc_service_ring_base(aoc_service *service, void *base, aoc_direction dir)
 {
@@ -702,6 +820,7 @@ void *aoc_service_ring_base(aoc_service *service, void *base, aoc_direction dir)
 
 	return (size > 0) ? (void *)((uintptr_t)base + offset) : NULL;
 }
+EXPORT_SYMBOL_GPL(aoc_service_ring_base);
 
 size_t aoc_service_ring_size(aoc_service *service, aoc_direction dir)
 {
@@ -713,6 +832,7 @@ size_t aoc_service_ring_size(aoc_service *service, aoc_direction dir)
 
 	return s->regions[dir].size;
 }
+EXPORT_SYMBOL_GPL(aoc_service_ring_size);
 
 size_t aoc_service_ring_read_offset(aoc_service *service, aoc_direction dir)
 {
@@ -746,3 +866,6 @@ bool aoc_ring_is_push(aoc_service *service)
 
 	return (s->flags & AOC_SERVICE_FLAG_RING_PUSH) != 0;
 }
+EXPORT_SYMBOL_GPL(aoc_ring_is_push);
+
+MODULE_LICENSE("GPL");

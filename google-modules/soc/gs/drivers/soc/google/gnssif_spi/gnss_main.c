@@ -148,7 +148,7 @@ static int gnss_pm_notifier(struct notifier_block *notifier,
 	return NOTIFY_OK;
 }
 
-static int gnss_remove(struct platform_device *pdev)
+static void gnss_remove(struct platform_device *pdev)
 {
 	struct gnss_ctl *gc = platform_get_drvdata(pdev);
 
@@ -165,8 +165,6 @@ static int gnss_remove(struct platform_device *pdev)
 	platform_device_unregister(&sscd_dev);
 
 	device_remove_file(&pdev->dev, &dev_attr_coredump);
-
-	return 0;
 }
 
 static int gnss_probe(struct platform_device *pdev)

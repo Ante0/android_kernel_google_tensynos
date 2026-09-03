@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Rango USBDP PHY device tree
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+
+&usb_phy {
+	dp_tune_params {
+		dp_tune_rbr_vs_1_pe_1 {
+			tune_value = <30 0 5>;
+		};
+		dp_tune_rbr_vs_1_pe_2 {
+			tune_value = <35 0 13>;
+		};
+
+		dp_tune_hbr_vs_1_pe_1 {
+			tune_value = <30 0 5>;
+		};
+		dp_tune_hbr_vs_1_pe_2 {
+			tune_value = <35 0 13>;
+		};
+
+		dp_tune_hbr2_vs_0_pe_0 {
+			tune_value = <24 0 4>;
+		};
+		dp_tune_hbr2_vs_0_pe_1 {
+			tune_value = <26 0 6>;
+		};
+		dp_tune_hbr2_vs_2_pe_0 {
+			tune_value = <33 0 0>;
+		};
+	};
+};

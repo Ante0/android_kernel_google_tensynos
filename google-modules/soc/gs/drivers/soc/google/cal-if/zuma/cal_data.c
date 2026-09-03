@@ -28,7 +28,7 @@
 
 #include "acpm_dvfs_zuma.h"
 
-#include "asv_zuma.h"
+#include "asv_zuma.c"
 #include "../ra.h"
 
 #include <soc/google/cmu_ewf.h>
@@ -60,7 +60,7 @@ struct cmu_pmu cmu_pmu_map[] = {
 	{0x1A300000, "pd-tpu"},
 };
 
-void zuma_cal_data_init(void)
+static void zuma_cal_data_init(void)
 {
 	pr_info("%s: cal data init\n", __func__);
 
@@ -81,7 +81,7 @@ void (*cal_data_init)(void) = zuma_cal_data_init;
 int (*wa_set_cmuewf)(unsigned int index, unsigned int en, void *cmu_cmu, int *ewf_refcnt) = NULL;
 void (*cal_set_cmu_smpl_warn)(void) = NULL;
 
-char *zuma_get_pd_name_by_cmu(unsigned int addr)
+static char *zuma_get_pd_name_by_cmu(unsigned int addr)
 {
 	int i, map_size;
 

@@ -13,7 +13,7 @@
 #include "gs_panel/gs_panel_funcs_defaults.h"
 
 /* PPS Setting DSC 1.2a */
-static const struct drm_dsc_config pps_config = {
+static struct drm_dsc_config pps_config = {
 	.line_buf_depth = 9,
 	.bits_per_component = 8,
 	.convert_rgb = true,
@@ -292,10 +292,10 @@ static void tk4c_set_hbm_mode(struct gs_panel *ctx, enum gs_hbm_mode mode)
 	if (GS_IS_HBM_ON(ctx->hbm_mode)) {
 		if (GS_IS_HBM_ON_IRC_OFF(ctx->hbm_mode)) {
 			/* FGZ Mode ON */
-			if (ctx->panel_rev < PANEL_REV_DVT1) {
+			if (ctx->panel_rev_id.id < PANEL_REVID_DVT1) {
 				GS_DCS_BUF_ADD_CMD(dev, 0x68, 0xB0, 0x2C, 0x6A, 0x80, 0x00, 0x00, 0xF5,
 					0xC4);
-			} else if (ctx->panel_rev == PANEL_REV_DVT1) {
+			} else if (ctx->panel_rev_id.id == PANEL_REVID_DVT1) {
 				GS_DCS_BUF_ADD_CMD(dev, 0x68, 0xB0, 0x2C, 0x6A, 0x80, 0x00, 0x00, 0xE4,
 					0xB6);
 			} else { /* PVT/MP */
@@ -469,6 +469,9 @@ static int tk4c_enable(struct drm_panel *panel)
 	/* toggle reset gpio */
 	gs_panel_reset_helper(ctx);
 
+	/* always low */
+	gs_panel_gpio_set(ctx, DISP_VDDD_GPIO, 0);
+
 	/* sleep out */
 	GS_DCS_WRITE_DELAY_CMD(dev, 120, MIPI_DCS_EXIT_SLEEP_MODE);
 
@@ -587,6 +590,11 @@ static void tk4c_set_ssc_en(struct gs_panel *ctx, bool enabled)
 	dev_info(dev, "ssc_mode=%d\n", ctx->ssc_en);
 }
 
+static int tk4c_set_vddd_voltage(struct gs_panel *ctx, bool is_lp)
+{
+	return 0; /* no-op */
+}
+
 static const struct gs_display_underrun_param underrun_param = {
 	.te_idle_us = 350,
 	.te_var = 1,
@@ -608,7 +616,7 @@ static const struct gs_panel_mode_array tk4c_modes = {
 	.modes = {
 		{
 			.mode = {
-				.name = "1080x2424@60:60",
+				.name = "1080x2424x60@60",
 				DRM_MODE_TIMING(60, HDISPLAY, HFP, HSA, HBP,
 						VDISPLAY, VFP, VSA, VBP),
 				/* aligned to bootloader setting */
@@ -627,7 +635,7 @@ static const struct gs_panel_mode_array tk4c_modes = {
 		},
 		{
 			.mode = {
-				.name = "1080x2424@120:120",
+				.name = "1080x2424x120@120",
 				DRM_MODE_TIMING(120, HDISPLAY, HFP, HSA, HBP,
 						VDISPLAY, VFP, VSA, VBP),
 				.width_mm = WIDTH_MM,
@@ -681,7 +689,7 @@ static const struct gs_panel_mode_array tk4c_lp_modes = {
 	.modes = {
 		{
 			.mode = {
-				.name = "1080x2424@30:30",
+				.name = "1080x2424x30@30",
 				DRM_MODE_TIMING(30, HDISPLAY, HFP, HSA, HBP,
 						VDISPLAY, VFP, VSA, VBP),
 				.width_mm = WIDTH_MM,
@@ -714,12 +722,13 @@ static const struct gs_panel_funcs tk4c_gs_funcs = {
 	.set_lp_mode = gs_panel_set_lp_mode_helper,
 	.set_nolp_mode = tk4c_set_nolp_mode,
 	.set_binned_lp = gs_panel_set_binned_lp_helper,
+	.set_vddd_voltage = tk4c_set_vddd_voltage,
 	.set_dimming = tk4c_set_dimming,
 	.set_hbm_mode = tk4c_set_hbm_mode,
 	.is_mode_seamless = tk4c_is_mode_seamless,
 	.mode_set = tk4c_mode_set,
 	.get_panel_rev = tk4c_get_panel_rev,
-	.read_id = gs_panel_read_slsi_ddic_id,
+	.read_serial = gs_panel_read_slsi_ddic_id,
 	.atomic_check = tk4c_atomic_check,
 	.pre_update_ffc = tk4c_pre_update_ffc,
 	.update_ffc = tk4c_update_ffc,

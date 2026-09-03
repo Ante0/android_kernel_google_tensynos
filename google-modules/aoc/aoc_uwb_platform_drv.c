@@ -105,7 +105,7 @@ static int uwb_pdrv_pin_init(struct platform_device *pdev)
 
 	chip.label = node->name;
 	chip.parent = dev;
-	chip.of_node = node;
+	chip.fwnode = of_node_to_fwnode(node);
 	chip.ngpio = ngpio;
 	return devm_gpiochip_add_data(dev, &chip, NULL);
 }
@@ -118,9 +118,8 @@ static int aoc_uwb_pdrv_probe(struct platform_device *pdev)
 	return uwb_pdrv_pin_init(pdev);
 }
 
-static int aoc_uwb_pdrv_remove(struct platform_device *pdev)
+static void aoc_uwb_pdrv_remove(struct platform_device *pdev)
 {
-	return 0;
 }
 
 static const struct of_device_id aoc_match[] = {
@@ -143,4 +142,5 @@ static struct platform_driver aoc_uwb_pdrv = {
 
 module_platform_driver(aoc_uwb_pdrv);
 
+MODULE_DESCRIPTION("Google AOC uwb platform driver");
 MODULE_LICENSE("GPL v2");

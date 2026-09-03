@@ -108,14 +108,13 @@ static int exynos_pd_dbg_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int exynos_pd_dbg_remove(struct platform_device *pdev)
+static void exynos_pd_dbg_remove(struct platform_device *pdev)
 {
 	pm_runtime_disable(&pdev->dev);
 #ifdef CONFIG_DEBUG_FS
 	debugfs_remove_recursive(exynos_pd_dbg_root);
 	exynos_pd_dbg_root = NULL;
 #endif
-	return 0;
 }
 
 #ifdef CONFIG_OF

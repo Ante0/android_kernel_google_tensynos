@@ -20,13 +20,16 @@
 #include <linux/usb/pd.h>
 #include <linux/usb/tcpm.h>
 #include <linux/alarmtimer.h>
+#include <misc/logbuffer.h>
 #include "google_bms.h"
 #include "google_psy.h"
 #include "google_dc_pps.h"
 #include <linux/usb/max77759_export.h>
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
+#endif
 
 #define PPS_UPDATE_DELAY_MS		2000
 
@@ -41,7 +44,7 @@ void pps_log(struct pd_pps_data *pps, const char *fmt, ...)
 	logbuffer_vlog(pps->log, fmt, args);
 	va_end(args);
 }
-// EXPORT_SYMBOL_GPL(pps_log);
+EXPORT_SYMBOL_GPL(pps_log);
 
 /*
  * State is initialized to PPS_DISABLED and SW will enable detect setting
@@ -69,7 +72,7 @@ void pps_init_state(struct pd_pps_data *pps_data)
 		__pm_relax(pps_data->pps_ws);
 
 }
-// EXPORT_SYMBOL_GPL(pps_init_state);
+EXPORT_SYMBOL_GPL(pps_init_state);
 
 /*
  * pps_psy can be tcpm, wireless or gcpm_pps.
@@ -122,6 +125,7 @@ struct tcpm_port *chg_get_tcpm_port(struct power_supply *tcpm_psy)
 
 	return (struct tcpm_port *)port;
 }
+EXPORT_SYMBOL_GPL(chg_get_tcpm_port);
 
 /* false when not present or error (either way don't run) */
 static enum pd_pps_stage pps_is_avail(struct pd_pps_data *pps,
@@ -163,7 +167,7 @@ int pps_ping(struct pd_pps_data *pps, struct power_supply *tcpm_psy)
 
 	return rc;
 }
-// EXPORT_SYMBOL_GPL(pps_ping);
+EXPORT_SYMBOL_GPL(pps_ping);
 
 /* */
 int pps_get_src_cap(struct pd_pps_data *pps, struct power_supply *tcpm_psy)
@@ -198,7 +202,7 @@ int pps_get_src_cap(struct pd_pps_data *pps, struct power_supply *tcpm_psy)
 
 	return pps->nr_src_cap;
 }
-// EXPORT_SYMBOL_GPL(pps_get_src_cap);
+EXPORT_SYMBOL_GPL(pps_get_src_cap);
 
 bool pps_check_prog_online(struct pd_pps_data *pps_data)
 {
@@ -208,6 +212,7 @@ bool pps_check_prog_online(struct pd_pps_data *pps_data)
 	return PSY_GET_PROP(pps_data->pps_psy, POWER_SUPPLY_PROP_ONLINE) ==
 	       PPS_PSY_PROG_ONLINE;
 }
+EXPORT_SYMBOL_GPL(pps_check_prog_online);
 
 /*
  * bail if not online and PROG, query source caps and advance to ACTIVE
@@ -267,7 +272,7 @@ not_supp:
 	pps_data->stage = PPS_NOTSUPP;
 	return false;
 }
-// EXPORT_SYMBOL_GPL(pps_prog_check_online);
+EXPORT_SYMBOL_GPL(pps_prog_check_online);
 
 /*
  * enable PPS prog mode (Internal), also start the negotiation.
@@ -313,7 +318,7 @@ exit_done:
 	pps_init_state(pps);
 	return ret;
 }
-// EXPORT_SYMBOL_GPL(pps_prog_offline);
+EXPORT_SYMBOL_GPL(pps_prog_offline);
 
 void pps_adjust_volt(struct pd_pps_data *pps, int mod)
 {
@@ -328,6 +333,7 @@ void pps_adjust_volt(struct pd_pps_data *pps, int mod)
 			      (pps->out_uv + mod) : pps->min_uv;
 	}
 }
+EXPORT_SYMBOL_GPL(pps_adjust_volt);
 
 
 /* ------------------------------------------------------------------------ */
@@ -389,11 +395,13 @@ int pps_init_fs(struct pd_pps_data *pps_data, struct dentry *de)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(pps_init_fs);
 
 void pps_set_logbuffer(struct pd_pps_data *pps_data, struct logbuffer *log)
 {
 	pps_data->log = IS_ERR(log) ? NULL : log;
 }
+EXPORT_SYMBOL_GPL(pps_set_logbuffer);
 
 /* ------------------------------------------------------------------------ */
 
@@ -534,6 +542,7 @@ int pps_init(struct pd_pps_data *pps_data, struct device *dev,
 	pps_data->pps_psy = pps_psy;
 	return 0;
 }
+EXPORT_SYMBOL_GPL(pps_init);
 
 void pps_free(struct pd_pps_data *pps_data)
 {
@@ -543,6 +552,7 @@ void pps_free(struct pd_pps_data *pps_data)
 		wakeup_source_unregister(pps_data->pps_ws);
 	pps_data->pps_psy = NULL;
 }
+EXPORT_SYMBOL_GPL(pps_free);
 
 
 /* ------------------------------------------------------------------------- */
@@ -684,7 +694,7 @@ int pps_work(struct pd_pps_data *pps, struct power_supply *pps_psy)
 	pps->pd_online = pd_online;
 	return 0;
 }
-// EXPORT_SYMBOL_GPL(pps_work);
+EXPORT_SYMBOL_GPL(pps_work);
 
 int pps_keep_alive(struct pd_pps_data *pps, struct power_supply *tcpm_psy)
 {
@@ -704,7 +714,7 @@ int pps_keep_alive(struct pd_pps_data *pps, struct power_supply *tcpm_psy)
 	pps->last_update = get_boot_sec();
 	return 0;
 }
-// EXPORT_SYMBOL_GPL(pps_keep_alive);
+EXPORT_SYMBOL_GPL(pps_keep_alive);
 
 int pps_check_adapter(struct pd_pps_data *pps,
 		      int pending_uv, int pending_ua,
@@ -867,7 +877,7 @@ int pps_update_adapter(struct pd_pps_data *pps,
 
 	return ret;
 }
-// EXPORT_SYMBOL_GPL(pps_update_adapter);
+EXPORT_SYMBOL_GPL(pps_update_adapter);
 
 /* just a wrapper for power_supply_get_by_phandle_array() */
 struct power_supply *pps_get_tcpm_psy(struct device_node *node, size_t size)
@@ -896,7 +906,7 @@ struct power_supply *pps_get_tcpm_psy(struct device_node *node, size_t size)
 
 	return tcpm_psy;
 }
-// EXPORT_SYMBOL_GPL(pps_get_tcpm_psy);
+EXPORT_SYMBOL_GPL(pps_get_tcpm_psy);
 
 /* TODO:  */
 int pps_request_pdo(struct pd_pps_data *pps_data, unsigned int ta_idx,
@@ -987,7 +997,7 @@ int pps_get_apdo_max_power(struct pd_pps_data *pps_data, unsigned int *ta_idx,
 		 __func__, *ta_max_vol, *ta_max_cur);
 	return -EINVAL;
 }
-// EXPORT_SYMBOL_GPL(pps_get_apdo_max_power);
+EXPORT_SYMBOL_GPL(pps_get_apdo_max_power);
 
 int pps_get_max_power(struct pd_pps_data *pps_data, unsigned int *ta_max_pwr, bool pd)
 {
@@ -1022,3 +1032,4 @@ int pps_get_max_power(struct pd_pps_data *pps_data, unsigned int *ta_max_pwr, bo
 	pr_debug("%s: max_power: %u\n", __func__, *ta_max_pwr);
 	return 0;
 }
+EXPORT_SYMBOL_GPL(pps_get_max_power);

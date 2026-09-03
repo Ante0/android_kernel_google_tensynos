@@ -9,11 +9,11 @@
  * published by the Free Software Foundation.
  */
 
+#include <linux/debugfs.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/of_platform.h>
-#include <linux/of_gpio.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
@@ -28,8 +28,8 @@
 #include <drm/drm_vblank.h>
 #include <video/mipi_display.h>
 
-#define CREATE_TRACE_POINTS
 #include <trace/dpu_trace.h>
+#include <trace/panel_trace.h>
 #include "../exynos_drm_connector.h"
 #include "../exynos_drm_decon.h"
 #include "../exynos_drm_dsim.h"
@@ -276,8 +276,11 @@ static int exynos_panel_parse_gpios(struct exynos_panel *ctx)
 	if (IS_ERR(ctx->vddd_gpio))
 		ctx->vddd_gpio = NULL;
 
-	ctx->ready_signal.gpio = of_get_named_gpio_flags(dev->of_node, "rdy-gpios", 0,
-							 &ctx->ready_signal.gpio_flags);
+	ctx->ready_signal.gpio = devm_gpiod_get_optional(dev, "rdy", GPIOD_IN);
+	if (IS_ERR(ctx->ready_signal.gpio)) {
+		dev_err(dev, "failed to acquire rdy-gpios %ld\n", PTR_ERR(ctx->ready_signal.gpio));
+		return PTR_ERR(ctx->ready_signal.gpio);
+	}
 
 	dev_dbg(ctx->dev, "%s -\n", __func__);
 	return 0;
@@ -551,7 +554,6 @@ EXPORT_SYMBOL_GPL(exynos_panel_init);
 static int exynos_panel_wait_ready(struct exynos_panel *ctx)
 {
 	ktime_t start_time, end_time;
-	int rdy_active_val;
 	unsigned int timeout_ms;
 	bool panel_ready_detected = false;
 
@@ -565,13 +567,11 @@ static int exynos_panel_wait_ready(struct exynos_panel *ctx)
 	reinit_completion(&ctx->ready_signal.detected);
 	enable_irq(ctx->ready_signal.irq);
 
-	/* expected ready pin active value */
-	rdy_active_val = (ctx->ready_signal.gpio_flags & OF_GPIO_ACTIVE_LOW) == 0;
 	timeout_ms = (ctx->desc && ctx->desc->rdy_timeout_ms) ? ctx->desc->rdy_timeout_ms :
 								PANEL_READY_TIMEOUT_MS;
 
 	/* Check if the ready pin is already ready. If not just wait for the interrupt. */
-	if (gpio_get_value(ctx->ready_signal.gpio) == rdy_active_val ||
+	if (gpiod_get_value(ctx->ready_signal.gpio) ||
 	    wait_for_completion_timeout(&ctx->ready_signal.detected, msecs_to_jiffies(timeout_ms)) >
 		    0)
 		panel_ready_detected = true;
@@ -814,6 +814,9 @@ static void exynos_panel_handoff(struct exynos_panel *ctx)
 		exynos_panel_set_power(ctx, true);
 		/* We don't do panel reset while booting, so call post power here */
 		exynos_panel_post_power_on(ctx);
+		/* Manually update the DRM panel state to fix mismatch during handoff */
+		ctx->panel.enabled = true;
+		ctx->panel.prepared = true;
 	} else {
 		ctx->panel_state = PANEL_STATE_UNINITIALIZED;
 		gpiod_direction_output(ctx->reset_gpio, 0);
@@ -898,8 +901,8 @@ static int exynos_panel_register_irqs(struct exynos_panel *ctx)
 
 	/* 1: Panel ready */
 	init_completion(&ctx->ready_signal.detected);
-	if (gpio_is_valid(ctx->ready_signal.gpio)) {
-		ret = gpio_to_irq(ctx->ready_signal.gpio);
+	if (ctx->ready_signal.gpio) {
+		ret = gpiod_to_irq(ctx->ready_signal.gpio);
 		if (ret < 0) {
 			dev_err(ctx->dev, "Failed to get irq number for rdy_gpio: %d\n", ret);
 			return ret;
@@ -908,7 +911,7 @@ static int exynos_panel_register_irqs(struct exynos_panel *ctx)
 		irq = ret;
 		irq_set_status_flags(irq, IRQ_DISABLE_UNLAZY);
 		ret = devm_request_irq(ctx->dev, irq, panel_rdy_irq_handler,
-				       (ctx->ready_signal.gpio_flags & OF_GPIO_ACTIVE_LOW ?
+				       (gpiod_is_active_low(ctx->ready_signal.gpio) ?
 						IRQF_TRIGGER_FALLING :
 						IRQF_TRIGGER_RISING),
 				       pdev->name, ctx);
@@ -920,7 +923,7 @@ static int exynos_panel_register_irqs(struct exynos_panel *ctx)
 
 		ctx->ready_signal.irq = irq;
 		dev_info(ctx->dev, "Request rdy irq number(%d) okay (%sING_TRIGGER)\n", irq,
-			 (ctx->ready_signal.gpio_flags & OF_GPIO_ACTIVE_LOW ? "FALL" : "RIS"));
+			 (gpiod_is_active_low(ctx->ready_signal.gpio) ? "FALL" : "RIS"));
 	} else {
 		/* Panel doesn't have the ready pin */
 		ctx->ready_signal.irq = -ENOENT;
@@ -1342,7 +1345,7 @@ static int exynos_update_status(struct backlight_device *bl)
 	if (brightness && brightness < min_brightness)
 		brightness = min_brightness;
 
-	dev_dbg(ctx->dev, "req: %d, br: %d\n", bl->props.brightness,
+	dev_info(ctx->dev, "req: %d, br: %d\n", bl->props.brightness,
 		brightness);
 
 	mutex_lock(&ctx->mode_lock);
@@ -3075,12 +3078,12 @@ static int panel_debugfs_add(struct exynos_panel *ctx, struct dentry *parent)
 
 	return 0;
 }
-#endif
 
 static ssize_t exynos_dsi_dcs_transfer(struct mipi_dsi_device *dsi, u8 type,
 				     const void *data, size_t len, u16 flags)
 {
 	const struct mipi_dsi_host_ops *ops = dsi->host->ops;
+	struct exynos_panel *ctx = mipi_dsi_get_drvdata(dsi);
 	bool is_last;
 	struct mipi_dsi_msg msg = {
 		.channel = dsi->channel,
@@ -3095,7 +3098,7 @@ static ssize_t exynos_dsi_dcs_transfer(struct mipi_dsi_device *dsi, u8 type,
 	msg.flags = flags;
 
 	is_last = ((flags & EXYNOS_DSI_MSG_QUEUE) == 0) || (flags & EXYNOS_DSI_MSG_FORCE_FLUSH);
-	trace_dsi_tx(msg.type, msg.tx_buf, msg.tx_len, is_last, 0);
+	trace_dsi_tx(ctx->panel_index, msg.type, msg.tx_buf, msg.tx_len, is_last, 0);
 	if (dsi->mode_flags & MIPI_DSI_MODE_LPM)
 		msg.flags |= MIPI_DSI_MSG_USE_LPM;
 
@@ -3141,7 +3144,6 @@ ssize_t exynos_dsi_dcs_write_buffer(struct mipi_dsi_device *dsi,
 }
 EXPORT_SYMBOL_GPL(exynos_dsi_dcs_write_buffer);
 
-#ifdef CONFIG_DEBUG_FS
 static int exynos_dsi_name_show(struct seq_file *m, void *data)
 {
 	struct mipi_dsi_device *dsi = m->private;
@@ -3152,7 +3154,6 @@ static int exynos_dsi_name_show(struct seq_file *m, void *data)
 	return 0;
 }
 DEFINE_SHOW_ATTRIBUTE(exynos_dsi_name);
-#endif
 
 static ssize_t parse_byte_buf(u8 *out, size_t len, char *src)
 {
@@ -3194,7 +3195,6 @@ static ssize_t exynos_panel_parse_byte_buf(char *input_str, size_t input_len,
 	return rc;
 }
 
-#ifdef CONFIG_DEBUG_FS
 struct exynos_dsi_reg_data {
 	struct mipi_dsi_device *dsi;
 	u8 address;

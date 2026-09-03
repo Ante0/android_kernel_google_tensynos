@@ -1,5 +1,6 @@
 config TOUCHSCREEN_HEATMAP
 	tristate "Heatmap support for touchscreen"
+	default n
 	select VIDEOBUF2_VMALLOC
 	help
 	  Do not explicitly select this option. The drivers that utilize
@@ -7,6 +8,7 @@ config TOUCHSCREEN_HEATMAP
 
 config TOUCHSCREEN_TBN
 	tristate "Touch Bus Negotiator for Google Pixel"
+	default n
 	help
 	  Say Y here if you have a Google Pixel device. This module enables
 	  support for kernel touch drivers to coordinate bus access with remote
@@ -28,6 +30,7 @@ config TOUCHSCREEN_TBN_AOC_CHANNEL_MODE
 
 config TOUCHSCREEN_OFFLOAD
 	tristate "Touchscreen algorithm offload"
+	default n
 	help
 	  Say Y here to enable touchscreen algorithm offload. This module allows
 	  the touchscreen driver to feed heatmap data into a char device to be
@@ -37,8 +40,7 @@ config TOUCHSCREEN_OFFLOAD
 
 config GOOG_TOUCH_INTERFACE
 	tristate "Google Touch Interface (GTI)"
-	depends on TOUCHSCREEN_OFFLOAD
-	depends on TOUCHSCREEN_HEATMAP
+	default n
 	help
 	  Say Y here if you want to enable the Google Touch Interface driver.
 
@@ -51,10 +53,3 @@ config TOUCHSCREEN_SPI_FLASH
           Say Y here if you have the touchscreen with flash support.
 
           If unsure, say N.
-
-config GOOG_USI_STYLUS
-	tristate "Google USI Stylus Subsystem"
-	help
-	  Say Y here if you want to enable the Google USI Stylus Subsystem.
-
-	  If unsure, Say N.

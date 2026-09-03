@@ -180,10 +180,8 @@ int toe_dev_create(struct platform_device *pdev)
 	int ret = 0;
 
 	tc = devm_kzalloc(dev, sizeof(struct toe_ctrl_t), GFP_KERNEL);
-	if (!tc) {
-		mif_err("toe ctrl alloc failed\n");
+	if (!tc)
 		return -ENOMEM;
-	}
 
 	ret = sysfs_create_group(&dev->kobj, &toe_group);
 	if (ret != 0) {

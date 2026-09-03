@@ -3,6 +3,13 @@
  * Copyright (c) 2021 Google LLC
  */
 
+/* This header is internal only.
+ *
+ * Public APIs are in //private/google-modules/soc/gs/include/linux/gsa/
+ *
+ * Include via //private/google-modules/soc/gs:gs_soc_headers
+ */
+
 #ifndef __LINUX_GSA_TZ_H
 #define __LINUX_GSA_TZ_H
 

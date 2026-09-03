@@ -93,7 +93,7 @@ static void nsim_prog_set_loaded(struct bpf_prog *prog, bool loaded)
 {
 	struct nsim_bpf_bound_prog *state;
 
-	if (!prog || !prog->aux->offload)
+	if (!prog || !bpf_prog_is_offloaded(prog->aux))
 		return;
 
 	state = prog->aux->offload->dev_priv;
@@ -244,7 +244,9 @@ static int nsim_bpf_create_prog(struct nsim_dev *nsim_dev,
 			    &state->state, &nsim_bpf_string_fops);
 	debugfs_create_bool("loaded", 0400, state->ddir, &state->is_loaded);
 
+	mutex_lock(&nsim_dev->progs_list_lock);
 	list_add_tail(&state->l, &nsim_dev->bpf_bound_progs);
+	mutex_unlock(&nsim_dev->progs_list_lock);
 
 	prog->aux->offload->dev_priv = state;
 
@@ -273,12 +275,16 @@ static int nsim_bpf_translate(struct bpf_prog *prog)
 static void nsim_bpf_destroy_prog(struct bpf_prog *prog)
 {
 	struct nsim_bpf_bound_prog *state;
+	struct nsim_dev *nsim_dev;
 
 	state = prog->aux->offload->dev_priv;
+	nsim_dev = state->nsim_dev;
 	WARN(state->is_loaded,
 	     "offload state destroyed while program still bound");
 	debugfs_remove_recursive(state->ddir);
+	mutex_lock(&nsim_dev->progs_list_lock);
 	list_del(&state->l);
+	mutex_unlock(&nsim_dev->progs_list_lock);
 	kfree(state);
 }
 
@@ -311,12 +317,8 @@ nsim_setup_prog_hw_checks(struct netdevsim *ns, struct netdev_bpf *bpf)
 	if (!bpf->prog)
 		return 0;
 
-	if (!bpf->prog->aux->offload) {
+	if (!bpf_prog_is_offloaded(bpf->prog->aux)) {
 		NSIM_EA(bpf->extack, "xdpoffload of non-bound program");
-		return -EINVAL;
-	}
-	if (!bpf_offload_dev_match(bpf->prog, ns->netdev)) {
-		NSIM_EA(bpf->extack, "program bound to different dev");
 		return -EINVAL;
 	}
 

@@ -109,6 +109,9 @@ if [[ "$#" -eq "0" ]]; then
 	echo "ipip"
 	$0 ipv4 ipip none 100
 
+	echo "ipip6"
+	$0 ipv4 ipip6 none 100
+
 	echo "ip6ip6"
 	$0 ipv6 ip6tnl none 100
 
@@ -235,6 +238,9 @@ elif [[ "$tuntype" =~ "gre" && "$mac" == "eth" ]]; then
 elif [[ "$tuntype" =~ "vxlan" && "$mac" == "eth" ]]; then
 	ttype="vxlan"
 	targs="id 1 dstport 8472 udp6zerocsumrx"
+elif [[ "$tuntype" == "ipip6" ]]; then
+	ttype="ip6tnl"
+	targs=""
 else
 	ttype=$tuntype
 	targs=""
@@ -244,6 +250,9 @@ fi
 if [[ "${tuntype}" == "sit" ]]; then
 	link_addr1="${ns1_v4}"
 	link_addr2="${ns2_v4}"
+elif [[ "${tuntype}" == "ipip6" ]]; then
+	link_addr1="${ns1_v6}"
+	link_addr2="${ns2_v6}"
 else
 	link_addr1="${addr1}"
 	link_addr2="${addr2}"
@@ -297,12 +306,6 @@ else
 	verify_data
 	server_listen
 	wait_for_port ${port} ${netcat_opt}
-fi
-
-# bpf_skb_net_shrink does not take tunnel flags yet, cannot update L3.
-if [[ "${tuntype}" == "sit" ]]; then
-	echo OK
-	exit 0
 fi
 
 # serverside, use BPF for decap

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2017 Red Hat. All rights reserved.
  *
@@ -24,6 +25,14 @@
  * There is no locking in this, so calls will probably need to be
  * protected with a spinlock.
  */
+
+struct bt_work {
+	struct list_head list;
+	struct rb_node node;
+	struct policy_work work;
+};
+
+extern struct kmem_cache *btracker_work_cache;
 
 struct background_work;
 struct background_tracker;

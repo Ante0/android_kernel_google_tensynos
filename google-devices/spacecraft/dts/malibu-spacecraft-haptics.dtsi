@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Haptics device tree entries specific to the spacecraft
+ *
+ * Copyright 2025 Google LLC
+ */
+
+#include "google-base/platform/malibu-platform-haptics.dtsi"

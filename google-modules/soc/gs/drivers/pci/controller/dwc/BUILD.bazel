@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "pcie-exynos-gs",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "pcie-exynos-gs.ko",
+    conditional_srcs = {
+        "CONFIG_PCI_EXYNOS_GS": {
+            True: [
+                "pcie-exynos-dbg.c",
+                "pcie-exynos-rc.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":pcie-exynos-zuma-rc-cal",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/iommu:exynos-pcie-iommu",
+        "//private/google-modules/soc/gs/drivers/iommu:exynos-pcie-iommu-exp_headers",
+        "//private/google-modules/soc/gs/drivers/misc/sbb-mux",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-cpupm",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-pd_el3",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos_pm_qos",
+        "//private/google-modules/soc/gs/drivers/soc/google/debug:itmon",
+    ],
+)
+
+ddk_module(
+    name = "pcie-exynos-zuma-rc-cal",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "pcie-exynos-zuma-rc-cal.ko",
+    conditional_srcs = {
+        "CONFIG_PCI_EXYNOS_CAL_ZUMA": {
+            True: [
+                "pcie-exynos-zuma-rc-cal.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

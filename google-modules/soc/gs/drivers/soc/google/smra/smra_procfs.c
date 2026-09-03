@@ -70,7 +70,7 @@ static int smra_footprint_proc_show(struct seq_file *m, void *v)
 int smra_procfs_init(void)
 {
 
-#if IS_ENABLED(CONFIG_PIXEL_STAT)
+#if IS_ENABLED(CONFIG_PIXEL_STAT_MM)
 	smra_parent = vendor_mm;
 #else
 	smra_parent = proc_mkdir("smra", NULL);

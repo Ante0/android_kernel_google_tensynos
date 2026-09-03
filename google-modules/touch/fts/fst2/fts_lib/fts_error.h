@@ -105,6 +105,8 @@
 								 * status not
 								 * ready within
 								 * a timeout */
+#define ERROR_FLASH_BOOTLOADER		(0x80000500) /* /< error loading
+              * bootloader */
 
 
 /** @}*/
@@ -144,6 +146,10 @@
 							*raw data test failed */
 #define ERROR_PROD_TEST_CX		((int)0x84000000) /* /< production
 							*test cx data failed */
+#define ERROR_PROD_TEST_STRENGTH (0x85000000) /* /< production test
+							strength data failed */
+#define ERROR_PROD_TEST_PIN  (0x86000000) /* /< production test
+							 pin failed */
 
 /** @}*/
 
@@ -162,6 +168,12 @@
 #define EVT_TYPE_ERROR_USAGE_FAULT		 0x04/* /< Usage Fault */
 #define EVT_TYPE_ERROR_WATCHDOG			 0x05/* /< Watchdog timer
 							* expired  */
+#define EVT_TYPE_ERROR_INIT_ERROR		 0x06/* /< Task/semaphone/event
+						 * flag initialization error */
+#define EVT_TYPE_ERROR_TASK_STACK_OVERFLOW	 0x07/* /< Task stack
+						 * overflow */
+#define EVT_TYPE_ERROR_MEMORY_OVERFLOW		 0x08/* /< Memory Manager out of
+						 * buffer memory */
 #define EVT_TYPE_ERROR_ITO_FORCETOGND		 0x60	/* /< Force channel/s
 						 * short to ground */
 #define EVT_TYPE_ERROR_ITO_SENSETOGND		 0x61	/* /< Sense channel/s

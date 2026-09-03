@@ -53,7 +53,7 @@ static void __hot prepare_ftrace_return(unsigned long *parent,
 
 static ftrace_func_t ftrace_func;
 
-void notrace __hot ftrace_function_trampoline(unsigned long parent,
+asmlinkage void notrace __hot ftrace_function_trampoline(unsigned long parent,
 				unsigned long self_addr,
 				unsigned long org_sp_gr3,
 				struct ftrace_regs *fregs)
@@ -205,6 +205,9 @@ void kprobe_ftrace_handler(unsigned long ip, unsigned long parent_ip,
 	struct pt_regs *regs;
 	struct kprobe *p;
 	int bit;
+
+	if (unlikely(kprobe_ftrace_disabled))
+		return;
 
 	bit = ftrace_test_recursion_trylock(ip, parent_ip);
 	if (bit < 0)

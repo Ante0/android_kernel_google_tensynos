@@ -4,7 +4,7 @@
 // Author: Chun-Jie Chen <chun-jie.chen@mediatek.com>
 
 #include <linux/clk-provider.h>
-#include <linux/of_device.h>
+#include <linux/mod_devicetable.h>
 #include <linux/platform_device.h>
 
 #include "clk-mtk.h"
@@ -40,6 +40,7 @@ static const struct of_device_id of_match_clk_mt8192_mfg[] = {
 		/* sentinel */
 	}
 };
+MODULE_DEVICE_TABLE(of, of_match_clk_mt8192_mfg);
 
 static struct platform_driver clk_mt8192_mfg_drv = {
 	.probe = mtk_clk_simple_probe,
@@ -50,4 +51,6 @@ static struct platform_driver clk_mt8192_mfg_drv = {
 	},
 };
 module_platform_driver(clk_mt8192_mfg_drv);
+
+MODULE_DESCRIPTION("MediaTek MT8192 GPU mfg clocks driver");
 MODULE_LICENSE("GPL");

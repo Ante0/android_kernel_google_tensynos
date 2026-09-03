@@ -1,0 +1,238 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google Touch Interface Driver for Pixel
+
+maintainers:
+  - Super Liu <supercjliu@google.com>
+
+description:
+  This binding describes the capatilities for this interface.
+
+properties:
+  goog,dev-id:
+    type: integer
+    description: The device ID for this interface.
+
+  goog,panel_map:
+    type: phandle
+    description: A map of panel IDs to device tree nodes.
+
+  goog,firmware_names:
+    type: string-array
+    description: An array of firmware file names.
+
+  goog,config_names:
+    type: string-array
+    description: An array of configuration file names.
+
+  goog,test_limits_names:
+    type: string-array
+    description: An array of test limits file names.
+
+  goog,offload-device-name:
+    type: string
+    description: The name of the touch offload device.
+
+  goog,touch_offload_ids:
+    type: array
+    description: An array of touch offload IDs.
+
+  goog,touch_offload_id:
+    type: array
+    description: The touch offload ID.
+
+  goog,channel-num:
+    type: array
+    description: The number of channels for the heatmap. The first element is the width, the second is the height.
+
+  goog,offload-caps-data-types:
+    type: integer
+    description: The supported data types for touch offload.
+
+  goog,offload-caps-scan-types:
+    type: integer
+    description: The supported scan types for touch offload.
+
+  goog,offload-caps-context-channel-types:
+    type: integer
+    description: The supported context channel types for touch offload.
+
+  goog,offload-caps-cancel-reporting-disabled:
+    type: boolean
+    description: Disable cancel reporting for touch offload.
+
+  goog,offload-caps-coord-filter:
+    type: boolean
+    description: Enable coordinate filtering for touch offload.
+
+  goog,offload-caps-rotation-reporting-disabled:
+    type: boolean
+    description: Disable rotation reporting for touch offload.
+
+  goog,offload-enabled:
+    type: boolean
+    description: Enable touch offload.
+
+  goog,default-grip-disabled:
+    type: boolean
+    description: Disable grip rejection by default.
+
+  goog,default-palm-disabled:
+    type: boolean
+    description: Disable palm rejection by default.
+
+  goog,default-coord-filter-disabled:
+    type: boolean
+    description: Disable coordinate filtering by default.
+
+  goog,report-rate:
+    type: integer
+    description: The report rate in Hz.
+
+  goog,v4l2-enabled:
+    type: boolean
+    description: Enable V4L2 for heatmap.
+
+  goog,usb-psy-name:
+    type: string
+    description: The name of the USB power supply.
+
+  goog,tbn-protection-enabled:
+    type: boolean
+    description: Enable touch bus negotiator protection.
+
+  goog,tbn-enabled:
+    type: boolean
+    description: Enable touch bus negotiator.
+
+  goog,timestamp-correction-enabled:
+    type: boolean
+    description: Enable timestamp correction.
+
+  goog,default-report-rate:
+    type: integer
+    description: The default report rate in Hz.
+
+  goog,ignore-force-active:
+    type: boolean
+    description: Ignore force active state.
+
+  goog,coord-filter-enabled:
+    type: boolean
+    description: Enable coordinate filtering.
+
+  goog,manual-heatmap-from-irq:
+    type: boolean
+    description: Get heatmap data manually from IRQ.
+
+  goog,lptw-suppress-coords-enabled:
+    type: boolean
+    description: Enable LPTW suppress coordinates.
+
+  goog,display-resolution:
+    type: array
+    description: The display resolution. The first element is the width, the second is the height.
+
+  goog,lptw-tracking-area:
+    type: array
+    description: The LPTW tracking area. The four elements are min_x, max_x, min_y, max_y.
+
+  goog,late-sense-on-enabled:
+    type: boolean
+    description: Enable late sense on.
+
+  goog,panel-notifier-enabled:
+    type: boolean
+    description: Enable panel notifier.
+
+  goog,reset-after-selftest:
+    type: boolean
+    description: Reset after selftest.
+
+  goog,init-mf-mode:
+    type: integer
+    description: The initial MF mode.
+
+  goog,panel-map-from-tic:
+    type: boolean
+    description: Get panel map from TIC.
+
+  goog,vrr-enabled:
+    type: boolean
+    description: Enable VRR.
+
+  goog,vrr-display-rate:
+    type: array
+    description: The VRR display rate table.
+
+  goog,vrr-touch-rate:
+    type: array
+    description: The VRR touch rate table.
+
+  goog,vrr-up-delay:
+    type: integer
+    description: The VRR up delay in ms.
+
+  goog,vrr-down-delay:
+    type: integer
+    description: The VRR down delay in ms.
+
+  goog,touch-sim-enabled:
+    type: boolean
+    description: Enable touch simulation.
+
+  goog,vrr-enabled:
+    type: boolean
+    description: Enable VRR and will be obsolete after V2.
+
+  goog,vrr-display-rate:
+    type: array
+    description: The VRR display rate table and will be obsolete after V2.
+
+  goog,vrr-touch-rate:
+    type: array
+    description: The VRR touch rate table and will be obsolete after V2.
+
+  goog,vrr-up-delay:
+    type: integer
+    description: The VRR up delay in ms and will be obsolete after V2.
+
+  goog,vrr-down-delay:
+    type: integer
+    description: The VRR down delay in ms and will be obsolete after V2.
+
+  goog,touch-sim-enabled:
+    type: boolean
+    description: Enable touch simulation.
+
+additionalProperties: false
+
+examples:
+
+&PLATFORM-INTERFACE-ROOT: {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	&PLATFORM-INTERFACE-CLIENT: touchscreen@0 {
+		status = "ok";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		goog,dev-id = <1>;
+		goog,offload-device-name = "fts_ext"; /* append after "touch_offload_" */
+		goog,tbn-enabled;
+		goog,offload-enabled;
+		goog,v4l2-enabled;
+		goog,touch_offload_id = /bits/ 8 <'f''1''0''1'>; /* outer: 1; inner 0 */
+		goog,display-resolution = /bits/ 16 <1079 2091>;
+		goog,channel-num = /bits/ 16 <16 31>;
+		goog,offload-caps-data-types = /bits/ 16 <0x1f>;
+		goog,offload-caps-scan-types = /bits/ 16 <0xc0>;
+		goog,default-grip-disabled;
+		goog,default-palm-disabled;
+	};
+};

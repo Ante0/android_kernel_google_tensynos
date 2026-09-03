@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "google_cpu_lpm_stats.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules/soc/rdo:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "google_cpu_lpm_stats",
+    out = "google_cpu_lpm_stats.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_CPU_LPM_STATS": {
+            True: [
+                "google_cpu_lpm_stats.c",
+                "google_cpu_lpm_stats.h",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/cap-sysfs:google_cap_sysfs",
+        "//private/google-modules/soc/rdo/drivers/soc/google:google_gtc",
+        "//private/google-modules/soc/rdo/drivers/soc/google/cdd:gcdd",
+    ],
+)

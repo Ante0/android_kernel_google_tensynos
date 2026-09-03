@@ -468,13 +468,13 @@ err_spi_dir:
 int fts_bus_init(struct fts_ts_data *ts_data)
 {
     FTS_FUNC_ENTER();
-    ts_data->bus_tx_buf = kzalloc(SPI_BUF_LENGTH, GFP_KERNEL);
+    ts_data->bus_tx_buf = devm_kzalloc(ts_data->dev, SPI_BUF_LENGTH, GFP_KERNEL);
     if (NULL == ts_data->bus_tx_buf) {
         FTS_ERROR("failed to allocate memory for bus_tx_buf");
         return -ENOMEM;
     }
 
-    ts_data->bus_rx_buf = kzalloc(SPI_BUF_LENGTH, GFP_KERNEL);
+    ts_data->bus_rx_buf = devm_kzalloc(ts_data->dev, SPI_BUF_LENGTH, GFP_KERNEL);
     if (NULL == ts_data->bus_rx_buf) {
         FTS_ERROR("failed to allocate memory for bus_rx_buf");
         return -ENOMEM;
@@ -488,15 +488,6 @@ int fts_bus_init(struct fts_ts_data *ts_data)
 int fts_bus_exit(struct fts_ts_data *ts_data)
 {
     FTS_FUNC_ENTER();
-    if (ts_data && ts_data->bus_tx_buf) {
-        kfree(ts_data->bus_tx_buf);
-        ts_data->bus_tx_buf = NULL;
-    }
-
-    if (ts_data && ts_data->bus_rx_buf) {
-        kfree(ts_data->bus_rx_buf);
-        ts_data->bus_rx_buf = NULL;
-    }
     FTS_FUNC_EXIT();
     return 0;
 }

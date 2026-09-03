@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config PKVM_PIXEL_SMC
+    tristate "Pixel pKVM SMC module"
+    default n
+    help
+      This module filters Secure Monitor Calls (SMCs) at the pKVM level for
+      pixel devices, making sure only allowed and authorized SMCs are forwarded.

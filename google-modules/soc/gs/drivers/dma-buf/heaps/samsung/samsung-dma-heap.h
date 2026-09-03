@@ -22,8 +22,7 @@
 #include <linux/iommu.h>
 #include <linux/device.h>
 
-/* This header is in ACK under drivers/dma-buf/heaps. */
-#include <heaps/deferred-free-helper.h>
+#include "deferred-free-helper.h"
 
 /* the number of pages that allocated from heaps and currently used */
 static atomic64_t inuse_pages = ATOMIC_INIT(0);

@@ -76,6 +76,12 @@ config DRM_SAMSUNG_DP
 	  This enables support for Exynos DisplayPort device. It will encode
 	  data as DP standard and transfer to the DP Dongle(USB type C to DP) or monitor.
 
+config DRM_SAMSUNG_DP_ZUMA
+	bool "DP on Exynos on Zuma"
+	depends on DRM_SAMSUNG_DP
+	help
+	  DP on Exynos on Zuma
+
 config DRM_SAMSUNG_DP_AUDIO
 	bool "DP Audio on Exynos"
 	depends on DRM_SAMSUNG_DP
@@ -97,5 +103,28 @@ config QUEUE_DDIC_CMD_CALL_BACK
 	help
 	  This will enable sending a notification to exynos panel
 	  when a command is queued on dsim driver.
+
+config DRM_SAMSUNG_CAL_9845
+	bool "cal 9845"
+	help
+	  cal 9845
+
+config DRM_SAMSUNG_CAL_9855
+	bool "cal 9855"
+	select DRM_SAMSUNG_CAL_9845
+	help
+	  cal 9855
+
+config DRM_SAMSUNG_CAL_9865
+	bool "cal 9865"
+	help
+	  cal 9865
+
+config DRM_SAMSUNG_CAL_9865_DP
+	bool "DP on cal 9865"
+	depends on DRM_SAMSUNG_CAL_9865 && DRM_SAMSUNG_DP
+	default y
+	help
+	  DP on cal 9865
 
 endif

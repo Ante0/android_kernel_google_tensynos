@@ -31,8 +31,8 @@ static volatile u8 forced_mask = 0xff;
 static void *fill_start, *target_start;
 static size_t fill_size, target_size;
 
-static bool range_contains(char *haystack_start, size_t haystack_size,
-			   char *needle_start, size_t needle_size)
+static bool stackinit_range_contains(char *haystack_start, size_t haystack_size,
+				     char *needle_start, size_t needle_size)
 {
 	if (needle_start >= haystack_start &&
 	    needle_start + needle_size <= haystack_start + haystack_size)
@@ -63,7 +63,16 @@ static bool range_contains(char *haystack_start, size_t haystack_size,
 #define FETCH_ARG_STRING(var)		var
 #define FETCH_ARG_STRUCT(var)		&var
 
+/*
+ * On m68k, if the leaf function test variable is longer than 8 bytes,
+ * the start of the stack frame moves. 8 is sufficiently large to
+ * test m68k char arrays, but leave it at 16 for other architectures.
+ */
+#ifdef CONFIG_M68K
+#define FILL_SIZE_STRING		8
+#else
 #define FILL_SIZE_STRING		16
+#endif
 
 #define INIT_CLONE_SCALAR		/**/
 #define INIT_CLONE_STRING		[FILL_SIZE_STRING]
@@ -138,6 +147,15 @@ static bool range_contains(char *haystack_start, size_t haystack_size,
 					; var = *(arg)
 
 /*
+ * The "did we actually fill the stack?" check value needs
+ * to be neither 0 nor any of the "pattern" bytes. The
+ * pattern bytes are compiler, architecture, and type based,
+ * so we have to pick a value that never appears for those
+ * combinations. Use 0x99 which is not 0xFF, 0xFE, nor 0xAA.
+ */
+#define FILL_BYTE	0x99
+
+/*
  * @name: unique string name for the test
  * @var_type: type to be tested for zeroing initialization
  * @which: is this a SCALAR, STRING, or STRUCT type?
@@ -159,33 +177,38 @@ static noinline void test_ ## name (struct kunit *test)		\
 	ZERO_CLONE_ ## which(zero);				\
 	/* Clear entire check buffer for 0xFF overlap test. */	\
 	memset(check_buf, 0x00, sizeof(check_buf));		\
-	/* Fill stack with 0xFF. */				\
+	/* Fill stack with FILL_BYTE. */			\
 	ignored = leaf_ ##name((unsigned long)&ignored, 1,	\
 				FETCH_ARG_ ## which(zero));	\
-	/* Verify all bytes overwritten with 0xFF. */		\
+	/* Verify all bytes overwritten with FILL_BYTE. */	\
 	for (sum = 0, i = 0; i < target_size; i++)		\
-		sum += (check_buf[i] != 0xFF);			\
-	KUNIT_ASSERT_EQ_MSG(test, sum, 0,			\
-			    "leaf fill was not 0xFF!?\n");	\
+		sum += (check_buf[i] != FILL_BYTE);		\
 	/* Clear entire check buffer for later bit tests. */	\
 	memset(check_buf, 0x00, sizeof(check_buf));		\
 	/* Extract stack-defined variable contents. */		\
 	ignored = leaf_ ##name((unsigned long)&ignored, 0,	\
 				FETCH_ARG_ ## which(zero));	\
+	/*							\
+	 * Delay the sum test to here to do as little as	\
+	 * possible between the two leaf function calls.	\
+	 */							\
+	KUNIT_ASSERT_EQ_MSG(test, sum, 0,			\
+			    "leaf fill was not 0x%02X!?\n",	\
+			    FILL_BYTE);				\
 								\
 	/* Validate that compiler lined up fill and target. */	\
 	KUNIT_ASSERT_TRUE_MSG(test,				\
-		range_contains(fill_start, fill_size,		\
+		stackinit_range_contains(fill_start, fill_size,	\
 			    target_start, target_size),		\
-		"stack fill missed target!? "			\
+		"stackframe was not the same between calls!? "	\
 		"(fill %zu wide, target offset by %d)\n",	\
 		fill_size,					\
 		(int)((ssize_t)(uintptr_t)fill_start -		\
 		      (ssize_t)(uintptr_t)target_start));	\
 								\
-	/* Look for any bytes still 0xFF in check region. */	\
+	/* Validate check region has no FILL_BYTE bytes. */	\
 	for (sum = 0, i = 0; i < target_size; i++)		\
-		sum += (check_buf[i] == 0xFF);			\
+		sum += (check_buf[i] == FILL_BYTE);		\
 								\
 	if (sum != 0 && xfail)					\
 		kunit_skip(test,				\
@@ -220,12 +243,12 @@ static noinline int leaf_ ## name(unsigned long sp, bool fill,	\
 	 * stack frame of SOME kind...				\
 	 */							\
 	memset(buf, (char)(sp & 0xff), sizeof(buf));		\
-	/* Fill variable with 0xFF. */				\
+	/* Fill variable with FILL_BYTE. */			\
 	if (fill) {						\
 		fill_start = &var;				\
 		fill_size = sizeof(var);			\
 		memset(fill_start,				\
-		       (char)((sp & 0xff) | forced_mask),	\
+		       FILL_BYTE & forced_mask,			\
 		       fill_size);				\
 	}							\
 								\
@@ -367,7 +390,7 @@ static int noinline __leaf_switch_none(int path, bool fill)
 			fill_start = &var;
 			fill_size = sizeof(var);
 
-			memset(fill_start, forced_mask | 0x55, fill_size);
+			memset(fill_start, (forced_mask | 0x55) & FILL_BYTE, fill_size);
 		}
 		memcpy(check_buf, target_start, target_size);
 		break;
@@ -378,7 +401,7 @@ static int noinline __leaf_switch_none(int path, bool fill)
 			fill_start = &var;
 			fill_size = sizeof(var);
 
-			memset(fill_start, forced_mask | 0xaa, fill_size);
+			memset(fill_start, (forced_mask | 0xaa) & FILL_BYTE, fill_size);
 		}
 		memcpy(check_buf, target_start, target_size);
 		break;
@@ -405,7 +428,7 @@ static noinline int leaf_switch_2_none(unsigned long sp, bool fill,
  * These are expected to fail for most configurations because neither
  * GCC nor Clang have a way to perform initialization of variables in
  * non-code areas (i.e. in a switch statement before the first "case").
- * https://bugs.llvm.org/show_bug.cgi?id=44916
+ * https://llvm.org/pr44916
  */
 DEFINE_TEST_DRIVER(switch_1_none, uint64_t, SCALAR, ALWAYS_FAIL);
 DEFINE_TEST_DRIVER(switch_2_none, uint64_t, SCALAR, ALWAYS_FAIL);
@@ -459,4 +482,5 @@ static struct kunit_suite stackinit_test_suite = {
 
 kunit_test_suites(&stackinit_test_suite);
 
+MODULE_DESCRIPTION("Test cases for compiler-based stack variable zeroing");
 MODULE_LICENSE("GPL");

@@ -5,6 +5,7 @@
 #include <linux/kvm_host.h>
 
 #include <asm/kvm_emulate.h>
+#include <asm/stage2_pgtable.h>
 #include <asm/kvm_pkvm.h>
 
 #include <kvm/arm_hypercalls.h>
@@ -14,15 +15,8 @@
 	GENMASK(KVM_REG_ARM_STD_BMAP_BIT_COUNT - 1, 0)
 #define KVM_ARM_SMCCC_STD_HYP_FEATURES				\
 	GENMASK(KVM_REG_ARM_STD_HYP_BMAP_BIT_COUNT - 1, 0)
-#define KVM_ARM_SMCCC_VENDOR_HYP_FEATURES ({				\
-	unsigned long f;						\
-	f = GENMASK(KVM_REG_ARM_VENDOR_HYP_BMAP_BIT_COUNT - 1, 0);	\
-	if (is_protected_kvm_enabled()) {				\
-		f |= BIT(ARM_SMCCC_KVM_FUNC_HYP_MEMINFO);		\
-		f |= BIT(ARM_SMCCC_KVM_FUNC_MEM_RELINQUISH);		\
-	}								\
-	f;								\
-})
+#define KVM_ARM_SMCCC_VENDOR_HYP_FEATURES			\
+	GENMASK(KVM_REG_ARM_VENDOR_HYP_BMAP_BIT_COUNT - 1, 0)
 
 static void kvm_ptp_get_time(struct kvm_vcpu *vcpu, u64 *val)
 {
@@ -52,10 +46,10 @@ static void kvm_ptp_get_time(struct kvm_vcpu *vcpu, u64 *val)
 	feature = smccc_get_arg1(vcpu);
 	switch (feature) {
 	case KVM_PTP_VIRT_COUNTER:
-		cycles = systime_snapshot.cycles - vcpu_read_sys_reg(vcpu, CNTVOFF_EL2);
+		cycles = systime_snapshot.cycles - vcpu->kvm->arch.timer_data.voffset;
 		break;
 	case KVM_PTP_PHYS_COUNTER:
-		cycles = systime_snapshot.cycles;
+		cycles = systime_snapshot.cycles - vcpu->kvm->arch.timer_data.poffset;
 		break;
 	default:
 		return;
@@ -73,7 +67,7 @@ static void kvm_ptp_get_time(struct kvm_vcpu *vcpu, u64 *val)
 	val[3] = lower_32_bits(cycles);
 }
 
-static bool kvm_hvc_call_default_allowed(u32 func_id)
+static bool kvm_smccc_default_allowed(u32 func_id)
 {
 	switch (func_id) {
 	/*
@@ -85,7 +79,7 @@ static bool kvm_hvc_call_default_allowed(u32 func_id)
 	case ARM_SMCCC_ARCH_FEATURES_FUNC_ID:
 	case ARM_SMCCC_VENDOR_HYP_KVM_MEM_SHARE_FUNC_ID:
 	case ARM_SMCCC_VENDOR_HYP_KVM_MEM_UNSHARE_FUNC_ID:
-	case ARM_SMCCC_VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID:
+	case ARM_SMCCC_VENDOR_HYP_KVM_MEM_RELINQUISH_FUNC_ID:
 		return true;
 	default:
 		/* PSCI 0.2 and up is in the 0:0x1f range */
@@ -104,7 +98,7 @@ static bool kvm_hvc_call_default_allowed(u32 func_id)
 	}
 }
 
-static bool kvm_hvc_call_allowed(struct kvm_vcpu *vcpu, u32 func_id)
+static bool kvm_smccc_test_fw_bmap(struct kvm_vcpu *vcpu, u32 func_id)
 {
 	struct kvm_smccc_features *smccc_feat = &vcpu->kvm->arch.smccc_feat;
 
@@ -131,20 +125,171 @@ static bool kvm_hvc_call_allowed(struct kvm_vcpu *vcpu, u32 func_id)
 		return test_bit(ARM_SMCCC_KVM_FUNC_MEM_RELINQUISH,
 				&smccc_feat->vendor_hyp_bmap);
 	default:
-		return kvm_hvc_call_default_allowed(func_id);
+		return false;
 	}
 }
 
-int kvm_hvc_call_handler(struct kvm_vcpu *vcpu)
+#define SMC32_ARCH_RANGE_BEGIN	ARM_SMCCC_VERSION_FUNC_ID
+#define SMC32_ARCH_RANGE_END	ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL,		\
+						   ARM_SMCCC_SMC_32,		\
+						   0, ARM_SMCCC_FUNC_MASK)
+
+#define SMC64_ARCH_RANGE_BEGIN	ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL,		\
+						   ARM_SMCCC_SMC_64,		\
+						   0, 0)
+#define SMC64_ARCH_RANGE_END	ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL,		\
+						   ARM_SMCCC_SMC_64,		\
+						   0, ARM_SMCCC_FUNC_MASK)
+
+static int kvm_smccc_filter_insert_reserved(struct kvm *kvm)
+{
+	int r;
+
+	/*
+	 * Prevent userspace from handling any SMCCC calls in the architecture
+	 * range, avoiding the risk of misrepresenting Spectre mitigation status
+	 * to the guest.
+	 */
+	r = mtree_insert_range(&kvm->arch.smccc_filter,
+			       SMC32_ARCH_RANGE_BEGIN, SMC32_ARCH_RANGE_END,
+			       xa_mk_value(KVM_SMCCC_FILTER_HANDLE),
+			       GFP_KERNEL_ACCOUNT);
+	if (r)
+		goto out_destroy;
+
+	r = mtree_insert_range(&kvm->arch.smccc_filter,
+			       SMC64_ARCH_RANGE_BEGIN, SMC64_ARCH_RANGE_END,
+			       xa_mk_value(KVM_SMCCC_FILTER_HANDLE),
+			       GFP_KERNEL_ACCOUNT);
+	if (r)
+		goto out_destroy;
+
+	return 0;
+out_destroy:
+	mtree_destroy(&kvm->arch.smccc_filter);
+	return r;
+}
+
+static bool kvm_smccc_filter_configured(struct kvm *kvm)
+{
+	return !mtree_empty(&kvm->arch.smccc_filter);
+}
+
+static int kvm_smccc_set_filter(struct kvm *kvm, struct kvm_smccc_filter __user *uaddr)
+{
+	const void *zero_page = page_to_virt(ZERO_PAGE(0));
+	struct kvm_smccc_filter filter;
+	u32 start, end;
+	int r;
+
+	if (copy_from_user(&filter, uaddr, sizeof(filter)))
+		return -EFAULT;
+
+	if (memcmp(filter.pad, zero_page, sizeof(filter.pad)))
+		return -EINVAL;
+
+	start = filter.base;
+	end = start + filter.nr_functions - 1;
+
+	if (end < start || filter.action >= NR_SMCCC_FILTER_ACTIONS)
+		return -EINVAL;
+
+	mutex_lock(&kvm->arch.config_lock);
+
+	if (kvm_vm_has_ran_once(kvm)) {
+		r = -EBUSY;
+		goto out_unlock;
+	}
+
+	if (!kvm_smccc_filter_configured(kvm)) {
+		r = kvm_smccc_filter_insert_reserved(kvm);
+		if (WARN_ON_ONCE(r))
+			goto out_unlock;
+	}
+
+	r = mtree_insert_range(&kvm->arch.smccc_filter, start, end,
+			       xa_mk_value(filter.action), GFP_KERNEL_ACCOUNT);
+out_unlock:
+	mutex_unlock(&kvm->arch.config_lock);
+	return r;
+}
+
+static u8 kvm_smccc_filter_get_action(struct kvm *kvm, u32 func_id)
+{
+	unsigned long idx = func_id;
+	void *val;
+
+	if (!kvm_smccc_filter_configured(kvm))
+		return KVM_SMCCC_FILTER_HANDLE;
+
+	/*
+	 * But where's the error handling, you say?
+	 *
+	 * mt_find() returns NULL if no entry was found, which just so happens
+	 * to match KVM_SMCCC_FILTER_HANDLE.
+	 */
+	val = mt_find(&kvm->arch.smccc_filter, &idx, idx);
+	return xa_to_value(val);
+}
+
+static u8 kvm_smccc_get_action(struct kvm_vcpu *vcpu, u32 func_id)
+{
+	/*
+	 * Intervening actions in the SMCCC filter take precedence over the
+	 * pseudo-firmware register bitmaps.
+	 */
+	u8 action = kvm_smccc_filter_get_action(vcpu->kvm, func_id);
+	if (action != KVM_SMCCC_FILTER_HANDLE)
+		return action;
+
+	if (kvm_smccc_test_fw_bmap(vcpu, func_id) ||
+	    kvm_smccc_default_allowed(func_id))
+		return KVM_SMCCC_FILTER_HANDLE;
+
+	return KVM_SMCCC_FILTER_DENY;
+}
+
+static void kvm_prepare_hypercall_exit(struct kvm_vcpu *vcpu, u32 func_id)
+{
+	u8 ec = ESR_ELx_EC(kvm_vcpu_get_esr(vcpu));
+	struct kvm_run *run = vcpu->run;
+	u64 flags = 0;
+
+	if (ec == ESR_ELx_EC_SMC32 || ec == ESR_ELx_EC_SMC64)
+		flags |= KVM_HYPERCALL_EXIT_SMC;
+
+	if (!kvm_vcpu_trap_il_is32bit(vcpu))
+		flags |= KVM_HYPERCALL_EXIT_16BIT;
+
+	run->exit_reason = KVM_EXIT_HYPERCALL;
+	run->hypercall = (typeof(run->hypercall)) {
+		.nr	= func_id,
+		.flags	= flags,
+	};
+}
+
+int kvm_smccc_call_handler(struct kvm_vcpu *vcpu)
 {
 	struct kvm_smccc_features *smccc_feat = &vcpu->kvm->arch.smccc_feat;
 	u32 func_id = smccc_get_function(vcpu);
 	u64 val[4] = {SMCCC_RET_NOT_SUPPORTED};
 	u32 feature;
+	u8 action;
 	gpa_t gpa;
 
-	if (!kvm_hvc_call_allowed(vcpu, func_id))
+	action = kvm_smccc_get_action(vcpu, func_id);
+	switch (action) {
+	case KVM_SMCCC_FILTER_HANDLE:
+		break;
+	case KVM_SMCCC_FILTER_DENY:
 		goto out;
+	case KVM_SMCCC_FILTER_FWD_TO_USER:
+		kvm_prepare_hypercall_exit(vcpu, func_id);
+		return 0;
+	default:
+		WARN_RATELIMIT(1, "Unhandled SMCCC filter action: %d\n", action);
+		goto out;
+	}
 
 	switch (func_id) {
 	case ARM_SMCCC_VERSION_FUNC_ID:
@@ -180,7 +325,7 @@ int kvm_hvc_call_handler(struct kvm_vcpu *vcpu)
 				 * to the guest, and hide SSBS so that the
 				 * guest stays protected.
 				 */
-				if (cpus_have_final_cap(ARM64_SSBS))
+				if (kvm_has_feat(vcpu->kvm, ID_AA64PFR1_EL1, SSBS, IMP))
 					break;
 				fallthrough;
 			case SPECTRE_UNAFFECTED:
@@ -212,7 +357,7 @@ int kvm_hvc_call_handler(struct kvm_vcpu *vcpu)
 		break;
 	case ARM_SMCCC_HV_PV_TIME_ST:
 		gpa = kvm_init_stolen_time(vcpu);
-		if (gpa != GPA_INVALID)
+		if (gpa != INVALID_GPA)
 			val[0] = gpa;
 		break;
 	case ARM_SMCCC_VENDOR_HYP_CALL_UID_FUNC_ID:
@@ -227,23 +372,9 @@ int kvm_hvc_call_handler(struct kvm_vcpu *vcpu)
 	case ARM_SMCCC_VENDOR_HYP_KVM_PTP_FUNC_ID:
 		kvm_ptp_get_time(vcpu, val);
 		break;
-	case ARM_SMCCC_VENDOR_HYP_KVM_MEM_SHARE_FUNC_ID:
-	case ARM_SMCCC_VENDOR_HYP_KVM_MEM_UNSHARE_FUNC_ID:
-		if (!kvm_vm_is_protected(vcpu->kvm))
-			break;
-		atomic64_add(
-			func_id == ARM_SMCCC_VENDOR_HYP_KVM_MEM_SHARE_FUNC_ID ?
-			PAGE_SIZE : -PAGE_SIZE,
-			&vcpu->kvm->stat.protected_shared_mem);
-		val[0] = SMCCC_RET_SUCCESS;
-		break;
 	case ARM_SMCCC_VENDOR_HYP_KVM_MEM_RELINQUISH_FUNC_ID:
 		pkvm_host_reclaim_page(vcpu->kvm, smccc_get_arg1(vcpu));
 		val[0] = SMCCC_RET_SUCCESS;
-		break;
-	case ARM_SMCCC_VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID:
-		if (kvm_vm_is_protected(vcpu->kvm) && !topup_hyp_memcache(vcpu))
-			val[0] = SMCCC_RET_SUCCESS;
 		break;
 	case ARM_SMCCC_TRNG_VERSION:
 	case ARM_SMCCC_TRNG_FEATURES:
@@ -277,6 +408,13 @@ void kvm_arm_init_hypercalls(struct kvm *kvm)
 	smccc_feat->std_bmap = KVM_ARM_SMCCC_STD_FEATURES;
 	smccc_feat->std_hyp_bmap = KVM_ARM_SMCCC_STD_HYP_FEATURES;
 	smccc_feat->vendor_hyp_bmap = KVM_ARM_SMCCC_VENDOR_HYP_FEATURES;
+
+	mt_init(&kvm->arch.smccc_filter);
+}
+
+void kvm_arm_teardown_hypercalls(struct kvm *kvm)
+{
+	mtree_destroy(&kvm->arch.smccc_filter);
 }
 
 int kvm_arm_get_fw_num_regs(struct kvm_vcpu *vcpu)
@@ -302,7 +440,7 @@ int kvm_arm_copy_fw_reg_indices(struct kvm_vcpu *vcpu, u64 __user *uindices)
  * Convert the workaround level into an easy-to-compare number, where higher
  * values mean better protection.
  */
-static int get_kernel_wa_level(u64 regid)
+static int get_kernel_wa_level(struct kvm_vcpu *vcpu, u64 regid)
 {
 	switch (regid) {
 	case KVM_REG_ARM_SMCCC_ARCH_WORKAROUND_1:
@@ -323,7 +461,7 @@ static int get_kernel_wa_level(u64 regid)
 			 * don't have any FW mitigation if SSBS is there at
 			 * all times.
 			 */
-			if (cpus_have_final_cap(ARM64_SSBS))
+			if (kvm_has_feat(vcpu->kvm, ID_AA64PFR1_EL1, SSBS, IMP))
 				return KVM_REG_ARM_SMCCC_ARCH_WORKAROUND_2_NOT_AVAIL;
 			fallthrough;
 		case SPECTRE_UNAFFECTED:
@@ -360,7 +498,7 @@ int kvm_arm_get_fw_reg(struct kvm_vcpu *vcpu, const struct kvm_one_reg *reg)
 	case KVM_REG_ARM_SMCCC_ARCH_WORKAROUND_1:
 	case KVM_REG_ARM_SMCCC_ARCH_WORKAROUND_2:
 	case KVM_REG_ARM_SMCCC_ARCH_WORKAROUND_3:
-		val = get_kernel_wa_level(reg->id) & KVM_REG_FEATURE_LEVEL_MASK;
+		val = get_kernel_wa_level(vcpu, reg->id) & KVM_REG_FEATURE_LEVEL_MASK;
 		break;
 	case KVM_REG_ARM_STD_BMAP:
 		val = READ_ONCE(smccc_feat->std_bmap);
@@ -411,8 +549,7 @@ static int kvm_arm_set_fw_reg_bmap(struct kvm_vcpu *vcpu, u64 reg_id, u64 val)
 
 	mutex_lock(&kvm->arch.config_lock);
 
-	if (test_bit(KVM_ARCH_FLAG_HAS_RAN_ONCE, &kvm->arch.flags) &&
-	    val != *fw_reg_bmap) {
+	if (kvm_vm_has_ran_once(kvm) && val != *fw_reg_bmap) {
 		ret = -EBUSY;
 		goto out;
 	}
@@ -439,7 +576,7 @@ int kvm_arm_set_fw_reg(struct kvm_vcpu *vcpu, const struct kvm_one_reg *reg)
 	{
 		bool wants_02;
 
-		wants_02 = test_bit(KVM_ARM_VCPU_PSCI_0_2, vcpu->arch.features);
+		wants_02 = vcpu_has_feature(vcpu, KVM_ARM_VCPU_PSCI_0_2);
 
 		switch (val) {
 		case KVM_ARM_PSCI_0_1:
@@ -463,7 +600,7 @@ int kvm_arm_set_fw_reg(struct kvm_vcpu *vcpu, const struct kvm_one_reg *reg)
 		if (val & ~KVM_REG_FEATURE_LEVEL_MASK)
 			return -EINVAL;
 
-		if (get_kernel_wa_level(reg->id) < val)
+		if (get_kernel_wa_level(vcpu, reg->id) < val)
 			return -EINVAL;
 
 		return 0;
@@ -499,7 +636,7 @@ int kvm_arm_set_fw_reg(struct kvm_vcpu *vcpu, const struct kvm_one_reg *reg)
 		 * We can deal with NOT_AVAIL on NOT_REQUIRED, but not the
 		 * other way around.
 		 */
-		if (get_kernel_wa_level(reg->id) < wa_level)
+		if (get_kernel_wa_level(vcpu, reg->id) < wa_level)
 			return -EINVAL;
 
 		return 0;
@@ -512,4 +649,26 @@ int kvm_arm_set_fw_reg(struct kvm_vcpu *vcpu, const struct kvm_one_reg *reg)
 	}
 
 	return -EINVAL;
+}
+
+int kvm_vm_smccc_has_attr(struct kvm *kvm, struct kvm_device_attr *attr)
+{
+	switch (attr->attr) {
+	case KVM_ARM_VM_SMCCC_FILTER:
+		return 0;
+	default:
+		return -ENXIO;
+	}
+}
+
+int kvm_vm_smccc_set_attr(struct kvm *kvm, struct kvm_device_attr *attr)
+{
+	void __user *uaddr = (void __user *)attr->addr;
+
+	switch (attr->attr) {
+	case KVM_ARM_VM_SMCCC_FILTER:
+		return kvm_smccc_set_filter(kvm, uaddr);
+	default:
+		return -ENXIO;
+	}
 }

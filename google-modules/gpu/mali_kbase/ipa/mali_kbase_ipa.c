@@ -664,10 +664,10 @@ int kbase_get_real_power_locked(struct kbase_device *kbdev, u32 *power, unsigned
 
 	if (!skip_utilization_scaling) {
 		/* time_busy / total_time cannot be >1, so assigning the 64-bit
-		 * result of div_u64 to *power cannot overflow.
+		 * result of div64_u64 to *power cannot overflow.
 		 */
-		total_time = diff.time_busy + (u64)diff.time_idle;
-		*power = div_u64(*power * (u64)diff.time_busy, max(total_time, 1ull));
+		total_time = diff.time_busy + diff.time_idle;
+		*power = div64_u64(*power * diff.time_busy, max(total_time, 1ull));
 	}
 
 	*power += get_static_power_locked(kbdev, model, volts[KBASE_IPA_BLOCK_TYPE_TOP_LEVEL]);

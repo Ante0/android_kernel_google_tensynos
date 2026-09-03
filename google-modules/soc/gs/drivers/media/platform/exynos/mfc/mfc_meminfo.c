@@ -16,7 +16,8 @@
 
 #include "mfc_queue.h"
 
-void __mfc_meminfo_add_buf(struct mfc_ctx *ctx, struct mfc_buf_queue *queue, struct vb2_buffer *vb)
+static void __mfc_meminfo_add_buf(struct mfc_ctx *ctx, struct mfc_buf_queue *queue,
+				  struct vb2_buffer *vb)
 {
 	struct mfc_buf *buf = vb_to_mfc_buf(vb);
 	struct mfc_mem *mfc_mem = NULL;
@@ -65,7 +66,7 @@ void mfc_meminfo_add_outbuf(struct mfc_ctx *ctx, struct vb2_buffer *vb)
 	mfc_debug(3, "[MEMINFO] output buffer count (%d)\n", queue->count);
 }
 
-void __mfc_meminfo_cleanup_queue(struct mfc_ctx *ctx, struct mfc_buf_queue *queue)
+static void __mfc_meminfo_cleanup_queue(struct mfc_ctx *ctx, struct mfc_buf_queue *queue)
 {
 	struct mfc_mem *mfc_mem, *temp;
 	unsigned long flags;
@@ -144,7 +145,8 @@ int mfc_meminfo_get_dev(struct mfc_dev *dev)
 	return ++num;
 }
 
-int __mfc_meminfo_get_dpb(struct mfc_ctx *ctx, int num)
+#if 0
+static int __mfc_meminfo_get_dpb(struct mfc_ctx *ctx, int num)
 {
 	struct mfc_dec *dec = ctx->dec_priv;
 	int i, cnt = 0;
@@ -173,7 +175,6 @@ int __mfc_meminfo_get_dpb(struct mfc_ctx *ctx, int num)
 	return num;
 }
 
-#if 0
 int mfc_meminfo_get_ctx(struct mfc_ctx *ctx)
 {
 	struct mfc_mem *mfc_mem = NULL;

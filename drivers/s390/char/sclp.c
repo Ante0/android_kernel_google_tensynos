@@ -69,19 +69,26 @@ static struct init_sccb *sclp_init_sccb;
 /* Number of console pages to allocate, used by sclp_con.c and sclp_vt220.c */
 int sclp_console_pages = SCLP_CONSOLE_PAGES;
 /* Flag to indicate if buffer pages are dropped on buffer full condition */
-int sclp_console_drop = 1;
+bool sclp_console_drop = true;
 /* Number of times the console dropped buffer pages */
 unsigned long sclp_console_full;
 
 /* The currently active SCLP command word. */
 static sclp_cmdw_t active_cmd;
 
+static inline struct sccb_header *sclpint_to_sccb(u32 sccb_int)
+{
+	if (sccb_int)
+		return __va(sccb_int);
+	return NULL;
+}
+
 static inline void sclp_trace(int prio, char *id, u32 a, u64 b, bool err)
 {
 	struct sclp_trace_entry e;
 
 	memset(&e, 0, sizeof(e));
-	strncpy(e.id, id, sizeof(e.id));
+	strtomem(e.id, id);
 	e.a = a;
 	e.b = b;
 	debug_event(&sclp_debug, prio, &e, sizeof(e));
@@ -195,12 +202,7 @@ __setup("sclp_con_pages=", sclp_setup_console_pages);
 
 static int __init sclp_setup_console_drop(char *str)
 {
-	int drop, rc;
-
-	rc = kstrtoint(str, 0, &drop);
-	if (!rc)
-		sclp_console_drop = drop;
-	return 1;
+	return kstrtobool(str, &sclp_console_drop) == 0;
 }
 
 __setup("sclp_con_drop=", sclp_setup_console_drop);
@@ -250,7 +252,6 @@ static void sclp_request_timeout(bool force_restart);
 static void sclp_process_queue(void);
 static void __sclp_make_read_req(void);
 static int sclp_init_mask(int calculate);
-static int sclp_init(void);
 
 static void
 __sclp_queue_read_req(void)
@@ -625,7 +626,7 @@ __sclp_find_req(u32 sccb)
 
 static bool ok_response(u32 sccb_int, sclp_cmdw_t cmd)
 {
-	struct sccb_header *sccb = (struct sccb_header *)__va(sccb_int);
+	struct sccb_header *sccb = sclpint_to_sccb(sccb_int);
 	struct evbuf_header *evbuf;
 	u16 response;
 
@@ -664,7 +665,7 @@ static void sclp_interrupt_handler(struct ext_code ext_code,
 
 	/* INT: Interrupt received (a=intparm, b=cmd) */
 	sclp_trace_sccb(0, "INT", param32, active_cmd, active_cmd,
-			(struct sccb_header *)__va(finished_sccb),
+			sclpint_to_sccb(finished_sccb),
 			!ok_response(finished_sccb, active_cmd));
 
 	if (finished_sccb) {
@@ -711,8 +712,8 @@ void
 sclp_sync_wait(void)
 {
 	unsigned long long old_tick;
+	struct ctlreg cr0, cr0_sync;
 	unsigned long flags;
-	unsigned long cr0, cr0_sync;
 	static u64 sync_count;
 	u64 timeout;
 	int irq_context;
@@ -737,11 +738,11 @@ sclp_sync_wait(void)
 	/* Enable service-signal interruption, disable timer interrupts */
 	old_tick = local_tick_disable();
 	trace_hardirqs_on();
-	__ctl_store(cr0, 0, 0);
-	cr0_sync = cr0 & ~CR0_IRQ_SUBCLASS_MASK;
-	cr0_sync |= 1UL << (63 - 54);
-	__ctl_load(cr0_sync, 0, 0);
-	__arch_local_irq_stosm(0x01);
+	local_ctl_store(0, &cr0);
+	cr0_sync.val = cr0.val & ~CR0_IRQ_SUBCLASS_MASK;
+	cr0_sync.val |= 1UL << (63 - 54);
+	local_ctl_load(0, &cr0_sync);
+	arch_local_irq_enable_external();
 	/* Loop until driver state indicates finished request */
 	while (sclp_running_state != sclp_running_state_idle) {
 		/* Check for expired request timer */
@@ -750,7 +751,7 @@ sclp_sync_wait(void)
 		cpu_relax();
 	}
 	local_irq_disable();
-	__ctl_load(cr0, 0, 0);
+	local_ctl_load(0, &cr0);
 	if (!irq_context)
 		_local_bh_enable();
 	local_tick_enable(old_tick);
@@ -1206,21 +1207,29 @@ static struct notifier_block sclp_reboot_notifier = {
 
 static ssize_t con_pages_show(struct device_driver *dev, char *buf)
 {
-	return sprintf(buf, "%i\n", sclp_console_pages);
+	return sysfs_emit(buf, "%i\n", sclp_console_pages);
 }
 
 static DRIVER_ATTR_RO(con_pages);
 
-static ssize_t con_drop_show(struct device_driver *dev, char *buf)
+static ssize_t con_drop_store(struct device_driver *dev, const char *buf, size_t count)
 {
-	return sprintf(buf, "%i\n", sclp_console_drop);
+	int rc;
+
+	rc = kstrtobool(buf, &sclp_console_drop);
+	return rc ?: count;
 }
 
-static DRIVER_ATTR_RO(con_drop);
+static ssize_t con_drop_show(struct device_driver *dev, char *buf)
+{
+	return sysfs_emit(buf, "%i\n", sclp_console_drop);
+}
+
+static DRIVER_ATTR_RW(con_drop);
 
 static ssize_t con_full_show(struct device_driver *dev, char *buf)
 {
-	return sprintf(buf, "%lu\n", sclp_console_full);
+	return sysfs_emit(buf, "%lu\n", sclp_console_full);
 }
 
 static DRIVER_ATTR_RO(con_full);
@@ -1248,8 +1257,7 @@ static struct platform_driver sclp_pdrv = {
 
 /* Initialize SCLP driver. Return zero if driver is operational, non-zero
  * otherwise. */
-static int
-sclp_init(void)
+int sclp_init(void)
 {
 	unsigned long flags;
 	int rc = 0;
@@ -1302,13 +1310,7 @@ fail_unlock:
 
 static __init int sclp_initcall(void)
 {
-	int rc;
-
-	rc = platform_driver_register(&sclp_pdrv);
-	if (rc)
-		return rc;
-
-	return sclp_init();
+	return platform_driver_register(&sclp_pdrv);
 }
 
 arch_initcall(sclp_initcall);

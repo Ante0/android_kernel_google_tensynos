@@ -1,0 +1,57 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Lga platform uwb device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+&lsioe_pinctrl {
+	ap2uwb_vsys_disable_l_1v2_default: ap2uwb_vsys_disable_l_1v2_default {
+		/* Connectivity - UWB */
+		pins = "XLSIOE_CLI11_PIN0";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	ap2uwb_vsys_disable_l_1v2_default_sleep: ap2uwb_vsys_disable_l_1v2_default_sleep {
+		/* Connectivity - UWB */
+		pins = "XLSIOE_CLI11_PIN0";
+		bias-disable;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+};
+
+&lsion_cli17_int0_spi{
+	u100@0 {
+		compatible = "samsung,u100";
+		reg = <0>;
+		rx-sample-delay-ns = <25>;
+		spi-max-frequency = <20000000>;
+		pinctrl-0 = <&uwb2aoc_int_1v2>, <&ap2uwb_rst_l_1v2>,
+			    <&aoc2uwb_en_1v2>, <&ap2uwb_vsys_disable_l_1v2_default>,
+			    <&uwb2ap_pwr_state_1v2>;
+		pinctrl-1 = <&uwb2aoc_int_1v2>, <&ap2uwb_rst_l_1v2_sleep>,
+			    <&aoc2uwb_en_1v2_sleep>, <&ap2uwb_vsys_disable_l_1v2_default_sleep>,
+			    <&uwb2ap_pwr_state_1v2_sleep>;
+		pinctrl-names = "default", "sleep";
+		interrupt-parent = <&aoc_pinctrl>;
+		interrupts = <XAOC_GPIO4 0 0>;
+		u100-rst-gpios = <AP2UWB_RST_L_1V2(GPIO_ACTIVE_LOW)>;
+		/* b/343469733 */
+		u100-en-gpios = <&aoc_pinctrl XAOC_GPIO3 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+		u100-sync-gpios = <AOC2UWB_WAKEUP_SYNC_1V2(GPIO_ACTIVE_HIGH)>;
+		u100-powerstat-gpios = <
+			&hsios_pinctrl XHSIOS_GPIO7 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+		status = "okay";
+		controller-data {
+			samsung,spi-feedback-delay = <0>;
+			samsung,spi-chip-select-mode = <0>;
+			cs-clock-delay = <10>;
+		};
+	};
+};

@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@rules_python//python:defs.bzl", "py_binary")
+load(":bste_prebuilt_binary.bzl", "bste_prebuilt_binary")
+
+package(default_visibility = ["//private/devices/google/common/kleaf:__subpackages__"])
+
+py_binary(
+    name = "bste_validator",
+    srcs = ["bste_validator.py"],
+)
+
+bste_prebuilt_binary(
+    name = "bste_test",
+    src = "bste_test.sh",
+    data = [
+        "harness/bste_test.sh",
+        "harness/bste_test_runner.sh",
+        "harness/common.sh",
+        "harness/test_helpers.sh",
+    ],
+)

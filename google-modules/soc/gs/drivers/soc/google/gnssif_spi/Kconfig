@@ -3,3 +3,13 @@ config EXYNOS_GNSS_IF_SPI
 	default n
 	help
 	  Exynos GNSS SPI interface driver
+
+config EXYNOS_GNSS_IF_SPI_DMA_SAFE_BUFFER
+	bool "Allocate DMA-safe buffer for Exynos GNSS SPI interface"
+	default n
+	depends on EXYNOS_GNSS_IF_SPI
+	help
+	  This option enables the Exynos GNSS SPI interface driver to allocate
+	  a DMA-safe buffer. This buffer is used by the SPI driver for
+	  communication with the GNSS chip under DMA. LGA platform using this
+	  explicitly, while others(Zuma) handle DMA buffer allocation internally.

@@ -8,6 +8,8 @@
 #ifndef _PHY_EXYNOS_EUSB_H_
 #define _PHY_EXYNOS_EUSB_H_
 
+struct exynos_usbphy_info;
+
 extern void phy_exynos_eusb_reset(struct exynos_usbphy_info *info);
 extern void phy_exynos_eusb_initiate(struct exynos_usbphy_info *info);
 extern u8 phy_exynos_eusb_get_eusb_state(struct exynos_usbphy_info *info);

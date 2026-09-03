@@ -1,0 +1,183 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/display/verisilicon/dw-cdphy.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Synopsys DSI2 host controller connected to VSI DPU.
+
+description: |
+  This document defines device tree properties for the Synopsys DSI2 host
+  controller connected to VSI DPU.
+
+properties:
+  compatible:
+    const: verisilicon,dc9x00-mipi-dsi2h
+
+  reg:
+    maxItems: 1
+
+  verisilicon,mux-id:
+    maxItems: 1
+    description: DPU out path for this dsi host controller
+
+  interrupts:
+    description: report dsi events or errors
+
+  phys:
+    minItems: 1
+
+  phy-names:
+    items:
+      - const: dw-mipi-cdphy
+
+  max_data_lanes:
+    description: total lanes
+    minItem: 1
+
+  is_cphy:
+    type: boolean
+    description: false for dphy true for cphy
+
+  clk_type:
+    minItem: 1
+    description: 0 for continuous clock, 1 for non-continuous clock
+
+  mode_ctrl:
+    minItem: 1
+    description: 0 idle, 1 auto calculation, 2 command, 3 video, 4 data stream
+
+  auto_calc_en:
+    description: enable auto timing calculation.
+
+  ppi_width:
+    minItem: 1
+    description: 0: 8 bits, 1: 16 bits, 2: 32 bits
+
+  high_speed:
+    type: boolean
+    description: enable high speed
+
+  bta:
+    type: boolean
+    description: enable bta
+
+  eotp:
+    type: boolean
+    description: enable end of transmission packet.
+
+  tear_effect:
+    type: boolean
+    description: |
+      enable to allow controller to receive accurate timing information
+      from the command mode displays.
+
+  scrambling:
+    type: boolean
+    description: enable data scrambling to mitigate EM interferences on the transmissions.
+
+  vid_mode_type:
+    description: |
+      0 non-burst with sync pulses, 1 no-burst with sync events, 2 burst mode.
+
+  hs_en:
+    description: |
+      array of switches to forces the link to be kept in HS by sending blanking packets
+      in specified modes
+    items:
+      - description: vfp
+      - description: vbp
+      - description: vsa
+      - description: hfp
+      - description: hbp
+      - description: hsa
+
+  datarate:
+    description: phy data rate in Mbps.
+
+  lp2hs_time:
+    description: |
+      phy LP to HS transition time in fixed point number (13 integral
+      bits and 16 fractional bits)
+
+  hs2lp_time:
+    description: |
+      phy HS to LP transition time in fixed point number (13 integral
+      bits and 16 fractioinal bits)
+
+  sys_clk:
+    description: APB clk in KHz.
+
+  ipi_clk:
+    description: IPI clk in KHz
+
+  phy_clk:
+    description: Phy clk in KHz
+
+  ports:
+    $ref: /schemas/graph.yaml#/properties/ports
+
+    properties:
+      port@0:
+        $ref: /schemas/graph.yaml#/properties/port
+        description: Input node to receive pixel data.
+
+      port@1:
+        $ref: /schemas/graph.yaml#/properties/port
+        description: DSI output node to panel.
+
+  dynamic_hs_clk_en:
+    description: enable dynamic hs_clk (datarate) switch.
+
+required:
+  - compatible
+  - reg
+  - verisilicon,mux-id
+  - phys
+  - phy-names
+  - clk_type
+  - mode_ctrl
+  - datarate
+  - sys_clk
+  - phy_clk
+  - ipi_clk
+  - ports
+
+example:
+  - |
+    dsi2h0: dsi2host@3d8000 {
+        compatible = "verisilicon,dc9x00-mipi-dsi2h";
+        reg = <0x3d8000 0x0800>; /* DWC MIPI DSI2 HOST */
+
+        verisilicon,mux-id = <0>
+        phys = <&dw_mipi_cdphy_g301 0>;
+        phy-names = "dw-mipi-cdphy";
+        /* 0: continuous clock, 1: non-continuous clock */
+        clk_type = <1>;
+        /* 0: idel, 1: auto calculation, 2: command, 3: video, 4: data stream */
+        mode_ctrl = <3>;
+        hs_en = <1 1 1 0 1 1>;
+        /* Mbps */
+        datarate = <960>;
+        sys_clk = <960>;
+        phy_clk = <960>;
+        ipi_clk = <96>;
+        ports {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            /* input */
+            port@0 {
+                reg = <0>;
+                dsi_in: endpoint {
+                    remote-endpoint = <&dc_port0_dsi_out>;
+                };
+            };
+            /* output */
+            port@1 {
+                reg = <1>;
+                dsi_out: endpoint {
+                    remote-endpoint = <&panel0_dsi_in>;
+                };
+            };
+        };
+    };

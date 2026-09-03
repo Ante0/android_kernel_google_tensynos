@@ -62,10 +62,6 @@
 #define GXP_DUMP_INTERRUPT_POLARITY_REGISTER 1
 #endif
 
-#ifndef GXP_ENABLE_DEBUG_DUMP
-#define GXP_ENABLE_DEBUG_DUMP 1
-#endif
-
 #ifndef GXP_AUTO_PSM
 #define GXP_AUTO_PSM 0
 #endif

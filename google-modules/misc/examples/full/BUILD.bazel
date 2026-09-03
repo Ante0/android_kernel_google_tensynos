@@ -1,0 +1,150 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module", "ddk_uapi_headers")
+load("//private/devices/google/common/kleaf:create_file.bzl", "create_file")
+
+# Visible to all devices and modules by default.
+package(
+    default_visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules:__subpackages__",
+    ],
+)
+
+# Exposes the Kconfig file to be sourced by device-level Kconfig configurations.
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "drivers/example/Kconfig",
+    ],
+)
+
+# Exposes Device Tree binding headers to be included by device-level DTS files.
+filegroup(
+    name = "foo.dt-bindings",
+    srcs = [
+        "include/dt-bindings/example/google,foo.h",
+    ],
+)
+
+# Packages user-space API (UAPI) headers into a tarball to be merged into the
+# device's UAPI package.
+ddk_uapi_headers(
+    name = "foo.uapi_headers",
+    srcs = [
+        "include/uapi/example/foo_info.h",
+    ],
+    out = "foo_uapi_headers.tar.gz",
+    kernel_build = "//private/devices/google/common:kernel",
+)
+
+# Internal implementation detail of ':foo'. Groups all public headers and
+# exports include directories. DO NOT depend on this target directly; use
+# the public ':foo' alias instead. This is kept private to ensure optional
+# dependency resolution works correctly.
+ddk_headers(
+    name = "foo.headers",
+    hdrs = [
+        "include/dt-bindings/example/google,foo.h",
+        "include/example/foo.h",
+        "include/uapi/example/foo_info.h",
+    ],
+    includes = [
+        "include",
+        "include/uapi",
+    ],
+    # Explicitly private to prevent direct external dependencies.
+    visibility = ["//visibility:private"],
+)
+
+# Generates a stub C file containing a `#error` preprocessor directive.
+# This is used as a safeguard to fail the build if the module is enabled in
+# Bazel but the corresponding Kconfig is not enabled in the defconfig.
+create_file(
+    name = "foo.missing_required_config.c",
+    contents = [
+        "#error CONFIG_EXAMPLE_FOO is not set",
+    ],
+    # Explicitly private as this is an internal implementation detail.
+    visibility = ["//visibility:private"],
+)
+
+# Internal implementation detail of ':foo'. Represents the actual kernel
+# module target that builds 'foo.ko'. DO NOT depend on this target directly;
+# use the public ':foo' alias instead. This is kept private to ensure that
+# dependent modules can fall back to stubs if foo is disabled.
+ddk_module(
+    name = "foo.module",
+    out = "foo.ko",
+    # Exports the headers so dependent modules can use them.
+    hdrs = [
+        ":foo.headers",
+    ],
+    # Conditional compilation based on kernel Kconfig.
+    # If CONFIG_EXAMPLE_FOO is enabled, it compiles the actual driver sources.
+    # If disabled, it compiles the safeguard stub, triggering a build failure.
+    conditional_srcs = {
+        "CONFIG_EXAMPLE_FOO": {
+            True: [
+                "drivers/example/foo_core.c",
+                "drivers/example/foo_helper.c",
+                "drivers/example/foo_internal.h",
+            ],
+            False: [
+                ":foo.missing_required_config.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    # Explicitly private to prevent direct external dependencies and enforce
+    # the use of the public ':foo' alias.
+    visibility = ["//visibility:private"],
+    deps = [
+        "//common:all_headers_aarch64",
+    ],
+)
+
+# A Bazel build setting (flag) that allows enabling or disabling the foo
+# module from the command line or device.bazelrc (e.g., --//path:foo.enable).
+bool_flag(
+    name = "foo.enable",
+    build_setting_default = False,
+    # Explicitly private to restrict usage to this package's internal logic.
+    visibility = ["//visibility:private"],
+)
+
+# Matches when the ':foo.enable' flag is set to True (represented as "1").
+config_setting(
+    name = "foo.enabled",
+    flag_values = {":foo.enable": "1"},
+    # Explicitly private to restrict usage to this package's internal logic.
+    visibility = ["//visibility:private"],
+)
+
+# The public target that dependent modules should reference in their 'deps'.
+# It dynamically resolves to either the actual module (building foo.ko) or
+# just the headers (providing inline stubs), depending on the Bazel flag.
+alias(
+    name = "foo",
+    actual = select({
+        ":foo.enabled": ":foo.module",
+        "//conditions:default": ":foo.headers",
+    }),
+)
+
+# An example module that depends on 'foo'.
+# It will call the actual foo APIs if 'foo' is enabled, or use the inline
+# stubs if 'foo' is disabled, compiling cleanly in both scenarios.
+ddk_module(
+    name = "bar",
+    srcs = [
+        "drivers/example/bar.c",
+    ],
+    out = "bar.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":foo",  # Dependency on the foo alias
+        "//common:all_headers_aarch64",
+    ],
+)

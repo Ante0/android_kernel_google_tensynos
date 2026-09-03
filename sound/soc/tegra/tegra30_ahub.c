@@ -592,13 +592,11 @@ err_unset_ahub:
 	return ret;
 }
 
-static int tegra30_ahub_remove(struct platform_device *pdev)
+static void tegra30_ahub_remove(struct platform_device *pdev)
 {
 	pm_runtime_disable(&pdev->dev);
 
 	ahub = NULL;
-
-	return 0;
 }
 
 static const struct dev_pm_ops tegra30_ahub_pm_ops = {

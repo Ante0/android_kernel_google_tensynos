@@ -26,6 +26,13 @@ struct stackframe {
 #endif
 };
 
+static inline bool on_thread_stack(void)
+{
+	unsigned long delta = current_stack_pointer ^ (unsigned long)current->stack;
+
+	return delta < THREAD_SIZE;
+}
+
 static __always_inline
 void arm_get_current_stackframe(struct pt_regs *regs, struct stackframe *frame)
 {
@@ -44,7 +51,7 @@ void arm_get_current_stackframe(struct pt_regs *regs, struct stackframe *frame)
 
 extern int unwind_frame(struct stackframe *frame);
 extern void walk_stackframe(struct stackframe *frame,
-			    int (*fn)(struct stackframe *, void *), void *data);
+			    bool (*fn)(void *, unsigned long), void *data);
 extern void dump_mem(const char *lvl, const char *str, unsigned long bottom,
 		     unsigned long top);
 extern void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk,

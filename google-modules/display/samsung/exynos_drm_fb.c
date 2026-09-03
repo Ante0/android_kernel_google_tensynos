@@ -563,12 +563,12 @@ void exynos_rmem_register(struct decon_device *decon)
 	}
 
 	rmem = of_reserved_mem_lookup(rmem_np);
+	of_node_put(rmem_np);
 	if (!rmem) {
 		pr_err("failed to reserve memory lookup\n");
 		return;
 	}
 
-	of_node_put(rmem_np);
 	rmem->ops = &rmem_ops;
 	decon->fb_handover.rmem = rmem;
 	of_reserved_mem_device_init_by_idx(dev, np, 0);

@@ -1,0 +1,58 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Wireless charger device tree for Malibu devices
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+&google_charger {
+	google,wlc-power-supply = "wireless";
+	google,therm-wlc-overrides-fcc;
+};
+
+&google_cpm {
+	google,wlc_dc-power-supply = "wireless";	// in=1
+	google,set-mdis-to-wlc;
+	google,no-init-wlc-ta-vol;
+};
+
+&max77779_chg {
+	max77779,wcin-inlim-headroom = <25000>;
+};
+
+&max77779_pinctrl {
+
+	wc_irq: wc_irq {
+		pins = "gpio4";
+		function = "gpio";
+		bias-pull-up;
+	};
+
+	mode_gpio: mode_gpio {
+		pins = "gpio3";
+		function = "gpio";
+		output-low;
+		bias-disable;
+	};
+};
+
+&max77779_i2cm {
+	#include "platform/malibu-wcharger-cps4041.dtsi"
+};
+
+&google_wlc {
+	pinctrl-0 = <&wc_irq &mode_gpio>;
+	irq-gpio = <&max77779_sgpio 4 GPIO_ACTIVE_LOW>; /* NINT, QI_INT_OD_L */
+	mode-gpio = <&max77779_sgpio 3 GPIO_ACTIVE_HIGH>; /* OD3, QI_BPP_FORCE */
+	inhibit-gpio = <&max77779_sgpio 1 GPIO_ACTIVE_HIGH>; /* GP2, QI_RX_COMM_EN_L */
+	interrupt-parent = <&pe26100_buck_charger>;
+	interrupts = <1>;
+	google,charger-switch-skip-cloak;
+
+	bms-external-boost-supply = <&external_boost_regulator>;
+
+	pinctrl-names = "default";
+};

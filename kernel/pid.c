@@ -42,6 +42,7 @@
 #include <linux/sched/signal.h>
 #include <linux/sched/task.h>
 #include <linux/idr.h>
+#include <linux/pidfs.h>
 #include <net/sock.h>
 #include <uapi/linux/pidfd.h>
 
@@ -61,10 +62,13 @@ struct pid init_struct_pid = {
 
 int pid_max = PID_MAX_DEFAULT;
 
-#define RESERVED_PIDS		300
-
 int pid_max_min = RESERVED_PIDS + 1;
 int pid_max_max = PID_MAX_LIMIT;
+/*
+ * Pseudo filesystems start inode numbering after one. We use Reserved
+ * PIDs as a natural offset.
+ */
+static u64 pidfs_ino = RESERVED_PIDS;
 
 /*
  * PID-map pages start out as NULL, they get allocated upon
@@ -82,6 +86,9 @@ struct pid_namespace init_pid_ns = {
 	.ns.inum = PROC_PID_INIT_INO,
 #ifdef CONFIG_PID_NS
 	.ns.ops = &pidns_operations,
+#endif
+#if defined(CONFIG_SYSCTL) && defined(CONFIG_MEMFD_CREATE)
+	.memfd_noexec_scope = MEMFD_NOEXEC_SCOPE_EXEC,
 #endif
 };
 EXPORT_SYMBOL_GPL(init_pid_ns);
@@ -269,6 +276,8 @@ struct pid *alloc_pid(struct pid_namespace *ns, pid_t *set_tid,
 	spin_lock_irq(&pidmap_lock);
 	if (!(ns->pid_allocated & PIDNS_ADDING))
 		goto out_unlock;
+	pid->stashed = NULL;
+	pid->ino = ++pidfs_ino;
 	for ( ; upid >= pid->numbers; --upid) {
 		/* Make the PID visible to find_pid_ns. */
 		idr_replace(&upid->ns->idr, pid, upid->nr);
@@ -346,6 +355,11 @@ static void __change_pid(struct task_struct *task, enum pid_type type,
 	hlist_del_rcu(&task->pid_links[type]);
 	*pid_ptr = new;
 
+	if (type == PIDTYPE_PID) {
+		WARN_ON_ONCE(pid_has_task(pid, PIDTYPE_PID));
+		wake_up_all(&pid->wait_pidfd);
+	}
+
 	for (tmp = PIDTYPE_MAX; --tmp >= 0; )
 		if (pid_has_task(pid, tmp))
 			return;
@@ -388,8 +402,7 @@ void exchange_tids(struct task_struct *left, struct task_struct *right)
 void transfer_pid(struct task_struct *old, struct task_struct *new,
 			   enum pid_type type)
 {
-	if (type == PIDTYPE_PID)
-		new->thread_pid = old->thread_pid;
+	WARN_ON_ONCE(type == PIDTYPE_PID);
 	hlist_replace_rcu(&old->pid_links[type], &new->pid_links[type]);
 }
 
@@ -475,7 +488,7 @@ pid_t pid_nr_ns(struct pid *pid, struct pid_namespace *ns)
 	struct upid *upid;
 	pid_t nr = 0;
 
-	if (pid && ns->level <= pid->level) {
+	if (pid && ns && ns->level <= pid->level) {
 		upid = &pid->numbers[ns->level];
 		if (upid->ns == ns)
 			nr = upid->nr;
@@ -528,18 +541,19 @@ struct pid *pidfd_get_pid(unsigned int fd, unsigned int *flags)
 	struct pid *pid;
 
 	f = fdget(fd);
-	if (!f.file)
+	if (!fd_file(f))
 		return ERR_PTR(-EBADF);
 
-	pid = pidfd_pid(f.file);
+	pid = pidfd_pid(fd_file(f));
 	if (!IS_ERR(pid)) {
 		get_pid(pid);
-		*flags = f.file->f_flags;
+		*flags = fd_file(f)->f_flags;
 	}
 
 	fdput(f);
 	return pid;
 }
+EXPORT_SYMBOL_GPL(pidfd_get_pid);
 
 /**
  * pidfd_get_task() - Get the task associated with a pidfd
@@ -550,25 +564,34 @@ struct pid *pidfd_get_pid(unsigned int fd, unsigned int *flags)
  * Return the task associated with @pidfd. The function takes a reference on
  * the returned task. The caller is responsible for releasing that reference.
  *
- * Currently, the process identified by @pidfd is always a thread-group leader.
- * This restriction currently exists for all aspects of pidfds including pidfd
- * creation (CLONE_PIDFD cannot be used with CLONE_THREAD) and pidfd polling
- * (only supports thread group leaders).
- *
  * Return: On success, the task_struct associated with the pidfd.
  *	   On error, a negative errno number will be returned.
  */
 struct task_struct *pidfd_get_task(int pidfd, unsigned int *flags)
 {
-	unsigned int f_flags;
+	unsigned int f_flags = 0;
 	struct pid *pid;
 	struct task_struct *task;
+	enum pid_type type;
 
-	pid = pidfd_get_pid(pidfd, &f_flags);
-	if (IS_ERR(pid))
-		return ERR_CAST(pid);
+	switch (pidfd) {
+	case  PIDFD_SELF_THREAD:
+		type = PIDTYPE_PID;
+		pid = get_task_pid(current, type);
+		break;
+	case  PIDFD_SELF_THREAD_GROUP:
+		type = PIDTYPE_TGID;
+		pid = get_task_pid(current, type);
+		break;
+	default:
+		pid = pidfd_get_pid(pidfd, &f_flags);
+		if (IS_ERR(pid))
+			return ERR_CAST(pid);
+		type = PIDTYPE_TGID;
+		break;
+	}
 
-	task = get_pid_task(pid, PIDTYPE_TGID);
+	task = get_pid_task(pid, type);
 	put_pid(pid);
 	if (!task)
 		return ERR_PTR(-ESRCH);
@@ -576,6 +599,7 @@ struct task_struct *pidfd_get_task(int pidfd, unsigned int *flags)
 	*flags = f_flags;
 	return task;
 }
+EXPORT_SYMBOL_GPL(pidfd_get_task);
 
 /**
  * pidfd_create() - Create a new pid file descriptor.
@@ -593,7 +617,7 @@ struct task_struct *pidfd_get_task(int pidfd, unsigned int *flags)
  * Return: On success, a cloexec pidfd is returned.
  *         On error, a negative errno number will be returned.
  */
-int pidfd_create(struct pid *pid, unsigned int flags)
+static int pidfd_create(struct pid *pid, unsigned int flags)
 {
 	int pidfd;
 	struct file *pidfd_file;
@@ -607,17 +631,14 @@ int pidfd_create(struct pid *pid, unsigned int flags)
 }
 
 /**
- * pidfd_open() - Open new pid file descriptor.
+ * sys_pidfd_open() - Open new pid file descriptor.
  *
  * @pid:   pid for which to retrieve a pidfd
  * @flags: flags to pass
  *
  * This creates a new pid file descriptor with the O_CLOEXEC flag set for
- * the process identified by @pid. Currently, the process identified by
- * @pid must be a thread-group leader. This restriction currently exists
- * for all aspects of pidfds including pidfd creation (CLONE_PIDFD cannot
- * be used with CLONE_THREAD) and pidfd polling (only supports thread group
- * leaders).
+ * the task identified by @pid. Without PIDFD_THREAD flag the target task
+ * must be a thread-group leader.
  *
  * Return: On success, a cloexec pidfd is returned.
  *         On error, a negative errno number will be returned.
@@ -627,7 +648,7 @@ SYSCALL_DEFINE2(pidfd_open, pid_t, pid, unsigned int, flags)
 	int fd;
 	struct pid *p;
 
-	if (flags & ~PIDFD_NONBLOCK)
+	if (flags & ~(PIDFD_NONBLOCK | PIDFD_THREAD))
 		return -EINVAL;
 
 	if (pid <= 0)
@@ -657,8 +678,11 @@ void __init pid_idr_init(void)
 
 	idr_init(&init_pid_ns.idr);
 
-	init_pid_ns.pid_cachep = KMEM_CACHE(pid,
-			SLAB_HWCACHE_ALIGN | SLAB_PANIC | SLAB_ACCOUNT);
+	init_pid_ns.pid_cachep = kmem_cache_create("pid",
+			struct_size_t(struct pid, numbers, 1),
+			__alignof__(struct pid),
+			SLAB_HWCACHE_ALIGN | SLAB_PANIC | SLAB_ACCOUNT,
+			NULL);
 }
 
 static struct file *__pidfd_fget(struct task_struct *task, int fd)
@@ -677,7 +701,26 @@ static struct file *__pidfd_fget(struct task_struct *task, int fd)
 
 	up_read(&task->signal->exec_update_lock);
 
-	return file ?: ERR_PTR(-EBADF);
+	if (!file) {
+		/*
+		 * It is possible that the target thread is exiting; it can be
+		 * either:
+		 * 1. before exit_signals(), which gives a real fd
+		 * 2. before exit_files() takes the task_lock() gives a real fd
+		 * 3. after exit_files() releases task_lock(), ->files is NULL;
+		 *    this has PF_EXITING, since it was set in exit_signals(),
+		 *    __pidfd_fget() returns EBADF.
+		 * In case 3 we get EBADF, but that really means ESRCH, since
+		 * the task is currently exiting and has freed its files
+		 * struct, so we fix it up.
+		 */
+		if (task->flags & PF_EXITING)
+			file = ERR_PTR(-ESRCH);
+		else
+			file = ERR_PTR(-EBADF);
+	}
+
+	return file;
 }
 
 static int pidfd_getfd(struct pid *pid, int fd)
@@ -695,7 +738,7 @@ static int pidfd_getfd(struct pid *pid, int fd)
 	if (IS_ERR(file))
 		return PTR_ERR(file);
 
-	ret = receive_fd(file, O_CLOEXEC);
+	ret = receive_fd(file, NULL, O_CLOEXEC);
 	fput(file);
 
 	return ret;
@@ -729,10 +772,10 @@ SYSCALL_DEFINE3(pidfd_getfd, int, pidfd, int, fd,
 		return -EINVAL;
 
 	f = fdget(pidfd);
-	if (!f.file)
+	if (!fd_file(f))
 		return -EBADF;
 
-	pid = pidfd_pid(f.file);
+	pid = pidfd_pid(fd_file(f));
 	if (IS_ERR(pid))
 		ret = PTR_ERR(pid);
 	else

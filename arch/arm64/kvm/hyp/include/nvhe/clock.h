@@ -6,10 +6,11 @@
 #include <asm/kvm_hyp.h>
 
 #ifdef CONFIG_TRACING
-void trace_clock_update(struct kvm_nvhe_clock_data *data);
+void trace_clock_update(u32 mult, u32 shift, u64 epoch_ns, u64 epoch_cyc);
 u64 trace_clock(void);
 #else
-static inline void trace_clock_update(struct kvm_nvhe_clock_data *data) { }
+static inline void
+trace_clock_update(u32 mult, u32 shift, u64 epoch_ns, u64 epoch_cyc) { }
 static inline u64 trace_clock(void) { return 0; }
 #endif
 #endif

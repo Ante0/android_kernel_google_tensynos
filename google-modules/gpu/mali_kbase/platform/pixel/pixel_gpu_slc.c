@@ -48,7 +48,7 @@ static bool transition(int *v, int old, int new)
 	return cond;
 }
 
-#ifndef PIXEL_GPU_SLC_ACPM_SIGNAL
+#if !IS_ENABLED(CONFIG_PIXEL_GPU_SLC_ACPM_SIGNAL)
 /**
  * struct gpu_slc_liveness_update_info - Buffer info, and live ranges
  *
@@ -195,7 +195,7 @@ done:
 
 	return err;
 }
-#endif /* PIXEL_GPU_SLC_ACPM_SIGNAL */
+#endif /* CONFIG_PIXEL_GPU_SLC_ACPM_SIGNAL */
 
 /**
  * gpu_slc_kctx_init() - Called when a kernel context is created
@@ -222,18 +222,20 @@ void gpu_slc_kctx_term(struct kbase_context *kctx)
 {
 	struct pixel_platform_data *pd = kctx->platform_data;
 
+	lockdep_assert_held(&kctx->kbdev->hwaccess_lock);
+
 	/* Contexts can be terminated without being idled first */
 	if (transition(&pd->slc_vote, VOTING, IDLE))
 		pixel_mgm_slc_dec_refcount(kctx->kbdev->mgm_dev);
 
-#ifndef PIXEL_GPU_SLC_ACPM_SIGNAL
+#if !IS_ENABLED(CONFIG_PIXEL_GPU_SLC_ACPM_SIGNAL)
 	{
 		struct pixel_context* pc = kctx->kbdev->platform_context;
 		/* Deduct the usage and demand, freeing that SLC space for the next update */
 		u64 kctx_demand = atomic64_xchg(&pd->slc_demand, 0);
 		atomic64_sub(kctx_demand, &pc->slc_demand);
 	}
-#endif /* PIXEL_GPU_SLC_ACPM_SIGNAL */
+#endif /* CONFIG_PIXEL_GPU_SLC_ACPM_SIGNAL */
 }
 
 /**
@@ -243,9 +245,13 @@ void gpu_slc_kctx_term(struct kbase_context *kctx)
  */
 void gpu_slc_kctx_active(struct kbase_context *kctx)
 {
-	struct pixel_platform_data *pd = kctx->platform_data;
+	struct pixel_platform_data *pd;
 
 	lockdep_assert_held(&kctx->kbdev->hwaccess_lock);
+
+	pd = kctx->platform_data;
+	if (!pd)
+		return;
 
 	if (transition(&pd->slc_vote, IDLE, VOTING))
 		pixel_mgm_slc_inc_refcount(kctx->kbdev->mgm_dev);
@@ -258,9 +264,13 @@ void gpu_slc_kctx_active(struct kbase_context *kctx)
  */
 void gpu_slc_kctx_idle(struct kbase_context *kctx)
 {
-	struct pixel_platform_data *pd = kctx->platform_data;
+	struct pixel_platform_data *pd;
 
 	lockdep_assert_held(&kctx->kbdev->hwaccess_lock);
+
+	pd = kctx->platform_data;
+	if (!pd)
+		return;
 
 	if (transition(&pd->slc_vote, VOTING, IDLE))
 		pixel_mgm_slc_dec_refcount(kctx->kbdev->mgm_dev);
@@ -273,7 +283,7 @@ void gpu_slc_kctx_idle(struct kbase_context *kctx)
  */
 void gpu_slc_tick_tock(struct kbase_device *kbdev)
 {
-#ifndef PIXEL_GPU_SLC_ACPM_SIGNAL
+#if !IS_ENABLED(CONFIG_PIXEL_GPU_SLC_ACPM_SIGNAL)
 	struct pixel_context* pc = kbdev->platform_context;
 	/* Threshold of 4MB */
 	u64 signal = atomic64_read(&pc->slc_demand) / (4 << 20);
@@ -281,7 +291,7 @@ void gpu_slc_tick_tock(struct kbase_device *kbdev)
 	pixel_mgm_slc_update_signal(kbdev->mgm_dev, signal);
 #else
 	pixel_mgm_slc_update_signal(kbdev->mgm_dev, 0);
-#endif /* PIXEL_GPU_SLC_ACPM_SIGNAL */
+#endif /* CONFIG_PIXEL_GPU_SLC_ACPM_SIGNAL */
 }
 
 /**

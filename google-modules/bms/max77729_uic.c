@@ -98,7 +98,7 @@
 #define MAX77729_STORAGE_SIZE	8
 #define MAX77729_STORAGE_BASE	(MAX77729_AP_DATAOUT0 + MAX77729_STORAGE_SIZE)
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #endif
@@ -113,7 +113,7 @@ struct max77729_uic_data {
 	struct i2c_client *client;
 	struct regmap *regmap;
 	int irq;
-	int irq_gpio;
+	struct gpio_desc *irq_gpio;
 	uint8_t bc_ctrl1;
 	uint8_t cmd_pending;
 	struct delayed_work noautoibus_work;
@@ -499,7 +499,7 @@ static void max77729_noautoibus_worker(struct work_struct *work)
 }
 
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 static int max77729_dbg_set_noautoibus(void *d, u64 val)
 {
 	struct max77729_uic_data *data = d;
@@ -528,7 +528,7 @@ static int dbg_init_fs(struct max77729_uic_data *data)
 }
 
 #else
-static int dbg_init_fs(void *data)
+static int dbg_init_fs(struct max77729_chgr_data *data)
 {
 	return 0;
 }
@@ -584,8 +584,7 @@ static struct gbms_storage_desc max77729_uic_storage_dsc = {
 	.write = max77729_uic_storage_write,
 };
 
-static int max77729_uic_probe(struct i2c_client *client,
-			      const struct i2c_device_id *id)
+static int max77729_uic_probe(struct i2c_client *client)
 {
 	struct max77729_uic_data *data;
 	struct device *dev = &client->dev;
@@ -638,13 +637,12 @@ static int max77729_uic_probe(struct i2c_client *client,
 
 	data->bc_ctrl1 = max77729_get_bc_ctrl1(dev);
 
-	data->irq_gpio = of_get_named_gpio(dev->of_node,
-					   "max77729,irq-gpio", 0);
-	if (data->irq_gpio < 0) {
+	data->irq_gpio = devm_gpiod_get(dev, "max77729,irq", GPIOD_IN);
+	if (IS_ERR(data->irq_gpio)) {
 		dev_err(dev, "failed get irq_gpio\n");
 		return -EINVAL;
 	}
-	client->irq = gpio_to_irq(data->irq_gpio);
+	client->irq = gpiod_to_irq(data->irq_gpio);
 
 	ret = devm_request_threaded_irq(data->dev, client->irq, NULL,
 					max77729_uic_irq,
@@ -722,7 +720,7 @@ static struct i2c_driver max77729_uic_i2c_driver = {
 		.name = "max77729-uic",
 		.owner = THIS_MODULE,
 		.of_match_table = max77729_uic_of_match_table,
-#ifdef CONFIG_PM
+#if IS_ENABLED(CONFIG_PM)
 		.pm = &max77729_uic_pm_ops,
 #endif
 	},

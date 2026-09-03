@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * yogi common device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+#include "malibu-yogi-pmic.dtsi"
+#include "malibu-yogi-odpm.dtsi"
+#include "malibu-yogi-audio.dtsi"
+#include "malibu-yogi-haptics.dtsi"
+#include "malibu-yogi-wcharger.dtsi"
+#include "malibu-yogi-ntc-thermal.dtsi"
+#include "google-base/platform/malibu-platform-uwb.dtsi"
+#include "malibu-yogi-battery.dtsi"
+#include "malibu-yogi-sfps.dtsi"
+#include "malibu-yogi-charging.dtsi"
+#include "malibu-yogi-usb.dtsi"
+#include "malibu-yogi-display.dtsi"
+#include "malibu-yogi-gpdma.dtsi"
+#include "malibu-yogi-touch.dtsi"
+#include "malibu-yogi-inner-touch.dtsi"
+#include "malibu-yogi-outer-touch.dtsi"
+#include "malibu-yogi-charging-thermal.dtsi"
+#include "malibu-yogi-pcie.dtsi"
+#include "malibu-yogi-usbdp-phy.dtsi"
+#include "malibu-yogi-hall.dtsi"

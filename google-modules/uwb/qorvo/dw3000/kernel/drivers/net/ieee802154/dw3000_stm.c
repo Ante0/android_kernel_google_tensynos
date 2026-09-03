@@ -159,7 +159,7 @@ void dw3000_enqueue_timer(struct dw3000 *dw, struct dw3000_stm_command *cmd)
 }
 
 /* Dequeue work item(s) */
-void dw3000_dequeue(struct dw3000 *dw, unsigned long work)
+static void dw3000_dequeue(struct dw3000 *dw, unsigned long work)
 {
 	struct dw3000_state *stm = &dw->stm;
 	unsigned long flags;
@@ -185,7 +185,7 @@ void dw3000_enqueue_irq(struct dw3000 *dw)
 	spin_unlock_irqrestore(&stm->work_wq.lock, flags);
 }
 
-void dw3000_clear_irq(struct dw3000 *dw)
+static void dw3000_clear_irq(struct dw3000 *dw)
 {
 	struct dw3000_state *stm = &dw->stm;
 	unsigned long flags;
@@ -197,7 +197,7 @@ void dw3000_clear_irq(struct dw3000 *dw)
 }
 
 /* Wait for new work in the queue */
-void dw3000_wait_pending_work(struct dw3000 *dw)
+static void dw3000_wait_pending_work(struct dw3000 *dw)
 {
 	struct dw3000_state *stm = &dw->stm;
 	unsigned long flags;
@@ -209,7 +209,7 @@ void dw3000_wait_pending_work(struct dw3000 *dw)
 }
 
 /* Read work queue state */
-unsigned long dw3000_get_pending_work(struct dw3000 *dw)
+static unsigned long dw3000_get_pending_work(struct dw3000 *dw)
 {
 	struct dw3000_state *stm = &dw->stm;
 	unsigned long work;

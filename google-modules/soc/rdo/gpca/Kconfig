@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_GPCA
+	tristate "Google GPCA driver"
+	depends on ARCH_GOOGLE
+	select CRYPTO_AEAD
+	select CRYPTO_AKCIPHER
+	select ASN1
+	select ASN1_ENCODER
+	help
+	  Enable support for Google GPCA.
+	  GPCA is the General Purpose Crypto Accelerator which handles
+	  Cryptography and Key Management Operations.
+	  GPCA is built as a loadable module.
+
+config GOOGLE_GPCA_CRYPTO_TEST
+	tristate "Test for Google GPCA crypto driver" if !KUNIT_ALL_TESTS
+	depends on GOOGLE_GPCA && KUNIT
+	default KUNIT_ALL_TESTS
+	help
+	  Enable GPCA Key Management Unit test.
+	  This test is built as a loadable module.
+	  The test suite can be run by inserting the module.
+	  It is a KUnit test and needs CONFIG_KUNIT to be enabled and set
+	  kunit.enable = 1 in bootargs kernel command line parameter.
+
+config GOOGLE_GPCA_KEY_TEST
+	tristate "Test for Google GPCA Key driver" if !KUNIT_ALL_TESTS
+	depends on GOOGLE_GPCA && KUNIT
+	default KUNIT_ALL_TESTS
+	help
+	  Enable GPCA Key Management Unit test.
+	  This test is built as a loadable module.
+	  The test suite can be run by inserting the module.
+	  It is a KUnit test and needs CONFIG_KUNIT to be enabled and set
+	  kunit.enable = 1 in bootargs kernel command line parameter.

@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_IP_IDLE_NOTIFIER
+	tristate "Google IP idle notifier driver"
+	depends on ARCH_GOOGLE
+	depends on GOOGLE_MBA_CPM_INTERFACE
+	help
+	  Enable support for Google IP idle notifier driver.
+	  The driver would collect the states of IP (busy/idle)
+	  and write them to the shared-memory of CPM.
+	  If unsure select "N".

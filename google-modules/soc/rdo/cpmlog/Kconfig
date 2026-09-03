@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_CPM_LOG
+	tristate "Google CPM log driver"
+	depends on ARCH_GOOGLE
+	depends on GOOGLE_MBA_CPM_INTERFACE
+	help
+	  Enable support for Google CPM log driver.
+	  The driver would create a debugfs interface to dump log.
+	  The driver would get log from CPM and print it out to kernel
+	  log.
+	  If unsure select "N".

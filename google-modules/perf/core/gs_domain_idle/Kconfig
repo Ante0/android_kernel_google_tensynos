@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Configurations for Google Idle Domain Driver
+#
+
+config GS_DOMAIN_IDLE
+	tristate "Google Domain Idle Driver"
+	default n
+	help
+	  A driver for controlling power domain idle states
+	  for Google Pixel devices.

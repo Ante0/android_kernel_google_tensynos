@@ -18,9 +18,9 @@
 u32 acpm_get_mifdn_count(void);
 u32 acpm_get_apsocdn_count(void);
 u32 acpm_get_early_wakeup_count(void);
-int acpm_get_mif_request(void);
+u32 acpm_get_mif_request(void);
 #else
-static inline int acpm_get_mif_request(void) { return 0; }
+static inline u32 acpm_get_mif_request(void) { return 0; }
 static inline u32 acpm_get_mifdn_count(void) { return 0; }
 static inline u32 acpm_get_apsocdn_count(void) { return 0; }
 static inline u32 acpm_get_early_wakeup_count(void) { return 0; }

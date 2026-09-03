@@ -50,6 +50,12 @@
 		compatible = "google-aoc-snd-incall";
 	};
 
+	aoc_usb_ep: aoc_usb_drv {
+		compatible = "google-aoc-snd-usb";
+		aoc,usb-use-legacy-offload;
+		aoc,usb-disable-event-ring;
+	};
+
 	aoc_snd_card: sound-aoc {
 		compatible = "google-aoc-snd-card";
 		aoc-card-name = "google,aoc-snd-card";
@@ -455,6 +461,7 @@
 				dai-name = "audio_hifiout";
 				stream-name = "audio_hifiout";
 				id = <IDX_HIFI_RX>;
+				dynamic;
 				playback;
 				cpu {
 					sound-dai = <&aud_aoc_path IDX_HIFI_RX>;
@@ -470,6 +477,7 @@
 				dai-name = "audio_hifiin";
 				stream-name = "audio_hifiin";
 				id = <IDX_HIFI_TX>;
+				dynamic;
 				capture;
 				cpu {
 					sound-dai = <&aud_aoc_path IDX_HIFI_TX>;
@@ -797,6 +805,11 @@
 				cpu {
 					sound-dai = <&aud_aoc_path USB_RX>;
 				};
+				platform {
+					rx1 {
+						of_drv = <&aoc_usb_ep>;
+					};
+				};
 			};
 
 			dai_be_usb_tx: be_usb_tx {
@@ -809,6 +822,11 @@
 				usefixup;
 				cpu {
 					sound-dai = <&aud_aoc_path USB_TX>;
+				};
+				platform {
+					rx1 {
+						of_drv = <&aoc_usb_ep>;
+					};
 				};
 			};
 

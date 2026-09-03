@@ -23,7 +23,7 @@
 #include "google_dc_pps.h"
 
 struct pca9468_platform_data {
-	int	irq_gpio;		/* GPIO pin that's connected to INT# */
+	struct gpio_desc *irq_gpio;	/* GPIO pin that's connected to INT# */
 	unsigned int	iin_cfg;	/* Input Current Limit - uA unit */
 	unsigned int	iin_cfg_max;	/* from config/dt */
 	unsigned int	max_v_float_dt;	/* from config/dt */
@@ -45,7 +45,7 @@ struct pca9468_platform_data {
 	bool		sc_clk_dither_en;
 	int		ta_max_cur_mult;
 
-#ifdef CONFIG_THERMAL
+#if IS_ENABLED(CONFIG_THERMAL)
 	const char *usb_tz_name;
 #endif
 };
@@ -236,7 +236,7 @@ struct pca9468_charger {
 	struct pd_pps_data	pps_data;
 	struct logbuffer	*log;
 
-#ifdef CONFIG_THERMAL
+#if IS_ENABLED(CONFIG_THERMAL)
 	struct thermal_zone_device *usb_tzd;
 #endif
 

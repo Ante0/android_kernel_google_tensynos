@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch")
+load("//private/devices/google/common/kleaf:device_build.bzl", "device_build")
+load("//private/devices/google/lga:constants.bzl", "LGA_DTBS", "LGA_MODULE_OUTS")
+load(":constants.bzl", "RANGO_DTBOS")
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+device_build(
+    name = "rango",
+    base_device = "//private/devices/google/lga:lga_base",
+    build_dtb = True,
+    build_dtbo = True,
+    build_system_dlkm = True,
+    build_vendor_dlkm = True,
+    build_vendor_kernel_boot = True,
+    defconfig_fragments = ["rango_defconfig"],
+    dtb_outs = LGA_DTBS,
+    dtbo_outs = RANGO_DTBOS,
+    dts_makefile = "dts/Makefile",
+    dts_srcs = glob(["dts/**"]) + [
+        "//private/google-modules/soc/gs:gs.dt-bindings",
+        "//private/google-modules/soc/rdo:rdo.dt-bindings",
+    ],
+    insmod_cfgs = glob(["insmod_cfg/*.cfg"]),
+    kconfig_exts = ["Kconfig.ext.rango"],
+    kconfigs = [
+        # keep sorted
+        "//private/google-modules/radio/samsung/s5400:cpif.kconfig",
+        "//private/google-modules/touch/fts/fst2:fst2.kconfig",
+    ],
+    module_outs = LGA_MODULE_OUTS,
+    vendor_dlkm_modules = [
+        # keep sorted
+        "//private/google-modules/amplifiers/cs40l26:cl_dsp-core",
+        "//private/google-modules/amplifiers/cs40l26:cs40l26-core",
+        "//private/google-modules/amplifiers/cs40l26:snd-soc-cs40l26",
+        "//private/google-modules/bluetooth/broadcom:nitrous",
+        "//private/google-modules/fingerprint/goodix/gf3626:goodixfp",
+        "//private/google-modules/nfc:st21nfc",
+        "//private/google-modules/nfc/ese:st33spi",
+        "//private/google-modules/radio/samsung/s5400:cp_pmic",
+        "//private/google-modules/radio/samsung/s5400:cp_thermal_zone",
+        "//private/google-modules/radio/samsung/s5400:cpif_ko",
+        "//private/google-modules/radio/samsung/s5400:cpif_page",
+        "//private/google-modules/radio/samsung/s5400:shm_ipc",
+        "//private/google-modules/uwb/slsi/u100",
+        "//private/google-modules/wlan/wonder",
+    ],
+    vendor_dlkm_modules_blocklisted = [
+        # keep sorted
+        "//private/google-modules/amplifiers/cs40l26:cs40l26-i2c",
+        "//private/google-modules/touch/fts/fst2",
+        "//private/google-modules/touch/synaptics/syna_gtd:syna_touch",
+        "//private/google-modules/wlan/bcmdhd/bcm4383:bcmdhd4383",
+        "//private/google-modules/wlan/bcmdhd/bcm4390:bcmdhd4390",
+    ],
+    vendor_ramdisk_modules = [
+        # keep sorted
+        "//private/google-modules/amplifiers/cs35l43:fw_cs_dsp",
+        "//private/google-modules/amplifiers/cs35l43:snd-soc-cs35l43",
+        "//private/google-modules/amplifiers/cs35l43:snd-soc-cs35l43-i2c",
+        "//private/google-modules/amplifiers/cs35l43:snd-soc-cs35l43-spi",
+        "//private/google-modules/amplifiers/cs35l43:snd-soc-wm-adsp",
+        "//private/google-modules/display/common/panels:panel-gs-simple",
+        "//private/google-modules/display/panels/caimito:panel-gs-km4",
+        "//private/google-modules/display/panels/caimito:panel-gs-tk4c",
+        "//private/google-modules/display/panels/rango:panel-gs-rgea",
+        "//private/google-modules/display/panels/rango:panel-gs-rgeb",
+        "//private/google-modules/nfc/ese:st54spi",
+        "//private/google-modules/sensors/hall_sensor",
+    ],
+)
+
+# For compatibility
+alias(
+    name = "lga_rango_dist",
+    actual = ":rango/dist",
+)
+
+alias(
+    name = "kernel",
+    actual = ":rango/kernel",
+)
+
+alias(
+    name = "kernel_compile_commands",
+    actual = ":rango/kernel_compile_commands",
+)

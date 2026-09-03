@@ -32,10 +32,22 @@ struct tlb_props {
 	struct tlb_config *cfg;
 };
 
+typedef u32 sysmmu_pte_t;
+
+struct samsung_sysmmu_domain {
+	struct iommu_domain domain;
+	struct iommu_group *group;
+	unsigned int vid;
+	sysmmu_pte_t *page_table;
+	atomic_t *lv2entcnt;
+	spinlock_t pgtablelock; /* serialize races to page table updates */
+};
+
 struct sysmmu_drvdata {
 	struct list_head list[MAX_VIDS];
 	struct iommu_device iommu;
 	struct device *dev;
+	struct samsung_sysmmu_domain *domain[MAX_VIDS];
 	struct iommu_group *group;
 	void __iomem *sfrbase;
 	struct clk *clk;
@@ -120,7 +132,6 @@ static inline unsigned int __max_vids(struct sysmmu_drvdata *data)
 }
 
 typedef u32 sysmmu_iova_t;
-typedef u32 sysmmu_pte_t;
 
 #define SECT_ORDER 20
 #define LPAGE_ORDER 16

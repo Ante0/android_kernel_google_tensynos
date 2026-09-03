@@ -1,0 +1,117 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2025 Google LLC
+%YAML 1.2
+---
+
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: MAX77759 BCL IRQ driver
+
+maintainers:
+  - Sam Ou <samou@google.com>
+  - Hiroshi Akiyama <hiroshiakiyama@google.com>
+  - Allen Jiang <alljiang@google.com>
+  - Jasmine Cha <chajasmine@google.com>
+  - Maggie Cheng <maggiecheng@google.com>
+
+compatible: "max77759-bcl-irq"
+
+description: |
+  MAX77759 BCL IRQ driver
+
+  Main hardware driver for max77759 BCL.
+
+properties:
+  # A dictionary of DT properties for this binding schema
+  compatible:
+    const: "max77759-bcl-irq"
+
+  gpios:
+    $ref: /schemas/types.yaml#/definitions/gpio-cells
+    dscription:
+      List of gpio lines used for BCL interrupt
+
+  "#address-cells":
+    const: 1
+  "#size-cells":
+    const: 0
+
+  ifpmic:
+    description: Phandle to MAX77759 charger device node.
+    $ref: /schemas/types.yaml#/definitions/phandle
+
+  max77759-bcl-interrupts:
+    type: object
+    description: Container node for MAX77759 BCL interrupt definitions.
+                 Each node represents a interrupt line
+
+    properties:
+      "#address-cells":
+        const: 1
+      "#size-cells":
+        const: 0
+
+      patternProperties:
+        "^interrupt@[0-9a-f]+$": # Matches IRQ node names
+          type: object
+          description: BCL IRQ definition
+
+          properties:
+            reg:
+              description: Address of interrupt.
+              $ref: /schemas/types.yaml#/definitions/uint32
+              minimum: 0
+
+            label:
+              description: Human-readable label for interrupt line.
+              $ref: /schemas/types.yaml#/definitions/string
+
+            interrupts-extended:
+              description: Phandle to interrupt controller and cells.
+              minItems: 1
+              maxItems: 1
+
+            interrupt-parent:
+              description: Phandle to parent interrupt controller.
+              $ref: /schemas/types.yaml#/definitions/phandle
+
+            gpio:
+              description: GPIO for triggering IRQ source
+              $ref: /schemas/types.yaml#/definitions/gpio-cells
+              minItems: 1
+              maxItems: 1
+
+            interrupt-name:
+              description: Name or interrupt line
+              $ref: /schemas/types.yaml#/definition/string
+
+            irq-handler:
+              description: Specifies interrupt handler type that IRQ dispatches
+              type: string
+              enum: [ "vdroop", "irqb" ]
+
+            irq-class:
+              description: Optional specific class or interrupt.
+              type: string
+              const: "intb"
+
+          required:
+            - reg
+            - label
+            - interrupts-extended
+            - interrupt-name
+            - irq-handler
+
+          additionalProperties: false
+
+    required:
+      - "#address-cells"
+      - "#size-cells"
+
+    additionalProperties: false
+
+required:
+  - compatible
+  - max77759-bcl-interrupts
+
+additionalProperties: false

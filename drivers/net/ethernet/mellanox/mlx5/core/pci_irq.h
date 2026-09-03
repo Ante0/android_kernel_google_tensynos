@@ -15,6 +15,7 @@
 #define MLX5_EQ_REFS_PER_IRQ (2)
 
 struct mlx5_irq;
+struct cpu_rmap;
 
 struct mlx5_irq_pool {
 	char name[MLX5_MAX_IRQ_NAME - MLX5_MAX_IRQ_IDX_CHARS];
@@ -27,16 +28,17 @@ struct mlx5_irq_pool {
 	struct mlx5_core_dev *dev;
 };
 
-struct mlx5_irq_pool *mlx5_irq_pool_get(struct mlx5_core_dev *dev);
 static inline bool mlx5_irq_pool_is_sf_pool(struct mlx5_irq_pool *pool)
 {
 	return !strncmp("mlx5_sf", pool->name, strlen("mlx5_sf"));
 }
 
 struct mlx5_irq *mlx5_irq_alloc(struct mlx5_irq_pool *pool, int i,
-				const struct cpumask *affinity);
+				struct irq_affinity_desc *af_desc,
+				struct cpu_rmap **rmap);
 int mlx5_irq_get_locked(struct mlx5_irq *irq);
 int mlx5_irq_read_locked(struct mlx5_irq *irq);
 int mlx5_irq_put(struct mlx5_irq *irq);
+struct mlx5_irq_pool *mlx5_irq_get_pool(struct mlx5_irq *irq);
 
 #endif /* __PCI_IRQ_H__ */

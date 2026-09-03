@@ -84,6 +84,19 @@ config CHARGER_P9221
 	  This driver provides support for the IDT P9221 wireless
 	  power receiver.
 
+config GOOGLE_WLC
+	tristate "Google wireless power receiver driver"
+	depends on I2C
+	help
+	  This driver provides support for wireless
+	  power receivers.
+
+config REGULATOR_LN8282
+	tristate "Cirrus LN8282 Regulator driver"
+	depends on I2C
+	help
+	  This driver provides support for the Cirrus LN8282 regulator.
+
 config CHARGER_MAX77729
 	tristate "Maxim MAX77729 battery charger driver"
 	depends on I2C && OF
@@ -96,11 +109,19 @@ config CHARGER_MAX77759
 	help
 	  Say Y to enable support for the Maxim MAX77759 battery charger.
 
+config MAX77779_USECASE
+	tristate "Maxim MAX77779 usecase state machine driver"
+	depends on CHARGER_MAX77779
+	help
+	  Say Y to enable support for the Maxim MAX77779 usecase state machine driver.
+	  Enables BMS usecase state machine version control via DTS
+
 config CHARGER_MAX77779
 	tristate "Maxim MAX77779 battery charger driver"
 	depends on OF
 	help
 	  Say Y to enable support for the Maxim MAX77779 battery charger.
+	select MAX77779_USECASE
 choice
 	default CHARGER_MAX77779_I2C
 	prompt "MAX77779 Charger Bus module"
@@ -108,6 +129,10 @@ config CHARGER_MAX77779_I2C
 	bool "I2C"
 	depends on I2C
 	select REGMAP_I2C
+config CHARGER_MAX77779_SPMI
+	bool "SPMI"
+	depends on SPMI && GOOGLE_REGMAP_SPMI
+	select REGMAP_SPMI
 endchoice
 
 config FG_MAX77779
@@ -122,6 +147,10 @@ config FG_MAX77779_I2C
 	bool "I2C"
 	depends on I2C
 	select REGMAP_I2C
+config FG_MAX77779_SPMI
+	bool "SPMI"
+	depends on SPMI && GOOGLE_REGMAP_SPMI
+	select REGMAP_SPMI
 endchoice
 
 config VIMON_MAX77779
@@ -136,6 +165,10 @@ config VIMON_MAX77779_I2C
 	bool "I2C"
 	depends on I2C
 	select REGMAP_I2C
+config VIMON_MAX77779_SPMI
+	bool "SPMI"
+	depends on SPMI && GOOGLE_REGMAP_SPMI
+	select REGMAP_SPMI
 endchoice
 
 config PMIC_MAX77729
@@ -186,6 +219,10 @@ config MAX77779_I2CM_I2C
 	bool "I2C"
 	depends on I2C
 	select REGMAP_I2C
+config MAX77779_I2CM_SPMI
+	bool "SPMI"
+	depends on SPMI && GOOGLE_REGMAP_SPMI
+	select REGMAP_SPMI
 endchoice
 
 config MAX77779_PMIC
@@ -200,6 +237,10 @@ config MAX77779_PMIC_I2C
 	bool "I2C"
 	depends on I2C
 	select REGMAP_I2C
+config MAX77779_PMIC_SPMI
+	bool "SPMI"
+	depends on SPMI && GOOGLE_REGMAP_SPMI
+	select REGMAP_SPMI
 endchoice
 
 config MAX77779_PMIC_IRQ
@@ -232,6 +273,10 @@ config MAX77779_SP_I2C
 	bool "I2C"
 	depends on I2C
 	select REGMAP_I2C
+config MAX77779_SP_SPMI
+	bool "SPMI"
+	depends on SPMI && GOOGLE_REGMAP_SPMI
+	select REGMAP_SPMI
 endchoice
 
 config FWUPDATE_MAX77779
@@ -254,3 +299,8 @@ config HL7132
 	depends on I2C && OF
 	help
 	  Say Y to enable support for the HL7132 direct charger.
+
+config MAX_M5
+	bool "Max M5"
+	help
+	  Max M5

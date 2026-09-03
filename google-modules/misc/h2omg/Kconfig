@@ -1,0 +1,11 @@
+config GOOGLE_H2OMG
+	tristate "Google Water Detection"
+	default n
+	help
+	  Say Y here to enable new Google Water Detection.
+	  This Google Water Detection driver (h2omg) exposes the internal
+	  sensors, external sensors and a fuse through sysfs.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called h2omg.
+

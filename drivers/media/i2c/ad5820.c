@@ -290,8 +290,7 @@ static int __maybe_unused ad5820_resume(struct device *dev)
 	return ad5820_power_on(coil, true);
 }
 
-static int ad5820_probe(struct i2c_client *client,
-			const struct i2c_device_id *devid)
+static int ad5820_probe(struct i2c_client *client)
 {
 	struct ad5820_device *coil;
 	int ret;
@@ -348,8 +347,8 @@ static void ad5820_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id ad5820_id_table[] = {
-	{ "ad5820", 0 },
-	{ "ad5821", 0 },
+	{ "ad5820" },
+	{ "ad5821" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, ad5820_id_table);

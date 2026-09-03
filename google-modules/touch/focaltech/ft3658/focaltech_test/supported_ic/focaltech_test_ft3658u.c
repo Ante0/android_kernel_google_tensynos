@@ -266,7 +266,7 @@ static int short_test_ch_to_ch(
 /*
  * start_scan - start to scan a frame
  */
-int ft5652_start_scan(int frame_num)
+static int ft5652_start_scan(int frame_num)
 {
     int ret = 0;
     u8 addr = 0;

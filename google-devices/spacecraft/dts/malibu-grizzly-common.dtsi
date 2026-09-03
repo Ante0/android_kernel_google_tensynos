@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * grizzly common device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+#include "malibu-grizzly-display.dtsi"
+#include "malibu-grizzly-pcie.dtsi"
+#include "malibu-grizzly-pmic.dtsi"
+#include "malibu-grizzly-audio.dtsi"
+#include "google-base/platform/malibu-platform-haptics.dtsi"
+#include "malibu-grizzly-touch.dtsi"
+#include "malibu-grizzly-wcharger.dtsi"
+#include "google-base/platform/malibu-platform-uwb.dtsi"
+#include "google-base/platform/malibu-platform-h2omg.dtsi"
+#include "malibu-spacecraft-ultrasonic-udfps.dtsi"
+#include "malibu-grizzly-battery.dtsi"
+#include "malibu-ntc-thermal.dtsi"
+#include "malibu-grizzly-usb.dtsi"
+#include "malibu-grizzly-usbdp-phy.dtsi"
+#include "malibu-grizzly-charging.dtsi"
+#include "malibu-grizzly-charging-thermal.dtsi"

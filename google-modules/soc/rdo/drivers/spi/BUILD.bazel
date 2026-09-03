@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "spi-dw-mmio",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "spi-dw-mmio.ko",
+    conditional_srcs = {
+        "CONFIG_SPI_DW_GOOGLE_QUIRKS": {
+            True: [
+                "spi-dw-mmio-drv.c",
+                "spi-dw-mmio-trace.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/aoss-ssr-notifier:aoss_ssr_notifier",
+    ],
+)

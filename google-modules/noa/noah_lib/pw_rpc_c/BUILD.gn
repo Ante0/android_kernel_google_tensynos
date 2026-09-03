@@ -1,0 +1,171 @@
+import("//build_overrides/noa.gni")
+import("//build_overrides/pigweed.gni")
+
+import("$dir_pw_build/target_types.gni")
+import("$dir_pw_protobuf_compiler/proto.gni")
+import("$dir_pw_unit_test/test.gni")
+
+config("public_include_path") {
+  include_dirs = [ "public" ]
+}
+
+pw_source_set("pw_rpc_os") {
+  public_configs = [ ":public_include_path" ]
+  public = [ "public/pw_rpc_c/pw_rpc_os.h" ]
+  deps = [
+    "$dir_pw_sync:lock_annotations",
+    "$dir_pw_sync:mutex",
+    "$dir_pw_sync:thread_notification",
+  ]
+  sources = [ "os_pw.cc" ]
+}
+
+pw_source_set("pw_status") {
+  public_configs = [ ":public_include_path" ]
+  public = [ "public/pw_rpc_c/pw_status.h" ]
+}
+
+pw_source_set("pw_rpc_packet") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    ":pw_status",
+    "$dir_pw_rpc:protos.nanopb_rpc",
+    "$dir_pw_third_party/nanopb",
+  ]
+  deps = [ ":pw_rpc_os" ]
+  public = [ "public/pw_rpc_c/pw_rpc_packet.h" ]
+  sources = [ "pw_rpc_packet.c" ]
+}
+
+pw_source_set("pw_rpc_call") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [ ":pw_status" ]
+  public = [ "public/pw_rpc_c/pw_rpc_call.h" ]
+}
+
+pw_source_set("pw_rpc_call_list") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    ":pw_rpc_call",
+    ":pw_status",
+  ]
+  deps = [ ":pw_rpc_os" ]
+  sources = [ "pw_rpc_call_list.c" ]
+  public = [ "public/pw_rpc_c/pw_rpc_call_list.h" ]
+}
+
+pw_source_set("pw_rpc_client") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    ":pw_rpc_call",
+    ":pw_rpc_call_list",
+    ":pw_rpc_packet",
+    ":pw_status",
+    "$dir_pw_third_party/nanopb",
+  ]
+  deps = [
+    ":pw_rpc_os",
+    "$dir_pw_rpc:protos.nanopb_rpc",
+  ]
+  sources = [ "pw_rpc_client.c" ]
+  public = [ "public/pw_rpc_c/pw_rpc_client.h" ]
+}
+
+pw_source_set("pw_rpc_service_client") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    ":pw_rpc_call",
+    ":pw_rpc_client",
+    ":pw_status",
+    "$dir_pw_third_party/nanopb",
+  ]
+  public = [ "public/pw_rpc_c/pw_rpc_service_client.h" ]
+}
+
+group("pw_rpc_c") {
+  public_deps = [
+    ":pw_rpc_client",
+    ":pw_rpc_service_client",
+    ":pw_status",
+  ]
+}
+
+pw_source_set("client_server_testing") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    ":pw_rpc_client",
+    ":pw_status",
+    "$dir_pw_assert",
+    "$dir_pw_bytes",
+    "$dir_pw_containers",
+    "$dir_pw_result",
+    "$dir_pw_rpc:server",
+    "$dir_pw_rpc/nanopb:client_testing",
+    "$dir_pw_span",
+    "$dir_pw_status",
+  ]
+  deps = [ "$dir_pw_rpc:test_helpers" ]
+  public = [ "public/pw_rpc_c/client_server_testing.h" ]
+  sources = [ "client_server_testing.cc" ]
+}
+
+pw_test_group("tests") {
+  tests = [
+    ":pw_rpc_client_test",
+    ":pw_rpc_call_list_test",
+    ":pw_rpc_packet_test",
+    ":client_server_testing_test",
+    ":pw_rpc_service_client_test",
+  ]
+}
+
+pw_test("pw_rpc_client_test") {
+  deps = [
+    ":pw_rpc_client",
+    "$dir_pw_rpc:protos.nanopb_rpc",
+  ]
+  sources = [ "pw_rpc_client_test.cc" ]
+}
+
+pw_test("pw_rpc_call_list_test") {
+  deps = [ ":pw_rpc_client" ]
+  sources = [ "pw_rpc_call_list_test.cc" ]
+}
+
+pw_test("pw_rpc_packet_test") {
+  deps = [
+    ":pw_rpc_packet",
+    ":pw_status",
+  ]
+  sources = [ "pw_rpc_packet_test.cc" ]
+}
+
+pw_test("client_server_testing_test") {
+  deps = [
+    ":client_server_testing",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_client",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_status",
+    "$dir_pw_rpc:protos.nanopb_rpc",
+    "$dir_pw_rpc/nanopb:echo_service",
+  ]
+  sources = [ "client_server_testing_test.cc" ]
+}
+
+pw_proto_library("pw_rpc_service_client_test_protos") {
+  sources = [ "pw_rpc_service_client_test.proto" ]
+  visibility = [ ":*" ]
+}
+
+pw_test("pw_rpc_service_client_test") {
+  deps = [
+    ":client_server_testing",
+    ":pw_rpc_service_client",
+    ":pw_rpc_service_client",
+    ":pw_rpc_service_client_test_protos.nanopb_rpc",
+    ":pw_status",
+    "$dir_pw_containers",
+    "$dir_pw_rpc/nanopb:server_api",
+    "$dir_pw_status",
+  ]
+  sources = [ "pw_rpc_service_client_test.cc" ]
+}

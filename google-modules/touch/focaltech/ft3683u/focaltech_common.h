@@ -59,10 +59,6 @@
 
 #define FTS_CHIP_TYPE_MAPPING   {{0x90, 0x56, 0x72, 0x00, 0x00, 0x00, 0x00, 0x36, 0xB3}}
 
-#ifndef MAX
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#endif
-
 #define FTS_STTW_E5_BUF_LEN                 14
 #define FTS_LPTW_E3_BUF_LEN                 12
 #define FTS_LPTW_E4_BUF_LEN                 24

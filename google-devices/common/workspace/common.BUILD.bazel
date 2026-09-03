@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+"""
+Defines kernel targets which are aliases of real kernel targets from the kernel
+package selected by --kernel_package=<package>.
+"""
+
+load("//private/devices/google/common/kleaf:kernel_selection.bzl", "kernel_package", "kernel_selection")
+
+package(
+    default_visibility = [
+        "//visibility:public",
+    ],
+)
+
+kernel_selection(
+    name = "kernel_package",
+    default = "ack",
+    packages = [
+        kernel_package(
+            name = "ack",
+            aliases = ["@//aosp"],
+            package = "//common/ack",
+        ),
+        kernel_package(
+            name = "gki",
+            aliases = ["@//aosp-with-prebuilts"],
+            package = "//common/gki",
+            prebuilt_repos = {
+                "kernel_aarch64": "@gki_prebuilts",
+                "kernel_aarch64_16k": "@gki_prebuilts_16k",
+            },
+        ),
+        kernel_package(
+            name = "staging",
+            aliases = ["@//aosp-staging"],
+            package = "//common/staging",
+        ),
+        kernel_package(
+            name = "bringup",
+            aliases = ["@//aosp-bringup"],
+            package = "//common/bringup",
+        ),
+    ],
+)

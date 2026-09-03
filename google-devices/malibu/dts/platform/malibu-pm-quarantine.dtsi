@@ -1,0 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+/*
+ * Device tree source to disable devices that are currently failing to
+ * suspend/resume correctly.
+ *
+ * Copyright 2025 Google LLC
+ */

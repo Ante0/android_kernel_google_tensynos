@@ -24,8 +24,8 @@
 上的linux-doc邮件列表。
 
 顺便说下，中文文档也需要遵守内核编码风格，风格中中文和英文的主要不同就是中文
-的字符标点占用两个英文字符宽度， 所以，当英文要求不要超过每行100个字符时，
-中文就不要超过50个字符。另外，也要注意'-'，'=' 等符号与相关标题的对齐。在将
+的字符标点占用两个英文字符宽度，所以，当英文要求不要超过每行100个字符时，
+中文就不要超过50个字符。另外，也要注意'-'，'='等符号与相关标题的对齐。在将
 补丁提交到社区之前，一定要进行必要的 ``checkpatch.pl`` 检查和编译测试。
 
 与Linux 内核社区一起工作
@@ -52,11 +52,8 @@
 
    core-api/index
    driver-api/index
+   subsystem-apis
    内核中的锁 <locking/index>
-
-TODOList:
-
-* subsystem-apis
 
 开发工具和流程
 --------------
@@ -71,6 +68,7 @@ TODOList:
    dev-tools/index
    dev-tools/testing-overview
    kernel-hacking/index
+   rust/index
 
 TODOList:
 
@@ -90,12 +88,12 @@ TODOList:
 
    admin-guide/index
    admin-guide/reporting-issues.rst
+   userspace-api/index
+   内核构建系统 <kbuild/index>
 
 TODOList:
 
-* 内核构建系统 <kbuild/index>
 * 用户空间工具 <tools/index>
-* userspace-api/index
 
 也可参考独立于内核文档的 `Linux 手册页 <https://www.kernel.org/doc/man-pages/>`_ 。
 
@@ -119,17 +117,26 @@ TODOList:
 .. toctree::
    :maxdepth: 2
 
-   arch
+   arch/index
 
 其他文档
 --------
 
-有几份未排序的文档似乎不适合放在文档的其他部分，或者可能需要进行一些调整和/或
+有几份未分类的文档似乎不适合放在文档的其他部分，或者可能需要进行一些调整和/或
 转换为reStructureText格式，也有可能太旧。
 
-TODOList:
+.. toctree::
+   :maxdepth: 2
 
-* staging/index
+   staging/index
+
+术语表
+------
+
+.. toctree::
+   :maxdepth: 1
+
+   glossary
 
 
 索引和表格

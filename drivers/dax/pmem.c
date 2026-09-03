@@ -13,7 +13,6 @@ static struct dev_dax *__dax_pmem_probe(struct device *dev)
 	int rc, id, region_id;
 	resource_size_t offset;
 	struct nd_pfn_sb *pfn_sb;
-	struct dev_dax *dev_dax;
 	struct dev_dax_data data;
 	struct nd_namespace_io *nsio;
 	struct dax_region *dax_region;
@@ -64,13 +63,10 @@ static struct dev_dax *__dax_pmem_probe(struct device *dev)
 		.id = id,
 		.pgmap = &pgmap,
 		.size = range_len(&range),
+		.memmap_on_memory = false,
 	};
-	dev_dax = devm_create_dev_dax(&data);
 
-	/* child dev_dax instances now own the lifetime of the dax_region */
-	dax_region_put(dax_region);
-
-	return dev_dax;
+	return devm_create_dev_dax(&data);
 }
 
 static int dax_pmem_probe(struct device *dev)
@@ -98,6 +94,7 @@ static void __exit dax_pmem_exit(void)
 }
 module_exit(dax_pmem_exit);
 
+MODULE_DESCRIPTION("PMEM DAX: direct access to persistent memory");
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Intel Corporation");
 MODULE_ALIAS_ND_DEVICE(ND_DEVICE_DAX_PMEM);

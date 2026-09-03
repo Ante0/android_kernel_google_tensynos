@@ -63,7 +63,7 @@
         "EventName": "UNC_M_CAS_COUNT.ALL",
         "PerPkg": "1",
         "PublicDescription": "DRAM RD_CAS and WR_CAS Commands; Counts the total number of DRAM CAS commands issued on this channel.",
-        "UMask": "0xF",
+        "UMask": "0xf",
         "Unit": "iMC"
     },
     {
@@ -92,7 +92,6 @@
         "EventCode": "0x4",
         "EventName": "UNC_M_CAS_COUNT.RD_RMM",
         "PerPkg": "1",
-        "PublicDescription": "DRAM RD_CAS and WR_CAS Commands",
         "UMask": "0x20",
         "Unit": "iMC"
     },
@@ -112,7 +111,6 @@
         "EventCode": "0x4",
         "EventName": "UNC_M_CAS_COUNT.RD_WMM",
         "PerPkg": "1",
-        "PublicDescription": "DRAM RD_CAS and WR_CAS Commands",
         "UMask": "0x10",
         "Unit": "iMC"
     },
@@ -123,7 +121,7 @@
         "EventName": "UNC_M_CAS_COUNT.WR",
         "PerPkg": "1",
         "PublicDescription": "DRAM RD_CAS and WR_CAS Commands; Counts the total number of DRAM Write CAS commands issued on this channel.",
-        "UMask": "0xC",
+        "UMask": "0xc",
         "Unit": "iMC"
     },
     {
@@ -336,6 +334,13 @@
         "EventName": "UNC_M_POWER_CRITICAL_THROTTLE_CYCLES",
         "PerPkg": "1",
         "PublicDescription": "Counts the number of cycles when the iMC is in critical thermal throttling.  When this happens, all traffic is blocked.  This should be rare unless something bad is going on in the platform.  There is no filtering by rank for this event.",
+        "Unit": "iMC"
+    },
+    {
+        "Counter": "0,1,2,3",
+        "EventCode": "0x42",
+        "EventName": "UNC_M_POWER_PCU_THROTTLING",
+        "PerPkg": "1",
         "Unit": "iMC"
     },
     {

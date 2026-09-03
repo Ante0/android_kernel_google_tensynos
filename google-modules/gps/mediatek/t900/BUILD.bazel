@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_module", "ddk_uapi_headers")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_module(
+    name = "t900_gps_dump",
+    srcs = [
+        "t900_gps_dump.c",
+    ],
+    out = "t900_gps_dump.ko",
+    hdrs = [
+        "include/uapi/t900_gps_dump.h",
+    ],
+    includes = ["include"],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_uapi_headers(
+    name = "gps_dump_uapi_headers",
+    srcs = glob([
+        "include/uapi/**/*.h",
+    ]),
+    out = "gps-dump-uapi-headers.tar.gz",
+    kernel_build = "//private/devices/google/common:kernel",
+    visibility = ["//private/devices/google:__subpackages__"],
+)

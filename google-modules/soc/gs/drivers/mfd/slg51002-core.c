@@ -7,12 +7,15 @@
 
 #include <linux/delay.h>
 #include <linux/err.h>
+#include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/mfd/core.h>
 #include <linux/mfd/slg51002.h>
 #include <linux/of_gpio.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/regmap.h>
 
 #define SLG51002_CHIP_ID_LEN            3
@@ -353,13 +356,13 @@ static int slg51002_power_on(struct slg51002_dev *chip)
 	if (chip->is_power_on)
 		goto out;
 
-	if (gpio_is_valid(chip->chip_bb_pin)) {
-		gpio_set_value_cansleep(chip->chip_bb_pin, 1);
+	if (chip->bb_gpio) {
+		gpiod_set_value_cansleep(chip->bb_gpio, 1);
 		usleep_range(2000, 2020);
 	}
 
-	if (gpio_is_valid(chip->chip_buck_pin)) {
-		gpio_set_value_cansleep(chip->chip_buck_pin, 1);
+	if (chip->buck_gpio) {
+		gpiod_set_value_cansleep(chip->buck_gpio, 1);
 		usleep_range(2000, 2020);
 	}
 
@@ -368,8 +371,8 @@ static int slg51002_power_on(struct slg51002_dev *chip)
 
 	slg51002_config_tuning(chip);
 
-	if (gpio_is_valid(chip->chip_pu_pin)) {
-		gpio_set_value_cansleep(chip->chip_pu_pin, 1);
+	if (chip->pu_gpio) {
+		gpiod_set_value_cansleep(chip->pu_gpio, 1);
 		usleep_range(1000, 1020);
 	}
 
@@ -421,18 +424,18 @@ static int slg51002_power_off(struct slg51002_dev *chip)
 	}
 
 	/* power off */
-	if (gpio_is_valid(chip->chip_pu_pin)) {
-		gpio_set_value_cansleep(chip->chip_pu_pin, 0);
+	if (chip->pu_gpio) {
+		gpiod_set_value_cansleep(chip->pu_gpio, 0);
 		usleep_range(1000, 1020);
 	}
 
-	if (gpio_is_valid(chip->chip_buck_pin)) {
-		gpio_set_value_cansleep(chip->chip_buck_pin, 0);
+	if (chip->buck_gpio) {
+		gpiod_set_value_cansleep(chip->buck_gpio, 0);
 		usleep_range(1000, 1020);
 	}
 
-	if (gpio_is_valid(chip->chip_bb_pin)) {
-		gpio_set_value_cansleep(chip->chip_bb_pin, 0);
+	if (chip->bb_gpio) {
+		gpiod_set_value_cansleep(chip->bb_gpio, 0);
 		usleep_range(1000, 1020);
 	}
 
@@ -583,13 +586,13 @@ static const struct regmap_config slg51002_regmap_config = {
 	.reg_write = slg51002_reg_write,
 };
 
-static int slg51002_i2c_probe(struct i2c_client *client,
-			      const struct i2c_device_id *id)
+static int slg51002_i2c_probe(struct i2c_client *client)
 {
 	struct slg51002_dev *slg51002;
-	int gpio, ret;
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *state;
+	struct gpio_desc *gpio;
+	int ret;
 
 	slg51002 = devm_kzalloc(&client->dev,
 			sizeof(struct slg51002_dev), GFP_KERNEL);
@@ -622,71 +625,36 @@ static int slg51002_i2c_probe(struct i2c_client *client,
 	}
 
 	/* optional property */
-	gpio = of_get_named_gpio(client->dev.of_node, "dlg,bb-gpios", 0);
-	if (gpio_is_valid(gpio)) {
-		ret = devm_gpio_request_one(&client->dev, gpio,
-				GPIOF_OUT_INIT_HIGH, "slg51002_bb_pin");
-		if (ret) {
-			dev_err(&client->dev, "GPIO(%d) request failed(%d)\n",
-					gpio, ret);
-			return ret;
-		}
-
-		dev_dbg(&client->dev, "GPIO(%d) request (%d)\n", gpio, ret);
-
-		slg51002->chip_bb_pin = gpio;
-		usleep_range(2000, 2020);
-	} else if (of_property_read_bool(client->dev.of_node, "dlg,bb-gpios")) {
-		/* retry probe if property exist */
-		return gpio;
-	} else {
-		slg51002->chip_bb_pin = -1;
+	gpio = devm_gpiod_get_optional(&client->dev, "dlg,bb", GPIOD_OUT_HIGH);
+	if (IS_ERR(gpio)) {
+		dev_warn(&client->dev, "Failed to get bb_gpio: %ld\n", PTR_ERR(gpio));
+		return PTR_ERR(gpio);
 	}
+	slg51002->bb_gpio = gpio;
+	usleep_range(2000, 2020);
 
 	/* optional property */
-	gpio = of_get_named_gpio(client->dev.of_node, "dlg,buck-gpios", 0);
-	if (gpio_is_valid(gpio)) {
-		ret = devm_gpio_request_one(&client->dev, gpio,
-				GPIOF_OUT_INIT_HIGH, "slg51002_buck_pin");
-		if (ret) {
-			dev_err(&client->dev, "GPIO(%d) request failed(%d)\n",
-					gpio, ret);
-			return ret;
-		}
-
-		dev_dbg(&client->dev, "GPIO(%d) request (%d)\n", gpio, ret);
-
-		slg51002->chip_buck_pin = gpio;
-		usleep_range(2000, 2020);
-	} else if (of_property_read_bool(client->dev.of_node, "dlg,buck-gpios")) {
-		/* retry probe if property exist */
-		return gpio;
-	} else {
-		slg51002->chip_buck_pin = -1;
+	gpio = devm_gpiod_get_optional(&client->dev, "dlg,buck", GPIOD_OUT_HIGH);
+	if (IS_ERR(gpio)) {
+		dev_warn(&client->dev, "Failed to get buck_gpio: %ld\n", PTR_ERR(gpio));
+		return PTR_ERR(gpio);
 	}
+	slg51002->buck_gpio = gpio;
+	usleep_range(2000, 2020);
 
-	/* mandatory property. It wakes the chip from low-power reset state */
-	gpio = of_get_named_gpio(client->dev.of_node, "dlg,cs-gpios", 0);
-	if (gpio_is_valid(gpio)) {
-		ret = devm_gpio_request_one(&client->dev, gpio,
-				GPIOF_OUT_INIT_HIGH, "slg51002_cs_pin");
-		if (ret) {
-			dev_err(&client->dev, "GPIO(%d) request failed(%d)\n",
-					gpio, ret);
-			return ret;
-		}
-
-		slg51002->chip_cs_pin = gpio;
-
-		/*
-		 * According to datasheet, turn-on time from CS HIGH to Ready
-		 * state is ~10ms
-		 */
-		usleep_range(SLEEP_10000_USEC,
-			     SLEEP_10000_USEC + SLEEP_RANGE_USEC);
-	} else {
-		return gpio;
+	/* optional property. It wakes the chip from low-power reset state */
+	gpio = devm_gpiod_get_optional(&client->dev, "dlg,cs", GPIOD_OUT_HIGH);
+	if (IS_ERR(gpio)) {
+		dev_warn(&client->dev, "Failed to get cs_gpio: %ld\n", PTR_ERR(gpio));
+		return PTR_ERR(gpio);
 	}
+	slg51002->cs_gpio = gpio;
+	/*
+	 * According to datasheet, turn-on time from CS HIGH to Ready
+	 * state is ~10ms
+	 */
+	usleep_range(SLEEP_10000_USEC,
+			SLEEP_10000_USEC + SLEEP_RANGE_USEC);
 
 	i2c_set_clientdata(client, slg51002);
 
@@ -732,23 +700,14 @@ static int slg51002_i2c_probe(struct i2c_client *client,
 	}
 
 	/* optional property */
-	gpio = of_get_named_gpio(client->dev.of_node, "dlg,pu-gpios", 0);
-	if (gpio_is_valid(gpio)) {
-		ret = devm_gpio_request_one(&client->dev, gpio,
-				GPIOF_OUT_INIT_HIGH, "slg51002_pu_pin");
-		if (ret) {
-			dev_err(&client->dev, "GPIO(%d) request failed(%d)\n",
-					gpio, ret);
-			goto out;
-		}
-
-		dev_dbg(&client->dev, "GPIO(%d) request (%d)\n", gpio, ret);
-
-		slg51002->chip_pu_pin = gpio;
-		usleep_range(1000, 1020);
-	} else {
-		slg51002->chip_pu_pin = -1;
+	gpio = devm_gpiod_get_optional(&client->dev, "dlg,pu", GPIOD_OUT_HIGH);
+	if (IS_ERR(gpio)) {
+		dev_warn(&client->dev, "Failed to get pu_gpio: %ld\n", PTR_ERR(gpio));
+		ret = PTR_ERR(gpio);
+		goto out;
 	}
+	slg51002->pu_gpio = gpio;
+	usleep_range(1000, 1020);
 
 	slg51002_clear_fault_log(slg51002);
 
@@ -762,40 +721,37 @@ static int slg51002_i2c_probe(struct i2c_client *client,
 			ARRAY_SIZE(slg51002_devs), NULL, 0, NULL);
 
 out:
-	mutex_destroy(&slg51002->pwr_lock);
 	del_timer_sync(&slg51002->timer);
+	cancel_work_sync(&slg51002->timeout_work);
+	mutex_destroy(&slg51002->pwr_lock);
 	return ret;
 }
 
 static void slg51002_i2c_remove(struct i2c_client *client)
 {
 	struct slg51002_dev *slg51002 = i2c_get_clientdata(client);
-	struct gpio_desc *desc;
 
 	mfd_remove_devices(slg51002->dev);
-	mutex_destroy(&slg51002->pwr_lock);
 	del_timer_sync(&slg51002->timer);
+	cancel_work_sync(&slg51002->timeout_work);
+	mutex_destroy(&slg51002->pwr_lock);
 
-	if (gpio_is_valid(slg51002->chip_pu_pin)) {
-		desc = gpio_to_desc(slg51002->chip_pu_pin);
-		gpiod_direction_output_raw(desc, GPIOF_INIT_LOW);
+	if (slg51002->pu_gpio) {
+		gpiod_direction_output_raw(slg51002->pu_gpio, 0);
 		usleep_range(1000, 1020);
 	}
-	if (gpio_is_valid(slg51002->chip_cs_pin)) {
-		desc = gpio_to_desc(slg51002->chip_cs_pin);
-		gpiod_direction_output_raw(desc, GPIOF_INIT_LOW);
+	if (slg51002->cs_gpio) {
+		gpiod_direction_output_raw(slg51002->cs_gpio, 0);
 		/* Put SLG51002 back to Reset state */
 		usleep_range(SLEEP_10000_USEC,
 				SLEEP_10000_USEC + SLEEP_RANGE_USEC);
 	}
-	if (gpio_is_valid(slg51002->chip_buck_pin)) {
-		desc = gpio_to_desc(slg51002->chip_buck_pin);
-		gpiod_direction_output_raw(desc, GPIOF_INIT_LOW);
+	if (slg51002->buck_gpio) {
+		gpiod_direction_output_raw(slg51002->buck_gpio, 0);
 		usleep_range(1000, 1020);
 	}
-	if (gpio_is_valid(slg51002->chip_bb_pin)) {
-		desc = gpio_to_desc(slg51002->chip_bb_pin);
-		gpiod_direction_output_raw(desc, GPIOF_INIT_LOW);
+	if (slg51002->bb_gpio) {
+		gpiod_direction_output_raw(slg51002->bb_gpio, 0);
 		usleep_range(1000, 1020);
 	}
 }
@@ -814,6 +770,32 @@ static const struct of_device_id slg51002_of_match[] = {
 MODULE_DEVICE_TABLE(of, slg51002_of_match);
 #endif /* CONFIG_OF */
 
+static int slg51002_pm_suspend(struct device *dev)
+{
+	struct slg51002_dev *chip;
+
+	chip = dev_get_drvdata(dev);
+	if (chip == NULL)
+		return -EINVAL;
+	timer_delete_sync(&chip->timer);
+	cancel_work_sync(&chip->timeout_work);
+	return slg51002_power_off(chip);
+}
+
+static int slg51002_pm_resume(struct device *dev)
+{
+	struct slg51002_dev *chip;
+
+	chip = dev_get_drvdata(dev);
+	if (chip == NULL)
+		return -EINVAL;
+	mod_timer(&chip->timer,
+		jiffies + msecs_to_jiffies(TIMER_EXPIRED_MSEC));
+	return 0;
+}
+
+static DEFINE_SIMPLE_DEV_PM_OPS(slg51002_pm_ops, slg51002_pm_suspend, slg51002_pm_resume);
+
 static struct i2c_driver slg51002_i2c_driver = {
 	.driver = {
 		.name = "slg51002",
@@ -821,6 +803,7 @@ static struct i2c_driver slg51002_i2c_driver = {
 #if defined(CONFIG_OF)
 		.of_match_table = of_match_ptr(slg51002_of_match),
 #endif /* CONFIG_OF */
+		.pm = &slg51002_pm_ops,
 	},
 	.probe = slg51002_i2c_probe,
 	.remove = slg51002_i2c_remove,

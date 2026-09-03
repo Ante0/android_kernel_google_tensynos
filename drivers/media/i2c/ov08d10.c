@@ -217,7 +217,7 @@ static const struct ov08d10_reg lane_2_mode_3280x2460[] = {
 	{0x9a, 0x30},
 	{0xa8, 0x02},
 	{0xfd, 0x02},
-	{0xa1, 0x01},
+	{0xa1, 0x00},
 	{0xa2, 0x09},
 	{0xa3, 0x9c},
 	{0xa5, 0x00},
@@ -335,7 +335,7 @@ static const struct ov08d10_reg lane_2_mode_3264x2448[] = {
 	{0x9a, 0x30},
 	{0xa8, 0x02},
 	{0xfd, 0x02},
-	{0xa1, 0x09},
+	{0xa1, 0x08},
 	{0xa2, 0x09},
 	{0xa3, 0x90},
 	{0xa5, 0x08},
@@ -467,7 +467,7 @@ static const struct ov08d10_reg lane_2_mode_1632x1224[] = {
 	{0xaa, 0xd0},
 	{0xab, 0x06},
 	{0xac, 0x68},
-	{0xa1, 0x09},
+	{0xa1, 0x04},
 	{0xa2, 0x04},
 	{0xa3, 0xc8},
 	{0xa5, 0x04},
@@ -535,9 +535,6 @@ struct ov08d10 {
 
 	/* To serialize asynchronus callbacks */
 	struct mutex mutex;
-
-	/* Streaming on/off */
-	bool streaming;
 
 	/* lanes index */
 	u8 nlanes;
@@ -615,8 +612,8 @@ static const struct ov08d10_lane_cfg lane_cfg_2 = {
 static u32 ov08d10_get_format_code(struct ov08d10 *ov08d10)
 {
 	static const u32 codes[2][2] = {
-		{ MEDIA_BUS_FMT_SGRBG10_1X10, MEDIA_BUS_FMT_SRGGB10_1X10},
-		{ MEDIA_BUS_FMT_SBGGR10_1X10, MEDIA_BUS_FMT_SGBRG10_1X10},
+		{ MEDIA_BUS_FMT_SBGGR10_1X10, MEDIA_BUS_FMT_SGBRG10_1X10 },
+		{ MEDIA_BUS_FMT_SGRBG10_1X10, MEDIA_BUS_FMT_SRGGB10_1X10 },
 	};
 
 	return codes[ov08d10->vflip->val][ov08d10->hflip->val];
@@ -990,8 +987,13 @@ static int ov08d10_init_controls(struct ov08d10 *ov08d10)
 
 	ov08d10->hflip = v4l2_ctrl_new_std(ctrl_hdlr, &ov08d10_ctrl_ops,
 					   V4L2_CID_HFLIP, 0, 1, 1, 0);
+	if (ov08d10->hflip)
+		ov08d10->hflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
 	ov08d10->vflip = v4l2_ctrl_new_std(ctrl_hdlr, &ov08d10_ctrl_ops,
 					   V4L2_CID_VFLIP, 0, 1, 1, 0);
+	if (ov08d10->vflip)
+		ov08d10->vflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
+
 	if (ctrl_hdlr->error)
 		return ctrl_hdlr->error;
 
@@ -1098,9 +1100,6 @@ static int ov08d10_set_stream(struct v4l2_subdev *sd, int enable)
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int ret = 0;
 
-	if (ov08d10->streaming == enable)
-		return 0;
-
 	mutex_lock(&ov08d10->mutex);
 	if (enable) {
 		ret = pm_runtime_resume_and_get(&client->dev);
@@ -1120,8 +1119,6 @@ static int ov08d10_set_stream(struct v4l2_subdev *sd, int enable)
 		pm_runtime_put(&client->dev);
 	}
 
-	ov08d10->streaming = enable;
-
 	/* vflip and hflip cannot change during streaming */
 	__v4l2_ctrl_grab(ov08d10->vflip, enable);
 	__v4l2_ctrl_grab(ov08d10->hflip, enable);
@@ -1129,45 +1126,6 @@ static int ov08d10_set_stream(struct v4l2_subdev *sd, int enable)
 	mutex_unlock(&ov08d10->mutex);
 
 	return ret;
-}
-
-static int __maybe_unused ov08d10_suspend(struct device *dev)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct ov08d10 *ov08d10 = to_ov08d10(sd);
-
-	mutex_lock(&ov08d10->mutex);
-	if (ov08d10->streaming)
-		ov08d10_stop_streaming(ov08d10);
-
-	mutex_unlock(&ov08d10->mutex);
-
-	return 0;
-}
-
-static int __maybe_unused ov08d10_resume(struct device *dev)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct ov08d10 *ov08d10 = to_ov08d10(sd);
-	int ret;
-
-	mutex_lock(&ov08d10->mutex);
-
-	if (ov08d10->streaming) {
-		ret = ov08d10_start_streaming(ov08d10);
-		if (ret) {
-			ov08d10->streaming = false;
-			ov08d10_stop_streaming(ov08d10);
-			mutex_unlock(&ov08d10->mutex);
-			return ret;
-		}
-	}
-
-	mutex_unlock(&ov08d10->mutex);
-
-	return 0;
 }
 
 static int ov08d10_set_format(struct v4l2_subdev *sd,
@@ -1187,7 +1145,7 @@ static int ov08d10_set_format(struct v4l2_subdev *sd,
 	mutex_lock(&ov08d10->mutex);
 	ov08d10_update_pad_format(ov08d10, mode, &fmt->format);
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-		*v4l2_subdev_get_try_format(sd, sd_state, fmt->pad) =
+		*v4l2_subdev_state_get_format(sd_state, fmt->pad) =
 								fmt->format;
 	} else {
 		ov08d10->cur_mode = mode;
@@ -1226,9 +1184,8 @@ static int ov08d10_get_format(struct v4l2_subdev *sd,
 
 	mutex_lock(&ov08d10->mutex);
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY)
-		fmt->format = *v4l2_subdev_get_try_format(&ov08d10->sd,
-							  sd_state,
-							  fmt->pad);
+		fmt->format = *v4l2_subdev_state_get_format(sd_state,
+							    fmt->pad);
 	else
 		ov08d10_update_pad_format(ov08d10, ov08d10->cur_mode,
 					  &fmt->format);
@@ -1284,7 +1241,7 @@ static int ov08d10_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 
 	mutex_lock(&ov08d10->mutex);
 	ov08d10_update_pad_format(ov08d10, &ov08d10->priv_lane->sp_modes[0],
-				  v4l2_subdev_get_try_format(sd, fh->state, 0));
+				  v4l2_subdev_state_get_format(fh->state, 0));
 	mutex_unlock(&ov08d10->mutex);
 
 	return 0;
@@ -1496,10 +1453,6 @@ probe_error_v4l2_ctrl_handler_free:
 	return ret;
 }
 
-static const struct dev_pm_ops ov08d10_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(ov08d10_suspend, ov08d10_resume)
-};
-
 #ifdef CONFIG_ACPI
 static const struct acpi_device_id ov08d10_acpi_ids[] = {
 	{ "OVTI08D1" },
@@ -1512,10 +1465,9 @@ MODULE_DEVICE_TABLE(acpi, ov08d10_acpi_ids);
 static struct i2c_driver ov08d10_i2c_driver = {
 	.driver = {
 		.name = "ov08d10",
-		.pm = &ov08d10_pm_ops,
 		.acpi_match_table = ACPI_PTR(ov08d10_acpi_ids),
 	},
-	.probe_new = ov08d10_probe,
+	.probe = ov08d10_probe,
 	.remove = ov08d10_remove,
 };
 

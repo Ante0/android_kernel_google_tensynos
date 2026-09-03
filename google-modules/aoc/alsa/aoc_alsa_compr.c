@@ -17,6 +17,10 @@
 #include "aoc_alsa.h"
 #include "aoc_alsa_drv.h"
 
+#define COMMON_KERNEL_HAS_OVERFLOW_FIX (0) /* TODO: b/409961928 - enable when fix is in */
+
+#define UINT32_OVERFLOW (0x100000000ULL)
+
 static void aoc_stop_work_handler(struct work_struct *work);
 
 static void aoc_compr_reset_handler(aoc_aud_service_event_t evnt, void *cookies)
@@ -103,10 +107,8 @@ void aoc_compr_offload_isr(struct aoc_service_dev *dev)
 	}
 
 	alsa_stream = dev->prvdata;
-	if (!alsa_stream || !alsa_stream->cstream) {
-		pr_err("ERR: NULL compress offload stream pointer\n");
+	if (!alsa_stream || !alsa_stream->cstream)
 		return;
-	}
 
 	pm_wakeup_ws_event(alsa_stream->chip->wakelock, 1000, true);
 
@@ -149,7 +151,7 @@ void aoc_compr_offload_isr(struct aoc_service_dev *dev)
 	pr_debug("compr offload consumed = %lu, hw_ptr_base = %lu\n", consumed,
 		 alsa_stream->hw_ptr_base);
 
-	/* To deal with overlfow in Tx or Rx in int32_t */
+	/* To deal with overflow in Tx or Rx in int32_t */
 	if (consumed < alsa_stream->prev_consumed) {
 		alsa_stream->n_overflow++;
 		pr_notice("overflow in Tx/Rx: %lu - %lu - %d times\n", consumed,
@@ -158,13 +160,9 @@ void aoc_compr_offload_isr(struct aoc_service_dev *dev)
 	alsa_stream->prev_consumed = consumed;
 
 	/* Update the pcm pointer */
-	if (unlikely(alsa_stream->n_overflow)) {
-		alsa_stream->pos = (consumed + 0x100000000 * alsa_stream->n_overflow -
-				    alsa_stream->hw_ptr_base) %
-				   alsa_stream->buffer_size;
-	} else {
-		alsa_stream->pos = (consumed - alsa_stream->hw_ptr_base) % alsa_stream->buffer_size;
-	}
+	alsa_stream->pos =
+		(consumed + UINT32_OVERFLOW * alsa_stream->n_overflow - alsa_stream->hw_ptr_base) %
+		alsa_stream->buffer_size;
 
 	/* Wake up the sleeping thread */
 	if (alsa_stream->cstream)
@@ -223,7 +221,7 @@ static enum hrtimer_restart aoc_compr_hrtimer_irq_handler(struct hrtimer *timer)
 	pr_debug("consumed = %lu, hw_ptr_base = %lu\n", consumed,
 		 alsa_stream->hw_ptr_base);
 
-	/* To deal with overlfow in Tx or Rx in int32_t */
+	/* To deal with overflow in Tx or Rx in int32_t */
 	if (consumed < alsa_stream->prev_consumed) {
 		alsa_stream->n_overflow++;
 		pr_notice("overflow in Tx/Rx: %lu - %lu - %d times\n", consumed,
@@ -232,14 +230,9 @@ static enum hrtimer_restart aoc_compr_hrtimer_irq_handler(struct hrtimer *timer)
 	alsa_stream->prev_consumed = consumed;
 
 	/* Update the pcm pointer */
-	if (unlikely(alsa_stream->n_overflow)) {
-		alsa_stream->pos =
-			(consumed + 0x100000000 * alsa_stream->n_overflow -
-			 alsa_stream->hw_ptr_base) % alsa_stream->buffer_size;
-	} else {
-		alsa_stream->pos = (consumed - alsa_stream->hw_ptr_base) %
-				   alsa_stream->buffer_size;
-	}
+	alsa_stream->pos =
+		(consumed + UINT32_OVERFLOW * alsa_stream->n_overflow - alsa_stream->hw_ptr_base) %
+		alsa_stream->buffer_size;
 
 	/* Wake up the sleeping thread */
 	if (alsa_stream->cstream)
@@ -438,6 +431,7 @@ static int aoc_compr_playback_free(struct snd_compr_stream *cstream)
 	struct aoc_alsa_stream *alsa_stream = runtime->private_data;
 	struct aoc_chip *chip = alsa_stream->chip;
 	int err;
+	bool mutex_locked = true;
 
 	pr_debug("dai name %s, cstream %pK\n", rtd->dai_link->name, cstream);
 	aoc_timer_stop_sync(alsa_stream);
@@ -445,7 +439,8 @@ static int aoc_compr_playback_free(struct snd_compr_stream *cstream)
 	cancel_work_sync(&alsa_stream->free_aoc_service_work);
 	if (mutex_lock_interruptible(&chip->audio_mutex)) {
 		pr_err("ERR: interrupted while waiting for lock\n");
-		return -EINTR;
+		mutex_locked = false;
+		/* b/480740542 don't return to cleanup the resource */
 	}
 	chip->compr_offload_stream = NULL;
 
@@ -479,7 +474,8 @@ static int aoc_compr_playback_free(struct snd_compr_stream *cstream)
 	chip->opened &= ~(1 << alsa_stream->idx);
 	kfree(alsa_stream);
 
-	mutex_unlock(&chip->audio_mutex);
+	if (mutex_locked)
+		mutex_unlock(&chip->audio_mutex);
 
 	return 0;
 }
@@ -617,7 +613,8 @@ int aoc_compr_get_decoder_position(struct aoc_alsa_stream *alsa_stream, uint64_t
 		return -EINVAL;
 	}
 
-	*position = current_decoder_frame - alsa_stream->compr_pcm_decoder_base;
+	*position = (current_decoder_frame - alsa_stream->compr_pcm_decoder_base) *
+			(long)alsa_stream->params_rate / AOC_COMPR_OFFLOAD_DEFAULT_SR;
 
 	pr_debug("%s: current_decoder_frame=%llu base=%llu, position=%llu\n", __func__,
 			current_decoder_frame, alsa_stream->compr_pcm_decoder_base, *position);
@@ -638,6 +635,12 @@ int aoc_compr_get_position(struct aoc_alsa_stream *alsa_stream, uint64_t *positi
 		return -EINVAL;
 	}
 
+	if (current_sample < alsa_stream->compr_pcm_io_sample_base) {
+		pr_warn("%s: current_sample=%llu base=%llu\n", __func__,
+			current_sample, alsa_stream->compr_pcm_io_sample_base);
+		current_sample = alsa_stream->compr_pcm_io_sample_base;
+	}
+
 	*position = (current_sample - alsa_stream->compr_pcm_io_sample_base) *
 		    (long)alsa_stream->params_rate / AOC_COMPR_OFFLOAD_DEFAULT_SR;
 
@@ -646,8 +649,13 @@ int aoc_compr_get_position(struct aoc_alsa_stream *alsa_stream, uint64_t *positi
 	return 0;
 }
 
+#if COMMON_KERNEL_HAS_OVERFLOW_FIX
+static int aoc_compr_pointer(struct snd_soc_component *component, struct snd_compr_stream *cstream,
+			     struct snd_compr_tstamp64 *arg)
+#else
 static int aoc_compr_pointer(struct snd_soc_component *component, struct snd_compr_stream *cstream,
 			     struct snd_compr_tstamp *arg)
+#endif
 {
 	struct snd_compr_runtime *runtime = cstream->runtime;
 	struct aoc_alsa_stream *alsa_stream = runtime->private_data;
@@ -656,7 +664,16 @@ static int aoc_compr_pointer(struct snd_soc_component *component, struct snd_com
 	//pr_debug("%s, %pK, %pK\n", __func__, runtime, arg);
 
 	arg->byte_offset = alsa_stream->pos;
+#if COMMON_KERNEL_HAS_OVERFLOW_FIX
+	/*
+	 * Handle overflow since prev_consumed is truncated to 32 bit
+	 * due to aoc_ring_bytes_read()
+	 */
+	arg->copied_total = alsa_stream->prev_consumed + UINT32_OVERFLOW * alsa_stream->n_overflow -
+			    alsa_stream->hw_ptr_base;
+#else
 	arg->copied_total = alsa_stream->prev_consumed - alsa_stream->hw_ptr_base;
+#endif
 
 	/* TODO: overflow in samples, HAL only uses pcm_io_samples for timestamps */
 	arg->sampling_rate = alsa_stream->params_rate;
@@ -668,10 +685,18 @@ static int aoc_compr_pointer(struct snd_soc_component *component, struct snd_com
 	arg->pcm_io_frames = (current_sample - alsa_stream->compr_pcm_io_sample_base) *
 			     (long)arg->sampling_rate / AOC_COMPR_OFFLOAD_DEFAULT_SR;
 
+#if COMMON_KERNEL_HAS_OVERFLOW_FIX
+	pr_debug(
+		"compr ptr -total bytes: %llu copied: %llu diff:%llu,samples=%llu,fs=%u,base=%llu\n",
+		runtime->total_bytes_available, arg->copied_total,
+		runtime->total_bytes_available - arg->copied_total, arg->pcm_io_frames,
+		arg->sampling_rate, alsa_stream->compr_pcm_io_sample_base);
+#else
 	pr_debug("compr ptr -total bytes: %llu copied: %u diff:%llu,sampes=%u,fs=%d,base=%llu\n",
 		 runtime->total_bytes_available, arg->copied_total,
 		 runtime->total_bytes_available - arg->copied_total, arg->pcm_io_frames,
 		 arg->sampling_rate, alsa_stream->compr_pcm_io_sample_base);
+#endif
 
 	if ((runtime->total_bytes_available - arg->copied_total) == runtime->buffer_size)
 		__pm_relax(alsa_stream->chip->wakelock);
@@ -700,7 +725,7 @@ static int aoc_compr_playback_copy(struct snd_compr_stream *cstream,
 	if (err < 0)
 		pr_err("ERR: %d failed to send metadata\n", err);
 
-	err = aoc_audio_write(alsa_stream, buf, count);
+	err = aoc_audio_write_user(alsa_stream, buf, count);
 	if (err < 0) {
 		pr_err("ERR:%d failed to write to buffer\n", err);
 		return err;
@@ -811,7 +836,7 @@ static int aoc_compr_get_metadata(struct snd_soc_component *component,
 static int snd_audiocodec_to_aoc_decoder(int snd_type, int codec_param)
 {
 	pr_info("%s: snd_type=%x, codec_param=%x\n", __func__, snd_type, codec_param);
-#if IS_ENABLED(CONFIG_SOC_ZUMA)
+#if !(IS_ENABLED(CONFIG_SOC_GS101) || IS_ENABLED(CONFIG_SOC_GS201))
 	if (((codec_param >> 16) & 0xFFFF) == AOC_CODEC_TAG) {
 		int codec = codec_param & 0xFFFF;
 		if (codec == AOC_CODEC_OPUS)

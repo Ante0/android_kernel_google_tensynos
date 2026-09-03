@@ -1,23 +1,23 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright 2021 Google, LLC
+ * Copyright 2021,2023 Google, LLC
  *
  */
 
-
+#include <linux/gpio/consumer.h>
 #include <linux/kernel.h>
 #include <linux/printk.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/of.h>
-#include <linux/of_gpio.h>
 #include <linux/regmap.h>
 #include "google_bms.h"
 #include "max77759.h"
 #include "max77759_charger.h"
-#include "misc/gvotable.h"
+#include <misc/gvotable.h>
 
 /* ----------------------------------------------------------------------- */
+
 static void gs101_ext_bst_mode(struct max77759_usecase_data *uc_data, int mode);
 static int max77759_chgr_reg_write(struct i2c_client *client, u8 reg, u8 value)
 {
@@ -148,34 +148,41 @@ static int gs101_ls_mode(struct max77759_usecase_data *uc_data, int mode)
 	int ret;
 
 	pr_debug("%s: mode=%d ext_bst_ctl=%d lsw1_c=%d lsw1_o=%d\n", __func__, mode,
-		uc_data->ext_bst_ctl, uc_data->lsw1_is_closed,
-		uc_data->lsw1_is_open);
+		 (IS_ERR_OR_NULL(uc_data->ext_bst_ctl)
+		  ? (int)PTR_ERR(uc_data->ext_bst_ctl)
+		  : desc_to_gpio(uc_data->ext_bst_ctl)),
+		 (IS_ERR_OR_NULL(uc_data->lsw1_is_closed)
+		  ? (int)PTR_ERR(uc_data->lsw1_is_closed)
+		  : desc_to_gpio(uc_data->lsw1_is_closed)),
+		 (IS_ERR_OR_NULL(uc_data->lsw1_is_open)
+		  ? (int)PTR_ERR(uc_data->lsw1_is_open)
+		  : desc_to_gpio(uc_data->lsw1_is_open)));
 
-	if (uc_data->ext_bst_ctl < 0)
+	if (IS_ERR(uc_data->ext_bst_ctl))
 		return 0;
 
 	/* VENDOR_EXTBST_CTRL control LSW1, the read will check the state */
-	gpio_set_value_cansleep(uc_data->ext_bst_ctl, mode);
+	gpiod_set_value_cansleep(uc_data->ext_bst_ctl, mode);
 
 	/* b/182953320 load switch is optional */
-	if (uc_data->lsw1_is_open < 0 || uc_data->lsw1_is_closed < 0)
+	if (IS_ERR(uc_data->lsw1_is_open) || IS_ERR(uc_data->lsw1_is_closed))
 		return 0;
 
 	/* ret <= 0 if *_is* is not true and > 1 if true */
 	switch (mode) {
 	case 0:
 		/* the OVP open right away */
-		ret = gpio_get_value_cansleep(uc_data->lsw1_is_open);
-		if (ret <= 0 && uc_data->ls1_en > 0) {
+		ret = gpiod_get_value_cansleep(uc_data->lsw1_is_open);
+		if (ret <= 0 && !IS_ERR_OR_NULL(uc_data->ls1_en)) {
 			const int max_count = 3;
 			int loops;
 
 			/*  do it manually and re-read after 20ms */
 			for (loops = 0; loops < max_count; loops++) {
-				gpio_set_value_cansleep(uc_data->ls1_en, 0);
+				gpiod_set_value_cansleep(uc_data->ls1_en, 0);
 				usleep_range(20 * USEC_PER_MSEC, 20 * USEC_PER_MSEC + 100);
 
-				ret = gpio_get_value_cansleep(uc_data->lsw1_is_open);
+				ret = gpiod_get_value_cansleep(uc_data->lsw1_is_open);
 				pr_debug("%s: open lsw1 attempt %d/%d ret=%d\n",
 					 __func__, loops, max_count, ret);
 				if (ret > 0)
@@ -186,7 +193,7 @@ static int gs101_ls_mode(struct max77759_usecase_data *uc_data, int mode)
 	case 1:
 		/* it takes 11 ms to turn on the OVP */
 		usleep_range(11 * USEC_PER_MSEC, 11 * USEC_PER_MSEC + 100);
-		ret = gpio_get_value_cansleep(uc_data->lsw1_is_closed);
+		ret = gpiod_get_value_cansleep(uc_data->lsw1_is_closed);
 		break;
 	default:
 		return -EINVAL;
@@ -200,10 +207,14 @@ static int gs101_ls_mode(struct max77759_usecase_data *uc_data, int mode)
 #define OVP_LS2_MODE_ON		1
 static int gs101_ls2_mode(struct max77759_usecase_data *uc_data, int mode)
 {
-	pr_debug("%s: ls2_en=%d mode=%d\n", __func__, uc_data->ls2_en, mode);
+	pr_debug("%s: ls2_en=%d mode=%d\n", __func__,
+		 (IS_ERR_OR_NULL(uc_data->ls2_en)
+		  ? (int)PTR_ERR(uc_data->ls2_en)
+		  : desc_to_gpio(uc_data->ls2_en)),
+		 mode);
 
-	if (uc_data->ls2_en >= 0)
-		gpio_set_value_cansleep(uc_data->ls2_en, !!mode);
+	if (!IS_ERR(uc_data->ls2_en))
+		gpiod_set_value_cansleep(uc_data->ls2_en, !!mode);
 
 	return 0;
 }
@@ -221,37 +232,40 @@ static int gs101_ls2_mode(struct max77759_usecase_data *uc_data, int mode)
  */
 static int gs101_ext_mode(struct max77759_usecase_data *uc_data, int mode)
 {
-	int ret = 0;
-
 	pr_debug("%s: mode=%d on=%d sel=%d\n", __func__, mode,
-		 uc_data->bst_on, uc_data->bst_sel);
+		(IS_ERR_OR_NULL(uc_data->bst_on)
+		 ? (int)PTR_ERR(uc_data->bst_on)
+		 : desc_to_gpio(uc_data->bst_on)),
+		(IS_ERR_OR_NULL(uc_data->bst_sel)
+		 ? (int)PTR_ERR(uc_data->bst_sel)
+		 : desc_to_gpio(uc_data->bst_sel)));
 
-	if (uc_data->bst_on < 0)
+	if (IS_ERR(uc_data->bst_on))
 		return 0;
 
 	switch (mode) {
 	case EXT_MODE_OFF:
-		gpio_set_value_cansleep(uc_data->bst_on, 0);
+		gpiod_set_value_cansleep(uc_data->bst_on, 0);
 		break;
 	case EXT_MODE_OTG_5_0V:
-		if (uc_data->bst_sel > 0) {
-			gpio_set_value_cansleep(uc_data->bst_sel, 0);
+		if (!IS_ERR(uc_data->bst_sel)) {
+			gpiod_set_value_cansleep(uc_data->bst_sel, 0);
 			usleep_range(100 * USEC_PER_MSEC, 100 * USEC_PER_MSEC + 100);
 		}
-		gpio_set_value_cansleep(uc_data->bst_on, 1);
+		gpiod_set_value_cansleep(uc_data->bst_on, 1);
 		break;
 	case EXT_MODE_OTG_7_5V: /* TODO: verify this */
-		if (uc_data->bst_sel > 0) {
-			gpio_set_value_cansleep(uc_data->bst_sel, 1);
+		if (!IS_ERR(uc_data->bst_sel)) {
+			gpiod_set_value_cansleep(uc_data->bst_sel, 1);
 			usleep_range(100 * USEC_PER_MSEC, 100 * USEC_PER_MSEC + 100);
 		}
-		gpio_set_value_cansleep(uc_data->bst_on, 1);
+		gpiod_set_value_cansleep(uc_data->bst_on, 1);
 		break;
 	default:
 		return -EINVAL;
 	}
 
-	return ret;
+	return 0;
 }
 
 int gs101_wlc_en_with_defender_reason(struct max77759_usecase_data *uc_data,
@@ -266,12 +280,20 @@ int gs101_wlc_en_with_defender_reason(struct max77759_usecase_data *uc_data,
 		wlc_on = 1;
 
 	pr_debug("%s: cpout_en=%d wlc_en=%d wlc_vbus_en=%d wlc_on=%d wlc_state=%d def_en %d\n",
-		__func__, uc_data->cpout_en, uc_data->wlc_en, uc_data->wlc_vbus_en, wlc_on,
-		state, defender_enabled);
+		 __func__,
+		 (IS_ERR_OR_NULL(uc_data->cpout_en)
+		  ? (int)PTR_ERR(uc_data->cpout_en)
+		  : desc_to_gpio(uc_data->cpout_en)),
+		 (IS_ERR_OR_NULL(uc_data->wlc_en)
+		  ? (int)PTR_ERR(uc_data->wlc_en)
+		  : desc_to_gpio(uc_data->wlc_en)),
+		 (IS_ERR_OR_NULL(uc_data->wlc_vbus_en)
+		  ? (int)PTR_ERR(uc_data->wlc_vbus_en)
+		  : desc_to_gpio(uc_data->wlc_vbus_en)), wlc_on, state, defender_enabled);
 
-	if (uc_data->cpout_en >= 0) {
-		if (state == WLC_SPOOFED && uc_data->wlc_spoof_gpio)
-			gpio_set_value_cansleep(uc_data->wlc_spoof_gpio, 1);
+	if (!IS_ERR(uc_data->cpout_en)) {
+		if (state == WLC_SPOOFED && !IS_ERR_OR_NULL(uc_data->wlc_spoof_gpio))
+			gpiod_set_value_cansleep(uc_data->wlc_spoof_gpio, 1);
 		wlc_defender_enabled_votable = gvotable_election_get_handle(WLC_DEFENDER_VOTABLE);
 		if (wlc_defender_enabled_votable) {
 			ret = gvotable_cast_bool_vote(wlc_defender_enabled_votable,
@@ -279,13 +301,13 @@ int gs101_wlc_en_with_defender_reason(struct max77759_usecase_data *uc_data,
 			pr_debug("%s: casted %s defender_enabled_vote %d ret %d\n",
 				__func__, DEFENDER_ENABLED_VOTER, defender_enabled_vote, ret);
 		}
-		gpio_set_value_cansleep(uc_data->cpout_en, wlc_on);
+		gpiod_set_value_cansleep(uc_data->cpout_en, wlc_on);
 	} else if (!wlc_on) {
 		/*
 		 * when
 		 *   uc_data->cpout_en != -EPROBE_DEFER && uc_data->wlc_en
 		 * could use uc_data->wlc_en with:
-		 *   gpio_set_value_cansleep(uc_data->wlc_en, !!wlc_on);
+		 *   gpiod_set_value_cansleep(uc_data->wlc_en, !!wlc_on);
 		 *
 		 * BUT need to resolve the race on start since toggling
 		 * ->wlc_en might not be undone by using ->cpout_en
@@ -293,8 +315,8 @@ int gs101_wlc_en_with_defender_reason(struct max77759_usecase_data *uc_data,
 	}
 
 	/* b/202526678 */
-	if (uc_data->wlc_vbus_en >= 0)
-		gpio_set_value_cansleep(uc_data->wlc_vbus_en, wlc_on);
+	if (!IS_ERR(uc_data->wlc_vbus_en))
+		gpiod_set_value_cansleep(uc_data->wlc_vbus_en, wlc_on);
 
 	return ret;
 }
@@ -332,8 +354,8 @@ static int gs101_wlc_tx_enable(struct max77759_usecase_data *uc_data,
 		if (ret < 0)
 			return ret;
 
-		if (uc_data->cpout21_en >= 0)
-			gpio_set_value_cansleep(uc_data->cpout21_en, 0);
+		if (!IS_ERR(uc_data->cpout21_en))
+			gpiod_set_value_cansleep(uc_data->cpout21_en, 0);
 	} else {
 		/* p9412 is already off from insel */
 		ret = gs101_wlc_en(uc_data, WLC_DISABLED);
@@ -363,12 +385,12 @@ static int gs101_cpout_mode(struct max77759_usecase_data *uc_data, int mode)
 	int ret;
 
 	/* do not change MW unless p9412 can be changed as well */
-	if (uc_data->cpout_ctl < 0)
+	if (IS_ERR_OR_NULL(uc_data->cpout_ctl))
 		return 0;
 
 	if (mode == GS101_WLCRX_CPOUT_5_2V) {
 		/* p9412: set CPOUT==5.2 only if on BPP */
-		gpio_set_value_cansleep(uc_data->cpout_ctl, 1);
+		gpiod_set_value_cansleep(uc_data->cpout_ctl, 1);
 
 		/* NOTE: no DC_IN to MW when WCIN_REG==4_85 unless CPOUT==5.2 */
 		ret =  max77759_chgr_reg_update(uc_data->client, MAX77759_CHG_CNFG_12,
@@ -376,7 +398,7 @@ static int gs101_cpout_mode(struct max77759_usecase_data *uc_data, int mode)
 					       MAX77759_CHG_CNFG_12_WCIN_REG_4_85);
 	} else {
 		/* p9412: reset CPOUT to default */
-		gpio_set_value_cansleep(uc_data->cpout_ctl, 0);
+		gpiod_set_value_cansleep(uc_data->cpout_ctl, 0);
 
 		ret =  max77759_chgr_reg_update(uc_data->client, MAX77759_CHG_CNFG_12,
 					       MAX77759_CHG_CNFG_12_WCIN_REG_MASK,
@@ -462,8 +484,8 @@ static int gs101_pogo_vout_enable(struct max77759_usecase_data *uc_data,
 	pr_debug("%s: pogo_vout_en (%d)\n", __func__, enable);
 
 	ret = gs101_ext_mode(uc_data, enable ? EXT_MODE_OTG_5_0V : EXT_MODE_OFF);
-	if (ret == 0 && uc_data->pogo_vout_en > 0)
-		gpio_set_value_cansleep(uc_data->pogo_vout_en, enable);
+	if (ret == 0 && !IS_ERR(uc_data->pogo_vout_en))
+		gpiod_set_value_cansleep(uc_data->pogo_vout_en, enable);
 
 	return ret;
 }
@@ -612,8 +634,8 @@ int gs101_to_standby(struct max77759_usecase_data *uc_data, int use_case)
 
 	/* from WLC-DC to STBY */
 	if (from_uc == GSU_MODE_WLC_DC) {
-		if (uc_data->dc_sw_gpio > 0)
-			gpio_set_value_cansleep(uc_data->dc_sw_gpio, 0);
+		if (!IS_ERR(uc_data->dc_sw_gpio))
+			gpiod_set_value_cansleep(uc_data->dc_sw_gpio, 0);
 		ret = gs101_ext_mode(uc_data, EXT_MODE_OFF);
 		if (ret < 0) {
 			pr_debug("%s: cannot change extmode ret:%d\n",
@@ -645,8 +667,8 @@ int gs101_to_standby(struct max77759_usecase_data *uc_data, int use_case)
 	}
 
 	/* b/178458456 exit from all OTG cases need to reset the limit */
-	if (uc_data->otg_enable > 0)
-		gpio_set_value_cansleep(uc_data->otg_enable, 0);
+	if (!IS_ERR(uc_data->otg_enable))
+		gpiod_set_value_cansleep(uc_data->otg_enable, 0);
 
 	/* transition to STBY (might need to be up) */
 	ret = max77759_chgr_mode_write(uc_data->client, MAX77759_CHGR_MODE_ALL_OFF);
@@ -721,7 +743,7 @@ EXPORT_SYMBOL_GPL(gs101_force_standby);
 /* b/188488966 */
 static int gs101_frs_to_otg(struct max77759_usecase_data *uc_data)
 {
-	int closed, ret;
+	int closed = -1, ret;
 
 	ret = gs101_ext_mode(uc_data, EXT_MODE_OTG_5_0V);
 	if (ret < 0)
@@ -729,17 +751,23 @@ static int gs101_frs_to_otg(struct max77759_usecase_data *uc_data)
 
 	msleep(100);
 
-	if (uc_data->ls1_en > 0)
-		gpio_set_value_cansleep(uc_data->ls1_en, 1);
+	if (!IS_ERR(uc_data->ls1_en))
+		gpiod_set_value_cansleep(uc_data->ls1_en, 1);
 
 	msleep(100);
 
-	if (uc_data->lsw1_is_closed >= 0)
-		closed = gpio_get_value_cansleep(uc_data->lsw1_is_closed);
+	if (!IS_ERR(uc_data->lsw1_is_closed))
+		closed = gpiod_get_value_cansleep(uc_data->lsw1_is_closed);
 
 exit_done:
 	pr_debug("%s: ls1_en=%d lsw1_is_closed=%d closed=%d ret=%d\n",
-		 __func__, uc_data->ls1_en, uc_data->lsw1_is_closed,
+		 __func__,
+		 (IS_ERR_OR_NULL(uc_data->ls1_en)
+		  ? (int)PTR_ERR(uc_data->ls1_en)
+		  : desc_to_gpio(uc_data->ls1_en)),
+		 (IS_ERR_OR_NULL(uc_data->lsw1_is_closed)
+		  ? (int)PTR_ERR(uc_data->lsw1_is_closed)
+		  : desc_to_gpio(uc_data->lsw1_is_closed)),
 		 closed, ret);
 	return ret;
 }
@@ -810,11 +838,10 @@ static int gs101_otg_enable(struct max77759_usecase_data *uc_data, int mode)
 	int ret, retn;
 
 	/* the code default to write to the MODE register */
-	if (uc_data->vin_is_valid >= 0) {
-
+	if (!IS_ERR(uc_data->vin_is_valid)) {
 		/* b/178458456 */
-		if (uc_data->otg_enable > 0)
-			gpio_set_value_cansleep(uc_data->otg_enable, 1);
+		if (!IS_ERR(uc_data->otg_enable))
+			gpiod_set_value_cansleep(uc_data->otg_enable, 1);
 
 		/* NBC workaround */
 		ret = gs101_ls_mode(uc_data, 1);
@@ -838,7 +865,7 @@ static int gs101_otg_enable(struct max77759_usecase_data *uc_data, int mode)
 			return ret;
 		}
 
-		ret = gpio_get_value_cansleep(uc_data->vin_is_valid);
+		ret = gpiod_get_value_cansleep(uc_data->vin_is_valid);
 		if (ret == 0) {
 			pr_debug("%s: VIN not VALID\n",  __func__);
 			ret = -EIO;
@@ -879,8 +906,8 @@ static int gs101_otg_enable(struct max77759_usecase_data *uc_data, int mode)
 		msleep(30);
 
 		/* b/178458456 */
-		if (uc_data->otg_enable > 0)
-			gpio_set_value_cansleep(uc_data->otg_enable, 0);
+		if (!IS_ERR(uc_data->otg_enable))
+			gpiod_set_value_cansleep(uc_data->otg_enable, 0);
 	}
 
 	goto exit;
@@ -900,8 +927,8 @@ static int gs101_wlctx_otg_en(struct max77759_usecase_data *uc_data, bool enable
 
 	if (enable) {
 		/* this should be already set */
-		if (uc_data->sw_en >= 0)
-			gpio_set_value_cansleep(uc_data->sw_en, 1);
+		if (!IS_ERR(uc_data->sw_en))
+			gpiod_set_value_cansleep(uc_data->sw_en, 1);
 
 		ret = gs101_otg_update_ilim(uc_data, true);
 		if (ret < 0)
@@ -940,9 +967,13 @@ static void gs101_ext_bst_mode(struct max77759_usecase_data *uc_data, int mode)
 {
 	struct max77759_chgr_data *data;
 
-	pr_debug("%s: ext_bst_mode=%d mode=%d\n", __func__, uc_data->ext_bst_mode, mode);
+	pr_debug("%s: ext_bst_mode=%d mode=%d\n", __func__,
+		 (IS_ERR_OR_NULL(uc_data->ext_bst_mode)
+		  ? (int)PTR_ERR(uc_data->ext_bst_mode)
+		  : desc_to_gpio(uc_data->ext_bst_mode)),
+		 mode);
 
-	if (uc_data->ext_bst_mode <= 0)
+	if (IS_ERR_OR_NULL(uc_data->ext_bst_mode))
 		return;
 
 	if (!uc_data->client)
@@ -955,7 +986,7 @@ static void gs101_ext_bst_mode(struct max77759_usecase_data *uc_data, int mode)
 	}
 
 write_bst_mode:
-	gpio_set_value_cansleep(uc_data->ext_bst_mode, mode);
+	gpiod_set_value_cansleep(uc_data->ext_bst_mode, mode);
 }
 
 /*
@@ -1247,19 +1278,18 @@ int gs101_to_usecase(struct max77759_usecase_data *uc_data, int use_case)
 		if (from_uc == GSU_MODE_USB_CHG_POGO_VOUT)
 			ret = gs101_pogo_vout_enable(uc_data, false);
 		/* b/232723240: charge over USB-C
-		 *              set to 0 for POGO_OVP_EN
-		 *              set to 1 for POGO_OVP_EN_L
+		 *              disable line
 		 */
-		if (uc_data->pogo_ovp_en > 0)
-			gpio_set_value_cansleep(uc_data->pogo_ovp_en, uc_data->pogo_ovp_en_act_low);
+		if (!IS_ERR(uc_data->pogo_ovp_en))
+			gpiod_set_value_cansleep(uc_data->pogo_ovp_en, 0);
 		break;
 	case GSU_MODE_USB_WLC_RX:
 	case GSU_RAW_MODE:
 		/* just write the value to the register (it's in stby) */
 		break;
 	case GSU_MODE_WLC_DC:
-		if (uc_data->dc_sw_gpio > 0)
-			gpio_set_value_cansleep(uc_data->dc_sw_gpio, 1);
+		if (!IS_ERR(uc_data->dc_sw_gpio))
+			gpiod_set_value_cansleep(uc_data->dc_sw_gpio, 1);
 		ret = gs101_ext_mode(uc_data, EXT_MODE_OTG_5_0V);
 		if (ret < 0) {
 			pr_debug("%s: cannot change extmode ret:%d\n",
@@ -1318,11 +1348,11 @@ EXPORT_SYMBOL_GPL(max77759_otg_vbyp_mv_to_code);
 
 static bool gs101_setup_usecases_done(struct max77759_usecase_data *uc_data)
 {
-	return (uc_data->cpout_en != -EPROBE_DEFER) &&
-	       (uc_data->cpout_ctl != -EPROBE_DEFER) &&
-	       (uc_data->wlc_vbus_en != -EPROBE_DEFER) &&
-	       (uc_data->ext_bst_ctl != -EPROBE_DEFER) &&
-	       (uc_data->bst_sel != -EPROBE_DEFER);
+	return (PTR_ERR(uc_data->cpout_en) != -EPROBE_DEFER) &&
+		(PTR_ERR(uc_data->cpout_ctl) != -EPROBE_DEFER) &&
+		(PTR_ERR(uc_data->wlc_vbus_en) != -EPROBE_DEFER) &&
+		(PTR_ERR(uc_data->ext_bst_ctl) != -EPROBE_DEFER) &&
+		(PTR_ERR(uc_data->bst_sel) != -EPROBE_DEFER);
 
 	/* TODO: handle platform specific differences..
 	       uc_data->ls2_en != -EPROBE_DEFER &&
@@ -1344,31 +1374,31 @@ static void gs101_setup_default_usecase(struct max77759_usecase_data *uc_data)
 
 	uc_data->is_a1 = -1;
 
-	uc_data->bst_on = -EPROBE_DEFER;
-	uc_data->bst_sel = -EPROBE_DEFER;
-	uc_data->ext_bst_ctl = -EPROBE_DEFER;
-	uc_data->pogo_ovp_en = -EPROBE_DEFER;
-	uc_data->pogo_vout_en = -EPROBE_DEFER;
+	uc_data->bst_on = ERR_PTR(-EPROBE_DEFER);
+	uc_data->bst_sel = ERR_PTR(-EPROBE_DEFER);
+	uc_data->ext_bst_ctl = ERR_PTR(-EPROBE_DEFER);
+	uc_data->pogo_ovp_en = ERR_PTR(-EPROBE_DEFER);
+	uc_data->pogo_vout_en = ERR_PTR(-EPROBE_DEFER);
 
-	uc_data->ls1_en = -EPROBE_DEFER;
-	uc_data->ls2_en = -EPROBE_DEFER;
-	uc_data->sw_en = -EPROBE_DEFER;
+	uc_data->ls1_en = ERR_PTR(-EPROBE_DEFER);
+	uc_data->ls2_en = ERR_PTR(-EPROBE_DEFER);
+	uc_data->sw_en = ERR_PTR(-EPROBE_DEFER);
 
-	uc_data->vin_is_valid = -EPROBE_DEFER;
-	uc_data->lsw1_is_closed = -EPROBE_DEFER;
-	uc_data->lsw1_is_open = -EPROBE_DEFER;
+	uc_data->vin_is_valid = ERR_PTR(-EPROBE_DEFER);
+	uc_data->lsw1_is_closed = ERR_PTR(-EPROBE_DEFER);
+	uc_data->lsw1_is_open = ERR_PTR(-EPROBE_DEFER);
 
-	uc_data->otg_enable = -EPROBE_DEFER;
+	uc_data->otg_enable = ERR_PTR(-EPROBE_DEFER);
 
-	uc_data->wlc_en = -EPROBE_DEFER;
-	uc_data->wlc_vbus_en = -EPROBE_DEFER;
-	uc_data->cpout_en = -EPROBE_DEFER;
-	uc_data->wlc_spoof_gpio = -EPROBE_DEFER;
-	uc_data->cpout_ctl = -EPROBE_DEFER;
-	uc_data->cpout21_en = -EPROBE_DEFER;
+	uc_data->wlc_en = ERR_PTR(-EPROBE_DEFER);
+	uc_data->wlc_vbus_en = ERR_PTR(-EPROBE_DEFER);
+	uc_data->cpout_en = ERR_PTR(-EPROBE_DEFER);
+	uc_data->wlc_spoof_gpio = ERR_PTR(-EPROBE_DEFER);
+	uc_data->cpout_ctl = ERR_PTR(-EPROBE_DEFER);
+	uc_data->cpout21_en = ERR_PTR(-EPROBE_DEFER);
 
-	uc_data->ext_bst_mode = -EPROBE_DEFER;
-	uc_data->dc_sw_gpio = -EPROBE_DEFER;
+	uc_data->ext_bst_mode = ERR_PTR(-EPROBE_DEFER);
+	uc_data->dc_sw_gpio = ERR_PTR(-EPROBE_DEFER);
 
 	uc_data->init_done = false;
 
@@ -1391,77 +1421,86 @@ static void gs101_setup_default_usecase(struct max77759_usecase_data *uc_data)
 		uc_data->otg_vbyp = MAX77759_CHG_CNFG_11_OTG_VBYP_5100MV;
 }
 bool gs101_setup_usecases(struct max77759_usecase_data *uc_data,
-			  struct device_node *node)
+			  struct device_node *node,
+			  struct device *dev)
 {
-	enum of_gpio_flags flags = 0;
-
 	if (!node) {
 		gs101_setup_default_usecase(uc_data);
 		return false;
 	}
 
 	/* control external boost if present */
-	if (uc_data->bst_on == -EPROBE_DEFER)
-		uc_data->bst_on = of_get_named_gpio(node, "max77759,bst-on", 0);
-	if (uc_data->bst_sel == -EPROBE_DEFER)
-		uc_data->bst_sel = of_get_named_gpio(node, "max77759,bst-sel", 0);
-	if (uc_data->ext_bst_ctl == -EPROBE_DEFER)
-		uc_data->ext_bst_ctl = of_get_named_gpio(node, "max77759,extbst-ctl", 0);
+	if (PTR_ERR(uc_data->bst_on) == -EPROBE_DEFER)
+		uc_data->bst_on = devm_gpiod_get(dev, "max77759,bst-on", GPIOD_ASIS |
+						 GPIOD_FLAGS_BIT_NONEXCLUSIVE);
+	if (PTR_ERR(uc_data->bst_sel) == -EPROBE_DEFER)
+		uc_data->bst_sel = devm_gpiod_get(dev, "max77759,bst-sel", GPIOD_ASIS);
+	if (PTR_ERR(uc_data->ext_bst_ctl) == -EPROBE_DEFER)
+		uc_data->ext_bst_ctl = devm_gpiod_get(dev, "max77759,extbst-ctl", GPIOD_ASIS);
 
 	/* for enabling charging over pogo */
-	if (uc_data->pogo_ovp_en == -EPROBE_DEFER) {
-		uc_data->pogo_ovp_en = of_get_named_gpio_flags(node, "max77759,pogo-ovp-en", 0,
-							       &flags);
-		if (uc_data->pogo_ovp_en >= 0)
-			uc_data->pogo_ovp_en_act_low = (flags & OF_GPIO_ACTIVE_LOW) ? 1 : 0;
-	}
-	if (uc_data->pogo_vout_en == -EPROBE_DEFER) {
-		uc_data->pogo_vout_en = of_get_named_gpio(node, "max77759,pogo-vout-sw-en", 0);
-
-		if (uc_data->pogo_vout_en >= 0)
-			gpio_set_value_cansleep(uc_data->pogo_vout_en, 0);
+	if (PTR_ERR(uc_data->pogo_ovp_en) == -EPROBE_DEFER)
+		uc_data->pogo_ovp_en = devm_gpiod_get_optional(dev, "max77759,pogo-ovp-en",
+							       GPIOD_ASIS |
+							       GPIOD_FLAGS_BIT_NONEXCLUSIVE);
+	if (PTR_ERR(uc_data->pogo_vout_en) == -EPROBE_DEFER) {
+		uc_data->pogo_vout_en = devm_gpiod_get_optional(dev, "max77759,pogo-vout-sw-en",
+								GPIOD_ASIS);
+		if (!IS_ERR(uc_data->pogo_vout_en))
+			gpiod_set_value_cansleep(uc_data->pogo_vout_en, 0);
 	}
 
 	/* NBC workaround */
-	if (uc_data->vin_is_valid == -EPROBE_DEFER)
-		uc_data->vin_is_valid = of_get_named_gpio(node, "max77759,vin-is_valid", 0);
-	if (uc_data->lsw1_is_closed == -EPROBE_DEFER)
-		uc_data->lsw1_is_closed = of_get_named_gpio(node, "max77759,lsw1-is_closed", 0);
-	if (uc_data->lsw1_is_open == -EPROBE_DEFER)
-		uc_data->lsw1_is_open = of_get_named_gpio(node, "max77759,lsw1-is_open", 0);
+	if (PTR_ERR(uc_data->vin_is_valid) == -EPROBE_DEFER)
+		uc_data->vin_is_valid = devm_gpiod_get(dev, "max77759,vin-is_valid", GPIOD_ASIS);
+	if (PTR_ERR(uc_data->lsw1_is_closed) == -EPROBE_DEFER)
+		uc_data->lsw1_is_closed = devm_gpiod_get(dev, "max77759,lsw1-is_closed",
+							 GPIOD_ASIS);
+	if (PTR_ERR(uc_data->lsw1_is_open) == -EPROBE_DEFER)
+		uc_data->lsw1_is_open = devm_gpiod_get(dev, "max77759,lsw1-is_open", GPIOD_ASIS);
 
 	/* all OTG cases, change INOVLO */
-	if (uc_data->otg_enable == -EPROBE_DEFER)
-		uc_data->otg_enable = of_get_named_gpio(node, "max77759,otg-enable", 0);
+	if (PTR_ERR(uc_data->otg_enable) == -EPROBE_DEFER)
+		uc_data->otg_enable = devm_gpiod_get_optional(dev, "max77759,otg-enable",
+							      GPIOD_ASIS);
 
 	/*  wlc_rx: disable when chgin, CPOUT is safe */
-	if (uc_data->wlc_en == -EPROBE_DEFER)
-		uc_data->wlc_en = of_get_named_gpio(node, "max77759,wlc-en", 0);
-	if (uc_data->wlc_vbus_en == -EPROBE_DEFER)
-		uc_data->wlc_vbus_en = of_get_named_gpio(node, "max77759,wlc-vbus_en", 0);
+	if (PTR_ERR(uc_data->wlc_en) == -EPROBE_DEFER)
+		uc_data->wlc_en = devm_gpiod_get_optional(dev, "max77759,wlc-en",
+							  GPIOD_ASIS
+							  | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
+	if (PTR_ERR(uc_data->wlc_vbus_en) == -EPROBE_DEFER)
+		uc_data->wlc_vbus_en = devm_gpiod_get_optional(dev, "max77759,wlc-vbus_en",
+							       GPIOD_ASIS);
 	/*  wlc_rx -> wlc_rx+otg disable cpout */
-	if (uc_data->cpout_en == -EPROBE_DEFER)
-		uc_data->cpout_en = of_get_named_gpio(node, "max77759,cpout-en", 0);
+	if (PTR_ERR(uc_data->cpout_en) == -EPROBE_DEFER)
+		uc_data->cpout_en = devm_gpiod_get_optional(dev, "max77759,cpout-en", GPIOD_ASIS);
 	/*  wlc_rx thermal throttle -> spoof online */
-	if (uc_data->wlc_spoof_gpio == -EPROBE_DEFER)
-	    uc_data->wlc_spoof_gpio = of_get_named_gpio(node, "max77759,wlc-spoof", 0);
+	if (PTR_ERR(uc_data->wlc_spoof_gpio) == -EPROBE_DEFER)
+		uc_data->wlc_spoof_gpio = devm_gpiod_get_optional(dev, "max77759,wlc-spoof",
+								  GPIOD_ASIS);
 	/* to 5.2V in p9412 */
-	if (uc_data->cpout_ctl == -EPROBE_DEFER)
-		uc_data->cpout_ctl = of_get_named_gpio(node, "max77759,cpout-ctl", 0);
+	if (PTR_ERR(uc_data->cpout_ctl) == -EPROBE_DEFER)
+		uc_data->cpout_ctl = devm_gpiod_get_optional(dev, "max77759,cpout-ctl", GPIOD_ASIS);
 	/* ->wlc_tx disable 2:1 cpout */
-	if (uc_data->cpout21_en == -EPROBE_DEFER)
-		uc_data->cpout21_en = of_get_named_gpio(node, "max77759,cpout_21-en", 0);
+	if (PTR_ERR(uc_data->cpout21_en) == -EPROBE_DEFER)
+		uc_data->cpout21_en = devm_gpiod_get_optional(dev, "max77759,cpout_21-en",
+							      GPIOD_ASIS);
 
-	if (uc_data->ls1_en == -EPROBE_DEFER)
-		uc_data->ls1_en = of_get_named_gpio(node, "max77759,ls1-en", 0);
-	if (uc_data->ls2_en == -EPROBE_DEFER)
-		uc_data->ls2_en = of_get_named_gpio(node, "max77759,ls2-en", 0);
+	if (PTR_ERR(uc_data->ls1_en) == -EPROBE_DEFER)
+		uc_data->ls1_en = devm_gpiod_get_optional(dev, "max77759,ls1-en", GPIOD_ASIS);
+	if (PTR_ERR(uc_data->ls2_en) == -EPROBE_DEFER)
+		uc_data->ls2_en = devm_gpiod_get_optional(dev, "max77759,ls2-en", GPIOD_ASIS |
+							  GPIOD_FLAGS_BIT_NONEXCLUSIVE);
 	/* OTG+RTXL: IN-OUT switch of AO37 (forced always) */
-	if (uc_data->sw_en == -EPROBE_DEFER)
-		uc_data->sw_en = of_get_named_gpio(node, "max77759,sw-en", 0);
+	if (PTR_ERR(uc_data->sw_en) == -EPROBE_DEFER)
+		uc_data->sw_en = devm_gpiod_get_optional(dev, "max77759,sw-en",
+							 GPIOD_ASIS
+							 | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
 	/* OPTIONAL: only in P1.1+ (TPS61372) */
-	if (uc_data->ext_bst_mode == -EPROBE_DEFER)
-		uc_data->ext_bst_mode = of_get_named_gpio(node, "max77759,extbst-mode", 0);
+	if (PTR_ERR(uc_data->ext_bst_mode) == -EPROBE_DEFER)
+		uc_data->ext_bst_mode = devm_gpiod_get_optional(dev, "max77759,extbst-mode",
+								GPIOD_ASIS);
 
 	/* OPTIONAL: support wlc_rx -> wlc_rx+otg */
 	uc_data->rx_otg_en = of_property_read_bool(node, "max77759,rx-to-rx-otg-en");
@@ -1473,8 +1512,9 @@ bool gs101_setup_usecases(struct max77759_usecase_data *uc_data,
 	/* OPTIONAL: only extbst-enable when wlc+otg */
 	uc_data->wlc_otg_extbst_en = of_property_read_bool(node, "max77759,wlc-otg-extbst-en");
 
-	if (uc_data->dc_sw_gpio == -EPROBE_DEFER)
-		uc_data->dc_sw_gpio = of_get_named_gpio(node, "max77759,gpio_dc_switch", 0);
+	if (PTR_ERR(uc_data->dc_sw_gpio) == -EPROBE_DEFER)
+		uc_data->dc_sw_gpio = devm_gpiod_get_optional(dev, "max77759,gpio_dc_switch",
+							      GPIOD_ASIS);
 
 	return gs101_setup_usecases_done(uc_data);
 }
@@ -1483,14 +1523,58 @@ EXPORT_SYMBOL_GPL(gs101_setup_usecases);
 void gs101_dump_usecasase_config(struct max77759_usecase_data *uc_data)
 {
 	pr_info("bst_on:%d, bst_sel:%d, ext_bst_ctl:%d\n",
-		 uc_data->bst_on, uc_data->bst_sel, uc_data->ext_bst_ctl);
-	pr_info("vin_valid:%d lsw1_o:%d lsw1_c:%d\n", uc_data->vin_is_valid,
-		 uc_data->lsw1_is_open, uc_data->lsw1_is_closed);
+		(IS_ERR_OR_NULL(uc_data->bst_on)
+		 ? (int)PTR_ERR(uc_data->bst_on)
+		 : desc_to_gpio(uc_data->bst_on)),
+		(IS_ERR_OR_NULL(uc_data->bst_sel)
+		 ? (int)PTR_ERR(uc_data->bst_sel)
+		 : desc_to_gpio(uc_data->bst_sel)),
+		(IS_ERR_OR_NULL(uc_data->ext_bst_ctl)
+		 ? (int)PTR_ERR(uc_data->ext_bst_ctl)
+		 : desc_to_gpio(uc_data->ext_bst_ctl)));
+
+	pr_info("vin_valid:%d lsw1_o:%d lsw1_c:%d\n",
+		(IS_ERR_OR_NULL(uc_data->vin_is_valid)
+		 ? (int)PTR_ERR(uc_data->vin_is_valid)
+		 : desc_to_gpio(uc_data->vin_is_valid)),
+		(IS_ERR_OR_NULL(uc_data->lsw1_is_open)
+		 ? (int)PTR_ERR(uc_data->lsw1_is_open)
+		 : desc_to_gpio(uc_data->lsw1_is_open)),
+		(IS_ERR_OR_NULL(uc_data->lsw1_is_closed)
+		 ? (int)PTR_ERR(uc_data->lsw1_is_closed)
+		 : desc_to_gpio(uc_data->lsw1_is_closed)));
+
 	pr_info("wlc_en:%d wlc_vbus_en:%d cpout_en:%d cpout_ctl:%d cpout21_en=%d\n",
-		uc_data->wlc_en, uc_data->wlc_vbus_en,
-		uc_data->cpout_en, uc_data->cpout_ctl, uc_data->cpout21_en);
+		(IS_ERR_OR_NULL(uc_data->wlc_en)
+		 ? (int)PTR_ERR(uc_data->wlc_en)
+		 : desc_to_gpio(uc_data->wlc_en)),
+		(IS_ERR_OR_NULL(uc_data->wlc_vbus_en)
+		 ? (int)PTR_ERR(uc_data->wlc_vbus_en)
+		 : desc_to_gpio(uc_data->wlc_vbus_en)),
+		(IS_ERR_OR_NULL(uc_data->cpout_en)
+		 ? (int)PTR_ERR(uc_data->cpout_en)
+		 : desc_to_gpio(uc_data->cpout_en)),
+		(IS_ERR_OR_NULL(uc_data->cpout_ctl)
+		 ? (int)PTR_ERR(uc_data->cpout_ctl)
+		 : desc_to_gpio(uc_data->cpout_ctl)),
+		(IS_ERR_OR_NULL(uc_data->cpout21_en)
+		 ? (int)PTR_ERR(uc_data->cpout21_en)
+		 : desc_to_gpio(uc_data->cpout21_en)));
+
 	pr_info("ls2_en:%d sw_en:%d ext_bst_mode:%d dc_sw_en:%d\n",
-		uc_data->ls2_en, uc_data->sw_en, uc_data->ext_bst_mode, uc_data->dc_sw_gpio);
+		(IS_ERR_OR_NULL(uc_data->ls2_en)
+		 ? (int)PTR_ERR(uc_data->ls2_en)
+		 : desc_to_gpio(uc_data->ls2_en)),
+		(IS_ERR_OR_NULL(uc_data->sw_en)
+		 ? (int)PTR_ERR(uc_data->sw_en)
+		 : desc_to_gpio(uc_data->sw_en)),
+		(IS_ERR_OR_NULL(uc_data->ext_bst_mode)
+		 ? (int)PTR_ERR(uc_data->ext_bst_mode)
+		 : desc_to_gpio(uc_data->ext_bst_mode)),
+		(IS_ERR_OR_NULL(uc_data->dc_sw_gpio)
+		 ? (int)PTR_ERR(uc_data->dc_sw_gpio)
+		 : desc_to_gpio(uc_data->dc_sw_gpio)));
+
 	pr_info("rx_to_rx_otg:%d ext_otg_only:%d\n",
 		uc_data->rx_otg_en, uc_data->ext_otg_only);
 }

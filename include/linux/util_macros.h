@@ -2,6 +2,8 @@
 #ifndef _LINUX_HELPER_MACROS_H_
 #define _LINUX_HELPER_MACROS_H_
 
+#include <linux/math.h>
+
 /**
  * find_closest - locate the closest element in a sorted array
  * @x: The reference value.

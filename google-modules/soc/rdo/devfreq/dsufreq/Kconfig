@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_DSU_FREQ
+	tristate "Google DSU devfreq driver"
+	depends on ARCH_GOOGLE
+	depends on CPU_FREQ
+	select PM_OPP
+	help
+	  Enable support for Google DSU devfreq driver.
+	  The driver would create a node to let user set devfreq
+	  from userspace.
+

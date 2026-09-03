@@ -6,6 +6,7 @@
  * Copyright 2020 Google LLC
  */
 
+#include <linux/delay.h>
 #include <linux/cpuidle.h>
 #include <linux/sched/cputime.h>
 #include <kernel/sched/sched.h>
@@ -13,14 +14,8 @@
 
 #include "sched_priv.h"
 
-extern unsigned long cpu_util(int cpu);
-extern unsigned long task_util(struct task_struct *p);
-extern int cpu_is_idle(int cpu);
-extern int sched_cpu_idle(int cpu);
 extern int ___update_load_sum(u64 now, struct sched_avg *sa, unsigned long load,
 			      unsigned long runnable, int running);
-extern void ___update_load_avg(struct sched_avg *sa, unsigned long load);
-extern int get_cluster_enabled(int cluster);
 
 extern struct cpumask cpu_skip_mask_rt;
 
@@ -68,7 +63,11 @@ static inline void rt_task_fits_capacity(struct task_struct *p, int cpu,
 	unsigned long util = task_util(p);
 
 	*fits = util_fits_cpu(util, uclamp_min, uclamp_max, cpu);
-	*fits_original = capacity_orig_of(cpu) >= clamp(util, uclamp_min, uclamp_max) ||
+
+	if (static_key_enabled(&per_task_memory_aware_enable))
+		*fits = *fits && memory_pressure_fits_cpu(p, cpu);
+
+	*fits_original = arch_scale_cpu_capacity(cpu) >= clamp(util, uclamp_min, uclamp_max) ||
 			 cpu >= pixel_cluster_start_cpu[pixel_cluster_num - 1];
 }
 
@@ -157,7 +156,7 @@ static int find_least_loaded_cpu(struct task_struct *p, struct cpumask *lowest_m
 	for_each_cpu(cpu, lowest_mask) {
 		is_idle = available_idle_cpu(cpu);
 		exit_lat[cpu] = C1_EXIT_LATENCY; // If cpu is not idle, use C1_EXIT_LATENCY
-		capacity[cpu] = capacity_orig_of(cpu);
+		capacity[cpu] = arch_scale_cpu_capacity(cpu);
 		cpu_importance[cpu] = READ_ONCE(cpu_rq(cpu)->uclamp[UCLAMP_MIN].value) +
 				 READ_ONCE(cpu_rq(cpu)->uclamp[UCLAMP_MAX].value);
 		rq_util_min = uclamp_rq_get(cpu_rq(cpu), UCLAMP_MIN);
@@ -258,10 +257,13 @@ static int find_least_loaded_cpu(struct task_struct *p, struct cpumask *lowest_m
 		best_cpu = cpu;
 	}
 
-	/* Set cpus with importance less than or equal to 1024 as backup */
+	/*
+	 * Set cpus as backup with importance less than or equal to 1024 or greater than 2048,
+	 * which is the max sum of uclamp min + uclamp max and indicating it is in C3 state.
+	 */
 	for_each_cpu(cpu, lowest_mask) {
-		if (candidates[cpu] && cpu_importance[cpu] <= DEFAULT_IMPRATANCE_THRESHOLD &&
-		    cpu != best_cpu)
+		if (candidates[cpu] && (cpu_importance[cpu] <= DEFAULT_IMPRATANCE_THRESHOLD ||
+		    cpu_importance[cpu] > MAX_CPU_IMPORTANCE) && cpu != best_cpu)
 			cpumask_set_cpu(cpu, backup_mask);
 	}
 
@@ -286,8 +288,8 @@ out:
  * functions.
  */
 
-static int __find_lowest_rq(struct task_struct *p, struct cpumask *lowest_mask,
-			    struct cpumask *backup_mask)
+static int __find_lowest_rq(struct task_struct *sched_ctx, struct task_struct *exec_ctx,
+			    struct cpumask *lowest_mask, struct cpumask *backup_mask)
 {
 	struct sched_domain *sd;
 	int this_cpu = smp_processor_id();
@@ -298,21 +300,25 @@ static int __find_lowest_rq(struct task_struct *p, struct cpumask *lowest_mask,
 	if (unlikely(!lowest_mask))
 		return -1;
 
-	if (p->nr_cpus_allowed == 1) {
-		return cpumask_first(p->cpus_ptr);
+	if (!exec_ctx)
+		exec_ctx = sched_ctx;
+
+	if (exec_ctx && exec_ctx->nr_cpus_allowed == 1) {
+		return cpumask_first(exec_ctx->cpus_ptr);
 	}
 
-	ret = cpupri_find_fitness(&task_rq(p)->rd->cpupri, p, lowest_mask, NULL);
+	ret = cpupri_find_fitness(&task_rq(sched_ctx)->rd->cpupri, sched_ctx, exec_ctx, lowest_mask,
+				  NULL);
 	if (!ret) {
 		return -1;
 	}
 
-	cpu = find_least_loaded_cpu(p, lowest_mask, backup_mask);
+	cpu = find_least_loaded_cpu(exec_ctx, lowest_mask, backup_mask);
 	if (cpu != -1) {
 		return cpu;
 	}
 
-	cpu = task_cpu(p);
+	cpu = task_cpu(sched_ctx);
 	if (cpumask_test_cpu(cpu, lowest_mask)) {
 		return cpu;
 	}
@@ -353,19 +359,20 @@ static int __find_lowest_rq(struct task_struct *p, struct cpumask *lowest_mask,
 	return -1;
 }
 
-static int find_lowest_rq(struct task_struct *p, struct cpumask *backup_mask)
+static int find_lowest_rq(struct task_struct *sched_ctx, struct task_struct *exec_ctx,
+			  struct cpumask *backup_mask)
 {
 	struct cpumask lowest_mask;
-	return __find_lowest_rq(p, &lowest_mask, backup_mask);
+	return __find_lowest_rq(sched_ctx, exec_ctx, &lowest_mask, backup_mask);
 }
 
-void rvh_find_lowest_rq_pixel_mod(void *data, struct task_struct *p,
-				  struct cpumask *lowest_mask,
+void rvh_find_lowest_rq_pixel_mod(void *data, struct task_struct *sched_ctx,
+				  struct task_struct *exec_ctx, struct cpumask *lowest_mask,
 				  int ret, int *cpu)
 
 {
 	struct cpumask backup_mask;
-	*cpu = __find_lowest_rq(p, lowest_mask, &backup_mask);
+	*cpu = __find_lowest_rq(sched_ctx, exec_ctx, lowest_mask, &backup_mask);
 }
 
 void rvh_select_task_rq_rt_pixel_mod(void *data, struct task_struct *p, int prev_cpu, int sd_flag,
@@ -377,15 +384,22 @@ void rvh_select_task_rq_rt_pixel_mod(void *data, struct task_struct *p, int prev
 	int target = -1;
 	bool sync = !!(wake_flags & WF_SYNC);
 	int this_cpu;
-	bool sync_wakeup = false, prefer_high_cap = false;
-	struct cpumask backup_mask;
+	bool sync_wakeup = false;
+	struct cpumask backup_mask = { CPU_BITS_NONE };
 	int i;
 	bool fits;
 	bool fits_original;
+	struct vendor_rq_struct *vrq;
+	int retry_count = vendor_sched_task_placement_retry_count;
+	int sd_flags_to_process;
 
 	*new_cpu = prev_cpu;
 
-	if (sd_flag != SD_BALANCE_WAKE && sd_flag != SD_BALANCE_FORK)
+	sd_flags_to_process = SD_BALANCE_WAKE | SD_BALANCE_FORK;
+	if (static_branch_likely(&eas_fork_exec_enable))
+		sd_flags_to_process |= SD_BALANCE_EXEC;
+
+	if (!(sd_flag & sd_flags_to_process))
 		goto out;
 
 	rq = cpu_rq(prev_cpu);
@@ -409,11 +423,10 @@ void rvh_select_task_rq_rt_pixel_mod(void *data, struct task_struct *p, int prev
 		}
 	}
 
-	prefer_high_cap = __get_prefer_high_cap(p) || (sync && this_cpu >= pixel_cluster_start_cpu[1]);
+	_update_prefer_high_cap(p, sync && this_cpu >= pixel_cluster_start_cpu[1]);
 
-	set_prefer_high_cap(p, prefer_high_cap);
-
-	target = find_lowest_rq(p, &backup_mask);
+retry:
+	target = find_lowest_rq(p, p, &backup_mask);
 
 	if (target != -1) {
 		tgt_task = READ_ONCE(cpu_rq(target)->curr);
@@ -434,6 +447,28 @@ void rvh_select_task_rq_rt_pixel_mod(void *data, struct task_struct *p, int prev
 		}
 	}
 
+	if (target != -1 && retry_count) {
+		struct cpuidle_state *idle_state;
+		unsigned int exit_lat = 0;
+
+		vrq = get_vendor_rq_struct(cpu_rq(target));
+
+		rcu_read_lock();
+		idle_state = idle_get_state(cpu_rq(target));
+		if (idle_state)
+			exit_lat = idle_state->exit_latency;
+		rcu_read_unlock();
+
+		if (atomic_read(&vrq->num_adpf_tasks) >= 1 ||
+		    (target >= pixel_cluster_start_cpu[pixel_cluster_num - 1] &&
+		     exit_lat > C1_EXIT_LATENCY)) {
+			retry_count -= 1;
+			cpumask_clear(&backup_mask);
+			udelay(vendor_sched_task_placement_retry_delay_us);
+			goto retry;
+		}
+	}
+
 	if (target != -1) {
 		*new_cpu = target;
 	}
@@ -443,7 +478,7 @@ out_unlock:
 out:
 	trace_sched_select_task_rq_rt(p, task_util(p), prev_cpu, target, *new_cpu, sync_wakeup);
 
-	set_prefer_high_cap(p, false);
+	_update_prefer_high_cap(p, false);
 
 	return;
 }
@@ -475,6 +510,7 @@ static void vrq_update_util_removed(struct rq *rq, u32 divider) {
 		sub_positive(&rq->avg_rt.util_sum, removed_util * divider);
 		rq->avg_rt.util_sum = max_t(unsigned long, rq->avg_rt.util_sum,
 					    rq->avg_rt.util_avg * PELT_MIN_DIVIDER);
+		trace_pelt_rt_tp(rq);
 	}
 }
 
@@ -484,11 +520,22 @@ void rvh_update_rt_rq_load_avg_pixel_mod(void *data, u64 now, struct rq *rq, str
 	u32 divider = get_pelt_divider(&rq->avg_rt);
 
 	if (p->dl.flags & SCHED_FLAG_SUGOV) {
+		struct vendor_rq_struct *vrq = get_vendor_rq_struct(rq);
+		unsigned long flags;
+
+		/* GKI already added this to rq->util_avg. Undo this adding */
+		update_load_avg_se(now, &p->se, running);
+		raw_spin_lock_irqsave(&vrq->lock, flags);
+		vrq->util_removed += p->se.avg.util_avg;
+		raw_spin_unlock_irqrestore(&vrq->lock, flags);
+		vrq_update_util_removed(rq, divider);
+
 		p->se.avg.util_sum = 0;
 		p->se.avg.util_avg = 0;
-		vrq_update_util_removed(rq, divider);
 		return;
 	}
+
+	vrq_update_util_removed(rq, divider);
 
 	if (!p->se.avg.last_update_time) {
 		// RT task p got migrated to this cpu, add its load to the rt util of rq
@@ -496,9 +543,9 @@ void rvh_update_rt_rq_load_avg_pixel_mod(void *data, u64 now, struct rq *rq, str
 		p->se.avg.util_sum = p->se.avg.util_avg * divider;
 		rq->avg_rt.util_avg += p->se.avg.util_avg;
 		rq->avg_rt.util_sum += p->se.avg.util_sum;
+		trace_pelt_rt_tp(rq);
+		return;
 	}
-
-	vrq_update_util_removed(rq, divider);
 
 	// Update rt task util
 	update_load_avg_se(now, &p->se, running);
@@ -514,6 +561,20 @@ void rvh_set_task_cpu_pixel_mod(void *data, struct task_struct *p, unsigned int 
 		return;
 
 	vrq = get_vendor_rq_struct(cpu_rq(task_cpu(p)));
+
+	/* Task is not still under previous migration. */
+	if (p->se.avg.last_update_time) {
+		struct rq *prev_rq = cpu_rq(task_cpu(p));
+		u64 prev_clock_pelt = prev_rq->clock_pelt;
+		u64 prev_lost_idle_time = prev_rq->lost_idle_time;
+
+		/*
+		 * It is risky to lock prev rq, so we use the definition of rq_clock_pelt
+		 * directly while we could accept the value not very precise.
+		 */
+		if (prev_clock_pelt > prev_lost_idle_time)
+			update_load_avg_se(prev_clock_pelt - prev_lost_idle_time, &p->se, 0);
+	}
 
 	raw_spin_lock_irqsave(&vrq->lock, flags);
 	vrq->util_removed += p->se.avg.util_avg;

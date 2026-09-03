@@ -13,6 +13,7 @@
 #include <linux/rculist.h>
 #include <linux/rcupdate.h>
 #include <linux/slab.h>
+#include "lwis_trace.h"
 
 #include "lwis_device.h"
 #include "lwis_event.h"
@@ -61,7 +62,7 @@ struct lwis_interrupt_list *lwis_interrupt_list_alloc(struct lwis_device *lwis_d
 	if (!list)
 		return ERR_PTR(-ENOMEM);
 
-	list->irq = kmalloc_array(count, sizeof(struct lwis_interrupt), GFP_KERNEL);
+	list->irq = kcalloc(count, sizeof(struct lwis_interrupt), GFP_KERNEL);
 	if (!list->irq) {
 		kfree(list);
 		return ERR_PTR(-ENOMEM);
@@ -78,26 +79,37 @@ struct lwis_interrupt_list *lwis_interrupt_list_alloc(struct lwis_device *lwis_d
 
 void lwis_interrupt_free_leaves(struct lwis_interrupt *irq)
 {
-	struct lwis_interrupt_leaf_node *leaf_node;
-	struct list_head *it_leaf, *it_tmp;
+	struct lwis_interrupt_leaf_node *leaf_node, *leaf_tmp;
 
 	if (!irq || irq->irq_type != AGGREGATE_INTERRUPT || list_empty(&irq->leaf_nodes)) {
 		// Nothing to clean
 		return;
 	}
 
-	list_for_each_safe(it_leaf, it_tmp, &irq->leaf_nodes) {
-		leaf_node = list_entry(it_leaf, struct lwis_interrupt_leaf_node, node);
+	list_for_each_entry_safe(leaf_node, leaf_tmp, &irq->leaf_nodes, node) {
 		list_del(&leaf_node->node);
 		kfree(leaf_node->leaf_irq_indexes);
 		kfree(leaf_node);
 	}
 }
 
+static void lwis_interrupt_free_events(struct lwis_interrupt *irq)
+{
+	struct lwis_single_event_info *event;
+	struct hlist_node *tmp;
+	int i;
+
+	hash_for_each_safe(irq->event_infos, i, tmp, event, node) {
+		hash_del(&event->node);
+		if (!list_empty(&event->node_enabled))
+			list_del(&event->node_enabled);
+		kfree(event);
+	}
+}
+
 void lwis_interrupt_list_free(struct lwis_interrupt_list *list)
 {
 	int i;
-	unsigned long flags;
 
 	if (!list)
 		return;
@@ -108,25 +120,33 @@ void lwis_interrupt_list_free(struct lwis_interrupt_list *list)
 	}
 
 	for (i = 0; i < list->count; ++i) {
-		spin_lock_irqsave(&list->irq[i].lock, flags);
+		/*
+		 * Ensure the IRQ is freed and the ISR is stopped before freeing
+		 * memory. free_irq() waits for the ISR to finish, so we must
+		 * NOT hold the spinlock here to avoid a deadlock.
+		 */
+		if (list->irq[i].irq > 0) {
+			irq_set_affinity_and_hint(list->irq[i].irq, NULL);
+			free_irq(list->irq[i].irq, &list->irq[i]);
+		}
+
+		/*
+		 * Now that the ISR is stopped, it is safe to free the leaf nodes
+		 * without a lock.
+		 */
 		lwis_interrupt_free_leaves(&list->irq[i]);
-		irq_set_affinity_and_hint(list->irq[i].irq, NULL);
-		free_irq(list->irq[i].irq, &list->irq[i]);
-		spin_unlock_irqrestore(&list->irq[i].lock, flags);
+		lwis_interrupt_free_events(&list->irq[i]);
 	}
 	kfree(list->irq);
+	kfree(list);
 }
 
-int lwis_interrupt_init(struct lwis_interrupt_list *list, int index, char *name)
+int lwis_interrupt_init(struct lwis_interrupt_list *list, int index, const char *name)
 {
 	if (!list || index < 0 || index >= list->count)
 		return -EINVAL;
 
-	/* Initialize the spinlock */
-	spin_lock_init(&list->irq[index].lock);
 	strscpy(list->irq[index].name, name, IRQ_FULL_NAME_LENGTH);
-	snprintf(list->irq[index].full_name, IRQ_FULL_NAME_LENGTH, "lwis-%s:%s",
-		 list->lwis_dev->name, name);
 	list->irq[index].has_events = false;
 	list->irq[index].lwis_dev = list->lwis_dev;
 	return 0;
@@ -141,25 +161,25 @@ int lwis_interrupt_get(struct lwis_interrupt_list *list, int index,
 
 	irq = platform_get_irq(plat_dev, index);
 	if (irq <= 0) {
-		pr_err("Error retrieving interrupt %s at %d\n", list->irq[index].full_name, index);
+		pr_err("Error retrieving interrupt %s at %d\n", list->irq[index].name, index);
 		return -EINVAL;
 	}
 
 	if (list->irq[index].irq_type == AGGREGATE_INTERRUPT) {
 		ret = request_irq(irq, lwis_interrupt_aggregate_isr, IRQF_SHARED,
-				  list->irq[index].full_name, &list->irq[index]);
+				  list->irq[index].name, &list->irq[index]);
 	} else if (list->irq[index].irq_type == REGULAR_INTERRUPT) {
 		ret = request_irq(irq, lwis_interrupt_regular_isr, IRQF_SHARED,
-				  list->irq[index].full_name, &list->irq[index]);
+				  list->irq[index].name, &list->irq[index]);
 	}
 	if (ret) {
 		dev_err(list->lwis_dev->dev, "Failed to request IRQ %d\n", irq);
 		return ret;
 	}
 
-	if (lwis_plaform_set_default_irq_affinity(irq) != 0) {
+	if (lwis_platform_set_default_irq_affinity(irq) != 0) {
 		dev_warn(list->lwis_dev->dev, "Interrupt %s cannot set affinity.\n",
-			 list->irq[index].full_name);
+			 list->irq[index].name);
 	}
 
 	spin_lock_irqsave(&list->irq[index].lock, flags);
@@ -172,7 +192,7 @@ int lwis_interrupt_get(struct lwis_interrupt_list *list, int index,
 	return 0;
 }
 
-int lwis_interrupt_get_gpio_irq(struct lwis_interrupt_list *list, int index, char *name,
+int lwis_interrupt_get_gpio_irq(struct lwis_interrupt_list *list, int index, const char *name,
 				int gpio_irq, int32_t irq_gpios_types)
 {
 	int ret = 0;
@@ -180,28 +200,24 @@ int lwis_interrupt_get_gpio_irq(struct lwis_interrupt_list *list, int index, cha
 	if (!list || index < 0 || index >= list->count || gpio_irq <= 0)
 		return -EINVAL;
 
-	/* Initialize the spinlock */
-	spin_lock_init(&list->irq[index].lock);
 	list->irq[index].irq = gpio_irq;
 	strscpy(list->irq[index].name, name, IRQ_FULL_NAME_LENGTH);
-	snprintf(list->irq[index].full_name, IRQ_FULL_NAME_LENGTH, "lwis-%s:%s",
-		 list->lwis_dev->name, name);
 	list->irq[index].has_events = false;
 	list->irq[index].lwis_dev = list->lwis_dev;
 	list->irq[index].irq_gpios_types = irq_gpios_types;
 	list->irq[index].irq_type = GPIO_HW_INTERRUPT;
 
 	ret = request_irq(gpio_irq, lwis_interrupt_gpios_event_isr,
-			  list->irq[index].irq_gpios_types, list->irq[index].full_name,
+			  list->irq[index].irq_gpios_types, list->irq[index].name,
 			  &list->irq[index]);
 	if (ret) {
 		dev_err(list->lwis_dev->dev, "Failed to request GPIO IRQ\n");
 		return ret;
 	}
 
-	if (lwis_plaform_set_default_irq_affinity(list->irq[index].irq) != 0) {
+	if (lwis_platform_set_default_irq_affinity(list->irq[index].irq) != 0) {
 		dev_warn(list->lwis_dev->dev, "Interrupt %s cannot set affinity.\n",
-			 list->irq[index].full_name);
+			 list->irq[index].name);
 	}
 
 	return 0;
@@ -323,7 +339,6 @@ static void interrupt_emit_events(struct lwis_interrupt *irq, uint64_t source_va
 {
 	struct lwis_client_event_state *event_state;
 	struct lwis_single_event_info *event;
-	struct list_head *p;
 	uint64_t reset_value = 0;
 	struct lwis_client *lwis_client;
 #ifdef LWIS_INTERRUPT_DEBUG
@@ -334,9 +349,7 @@ static void interrupt_emit_events(struct lwis_interrupt *irq, uint64_t source_va
 	bool disable_mask = false;
 
 	spin_lock_irqsave(&irq->lock, flags);
-	list_for_each(p, &irq->enabled_event_infos) {
-		event = list_entry(p, struct lwis_single_event_info, node_enabled);
-
+	list_for_each_entry(event, &irq->enabled_event_infos, node_enabled) {
 		/* Check if this event needs to be emitted */
 		if ((source_value >> event->int_reg_bit) & 0x1) {
 			lwis_device_event_emit(irq->lwis_dev, event->event_id, NULL, 0);
@@ -350,8 +363,14 @@ static void interrupt_emit_events(struct lwis_interrupt *irq, uint64_t source_va
 			/* Clear this interrupt */
 			reset_value |= (1ULL << event->int_reg_bit);
 
-			/* If considered critical, print the event */
+			/* If considered critical, print the event and add tracepoint */
 			if (event->is_critical) {
+				char trace_name[IRQ_FULL_NAME_LENGTH];
+
+				scnprintf(trace_name, IRQ_FULL_NAME_LENGTH, "%s_%d", irq->name,
+					  event->int_reg_bit);
+				LWIS_ATRACE_BEGIN(irq->lwis_dev, trace_name);
+				LWIS_ATRACE_END(irq->lwis_dev, trace_name);
 				dev_err_ratelimited(irq->lwis_dev->dev,
 						    "Caught critical IRQ(%s) event(0x%llx)\n",
 						    irq->name, event->event_id);
@@ -450,13 +469,11 @@ static int lwis_interrupt_handle_aggregation(struct lwis_interrupt *irq, uint64_
 	struct lwis_interrupt_leaf_node *leaf;
 	struct lwis_interrupt *leaf_irq = NULL;
 	int leaf_irq_index = 0;
-	struct list_head *p;
 	uint64_t reset_value = 0;
 	struct lwis_device *lwis_dev = irq->lwis_dev;
 	int i;
 
-	list_for_each(p, &irq->leaf_nodes) {
-		leaf = list_entry(p, struct lwis_interrupt_leaf_node, node);
+	list_for_each_entry(leaf, &irq->leaf_nodes, node) {
 		/* Check if this leaf has signal */
 		if ((source_value >> leaf->int_reg_bit) & 0x1) {
 			for (i = 0; i < leaf->count; ++i) {
@@ -523,11 +540,9 @@ static irqreturn_t lwis_interrupt_gpios_event_isr(int irq_number, void *data)
 	unsigned long flags;
 	struct lwis_interrupt *irq = (struct lwis_interrupt *)data;
 	struct lwis_single_event_info *event;
-	struct list_head *p;
 
 	spin_lock_irqsave(&irq->lock, flags);
-	list_for_each(p, &irq->enabled_event_infos) {
-		event = list_entry(p, struct lwis_single_event_info, node_enabled);
+	list_for_each_entry(event, &irq->enabled_event_infos, node_enabled) {
 		/* Emit the event */
 		lwis_device_event_emit(irq->lwis_dev, event->event_id, NULL, 0);
 	}
@@ -584,6 +599,7 @@ int lwis_interrupt_set_event_info(struct lwis_interrupt_list *list, int index, i
 			kzalloc(sizeof(struct lwis_single_event_info), GFP_KERNEL);
 		if (!new_event)
 			return -ENOMEM;
+		INIT_LIST_HEAD(&new_event->node_enabled);
 
 		/* Check to see if this event is considered critical */
 		is_critical = false;
@@ -668,6 +684,7 @@ int lwis_interrupt_set_gpios_event_info(struct lwis_interrupt_list *list, int in
 	new_event = kzalloc(sizeof(struct lwis_single_event_info), GFP_KERNEL);
 	if (!new_event)
 		return -ENOMEM;
+	INIT_LIST_HEAD(&new_event->node_enabled);
 
 	/* Fill the device id info in event id bit[47..32] */
 	irq_event |= (int64_t)(list->lwis_dev->id & 0xFFFF) << 32;
@@ -717,10 +734,21 @@ static int interrupt_single_event_enable_locked(struct lwis_interrupt *irq,
 		return -EINVAL;
 	}
 
-	if (enabled)
-		list_add_tail(&event->node_enabled, &irq->enabled_event_infos);
-	else
-		list_del(&event->node_enabled);
+	if (enabled) {
+		/* Only add if it's not already in a list */
+		if (list_empty(&event->node_enabled))
+			list_add_tail(&event->node_enabled, &irq->enabled_event_infos);
+		else
+			pr_warn("Event 0x%llx already enabled for IRQ %s\n", event->event_id,
+				irq->name);
+	} else {
+		/* Only delete if it's actually in a list */
+		if (!list_empty(&event->node_enabled))
+			list_del_init(&event->node_enabled);
+		else
+			pr_warn("Event 0x%llx already disabled for IRQ %s\n", event->event_id,
+				irq->name);
+	}
 
 	/* If mask_toggled is set, reverse the enable/disable logic. */
 	is_set = (!irq->mask_toggled) ? enabled : !enabled;

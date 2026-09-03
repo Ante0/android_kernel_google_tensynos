@@ -88,6 +88,10 @@
 		dbg_fn_delay = <2000>;
 	};
 
+	power_keydebug {
+		compatible = "power-keydebug";
+	};
+
 	debug-kinfo {
 		compatible = "google,debug-kinfo";
 		memory-region = <&debug_kinfo_reserved>;
@@ -103,7 +107,6 @@
 
 	pixel-suspend-diag {
 		compatible = "google,pixel-suspend-diag";
-		memory-region = <&suspend_diag_log_reserved>;
 	};
 
 	gs201-itmon {

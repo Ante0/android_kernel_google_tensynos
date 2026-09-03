@@ -1,0 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * LGA platform i2c bus device tree source
+ *
+ * Copyright 2024 Google, LLC.
+ */
+
+// Skip SOC i2c/i3c id and use next one
+#define IFPMIC_I2C_BUS_ID (SOC_I2C_BUS_NUM + SOC_I3C_BUS_NUM)

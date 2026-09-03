@@ -1,0 +1,1 @@
+../../../wlan_fw/modules/wlan_buffer_management/buffer_management_table.h

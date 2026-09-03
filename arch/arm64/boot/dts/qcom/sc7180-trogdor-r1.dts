@@ -8,8 +8,8 @@
 /dts-v1/;
 
 #include "sc7180-trogdor.dtsi"
-/* Must come after sc7180-trogdor.dtsi to modify cros_ec */
-#include <arm/cros-ec-keyboard.dtsi>
+#include "sc7180-trogdor-clamshell.dtsi"
+#include "sc7180-trogdor-rt5682i-sku.dtsi"
 #include "sc7180-trogdor-ti-sn65dsi86.dtsi"
 
 / {
@@ -63,13 +63,7 @@ ap_ts_pen_1v8: &i2c4 {
 /* PINCTRL - modifications to sc7180-trogdor.dtsi */
 
 &trackpad_int_1v8_odl {
-	pinmux {
-		pins = "gpio58";
-	};
-
-	pinconf {
-		pins = "gpio58";
-	};
+	pins = "gpio58";
 };
 
 /* PINCTRL - board-specific pinctrl */

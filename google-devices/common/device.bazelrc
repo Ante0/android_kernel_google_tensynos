@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Copyright (C) 2023 Google LLC
+
+build --flag_alias=kernel_package=//common:kernel_package
+build --flag_alias=use_prebuilt_kernel=//common:kernel_package_use_prebuilt_kernel
+build --flag_alias=nouse_prebuilt_kernel=no//common:kernel_package_use_prebuilt_kernel
+build --flag_alias=use_prebuilt_fips140=//private/devices/google/common:use_prebuilt_fips140
+build --flag_alias=nouse_prebuilt_fips140=no//private/devices/google/common:use_prebuilt_fips140
+
+# Use common/gki and build from source
+# build --kernel_package=gki --nouse_prebuilt_kernel
+
+# Use prebuilt GKI
+build --kernel_package=gki
+
+# Use prebuilt fips140.ko
+build --use_prebuilt_fips140
+
+# include unsafe header list
+build --allow_ddk_unsafe_headers
+build --user_ddk_unsafe_headers=//private/devices/google/common:user_ddk_unsafe_headers
+
+# b/400799412: Optimize build time
+build --experimental_optimize_ddk_config_actions
+
+# Specifically disallow empty glob, which will be default on Android 17.
+build --incompatible_disallow_empty_glob
+
+# Do not keep sandbox directories to save millions of files in the out directory in trade of 5-7%
+# longer build time.
+# TODO: b/476893581 - Investigate whether to use --experimental_inmemory_sandbox_stashes instead.
+build --noreuse_sandbox_directories
+
+# Debug configs
+import %workspace%/private/devices/google/common/debug/debug.bazelrc
+
+# Factory build
+build:factory --config=pixel_debug_common
+build:factory --//private/devices/google/common:factory
+
+# Testing build, enable gcov
+build:testing --gcov
+build:testing --config=pixel_debug_common
+
+# Build 16k page size kernel
+build:16k --page_size=16k
+build:16k --nouse_prebuilt_fips140
+
+# For compatibility only. Do no introduce new usage of these configs.
+# Use --kernel_package directly.
+build:aosp_staging --kernel_package=staging
+build:use_source_tree_aosp --kernel_package=ack
+build:use_source_tree_aosp_staging --kernel_package=staging

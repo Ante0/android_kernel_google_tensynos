@@ -24,6 +24,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/pm_runtime.h>
 #include <linux/of.h>
+#include <linux/of_graph.h>
 #include <linux/component.h>
 
 #include <video/omapfb_dss.h>
@@ -764,7 +765,7 @@ static int venc_probe_of(struct platform_device *pdev)
 	u32 channels;
 	int r;
 
-	ep = omapdss_of_get_first_endpoint(node);
+	ep = of_graph_get_endpoint_by_regs(node, 0, -1);
 	if (!ep)
 		return 0;
 
@@ -880,10 +881,9 @@ static int venc_probe(struct platform_device *pdev)
 	return component_add(&pdev->dev, &venc_component_ops);
 }
 
-static int venc_remove(struct platform_device *pdev)
+static void venc_remove(struct platform_device *pdev)
 {
 	component_del(&pdev->dev, &venc_component_ops);
-	return 0;
 }
 
 static int venc_runtime_suspend(struct device *dev)
@@ -903,9 +903,7 @@ static int venc_runtime_resume(struct device *dev)
 	if (r < 0)
 		return r;
 
-	clk_prepare_enable(venc.tv_dac_clk);
-
-	return 0;
+	return clk_prepare_enable(venc.tv_dac_clk);
 }
 
 static const struct dev_pm_ops venc_pm_ops = {
@@ -923,8 +921,8 @@ static const struct of_device_id venc_of_match[] = {
 static struct platform_driver omap_venchw_driver = {
 	.probe		= venc_probe,
 	.remove		= venc_remove,
-	.driver         = {
-		.name   = "omapdss_venc",
+	.driver		= {
+		.name	= "omapdss_venc",
 		.pm	= &venc_pm_ops,
 		.of_match_table = venc_of_match,
 		.suppress_bind_attrs = true,

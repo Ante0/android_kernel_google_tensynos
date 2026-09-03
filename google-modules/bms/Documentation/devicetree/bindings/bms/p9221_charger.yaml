@@ -28,7 +28,7 @@ properties:
   reg:
     description: i2c address of the charger.
 
-  idt,gpio-ben:
+  idt,ben-gpios:
     description: GPIO to enable external boost for RTX.
     $ref: "types.yaml#/definitions/phandle"
 
@@ -288,55 +288,55 @@ properties:
     description: Whether 15W charging should be enabled for M4G charger
     type: boolean
 
-patternProperties:
-  "^(idt,qien-gpio|idt,gpio_qien)$":
+  idt,qien-gpios:
     description: GPIO to enable/disable WLC chip.
     $ref: "types.yaml#/definitions/phandle"
 
-  "^(idt,qi_vbus_en-gpio|idt,gpio_qi_vbus_en)$":
+  idt,qi_vbus_en-gpios:
     description: GPIO to control the priority of USB and WLC,
     $ref: "types.yaml#/definitions/phandle"
 
-  "^(idt,wlc_en-gpio|idt,gpio_wlc_en)$":
+  idt,wlc_en-gpios:
     description: GPIO to enable/Disable WLC chip(for P9XXX_GPIO_VBUS_EN)
     $ref: "types.yaml#/definitions/phandle"
 
-  "^(idt,slct-gpio|idt,gpio_slct)$":
+  idt,slct-gpios:
     description: GPIO to control BPP/EPP selection.
     $ref: "types.yaml#/definitions/phandle"
 
-  "^(idt,ldo_en-gpio:idt,gpio_ldo_en)$":
+  idt,ldo_en-gpios:
     description: GPIO to enable external LDO.
     $ref: "types.yaml#/definitions/phandle"
 
-  "^(google,wcin_inlim_en-gpio|google,wcin_inlim_en)$":
+  google,wcin_inlim_en-gpios:
     description: GPIO to enable input current limiting feature.
     $ref: "types.yaml#/definitions/phandle"
 
-  "^(idt,switch-gpio|idt,gpio_switch)$":
+  idt,switch-gpios:
     description: OTG_RTX_SW gpio, switch boost to OTG(5V) or RTx(7V)
     $ref: "types.yaml#/definitions/phandle"
 
-  "^(idt,boost-gpio|idt,gpio_boost)$":
+  idt,boost-gpios:
     description: GPIO to select RTX voltage level
     $ref: "types.yaml#/definitions/phandle"
 
-  "^(idt,extben-gpio|idt,gpio_extben)$":
+  idt,extben-gpios:
     description: GPIO to enable external boost for high power charging.
     $ref: "types.yaml#/definitions/phandle"
 
-  "^(idt,dc_switch-gpio|idt,gpio_dc_switch)$":
+  idt,dc_switch-gpios:
     description: GPIO to control chip-internal switch to enable DC charging mode
     $ref: "types.yaml#/definitions/phandle"
 
-  "^(idt,irq-gpio|idt,irq_gpio)$":
+  idt,irq-gpios:
     description: GPIO connected to the main IRQ of WLC chip
     $ref: "types.yaml#/definitions/phandle"
 
-  "^(idt,irq_det-gpio|idt,irq_det_gpio)$":
+  idt,irq_det-gpios:
     description: GPIO connected to the presence detection IRQ of WLC chip
     $ref: "types.yaml#/definitions/phandle"
 
+patternProperties:
   "^fod_hpp_[0-9]$":
     description: Sets of HPP FOD values based on HPP FOD voltages
     $ref: /schemas/types.yaml#/definitions/uint8-array
@@ -361,4 +361,4 @@ required:
   - compatible
 
 dependencies:
-  idt,gpio_slct_value: [ 'idt,slct-gpio' ]
+  idt,gpio_slct_value: [ 'idt,slct-gpios' ]

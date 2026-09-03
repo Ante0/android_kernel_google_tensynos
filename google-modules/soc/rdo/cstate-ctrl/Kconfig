@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_CSTATE_CTRL
+      tristate "Google driver to disable CPU cluster states via debugfs"
+      depends on DEBUG_FS
+      help
+        This driver allows runtime enabling/disabling of CPU cluster states via
+        a debugfs node. Writing to the node disables a CPU cluster's C-state,
+        keeping its corresponding power domain active by casting a genpd vote.
+

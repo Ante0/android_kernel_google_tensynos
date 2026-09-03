@@ -1061,7 +1061,7 @@ abituguru3_probe_error:
 	return res;
 }
 
-static int abituguru3_remove(struct platform_device *pdev)
+static void abituguru3_remove(struct platform_device *pdev)
 {
 	int i;
 	struct abituguru3_data *data = platform_get_drvdata(pdev);
@@ -1072,7 +1072,6 @@ static int abituguru3_remove(struct platform_device *pdev)
 	for (i = 0; i < ARRAY_SIZE(abituguru3_sysfs_attr); i++)
 		device_remove_file(&pdev->dev,
 			&abituguru3_sysfs_attr[i].dev_attr);
-	return 0;
 }
 
 static struct abituguru3_data *abituguru3_update_device(struct device *dev)
@@ -1148,7 +1147,7 @@ static int abituguru3_resume(struct device *dev)
 static DEFINE_SIMPLE_DEV_PM_OPS(abituguru3_pm, abituguru3_suspend, abituguru3_resume);
 
 static struct platform_driver abituguru3_driver = {
-	.driver = {
+	.driver	= {
 		.name	= ABIT_UGURU3_NAME,
 		.pm	= pm_sleep_ptr(&abituguru3_pm),
 	},

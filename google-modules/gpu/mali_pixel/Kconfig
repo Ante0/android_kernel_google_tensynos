@@ -19,7 +19,7 @@
 #
 
 config MALI_MEMORY_GROUP_MANAGER
-	tristate "MALI_MEMORY_GROUP_MANAGER"
+	bool "MALI_MEMORY_GROUP_MANAGER"
 	help
 	  This option enables an example implementation of a memory group manager
 	  for allocation and release of pages for memory pools managed by Mali GPU
@@ -33,14 +33,32 @@ config MALI_MEMORY_GROUP_MANAGER_DEBUG_FS
 	  Enables support for memory group manager debugfs nodes
 
 config MALI_PRIORITY_CONTROL_MANAGER
-	tristate "MALI_PRIORITY_CONTROL_MANAGER"
+	bool "MALI_PRIORITY_CONTROL_MANAGER"
 	help
 	  This option enables an implementation of a priority control manager
 	  for determining the target GPU scheduling priority of a process.
 
 config MALI_PROTECTED_MEMORY_ALLOCATOR
-	tristate "MALI_PROTECTED_MEMORY_ALLOCATOR"
+	bool "MALI_PROTECTED_MEMORY_ALLOCATOR"
 	help
 	  This option enables an implementation of a protected memory allocator
 	  for allocation and release of pages of protected memory for use by
 	  Mali GPU device drivers.
+
+config MALI_PIXEL_STATS
+	bool "mali pixel stats"
+	depends on PIXEL_STAT
+	help
+	  mali pixel stats
+
+config MALI_PIXEL_GPU_SLC
+	bool "mali pixel gpu slc"
+	help
+	  mali pixel gpu slc
+
+config MALI_PIXEL_GPU_SLC_ACPM_SIGNAL
+	bool "mali pixel gpu slc acpm signal"
+	depends on MALI_PIXEL_GPU_SLC && CONFIG_SOC_ZUMA
+	default y
+	help
+	  mali pixel gpu slc acpm signal

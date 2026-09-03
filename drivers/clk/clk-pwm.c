@@ -129,11 +129,9 @@ static int clk_pwm_probe(struct platform_device *pdev)
 	return of_clk_add_hw_provider(node, of_clk_hw_simple_get, &clk_pwm->hw);
 }
 
-static int clk_pwm_remove(struct platform_device *pdev)
+static void clk_pwm_remove(struct platform_device *pdev)
 {
 	of_clk_del_provider(pdev->dev.of_node);
-
-	return 0;
 }
 
 static const struct of_device_id clk_pwm_dt_ids[] = {

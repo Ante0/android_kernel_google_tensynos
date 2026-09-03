@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+config QM35_SPI
+	tristate "qm35 spi"
+	help
+	  qm35 spi
+
+config QM35_SPI_DEBUG_FW
+	bool "qm35 spi debug fw"
+	depends on QM35_SPI
+	help
+	  qm35 spi debug fw

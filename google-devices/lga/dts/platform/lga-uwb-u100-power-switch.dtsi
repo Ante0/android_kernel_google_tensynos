@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Lga platform uwb device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+&lsion_cli17_int0_spi{
+	u100@0 {
+		u100-power-switch-gpios = <&lsioe_pinctrl XLSIOE_CLI11_PIN0(GPIO_ACTIVE_HIGH)>;
+	};
+};

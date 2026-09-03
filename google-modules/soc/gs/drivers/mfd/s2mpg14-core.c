@@ -135,8 +135,8 @@ u8 s2mpg14_get_rev_id(void)
 }
 EXPORT_SYMBOL_GPL(s2mpg14_get_rev_id);
 
-struct i2c_client *s2mpg14_get_i2c_client(struct s2mpg14_dev *dev,
-					  unsigned int reg)
+static struct i2c_client *s2mpg14_get_i2c_client(struct s2mpg14_dev *dev,
+						 unsigned int reg)
 {
 	struct i2c_client *client = NULL;
 
@@ -156,8 +156,8 @@ struct i2c_client *s2mpg14_get_i2c_client(struct s2mpg14_dev *dev,
 	return client;
 }
 
-int s2mpg14_regmap_read_reg(void *context, unsigned int reg,
-			    unsigned int *dest)
+static int s2mpg14_regmap_read_reg(void *context, unsigned int reg,
+				   unsigned int *dest)
 {
 	u8 ureg = reg;
 	u8 *udest = (u8 *)dest;
@@ -171,8 +171,8 @@ int s2mpg14_regmap_read_reg(void *context, unsigned int reg,
 	return s2mpg14_read_reg(client, ureg, udest);
 }
 
-int s2mpg14_regmap_write_reg(void *context, unsigned int reg,
-			     unsigned int value)
+static int s2mpg14_regmap_write_reg(void *context, unsigned int reg,
+				    unsigned int value)
 {
 	u8 ureg = reg;
 	u8 uvalue = value;
@@ -369,8 +369,7 @@ static int of_s2mpg14_dt(struct device *dev,
 }
 #endif /* CONFIG_OF */
 
-static int s2mpg14_i2c_probe(struct i2c_client *i2c,
-			     const struct i2c_device_id *dev_id)
+static int s2mpg14_i2c_probe(struct i2c_client *i2c)
 {
 	struct s2mpg14_dev *s2mpg14;
 	struct s2mpg14_platform_data *pdata = i2c->dev.platform_data;

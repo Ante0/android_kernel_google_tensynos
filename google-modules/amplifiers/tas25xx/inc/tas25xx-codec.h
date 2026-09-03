@@ -27,4 +27,7 @@
 int tas25xx_register_codec(struct tas25xx_priv *p_tas25xx);
 int tas25xx_deregister_codec(struct tas25xx_priv *p_tas25xx);
 
+int tas25xx_register_nop_codec(struct tas25xx_priv *p_tas25xx);
+int tas25xx_deregister_nop_codec(struct tas25xx_priv *p_tas25xx);
+
 #endif /* _TAS25XX_CODEC_H */

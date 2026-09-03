@@ -27,20 +27,20 @@
  * the mode is changed; otherwise inline encryption won't be able to be used.
  */
 
-#include <linux/gsa/gsa_kdn.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
-#include <ufs/ufshcd.h>
-#include <core/ufshcd-crypto.h>
-
-#include "ufs-pixel.h"
-#include "ufs-pixel-fips.h"
-#include "ufs-pixel-crypto.h"
-
-#undef CREATE_TRACE_POINTS
 #include <trace/hooks/ufshcd.h>
+#include <ufs/ufshcd.h>
+
+#include <linux/gsa/gsa_kdn.h>
+
+#include <drivers/ufs/core/ufshcd-crypto.h>
+
+#include "ufs-pixel-crypto.h"
+#include "ufs-pixel-fips.h"
+#include "ufs-pixel.h"
 
 #if IS_ENABLED(CONFIG_SCSI_UFS_CRYPTO_SW_KEYS_MODE)
 static bool use_kdn = true;
@@ -103,7 +103,6 @@ static u32 ufshcd_pending_cmds(struct ufs_hba *hba)
 static void ufshcd_block_io(struct ufs_hba *hba)
 {
 	ktime_t deadline = ktime_add_ms(ktime_get(), 5 * 1000);
-	struct scsi_device *sdev;
 
 	/*
 	 * If ufshcd_block_io() is called before the tag set has been
@@ -112,8 +111,7 @@ static void ufshcd_block_io(struct ufs_hba *hba)
 	if (!hba->host->tag_set.tags)
 		return;
 
-	shost_for_each_device(sdev, hba->host)
-		blk_mq_quiesce_queue(sdev->request_queue);
+	blk_mq_quiesce_tagset(&hba->host->tag_set);
 
 	while (ufshcd_pending_cmds(hba)) {
 		if (ktime_after(ktime_get(), deadline)) {
@@ -126,13 +124,10 @@ static void ufshcd_block_io(struct ufs_hba *hba)
 
 static void ufshcd_resume_io(struct ufs_hba *hba)
 {
-	struct scsi_device *sdev;
-
 	if (!hba->host->tag_set.tags)
 		return;
 
-	shost_for_each_device(sdev, hba->host)
-		blk_mq_unquiesce_queue(sdev->request_queue);
+	blk_mq_unquiesce_tagset(&hba->host->tag_set);
 }
 
 static int pixel_ufs_keyslot_program(struct blk_crypto_profile *profile,
@@ -292,14 +287,14 @@ static int pixel_ufs_crypto_init_hw_keys_mode(struct ufs_hba *hba)
 	 * program/evict wrapped keys via the KDN, and secondly in order to
 	 * declare wrapped key support rather than standard key support.
 	 */
-	hba->android_quirks |= UFSHCD_ANDROID_QUIRK_CUSTOM_CRYPTO_PROFILE;
+	hba->quirks |= UFSHCD_QUIRK_CUSTOM_CRYPTO_PROFILE;
 
 	/*
 	 * This host controller doesn't support the standard
 	 * CRYPTO_GENERAL_ENABLE bit in REG_CONTROLLER_ENABLE.  Instead it just
 	 * always has crypto support enabled.
 	 */
-	hba->android_quirks |= UFSHCD_ANDROID_QUIRK_BROKEN_CRYPTO_ENABLE;
+	hba->quirks |= UFSHCD_QUIRK_BROKEN_CRYPTO_ENABLE;
 
 	/* Advertise crypto capabilities to the block layer. */
 	err = devm_blk_crypto_profile_init(hba->dev, &hba->crypto_profile,

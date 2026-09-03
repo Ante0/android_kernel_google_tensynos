@@ -6,6 +6,8 @@
 
 #include <trace/hooks/mm.h>
 
+#include "gcma_vh.h"
+
 static atomic64_t total_gcma_pages = ATOMIC64_INIT(0);
 
 static void vh_gcma_si_meminfo_fixup(void *data, unsigned long *totalram,

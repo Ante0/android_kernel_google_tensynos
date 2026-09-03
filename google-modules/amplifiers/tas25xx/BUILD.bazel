@@ -1,23 +1,101 @@
 # SPDX-License-Identifier: GPL-2.0
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
 
-kernel_module(
-    name = "tas25xx",
-    srcs = glob([
-        "**/*.c",
-        "**/*.h",
-        "inc/*.h",
-        "algo/**/*.c",
-        "algo/**/*.h",
-    ]) + [
-        "//private/google-modules/soc/gs:gs_soc_headers",
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "headers",
+    hdrs = glob([
+        "inc/**/*.h",
+    ]),
+    includes = [
+        ".",
+        "inc",
     ],
-    outs = [
-        "snd-soc-tas25xx.ko",
-    ],
-    kernel_build = "//private/devices/google/common:kernel",
     visibility = [
-        "//private/devices/google:__subpackages__",
+        ":__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "snd-soc-tas25xx",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "snd-soc-tas25xx.ko",
+    conditional_srcs = {
+        "CONFIG_SND_SOC_TAS25XX": {
+            True: [
+                "src/tas25xx-codec.c",
+                "src/tas25xx-logic.c",
+                "src/tas25xx-regbin-parser.c",
+                "src/tas25xx-regmap.c",
+                "src/tas25xx.c",
+            ],
+        },
+        "CONFIG_TAS25XX_ALGO": {
+            True: [
+                "algo/src/tas25xx-algo-intf.c",
+                "algo/src/tas25xx-calib.c",
+                "algo/src/tas25xx-algo-common.c",
+            ],
+        },
+        "CONFIG_PLATFORM_MTK": {
+            True: [
+                "algo/platform/mtk/tas25xx-mtk-wrapper.c",
+            ],
+        },
+        "CONFIG_TAS25XX_MISC": {
+            True: [
+                "src/tas25xx-misc.c",
+            ],
+        },
+        "CONFIG_PLATFORM_QCOM": {
+            True: [
+                "algo/platform/qcom/tas25xx-algo-qdsp-intf.c",
+            ],
+        },
+        "CONFIG_TISA_KBIN_INTF": {
+            True: [
+                "algo/src/tas25xx-algo-kbin-intf.c",
+                "algo/src/tas25xx-algo-bin-utils.c",
+            ],
+        },
+        "CONFIG_TAS25XX_CALIB_VAL_BIG": {
+            True: [
+                "algo/src/tas25xx-calib-validation.c",
+            ],
+        },
+        "CONFIG_TISA_SYSFS_INTF": {
+            True: [
+                "algo/src/tas25xx-sysfs-debugfs-utils.c",
+                "algo/src/smartpa-debug-common.c",
+            ],
+        },
+        "CONFIG_TISA_BIN_INTF": {
+            True: [
+                "algo/src/tas25xx-algo-bin-intf.c",
+            ],
+        },
+        "CONFIG_PLATFORM_EXYNOS": {
+            True: [
+                "algo/platform/exynos/skinprot-sysfs-cb.c",
+                "algo/platform/exynos/tas25xx-algo-exynos-dsp-intf.c",
+            ],
+        },
+    },
+    defconfig = "defconfig",
+    kconfig = "Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "CONFIG_TAS25XX_CODEC=1",
+    ],
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
     ],
 )

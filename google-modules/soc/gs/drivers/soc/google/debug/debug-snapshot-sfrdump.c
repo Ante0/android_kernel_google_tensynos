@@ -4,6 +4,7 @@
  *		http://www.samsung.com
  */
 
+#include <linux/cleanup.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/dma-mapping.h>
@@ -110,7 +111,7 @@ static struct notifier_block nb_sfrdump = {
 
 static int dbg_snapshot_sfrdump_probe(struct platform_device *pdev)
 {
-	struct device_node *parent_np, *dump_np;
+	struct device_node *parent_np __free(device_node);
 	struct dbg_snapshot_sfrdump *sfrdump;
 	u32 phy_regs[2];
 	int ret = 0;
@@ -119,7 +120,7 @@ static int dbg_snapshot_sfrdump_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&sfrdump_list);
 
 	parent_np = of_get_child_by_name(pdev->dev.of_node, "dump-info");
-	for_each_child_of_node(parent_np, dump_np) {
+	for_each_child_of_node_scoped(parent_np, dump_np) {
 		sfrdump = devm_kzalloc(&pdev->dev, sizeof(struct dbg_snapshot_sfrdump),
 				GFP_KERNEL);
 		if (!sfrdump) {

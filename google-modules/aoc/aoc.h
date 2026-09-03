@@ -9,6 +9,9 @@
  * published by the Free Software Foundation.
  */
 
+#ifndef AOC_H_
+#define AOC_H_
+
 #include <linux/cdev.h>
 #include <linux/delay.h>
 #include <linux/device.h>
@@ -20,6 +23,7 @@
 #include <linux/timer.h>
 #include <soc/google/debug-snapshot.h>
 #include "aoc_ipc_core.h"
+#include "aoc_common.h"
 
 /* TODO: Remove internal calls, or promote to "public" */
 #include "aoc_ipc_core_internal.h"
@@ -27,11 +31,6 @@
 #include "uapi/aoc.h"
 
 #ifdef __KERNEL__
-
-#define MAX_SENSOR_POWER_NUM 5
-#define MAX_DMIC_POWER_NUM 4
-#define AP_RESET_REASON_LENGTH 32
-#define MAX_FIRMWARE_LENGTH 128
 
 #define AOC_S2MPU_CTRL0 0x0
 #define AOC_S2MPU_CTRL_PROTECTION_ENABLE_PER_VID_CLR 0x54
@@ -42,10 +41,19 @@
 #define SENSOR_DIRECT_HEAP_SIZE SZ_4M
 #define PLAYBACK_HEAP_SIZE SZ_16K
 #define CAPTURE_HEAP_SIZE SZ_64K
+#if IS_ENABLED(CONFIG_SOC_GS101) || IS_ENABLED(CONFIG_SOC_GS201) || IS_ENABLED(CONFIG_SOC_ZUMA) || \
+	IS_ENABLED(CONFIG_SOC_RDO) || IS_ENABLED(CONFIG_SOC_LGA)
+#define CONTEXTHUB_SHARED_DATA_HEAP_SIZE 0
+#else
+#define CONTEXTHUB_SHARED_DATA_HEAP_SIZE SZ_1M
+#endif
+#define TPU_OFFLOAD_HEAP_SIZE SZ_128K
 
 /* mmap pcm offload buffer size */
 #define OFFLOAD_HEAP_SIZE SZ_8M
+#define AOC_MMAP_PLAYBACK_SERVICE         "audio_playback0"
 #define AOC_MMAP_OFFLOAD_PLAYBACK_SERVICE "audio_playback6"
+#define AOC_MMAP_CAPTURE_SERVICE          "audio_capture1"
 
 #define DT_PROPERTY_NOT_FOUND 0xffffffff
 
@@ -60,9 +68,15 @@ enum AOC_FW_STATE {
 	AOC_STATE_SSR
 };
 
+struct service_work_data {
+	struct work_struct service_work;
+	int offset;
+};
+
 struct mbox_slot {
 	struct mbox_client client;
 	struct mbox_chan *channel;
+	struct service_work_data work;
 	void *prvdata;
 	int index;
 };
@@ -79,119 +93,26 @@ struct aoc_service_dev {
 	uint64_t suspend_rx_count;
 
 	uint8_t mbox_index;
+	uint8_t phys_index;
 	uint8_t service_index;
 
 	bool dead;
 	bool wake_capable;
-};
 
-typedef int (*aoc_map_handler)(u32 handle, phys_addr_t p, size_t size,
-				bool mapped, void *ctx);
-
-struct aoc_prvdata {
-	struct mbox_slot *mbox_channels;
-	struct aoc_service_dev **services;
-
-	unsigned long *read_blocked_mask;
-	unsigned long *write_blocked_mask;
-
-	struct work_struct online_work;
-	struct resource dram_resource;
-	aoc_map_handler map_handler;
-	void *map_handler_ctx;
-
-	struct delayed_work monitor_work;
-	atomic_t aoc_process_active;
-
-	struct device *dev;
-	struct iommu_domain *domain;
-	void *ipc_base;
-
-	void *sram_virt;
-	void *dram_virt;
-	void *aoc_req_virt;
-	size_t sram_size;
-	size_t dram_size;
-	size_t aoc_req_size;
-
-	struct dma_heap *sensor_heap;
-	struct dma_heap *audio_playback_heap;
-	struct dma_heap *audio_capture_heap;
-	struct dma_heap *audio_offload_heap;
-
-	phys_addr_t sensor_heap_base;
-	phys_addr_t audio_playback_heap_base;
-	phys_addr_t audio_capture_heap_base;
-	phys_addr_t audio_offload_heap_base;
-
-	int watchdog_irq;
-	struct work_struct watchdog_work;
-	bool first_fw_load;
-	bool aoc_reset_done;
-	bool ap_triggered_reset;
-	bool force_release_aoc;
-	char ap_reset_reason[AP_RESET_REASON_LENGTH];
-	wait_queue_head_t aoc_reset_wait_queue;
-	unsigned int acpm_async_id;
-	int total_services;
-
-	char firmware_name[MAX_FIRMWARE_LENGTH];
-	char *firmware_version;
-
-	struct cdev cdev;
-	dev_t aoc_devt;
-	struct class *_class;
-	struct device *_device;
-
-	u32 disable_monitor_mode;
-	u32 enable_uart_tx;
-	u32 force_voltage_nominal;
-	u32 no_ap_resets;
-	u32 force_speaker_ultrasonic;
-	u32 volte_release_mif;
-
-	u32 total_coredumps;
-	u32 total_restarts;
-	unsigned int iommu_nonsecure_irq;
-	unsigned int iommu_secure_irq;
-
-#if IS_ENABLED(CONFIG_EXYNOS_ITMON)
-	struct notifier_block itmon_nb;
-#endif
-	struct device *gsa_dev;
-	bool protected_by_gsa;
-
-	int sensor_power_count;
-	const char *sensor_power_list[MAX_SENSOR_POWER_NUM];
-	struct regulator *sensor_regulator[MAX_SENSOR_POWER_NUM];
-
-	int dmic_power_count;
-	const char *dmic_power_list[MAX_DMIC_POWER_NUM];
-	struct regulator *dmic_regulator[MAX_DMIC_POWER_NUM];
-
-	int reset_hysteresis_trigger_ms;
-	u64 last_reset_time_ns;
-	int reset_wait_time_index;
-
-	u32 aoc_pcu_base;
-	u32 aoc_gpio_base;
-	u32 aoc_pcu_db_set_offset;
-	u32 aoc_pcu_db_clr_offset;
-	u32 aoc_cp_aperture_start_offset;
-	u32 aoc_cp_aperture_end_offset;
-	u32 aoc_clock_divider;
-	u32 aoc_mbox_channels;
-
-	u16 iommu_size;
-	struct iommu_entry *iommu;
-	bool iommu_configured;
-	bool iommu_config_persistent;
+	int irq;
 };
 
 struct aoc_module_parameters {
 	bool *aoc_autoload_firmware;
 	bool *aoc_disable_restart;
 	bool *aoc_panic_on_req_timeout;
+	bool *aoc_enable_gsa_boot;
+	bool *aoc_panic_on_coredump_timeout;
+	int *aoc_monitor_online_timeout;
+	bool *aoc_panic_on_monitor_timeout;
+	bool *aoc_panic_on_ssr_failure;
+	int *aoc_ssr_hysteresis_threshold_ms;
+	int *aoc_coredump_reset_delay_ms;
 };
 
 #define AOC_DEVICE(_d) container_of((_d), struct aoc_service_dev, dev)
@@ -240,13 +161,15 @@ void aoc_set_map_handler(struct aoc_service_dev *dev, aoc_map_handler handler,
 void aoc_remove_map_handler(struct aoc_service_dev *dev);
 void aoc_trigger_watchdog(const char *reason);
 
-extern u32 gs_chipid_get_revision(void);
-extern u32 gs_chipid_get_type(void);
-extern u32 gs_chipid_get_product_id(void);
+u32 aoc_chip_get_revision(void);
+u32 aoc_chip_get_type(void);
+u32 aoc_chip_get_product_id(void);
+size_t platform_specific_get_dvfs_freq(char *buff);
 
 bool aoc_release_from_reset(struct aoc_prvdata *prvdata);
 
 void *aoc_sram_translate(u32 offset);
+void *aoc_dram_translate(struct aoc_prvdata *p, u32 offset);
 
 void request_aoc_on(struct aoc_prvdata *p, bool status);
 int wait_for_aoc_status(struct aoc_prvdata *p, bool status);
@@ -256,18 +179,16 @@ int aoc_watchdog_restart(struct aoc_prvdata *prvdata,
 
 int platform_specific_probe(struct platform_device *pdev, struct aoc_prvdata *prvdata);
 
+void platform_specific_remove(struct platform_device *pdev, struct aoc_prvdata *prvdata);
+
 int start_firmware_load(struct device *dev);
 
-void reset_sensor_power(struct aoc_prvdata *prvdata, bool is_init);
-
-void aoc_configure_hardware(struct aoc_prvdata *prvdata);
+void configure_sensor_power(struct aoc_prvdata *prvdata, bool enable);
 
 void trigger_aoc_ramdump(struct aoc_prvdata *prvdata);
 
 bool aoc_create_dma_buf_heaps(struct aoc_prvdata *prvdata);
-
-bool aoc_set_dma_buf_as_ring(struct aoc_prvdata *prvdata);
-
+void aoc_set_dma_buf_as_ring(struct aoc_prvdata *prvdata);
 phys_addr_t aoc_dram_translate_to_aoc(struct aoc_prvdata *p, phys_addr_t addr);
 
 long aoc_unlocked_ioctl_handle_ion_fd(unsigned int cmd, unsigned long arg);
@@ -301,6 +222,26 @@ void notify_timeout_aoc_status(void);
 
 void trigger_aoc_ssr(bool ap_triggered_reset, char* reset_reason);
 
+int platform_specific_aoc_online(void);
+
+int platform_specific_aoc_offline(void);
+
+void platform_specific_aoc_core_suspend(void);
+
+void platform_specific_aoc_core_resume(void);
+
+u64 aoc_get_timer_ticks(void);
+
+int aoc_read_soc_compatible(struct device *dev, u32 *product_id, u32 *major, u32 *minor);
+
+void schedule_service_work(int channel);
+
+struct aoc_prvdata *get_aoc_prvdata(void);
+
+void aoc_print_core_boot_breadcrumbs(struct aoc_prvdata *prvdata);
+
+void aoc_init_core_boot_breadcrumbs(struct aoc_prvdata *prvdata);
+
 #define AOC_SERVICE_NAME_LENGTH 32
 
 /* Rings should have the ring flag set, slots = 1, size = ring size
@@ -323,10 +264,6 @@ void trigger_aoc_ssr(bool ap_triggered_reset, char* reset_reason);
 
 #define AOC_PCU_WATCHDOG_KEY_UNLOCK 0xA55AA55A
 #define AOC_PCU_WATCHDOG_CONTROL_KEY_ENABLED_MASK 0x4
-
-#define AOC_BINARY_DRAM_BASE 0x98000000
-#define AOC_BINARY_LOAD_ADDRESS 0x98000000
-#define AOC_BINARY_DRAM_OFFSET (AOC_BINARY_LOAD_ADDRESS - AOC_BINARY_DRAM_BASE)
 
 #define AOC_PARAMETER_MAGIC 0x0a0cda7a
 
@@ -354,9 +291,20 @@ enum AOC_FIRMWARE_INFORMATION {
 	kAOCVolteReleaseMif = 0x1015,
 	kAOCChipProductId = 0x1016,
 	kAOCWifiChip = 0x1017,
+	kAOCBtChip = 0x1018,
+	kAOCContexthubSharedDataHeapAddress = 0x1019,
+	kAOCContexthubSharedDataHeapSize = 0x101A,
+	kAOCTpuOffloadHeapAddress = 0x101B,
+	kAOCTpuOffloadHeapSize = 0x101C,
+	kAOCGsaEnabled = 0x101D,
 };
+
+extern enum AOC_FW_STATE aoc_state;
+extern const char * const control_channels[];
+extern const int control_channels_size;
 
 #define module_aoc_driver(__aoc_driver)                                        \
 	module_driver(__aoc_driver, aoc_driver_register, aoc_driver_unregister)
 
 #endif /* __KERNEL__ */
+#endif /* AOC_H_ */

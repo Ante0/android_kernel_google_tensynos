@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "fw-api_headers",
+    hdrs = glob([
+        "**/*.h",
+    ]),
+    includes = [
+        "fw",
+        "hw/qca6490/v1",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)

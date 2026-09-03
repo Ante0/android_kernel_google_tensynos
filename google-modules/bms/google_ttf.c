@@ -12,20 +12,23 @@
  * GNU General Public License for more details.
  */
 
+#pragma clang diagnostic ignored "-Wformat"
+
 #include <linux/kernel.h>
 #include <linux/printk.h>
 #include <linux/of.h>
 #include <linux/slab.h>
+#include <misc/logbuffer.h>
 #include "google_bms.h"
 #include "google_psy.h"
 #include "qmath.h"
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 #include <linux/debugfs.h>
 #endif
 
 #define ELAP_LIMIT_S 60
-
+#define USE_INSTANTANEOUS_PWR -1
 
 void ttf_log(const struct batt_ttf_stats *stats, const char *fmt, ...)
 {
@@ -141,13 +144,14 @@ static int ttf_pwr_health_pause(const struct gbms_charging_event *ce_data, int s
 	       soc >= CHG_HEALTH_REST_SOC(&ce_data->ce_health);
 }
 
+#define CHARGER_EFFICIENCY 95 /* TODO: use real efficiency */
 /*
  * equivalent icl: minimum between actual input current limit and battery
  * everage current _while_in_tier. actual_icl will be lower in high current
  * tiers for bad cables, ibatt is affected by temperature tier and sysload.
  */
 static int ttf_pwr_equiv_icl(const struct gbms_charging_event *ce_data,
-			     int vbatt_idx, int soc, int fcc_now)
+			     int vbatt_idx, int soc, int fcc_now, int mdis_pwr_uw)
 {
 	const struct gbms_chg_profile *profile = ce_data->chg_profile;
 	const int volt_limit = profile->volt_limits[vbatt_idx] == 0 ?
@@ -155,10 +159,14 @@ static int ttf_pwr_equiv_icl(const struct gbms_charging_event *ce_data,
 			       profile->volt_limits[vbatt_idx];
 	const int aratio = (ce_data->adapter_details.ad_voltage * 10000) / (volt_limit / 1000);
 	const struct gbms_ce_tier_stats *tier_stats;
-	const int efficiency = 95; /* TODO: use real efficiency */
 	const u32 capacity_ma = profile->capacity_ma;
 	const int rest_rate = ce_data->ce_health.rest_rate;
 	int equiv_icl, act_icl, act_ibatt, health_ibatt = -1;
+	/* power limit assumed max battery voltage */
+	const int vbatt_max_ma = profile->volt_limits[profile->volt_nb_limits - 1] / 1000;
+	const int mdis_fcc = mdis_pwr_uw == CSI_POWER_UNKNOWN ?
+			     -1 :
+			     mdis_pwr_uw / vbatt_max_ma;
 
 	/* Health collects in ce_data->health_stats vtier */
 	if (ttf_pwr_health(ce_data, soc)) {
@@ -184,24 +192,30 @@ static int ttf_pwr_equiv_icl(const struct gbms_charging_event *ce_data,
 	}
 
 	/* scale icl (at adapter voltage) to vtier */
-	equiv_icl = (act_icl * aratio * efficiency) / 10000;
+	equiv_icl = (act_icl * aratio * CHARGER_EFFICIENCY) / 10000;
 	pr_debug("%s: act_icl=%d aratio=%d equiv_icl=%d\n",
 		 __func__, act_icl, aratio, equiv_icl);
 
 	/* actual ibatt in this tier: act_ibatt==0 when too early to tell */
 	act_ibatt = ttf_pwr_ibatt(tier_stats);
-	if (act_ibatt == 0 && health_ibatt > 0)
-		act_ibatt = health_ibatt;
-	else if (fcc_now > 0 && (act_ibatt == 0 || fcc_now < act_ibatt))
-		act_ibatt = fcc_now;
-
 	if (act_ibatt < 0) {
 		pr_debug("%s: discharging ibatt=%d\n", __func__, act_ibatt);
 		return -EINVAL;
+	} else if (act_ibatt == 0) {
+		/* Set -1 when ttf_pwr_ibatt is not ready, as 0 could be valid mdis_fcc limit */
+		act_ibatt = -1;
 	}
 
-	/* assume that can deliver equiv_icl when act_ibatt == 0 */
-	if (act_ibatt > 0 && act_ibatt < equiv_icl) {
+	/* act_ibatt = min(act_ibatt, health_ibatt, fcc_now, mdis_fcc) */
+	if (act_ibatt == -1 && health_ibatt > 0)
+		act_ibatt = health_ibatt;
+	if (fcc_now > 0 && (act_ibatt == -1 || fcc_now < act_ibatt))
+		act_ibatt = fcc_now;
+	if (mdis_fcc >= 0 && (act_ibatt == -1 || mdis_fcc < act_ibatt))
+		act_ibatt = mdis_fcc;
+
+	/* assume that can deliver equiv_icl when act_ibatt == -1 */
+	if (act_ibatt >= 0 && act_ibatt < equiv_icl) {
 		pr_debug("%s: sysload ibatt=%d, reduce icl %d->%d\n",
 			 __func__, act_ibatt, equiv_icl, act_ibatt);
 		equiv_icl = act_ibatt;
@@ -215,10 +229,13 @@ static int ttf_pwr_equiv_icl(const struct gbms_charging_event *ce_data,
  * time scaling factor for available power and SOC demand.
  * NOTE: usually called when soc < ssoc_in && soc > ce_data->last_soc
  * TODO: this is very inefficient
+ *
+ * @pwr  If positive, the available power is used to calculate the ratio; otherwise, the
+ *       instantaneous power is used.
  */
 static int ttf_pwr_ratio(const struct batt_ttf_stats *stats,
 			 const struct gbms_charging_event *ce_data,
-			 int soc, int vbatt_idx)
+			 int soc, int vbatt_idx, int pwr)
 {
 	const struct gbms_chg_profile *profile = ce_data->chg_profile;
 	int cc_max, temp_idx;
@@ -266,13 +283,35 @@ static int ttf_pwr_ratio(const struct batt_ttf_stats *stats,
 		avg_cc = cc_max;
 	}
 
+	if (pwr == 0)
+		return -EINVAL;
+
+	/* If power was provided, calculate ratio based on powers */
+	if (pwr > 0) {
+		const int volt_limit = profile->volt_limits[vbatt_idx] == 0 ?
+				       profile->volt_limits[profile->volt_nb_limits - 1] :
+				       profile->volt_limits[vbatt_idx];
+		int ref_pwr_uw = (volt_limit / 1000) * avg_cc;
+		int pwr_mw = ((pwr / 1000) * CHARGER_EFFICIENCY / 100);
+
+		ratio = ref_pwr_uw / pwr_mw / 10;
+		pr_debug("%s %d: ref_pwr_uw=%d, pwr_mw=%d, ratio=%d\n",
+			 __func__, soc, ref_pwr_uw, pwr_mw, ratio);
+
+		if (ratio < 100)
+			ratio = 100;
+
+		return ratio;
+	}
+
 	/* statistical or reference max power demand for the tier at */
 	pr_debug("%s %d:%d,%d: avg_cc=%d cc_max=%d\n",
 		 __func__, soc, temp_idx, vbatt_idx,
 		 avg_cc, cc_max);
 
 	/* equivalent input current for adapter at vtier */
-	equiv_icl = ttf_pwr_equiv_icl(ce_data, vbatt_idx, soc, stats->fcc_now / 1000);
+	equiv_icl = ttf_pwr_equiv_icl(ce_data, vbatt_idx, soc, stats->fcc_now / 1000,
+				      READ_ONCE(stats->mdis_pwr_uw));
 	if (equiv_icl <= 0) {
 		pr_debug("%s %d: negative, null act_icl=%d\n",
 			 __func__, soc, equiv_icl);
@@ -333,7 +372,7 @@ static int ttf_ref_elap(const struct batt_ttf_stats *stats, int soc)
 /* elap time for a single soc% */
 static int ttf_elap(ktime_t *estimate, const struct batt_ttf_stats *stats,
 		    const struct gbms_charging_event *ce_data,
-		    int soc, int tier_idx)
+		    int soc, int tier_idx, int pwr)
 {
 	ktime_t elap;
 	int ratio;
@@ -345,7 +384,7 @@ static int ttf_elap(ktime_t *estimate, const struct batt_ttf_stats *stats,
 		return -EINVAL;
 	}
 
-	ratio = ttf_pwr_ratio(stats, ce_data, soc, tier_idx);
+	ratio = ttf_pwr_ratio(stats, ce_data, soc, tier_idx, pwr);
 	if (ratio < 0) {
 		pr_debug("%s %d: negative ratio=%d\n", __func__, soc, ratio);
 		return -EINVAL;
@@ -357,6 +396,195 @@ static int ttf_elap(ktime_t *estimate, const struct batt_ttf_stats *stats,
 		 __func__, soc, *estimate, elap, ratio);
 
 	return ratio;
+}
+
+struct pri_chg_state {
+	ktime_t base_time;
+	ktime_t pri_time;
+	int base_soc;
+	int chg_time;
+};
+
+#define PRI_CHG_NONE_WINDOW -1
+
+static inline ktime_t pri_chg_scale_elap(ktime_t elap, int frac)
+{
+	return (elap * (100 - frac)) / 100;
+}
+
+static int pri_chg_soc_step(struct batt_ttf_stats *stats, const struct gbms_charging_event *ce_data,
+			    struct pri_chg_state *state, int soc, int frac, int min_pwr)
+{
+	ktime_t base_elap = -1;
+	ktime_t pri_elap = -1;
+	ktime_t next_soc_elap = -1;
+	int next_soc_frac = min(50 - frac, 0);
+	int base_ratio = -1;
+	int pri_ratio = -1;
+	int vbatt_idx = ttf_pwr_vtier_idx(stats, soc);
+	int ret = -1;
+
+	pri_ratio = ttf_elap(&pri_elap, stats, ce_data, soc, vbatt_idx, min_pwr);
+	if (pri_ratio < 0)
+		return pri_ratio;
+
+	/* Update baseline till end not reached */
+	if (state->base_soc == -1) {
+		base_ratio = ttf_elap(&base_elap, stats, ce_data, soc, vbatt_idx,
+				      USE_INSTANTANEOUS_PWR);
+		if (base_ratio < 0)
+			return base_ratio;
+
+		/* Priority charging give no benefits over normal */
+		if (state->chg_time == PRI_CHG_NONE_WINDOW && base_ratio <= pri_ratio) {
+			/* TODO: b/476420909 */
+			state->chg_time = state->base_time;
+			state->base_soc = soc;
+		} else {
+			/* Check if base charging reaches the end */
+			next_soc_elap = pri_chg_scale_elap(base_elap, next_soc_frac);
+
+			if (state->chg_time != PRI_CHG_NONE_WINDOW &&
+			    state->chg_time <= state->base_time + next_soc_elap)
+				state->base_soc = soc;
+
+			state->base_time += pri_chg_scale_elap(base_elap, frac);
+		}
+	}
+
+	/* Check if priority charging reaches the end */
+	next_soc_elap = pri_chg_scale_elap(pri_elap, next_soc_frac);
+
+	if (state->chg_time != PRI_CHG_NONE_WINDOW &&
+	    state->chg_time < state->pri_time + next_soc_elap)
+		ret = soc - state->base_soc;
+
+	state->pri_time += pri_chg_scale_elap(pri_elap, frac);
+
+	pr_debug("%s: [%2d.%02d%%] ratio: %3d %3d ; time: %7d %7d / %7d ; soc: %d\n", __func__,
+		 soc, frac, pri_ratio, base_ratio,
+		 state->pri_time, state->base_time,
+		 state->chg_time, state->base_soc);
+	return ret;
+}
+
+static int pri_chg_estimation_loop(struct batt_ttf_stats *stats,
+				   const struct gbms_charging_event *ce_data,
+				   struct pri_chg_state *state, qnum_t start_soc, qnum_t end_soc,
+				   int min_pwr)
+{
+	int frac, ret, i = 0;
+
+	/* FIRST: 100 - first 2 digits of the fractional part of soc if any */
+	frac = (int)qnum_nfracdgt(start_soc, 2);
+	i = qnum_toint(start_soc);
+	if (frac) {
+		ret = pri_chg_soc_step(stats, ce_data, state, i, frac, min_pwr);
+		if (ret >= 0 || ret < -1)
+			return ret;
+
+		i += 1;
+	}
+
+	/* accumulate ttf_elap starting from i + 1 until end */
+	for (; i < qnum_toint(end_soc); i++) {
+		ret = pri_chg_soc_step(stats, ce_data, state, i, 0, min_pwr);
+		if (ret >= 0 || ret < -1)
+			return ret;
+	}
+
+	/* LAST: first 2 digits of the fractional part of soc if any */
+	frac = (int)qnum_nfracdgt(end_soc, 2);
+	if (frac) {
+		ret = pri_chg_soc_step(stats, ce_data, state, i, frac, min_pwr);
+		if (ret >= 0 || ret < -1)
+			return ret;
+	}
+
+	/* end_soc cannot be 100 here, as pri_chg_soc_step will error then */
+	if (state->chg_time != PRI_CHG_NONE_WINDOW && state->chg_time < state->pri_time)
+		ret = qnum_toint(end_soc) + 1 - state->base_soc;
+
+	return ret;
+}
+
+#define SOC_ROUND_BASE	0.5
+
+/* Calculates SOC gain achievable when utilizing the adapter's maximum power capacity, while
+ * adhering to the charging tables
+ * NOTE: use charging_window_s = -1 to find optimal charging window
+ *
+ * @stats: time to full statistics
+ * @ce_data: charging event data
+ * @start_soc: start SOC for calculations
+ * @end_soc: last SOC for calculations
+ * @charging_window_s: time limit for calculations, when provided -1 algorithm finds
+ *			optimal charging window
+ * @min_pwr: min guaranteed power for priority charging
+ * @result: [out] output parameter, containing delta soc results
+ *
+ * @return <0 on error, 0 on success
+ *
+ * requires mutex_lock(&batt_drv->stats_lock);
+ *
+ */
+int pri_chg_delta_soc(struct batt_ttf_stats *stats, const struct gbms_charging_event *ce_data,
+		      qnum_t start_soc, qnum_t end_soc, int charging_window_s, int min_pwr,
+		      struct priority_charging_result *result)
+{
+	struct pri_chg_state state = {
+		.base_time = 0,
+		.pri_time = 0,
+		.base_soc = -1,
+		.chg_time = charging_window_s,
+	};
+	int ret;
+
+	if (charging_window_s != PRI_CHG_NONE_WINDOW)
+		state.chg_time = charging_window_s * 100;
+
+	if (end_soc > qnum_rconst(100) || end_soc < start_soc)
+		return -EINVAL;
+
+	if (end_soc == start_soc)
+		return -EINVAL;
+
+	ret = pri_chg_estimation_loop(stats, ce_data, &state, start_soc, end_soc, min_pwr);
+	if (ret < -1)
+		return ret;
+	if (ret >= 0)
+		goto success_exit;
+
+	/*
+	 * Reached max soc but baseline time was not reached.
+	 * Use estimated priority charging time as time limit for second pass.
+	 */
+	state.chg_time = state.pri_time;
+	state.base_time = 0;
+	state.pri_time = 0,
+	state.base_soc = -1,
+
+	ret = pri_chg_estimation_loop(stats, ce_data, &state, start_soc, end_soc, min_pwr);
+	if (ret < 0) {
+		pr_err("failed to evaluate delta soc: %d", ret);
+		return -1;
+	}
+
+success_exit:
+	if (ret == 0) {
+		result->delta_soc = 0;
+		result->charging_window_s = 0;
+		result->baseline_soc = -1;
+		return 0;
+	}
+
+	if (state.chg_time != PRI_CHG_NONE_WINDOW)
+		result->charging_window_s = state.chg_time / 100;
+	else
+		result->charging_window_s = charging_window_s;
+	result->baseline_soc = state.base_soc;
+	result->delta_soc = ret;
+	return 0;
 }
 
 /*
@@ -387,11 +615,31 @@ int ttf_soc_estimate(ktime_t *res, struct batt_ttf_stats *stats,
 		return 0;
 	}
 
+	if (qnum_toint(soc) == qnum_toint(last)) {
+		frac = (int)qnum_nfracdgt(last, 2) - (int)qnum_nfracdgt(soc, 2);
+		ratio = ttf_elap(&elap, stats, ce_data, qnum_toint(soc), tier_idx,
+				 USE_INSTANTANEOUS_PWR);
+		if (ratio < 0) {
+			mutex_unlock(&stats->ttf_lock);
+			return ratio;
+		}
+
+		estimate = ktime_divns((elap * frac), 100);
+		*res = ktime_divns(estimate, 100);
+		mutex_unlock(&stats->ttf_lock);
+		return ratio;
+	}
+
 	/* FIRST: 100 - first 2 digits of the fractional part of soc if any */
 	frac = (int)qnum_nfracdgt(soc, 2);
 	if (frac) {
 
-		ratio = ttf_elap(&elap, stats, ce_data, qnum_toint(soc), tier_idx);
+		ratio = ttf_elap(&elap, stats, ce_data, qnum_toint(soc), tier_idx,
+				 USE_INSTANTANEOUS_PWR);
+		if (ratio < 0) {
+			mutex_unlock(&stats->ttf_lock);
+			return ratio;
+		}
 		if (ratio >= 0)
 			estimate += (elap * (100 - frac)) / 100;
 		if (ratio > max_ratio)
@@ -408,7 +656,8 @@ int ttf_soc_estimate(ktime_t *res, struct batt_ttf_stats *stats,
 			elap = ce_data->soc_stats.elap[i] * 100;
 		} else {
 			/* future (and soc before ssoc_in) */
-			ratio = ttf_elap(&elap, stats, ce_data, i, tier_idx);
+			ratio = ttf_elap(&elap, stats, ce_data, i, tier_idx,
+					 USE_INSTANTANEOUS_PWR);
 			if (ratio < 0) {
 				mutex_unlock(&stats->ttf_lock);
 				return ratio;
@@ -423,7 +672,12 @@ int ttf_soc_estimate(ktime_t *res, struct batt_ttf_stats *stats,
 	/* LAST: first 2 digits of the fractional part of soc if any */
 	frac = (int)qnum_nfracdgt(last, 2);
 	if (frac) {
-		ratio = ttf_elap(&elap, stats, ce_data, qnum_toint(last), tier_idx);
+		ratio = ttf_elap(&elap, stats, ce_data, qnum_toint(last), tier_idx,
+				 USE_INSTANTANEOUS_PWR);
+		if (ratio < 0) {
+			mutex_unlock(&stats->ttf_lock);
+			return ratio;
+		}
 		if (ratio >= 0)
 			estimate += ktime_divns((elap * frac), 100);
 		if (ratio > max_ratio)
@@ -447,7 +701,7 @@ static int ttf_cstr(char *buff, int size, const struct ttf_soc_stats *soc_stats,
 
 	for (i = start; i <= end; i++) {
 		if (i % split == 0 || i == start) {
-			len += scnprintf(&buff[len], size - len, "%c", type);
+			len += scnprintf(&buff[len], size - len, &type);
 			if (split == 10)
 				len += scnprintf(&buff[len], size - len, "%d", i / 10);
 			len += scnprintf(&buff[len], size - len, ":");
@@ -545,7 +799,7 @@ static ktime_t ttf_soc_qual_elap(const struct batt_ttf_stats *stats,
 		return 0;
 
 	/* weight the adapter, discard if ratio is too high (poor adapter) */
-	ratio = ttf_pwr_ratio(stats, ce_data, i, tier_idx);
+	ratio = ttf_pwr_ratio(stats, ce_data, i, tier_idx, -1);
 	if (ratio <= 0 || ratio > limit) {
 		pr_debug("%d: ratio=%d limit=%d\n", i, ratio, limit);
 		return 0;
@@ -699,8 +953,7 @@ static int ttf_tier_sscan(struct batt_ttf_stats *stats, const char *buff, size_t
 		len++;
 
 	for (j = 0; j < GBMS_STATS_TIER_COUNT; j++) {
-		sscanf(&buff[len], TTF_STATS_FMT,
-		       &stats->tier_stats[j].soc_in,
+		sscanf(&buff[len], TTF_STATS_FMT, &stats->tier_stats[j].soc_in,
 		       &stats->tier_stats[j].cc_in,
 		       &stats->tier_stats[j].cc_total,
 		       &stats->tier_stats[j].avg_time);
@@ -923,14 +1176,18 @@ static int ttf_init_soc_parse_dt(struct batt_ttf_stats *stats, struct device_nod
 				 int capacity_ma)
 {
 	const int cc = (capacity_ma * 100) / GBMS_SOC_STATS_LEN;
-	int table_count, ret, i, table_i = 0;
+	int table_count, ret, i, table_i = 0, elap_table_count;
 	struct ttf_adapter_stats as;
 
 	table_count = of_property_count_elems_of_size(node, "google,ttf-soc-table", sizeof(u32));
+	elap_table_count = of_property_count_elems_of_size(node, "google,ttf-elap-table",
+							   sizeof(u32));
 	if (table_count <= 0)
 		return -EINVAL;
-	if (table_count % 2)
+	if (table_count != elap_table_count) {
+		pr_err("ttf soc and elap table sizes do not match\n");
 		return -EINVAL;
+	}
 
 	as.soc_table = kzalloc(table_count * 2 * sizeof(u32), GFP_KERNEL);
 	if (!as.soc_table)
@@ -1042,6 +1299,7 @@ int ttf_stats_init(struct batt_ttf_stats *stats, struct device_node *node, int c
 
 	memset(stats, 0, sizeof(*stats));
 	stats->ttf_fake = -1;
+	stats->mdis_pwr_uw = -1;
 	mutex_init(&stats->ttf_lock);
 
 	/* reference adapter */
@@ -1114,3 +1372,120 @@ ssize_t ttf_dump_details(char *buf, int max_size,
 
 	return len;
 }
+
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+#define TTF_MAX_DEBUG_INPUT_SIZE 1024
+#define TTF_TEST_STEPS_MAX 32
+
+static ssize_t debug_ttf_elap_write(struct file *filp, const char __user *user_buf,
+				    size_t count, loff_t *ppos)
+{
+	struct batt_ttf_stats *stats = filp->private_data;
+	char *buf;
+	int i, consumed, soc, step_idx = 0;
+	long long elap;
+	const char *next;
+	ssize_t ret;
+	struct ttf_test_step {
+		int soc;
+		long long elap;
+	} steps[TTF_TEST_STEPS_MAX];
+	int step_count = 0;
+	long long current_elap = 0;
+	int prev_soc = -1;
+
+	/* Limit input size to prevent excessive memory allocation */
+	if (count > TTF_MAX_DEBUG_INPUT_SIZE)
+		return -EINVAL;
+
+	buf = memdup_user_nul(user_buf, count);
+	if (IS_ERR(buf))
+		return PTR_ERR(buf);
+
+	next = buf;
+	while (step_count < ARRAY_SIZE(steps)) {
+		/* skip spaces */
+		while (*next == ' ' || *next == '\n' || *next == '\t')
+			next++;
+		if (*next == '\0')
+			break;
+
+		consumed = 0;
+		if (sscanf(next, "%d:%lld%n", &soc, &elap, &consumed) != 2 || consumed == 0) {
+			ret = -EINVAL;
+			goto out;
+		}
+		if (soc < 0 || soc > 100 || soc <= prev_soc) {
+			ret = -EINVAL;
+			goto out;
+		}
+		steps[step_count].soc = soc;
+		steps[step_count].elap = elap;
+		prev_soc = soc;
+		step_count++;
+		next += consumed;
+	}
+
+	if (step_count == 0) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	mutex_lock(&stats->ttf_lock);
+	for (i = 0; i < GBMS_SOC_STATS_LEN; i++) {
+		if (step_idx < step_count && i >= steps[step_idx].soc) {
+			current_elap = steps[step_idx].elap;
+			step_idx++;
+		}
+		stats->soc_stats.elap[i] = current_elap;
+	}
+	mutex_unlock(&stats->ttf_lock);
+
+	ret = count;
+out:
+	kfree(buf);
+	return ret;
+}
+BATTERY_DEBUG_ATTRIBUTE(debug_ttf_elap_fops, NULL, debug_ttf_elap_write);
+
+static ssize_t debug_ttf_capacity_write(struct file *filp, const char __user *user_buf,
+					size_t count, loff_t *ppos)
+{
+	struct batt_ttf_stats *stats = filp->private_data;
+	int capacity_ma, cc, i, ret;
+
+	/* Use helper to avoid manual copy and allocation */
+	ret = kstrtoint_from_user(user_buf, count, 10, &capacity_ma);
+	if (ret)
+		return ret;
+
+	if (capacity_ma <= 0)
+		return -EINVAL;
+
+	cc = (capacity_ma * 100) / GBMS_SOC_STATS_LEN;
+
+	mutex_lock(&stats->ttf_lock);
+	/* Matches `ttf_init_soc_parse_dt` calculation for consistency */
+	for (i = 0; i < GBMS_SOC_STATS_LEN; i++)
+		stats->soc_stats.cc[i] = (cc * i) / 100;
+	mutex_unlock(&stats->ttf_lock);
+
+	return count;
+}
+BATTERY_DEBUG_ATTRIBUTE(debug_ttf_capacity_fops, NULL, debug_ttf_capacity_write);
+
+void ttf_init_debugfs(struct dentry *parent, struct batt_ttf_stats *stats)
+{
+	struct dentry *dir;
+
+	if (IS_ERR_OR_NULL(parent) || !stats)
+		return;
+
+	dir = debugfs_create_dir("ttf", parent);
+	if (IS_ERR_OR_NULL(dir))
+		return;
+
+	debugfs_create_file("capacity", 0200, dir, stats, &debug_ttf_capacity_fops);
+	debugfs_create_file("elap", 0200, dir, stats, &debug_ttf_elap_fops);
+}
+#endif

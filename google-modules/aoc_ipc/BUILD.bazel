@@ -1,24 +1,25 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-filegroup(
-    name = "headers",
-    srcs = glob([
-        "*.h",
-    ]),
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/aoc:__subpackages__",
-    ],
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
 )
 
-filegroup(
-    name = "sources",
-    srcs = glob([
-        "*.c",
-        "*.h",
-    ]),
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/aoc:__subpackages__",
+ddk_module(
+    name = "aoc_ipc",
+    srcs = glob(["*.c"]),
+    out = "aoc_ipc.ko",
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//private/google-modules/aoc:aoc_common_header",
     ],
 )

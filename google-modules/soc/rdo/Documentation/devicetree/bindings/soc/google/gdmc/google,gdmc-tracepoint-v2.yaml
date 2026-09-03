@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2022 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/soc/google/gdmc/google,gdmc-tracepoint-v2.yaml#
+$schema: http://devicetree.org/meta-schemas/base.yaml#
+
+title: Google GDMC Tracepoint
+
+maintainers:
+  - Daniel Kurtz <djkurtz@google.com>
+
+description:
+  This binding describes the Google GDMC tracepoint interface, which allows
+  access to the GDMC (Google Debug MicroController) tracepoint buffer.
+
+properties:
+  compatible:
+    const: google,gdmc-tracepoint-v2
+
+  memory-region:
+    maxItems: 1
+    description:
+      DMA buffer between host and GDMC.  Allocated memory must be mappable by
+      the GDMC.
+
+  gdmc-iface:
+    type: object
+    description: phandle to `google,mba-gdmc-iface` device node.
+      This points to the GDMC MBA interface over which GDMC
+      tracepoint talks to the GDMC.
+
+required:
+  - compatible
+  - memory-region
+  - gdmc-iface
+
+additionalProperties: false
+
+examples:
+  - |
+    gdmc_tracepoint_v2: gdmc_tracepoint_v2 {
+        compatible = "google,gdmc-tracepoint-v2";
+        memory-region = <&gdmc_tracepoint_dma_buff>;
+        gdmc-iface = <&goog_mba_gdmc_iface>;
+    };

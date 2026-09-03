@@ -1,9 +1,13 @@
 #include <linux/module.h>
+#include <linux/mod_devicetable.h>
+#include <linux/of_address.h>
+#include <linux/platform_device.h>
 #if 0
 #include <linux/debug-snapshot.h>
 #endif
 #include <soc/google/ect_parser.h>
 #include <soc/google/cal-if.h>
+#include <soc/google/gs-chipid.h>
 #ifdef CONFIG_EXYNOS9820_BTS
 #include <soc/google/bts.h>
 #endif
@@ -30,9 +34,7 @@
 #include "pmucal_rae.h"
 #include "pmucal_powermode.h"
 
-#include "../acpm/acpm.h"
-
-extern s32 gs_chipid_get_dvfs_version(void);
+#include "acpm.h"
 
 // The first parameter is cluster id, the second parameter is enable/disable.
 void (*set_cluster_enabled_cb)(int, int) = NULL;
@@ -111,16 +113,6 @@ int cal_dfs_set_rate_switch(unsigned int id, unsigned long switch_rate)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(cal_dfs_set_rate_switch);
-
-int cal_dfs_set_rate_restore(unsigned int id, unsigned long switch_rate)
-{
-	int ret = 0;
-
-	ret = vclk_set_rate_restore(id, switch_rate);
-
-	return ret;
-}
-EXPORT_SYMBOL_GPL(cal_dfs_set_rate_restore);
 
 unsigned long cal_dfs_cached_get_rate(unsigned int id)
 {
@@ -534,7 +526,7 @@ void cal_cp_disable_dump_pc_no_pg(void)
 EXPORT_SYMBOL_GPL(cal_cp_disable_dump_pc_no_pg);
 #endif
 
-int cal_if_init(struct platform_device *pdev)
+static int cal_if_init(struct platform_device *pdev)
 {
 	static int cal_initialized;
 	struct resource res;
@@ -648,12 +640,20 @@ static const struct of_device_id cal_if_match[] = {
 };
 MODULE_DEVICE_TABLE(of, cal_if_match);
 
+static const struct attribute_group *cal_if_groups[] = {
+#if IS_ENABLED(CONFIG_ACPM_DVFS)
+	&exynos_acpm_async_dvfs_group,
+#endif
+	NULL,
+};
+
 static struct platform_driver samsung_cal_if_driver = {
 	.probe	= cal_if_probe,
 	.driver	= {
 		.name = "exynos-cal-if",
 		.owner	= THIS_MODULE,
 		.of_match_table	= cal_if_match,
+		.dev_groups = cal_if_groups,
 	},
 };
 

@@ -34,6 +34,7 @@
 
 #include <mali_kbase_config.h>
 #include <mali_kbase.h>
+#include <mali_kbase_defs.h>
 #include <mali_kbase_reg_track.h>
 #include <mali_kbase_caps.h>
 #include <hw_access/mali_kbase_hw_access_regmap.h>
@@ -480,6 +481,14 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg, u64 
 			goto bad_insert;
 	}
 
+	dev_dbg(kctx->kbdev->dev,
+		"Mapped %zu pages to GPU at VA 0x%llx, flags 0x%lx for ctx %d_%d as_nr %d",
+		kbase_reg_current_backed_size(reg), reg->start_pfn << PAGE_SHIFT, reg->flags,
+		kctx->tgid, kctx->id, kctx->as_nr);
+
+	KBASE_KTRACE_ADD_MEM(kctx->kbdev, MEM_MAPPED, kctx, kbase_reg_current_backed_size(reg),
+			     reg->start_pfn << PAGE_SHIFT, reg->flags);
+
 	return err;
 
 bad_aliased_insert:
@@ -607,6 +616,14 @@ int kbase_gpu_munmap(struct kbase_context *kctx, struct kbase_va_region *reg)
 
 	if (alloc->type != KBASE_MEM_TYPE_ALIAS)
 		kbase_mem_phy_alloc_gpu_unmapped(reg->gpu_alloc);
+
+	dev_dbg(kctx->kbdev->dev,
+		"Unmapped %zu pages from GPU at VA 0x%llx, flags 0x%lx for ctx %d_%d as_nr %d",
+		kbase_reg_current_backed_size(reg), reg->start_pfn << PAGE_SHIFT, reg->flags,
+		kctx->tgid, kctx->id, kctx->as_nr);
+
+	KBASE_KTRACE_ADD_MEM(kctx->kbdev, MEM_UNMAPPED, kctx, kbase_reg_current_backed_size(reg),
+			     reg->start_pfn << PAGE_SHIFT, reg->flags);
 
 	return err;
 }
@@ -889,6 +906,9 @@ static int kbase_do_syncset(struct kbase_context *kctx, struct basep_syncset *ss
 	}
 
 	if (!(reg->flags & KBASE_REG_CPU_CACHED))
+		goto out_unlock;
+
+	if (reg->flags & KBASE_REG_DONT_NEED)
 		goto out_unlock;
 
 	start = (uintptr_t)sset->user_addr;
@@ -1950,7 +1970,7 @@ void kbase_mem_kref_free(struct kref *kref)
 		/* raw pages, external cleanup */
 		break;
 	case KBASE_MEM_TYPE_IMPORTED_UMM:
-		if (!IS_ENABLED(CONFIG_MALI_DMA_BUF_MAP_ON_DEMAND)) {
+		if (!IS_ENABLED(CONFIG_MALI_DMA_BUF_MAP_ON_DEMAND) && alloc->imported.umm.sgt) {
 			WARN_ONCE(alloc->imported.umm.current_mapping_usage_count != 1,
 				  "WARNING: expected exactly 1 mapping, got %d",
 				  alloc->imported.umm.current_mapping_usage_count);
@@ -1970,8 +1990,11 @@ void kbase_mem_kref_free(struct kref *kref)
 		 */
 		if (kbase_csf_scheduler_delegate_imported_buf_alloc_free(alloc))
 			return;
-		dma_buf_detach(alloc->imported.umm.dma_buf, alloc->imported.umm.dma_attachment);
-		dma_buf_put(alloc->imported.umm.dma_buf);
+		if (alloc->imported.umm.dma_buf && alloc->imported.umm.dma_attachment) {
+			dma_buf_detach(alloc->imported.umm.dma_buf,
+				       alloc->imported.umm.dma_attachment);
+			dma_buf_put(alloc->imported.umm.dma_buf);
+		}
 		break;
 	case KBASE_MEM_TYPE_IMPORTED_USER_BUF:
 		switch (alloc->imported.user_buf.state) {
@@ -2087,6 +2110,12 @@ void kbase_set_phy_alloc_page_status(struct kbase_context *kctx, struct kbase_me
 
 		spin_lock(&page_md->migrate_lock);
 		page_md->status = PAGE_STATUS_SET(page_md->status, (u8)status);
+		if (status == ALLOCATED_MAPPED)
+			page_md->data.mapped.kctx_id = kctx->id;
+		else if (status == PT_MAPPED)
+			page_md->data.pt_mapped.kctx_id = kctx->id;
+		else
+			kbase_clear_page_metadata_kctx_id(page_md);
 		spin_unlock(&page_md->migrate_lock);
 	}
 }
@@ -2136,13 +2165,6 @@ bool kbase_check_alloc_flags(struct kbase_context *kctx, unsigned long flags)
 	/* BASE_MEM_IMPORT_SYNC_ON_MAP_UNMAP is only valid for imported memory
 	 */
 	if ((flags & BASE_MEM_IMPORT_SYNC_ON_MAP_UNMAP) == BASE_MEM_IMPORT_SYNC_ON_MAP_UNMAP)
-		return false;
-
-	/* Should not combine BASE_MEM_COHERENT_LOCAL with
-	 * BASE_MEM_COHERENT_SYSTEM
-	 */
-	if ((flags & (BASE_MEM_COHERENT_LOCAL | BASE_MEM_COHERENT_SYSTEM)) ==
-	    (BASE_MEM_COHERENT_LOCAL | BASE_MEM_COHERENT_SYSTEM))
 		return false;
 
 	if ((flags & BASE_MEM_SAME_VA) && (flags & (BASE_MEM_FIXABLE | BASE_MEM_FIXED)))

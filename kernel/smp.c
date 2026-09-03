@@ -25,70 +25,20 @@
 #include <linux/nmi.h>
 #include <linux/sched/debug.h>
 #include <linux/jump_label.h>
+#include <linux/string_choices.h>
+
+#include <trace/events/ipi.h>
+#define CREATE_TRACE_POINTS
+#include <trace/events/csd.h>
+#undef CREATE_TRACE_POINTS
 
 #include "smpboot.h"
-#include "sched/features.h"
 #include "sched/smp.h"
 
 #define CSD_TYPE(_csd)	((_csd)->node.u_flags & CSD_FLAG_TYPE_MASK)
 
-#ifdef CONFIG_CSD_LOCK_WAIT_DEBUG
-union cfd_seq_cnt {
-	u64		val;
-	struct {
-		u64	src:16;
-		u64	dst:16;
-#define CFD_SEQ_NOCPU	0xffff
-		u64	type:4;
-#define CFD_SEQ_QUEUE	0
-#define CFD_SEQ_IPI	1
-#define CFD_SEQ_NOIPI	2
-#define CFD_SEQ_PING	3
-#define CFD_SEQ_PINGED	4
-#define CFD_SEQ_HANDLE	5
-#define CFD_SEQ_DEQUEUE	6
-#define CFD_SEQ_IDLE	7
-#define CFD_SEQ_GOTIPI	8
-#define CFD_SEQ_HDLEND	9
-		u64	cnt:28;
-	}		u;
-};
-
-static char *seq_type[] = {
-	[CFD_SEQ_QUEUE]		= "queue",
-	[CFD_SEQ_IPI]		= "ipi",
-	[CFD_SEQ_NOIPI]		= "noipi",
-	[CFD_SEQ_PING]		= "ping",
-	[CFD_SEQ_PINGED]	= "pinged",
-	[CFD_SEQ_HANDLE]	= "handle",
-	[CFD_SEQ_DEQUEUE]	= "dequeue (src CPU 0 == empty)",
-	[CFD_SEQ_IDLE]		= "idle",
-	[CFD_SEQ_GOTIPI]	= "gotipi",
-	[CFD_SEQ_HDLEND]	= "hdlend (src CPU 0 == early)",
-};
-
-struct cfd_seq_local {
-	u64	ping;
-	u64	pinged;
-	u64	handle;
-	u64	dequeue;
-	u64	idle;
-	u64	gotipi;
-	u64	hdlend;
-};
-#endif
-
-struct cfd_percpu {
-	call_single_data_t	csd;
-#ifdef CONFIG_CSD_LOCK_WAIT_DEBUG
-	u64	seq_queue;
-	u64	seq_ipi;
-	u64	seq_noipi;
-#endif
-};
-
 struct call_function_data {
-	struct cfd_percpu	__percpu *pcpu;
+	call_single_data_t	__percpu *csd;
 	cpumask_var_t		cpumask;
 	cpumask_var_t		cpumask_ipi;
 };
@@ -96,6 +46,8 @@ struct call_function_data {
 static DEFINE_PER_CPU_ALIGNED(struct call_function_data, cfd_data);
 
 static DEFINE_PER_CPU_SHARED_ALIGNED(struct llist_head, call_single_queue);
+
+static DEFINE_PER_CPU(atomic_t, trigger_backtrace) = ATOMIC_INIT(1);
 
 static void __flush_smp_call_function_queue(bool warn_cpu_offline);
 
@@ -111,8 +63,8 @@ int smpcfd_prepare_cpu(unsigned int cpu)
 		free_cpumask_var(cfd->cpumask);
 		return -ENOMEM;
 	}
-	cfd->pcpu = alloc_percpu(struct cfd_percpu);
-	if (!cfd->pcpu) {
+	cfd->csd = alloc_percpu(call_single_data_t);
+	if (!cfd->csd) {
 		free_cpumask_var(cfd->cpumask);
 		free_cpumask_var(cfd->cpumask_ipi);
 		return -ENOMEM;
@@ -127,7 +79,7 @@ int smpcfd_dead_cpu(unsigned int cpu)
 
 	free_cpumask_var(cfd->cpumask);
 	free_cpumask_var(cfd->cpumask_ipi);
-	free_percpu(cfd->pcpu);
+	free_percpu(cfd->csd);
 	return 0;
 }
 
@@ -157,23 +109,57 @@ void __init call_function_init(void)
 	smpcfd_prepare_cpu(smp_processor_id());
 }
 
+static __always_inline void
+send_call_function_single_ipi(int cpu)
+{
+	if (call_function_single_prep_ipi(cpu)) {
+		trace_ipi_send_cpu(cpu, _RET_IP_,
+				   generic_smp_call_function_single_interrupt);
+		arch_send_call_function_single_ipi(cpu);
+	}
+}
+
+static __always_inline void
+send_call_function_ipi_mask(struct cpumask *mask)
+{
+	trace_ipi_send_cpumask(mask, _RET_IP_,
+			       generic_smp_call_function_single_interrupt);
+	arch_send_call_function_ipi_mask(mask);
+}
+
+static __always_inline void
+csd_do_func(smp_call_func_t func, void *info, call_single_data_t *csd)
+{
+	trace_csd_function_entry(func, csd);
+	func(info);
+	trace_csd_function_exit(func, csd);
+}
+
 #ifdef CONFIG_CSD_LOCK_WAIT_DEBUG
 
-static DEFINE_STATIC_KEY_FALSE(csdlock_debug_enabled);
-static DEFINE_STATIC_KEY_FALSE(csdlock_debug_extended);
+static DEFINE_STATIC_KEY_MAYBE(CONFIG_CSD_LOCK_WAIT_DEBUG_DEFAULT, csdlock_debug_enabled);
 
+/*
+ * Parse the csdlock_debug= kernel boot parameter.
+ *
+ * If you need to restore the old "ext" value that once provided
+ * additional debugging information, reapply the following commits:
+ *
+ * de7b09ef658d ("locking/csd_lock: Prepare more CSD lock debugging")
+ * a5aabace5fb8 ("locking/csd_lock: Add more data to CSD lock debugging")
+ */
 static int __init csdlock_debug(char *str)
 {
+	int ret;
 	unsigned int val = 0;
 
-	if (str && !strcmp(str, "ext")) {
-		val = 1;
-		static_branch_enable(&csdlock_debug_extended);
-	} else
-		get_option(&str, &val);
-
-	if (val)
-		static_branch_enable(&csdlock_debug_enabled);
+	ret = get_option(&str, &val);
+	if (ret) {
+		if (val)
+			static_branch_enable(&csdlock_debug_enabled);
+		else
+			static_branch_disable(&csdlock_debug_enabled);
+	}
 
 	return 1;
 }
@@ -182,7 +168,6 @@ __setup("csdlock_debug=", csdlock_debug);
 static DEFINE_PER_CPU(call_single_data_t *, cur_csd);
 static DEFINE_PER_CPU(smp_call_func_t, cur_csd_func);
 static DEFINE_PER_CPU(void *, cur_csd_info);
-static DEFINE_PER_CPU(struct cfd_seq_local, cfd_seq_local);
 
 static ulong csd_lock_timeout = 5000;  /* CSD lock timeout in milliseconds. */
 module_param(csd_lock_timeout, ulong, 0444);
@@ -190,33 +175,9 @@ static int panic_on_ipistall;  /* CSD panic timeout in milliseconds, 300000 for 
 module_param(panic_on_ipistall, int, 0444);
 
 static atomic_t csd_bug_count = ATOMIC_INIT(0);
-static u64 cfd_seq;
-
-#define CFD_SEQ(s, d, t, c)	\
-	(union cfd_seq_cnt){ .u.src = s, .u.dst = d, .u.type = t, .u.cnt = c }
-
-static u64 cfd_seq_inc(unsigned int src, unsigned int dst, unsigned int type)
-{
-	union cfd_seq_cnt new, old;
-
-	new = CFD_SEQ(src, dst, type, 0);
-
-	do {
-		old.val = READ_ONCE(cfd_seq);
-		new.u.cnt = old.u.cnt + 1;
-	} while (cmpxchg(&cfd_seq, old.val, new.val) != old.val);
-
-	return old.val;
-}
-
-#define cfd_seq_store(var, src, dst, type)				\
-	do {								\
-		if (static_branch_unlikely(&csdlock_debug_extended))	\
-			var = cfd_seq_inc(src, dst, type);		\
-	} while (0)
 
 /* Record current CSD work for current CPU, NULL to erase. */
-static void __csd_lock_record(struct __call_single_data *csd)
+static void __csd_lock_record(call_single_data_t *csd)
 {
 	if (!csd) {
 		smp_mb(); /* NULL cur_csd after unlock. */
@@ -231,13 +192,13 @@ static void __csd_lock_record(struct __call_single_data *csd)
 		  /* Or before unlock, as the case may be. */
 }
 
-static __always_inline void csd_lock_record(struct __call_single_data *csd)
+static __always_inline void csd_lock_record(call_single_data_t *csd)
 {
 	if (static_branch_unlikely(&csdlock_debug_enabled))
 		__csd_lock_record(csd);
 }
 
-static int csd_lock_wait_getcpu(struct __call_single_data *csd)
+static int csd_lock_wait_getcpu(call_single_data_t *csd)
 {
 	unsigned int csd_type;
 
@@ -247,78 +208,17 @@ static int csd_lock_wait_getcpu(struct __call_single_data *csd)
 	return -1;
 }
 
-static void cfd_seq_data_add(u64 val, unsigned int src, unsigned int dst,
-			     unsigned int type, union cfd_seq_cnt *data,
-			     unsigned int *n_data, unsigned int now)
+static atomic_t n_csd_lock_stuck;
+
+/**
+ * csd_lock_is_stuck - Has a CSD-lock acquisition been stuck too long?
+ *
+ * Returns @true if a CSD-lock acquisition is stuck and has been stuck
+ * long enough for a "non-responsive CSD lock" message to be printed.
+ */
+bool csd_lock_is_stuck(void)
 {
-	union cfd_seq_cnt new[2];
-	unsigned int i, j, k;
-
-	new[0].val = val;
-	new[1] = CFD_SEQ(src, dst, type, new[0].u.cnt + 1);
-
-	for (i = 0; i < 2; i++) {
-		if (new[i].u.cnt <= now)
-			new[i].u.cnt |= 0x80000000U;
-		for (j = 0; j < *n_data; j++) {
-			if (new[i].u.cnt == data[j].u.cnt) {
-				/* Direct read value trumps generated one. */
-				if (i == 0)
-					data[j].val = new[i].val;
-				break;
-			}
-			if (new[i].u.cnt < data[j].u.cnt) {
-				for (k = *n_data; k > j; k--)
-					data[k].val = data[k - 1].val;
-				data[j].val = new[i].val;
-				(*n_data)++;
-				break;
-			}
-		}
-		if (j == *n_data) {
-			data[j].val = new[i].val;
-			(*n_data)++;
-		}
-	}
-}
-
-static const char *csd_lock_get_type(unsigned int type)
-{
-	return (type >= ARRAY_SIZE(seq_type)) ? "?" : seq_type[type];
-}
-
-static void csd_lock_print_extended(struct __call_single_data *csd, int cpu)
-{
-	struct cfd_seq_local *seq = &per_cpu(cfd_seq_local, cpu);
-	unsigned int srccpu = csd->node.src;
-	struct call_function_data *cfd = per_cpu_ptr(&cfd_data, srccpu);
-	struct cfd_percpu *pcpu = per_cpu_ptr(cfd->pcpu, cpu);
-	unsigned int now;
-	union cfd_seq_cnt data[2 * ARRAY_SIZE(seq_type)];
-	unsigned int n_data = 0, i;
-
-	data[0].val = READ_ONCE(cfd_seq);
-	now = data[0].u.cnt;
-
-	cfd_seq_data_add(pcpu->seq_queue,			srccpu, cpu,	       CFD_SEQ_QUEUE,  data, &n_data, now);
-	cfd_seq_data_add(pcpu->seq_ipi,				srccpu, cpu,	       CFD_SEQ_IPI,    data, &n_data, now);
-	cfd_seq_data_add(pcpu->seq_noipi,			srccpu, cpu,	       CFD_SEQ_NOIPI,  data, &n_data, now);
-
-	cfd_seq_data_add(per_cpu(cfd_seq_local.ping, srccpu),	srccpu, CFD_SEQ_NOCPU, CFD_SEQ_PING,   data, &n_data, now);
-	cfd_seq_data_add(per_cpu(cfd_seq_local.pinged, srccpu), srccpu, CFD_SEQ_NOCPU, CFD_SEQ_PINGED, data, &n_data, now);
-
-	cfd_seq_data_add(seq->idle,    CFD_SEQ_NOCPU, cpu, CFD_SEQ_IDLE,    data, &n_data, now);
-	cfd_seq_data_add(seq->gotipi,  CFD_SEQ_NOCPU, cpu, CFD_SEQ_GOTIPI,  data, &n_data, now);
-	cfd_seq_data_add(seq->handle,  CFD_SEQ_NOCPU, cpu, CFD_SEQ_HANDLE,  data, &n_data, now);
-	cfd_seq_data_add(seq->dequeue, CFD_SEQ_NOCPU, cpu, CFD_SEQ_DEQUEUE, data, &n_data, now);
-	cfd_seq_data_add(seq->hdlend,  CFD_SEQ_NOCPU, cpu, CFD_SEQ_HDLEND,  data, &n_data, now);
-
-	for (i = 0; i < n_data; i++) {
-		pr_alert("\tcsd: cnt(%07x): %04x->%04x %s\n",
-			 data[i].u.cnt & ~0x80000000U, data[i].u.src,
-			 data[i].u.dst, csd_lock_get_type(data[i].u.type));
-	}
-	pr_alert("\tcsd: cnt now: %07x\n", now);
+	return !!atomic_read(&n_csd_lock_stuck);
 }
 
 /*
@@ -326,7 +226,7 @@ static void csd_lock_print_extended(struct __call_single_data *csd, int cpu)
  * the CSD_TYPE_SYNC/ASYNC types provide the destination CPU,
  * so waiting on other types gets much less information.
  */
-static bool csd_lock_wait_toolong(struct __call_single_data *csd, u64 ts0, u64 *ts1, int *bug_id)
+static bool csd_lock_wait_toolong(call_single_data_t *csd, u64 ts0, u64 *ts1, int *bug_id, unsigned long *nmessages)
 {
 	int cpu = -1;
 	int cpux;
@@ -342,14 +242,25 @@ static bool csd_lock_wait_toolong(struct __call_single_data *csd, u64 ts0, u64 *
 		cpu = csd_lock_wait_getcpu(csd);
 		pr_alert("csd: CSD lock (#%d) got unstuck on CPU#%02d, CPU#%02d released the lock.\n",
 			 *bug_id, raw_smp_processor_id(), cpu);
+		atomic_dec(&n_csd_lock_stuck);
 		return true;
 	}
 
 	ts2 = sched_clock();
 	/* How long since we last checked for a stuck CSD lock.*/
 	ts_delta = ts2 - *ts1;
-	if (likely(ts_delta <= csd_lock_timeout_ns || csd_lock_timeout_ns == 0))
+	if (likely(ts_delta <= csd_lock_timeout_ns * (*nmessages + 1) *
+			       (!*nmessages ? 1 : (ilog2(num_online_cpus()) / 2 + 1)) ||
+		   csd_lock_timeout_ns == 0))
 		return false;
+
+	if (ts0 > ts2) {
+		/* Our own sched_clock went backward; don't blame another CPU. */
+		ts_delta = ts0 - ts2;
+		pr_alert("sched_clock on CPU %d went backward by %llu ns\n", raw_smp_processor_id(), ts_delta);
+		*ts1 = ts2;
+		return false;
+	}
 
 	firsttime = !*bug_id;
 	if (firsttime)
@@ -362,9 +273,12 @@ static bool csd_lock_wait_toolong(struct __call_single_data *csd, u64 ts0, u64 *
 	cpu_cur_csd = smp_load_acquire(&per_cpu(cur_csd, cpux)); /* Before func and info. */
 	/* How long since this CSD lock was stuck. */
 	ts_delta = ts2 - ts0;
-	pr_alert("csd: %s non-responsive CSD lock (#%d) on CPU#%d, waiting %llu ns for CPU#%02d %pS(%ps).\n",
-		 firsttime ? "Detected" : "Continued", *bug_id, raw_smp_processor_id(), ts_delta,
+	pr_alert("csd: %s non-responsive CSD lock (#%d) on CPU#%d, waiting %lld ns for CPU#%02d %pS(%ps).\n",
+		 firsttime ? "Detected" : "Continued", *bug_id, raw_smp_processor_id(), (s64)ts_delta,
 		 cpu, csd->func, csd->info);
+	(*nmessages)++;
+	if (firsttime)
+		atomic_inc(&n_csd_lock_stuck);
 	/*
 	 * If the CSD lock is still stuck after 5 minutes, it is unlikely
 	 * to become unstuck. Use a signed comparison to avoid triggering
@@ -380,15 +294,15 @@ static bool csd_lock_wait_toolong(struct __call_single_data *csd, u64 ts0, u64 *
 			 *bug_id, !cpu_cur_csd ? "unresponsive" : "handling this request");
 	}
 	if (cpu >= 0) {
-		if (static_branch_unlikely(&csdlock_debug_extended))
-			csd_lock_print_extended(csd, cpu);
-		dump_cpu_task(cpu);
+		if (atomic_cmpxchg_acquire(&per_cpu(trigger_backtrace, cpu), 1, 0))
+			dump_cpu_task(cpu);
 		if (!cpu_cur_csd) {
 			pr_alert("csd: Re-sending CSD lock (#%d) IPI from CPU#%02d to CPU#%02d\n", *bug_id, raw_smp_processor_id(), cpu);
 			arch_send_call_function_single_ipi(cpu);
 		}
 	}
-	dump_stack();
+	if (firsttime)
+		dump_stack();
 	*ts1 = ts2;
 
 	return false;
@@ -401,21 +315,22 @@ static bool csd_lock_wait_toolong(struct __call_single_data *csd, u64 ts0, u64 *
  * previous function call. For multi-cpu calls its even more interesting
  * as we'll have to ensure no other cpu is observing our csd.
  */
-static void __csd_lock_wait(struct __call_single_data *csd)
+static void __csd_lock_wait(call_single_data_t *csd)
 {
+	unsigned long nmessages = 0;
 	int bug_id = 0;
 	u64 ts0, ts1;
 
 	ts1 = ts0 = sched_clock();
 	for (;;) {
-		if (csd_lock_wait_toolong(csd, ts0, &ts1, &bug_id))
+		if (csd_lock_wait_toolong(csd, ts0, &ts1, &bug_id, &nmessages))
 			break;
 		cpu_relax();
 	}
 	smp_acquire__after_ctrl_dep();
 }
 
-static __always_inline void csd_lock_wait(struct __call_single_data *csd)
+static __always_inline void csd_lock_wait(call_single_data_t *csd)
 {
 	if (static_branch_unlikely(&csdlock_debug_enabled)) {
 		__csd_lock_wait(csd);
@@ -424,38 +339,18 @@ static __always_inline void csd_lock_wait(struct __call_single_data *csd)
 
 	smp_cond_load_acquire(&csd->node.u_flags, !(VAL & CSD_FLAG_LOCK));
 }
-
-static void __smp_call_single_queue_debug(int cpu, struct llist_node *node)
-{
-	unsigned int this_cpu = smp_processor_id();
-	struct cfd_seq_local *seq = this_cpu_ptr(&cfd_seq_local);
-	struct call_function_data *cfd = this_cpu_ptr(&cfd_data);
-	struct cfd_percpu *pcpu = per_cpu_ptr(cfd->pcpu, cpu);
-
-	cfd_seq_store(pcpu->seq_queue, this_cpu, cpu, CFD_SEQ_QUEUE);
-	if (llist_add(node, &per_cpu(call_single_queue, cpu))) {
-		cfd_seq_store(pcpu->seq_ipi, this_cpu, cpu, CFD_SEQ_IPI);
-		cfd_seq_store(seq->ping, this_cpu, cpu, CFD_SEQ_PING);
-		send_call_function_single_ipi(cpu);
-		cfd_seq_store(seq->pinged, this_cpu, cpu, CFD_SEQ_PINGED);
-	} else {
-		cfd_seq_store(pcpu->seq_noipi, this_cpu, cpu, CFD_SEQ_NOIPI);
-	}
-}
 #else
-#define cfd_seq_store(var, src, dst, type)
-
-static void csd_lock_record(struct __call_single_data *csd)
+static void csd_lock_record(call_single_data_t *csd)
 {
 }
 
-static __always_inline void csd_lock_wait(struct __call_single_data *csd)
+static __always_inline void csd_lock_wait(call_single_data_t *csd)
 {
 	smp_cond_load_acquire(&csd->node.u_flags, !(VAL & CSD_FLAG_LOCK));
 }
 #endif
 
-static __always_inline void csd_lock(struct __call_single_data *csd)
+static __always_inline void csd_lock(call_single_data_t *csd)
 {
 	csd_lock_wait(csd);
 	csd->node.u_flags |= CSD_FLAG_LOCK;
@@ -468,7 +363,7 @@ static __always_inline void csd_lock(struct __call_single_data *csd)
 	smp_wmb();
 }
 
-static __always_inline void csd_unlock(struct __call_single_data *csd)
+static __always_inline void csd_unlock(call_single_data_t *csd)
 {
 	WARN_ON(!(csd->node.u_flags & CSD_FLAG_LOCK));
 
@@ -482,23 +377,29 @@ static DEFINE_PER_CPU_SHARED_ALIGNED(call_single_data_t, csd_data);
 
 void __smp_call_single_queue(int cpu, struct llist_node *node)
 {
-#ifdef CONFIG_CSD_LOCK_WAIT_DEBUG
-	if (static_branch_unlikely(&csdlock_debug_extended)) {
-		unsigned int type;
+	/*
+	 * We have to check the type of the CSD before queueing it, because
+	 * once queued it can have its flags cleared by
+	 *   flush_smp_call_function_queue()
+	 * even if we haven't sent the smp_call IPI yet (e.g. the stopper
+	 * executes migration_cpu_stop() on the remote CPU).
+	 */
+	if (trace_csd_queue_cpu_enabled()) {
+		call_single_data_t *csd;
+		smp_call_func_t func;
 
-		type = CSD_TYPE(container_of(node, call_single_data_t,
-					     node.llist));
-		if (type == CSD_TYPE_SYNC || type == CSD_TYPE_ASYNC) {
-			__smp_call_single_queue_debug(cpu, node);
-			return;
-		}
+		csd = container_of(node, call_single_data_t, node.llist);
+		func = CSD_TYPE(csd) == CSD_TYPE_TTWU ?
+			sched_ttwu_pending : csd->func;
+
+		trace_csd_queue_cpu(cpu, _RET_IP_, func, csd);
 	}
-#endif
 
 	/*
-	 * The list addition should be visible before sending the IPI
-	 * handler locks the list to pull the entry off it because of
-	 * normal cache coherency rules implied by spinlocks.
+	 * The list addition should be visible to the target CPU when it pops
+	 * the head of the list to pull the entry off it in the IPI handler
+	 * because of normal cache coherency rules implied by the underlying
+	 * llist ops.
 	 *
 	 * If IPIs can go out of order to the cache coherency protocol
 	 * in an architecture, sufficient synchronisation should be added
@@ -515,7 +416,7 @@ void __smp_call_single_queue(int cpu, struct llist_node *node)
  * for execution on the given CPU. data must already have
  * ->func, ->info, and ->flags set.
  */
-static int generic_exec_single(int cpu, struct __call_single_data *csd)
+static int generic_exec_single(int cpu, call_single_data_t *csd)
 {
 	if (cpu == smp_processor_id()) {
 		smp_call_func_t func = csd->func;
@@ -529,7 +430,7 @@ static int generic_exec_single(int cpu, struct __call_single_data *csd)
 		csd_lock_record(csd);
 		csd_unlock(csd);
 		local_irq_save(flags);
-		func(info);
+		csd_do_func(func, info, NULL);
 		csd_lock_record(NULL);
 		local_irq_restore(flags);
 		return 0;
@@ -553,8 +454,6 @@ static int generic_exec_single(int cpu, struct __call_single_data *csd)
  */
 void generic_smp_call_function_single_interrupt(void)
 {
-	cfd_seq_store(this_cpu_ptr(&cfd_seq_local)->gotipi, CFD_SEQ_NOCPU,
-		      smp_processor_id(), CFD_SEQ_GOTIPI);
 	__flush_smp_call_function_queue(true);
 }
 
@@ -578,17 +477,16 @@ static void __flush_smp_call_function_queue(bool warn_cpu_offline)
 	struct llist_node *entry, *prev;
 	struct llist_head *head;
 	static bool warned;
+	atomic_t *tbt;
 
 	lockdep_assert_irqs_disabled();
 
+	/* Allow waiters to send backtrace NMI from here onwards */
+	tbt = this_cpu_ptr(&trigger_backtrace);
+	atomic_set_release(tbt, 1);
+
 	head = this_cpu_ptr(&call_single_queue);
-	cfd_seq_store(this_cpu_ptr(&cfd_seq_local)->handle, CFD_SEQ_NOCPU,
-		      smp_processor_id(), CFD_SEQ_HANDLE);
 	entry = llist_del_all(head);
-	cfd_seq_store(this_cpu_ptr(&cfd_seq_local)->dequeue,
-		      /* Special meaning of source cpu: 0 == queue empty */
-		      entry ? CFD_SEQ_NOCPU : 0,
-		      smp_processor_id(), CFD_SEQ_DEQUEUE);
 	entry = llist_reverse_order(entry);
 
 	/* There shouldn't be any pending callbacks on an offline CPU. */
@@ -639,7 +537,7 @@ static void __flush_smp_call_function_queue(bool warn_cpu_offline)
 			}
 
 			csd_lock_record(csd);
-			func(info);
+			csd_do_func(func, info, csd);
 			csd_unlock(csd);
 			csd_lock_record(NULL);
 		} else {
@@ -647,12 +545,8 @@ static void __flush_smp_call_function_queue(bool warn_cpu_offline)
 		}
 	}
 
-	if (!entry) {
-		cfd_seq_store(this_cpu_ptr(&cfd_seq_local)->hdlend,
-			      0, smp_processor_id(),
-			      CFD_SEQ_HDLEND);
+	if (!entry)
 		return;
-	}
 
 	/*
 	 * Second; run all !SYNC callbacks.
@@ -674,7 +568,7 @@ static void __flush_smp_call_function_queue(bool warn_cpu_offline)
 
 				csd_lock_record(csd);
 				csd_unlock(csd);
-				func(info);
+				csd_do_func(func, info, csd);
 				csd_lock_record(NULL);
 			} else if (type == CSD_TYPE_IRQ_WORK) {
 				irq_work_single(csd);
@@ -688,11 +582,10 @@ static void __flush_smp_call_function_queue(bool warn_cpu_offline)
 	/*
 	 * Third; only CSD_TYPE_TTWU is left, issue those.
 	 */
-	if (entry)
-		sched_ttwu_pending(entry);
-
-	cfd_seq_store(this_cpu_ptr(&cfd_seq_local)->hdlend, CFD_SEQ_NOCPU,
-		      smp_processor_id(), CFD_SEQ_HDLEND);
+	if (entry) {
+		csd = llist_entry(entry, typeof(*csd), node.llist);
+		csd_do_func(sched_ttwu_pending, entry, csd);
+	}
 }
 
 
@@ -716,8 +609,6 @@ void flush_smp_call_function_queue(void)
 	if (llist_empty(this_cpu_ptr(&call_single_queue)))
 		return;
 
-	cfd_seq_store(this_cpu_ptr(&cfd_seq_local)->idle, CFD_SEQ_NOCPU,
-		      smp_processor_id(), CFD_SEQ_IDLE);
 	local_irq_save(flags);
 	/* Get the already pending soft interrupts for RT enabled kernels */
 	was_pending = local_softirq_pending();
@@ -816,7 +707,7 @@ EXPORT_SYMBOL(smp_call_function_single);
  *
  * Return: %0 on success or negative errno value on error
  */
-int smp_call_function_single_async(int cpu, struct __call_single_data *csd)
+int smp_call_function_single_async(int cpu, call_single_data_t *csd)
 {
 	int err = 0;
 
@@ -899,9 +790,9 @@ static void smp_call_function_many_cond(const struct cpumask *mask,
 	int cpu, last_cpu, this_cpu = smp_processor_id();
 	struct call_function_data *cfd;
 	bool wait = scf_flags & SCF_WAIT;
+	int nr_cpus = 0;
 	bool run_remote = false;
 	bool run_local = false;
-	int nr_cpus = 0;
 
 	lockdep_assert_preemption_disabled();
 
@@ -941,11 +832,12 @@ static void smp_call_function_many_cond(const struct cpumask *mask,
 
 		cpumask_clear(cfd->cpumask_ipi);
 		for_each_cpu(cpu, cfd->cpumask) {
-			struct cfd_percpu *pcpu = per_cpu_ptr(cfd->pcpu, cpu);
-			call_single_data_t *csd = &pcpu->csd;
+			call_single_data_t *csd = per_cpu_ptr(cfd->csd, cpu);
 
-			if (cond_func && !cond_func(cpu, info))
+			if (cond_func && !cond_func(cpu, info)) {
+				__cpumask_clear_cpu(cpu, cfd->cpumask);
 				continue;
+			}
 
 			csd_lock(csd);
 			if (wait)
@@ -956,19 +848,14 @@ static void smp_call_function_many_cond(const struct cpumask *mask,
 			csd->node.src = smp_processor_id();
 			csd->node.dst = cpu;
 #endif
-			cfd_seq_store(pcpu->seq_queue, this_cpu, cpu, CFD_SEQ_QUEUE);
+			trace_csd_queue_cpu(cpu, _RET_IP_, func, csd);
+
 			if (llist_add(&csd->node.llist, &per_cpu(call_single_queue, cpu))) {
 				__cpumask_set_cpu(cpu, cfd->cpumask_ipi);
 				nr_cpus++;
 				last_cpu = cpu;
-
-				cfd_seq_store(pcpu->seq_ipi, this_cpu, cpu, CFD_SEQ_IPI);
-			} else {
-				cfd_seq_store(pcpu->seq_noipi, this_cpu, cpu, CFD_SEQ_NOIPI);
 			}
 		}
-
-		cfd_seq_store(this_cpu_ptr(&cfd_seq_local)->ping, this_cpu, CFD_SEQ_NOCPU, CFD_SEQ_PING);
 
 		/*
 		 * Choose the most efficient way to send an IPI. Note that the
@@ -978,16 +865,14 @@ static void smp_call_function_many_cond(const struct cpumask *mask,
 		if (nr_cpus == 1)
 			send_call_function_single_ipi(last_cpu);
 		else if (likely(nr_cpus > 1))
-			arch_send_call_function_ipi_mask(cfd->cpumask_ipi);
-
-		cfd_seq_store(this_cpu_ptr(&cfd_seq_local)->pinged, this_cpu, CFD_SEQ_NOCPU, CFD_SEQ_PINGED);
+			send_call_function_ipi_mask(cfd->cpumask_ipi);
 	}
 
 	if (run_local && (!cond_func || cond_func(this_cpu, info))) {
 		unsigned long flags;
 
 		local_irq_save(flags);
-		func(info);
+		csd_do_func(func, info, NULL);
 		local_irq_restore(flags);
 	}
 
@@ -995,7 +880,7 @@ static void smp_call_function_many_cond(const struct cpumask *mask,
 		for_each_cpu(cpu, cfd->cpumask) {
 			call_single_data_t *csd;
 
-			csd = &per_cpu_ptr(cfd->pcpu, cpu)->csd;
+			csd = per_cpu_ptr(cfd->csd, cpu);
 			csd_lock_wait(csd);
 		}
 	}
@@ -1006,16 +891,15 @@ static void smp_call_function_many_cond(const struct cpumask *mask,
  * @mask: The set of cpus to run on (only runs on online subset).
  * @func: The function to run. This must be fast and non-blocking.
  * @info: An arbitrary pointer to pass to the function.
- * @wait: Bitmask that controls the operation. If %SCF_WAIT is set, wait
- *        (atomically) until function has completed on other CPUs. If
- *        %SCF_RUN_LOCAL is set, the function will also be run locally
- *        if the local CPU is set in the @cpumask.
- *
- * If @wait is true, then returns once @func has returned.
+ * @wait: If true, wait (atomically) until function has completed
+ *        on other CPUs.
  *
  * You must not call this function with disabled interrupts or from a
  * hardware interrupt handler or from a bottom half handler. Preemption
  * must be disabled when calling this function.
+ *
+ * @func is not called on the local CPU even if @mask contains it.  Consider
+ * using on_each_cpu_cond_mask() instead if this is not desirable.
  */
 void smp_call_function_many(const struct cpumask *mask,
 			    smp_call_func_t func, void *info, bool wait)
@@ -1063,7 +947,7 @@ EXPORT_SYMBOL(setup_max_cpus);
  * SMP mode to <NUM>.
  */
 
-void __weak arch_disable_smp_support(void) { }
+void __weak __init arch_disable_smp_support(void) { }
 
 static int __init nosmp(char *str)
 {
@@ -1075,7 +959,6 @@ static int __init nosmp(char *str)
 
 early_param("nosmp", nosmp);
 
-#if NR_CPUS > BITS_PER_LONG
 /* this is hard limit */
 static int __init nrcpus(char *str)
 {
@@ -1088,7 +971,6 @@ static int __init nrcpus(char *str)
 }
 
 early_param("nr_cpus", nrcpus);
-#endif
 
 static int __init maxcpus(char *str)
 {
@@ -1101,7 +983,7 @@ static int __init maxcpus(char *str)
 
 early_param("maxcpus", maxcpus);
 
-#if (NR_CPUS > BITS_PER_LONG) && !defined(CONFIG_FORCE_NR_CPUS)
+#if (NR_CPUS > 1) && !defined(CONFIG_FORCE_NR_CPUS)
 /* Setup number of possible processor ids */
 unsigned int nr_cpu_ids __read_mostly = NR_CPUS;
 EXPORT_SYMBOL(nr_cpu_ids);
@@ -1128,8 +1010,7 @@ void __init smp_init(void)
 	num_nodes = num_online_nodes();
 	num_cpus  = num_online_cpus();
 	pr_info("Brought up %d node%s, %d CPU%s\n",
-		num_nodes, (num_nodes > 1 ? "s" : ""),
-		num_cpus,  (num_cpus  > 1 ? "s" : ""));
+		num_nodes, str_plural(num_nodes), num_cpus, str_plural(num_cpus));
 
 	/* Any cleanup work */
 	smp_cpus_done(setup_max_cpus);

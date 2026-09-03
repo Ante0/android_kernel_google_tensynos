@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch")
+load("//private/devices/google/common/kleaf:device_build.bzl", "device_build")
+load("//private/devices/google/zuma:constants.bzl", "ZUMA_DTBS", "ZUMA_MODULE_OUTS")
+load(":constants.bzl", "AKITA_DTBOS")
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+device_build(
+    name = "akita",
+    base_device = "//private/devices/google/zuma:zuma_base",
+    build_configs = ["build.config.akita"],
+    build_dtb = True,
+    build_dtbo = True,
+    build_system_dlkm = True,
+    build_vendor_dlkm = True,
+    build_vendor_kernel_boot = True,
+    defconfig_fragments = ["akita_defconfig"],
+    dtb_outs = ZUMA_DTBS,
+    dtbo_outs = AKITA_DTBOS,
+    dts_makefile = "dts/Makefile",
+    dts_srcs = glob(["dts/**"]) + [
+        "//private/google-modules/soc/gs:gs.dt-bindings",
+    ],
+    insmod_cfgs = glob(["insmod_cfg/*.cfg"]),
+    kconfig_exts = ["Kconfig.ext.akita"],
+    kconfigs = [
+        # keep sorted
+        "//private/google-modules/radio/samsung/s5300:cpif.kconfig",
+    ],
+    module_outs = ZUMA_MODULE_OUTS,
+    vendor_dlkm_modules = [
+        # keep sorted
+        "//private/google-modules/amplifiers/cs35l41:snd-soc-cs35l41",
+        "//private/google-modules/amplifiers/cs35l41:snd-soc-cs35l41-i2c",
+        "//private/google-modules/amplifiers/cs35l41:snd-soc-cs35l41-spi",
+        "//private/google-modules/amplifiers/cs40l26:cl_dsp-core",
+        "//private/google-modules/amplifiers/cs40l26:cs40l26-core",
+        "//private/google-modules/amplifiers/cs40l26:snd-soc-cs40l26",
+        "//private/google-modules/amplifiers/snd_soc_wm_adsp:snd-soc-wm-adsp",
+        "//private/google-modules/amplifiers/tas256x:snd-soc-tas256x",
+        "//private/google-modules/bluetooth/broadcom:nitrous",
+        "//private/google-modules/gps/broadcom/bcm47765:bbd_pps_gpio",
+        "//private/google-modules/nfc/ese:st33spi",
+        "//private/google-modules/radio/samsung/s5300:cp_thermal_zone",
+        "//private/google-modules/wlan/wonder",
+    ],
+    vendor_dlkm_modules_blocklisted = [
+        # keep sorted
+        "//private/google-modules/amplifiers/cs40l26:cs40l26-i2c",
+        "//private/google-modules/touch/goodix:goodix_brl_touch",
+        "//private/google-modules/wlan/bcmdhd/bcm4383:bcmdhd4383",
+    ],
+    vendor_ramdisk_modules = [
+        # keep sorted
+        "//private/devices/google/akita/display:panel-google-ak3a",
+        "//private/devices/google/akita/display:panel-google-ak3b",
+        "//private/google-modules/gps/broadcom/bcm47765:bcm47765_ko",
+        "//private/google-modules/nfc:st21nfc",
+        "//private/google-modules/nfc/ese:st54spi",
+        "//private/google-modules/radio/samsung/s5300:cpif_ko",
+        "//private/google-modules/radio/samsung/s5300:cpif_page",
+        "//private/google-modules/radio/samsung/s5300:shm_ipc",
+        "//private/google-modules/soc/gs/drivers/regulator:rt6160-regulator",
+        "//private/google-modules/soc/gs/drivers/soc/google/gnssif_spi:gnss_spi",
+        "//private/google-modules/soc/gs/drivers/soc/google/gnssif_spi:gnssif",
+    ],
+)
+
+# For compatibility
+alias(
+    name = "zuma_akita_dist",
+    actual = ":akita/dist",
+)
+
+alias(
+    name = "zuma_akita_abi_update_symbol_list",
+    actual = ":akita/kernel_abi_update_symbol_list",
+)
+
+alias(
+    name = "kernel",
+    actual = ":akita/kernel",
+)
+
+alias(
+    name = "kernel_abi_update_symbol_list",
+    actual = ":akita/kernel_abi_update_symbol_list",
+)
+
+alias(
+    name = "kernel_compile_commands",
+    actual = ":akita/kernel_compile_commands",
+)

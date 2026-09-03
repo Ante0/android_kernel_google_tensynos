@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2025 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/fwtp/google,fwtp_cpm.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google CPM FWTP driver
+
+maintainers:
+  - Erik Staats <estaats@google.com>
+
+description: |
+  The Google CPM FWTP driver reads tracepoints from CPM.
+
+properties:
+  compatible:
+    const: google,fwtp-cpm
+
+  mboxes:
+    description: A phandle for the mailbox to use for IPC wth CPM.
+    maxItems: 1
+
+  mba-dest-channel:
+    description: The mailbox channel to use to send IPC messages to CPM.
+    maxItems: 1
+
+  memory-region:
+    description: DMA buffer to use for IPC with CPM.
+
+  tracepoint-list:
+    description: List of sub-devices for which to publish tracepoints.
+
+required:
+  - compatible
+  - mboxes
+  - mba-dest-channel
+  - memory-region
+  - tracepoint-list
+
+additionalProperties: false
+
+examples:
+  - |
+    fwtp_cpm: fwtp_cpm {
+      compatible = "google,fwtp-cpm";
+      mboxes = <&goog_mba_cpm_iface>;
+      mba-dest-channel = <MBOX_DEST_CHAN_CPM_FWTP>;
+      memory-region = <&cpm_tracepoint_ipc_dma>;
+      tracepoint-list = "cpm", "cap";
+    };

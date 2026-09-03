@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config SAMPLE_MINIMAL_C
+	tristate "Minimal C sample"
+	help
+	  This is a minimal sample of a C kernel module. It demonstrates the
+	  basic structure of an out-of-tree kernel module built with Kleaf,
+	  including basic module init and exit functions.
+
+	  If unsure, say N.

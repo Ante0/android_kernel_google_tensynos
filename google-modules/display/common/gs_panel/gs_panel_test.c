@@ -11,6 +11,7 @@
 #include <video/mipi_display.h>
 #include "gs_panel/gs_panel_test.h"
 #include "trace/panel_trace.h"
+#include <linux/kmemleak.h>
 
 #define MAX_PANEL_REG_SIZE 128
 #define MAX_VALUE_PER_LINE 10
@@ -96,12 +97,55 @@ int gs_panel_read_register_value(struct gs_panel_test *test, const struct gs_pan
 }
 EXPORT_SYMBOL_GPL(gs_panel_read_register_value);
 
+static bool array_is_equal(const u8 *l, const u8 *r, size_t count)
+{
+	return memcmp(l, r, count * sizeof(u8)) == 0;
+}
+
+int get_query_result_from_register(struct gs_panel_test *test,
+				   const struct gs_panel_register_query *query)
+{
+	struct gs_panel *ctx = test->ctx;
+	int i, ret = -1;
+	u8 *read_result;
+
+	if (!query || !query->reg)
+		return ret;
+
+	read_result = kmalloc_array(query->reg->size, sizeof(u8), GFP_KERNEL);
+	if (!read_result)
+		return -ENOMEM;
+
+	if (gs_panel_read_register_value(test, query->reg, read_result))
+		goto free_mem;
+
+	ret = query->default_result;
+	for (i = 0; i < query->map_size; i++) {
+		if (query->map[i].rev && !(ctx->panel_rev_bitmask & query->map[i].rev))
+			continue;
+
+		if (array_is_equal(read_result, query->map[i].array, query->reg->size)) {
+			ret = query->map[i].value;
+			goto free_mem;
+		}
+	}
+
+free_mem:
+	kfree(read_result);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(get_query_result_from_register);
+
 static u8 reg_value[MAX_PANEL_REG_SIZE];
 
 static void dump_register_to_debugfs(struct gs_panel_test *test,
 				     const struct gs_panel_register *reg, struct seq_file *m)
 {
 	int cnt;
+
+	if (test->ctx && reg->revision &&
+		!(test->ctx->panel_rev_bitmask & reg->revision))
+		return;
 
 	gs_panel_read_register_value(test, reg, reg_value);
 	if (reg->size <= MAX_VALUE_PER_LINE) {
@@ -174,6 +218,11 @@ static int debugfs_add_panel_register_nodes(struct gs_panel_test *test, struct d
 	for (i = 0; i < ARRAY_SIZE(common_panel_registers); i++) {
 		struct register_dentry_data *data =
 			kmalloc(sizeof(struct register_dentry_data), GFP_KERNEL);
+
+		if (!data)
+			return -ENOMEM;
+
+		kmemleak_ignore(data);
 		data->test = test;
 		data->reg = &common_panel_registers[i];
 		debugfs_create_file(common_panel_registers[i].name, 0600, regs_root, data,
@@ -185,12 +234,14 @@ static int debugfs_add_panel_register_nodes(struct gs_panel_test *test, struct d
 
 	regs_desc = test->test_desc->regs_desc;
 
-	if (!regs_desc)
-		return 0;
-
 	for (i = 0; i < regs_desc->register_count; i++) {
 		struct register_dentry_data *data =
 			kmalloc(sizeof(struct register_dentry_data), GFP_KERNEL);
+
+		if (!data)
+			return -ENOMEM;
+
+		kmemleak_ignore(data);
 		data->test = test;
 		data->reg = &regs_desc->registers[i];
 		debugfs_create_file(regs_desc->registers[i].name, 0600, regs_root, data,
@@ -199,6 +250,45 @@ static int debugfs_add_panel_register_nodes(struct gs_panel_test *test, struct d
 
 	return 0;
 }
+
+int add_new_registers_to_debugfs(struct gs_panel_test *test, struct dentry *test_root)
+{
+	struct dentry *regs_root, *reg_root;
+	const struct gs_panel_registers_desc *regs_desc;
+
+	if (!gs_panel_test_has_registers_desc(test))
+		return 0;
+	regs_desc = test->test_desc->regs_desc;
+
+	regs_root = debugfs_lookup("regs", test_root);
+	if (!regs_root)
+		return -EFAULT;
+
+	for (int i = 0; i < regs_desc->register_count; i++) {
+		reg_root = debugfs_lookup(regs_desc->registers[i].name, regs_root);
+		if (reg_root) {
+			dev_err(test->dev, "register %s already exists\n",
+				regs_desc->registers[i].name);
+			dput(reg_root);
+			continue;
+		}
+		struct register_dentry_data *data =
+			kmalloc(sizeof(struct register_dentry_data), GFP_KERNEL);
+
+		if (!data)
+			return -ENOMEM;
+
+		kmemleak_ignore(data);
+		data->test = test;
+		data->reg = &regs_desc->registers[i];
+		debugfs_create_file(regs_desc->registers[i].name, 0600, regs_root, data,
+				    &gs_panel_reg_fops);
+	}
+
+	dput(regs_root);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(add_new_registers_to_debugfs);
 
 /* Query nodes */
 
@@ -213,6 +303,7 @@ static int gs_panel_query_node_show(struct seq_file *m, void *data)
 	struct gs_panel_test *test;
 	const struct gs_panel_query_funcs *query_func;
 	const char *name;
+	bool match_found = false;
 
 	if (!query_data)
 		return -EFAULT;
@@ -225,19 +316,19 @@ static int gs_panel_query_node_show(struct seq_file *m, void *data)
 
 	query_func = test->test_desc->query_desc;
 
-#define MATCH_QUERY_FUNC_NAME(test, node_name)                                    \
-	{                                                                         \
-		if (!strcmp(name, #node_name) && query_func->get_##node_name) {   \
-			seq_printf(m, "%d\n", query_func->get_##node_name(test)); \
-			return 0;                                                 \
-		}                                                                 \
-	}
+#define MATCH_QUERY_FUNC_NAME_AND_PRINT(m, test, node_name)                              \
+	({                                                                               \
+		bool match = (!strcmp(name, #node_name) && query_func->get_##node_name); \
+		if (match)                                                               \
+			seq_printf(m, "%d\n", query_func->get_##node_name(test));        \
+		match;                                                                   \
+	})
 
-	MATCH_QUERY_FUNC_NAME(test, refresh_rate);
-	MATCH_QUERY_FUNC_NAME(test, irc_on);
-	MATCH_QUERY_FUNC_NAME(test, aod_on);
+	match_found |= MATCH_QUERY_FUNC_NAME_AND_PRINT(m, test, refresh_rate);
+	match_found |= MATCH_QUERY_FUNC_NAME_AND_PRINT(m, test, irc_on);
+	match_found |= MATCH_QUERY_FUNC_NAME_AND_PRINT(m, test, aod_on);
 
-	return -EOPNOTSUPP;
+	return match_found ? 0 : -EOPNOTSUPP;
 }
 DEFINE_SHOW_ATTRIBUTE(gs_panel_query_node);
 
@@ -261,6 +352,11 @@ static int debugfs_add_query_nodes(struct gs_panel_test *test, struct dentry *te
 	for (i = 0; i < ARRAY_SIZE(names); i++) {
 		struct query_dentry_data *data =
 			kmalloc(sizeof(struct register_dentry_data), GFP_KERNEL);
+
+		if (!data)
+			return -ENOMEM;
+
+		kmemleak_ignore(data);
 		data->test = test;
 		data->query_node_name = names[i];
 
@@ -282,6 +378,8 @@ static int debugfs_add_test_folder(struct gs_panel_test *test)
 	if (!test_root)
 		return -EFAULT;
 
+	test->debugfs_root = test_root;
+
 	ret = debugfs_add_panel_register_nodes(test, test_root);
 	if (ret)
 		return ret;
@@ -298,20 +396,35 @@ static int debugfs_add_test_folder(struct gs_panel_test *test)
 
 static int debugfs_remove_test_folder(struct gs_panel_test *test)
 {
-	struct dentry *panel_root, *test_root;
+	struct dentry *panel_root;
 
 	panel_root = test->ctx->debugfs_entries.panel;
 	if (!panel_root)
 		return 0;
 
-	test_root = debugfs_lookup("test", panel_root);
-	if (!test_root)
-		return 0;
-
-	debugfs_remove_recursive(test_root);
+	debugfs_lookup_and_remove("test", panel_root);
 
 	return 0;
 }
+
+int gs_panel_test_init_helper(struct gs_panel *ctx, struct gs_panel_test *test)
+{
+	if (!ctx)
+		return 0;
+
+	PANEL_ATRACE_BEGIN("gs_panel_test_init_helper");
+
+	test->ctx = ctx;
+
+#ifdef CONFIG_DEBUG_FS
+	debugfs_add_test_folder(test);
+#endif
+
+	PANEL_ATRACE_END("gs_panel_test_init_helper");
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(gs_panel_test_init_helper);
 
 int gs_panel_test_common_init(struct platform_device *pdev, struct gs_panel_test *test)
 {
@@ -326,36 +439,33 @@ int gs_panel_test_common_init(struct platform_device *pdev, struct gs_panel_test
 	if (!ctx)
 		return 0;
 
-	PANEL_ATRACE_BEGIN("panel_test_init");
-
-	test->ctx = ctx;
+	gs_panel_test_init_helper(ctx, test);
 	test->dev = dev;
-	test->test_desc = of_device_get_match_data(dev);
 	dev_set_drvdata(dev, test);
-
-#ifdef CONFIG_DEBUG_FS
-	debugfs_add_test_folder(test);
-#endif
-
-	PANEL_ATRACE_END("panel_test_init");
 
 	return 0;
 }
 EXPORT_SYMBOL_GPL(gs_panel_test_common_init);
+
+int gs_panel_test_remove_helper(struct gs_panel_test *test)
+{
+	if (!test)
+		return 0;
+
+	PANEL_ATRACE_BEGIN("gs_panel_test_remove_helper");
+	debugfs_remove_test_folder(test);
+	PANEL_ATRACE_END("gs_panel_test_remove_helper");
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(gs_panel_test_remove_helper);
 
 int gs_panel_test_common_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct gs_panel_test *test = dev_get_drvdata(dev);
 
-	if (!test)
-		return 0;
-
-	PANEL_ATRACE_BEGIN("panel_test_remove");
-	debugfs_remove_test_folder(test);
-	PANEL_ATRACE_END("panel_test_remove");
-
-	return 0;
+	return gs_panel_test_remove_helper(test);
 }
 EXPORT_SYMBOL_GPL(gs_panel_test_common_remove);
 

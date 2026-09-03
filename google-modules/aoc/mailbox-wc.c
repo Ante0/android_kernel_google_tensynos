@@ -39,7 +39,7 @@
 #define DT_NON_WAKE_CHANNEL_KEY "wc-mbox-non-wake-channels"
 
 static int wc_mbox_probe(struct platform_device *dev);
-static int wc_mbox_remove(struct platform_device *dev);
+static void wc_mbox_remove(struct platform_device *dev);
 static int wc_mbox_suspend(struct platform_device *dev, pm_message_t state);
 static int wc_mbox_resume(struct platform_device *dev);
 
@@ -370,13 +370,13 @@ static int wc_mbox_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int wc_mbox_remove(struct platform_device *pdev)
+static void wc_mbox_remove(struct platform_device *pdev)
 {
 	struct wc_mbox_prvdata *prvdata = platform_get_drvdata(pdev);
 	struct device *dev = &(pdev->dev);
 
 	if (!prvdata)
-		return -EINVAL;
+		return;
 
 	dev_dbg(dev, "removing mailbox\n");
 
@@ -385,8 +385,6 @@ static int wc_mbox_remove(struct platform_device *pdev)
 	devm_free_irq(dev, prvdata->interrupt, dev);
 
 	devm_iounmap(dev, prvdata->base);
-
-	return 0;
 }
 
 /* Module functions */

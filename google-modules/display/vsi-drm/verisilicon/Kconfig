@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config DRM_VERISILICON
+	tristate "DRM Support for VeriSilicon"
+	depends on DRM
+	select DRM_KMS_HELPER
+	help
+	  Choose this option if you have a VeriSilicon soc chipset.
+	  This driver provides VeriSilicon kernel mode
+	  setting and buffer management. It does not
+	  provide 2D or 3D acceleration.
+
+if DRM_VERISILICON
+config VERISILICON_CHIP_9x00
+	bool "VeriSilicon display controller of 9x00"
+	depends on DRM_VERISILICON
+	default y
+	help
+	  Choose this option if you have a VeriSilicon display controller of
+	  9x00 series, otherwise, say N.
+
+config VERISILICON_DC9400_0x316
+	bool "VeriSilicon Chip Id 0x316"
+	depends on VERISILICON_CHIP_9x00
+	default y
+	help
+	  Choose this option if you want to get VeriSilicon display info of
+	  9400_0x316.
+
+config VERISILICON_DC9400_0x32a
+	bool "VeriSilicon Chip Id 0x32a"
+	depends on VERISILICON_CHIP_9x00
+	help
+	  Choose this option if you want to get VeriSilicon display info of
+	  9400_0x32a.
+
+config VERISILICON_PLANE_RCD
+	bool "Adds support for VeriSilicon plane based RCD"
+	depends on VERISILICON_CHIP_9x00
+	default y
+	help
+	  Choose this option to enable plane based rounded corner implementation
+	  for devices that support it.
+
+config VERISILICON_DC9400_0x20000005
+	bool "VeriSilicon Chip Id 0x20000005"
+	depends on VERISILICON_CHIP_9x00
+	default y
+	help
+	  Choose this option if you want to get VeriSilicon display info of
+	  9400_0x20000005.
+
+config VERISILICON_MIPI_DSI2H
+	bool "Integration with Synopsis MIPI DSI2 Host driver"
+	select DRM_DW_MIPI_DSI2H
+	help
+	  Choose this option to add support for MIPI DSI using Verisilicon
+	  display controller along with Synopsis MIPI DSI2 Host.
+
+config VERISILICON_DISPLAYPORT
+	bool "Enables DisplayPort encoder driver"
+	default y if DWC_DPTX
+	help
+	  Enable this option to include the DisplayPort encoder driver,
+	  which allows connecting a DisplayPort encoder to the
+	  DPTX driver,
+	  otherwise, say N.
+
+config VERISILICON_RECORD_DRM_STATE
+	bool "Enables recording short-term DRM state history for debugging"
+	depends on DRM_VERISILICON
+	default y
+	help
+	  Enable this option to allow maintaining a record of drm_atomic_states
+	  processed by the VeriSilicon drm device, such that in anomalous
+	  circumstances, the previous committed states can be retrieved for
+	  inspection and debugging.
+endif

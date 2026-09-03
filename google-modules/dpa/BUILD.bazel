@@ -1,0 +1,257 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+load("//private/devices/google/common/kleaf:copy_files.bzl", "copy_files")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "dpa.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules/soc/rdo:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "headers",
+    srcs = glob([
+        "include/**/*.h",
+    ]),
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "ddk_headers",
+    hdrs = [
+        ":headers",
+    ],
+    linux_includes = [
+        "include",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules:__subpackages__",
+    ],
+)
+
+copy_files(
+    name = "noa_ipc",
+    srcs = [
+        "//private/google-modules/noa/noah_lib:noa_ipc/ipc_buffer.c",
+        "//private/google-modules/noa/noah_lib:noa_ipc/ipc_buffer_shared_memory.c",
+        "//private/google-modules/noa/noah_lib:noa_ipc/ipc_channel.c",
+        "//private/google-modules/noa/noah_lib:noa_ipc/ipc_manager.c",
+    ],
+)
+
+copy_files(
+    name = "pw_rpc_c",
+    srcs = [
+        "//private/google-modules/noa/noah_lib:pw_rpc_c/linux_export.c",
+        "//private/google-modules/noa/noah_lib:pw_rpc_c/packet.pb.c",
+        "//private/google-modules/noa/noah_lib:pw_rpc_c/pw_rpc_call_list.c",
+        "//private/google-modules/noa/noah_lib:pw_rpc_c/pw_rpc_client.c",
+        "//private/google-modules/noa/noah_lib:pw_rpc_c/pw_rpc_packet.c",
+    ],
+)
+
+copy_files(
+    name = "pw_rpc_service_client",
+    srcs = [
+        "//private/google-modules/noa/noah_lib:pw_rpc_service_client/pw_log_service_client.nanopb.c",
+    ],
+)
+
+copy_files(
+    name = "pw_rpc_services",
+    srcs = [
+        "//private/google-modules/noa/noah_lib:gen/pw_rpc_services/dma_service/dma_service.pb.c",
+        "//private/google-modules/noa/noah_lib:gen/pw_rpc_services/ipsec_test_service/ipsec_test_service.pb.c",
+        "//private/google-modules/noa/noah_lib:gen/pw_rpc_services/modem_cmd_service.pb.c",
+        "//private/google-modules/noa/noah_lib:gen/pw_rpc_services/power_service/power_service.pb.c",
+        "//private/google-modules/noa/noah_lib:gen/pw_rpc_services/pw_log/proto/log.pb.c",
+        "//private/google-modules/noa/noah_lib:gen/pw_rpc_services/pw_rpc/echo.pb.c",
+        "//private/google-modules/noa/noah_lib:gen/pw_rpc_services/ring_event_service.pb.c",
+        "//private/google-modules/noa/noah_lib:gen/pw_rpc_services/shell_cmd_service/shell_cmd_service.pb.c",
+        "//private/google-modules/noa/noah_lib:gen/pw_rpc_services/tea_rpc_service.pb.c",
+    ],
+)
+
+copy_files(
+    name = "nanopb",
+    srcs = [
+        "//private/google-modules/noa/nanopb:pb_common.c",
+        "//private/google-modules/noa/nanopb:pb_decode.c",
+        "//private/google-modules/noa/nanopb:pb_encode.c",
+    ],
+)
+
+copy_files(
+    name = "nanopb_sources",
+    srcs = [
+        "@nanopb-c//:sources",
+    ],
+    prefix = "nanopb",
+)
+
+copy_files(
+    name = "nanopb_headers",
+    srcs = [
+        "@nanopb-c//:headers",
+    ],
+    prefix = "nanopb",
+)
+
+genrule(
+    name = "gen_dpa_nanopb_config",
+    outs = ["nanopb/dpa_nanopb_config.h"],
+    cmd = """
+        echo "#ifndef PB_SYSTEM_HEADER" >> "$@"
+        echo "#define PB_SYSTEM_HEADER \\\"pb_linux.h\\\"" >> "$@"
+        echo "#endif" >> "$@"
+    """,
+)
+
+ddk_headers(
+    name = "nanopb_ddk_headers",
+    hdrs = [
+        "nanopb/dpa_nanopb_config.h",
+        "nanopb/pb_linux.h",
+        ":nanopb_headers",
+    ],
+    includes = ["nanopb"],
+    visibility = ["//visibility:public"],
+)
+
+_DPA_COMMON_SRCS = glob(["**/*.h"]) + [
+    "google_dpa.c",
+    "google_dpa_boot.c",
+    "google_dpa_ctrl.c",
+    "google_dpa_ctrl_sysfs.c",
+    "google_dpa_debugfs.c",
+    "google_dpa_dma.c",
+    "google_dpa_doorbell.c",
+    "google_dpa_elf_loader.c",
+    "google_dpa_io.c",
+    "google_dpa_log_cdev.c",
+    "google_dpa_log_proxy.c",
+    "google_dpa_netlink.c",
+    "google_dpa_power_domain.c",
+    "google_dpa_rpc.c",
+    "google_dpa_rpc_sysfs.c",
+    "google_dpa_sysfs.c",
+    "google_dpa_tea_proxy.c",
+    "google_dpa_ring_service_proxy.c",
+    "noa_ipc_os.c",
+    "pw_rpc_os.c",
+    "services/google_dpa_service_dma.c",
+    "services/google_dpa_service_echo.c",
+    "services/google_dpa_service_ipsec.c",
+    "services/google_dpa_service_modem_cmd.c",
+    "services/google_dpa_service_pw_log.c",
+    "services/google_dpa_service_shell_cmd.c",
+    "services/google_dpa_service_tea.c",
+    "services/google_dpa_services.c",
+    "services/google_dpa_service_power.c",
+    ":noa_ipc",
+    ":pw_rpc_c",
+    ":pw_rpc_service_client",
+    ":pw_rpc_services",
+]
+
+_DPA_CONDITIONAL_SRCS = {
+    "CONFIG_SUBSYSTEM_COREDUMP": {
+        True: [
+            "google_dpa_crash_dump.c",
+        ],
+    },
+    "CONFIG_TRUSTY_VIRTIO_IPC": {
+        True: [
+            "google_dpa_secure.c",
+        ],
+    },
+}
+
+_DPA_COMMON_DEPS = [
+    "//common:all_headers_aarch64",
+    "//private/google-modules/noa/noah_lib:noah_lib_headers",
+    "//private/google-modules/soc/gs:headers",
+    "//private/google-modules/trusty:trusty-ipc",
+    "//private/google-modules/trusty:trusty_headers",
+]
+
+_DPA_INCLUDES = [
+    ".",
+    "include",
+    "nanopb",
+]
+
+ddk_module(
+    name = "google-dpa",
+    srcs = _DPA_COMMON_SRCS + [
+        "nanopb/dpa_nanopb_config.h",
+        ":nanopb",
+    ],
+    out = "google-dpa.ko",
+    conditional_srcs = _DPA_CONDITIONAL_SRCS,
+    copts = [
+        "-fno-builtin",
+        "-includedpa_nanopb_config.h",
+    ],
+    includes = _DPA_INCLUDES,
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = ["GOOGLE_DPA_BOOT_AT_PROBE=false"],
+    deps = _DPA_COMMON_DEPS + [
+        "//private/google-modules/noa/nanopb:nanopb_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google/mailbox:goog-mba-gdmc-iface",
+        "//private/google-modules/soc/rdo/include:soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "google-dpa-test",
+    srcs = [
+        "google-dpa-test.c",
+    ],
+    out = "google-dpa-test.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/dpa:ddk_headers",
+        "//private/google-modules/dpa:google-dpa",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "google-dpa.pixel",
+    srcs = _DPA_COMMON_SRCS + [":nanopb_sources"],
+    out = "google-dpa.ko",
+    conditional_srcs = _DPA_CONDITIONAL_SRCS,
+    copts = [
+        "-fno-builtin",
+        "-includedpa_nanopb_config.h",
+    ],
+    includes = _DPA_INCLUDES,
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "GOOGLE_DPA_BOOT_AT_PROBE=false",
+        "USE_PIXEL_CPM",
+    ],
+    deps = _DPA_COMMON_DEPS + [
+        ":nanopb_ddk_headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-cpm-iface",
+        "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-gdmc-iface",
+    ],
+)

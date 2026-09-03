@@ -14,7 +14,7 @@
 &google_cpm {
 	google,cop-supported;
 
-	google,wlc_dc_limit-vbatt_min = <3700000>;
+	google,wlc_dc_limit-vbatt_low = <3700000>;
 
 	// thermal budgets
 	google,mdis-thermal-mitigation =

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Support For Battery EEPROM
  *
@@ -15,12 +15,30 @@
 #include <linux/delay.h>
 #include "gbms_storage.h"
 
+/*
+ * IMPORTANT: EEPROM Layout Compatibility
+ *
+ * This file defines the EEPROM memory layout for the Android OS.
+ * This layout MUST be kept in sync with the corresponding layout in the
+ * bootloader. Any changes to the EEPROM memory map must be reflected
+ * in both the bootloader and the kernel to avoid data corruption and
+ * unexpected behavior.
+ *
+ * The EEPROM layout differs between EEPROM models (e.g., M24C08 vs. M24C64).
+ * Ensure that the correct offsets are used for the target hardware.
+ *
+ * See b/458510524 for more details.
+ */
 #define BATT_EEPROM_TAG_HIST_OFFSET	0x5E
 #define BATT_EEPROM_TAG_HIST_LEN	BATT_ONE_HIST_LEN
 #define BATT_MAX_HIST_CNT		200
 #define BATT_TOTAL_HIST_LEN		(BATT_ONE_HIST_LEN * BATT_MAX_HIST_CNT)
 #define BATT_EEPROM_TAG_EXTRA_START	(BATT_EEPROM_TAG_HIST_OFFSET + BATT_TOTAL_HIST_LEN)
 /* 0x9BE is the first free with 200 history entries. Write from end */
+#define BATT_EEPROM_TAG_MDLV_OFFSET	0x1FD9
+#define BATT_EEPROM_TAG_MDLV_LEN	1
+#define BATT_EEPROM_TAG_AATD_OFFSET	0x1FDA
+#define BATT_EEPROM_TAG_AATD_LEN	4
 #define BATT_EEPROM_TAG_AAWC_OFFSET	0x1FDE
 #define BATT_EEPROM_TAG_AAWC_LEN	4
 #define BATT_EEPROM_TAG_FCRU_OFFSET	0x1FE2
@@ -84,6 +102,14 @@ int gbee_storage02_info(gbms_tag_t tag, size_t *addr, size_t *count, void *ptr)
 	case GBMS_TAG_AAWC:
 		*addr = BATT_EEPROM_TAG_AAWC_OFFSET;
 		*count = BATT_EEPROM_TAG_AAWC_LEN;
+		break;
+	case GBMS_TAG_AATD:
+		*addr = BATT_EEPROM_TAG_AATD_OFFSET;
+		*count = BATT_EEPROM_TAG_AATD_LEN;
+		break;
+	case GBMS_TAG_MDLV:
+		*addr = BATT_EEPROM_TAG_MDLV_OFFSET;
+		*count = BATT_EEPROM_TAG_MDLV_LEN;
 		break;
 	default:
 		ret = gbee_storage_info(tag, addr, count, ptr);

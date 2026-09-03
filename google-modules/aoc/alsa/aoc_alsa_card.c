@@ -9,6 +9,7 @@
  * published by the Free Software Foundation.
  */
 
+#include <linux/cleanup.h>
 #include <linux/platform_device.h>
 
 #include <linux/init.h>
@@ -32,6 +33,8 @@
 #include "aoc_alsa_drv.h"
 #include "aoc_alsa.h"
 #include "google-aoc-enum.h"
+
+#include "radio-bridge.h"
 
 static const char *aoc_detect[] = {
 	"aoc_audio_state",
@@ -350,7 +353,7 @@ static int hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 		hw_param_interval(params, SNDRV_PCM_HW_PARAM_RATE);
 	struct snd_interval *channels =
 		hw_param_interval(params, SNDRV_PCM_HW_PARAM_CHANNELS);
-	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 	struct aoc_chip *chip =
 		(struct aoc_chip *)snd_soc_card_get_drvdata(rtd->card);
 	struct snd_card_pdata *pdata =
@@ -505,7 +508,7 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai;
-	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 
 	u32 rate, bclk, channel;
 	int i, bit_width, ret;
@@ -554,7 +557,7 @@ static int tdm_hw_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *param)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 	struct snd_soc_dai *codec_dai;
 	struct snd_soc_dai_link *dai_link = rtd->dai_link;
 	u32 rate, bclk, channel, tdmslot;
@@ -1023,7 +1026,6 @@ static int of_parse_dai_platform(struct device *dev,
 {
 	struct device_node *of_platform_root = NULL;
 	struct device_node *of_node;
-	struct device_node *np;
 	int count, ret = 0;
 	struct snd_soc_dai_link_component *component;
 
@@ -1053,7 +1055,7 @@ static int of_parse_dai_platform(struct device *dev,
 	dai->num_platforms = count;
 
 	count = 0;
-	for_each_available_child_of_node(of_platform_root, np) {
+	for_each_available_child_of_node_scoped(of_platform_root, np) {
 		of_node = of_parse_phandle(np, "of_drv", 0);
 		if (!of_node) {
 			pr_err("%s: no of_drv for %s", __func__,
@@ -1076,7 +1078,8 @@ exit:
 static int of_parse_dai_cpu(struct device *dev,
 	struct device_node *node, struct snd_soc_dai_link *dai)
 {
-	struct device_node *of_cpu_root = NULL, *of_node;
+	struct device_node *of_cpu_root __free(device_node);
+	struct device_node *of_node __free(device_node) = NULL;
 	struct snd_soc_dai_link_component *component;
 	int ret;
 
@@ -1092,23 +1095,20 @@ static int of_parse_dai_cpu(struct device *dev,
 	of_node = of_parse_phandle(of_cpu_root, "sound-dai", 0);
 	if (!of_node) {
 		pr_err("%s: fail to get cpu dai for %s", __func__, dai->name);
-		ret = -EINVAL;
-		goto exit;
+		return -EINVAL;
 	}
 
 	component = devm_kzalloc(dev,
 		sizeof(struct snd_soc_dai_link_component), GFP_KERNEL);
-	if (!component) {
-		ret = -ENOMEM;
-		goto exit;
-	}
+	if (!component)
+		return -ENOMEM;
 
 	/* Only support single cpu dai */
 	dai->cpus = component;
 	dai->num_cpus = 1;
-	component->of_node = of_node;
+	component->of_node = no_free_ptr(of_node);
 
-	ret = snd_soc_of_get_dai_name(of_cpu_root, &component->dai_name);
+	ret = snd_soc_of_get_dai_name(of_cpu_root, &component->dai_name, 0);
 	if (ret) {
 		if (ret == -EPROBE_DEFER) {
 			pr_info("%s: wait cpu_dai for %s", __func__, dai->name);
@@ -1118,9 +1118,6 @@ static int of_parse_dai_cpu(struct device *dev,
 		}
 	}
 
-exit:
-	if (of_cpu_root)
-		of_node_put(of_cpu_root);
 	return ret;
 }
 
@@ -1191,10 +1188,6 @@ static int of_parse_one_dai(struct device_node *node, struct device *dev,
 			dai->trigger[0] = SND_SOC_DPCM_TRIGGER_POST;
 			dai->trigger[1] = SND_SOC_DPCM_TRIGGER_POST;
 			break;
-		case 2:
-			dai->trigger[0] = SND_SOC_DPCM_TRIGGER_BESPOKE;
-			dai->trigger[1] = SND_SOC_DPCM_TRIGGER_BESPOKE;
-			break;
 		default:
 			dai->trigger[0] = SND_SOC_DPCM_TRIGGER_PRE;
 			dai->trigger[1] = SND_SOC_DPCM_TRIGGER_PRE;
@@ -1253,7 +1246,6 @@ static int aoc_of_parse_dai_link(struct device_node *node,
 {
 	int ret = 0, count;
 	struct device_node *np_dai;
-	struct device_node *np = NULL;
 	struct device *dev = card->dev;
 	struct snd_soc_dai_link *dai_link;
 
@@ -1282,7 +1274,7 @@ static int aoc_of_parse_dai_link(struct device_node *node,
 	card->dai_link = dai_link;
 
 	count = 0;
-	for_each_available_child_of_node (np_dai, np) {
+	for_each_available_child_of_node_scoped(np_dai, np) {
 		if (count >= card->num_links) {
 			pr_err("%s: dai link num is full %u", __func__, count);
 			break;
@@ -1363,7 +1355,6 @@ static int aoc_of_parse_codec_conf(struct device_node *node,
 {
 	int ret = 0, count;
 	struct device_node *np_cfg;
-	struct device_node *np = NULL;
 	struct snd_soc_codec_conf *codec_cfg;
 	struct device *dev = card->dev;
 
@@ -1392,7 +1383,7 @@ static int aoc_of_parse_codec_conf(struct device_node *node,
 	card->codec_conf = codec_cfg;
 
 	count = 0;
-	for_each_available_child_of_node (np_cfg, np) {
+	for_each_available_child_of_node_scoped(np_cfg, np) {
 		if (count >= card->num_configs) {
 			pr_err("%s: conf num is full %u", __func__, count);
 			break;
@@ -1418,7 +1409,7 @@ err:
 static int aoc_of_parse_hs_jack(struct device_node *node,
 	struct snd_card_pdata *pdata)
 {
-	struct device_node *np_cfg;
+	struct device_node *np_cfg __free(device_node);
 	int ret;
 
 	np_cfg = of_get_child_by_name(node, "hs_jack");
@@ -1431,21 +1422,17 @@ static int aoc_of_parse_hs_jack(struct device_node *node,
 						0, &pdata->jack_be_id);
 	if (ret != 0) {
 		pr_err("%s: fail to parse id %d\n", __func__, ret);
-		goto err_exit;
+		return ret;
 	}
 
 	pdata->jack_np = of_parse_phandle(np_cfg, "codec", 0);
 	if (!pdata->jack_np) {
 		pr_err("%s: fail to codec np\n", __func__);
-		goto err_exit;
+		return 0;
 	}
 
 	pdata->has_jack = true;
 	return 0;
-
-err_exit:
-	of_node_put(np_cfg);
-	return ret;
 }
 
 static int aoc_of_parse_hac_amp(struct device_node *node,
@@ -1463,7 +1450,6 @@ static int aoc_of_parse_clk(struct device_node *np_clk,
 	struct snd_soc_card *card, u32 *clk_num, struct clk_ctrl **clks)
 {
 	struct device *dev = card->dev;
-	struct device_node *np;
 	struct clk_ctrl *cur;
 	int count, ret = 0, i;
 	const char *clk_type = NULL;
@@ -1485,7 +1471,7 @@ static int aoc_of_parse_clk(struct device_node *np_clk,
 
 	cur = *clks;
 
-	for_each_available_child_of_node(np_clk, np) {
+	for_each_available_child_of_node_scoped(np_clk, np) {
 		if (*clk_num >= count) {
 			pr_err("%s: %s clk number overflow %d %d\n",
 				__func__, np->name, *clk_num, count);
@@ -1581,6 +1567,8 @@ static int aoc_of_parse_clk(struct device_node *np_clk,
 	return 0;
 
 err_exit:
+	for (i = 0; i < count; ++i)
+		of_node_put(clks[i]->np);
 	*clk_num = 0;
 	devm_kfree(dev, *clks);
 	*clks = NULL;
@@ -1771,7 +1759,7 @@ static void init_backend_control(struct snd_soc_pcm_runtime *rtd, u32 id)
 	    !be_res_map[idx].controls)
 		return;
 
-	cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 	snd_soc_add_dai_controls(cpu_dai,
 		 be_res_map[idx].controls, be_res_map[idx].num_controls);
 }
@@ -1792,9 +1780,8 @@ static int aoc_card_late_probe(struct snd_soc_card *card)
 	 * TODO: make the service list
 	 * NOT have to be in the same order as pcm device list
 	 */
-	for (i = 0; i < aoc_audio_service_num() - 2; i++) {
-		chip->avail_substreams |= (1 << i);
-	}
+	for (i = 0; i < aoc_audio_service_num() - 2; i++)
+		chip->avail_substreams |= 1UL << i;
 
 	err = snd_aoc_new_ctl(chip);
 	if (err < 0)
@@ -1869,6 +1856,7 @@ static int snd_aoc_init(struct aoc_chip *chip)
 
 	chip->pcm_wait_time_in_ms = DEFAULT_PCM_WAIT_TIME_IN_MSECS;
 	chip->voice_pcm_wait_time_in_ms = DEFAULT_VOICE_PCM_WAIT_TIME_IN_MSECS;
+	chip->aoc_waiting_time_in_ms = DEFAULT_AOC_WAITING_TIME_IN_MSECS;
 
 	/* Default values for playback volume and mute */
 	chip->volume = 1000;
@@ -1894,6 +1882,29 @@ static int snd_aoc_init(struct aoc_chip *chip)
 	of_node_put(aoc_node);
 	return 0;
 }
+
+#if IS_ENABLED(CONFIG_GOOGLE_RADIO_BRIDGE)
+static int aoc_snd_radio_br_notifier(struct notifier_block *nb,
+				     unsigned long event, void *data)
+{
+	struct aoc_chip *chip = container_of(nb, struct aoc_chip, radio_bridge_nb);
+	bool *handled = data;
+	int ret;
+
+	switch (event) {
+	case RADIO_BR_MODEM_AUDIO_PATH_ENABLE:
+		ret = audio_pcie_control(chip, true);
+		*handled = !ret;
+		return notifier_from_errno(ret);
+	case RADIO_BR_MODEM_AUDIO_PATH_DISABLE:
+		ret = audio_pcie_control(chip, false);
+		*handled = !ret;
+		return notifier_from_errno(ret);
+	}
+
+	return NOTIFY_DONE;
+}
+#endif
 
 static int aoc_snd_card_probe(struct platform_device *pdev)
 {
@@ -1941,8 +1952,6 @@ static int aoc_snd_card_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	pdata->g_chip.wakelock = wakeup_source_register(dev, dev_name(dev));
-
 	card->driver_name = AOC_SND_CARD;
 	card->owner = THIS_MODULE;
 	card->dev = dev;
@@ -1954,32 +1963,56 @@ static int aoc_snd_card_probe(struct platform_device *pdev)
 		goto err;
 	}
 
+	pdata->g_chip.wakelock = wakeup_source_register(dev, dev_name(dev));
+	if (!pdata->g_chip.wakelock) {
+		ret = -ENOMEM;
+		goto err;
+	}
+
 	snd_soc_card_set_drvdata(card, &pdata->g_chip);
+
+#if IS_ENABLED(CONFIG_GOOGLE_RADIO_BRIDGE)
+	pdata->g_chip.radio_bridge_nb.notifier_call = aoc_snd_radio_br_notifier;
+	ret = devm_radio_br_notifier_register(dev, &pdata->g_chip.radio_bridge_nb);
+	if (ret) {
+		dev_err_probe(dev, ret, "Failed to register radio bridge\n");
+		goto err_notifier;
+	}
+#endif
+
 	ret = snd_soc_register_card(card);
 	if (ret < 0) {
 		if (ret == -EPROBE_DEFER) {
 			pr_info("%s: defer the probe %d", __func__, ret);
 		} else
 			pr_info("%s: snd register fail %d", __func__, ret);
-		goto err;
+		goto err_register_card;
 	}
 
 	return 0;
 
+err_register_card:
+#if IS_ENABLED(CONFIG_GOOGLE_RADIO_BRIDGE)
+err_notifier:
+#endif
+	wakeup_source_unregister(pdata->g_chip.wakelock);
 err:
 	return ret;
 }
 
-static int aoc_snd_card_remove(struct platform_device *pdev)
+static void aoc_snd_card_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
 
 	if (card) {
+		struct aoc_chip *g_chip = snd_soc_card_get_drvdata(card);
+
 		snd_soc_unregister_card(card);
 		snd_soc_card_set_drvdata(card, NULL);
-	}
 
-	return 0;
+		if (g_chip)
+			wakeup_source_unregister(g_chip->wakelock);
+	}
 }
 
 static const struct of_device_id aoc_snd_of_match[] = {

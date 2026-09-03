@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_library", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "kvm_s2mpu_headers",
+    hdrs = ["common/kvm_s2mpu.h"],
+    includes = ["common"],
+)
+
+ddk_library(
+    name = "hyp",
+    srcs = [
+        "common/hyp/io-mpt-s2mpu.c",
+        "common/hyp/io-mpt-s2mpu.h",
+        "common/hyp/s2mpu.c",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "S2MPU_V1",
+    ],
+    pkvm_el2 = True,
+    visibility = [
+        "//private/google-modules/soc/gs/drivers/soc/google/pkvm-s2mpu/pkvm-s2mpu:__subpackages__",
+    ],
+    deps = [
+        ":kvm_s2mpu_headers",
+    ],
+)
+
+ddk_module(
+    name = "pkvm-s2mpu",
+    srcs = [
+        "common/exports.c",
+        "common/pkvm_s2mpu.c",
+        "common/s2mpu.c",
+        "pkvm-s2mpu/pkvm-s2mpu-faults.c",
+    ],
+    out = "pkvm-s2mpu.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "S2MPU_V1",
+    ],
+    deps = [
+        ":hyp",
+        ":kvm_s2mpu_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/phy/samsung:phy-exynos-usbdrd-super",
+    ],
+)
+
+ddk_library(
+    name = "hyp-v9",
+    srcs = [
+        "common/hyp/io-mpt-s2mpu.c",
+        "common/hyp/io-mpt-s2mpu.h",
+        "common/hyp/s2mpu.c",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "S2MPU_V9",
+    ],
+    pkvm_el2 = True,
+    deps = [
+        ":kvm_s2mpu_headers",
+    ],
+)
+
+ddk_module(
+    name = "pkvm-s2mpu-v9",
+    srcs = [
+        "common/exports.c",
+        "common/pkvm_s2mpu.c",
+        "common/s2mpu.c",
+        "pkvm-s2mpu-v9/pkvm-s2mpu-faults-v9.c",
+    ],
+    out = "pkvm-s2mpu-v9.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "S2MPU_V9",
+    ],
+    deps = [
+        ":hyp-v9",
+        ":kvm_s2mpu_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/phy/samsung:phy-exynos-usbdrd-eusb-super",
+    ],
+)

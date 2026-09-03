@@ -1,28 +1,52 @@
 # SPDX-License-Identifier: GPL-2.0
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
 
-kernel_module(
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
     name = "mali_pixel",
     srcs = glob([
-        "**/*.c",
         "**/*.h",
     ]) + [
-        "Kbuild",
-        "//private/google-modules/gpu/common:headers",
-        "//private/google-modules/soc/gs:gs_soc_headers",
+        "mali_pixel_mod.c",
     ],
-    outs = [
-        "mali_pixel.ko",
-    ],
+    out = "mali_pixel.ko",
+    conditional_srcs = {
+        "CONFIG_MALI_MEMORY_GROUP_MANAGER": {
+            True: [
+                "memory_group_manager.c",
+                "pixel_slc.c",
+            ],
+        },
+        "CONFIG_MALI_PIXEL_STATS": {
+            True: [
+                "mali_pixel_stats.c",
+            ],
+        },
+        "CONFIG_MALI_PRIORITY_CONTROL_MANAGER": {
+            True: [
+                "priority_control_manager.c",
+            ],
+        },
+        "CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR": {
+            True: [
+                "protected_memory_allocator.c",
+            ],
+        },
+    },
+    defconfig = "defconfig",
+    kconfig = "Kconfig",
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/gpu/borr_mali_kbase:__pkg__",
-        "//private/google-modules/gpu/mali_kbase:__pkg__",
-        "//private/google-modules/soc/gs:__pkg__",
-    ],
     deps = [
-        "//private/google-modules/soc/gs:gs_soc_module",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/gpu/common:headers",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/pixel_stat:pixel_stat_sysfs",
+        "//private/google-modules/soc/gs/drivers/soc/google/pixel_stat/mm:pixel_stat_mm",
+        "//private/google-modules/soc/gs/drivers/soc/google/pt:slc_pt",
     ],
 )

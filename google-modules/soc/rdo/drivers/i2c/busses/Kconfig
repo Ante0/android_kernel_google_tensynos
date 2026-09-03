@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config I2C_DW_GOOGLE_CORE
+	tristate "DW Google I2C core"
+	select REGMAP
+
+config I2C_DW_GOOGLE_QUIRKS
+	tristate "DW Google I2C Platform Quirks"
+	depends on ARCH_GOOGLE
+	depends on I2C
+	select I2C_DW_GOOGLE_CORE
+	help
+	  Enable the upstream I2C designware platform driver
+
+config I2C_DW_GOOGLE_TEST
+	tristate "Test driver for i2C controller"
+	help
+	  Enable I2C test driver which provides debugfs based API
+	  to generate I2C traffic.
+	  Select Y if you have such device.
+	  If unsure select "N".

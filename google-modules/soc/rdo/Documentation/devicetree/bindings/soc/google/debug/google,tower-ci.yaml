@@ -1,0 +1,146 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2025 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/soc/google/debug/google,tower-ci.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google Tower-CI Interconnect Driver
+
+maintainers:
+  - Mayank Rungta <mrungta@google.com>
+
+description: |
+  The Tower-CI is a configurable interconnect composed of various functional nodes.
+  This binding describes the top-level controller and the individual child nodes
+  (e.g., ASNI, MCN) that reside within its address space.
+
+  The top-level "global" node is the main controller, defining the total memory
+  region for the interconnect. The child "node" devices are defined within it,
+  with their 'reg' property specifying their offset within the global region.
+
+properties:
+  compatible:
+    oneOf:
+      - description: The top-level global controller node.
+        const: google,tower-ci-global
+
+      - description: A functional child node within the interconnect.
+        const: google,tower-ci-node
+
+  reg:
+    maxItems: 1
+
+# Properties for the global controller node
+select:
+  properties:
+    compatible:
+      const: google,tower-ci-global
+  then:
+    properties:
+      reg:
+        description:
+          Specifies the base physical address and size of the entire Tower-CI
+          interconnect memory region.
+
+      ranges:
+        description:
+          Defines the address space translation between this parent node and its
+          children. The format is a triplet of (child-bus-address,
+          parent-bus-address, size). For a direct 1-to-1 mapping, this
+          property translates a child's address by adding it to this node's
+          base address to produce the final physical address.
+
+      '#address-cells':
+        const: 1
+        description:
+          Specifies that the address field in the 'reg' property of child
+          nodes consists of a single <u32> cell (the offset).
+
+      '#size-cells':
+        const: 1
+        description:
+          Specifies that the size field in the 'reg' property of child
+          nodes consists of a single <u32> cell.
+
+    required:
+      - compatible
+      - reg
+      - ranges
+      - '#address-cells'
+      - '#size-cells'
+
+# Properties for the child nodes
+definitions:
+  tower-ci-node:
+    type: object
+    properties:
+      compatible:
+        const: google,tower-ci-node
+
+      reg:
+        maxItems: 1
+        description:
+          The offset and size of this node's register space within the
+          parent controller's address range.
+
+      interrupts:
+        minItems: 1
+        description: An array of interrupt specifiers for the node.
+
+      interrupt-names:
+        minItems: 1
+        description: A list of string names for each interrupt.
+
+      interrupt-is-secure:
+        type: boolean
+        description:
+          A boolean array indicating if the corresponding interrupt is secure.
+          The number of entries must match the number of interrupts.
+
+      interrupt-is-error:
+        type: boolean
+        description:
+          A boolean array indicating if the corresponding interrupt is an
+          error-type interrupt. The number of entries must match the number
+          of interrupts.
+
+    required:
+      - compatible
+      - reg
+
+    dependencies:
+      interrupt-names: [interrupts]
+      interrupt-is-secure: [interrupts]
+      interrupt-is-error: [interrupts]
+
+examples:
+  - |
+    tower_global: tower-ci@10000000 {
+        compatible = "google,tower-ci-global";
+        reg = <0x0 0x10000000 0x0 0x10000000>;
+        #address-cells = <1>;
+        #size-cells = <1>;
+        ranges = <0x0 0x0 0x10000000 0x10000000>;
+
+        asni0: asni@40000 {
+            compatible = "google,tower-ci-node";
+            reg = <0x40000 0x30000>;
+        };
+
+        mcn0: mcn@1d0000 {
+            compatible = "google,tower-ci-node";
+            reg = <0x1d0000 0x130000>;
+            interrupts = <GIC_SPI 400 IRQ_TYPE_LEVEL_HIGH>,
+                         <GIC_SPI 401 IRQ_TYPE_LEVEL_HIGH>,
+                         <GIC_SPI 402 IRQ_TYPE_LEVEL_HIGH>,
+                         <GIC_SPI 403 IRQ_TYPE_LEVEL_HIGH>;
+            interrupt-names = "MCN0: Non-secure error",
+                              "MCN0: Secure error",
+                              "MCN0: Non-secure fault",
+                              "MCN0: Secure fault";
+            interrupt-is-secure = <0>, <1>, <0>, <1>;
+            interrupt-is-error = <1>, <1>, <0>, <0>;
+        };
+    };
+...

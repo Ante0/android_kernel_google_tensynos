@@ -2,7 +2,7 @@
  *
  * Synaptics TouchCom touchscreen driver
  *
- * Copyright (C) 2017-2020 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2024 Synaptics Incorporated. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,12 +29,10 @@
  * DOLLARS.
  */
 
-/*
+/**
  * @file syna_tcm2.h
  *
- * The header file is used for the Synaptics TouchComm reference driver.
- * Platform-specific functions and included headers are implemented in
- * syna_touchcom_platform.h and syna_touchcom_runtime.h.
+ * The header file for the Synaptics TouchComm reference driver.
  */
 
 #ifndef _SYNAPTICS_TCM2_DRIVER_H_
@@ -58,244 +56,200 @@
 
 #define SYNAPTICS_TCM_DRIVER_ID (1 << 0)
 #define SYNAPTICS_TCM_DRIVER_VERSION 1
-#define SYNAPTICS_TCM_DRIVER_SUBVER "5.6"
+#define SYNAPTICS_TCM_DRIVER_SUBVER "6.4"
+
 
 /*
- * @section: Driver Configurations
- *
- * The macros in the driver files below are used for doing compile time
- * configuration of the driver.
+ * Modules Configurations
  */
 
-/*
- * @brief: HAS_SYSFS_INTERFACE
- *         Open to enable the sysfs interface
- *
- * @brief: HAS_REFLASH_FEATURE
- *         Open to enable firmware reflash features
- *
- * @brief: HAS_ROMBOOT_REFLASH_FEATURE
- *         Open to enable ROMBOOT reflash features
- *
- * @brief: HAS_TESTING_FEATURE
- *         Open to enable testing features
+/** TDDI_PRODUCTS
+ *         Open to enable the support of TDDI products.
+ *         Typically, it's aligned with the deconfig, CONFIG_TOUCHSCREEN_SYNA_TCM2_TDDI
+ */
+#if defined(CONFIG_TOUCHSCREEN_SYNA_TCM2_TDDI)
+#define TDDI_PRODUCTS
+#endif
+
+/** HAS_SYSFS_INTERFACE
+ *         Open to enable the sysfs kernel attributes.
+ *         Typically, it's aligned with the deconfig, CONFIG_TOUCHSCREEN_SYNA_TCM2_SYSFS
  */
 #if defined(CONFIG_TOUCHSCREEN_SYNA_TCM2_SYSFS)
 #define HAS_SYSFS_INTERFACE
 #endif
+
+/** HAS_REFLASH_FEATURE
+ *  HAS_TDDI_REFLASH_FEATURE
+ *         Open to enable firmware reflash features.
+ *         Typically, it's aligned with the deconfig, CONFIG_TOUCHSCREEN_SYNA_TCM2_REFLASH
+ */
 #if defined(CONFIG_TOUCHSCREEN_SYNA_TCM2_REFLASH)
+#if defined(TDDI_PRODUCTS)
+#define HAS_TDDI_REFLASH_FEATURE
+#else
 #define HAS_REFLASH_FEATURE
 #endif
-#if defined(CONFIG_TOUCHSCREEN_SYNA_TCM2_ROMBOOT)
-#define HAS_ROMBOOT_REFLASH_FEATURE
 #endif
+/** HAS_TESTING_FEATURE
+ *         Open to enable testing features.
+ *         Typically, it's aligned with the deconfig, CONFIG_TOUCHSCREEN_SYNA_TCM2_TESTING
+ */
 #if defined(CONFIG_TOUCHSCREEN_SYNA_TCM2_TESTING)
 #define HAS_TESTING_FEATURE
 #endif
 
+
 /*
- * @brief: TYPE_B_PROTOCOL
+ * Driver Configurations
+ */
+
+/** TYPE_B_PROTOCOL
  *         Open to enable the multi-touch (MT) protocol
  */
 #define TYPE_B_PROTOCOL
 
-/*
- * @brief: POWER_SEQUENCE_ON_CONNECT
- *         Open if willing to issue the power sequence when connecting to the
- *         touch controller.
- *         Set "enable" in default.
- */
-#define POWER_SEQUENCE_ON_CONNECT
-
-/*
- * @brief: RESET_ON_CONNECT
+/** RESET_ON_CONNECT
  *         Open if willing to issue a reset when connecting to the
- *         touch controller.
- *         Set "enable" in default.
+ *         touch controller. Set "enable" in default.
  */
 #define RESET_ON_CONNECT
 
-/*
- * @brief: RESET_ON_RESUME
+/** RESET_ON_RESUME
  *         Open if willing to issue a reset to the touch controller
- *         from suspend.
- *         Set "disable" in default.
+ *         from suspend. Set "disable" in default.
  */
 /* #define RESET_ON_RESUME */
 
 /*
  * @brief: GOOG_INT2_FEATURE
- *         Open if willing to issue a reset to the touch controller
- *         from suspend.
  *         Set "disable" in default.
  */
 #define GOOG_INT2_FEATURE
 
-/*
- * @brief ENABLE_WAKEUP_GESTURE
- *        Open if having wake-up gesture support.
+/** LOW_POWER_MODE
+ *         Open if willing to enter the lower power mode when the system
+ *         going to the suspend mode; otherwise, expected that no power
+ *         supplied. Set "enable" in default.
+ */
+#define LOW_POWER_MODE
+
+#if defined(LOW_POWER_MODE)
+/** ENABLE_WAKEUP_GESTURE
+ *         Open if having wake-up gesture support.
  */
 #define ENABLE_WAKEUP_GESTURE
+#endif
 
-/*
- * @brief REPORT_SWAP_XY
- *        Open if trying to swap x and y position coordinate reported.
- * @brief REPORT_FLIP_X
- *        Open if trying to flip x position coordinate reported.
- * @brief REPORT_FLIP_Y
- *        Open if trying to flip x position coordinate reported.
+/** REPORT_SWAP_XY
+ *  REPORT_FLIP_X
+ *  REPORT_FLIP_Y
+ *         Open if willing to modify the touch data before sending to the
+ *         input event subsystem. Set "disable" in default.
  */
 /* #define REPORT_SWAP_XY */
 /* #define REPORT_FLIP_X */
 /* #define REPORT_FLIP_Y */
 
-/*
- * @brief REPORT_TOUCH_WIDTH
- *        Open if willing to add the width data to the input event.
+/**  REPORT_TOUCH_WIDTH
+ *         Open if willing to add the width data to the input event.
  */
 #define REPORT_TOUCH_WIDTH
 
-/*
- * @brief USE_CUSTOM_TOUCH_REPORT_CONFIG
- *        Open if willing to set up the format of touch report.
- *        The custom_touch_format[] array in syna_tcm2.c can be used
- *        to describe the customized report format.
+#if defined(TDDI_PRODUCTS)
+/**  REPORT_KNOB
+ *         Open if willing to add the knob data to the input event.
+ */
+/* #define REPORT_KNOB */
+#endif
+
+/** USE_CUSTOM_TOUCH_REPORT_CONFIG
+ *         Open if willing to set up the format of touch report.
+ *         The custom_touch_format[] array in syna_tcm2.c can be used
+ *         to describe the customized report format.
  */
 /* #define USE_CUSTOM_TOUCH_REPORT_CONFIG */
 
-/*
- * @brief STARTUP_REFLASH
- *        Open if willing to do fw checking and update at startup.
- *        The firmware image will be obtained by request_firmware() API,
- *        so please ensure the image is built-in or included properly.
- *
- *        This property is available only when SYNA_TCM2_REFLASH
- *        feature is enabled.
+/** ENABLE_CUSTOM_TOUCH_ENTITY
+ *         Open if having the requirements to parse the custom touch code entity.
  */
-#if defined(HAS_REFLASH_FEATURE) || defined(HAS_ROMBOOT_REFLASH_FEATURE)
-#define STARTUP_REFLASH
-#endif
-/*
- * @brief  MULTICHIP_DUT_REFLASH
- *         Open if willing to do fw update and the DUT belongs to multi-chip
- *         product. This property dependent on STARTUP_REFLASH property.
- *
- *         Set "disable" in default.
- */
-#if defined(HAS_ROMBOOT_REFLASH_FEATURE) && defined(STARTUP_REFLASH)
-/* #define MULTICHIP_DUT_REFLASH */
-#endif
+#define ENABLE_CUSTOM_TOUCH_ENTITY
 
-/*
- * @section: STARTUP_REFLASH_DELAY_TIME_MS
- *           The delayed time to start fw update during the startup time.
- *           This configuration depends on STARTUP_REFLASH.
+/** STARTUP_REFLASH
+ *         Open if willing to do fw checking and update at startup.
+ *         The firmware image will be obtained by request_firmware() API,
+ *         so please ensure the image is built-in or included properly.
  */
-#ifdef STARTUP_REFLASH
-#define STARTUP_REFLASH_DELAY_TIME_MS (200)
+#if defined(HAS_REFLASH_FEATURE) || defined(HAS_TDDI_REFLASH_FEATURE)
+#define STARTUP_REFLASH
 
 #define FW_IMAGE_NAME "synaptics.img"
 #endif
 
-/*
- * @brief  ENABLE_DISP_NOTIFIER
+/** ENABLE_DISP_NOTIFIER
  *         Open if having display notification event and willing to listen
  *         the event from display driver.
  *
  *         Set "disable" in default due to no generic notifier for DRM
  */
-#if defined(CONFIG_FB) || defined(CONFIG_DRM_PANEL)
+#if defined(CONFIG_FB) || defined(CONFIG_DRM_BRIDGE)
 /* #define ENABLE_DISP_NOTIFIER */
 #endif
-/*
- * @brief RESUME_EARLY_UNBLANK
- *        Open if willing to resume in early un-blanking state.
- *
- *        This property is available only when ENABLE_DISP_NOTIFIER
- *        feature is enabled.
+/** USE_FB
+ *         Open if having the support of FB (Frame Buffer) and willing to listen
+ *         the event from display driver.
+ *         This property is available only when CONFIG_FB in used
+ */
+#if defined(ENABLE_DISP_NOTIFIER) && defined(CONFIG_FB)
+#define USE_FB
+#endif
+/** RESUME_EARLY_UNBLANK
+ *         Open if willing to resume in early un-blanking state.
+ *         This property is available only when ENABLE_DISP_NOTIFIER
+ *         feature is enabled.
  */
 #ifdef ENABLE_DISP_NOTIFIER
 /* #define RESUME_EARLY_UNBLANK */
 #endif
-/*
- * @brief  USE_DRM_PANEL_NOTIFIER
- *         Open if willing to listen the notification event from
- *         DRM_PANEL. Please be noted that 'struct drm_panel_notifier'
- *         must be implemented in the target BSP.
- *
- *        This property is available only when ENABLE_DISP_NOTIFIER
- *        feature is enabled.
- *
- *         Set "disable" in default due to no generic notifier for DRM
+/** USE_DRM_BRIDGE
+ *         Open if having the support of DRM bridge and willing to listen
+ *         the event from display driver.
+ *         This property is available only when CONFIG_DRM_BRIDGE in used
  */
-#if defined(ENABLE_DISP_NOTIFIER) && defined(CONFIG_DRM_PANEL)
-#define USE_DRM_PANEL_NOTIFIER
+#if defined(ENABLE_DISP_NOTIFIER) && defined(CONFIG_DRM_BRIDGE)
+#define USE_DRM_BRIDGE
 #endif
 
-/*
- * @brief ENABLE_EXTERNAL_FRAME_PROCESS
- *        Open if having external frame process to the userspace application.
- *
- *        Set "enable" in default
- *
- * @brief REPORT_TYPES
- *        Total types of report being used for external frame process.
- *
- * @brief EFP_ENABLE / EFP_DISABLE
- *        Specific value to label whether the report is required to be
- *        process or not.
- *
- * @brief REPORT_CONCURRENTLY
- *        Open if willing to concurrently handle reports for both kernel
- *        and userspace application.
- *
- *        Set "disable" in default
+/** ENABLE_EXTERNAL_FRAME_PROCESS
+ *         Open if willing to pass the data to the userspace application.
  */
 #define ENABLE_EXTERNAL_FRAME_PROCESS
-#define REPORT_TYPES (256)
-#define EFP_ENABLE	(1)
-#define EFP_DISABLE (0)
-/* #define REPORT_CONCURRENTLY */
 
-/*
- * @brief TCM_CONNECT_IN_PROBE
- *        Open if willing to detect and connect to TouchComm device at
- *        probe function; otherwise, please invoke connect() manually.
- *
- *        Set "enable" in default
- */
-#define TCM_CONNECT_IN_PROBE
-
-/*
- * @brief FORCE_CONNECTION
- *        Open if still connect to TouchComm device even error occurs.
- *
- *        Set "disable" in default
+/** FORCE_CONNECTION
+ *         Force to install the driver even though the occurrence of errors.
  */
 /* #define FORCE_CONNECTION */
 
-/*
- * @brief ENABLE_CUSTOM_TOUCH_ENTITY
- *        Open if having custom requirements to parse the custom code
- *        entity in the touch report.
- *
- *        Set "disable" in default
- */
-#define ENABLE_CUSTOM_TOUCH_ENTITY
-
-/*
- * @brief ENABLE_HELPER
- *        Open if willing to do additional handling upon helper workqueue
- *
- *        Set "disable" in default
+/** ENABLE_HELPER
+ *         Open if willing to do additional handling in the background workqueue.
  */
 #define ENABLE_HELPER
 
-/*
- * @brief: Power States
- *
- * Enumerate the power states of device
+
+#if defined(TDDI_PRODUCTS)
+/** IS_TDDI_MULTICHIP
+ *         Indicate the TDDI multichip architecture
  */
+/* #define IS_TDDI_MULTICHIP */
+#endif
+
+
+/*
+ * Definitions of TouchComm device driver
+ */
+
+
+/** Enumeration of the power states */
 enum power_state {
 	PWR_OFF = 0,
 	PWR_ON,
@@ -304,11 +258,7 @@ enum power_state {
 };
 
 #if defined(ENABLE_HELPER)
-/*
- * @brief: Tasks for helper
- *
- * Tasks being supported in the helper thread and the structure
- */
+/** Definitions of the background helper thread */
 enum helper_task {
 	HELP_NONE = 0,
 	HELP_RESET_DETECTED,
@@ -320,7 +270,7 @@ struct syna_tcm_helper {
 };
 #endif
 
-/*
+/**
  * @brief: Structure for $C2 report
  *
  * Enumerate the power states of device
@@ -341,17 +291,71 @@ struct custom_fw_status {
 	};
 };
 
-/*
+/**
  * @brief: Custom Commands, Reports, or Events
  */
-enum custom_report_type {
+enum custom_report_types {
 	REPORT_FW_STATUS = 0xc2,
 	REPORT_HEAT_MAP = 0xc3,
+	REPORT_HEAT_MAP_WITH_METADATA = 0xc4,
 	REPORT_TOUCH_AND_HEATMAP = 0xc5,
+	REPORT_TOUCH_AND_HEATMAP_WITH_METADATA = 0xc6,
+};
+
+enum custom_dynamic_config {
+	DC_STTW_JITTER = 0xC2,
+	DC_STTW_MAX_TOUCH_SIZE = 0xC3,
+	DC_STTW_MIN_FRAME = 0xC5,
+	DC_STTW_MAX_FRAME = 0xC6,
+	DC_STTW_MIN_X = 0xC7,
+	DC_STTW_MAX_X = 0xC8,
+	DC_STTW_MIN_Y = 0xC9,
+	DC_STTW_MAX_Y = 0xCA,
+	DC_HIGH_SENSITIVITY_MODE = 0xCB,
+	DC_INT2_PRODUCTION_CMD = 0xD2,
+	DC_LPTW_MIN_X = 0xD7,
+	DC_LPTW_MAX_X = 0xD8,
+	DC_LPTW_MIN_Y = 0xD9,
+	DC_LPTW_MAX_Y = 0xDA,
+	DC_LPTW_MIN_FRAME = 0xDB,
+	DC_LPTW_JITTER = 0xDC,
+	DC_LPTW_MAX_TOUCH_SIZE = 0xDD,
+	DC_LPTW_MARGINAL_MIN_X = 0xDE,
+	DC_LPTW_MARGINAL_MAX_X = 0xDF,
+	DC_LPTW_MARGINAL_MIN_Y = 0xE0,
+	DC_LPTW_MARGINAL_MAX_Y = 0xE1,
+	DC_LPTW_MONITOR_CH_MIN_TX = 0xE2,
+	DC_LPTW_MONITOR_CH_MAX_TX = 0xE3,
+	DC_LPTW_MONITOR_CH_MIN_RX = 0xE4,
+	DC_LPTW_MONITOR_CH_MAX_RX = 0xE5,
+	/* Set 0 for high report rate(240Hz), 1 for low report rate(120Hz). */
+	DC_REPORT_RATE_SWITCH = 0xE6,
+	DC_LPTW_NODE_COUNT_MIN = 0xE7,
+	DC_LPTW_MOTION_BOUNDARY = 0xE8,
+	DC_FORCE_DOZE_MODE = 0xF0,
+	DC_COMPRESSION_THRESHOLD = 0xF1,
+	DC_TOUCH_SCAN_MODE = 0xF2,
+	DC_ENABLE_PALM_REJECTION = 0xF3,
+	/*
+	 * DC_CONTINUOUSLY_REPORT: Enable/Disable continuously reporting when
+	 * it's controlled by the host.
+	 */
+	DC_CONTINUOUSLY_REPORT = 0xF5,
+	/*
+	 * DC_HOST_CONTINUOUSLY_REPORT: Select to control continuously
+	 * reporting by the host or by the firmware.
+	 */
+	DC_HOST_CONTINUOUSLY_REPORT = 0xF6,
+	DC_GRIP_DELTA_THRESHOLD = 0xF6,
+	DC_GRIP_BORDER_THRESHOLD = 0xF7,
+	DC_COORD_FILTER = 0xF8,
+	DC_HEATMAP_MODE = 0xFC,
+	DC_FW_RESET_REASON = 0xFD,
+	DC_GESTURE_TYPE = 0xFE,
 };
 
 #if defined(ENABLE_WAKEUP_GESTURE)
-/*
+/**
  * @brief: Custom gesture type
  */
 enum custom_gesture_type {
@@ -362,16 +366,18 @@ enum custom_gesture_type {
 #endif
 
 #if defined(ENABLE_CUSTOM_TOUCH_ENTITY)
-/*
+/**
  * @brief: Custom touch entity code
  */
 enum custom_shape_data {
 	TOUCH_ENTITY_CUSTOM_ANGLE = 0xD1,
 	TOUCH_ENTITY_CUSTOM_MAJOR = 0xD2,
 	TOUCH_ENTITY_CUSTOM_MINOR = 0xD3,
+	TOUCH_ENTITY_SYNC_LOST_STATE = 0xD4,
+	TOUCH_ENTITY_METADATA = 0xD5,
 };
 
-enum custom_data {
+enum custom_touch_entity {
 	CUSTOM_DATA_ANGLE = 0x0,
 	CUSTOM_DATA_MAJOR = 0x1,
 	CUSTOM_DATA_MINOR = 0x2,
@@ -379,44 +385,96 @@ enum custom_data {
 #endif
 
 /*
- * @brief: context of the synaptics linux-based driver
+ * @section: Touch Scan Mode Dynamic Configuration
  *
- * The structure defines the kernel specific data in linux-based driver
+ * The current touch scan mode.
+ */
+enum tcm_scan_mode {
+	SCAN_NORMAL_IDLE = 0,
+	SCAN_NORMAL_ACTIVE,
+	SCAN_LPWG_IDLE,
+	SCAN_LPWG_ACTIVE,
+	SCAN_SLEEP,
+};
+
+/*
+ * @section: Touch INT2 Production Configuration
+ *
+ * The current touch INT2.
+ */
+enum tcm_int2_production {
+	INT2_PRODUCTION_DISABLE = 0,
+	INT2_PRODUCTION_HIGH = 1,
+	INT2_PRODUCTION_LOW = 3,
+};
+
+/*
+ * @section: Heatmap Mode Configuration
+ *
+ */
+enum tcm_heatmap_mode {
+	HEATMAP_MODE_COORD = 1,
+	HEATMAP_MODE_COMBINED = 4,
+	HEATMAP_MODE_COMBINED_WITH_METADATA = 16,
+};
+
+enum tcm_gesture_type {
+	GESTURE_TYPE_STTW = 1,
+	GESTURE_TYPE_LPTW = 2,
+	GESTURE_TYPE_STTW_AND_LPTW = 3,
+};
+
+
+/**
+ * Context of Synaptics TouchComm device driver
+ *
+ * The structure defines the kernel specific data and the essentials
+ * for the device driver.
  */
 struct syna_tcm {
 
-	/* TouchComm device core context */
+	/* Context for the use of TouchComm core library */
 	struct tcm_dev *tcm_dev;
 
-	/* PLatform device driver */
+	/* Pointer to platform device */
 	struct platform_device *pdev;
 
-	/* Generic touched data generated by tcm core lib */
+	/* Stuff related to touch data */
 	struct tcm_touch_data_blob tp_data;
-
 	unsigned char prev_obj_status[MAX_NUM_OBJECTS];
 
-	/* Buffer stored the irq event data */
-	struct tcm_buffer event_data;
-
-	/* Hardware interface layer */
+	/* Abstraction of hardware interface */
 	struct syna_hw_interface *hw_if;
 
-	/* ISR-related variables */
+	/* Stuff related to irq event */
+	struct tcm_buffer event_data;
 	pid_t isr_pid;
 	bool irq_wake;
 
-	/* cdev and sysfs nodes creation */
+	/* Stuff related to cdev interface */
 	struct cdev char_dev;
 	dev_t char_dev_num;
 	int char_dev_ref_count;
-
 	struct class *device_class;
 	struct device *device;
 
-	struct kobject *sysfs_dir;
+	union {
+		u32 sysfs_debug;
+		struct {
+			u32 sysfs_debug_simulation_data:1;
+		};
+	};
 
-	/* Input device registration */
+#if defined(HAS_SYSFS_INTERFACE)
+	/* Stuff related to sysfs attributes */
+	struct kobject *sysfs_dir;
+	struct kobject *sysfs_dir_utility;
+#if defined(HAS_TESTING_FEATURE)
+	struct kobject *sysfs_dir_testing;
+#endif
+#endif
+
+	/* Stuff related to the registration of input device */
 	struct input_dev *input_dev;
 	struct input_params {
 		unsigned int max_x;
@@ -424,15 +482,18 @@ struct syna_tcm {
 		unsigned int max_objects;
 	} input_dev_params;
 
-	/* Workqueue used for fw update */
+#if defined(STARTUP_REFLASH)
+	/* Workqueue used for firmware update */
 	struct delayed_work reflash_work;
 	struct workqueue_struct *reflash_workqueue;
 	u8 reflash_count;
 	bool force_reflash;
-
+#endif
 	struct workqueue_struct *event_wq;
 	struct pinctrl *pinctrl;
 
+	u32 raw_timestamp_sensing;
+	u64 timestamp_sensing;
 	ktime_t timestamp; /* Time that the event was first received from the
 				* touch IC, acquired during hard interrupt, in
 				* CLOCK_MONOTONIC */
@@ -460,6 +521,8 @@ struct syna_tcm {
 	struct work_struct set_screen_protector_mode_work;
 	/* Work for continuous report commands. */
 	struct work_struct set_continuous_report_work;
+	/* Work for setting sensing mode. */
+	struct work_struct set_sensing_mode_work;
 #else
 	syna_pal_mutex_t tp_event_mutex;
 #endif
@@ -471,21 +534,10 @@ struct syna_tcm {
 
 	int touch_count;
 
-	/* flags */
-	int pwr_state;
-	bool slept_in_early_suspend;
-	bool lpwg_enabled;
-	bool is_attn_asserted;
-	unsigned char fb_ready;
-	bool is_connected;
-	bool has_custom_tp_config;
-	bool helper_enabled;
-	bool startup_reflash_enabled;
-	bool rst_on_resume_enabled;
-
 	/* frame-buffer callbacks notifier */
-#if defined(ENABLE_DISP_NOTIFIER)
+#if defined(USE_FB)
 	struct notifier_block fb_notifier;
+	unsigned char fb_ready;
 #endif
 	u8 raw_data_report_code;
 	s16 *raw_data_buffer;
@@ -495,77 +547,45 @@ struct syna_tcm {
 	u8 enable_fw_grip;
 	u8 enable_fw_palm;
 
+#if defined(USE_DRM_BRIDGE)
+	struct drm_bridge panel_bridge;
+	struct drm_connector *connector;
+	bool is_panel_lp_mode;
+#endif
 	/* fifo to pass the data to userspace */
+#if defined(ENABLE_EXTERNAL_FRAME_PROCESS)
+	/* Kernel FIFO */
 	unsigned int fifo_remaining_frame;
 	struct list_head frame_fifo_queue;
 	wait_queue_head_t wait_frame;
-	unsigned char report_to_queue[REPORT_TYPES];
+#endif
 
 #if defined(ENABLE_HELPER)
-	/* helper workqueue */
+	/* Background workqueue */
 	struct syna_tcm_helper helper;
 #endif
 
-	/* the pointer of userspace application info data */
+	/* Misc. variables */
+	int pwr_state;
+	bool slept_in_early_suspend;
+	bool lpwg_enabled;
+	bool is_connected;
+#if defined(TDDI_PRODUCTS)
+	bool is_tddi_multichip;
+#endif
+	bool concurrent_reporting;
+	bool has_sync_lost;
+	bool has_sync_lost_last;
+	bool abnormal_gesture_reported;
+
+	/* Pointer of userspace application info data */
 	void *userspace_app_info;
 
-	/* Specific function pointer to do device connection.
-	 *
-	 * This function will power on and identify the connected device.
-	 * At the end of function, the ISR will be registered as well.
-	 *
-	 * @param
-	 *    [ in] tcm: the driver handle
-	 *
-	 * @return
-	 *    on success, 0; otherwise, negative value on error.
-	 */
+	/* Abstractions */
 	int (*dev_connect)(struct syna_tcm *tcm);
-
-	/* Specific function pointer to disconnect the device
-	 *
-	 * This function will power off the connected device.
-	 * Then, all the allocated resource will be released.
-	 *
-	 * @param
-	 *    [ in] tcm: the driver handle
-	 *
-	 * @return
-	 *    on success, 0; otherwise, negative value on error.
-	 */
 	int (*dev_disconnect)(struct syna_tcm *tcm);
-
-	/* Specific function pointer to set up app fw firmware
-	 *
-	 * This function should be called whenever the device initially
-	 * powers up, resets, or firmware update.
-	 *
-	 * @param
-	 *    [ in] tcm: the driver handle
-	 *
-	 * @return
-	 *    on success, 0; otherwise, negative value on error.
-	 */
 	int (*dev_set_up_app_fw)(struct syna_tcm *tcm);
-
-	/* Specific function pointer to resume the device from suspend state.
-	 *
-	 * @param
-	 *    [ in] dev: an instance of device
-	 *
-	 * @return
-	 *    on success, 0; otherwise, negative value on error.
-	 */
 	int (*dev_resume)(struct device *dev);
-
-	/* Specific function pointer to put device into suspend state.
-	 *
-	 * @param
-	 *    [ in] dev: an instance of device
-	 *
-	 * @return
-	 *    on success, 0; otherwise, negative value on error.
-	 */
 	int (*dev_suspend)(struct device *dev);
 
 #if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
@@ -583,35 +603,13 @@ struct syna_tcm {
 };
 
 /*
- * @brief: Helpers for chardev nodes and sysfs nodes creation
-  *
-  * These functions are implemented in syna_touchcom_sysfs.c
-  * and available only when HAS_SYSFS_INTERFACE is enabled.
-  */
-int syna_cdev_create(struct syna_tcm *ptcm,
-		struct platform_device *pdev);
-
+ * Helpers for the registration of chardev nodes
+ */
+int syna_cdev_create(struct syna_tcm *ptcm, struct platform_device *pdev);
 void syna_cdev_remove(struct syna_tcm *ptcm);
 
-#ifdef ENABLE_EXTERNAL_FRAME_PROCESS
-void syna_cdev_update_report_queue(struct syna_tcm *tcm,
-		unsigned char code, struct tcm_buffer *pevent_data);
-#endif
-
-#ifdef HAS_SYSFS_INTERFACE
-
-int syna_sysfs_create_dir(struct syna_tcm *ptcm,
-		struct platform_device *pdev);
-
-void syna_sysfs_remove_dir(struct syna_tcm *tcm);
-
-#endif
 
 ssize_t syna_get_fw_info(struct syna_tcm *tcm, char *buf, size_t buf_size);
-
-bool syna_testing_compare_byte_vector(unsigned char *data,
-		unsigned int data_size, const unsigned char *limit,
-		unsigned int limit_size);
 
 #endif /* end of _SYNAPTICS_TCM2_DRIVER_H_ */
 

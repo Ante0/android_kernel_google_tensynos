@@ -1,0 +1,337 @@
+What:		/sys/class/goog_touch_interface/gti.0/config_name
+Date:		April 2023
+Contact:	wendlyli@google.com
+Description:
+		Read config name (set as goog,config_names inside DTSI). This will follow the
+		panel_id to get corresponding config for vendor driver to use.
+
+		Access: Read
+
+		Valid values: Represented as a string
+
+What:		/sys/class/goog_touch_interface/gti.0/force_active
+Date:		June 2022
+Contact:	wendlyli@google.com
+Description:
+		Force AP as touch SPI bus controller. This is useful for preventing the touch IC
+		from entering suspend mode.
+
+		Access: Read, Write
+
+		Valid values: Represented as an enum
+			0: Deactivate
+			1: Activate
+
+What:		/sys/class/goog_touch_interface/gti.0/fw_coord_filter
+Date:		Feb 2023
+Contact:	wendlyli@google.com
+Description:
+		Enable/disable coordinate filter from vendor firmware.
+
+		Access: Read, Write
+
+		Valid values: Represented as an enum
+			0: Disable
+			1: Enable
+
+What:		/sys/class/goog_touch_interface/gti.0/fw_grip
+Date:		Oct 2022
+Contact:	raviajain@google.com
+Description:
+		Enable/disable grip mode from vendor firmware.
+
+		Access: Read, Write
+
+		Valid values: Represented as an enum
+			0: Disable
+			1: Enable
+
+What:		/sys/class/goog_touch_interface/gti.0/fw_name
+Date:		Apr 2023
+Contact:	wendlyli@google.com
+Description:
+		Read the firmware filename (stored as goog,firmware_names in DTSI)
+
+		Access: Read
+
+		Valid values: Represented as a string
+
+What:		/sys/class/goog_touch_interface/gti.0/fw_palm
+Date:		Oct 2022
+Contact:	raviajain@google.com
+Description:
+		Enable/disable palm mode from vendor firmware.
+
+		Access: Read, Write
+
+		Valid values: Represented as a string
+
+What:		/sys/class/goog_touch_interface/gti.0/fw_ver
+Date:		Oct 2022
+Contact:	raviajain@google.com
+Description:
+		Get the firmware version
+
+		Access: Read
+
+		Valid values: Represented as a string
+
+What:		/sys/class/goog_touch_interface/gti.0/gesture_config
+Date:		Sept 2023
+Contact:	davidycchen@google.com
+Description:
+		Enable/disable touch gesture configuration from AP side.
+
+		Access: Read, Write
+
+		Valid values: Represented as a string
+			"sttw_min_x"
+			"sttw_max_x"
+			"sttw_min_y"
+			"sttw_max_y"
+			"sttw_min_frame"
+			"sttw_max_frame"
+			"sttw_jitter"
+			"sttw_max_touch_size"
+			"lptw_min_x"
+			"lptw_max_x"
+			"lptw_min_y"
+			"lptw_max_y"
+			"lptw_min_frame"
+			"lptw_jitter"
+			"lptw_max_touch_size"
+			"lptw_marginal_min_x"
+			"lptw_marginal_max_x"
+			"lptw_marginal_min_y"
+			"lptw_marginal_max_y"
+			"lptw_monitor_ch_min_tx"
+			"lptw_monitor_ch_max_tx"
+			"lptw_monitor_ch_min_rx"
+			"lptw_monitor_ch_max_rx"
+			"lptw_node_count_min"
+			"lptw_motion_boundary"
+			"gesture_type"
+
+What:		/sys/class/goog_touch_interface/gti.0/int2_mode
+Date:		July 2025
+Contact:	leonardian@google.com
+Description:
+		Get/set the modes for INT2
+
+		Access: Read, Write
+
+		Valid values: Represented as an enum
+			0: Keep low
+			1: Keep high
+			2: Auto
+
+What:		/sys/class/goog_touch_interface/gti.0/int2_status
+Date:		August 2025
+Contact:	blackbearchou@google.com
+Description:
+		Get the statusfor INT2
+
+		Access: Read
+
+		Valid values: Represented as an enum
+			0: Low
+			1: High
+
+What:		/sys/class/goog_touch_interface/gti.0/irq_enabled
+Date:		June 2022
+Contact:	supercjliu@google.com
+Description:
+		Enable/disable IRQ
+
+		Access: Read, Write
+
+		Valid values: Represented as an enum
+			0: Disable
+			1: Enable
+
+What:		/sys/class/goog_touch_interface/gti.0/mf_mode
+Date:		May 2022
+Contact:	wendlyli@google.com
+Description:
+		Get/set the modes for motion filter
+
+		Access: Read, Write
+
+		Valid values: Represented as an enum
+			0: Unfiltered
+			1: Default or dynamic
+			2: Filtered
+			3: Auto report
+			4: Firmware control
+
+What:		/sys/class/goog_touch_interface/gti.0/offload_enabled
+Date:		June 2022
+Contact:	supercjliu@google.com
+Description:
+		Enable/disable touch offload
+
+		Access: Read, Write
+
+		Valid values: Represented as an enum
+			0: Disable
+			1: Enable
+
+What:		/sys/class/goog_touch_interface/gti.0/offload_id
+Date:		Apr 2023
+Contact:	wendlyli@google.com
+Description:
+		Read touch offload ID (set as goog,touch_offload_id in DTSI)
+
+		Access: Read
+
+		Valid values: Represented as a string
+
+What:		/sys/class/goog_touch_interface/gti.0/panel_id
+Date:		Apr 2023
+Contact:	wendlyli@google.com
+Description:
+		Read panel ID from goog,panel_map set in the DTSI.
+
+		Access: Read
+
+		Valid values: Represented as an integer
+
+What:		/sys/class/goog_touch_interface/gti.0/ping
+Date:		June 2022
+Contact:	supercjliu@google.com
+Description:
+		Try to communicate with touch IC.
+
+		Access: Read
+
+		Valid values: Represented as an integer
+
+What:		/sys/class/goog_touch_interface/gti.0/reset
+Date:		June 2022
+Contact:	supercjliu@google.com
+Description:
+		Perform reset on the corresponding vendor.
+
+		Access: Read, Write
+
+		Valid values: Represented as an enum
+			1: SW reset
+			2: HW reset
+			3: Auto
+
+What:		/sys/class/goog_touch_interface/gti.0/scan_mode
+Date:		June 2022
+Contact:	supercjliu@google.com
+Description:
+		Get/set sensing scan modes for the corresponding vendor
+		(ex: auto mode, normal active, etc).
+
+		Access: Read, Write
+
+		Valid values: Represented as an integer
+
+What:		/sys/class/goog_touch_interface/gti.0/screen_protector_mode_enabled
+Date:		June 2022
+Contact:	wendlyli@google.com
+Description:
+		Enable/disable screen protector mode.
+
+		Access: Read, Write
+
+		Valid values: Represented as an enum
+			0: Disable
+			1: Enable
+
+What:		/sys/class/goog_touch_interface/gti.0/self_test
+Date:		June 2022
+Contact:	supercjliu@google.com
+Description:
+		Run selftest command provided by the corresponding vendor.
+
+		Access: Read
+
+		Valid values: Represented as a string
+
+What:		/sys/class/goog_touch_interface/gti.0/sensing_enabled
+Date:		June 2022
+Contact:	supercjliu@google.com
+Description:
+		Enable/disable sensing mode for the corresponding vendor.
+
+		Access: Read, Write
+
+		Valid values: Represented as an enum
+			0: Disable
+			1: Enable
+
+What:		/sys/class/goog_touch_interface/gti.0/test_limits_name
+Date:		Apr 2023
+Contact:	wendlyli@google.com
+Description:
+		Get the name of test limit (set as goog,test_limits_names in DTSI)
+
+		Access: Read
+
+		Valid values: Represented as a string
+
+What:		/sys/class/goog_touch_interface/gti.0/timestamp_correction_enabled
+Date:		Apr 2023
+Contact:	wendlyli@google.com
+Description:
+		Enable/disable timestamp correction.
+
+		Access: Read, Write
+
+		Valid values: Represented as an enum
+			0: Disable
+			1: Enable
+
+What:		/sys/class/goog_touch_interface/gti.0/v4l2_enabled
+Date:		June 2022
+Contact:	supercjliu@google.com
+Description:
+		Enable/disable v4l2 (deeptouch).
+
+		Access: Read, Write
+
+		Valid values: Represented as an enum
+			0: Disable
+			1: Enable
+
+What:		/sys/class/goog_touch_interface/gti.0/vrr_enabled
+Date:		Oct 2022
+Contact:	davidycchen@google.com
+Description:
+		Enable/disable variable report rate.
+
+		Access: Read, Write
+
+		Valid values: Represented as an enum
+			0: Disable
+			1: Enable
+
+What:		/sys/class/goog_touch_interface/gti.0/interactive_calibrate
+Date:		Apr 2023
+Contact:	spfetsch@google.com
+Description:
+		Read: Show result of the touch calibrate state machine.
+		Write: Advance the interactive calibration state machine.
+
+		Access: Read, Write
+
+What:		/sys/class/goog_touch_interface/gti.0/resample_latency_us
+Date:		May 2025
+Contact:	wendlyli@google.com
+Description:
+		The value of resample latency in microseconds.
+
+		Access: Read, Write
+
+What:		/sys/class/goog_touch_interface/gti.0/vsync_hsync_frequency
+Date:		Dec 2025
+Contact:	leonardian@google.com
+Description:
+		The value of the vsync and hsync frequency rates in Hertz and kilohertz
+		respectively.
+
+		Access: Read

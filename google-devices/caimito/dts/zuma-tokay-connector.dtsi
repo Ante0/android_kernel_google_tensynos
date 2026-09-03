@@ -60,10 +60,6 @@
 					vddd-supply = <&disp_vddd>;
 					vddd-gpios = <&gpp21 5 GPIO_ACTIVE_HIGH>;
 					vddd_gpio_fixed_level = <0>;
-
-					tk4c_test_node: panel-test@0 {
-						compatible = "google,gs-tk4c-test";
-					};
 				};
 
 				google_gs_tk4b: panel@2 {
@@ -81,10 +77,6 @@
 					vddi-supply = <&s_bucka_reg>;
 					vddd-supply = <&disp_vddd>;
 					vddd-gpios = <&gpp21 5 GPIO_ACTIVE_HIGH>;
-
-					tk4b_test_node: panel-test@1 {
-						compatible = "google,gs-panel-common-test";
-					};
 				};
 
 				panel@3 {

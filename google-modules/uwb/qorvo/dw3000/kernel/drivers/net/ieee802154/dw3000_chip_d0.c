@@ -27,10 +27,6 @@
 #include "dw3000_nfcc_coex_core.h"
 #include "dw3000_trc.h"
 
-int dw3000_c0_get_dgc_dec(struct dw3000 *dw, u8 *value);
-int dw3000_c0_prog_pll_coarse_code(struct dw3000 *dw);
-int dw3000_c0_set_mrxlut(struct dw3000 *dw, const u32 *lut);
-
 static const struct dw3000_chip_register d0_registers[] = {
 	/* registres virtuels pour dump des fileID */
 	{ "GEN_CFG0", 0x00, 0x7e, 0, DW3000_CHIPREG_DUMP, NULL },
@@ -101,7 +97,7 @@ const struct dw3000_chip_register *dw3000_d0_get_registers(struct dw3000 *dw,
 	return d0_registers;
 }
 
-const u32 *dw3000_d0_get_config_mrxlut_chan(struct dw3000 *dw, u8 channel)
+static const u32 *dw3000_d0_get_config_mrxlut_chan(struct dw3000 *dw, u8 channel)
 {
 	/* Lookup table default values for channel 5 */
 	static const u32 dw3000_d0_configmrxlut_ch5[DW3000_CONFIGMRXLUT_MAX] = {
@@ -221,7 +217,7 @@ static int dw3000_d0_check_tx_ok(struct dw3000 *dw)
  *
  * Return: zero on success, else a negative error code.
  */
-int dw3000_d0_prog_ldo_and_bias_tune(struct dw3000 *dw)
+static int dw3000_d0_prog_ldo_and_bias_tune(struct dw3000 *dw)
 {
 	struct dw3000_local_data *local = &dw->data;
 	struct dw3000_otp_data *otp = &dw->otp_data;

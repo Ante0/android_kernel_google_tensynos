@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_USB_PHY
+	tristate "Google USB PHY"
+	depends on ARCH_GOOGLE
+	help
+	  Google's USB PHY driver.
+	  If unsure select "N".
+
+config GOOGLE_EUSB2_REPEATER
+	tristate "Google eUSB2 repeater"
+	help
+	  Google's eUSB repeater driver.
+	  If unsure select "N".

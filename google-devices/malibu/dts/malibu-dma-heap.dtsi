@@ -1,0 +1,120 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/*
+ * Definitions of DMA-BUF Heaps
+ *
+ * Copyright 2025 Google LLC
+ */
+
+/ {
+	system_dma_heap {
+		compatible = "samsung,dma-heap-system";
+		dma-heap,name = "system";
+	};
+
+	camera_gcma_internal_heap: camera_gcma_internal_heap {
+		compatible = "google,dma-heap-gcma";
+		memory-region = <&farawimg>, <&famodel>, <&faceauth_tpu>;
+		dma-heap,name = "gcma_camera_internal";
+		dma-heap-gcam,fleixble-alloc;
+		status = "okay";
+	};
+
+	faceauth_model_heap: faceauth_model_heap {
+		compatible = "google,dma-heap-gcma";
+		memory-region = <&famodel>;
+		dma-heap,name = "famodel";
+		dma-heap,dynamic-secure;
+		dma-heap,protection_id = <19>;
+		dma-heap,alignment = <0x10000>;
+		status = "disabled";
+	};
+};
+
+&trusty {
+	video_stream_dma_heap {
+		compatible = "samsung,dma-heap-chunk";
+		memory-region = <&vstream>;
+		dma-heap,name = "vstream";
+		dma-heap,secure;
+		dma-heap,protection_id = <3>;
+		dma-heap,alignment = <0x10000>;
+	};
+
+	video_frame_dma_heap {
+		compatible = "samsung,dma-heap-chunk";
+		memory-region = <&vframe>;
+		dma-heap,name = "vframe";
+		dma-heap,secure;
+		dma-heap,protection_id = <5>;
+		dma-heap,alignment = <0x10000>;
+	};
+
+	vpu_fw_dma_heap {
+		compatible = "samsung,dma-heap-carveout";
+		memory-region = <&vpu_fw>;
+		dma-heap,name = "vpu_fw";
+		dma-heap,dynamic-secure;
+		dma-heap,protection_id = <2>;
+		dma-heap,alignment = <0x10000>;
+	};
+
+	faceauth_dsp_dma_heap:faceauth_dsp_dma_heap {
+		compatible = "google,dma-heap-gcma";
+		memory-region = <&faceauth_dsp>;
+		dma-heap,name = "faceauth_dsp";
+		dma-heap,secure;
+		dma-heap,protection_id = <21>;
+		dma-heap,alignment = <0x10000>;
+		status = "disabled";
+	};
+
+	faceauth_tpu_dma_heap: faceauth_tpu_dma_heap {
+		compatible = "google,dma-heap-gcma";
+		memory-region = <&faceauth_tpu>;
+		dma-heap,name = "faceauth_tpu";
+		dma-heap,secure;
+		dma-heap,protection_id = <15>;
+		dma-heap,alignment = <0x10000>;
+		status = "disabled";
+	};
+
+	faceauth_image_heap: faceauth_image_heap {
+		compatible = "samsung,dma-heap-cma";
+		memory-region = <&faimg>;
+		dma-heap,name = "faimg";
+		dma-heap,secure;
+		dma-heap,protection_id = <16>;
+		dma-heap,alignment = <0x10000>;
+		status = "disabled";
+	};
+
+	faceauth_rawimage_heap: faceauth_rawimage_heap {
+		compatible = "google,dma-heap-gcma";
+		memory-region = <&farawimg>;
+		dma-heap,name = "farawimg";
+		dma-heap,secure;
+		dma-heap,protection_id = <17>;
+		dma-heap,alignment = <0x10000>;
+		status = "disabled";
+	};
+
+	faceauth_eval_heap: faceauth_eval_heap {
+		compatible = "google,dma-heap-gcma";
+		memory-region = <&faeval>;
+		dma-heap,name = "faeval";
+		dma-heap,secure;
+		dma-heap,protection_id = <17>;
+		dma-heap,alignment = <0x10000>;
+		status = "disabled";
+	};
+
+	faceauth_preview_heap: faceauth_preview_heap {
+		compatible = "samsung,dma-heap-cma";
+		memory-region = <&faprev>;
+		dma-heap,name = "faprev";
+		dma-heap,secure;
+		dma-heap,protection_id = <18>;
+		dma-heap,alignment = <0x10000>;
+		status = "disabled";
+	};
+};

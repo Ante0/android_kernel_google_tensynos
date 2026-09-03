@@ -18,6 +18,122 @@
 #include "gs_panel/gs_panel.h"
 #include "trace/panel_trace.h"
 
+#define DEV_WARN_PANEL_NOT_ENABLED(ctx) \
+	dev_warn((ctx)->dev, "%s: panel is not enabled\n", __func__)
+
+#define DEV_ERR_PANEL_NOT_ENABLED(ctx) \
+	dev_err((ctx)->dev, "%s: panel is not enabled\n", __func__)
+
+/* panel name constants */
+static const char primary_panel_name[] = "primary-panel";
+static const char secondary_panel_name[] = "secondary-panel";
+
+const char *gs_panel_get_sysfs_name(struct gs_panel *ctx)
+{
+	switch (ctx->gs_connector->panel_index) {
+	case DISPLAY_PANEL_INDEX_PRIMARY:
+		return primary_panel_name;
+	case DISPLAY_PANEL_INDEX_SECONDARY:
+		return secondary_panel_name;
+	default:
+		dev_warn(ctx->dev, "Unsupported panel_index value %d\n",
+			 ctx->gs_connector->panel_index);
+		return primary_panel_name;
+	}
+}
+
+static int gs_panel_get_te_freq(struct gs_panel *ctx)
+{
+	int freq;
+
+	if (!gs_is_panel_active(ctx))
+		return -EPERM;
+
+	mutex_lock(&ctx->mode_lock);
+	if (ctx->hw_status.te.option == TEX_OPT_CHANGEABLE) {
+		const struct gs_panel_mode *current_mode = ctx->current_mode;
+
+		if (!current_mode) {
+			mutex_unlock(&ctx->mode_lock);
+			return -EINVAL;
+		}
+		freq = drm_mode_vrefresh(&current_mode->mode);
+	} else {
+		freq = ctx->hw_status.te.freq_hz;
+	}
+	mutex_unlock(&ctx->mode_lock);
+
+	return freq;
+}
+
+static int gs_panel_set_te2_freq(struct gs_panel *ctx, u32 freq_hz)
+{
+	if (!gs_panel_has_func(ctx, set_te2_freq))
+		return -EOPNOTSUPP;
+
+	mutex_lock(&ctx->mode_lock);
+	if (!gs_is_panel_active(ctx)) {
+		dev_warn(ctx->dev, "%s: cache freq(%u)\n", __func__, freq_hz);
+		ctx->te2.freq_hz = freq_hz;
+	} else if (ctx->desc->gs_panel_func->set_te2_freq(ctx, freq_hz)) {
+		/**
+		 * The TE2 freq reflects the display refresh rate. And we're interested in the
+		 * frequencies while the display is active or idle. Notify immediately if the it's
+		 * active since we usually hope to jump to the peak refresh rate soon. If it's
+		 * idle, we may have several inserted frames before dropping to the lower refresh
+		 * rate to avoid flickers. Adding an estimated delay can help make the notification
+		 * more accurate.
+		 */
+		int vrefresh =
+			ctx->current_mode ? drm_mode_vrefresh(&ctx->current_mode->mode) : 0;
+		bool need_delay = (ctx->te2.option == TEX_OPT_CHANGEABLE) && vrefresh &&
+				  (freq_hz != vrefresh);
+		u32 delay_ms = need_delay ? ctx->desc->notify_te2_freq_changed_work_delay_ms : 0;
+
+		dev_dbg(ctx->dev, "%s: vrefresh %d, freq_hz %u, delay_ms %u\n", __func__,
+			vrefresh, freq_hz, delay_ms);
+		notify_panel_te2_freq_changed(ctx, delay_ms);
+	}
+	mutex_unlock(&ctx->mode_lock);
+
+	return 0;
+}
+
+static int gs_panel_get_te2_freq(struct gs_panel *ctx)
+{
+	int freq;
+
+	/**
+	 * Still allow the read if the panel is inactive at this moment since we may change
+	 * the rate during the transition to active.
+	 */
+	if (!gs_is_panel_active(ctx))
+		DEV_WARN_PANEL_NOT_ENABLED(ctx);
+
+	mutex_lock(&ctx->mode_lock);
+	if (gs_panel_has_func(ctx, get_te2_freq)) {
+		freq = ctx->desc->gs_panel_func->get_te2_freq(ctx);
+	} else {
+		/**
+		 * For the device which doesn't specify the function of getting TE2 frequency,
+		 * changeable TE2 is used by default, so either idle_vrefresh (VRR) or vrefresh
+		 * indicates the current TE2 frequency (refresh rate).
+		 */
+		const struct gs_panel_mode *pmode = ctx->current_mode;
+
+		if (!pmode) {
+			mutex_unlock(&ctx->mode_lock);
+			return -EINVAL;
+		}
+
+		freq = gs_is_vrr_mode(pmode) ? ctx->sw_status.idle_vrefresh :
+					       drm_mode_vrefresh(&pmode->mode);
+	}
+	mutex_unlock(&ctx->mode_lock);
+
+	return freq;
+}
+
 /* Sysfs Node */
 
 static ssize_t serial_number_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -25,13 +141,17 @@ static ssize_t serial_number_show(struct device *dev, struct device_attribute *a
 	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
 	const struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
 
-	if (!ctx->initialized)
+	/*
+	 * Either initialization (with power on) needs to have happened,
+	 * or need to have valid ID passed from bootloader
+	 */
+	if (!ctx->initialized && ctx->gs_connector->panel_id == PANEL_ID_INVALID_VALUE)
 		return -EPERM;
 
-	if (!strcmp(ctx->panel_id, ""))
+	if (!strcmp(ctx->panel_serial_number, ""))
 		return -EINVAL;
 
-	return sysfs_emit(buf, "%s\n", ctx->panel_id);
+	return sysfs_emit(buf, "%s\n", ctx->panel_serial_number);
 }
 
 static ssize_t panel_extinfo_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -39,25 +159,18 @@ static ssize_t panel_extinfo_show(struct device *dev, struct device_attribute *a
 	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
 	const struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
 
-	if (!ctx->initialized)
+	if (ctx->panel_id == PANEL_ID_INVALID_VALUE)
 		return -EPERM;
 
-	return sysfs_emit(buf, "%s\n", ctx->panel_extinfo);
+	return sysfs_emit(buf, "%08x\n", swab32(ctx->panel_id));
 }
 
 static ssize_t panel_name_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
-	const char *p;
+	const struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
 
-	/* filter priority info in the dsi device name */
-	p = strstr(dsi->name, ":");
-	if (!p)
-		p = dsi->name;
-	else
-		p++;
-
-	return sysfs_emit(buf, "%s\n", p);
+	return sysfs_emit(buf, "%s\n", ctx->panel_name);
 }
 
 static ssize_t panel_model_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -193,6 +306,7 @@ static ssize_t op_hz_show(struct device *dev, struct device_attribute *attr, cha
 {
 	struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
 	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
+	u32 op_hz;
 
 	if (!gs_is_panel_initialized(ctx))
 		return -EAGAIN;
@@ -200,7 +314,11 @@ static ssize_t op_hz_show(struct device *dev, struct device_attribute *attr, cha
 	if (!gs_panel_has_func(ctx, set_op_hz))
 		return -EINVAL;
 
-	return sysfs_emit(buf, "%u\n", ctx->op_hz);
+	mutex_lock(&ctx->mode_lock);
+	op_hz = ctx->op_hz;
+	mutex_unlock(&ctx->mode_lock);
+
+	return sysfs_emit(buf, "%u\n", op_hz);
 }
 
 static ssize_t refresh_rate_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -395,8 +513,8 @@ static ssize_t te2_lp_timing_show(struct device *dev, struct device_attribute *a
 static ssize_t time_in_state_show(struct device *dev,
 			      struct device_attribute *attr, char *buf)
 {
-	struct backlight_device *bl = to_backlight_device(dev);
-	struct gs_panel *ctx = bl_get_data(bl);
+	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
 	struct display_stats *stats = &ctx->disp_stats;
 	int state, vrefresh_idx, res_idx, time_state_idx;
 	u64 time, delta_ms;
@@ -468,8 +586,8 @@ static ssize_t time_in_state_show(struct device *dev,
 static ssize_t available_disp_stats_show(struct device *dev,
 			      struct device_attribute *attr, char *buf)
 {
-	struct backlight_device *bl = to_backlight_device(dev);
-	struct gs_panel *ctx = bl_get_data(bl);
+	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
 	struct display_stats *stats = &ctx->disp_stats;
 	int state, vrefresh_idx, res_idx;
 	ssize_t len = 0;
@@ -520,28 +638,8 @@ static ssize_t te_rate_hz_show(struct device *dev, struct device_attribute *attr
 {
 	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
 	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
-	int freq;
-	bool changeable;
 
-	if (!gs_is_panel_active(ctx))
-		return -EPERM;
-
-	mutex_lock(&ctx->mode_lock);
-	changeable = (ctx->hw_status.te.option == TEX_OPT_CHANGEABLE);
-	if (changeable) {
-		const struct gs_panel_mode *current_mode = ctx->current_mode;
-
-		if (!current_mode) {
-			mutex_unlock(&ctx->mode_lock);
-			return -EINVAL;
-		}
-		freq = drm_mode_vrefresh(&current_mode->mode);
-	} else {
-		freq = ctx->hw_status.te.rate_hz;
-	}
-	mutex_unlock(&ctx->mode_lock);
-
-	return sysfs_emit(buf, "%d\n", freq);
+	return sysfs_emit(buf, "%d\n", gs_panel_get_te_freq(ctx));
 }
 
 static ssize_t te_option_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -568,39 +666,15 @@ static ssize_t te2_rate_hz_store(struct device *dev, struct device_attribute *at
 	int ret;
 	u32 rate_hz;
 
-	if (!gs_panel_has_func(ctx, set_te2_rate))
-		return -ENOTSUPP;
-
 	ret = kstrtouint(buf, 0, &rate_hz);
 	if (ret) {
 		dev_err(dev, "invalid TE2 rate value\n");
 		return ret;
 	}
 
-	mutex_lock(&ctx->mode_lock);
-	if (!gs_is_panel_active(ctx)) {
-		dev_warn(ctx->dev, "%s: cache rate(%u)\n", __func__, rate_hz);
-		ctx->te2.rate_hz = rate_hz;
-	} else if (ctx->desc->gs_panel_func->set_te2_rate(ctx, rate_hz)) {
-		/**
-		 * The TE2 rate reflects the display refresh rate. And we're interested in the
-		 * rates while the display is active or idle. Notify immediately if the it's
-		 * active since we usually hope to jump to the peak refresh rate soon. If it's
-		 * idle, we may have several inserted frames before dropping to the lower refresh
-		 * rate to avoid flickers. Adding an estimated delay can help make the notification
-		 * more accurate.
-		 */
-		int vrefresh =
-			ctx->current_mode ? drm_mode_vrefresh(&ctx->current_mode->mode) : 0;
-		bool need_delay = (ctx->te2.option == TEX_OPT_CHANGEABLE) && vrefresh &&
-				  (rate_hz != vrefresh);
-		u32 delay_ms = need_delay ? ctx->desc->notify_te2_rate_changed_work_delay_ms : 0;
-
-		dev_dbg(dev, "%s: vrefresh %d, rate_hz %u, delay_ms %u\n", __func__,
-			vrefresh, rate_hz, delay_ms);
-		notify_panel_te2_rate_changed(ctx, delay_ms);
-	}
-	mutex_unlock(&ctx->mode_lock);
+	ret = gs_panel_set_te2_freq(ctx, rate_hz);
+	if (ret)
+		return ret;
 
 	return count;
 }
@@ -611,21 +685,11 @@ static ssize_t te2_rate_hz_show(struct device *dev, struct device_attribute *att
 	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
 	int ret;
 
-	if (!gs_panel_has_func(ctx, get_te2_rate))
-		return -ENOTSUPP;
+	ret = gs_panel_get_te2_freq(ctx);
+	if (ret < 0)
+		return ret;
 
-	/**
-	 * Still allow the read if the panel is inactive at this moment since we may change
-	 * the rate during the transition to active.
-	 */
-	if (!gs_is_panel_active(ctx))
-		dev_warn(ctx->dev, "%s: panel is not enabled, may show previous rate\n", __func__);
-
-	mutex_lock(&ctx->mode_lock);
-	ret = sysfs_emit(buf, "%u\n", ctx->desc->gs_panel_func->get_te2_rate(ctx));
-	mutex_unlock(&ctx->mode_lock);
-
-	return ret;
+	return sysfs_emit(buf, "%d\n", ret);
 }
 
 static ssize_t te2_option_store(struct device *dev, struct device_attribute *attr,
@@ -637,7 +701,7 @@ static ssize_t te2_option_store(struct device *dev, struct device_attribute *att
 	u32 option;
 
 	if (!gs_panel_has_func(ctx, set_te2_option))
-		return -ENOTSUPP;
+		return -EOPNOTSUPP;
 
 	ret = kstrtou32(buf, 0, &option);
 	if (ret) {
@@ -664,10 +728,10 @@ static ssize_t te2_option_show(struct device *dev, struct device_attribute *attr
 	enum gs_panel_tex_opt option;
 
 	if (!gs_panel_has_func(ctx, get_te2_option))
-		return -ENOTSUPP;
+		return -EOPNOTSUPP;
 
 	if (!gs_is_panel_active(ctx)) {
-		dev_warn(ctx->dev, "%s: panel is not enabled\n", __func__);
+		DEV_WARN_PANEL_NOT_ENABLED(ctx);
 		return -EPERM;
 	}
 
@@ -680,8 +744,8 @@ static ssize_t te2_option_show(struct device *dev, struct device_attribute *attr
 
 static ssize_t power_state_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	struct backlight_device *bl = to_backlight_device(dev);
-	struct gs_panel *ctx = bl_get_data(bl);
+	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
 	enum display_stats_state state;
 
 	mutex_lock(&ctx->bl_state_lock);
@@ -693,8 +757,8 @@ static ssize_t power_state_show(struct device *dev, struct device_attribute *att
 
 static ssize_t error_count_te_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	struct backlight_device *bl = to_backlight_device(dev);
-	struct gs_panel *ctx = bl_get_data(bl);
+	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
 	u32 count;
 
 	mutex_lock(&ctx->mode_lock);
@@ -836,7 +900,7 @@ static ssize_t force_power_on_store(struct device *dev, struct device_attribute 
 	drm_modeset_lock(&ctx->bridge.base.lock, NULL);
 	if (force_on && ctx->panel_state == GPANEL_STATE_OFF) {
 		drm_panel_prepare(&ctx->base);
-		ctx->panel_state = GPANEL_STATE_BLANK;
+		gs_panel_set_panel_state(ctx, GPANEL_STATE_BLANK);
 	}
 
 	ctx->force_power_on = force_on;
@@ -866,7 +930,7 @@ static ssize_t power_mode_show(struct device *dev, struct device_attribute *attr
 	u8 power_mode;
 
 	if (!gs_is_panel_active(ctx)) {
-		dev_warn(dev, "%s: panel is not enabled\n", __func__);
+		DEV_WARN_PANEL_NOT_ENABLED(ctx);
 		return -EPERM;
 	}
 
@@ -902,7 +966,7 @@ static ssize_t frame_rate_store(struct device *dev, struct device_attribute *att
 	}
 
 	if (!gs_is_panel_active(ctx)) {
-		dev_warn(ctx->dev, "%s: panel is not enabled\n", __func__);
+		DEV_WARN_PANEL_NOT_ENABLED(ctx);
 		return -EPERM;
 	}
 
@@ -989,6 +1053,176 @@ static ssize_t frame_interval_ns_show(struct device *dev, struct device_attribut
 	return ret;
 }
 
+static ssize_t pwm_mode_store(struct device *dev, struct device_attribute *attr,
+			      const char *buf, size_t count)
+{
+	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
+	int ret;
+	enum gs_pwm_mode mode;
+
+	ret = kstrtouint(buf, 0, &mode);
+	if (ret) {
+		dev_err(dev, "invalid pwm mode value\n");
+		return ret;
+	}
+
+	ret = gs_panel_set_pwm_mode(ctx, mode);
+	if (ret)
+		return ret;
+
+	return count;
+}
+
+static ssize_t pwm_mode_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
+	enum gs_pwm_mode mode;
+
+	if (!gs_panel_has_func(ctx, set_pwm_mode))
+		return -EOPNOTSUPP;
+
+	mode = gs_panel_get_pwm_mode(ctx);
+	return sysfs_emit(buf, "%d\n", mode);
+}
+
+static ssize_t te_freq_hz_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
+
+	return sysfs_emit(buf, "%d\n", gs_panel_get_te_freq(ctx));
+}
+
+static ssize_t te2_freq_hz_store(struct device *dev, struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
+	int ret;
+	u32 freq_hz;
+
+	ret = kstrtouint(buf, 0, &freq_hz);
+	if (ret) {
+		dev_err(dev, "invalid TE2 freq value\n");
+		return ret;
+	}
+
+	ret = gs_panel_set_te2_freq(ctx, freq_hz);
+	if (ret)
+		return ret;
+
+	return count;
+}
+
+static ssize_t te2_freq_hz_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
+	int ret;
+
+	ret = gs_panel_get_te2_freq(ctx);
+	if (ret < 0)
+		return ret;
+
+	return sysfs_emit(buf, "%d\n", ret);
+}
+
+static ssize_t skin_temperature_store(struct device *dev, struct device_attribute *attr,
+				      const char *buf, size_t count)
+{
+	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
+	int ret;
+	u32 value;
+
+	if (!gs_panel_has_func(ctx, handle_skin_temperature))
+		return -EOPNOTSUPP;
+
+	if (!gs_is_panel_active(ctx))
+		return -EPERM;
+
+	ret = kstrtouint(buf, 0, &value);
+	if (ret) {
+		dev_err(dev, "invalid skin temperature value\n");
+		return ret;
+	}
+
+	mutex_lock(&ctx->mode_lock);
+	ctx->skin_temperature = value;
+	ctx->desc->gs_panel_func->handle_skin_temperature(ctx);
+	mutex_unlock(&ctx->mode_lock);
+
+	return count;
+}
+
+static ssize_t skin_temperature_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
+	int ret;
+
+	if (!gs_panel_has_func(ctx, handle_skin_temperature))
+		return -EOPNOTSUPP;
+
+	if (!gs_is_panel_active(ctx))
+		return -EPERM;
+
+	mutex_lock(&ctx->mode_lock);
+	ret = sysfs_emit(buf, "%u\n", ctx->skin_temperature);
+	mutex_unlock(&ctx->mode_lock);
+
+	return ret;
+}
+
+static ssize_t content_gray_level_store(struct device *dev, struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
+	enum gs_content_gray_level level;
+	int ret;
+
+	ret = kstrtouint(buf, 0, &level);
+	if (ret) {
+		dev_err(dev, "invalid content_gray_level value\n");
+		return ret;
+	}
+
+	if (level >= GRAY_LEVEL_COUNT) {
+		dev_err(dev, "undefined content_gray_level value (%d)\n", level);
+		return -EINVAL;
+	}
+
+	if (level != ctx->content_gray_level) {
+		dev_info(dev, "content_gray_level change: %d -> %d\n",
+			 ctx->content_gray_level, level);
+		ctx->content_gray_level = level;
+		sysfs_notify(&ctx->dev->kobj, NULL, "content_gray_level");
+	}
+
+	return count;
+}
+
+static ssize_t content_gray_level_show(struct device *dev, struct device_attribute *attr,
+				       char *buf)
+{
+	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
+
+	return sysfs_emit(buf, "%d\n", ctx->content_gray_level);
+}
+
+static ssize_t gram_collision_count_show(struct device *dev, struct device_attribute *attr,
+					 char *buf)
+{
+	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
+
+	return sysfs_emit(buf, "%u\n", ctx->gram_collision_count);
+}
+
 static DEVICE_ATTR_RO(serial_number);
 static DEVICE_ATTR_RO(panel_extinfo);
 static DEVICE_ATTR_RO(panel_name);
@@ -1017,6 +1251,12 @@ static DEVICE_ATTR_RO(power_mode);
 static DEVICE_ATTR_WO(frame_rate);
 static DEVICE_ATTR_RW(expected_present_time_ns);
 static DEVICE_ATTR_RW(frame_interval_ns);
+static DEVICE_ATTR_RW(pwm_mode);
+static DEVICE_ATTR_RO(te_freq_hz);
+static DEVICE_ATTR_RW(te2_freq_hz);
+static DEVICE_ATTR_RW(skin_temperature);
+static DEVICE_ATTR_RW(content_gray_level);
+static DEVICE_ATTR_RO(gram_collision_count);
 /* TODO(tknelms): re-implement below */
 #if 0
 static DEVICE_ATTR_WO(gamma);
@@ -1049,6 +1289,12 @@ static const struct attribute *panel_attrs[] = { &dev_attr_serial_number.attr,
 						 &dev_attr_power_mode.attr,
 						 &dev_attr_expected_present_time_ns.attr,
 						 &dev_attr_frame_interval_ns.attr,
+						 &dev_attr_pwm_mode.attr,
+						 &dev_attr_te_freq_hz.attr,
+						 &dev_attr_te2_freq_hz.attr,
+						 &dev_attr_skin_temperature.attr,
+						 &dev_attr_content_gray_level.attr,
+						 &dev_attr_gram_collision_count.attr,
 /* TODO(tknelms): re-implement below */
 #if 0
 						 &dev_attr_gamma.attr,
@@ -1056,6 +1302,89 @@ static const struct attribute *panel_attrs[] = { &dev_attr_serial_number.attr,
 						 &dev_attr_available_osc2_clk_khz.attr,
 #endif
 						 NULL };
+
+struct panel_err_attr {
+	struct device_attribute dev_attr;
+	int index;
+};
+
+static ssize_t panel_error_stats_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	const struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	const struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
+	struct panel_err_attr *p_attr = container_of(attr, struct panel_err_attr, dev_attr);
+
+	return sysfs_emit(buf, "%u\n", ctx->panel_errors_cnt[p_attr->index]);
+}
+
+#define PANEL_ERR_ATTR(_name, _index) \
+	static struct panel_err_attr _name = { \
+		.dev_attr = __ATTR(_name, 0444, panel_error_stats_show, NULL), \
+		.index = _index, \
+	}
+
+PANEL_ERR_ATTR(dsi_sot,                  GS_PANEL_ERR_DSI_SOT);
+PANEL_ERR_ATTR(dsi_sot_sync,             GS_PANEL_ERR_DSI_SOT_SYNC);
+PANEL_ERR_ATTR(dsi_eot_sync,             GS_PANEL_ERR_DSI_EOT_SYNC);
+PANEL_ERR_ATTR(dsi_escape_mode_entry,    GS_PANEL_ERR_DSI_ESCAPE_MODE_ENTRY);
+PANEL_ERR_ATTR(dsi_lp_xmit_sync,         GS_PANEL_ERR_DSI_LP_XMIT_SYNC);
+PANEL_ERR_ATTR(dsi_hs_rx_timeout,        GS_PANEL_ERR_DSI_HS_RX_TIMEOUT);
+PANEL_ERR_ATTR(dsi_false_control,        GS_PANEL_ERR_DSI_FALSE_CONTROL);
+PANEL_ERR_ATTR(dsi_data_lane_contention, GS_PANEL_ERR_DSI_DATA_LANE_CONTENTION);
+PANEL_ERR_ATTR(dsi_ecc_single,           GS_PANEL_ERR_DSI_ECC_SINGLE);
+PANEL_ERR_ATTR(dsi_ecc_multi,            GS_PANEL_ERR_DSI_ECC_MULTI);
+PANEL_ERR_ATTR(dsi_checksum,             GS_PANEL_ERR_DSI_CHECKSUM);
+PANEL_ERR_ATTR(dsi_data_type,            GS_PANEL_ERR_DSI_DATA_TYPE);
+PANEL_ERR_ATTR(dsi_vc_id_invalid,        GS_PANEL_ERR_DSI_VC_ID_INVALID);
+PANEL_ERR_ATTR(dsi_xmit_len,             GS_PANEL_ERR_DSI_XMIT_LEN);
+PANEL_ERR_ATTR(dsi_reserved,             GS_PANEL_ERR_DSI_RESERVED);
+PANEL_ERR_ATTR(dsi_protocol_violation,   GS_PANEL_ERR_DSI_PROTOCOL_VIOLATION);
+PANEL_ERR_ATTR(dsi_read_failure,         GS_PANEL_ERR_DSI_READ_FAILURE);
+PANEL_ERR_ATTR(vlin1,                    GS_PANEL_ERR_VLIN1);
+PANEL_ERR_ATTR(te,                       GS_PANEL_ERR_TE);
+PANEL_ERR_ATTR(pps,                      GS_PANEL_ERR_PPS);
+PANEL_ERR_ATTR(checksum,                 GS_PANEL_ERR_CHECKSUM);
+PANEL_ERR_ATTR(esd,                      GS_PANEL_ERR_ESD);
+PANEL_ERR_ATTR(disp_invalid,             GS_PANEL_ERR_DISP_INVALID);
+PANEL_ERR_ATTR(vgh,                      GS_PANEL_ERR_VGH);
+PANEL_ERR_ATTR(gram_collision,           GS_PANEL_ERR_GRAM_COLLISION);
+
+static struct attribute *panel_error_stats_attrs[] = {
+	&dsi_sot.dev_attr.attr,
+	&dsi_sot_sync.dev_attr.attr,
+	&dsi_eot_sync.dev_attr.attr,
+	&dsi_escape_mode_entry.dev_attr.attr,
+	&dsi_lp_xmit_sync.dev_attr.attr,
+	&dsi_hs_rx_timeout.dev_attr.attr,
+	&dsi_false_control.dev_attr.attr,
+	&dsi_data_lane_contention.dev_attr.attr,
+	&dsi_ecc_single.dev_attr.attr,
+	&dsi_ecc_multi.dev_attr.attr,
+	&dsi_checksum.dev_attr.attr,
+	&dsi_data_type.dev_attr.attr,
+	&dsi_vc_id_invalid.dev_attr.attr,
+	&dsi_xmit_len.dev_attr.attr,
+	&dsi_reserved.dev_attr.attr,
+	&dsi_protocol_violation.dev_attr.attr,
+	&dsi_read_failure.dev_attr.attr,
+	&vlin1.dev_attr.attr,
+	&te.dev_attr.attr,
+	&pps.dev_attr.attr,
+	&checksum.dev_attr.attr,
+	&esd.dev_attr.attr,
+	&disp_invalid.dev_attr.attr,
+	&vgh.dev_attr.attr,
+	&gram_collision.dev_attr.attr,
+	NULL, };
+
+static const struct attribute_group panel_error_stats_group = {
+	.name = "panel_error_stats",
+	.attrs = panel_error_stats_attrs,
+};
+static const struct attribute_group *panel_error_stats_groups[] = {
+	&panel_error_stats_group,
+	NULL,
+};
 
 int gs_panel_sysfs_create_files(struct device *dev, struct gs_panel *ctx)
 {
@@ -1071,6 +1400,9 @@ int gs_panel_sysfs_create_files(struct device *dev, struct gs_panel *ctx)
 		if (sysfs_create_file(&dev->kobj, &dev_attr_frame_rate.attr))
 			dev_err(ctx->dev, "unable to add set_frame_rate sysfs file\n");
 	}
+
+	if (sysfs_create_groups(&dev->kobj, panel_error_stats_groups))
+		dev_err(ctx->dev, "unable to add panel_error_stats group\n");
 
 	return sysfs_create_files(&dev->kobj, panel_attrs);
 }
@@ -1088,14 +1420,14 @@ static ssize_t hbm_mode_store(struct device *dev, struct device_attribute *attr,
 
 	if (!gs_panel_has_func(ctx, set_hbm_mode)) {
 		dev_err(ctx->dev, "HBM is not supported\n");
-		return -ENOTSUPP;
+		return -EOPNOTSUPP;
 	}
 
 	mutex_lock(&ctx->mode_lock); /*TODO(b/267170999): MODE*/
 	pmode = ctx->current_mode;
 
 	if (!gs_is_panel_active(ctx) || !pmode) {
-		dev_err(ctx->dev, "panel is not enabled\n");
+		DEV_ERR_PANEL_NOT_ENABLED(ctx);
 		ret = -EPERM;
 		goto unlock;
 	}
@@ -1140,7 +1472,7 @@ static ssize_t dimming_on_store(struct device *dev, struct device_attribute *att
 	int ret;
 
 	if (!gs_is_panel_active(ctx)) {
-		dev_err(ctx->dev, "panel is not enabled\n");
+		DEV_ERR_PANEL_NOT_ENABLED(ctx);
 		return -EPERM;
 	}
 
@@ -1173,13 +1505,13 @@ static ssize_t local_hbm_mode_store(struct device *dev, struct device_attribute 
 	struct drm_crtc *crtc = get_gs_panel_connector_crtc(ctx);
 
 	if (!gs_is_panel_active(ctx)) {
-		dev_err(ctx->dev, "panel is not enabled\n");
+		DEV_ERR_PANEL_NOT_ENABLED(ctx);
 		return -EPERM;
 	}
 
 	if (!gs_panel_has_func(ctx, set_local_hbm_mode)) {
 		dev_err(ctx->dev, "Local HBM is not supported\n");
-		return -ENOTSUPP;
+		return -EOPNOTSUPP;
 	}
 
 	ret = kstrtobool(buf, &local_hbm_en);
@@ -1309,7 +1641,6 @@ static ssize_t lp_state_show(struct device *dev, struct device_attribute *attr, 
 	return sysfs_emit(buf, "%s\n", ctx->current_binned_lp->name);
 }
 
-
 static ssize_t acl_mode_store(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf, size_t count)
@@ -1320,13 +1651,13 @@ static ssize_t acl_mode_store(struct device *dev,
 	u32 acl_mode;
 
 	if (!gs_is_panel_active(ctx)) {
-		dev_err(ctx->dev, "panel is not enabled\n");
+		DEV_ERR_PANEL_NOT_ENABLED(ctx);
 		return -EAGAIN;
 	}
 
 	if (!gs_panel_has_func(ctx, set_acl_mode)) {
 		dev_err(ctx->dev, "ACL is not supported\n");
-		return -ENOTSUPP;
+		return -EOPNOTSUPP;
 	}
 
 	ret = kstrtouint(buf, 0, &acl_mode);
@@ -1350,7 +1681,7 @@ static ssize_t acl_mode_show(struct device *dev,
 	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
 
 	if (!gs_is_panel_active(ctx)) {
-		dev_err(ctx->dev, "panel is not enabled\n");
+		DEV_ERR_PANEL_NOT_ENABLED(ctx);
 		return -EAGAIN;
 	}
 
@@ -1366,13 +1697,8 @@ static ssize_t ssc_en_store(struct device *dev,
 	ssize_t ret;
 	bool ssc_en;
 
-	if (!gs_panel_has_func(ctx, set_ssc_en)) {
-		dev_err(ctx->dev, "SSC is not supported\n");
-		return -ENOTSUPP;
-	}
-
 	if (!gs_is_panel_active(ctx)) {
-		dev_err(ctx->dev, "panel is not enabled\n");
+		DEV_ERR_PANEL_NOT_ENABLED(ctx);
 		return -EAGAIN;
 	}
 
@@ -1395,13 +1721,8 @@ static ssize_t ssc_en_show(struct device *dev,
 	struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
 	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
 
-	if (!gs_panel_has_func(ctx, set_ssc_en)) {
-		dev_err(ctx->dev, "SSC is not supported\n");
-		return -ENOTSUPP;
-	}
-
 	if (!gs_is_panel_active(ctx)) {
-		dev_err(ctx->dev, "panel is not enabled\n");
+		DEV_ERR_PANEL_NOT_ENABLED(ctx);
 		return -EAGAIN;
 	}
 
@@ -1485,7 +1806,7 @@ static ssize_t cabc_mode_store(struct device *dev, struct device_attribute *attr
 	}
 
 	if (!gs_is_panel_active(ctx)) {
-		dev_err(ctx->dev, "panel is not enabled\n");
+		DEV_ERR_PANEL_NOT_ENABLED(ctx);
 		return -EAGAIN;
 	}
 
@@ -1557,7 +1878,6 @@ static struct attribute *bl_device_attrs[] = { &dev_attr_hbm_mode.attr,
 					       &dev_attr_acl_mode.attr,
 					       &dev_attr_state.attr,
 					       &dev_attr_lp_state.attr,
-					       &dev_attr_ssc_en.attr,
 					       &dev_attr_als_table.attr,
 					       &dev_attr_dim_brightness.attr,
 					       NULL };
@@ -1568,6 +1888,10 @@ int gs_panel_sysfs_create_bl_files(struct device *bl_dev, struct gs_panel *ctx)
 	if (gs_panel_has_func(ctx, set_cabc_mode)) {
 		if (sysfs_create_file(&bl_dev->kobj, &dev_attr_cabc_mode.attr))
 			dev_err(bl_dev, "unable to add set_cabc_mode sysfs file\n");
+	}
+	if (gs_panel_has_func(ctx, set_ssc_en)) {
+		if (sysfs_create_file(&bl_dev->kobj, &dev_attr_ssc_en.attr))
+			dev_err(bl_dev, "unable to add ssc_en sysfs file\n");
 	}
 	return sysfs_create_groups(&bl_dev->kobj, bl_device_groups);
 }

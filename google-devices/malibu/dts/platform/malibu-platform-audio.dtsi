@@ -1,0 +1,111 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * audio device tree entries specific to the mbu paltform
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+
+/* DP audio */
+&aoc_dp_nohost_drv {
+	status = "ok";
+};
+
+/* DP audio */
+&dai_fe_dp_dma_nohost_rx {
+	status = "ok";
+};
+
+/* DP audio */
+&dwc_dptx_audio {
+	status = "ok";
+};
+
+/* DP audio */
+&dai_be_dp_rx {
+	status = "ok";
+	codec {
+		sound-dai = <&dwc_dptx_audio>;
+	};
+};
+
+&dai_be_tdm0_rx {
+	codec {
+		sound-dai = <&tas25xx>, <&aw88083>;
+	};
+};
+
+&dai_be_tdm0_tx {
+	codec {
+		sound-dai = <&tas25xx>, <&aw88083>;
+	};
+};
+
+&aoc_snd_card {
+	clks {
+		sys {
+			sys@tas25xx {
+				comp = <&tas25xx>;
+				src = "BCLK";
+				/* clk id */
+				id = <0>;
+				/* clk source */
+				srcid = <0>;
+				/* in clk multiple */
+				in_mul = <1>;
+				/* out clk multiple */
+				out_mul = <1>;
+			};
+		};
+	};
+};
+
+&aoss_pg_i3c0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	status = "ok";
+	clock-frequency = <400000>;
+
+	tas25xx:tas25xx@48 {
+		#sound-dai-cells = <0>;
+		compatible = "ti,tas25xx";
+		reg = <0x48 0x0 0x50>;
+
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&ap2amp_reset_l_1v2 &amp2aoss_irq_od_l_1v2>;
+		pinctrl-1 = <&ap2amp_reset_l_1v2_sleep &amp2aoss_irq_od_l_1v2_sleep>;
+		ti,max-channels = <2>;
+		ti,channel-0 = <0x48>;
+		ti,channel-1 = <0x49>;
+		ti,reset-gpio = <AP2AMP_RESET_L_1V2(GPIO_ACTIVE_HIGH)>;
+		ti,irq-gpio = <AMP2AOSS_IRQ_OD_L_1V2(GPIO_ACTIVE_LOW)>;
+		ti,irqz-value = <0x60>;
+		status = "ok";
+	};
+
+	tas25xx_r:tas25xx_r@49 {
+		#sound-dai-cells = <0>;
+		compatible = "ti,tas25xx";
+		reg = <0x49 0x0 0x50>;
+
+		ti,max-channels = <0>;
+		status = "ok";
+	};
+
+	aw88083:aw88083@34 {
+		#sound-dai-cells = <0>;
+		compatible = "awinic,aw882xx_smartpa";
+		reg = <0x34 0x0 0x50>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&pmics2hac_amp_en>;
+
+		reset-gpio = <PMICS2HAC_AMP_EN(GPIO_ACTIVE_HIGH)>;
+		sync-load = <1>;
+		aw-re-min = <4000>;
+		aw-re-max = <30000>;
+		aw-cali-mode = "none";
+		status = "okay";
+	};
+};

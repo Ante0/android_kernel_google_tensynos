@@ -42,9 +42,9 @@ void unregister_modem_voice_call_event_notifier(struct notifier_block *nb)
 }
 EXPORT_SYMBOL(unregister_modem_voice_call_event_notifier);
 
-void modem_voice_call_notify_event(enum modem_voice_call_event evt, void *data)
+int modem_voice_call_notify_event(enum modem_voice_call_event evt, void *data)
 {
-	raw_notifier_call_chain(&modem_voice_call_event_notifier, evt, data);
+	return raw_notifier_call_chain(&modem_voice_call_event_notifier, evt, data);
 }
 EXPORT_SYMBOL(modem_voice_call_notify_event);
 

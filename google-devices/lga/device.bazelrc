@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+build:lga_base --//private/devices/google/common:soc=laguna
+build:lga_base --//private/google-modules/perf/core/gs_perf_mon:enable_gs_perf_mon=True
+build:lga_base --//private/google-modules/perf/core/lat_govs:enable_lat_govs=True
+build:lga_base --//private/google-modules/radio/common/metrics_collection:metrics_collection=//private/google-modules/radio/common/metrics_collection:metrics_collection_enabled
+build:lga_base --//private/google-modules/soc/gs/drivers/soc/google/eh:ip_idle=google_ip_idle
+build:lga_base --//private/google-modules/soc/rdo/pci:google-pcie=//private/google-modules/soc/rdo/pci:google-pcie-v1
+build:lga_base --//private/google-modules/video/cnm:google_ra=True

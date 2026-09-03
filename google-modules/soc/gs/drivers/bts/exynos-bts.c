@@ -54,6 +54,28 @@ static struct pm_qos_request exynos_int_qos;
 
 static struct bts_device *btsdev;
 
+/**
+ * @BTS_HIST_BIN: Number of bins of the histogram.
+ * @bw_trip:      The trip points for each histogram bin.
+ *
+ * The trip points are based on log-scale and in the unit
+ * of KB/s.
+ */
+static const unsigned int bw_trip[BTS_HIST_BIN - 1] = {
+	10000,
+	17800,
+	31600,
+	56200,
+	100000,
+	178000,
+	316000,
+	562000,
+	1000000,
+	1780000,
+	3160000,
+	5620000,
+};
+
 static unsigned int bus1_to_int_freq(unsigned int freq)
 {
 	unsigned int i;
@@ -167,6 +189,8 @@ static void bts_calc_bw(void)
 	ssize_t ret = 0;
 #endif
 
+	mutex_lock(&btsdev->mutex_lock);
+
 	btsdev->peak_bw = 0;
 	btsdev->total_bw = 0;
 
@@ -268,6 +292,7 @@ static void bts_calc_bw(void)
 	pm_qos_update_request(&exynos_mif_qos, mif_freq);
 	pm_qos_update_request(&exynos_int_qos, int_freq);
 #endif
+	mutex_unlock(&btsdev->mutex_lock);
 }
 
 static void bts_update_stats(unsigned int index)
@@ -550,12 +575,13 @@ int bts_update_bw(unsigned int index, struct bts_bw bw)
 		goto err;
 	}
 
-	rt_mutex_lock(&btsdev->mutex_lock);
+	spin_lock(&btsdev->lock);
 	bts_bw[index].peak = bw.peak;
 	bts_bw[index].read = bw.read;
 	bts_bw[index].write = bw.write;
 	if (bts_bw[index].is_rt)
 		bts_bw[index].rt = bw.rt;
+	spin_unlock(&btsdev->lock);
 
 	if(trace_clock_set_rate_enabled()) {
 		scnprintf(trace_name, sizeof(trace_name), "BTS_%s_rd_bw", bts_bw[index].name);
@@ -574,7 +600,6 @@ int bts_update_bw(unsigned int index, struct bts_bw bw)
 
 	bts_calc_bw();
 	bts_update_stats(index);
-	rt_mutex_unlock(&btsdev->mutex_lock);
 
 	return 0;
 
@@ -729,7 +754,7 @@ static int exynos_bts_bw_open_show(struct seq_file *buf, void *d)
 {
 	int i;
 
-	rt_mutex_lock(&btsdev->mutex_lock);
+	mutex_lock(&btsdev->mutex_lock);
 	for (i = 0; (btsdev->bts_bw[i].name != NULL) &&
 		(i < btsdev->num_bts); i++) {
 		seq_printf(
@@ -739,7 +764,7 @@ static int exynos_bts_bw_open_show(struct seq_file *buf, void *d)
 			btsdev->bts_bw[i].write, btsdev->bts_bw[i].peak,
 			btsdev->bts_bw[i].rt);
 	}
-	rt_mutex_unlock(&btsdev->mutex_lock);
+	mutex_unlock(&btsdev->mutex_lock);
 	return 0;
 }
 
@@ -753,7 +778,7 @@ static int exynos_bts_bw_hist_open_show(struct seq_file *buf, void *d)
 {
 	int i, j;
 
-	rt_mutex_lock(&btsdev->mutex_lock);
+	mutex_lock(&btsdev->mutex_lock);
 	seq_printf(buf, "Total BW, Count:\nkB/s:\t");
 	for (i = 0; i < BTS_HIST_BIN - 1; i++) {
 		seq_printf(
@@ -846,7 +871,7 @@ static int exynos_bts_bw_hist_open_show(struct seq_file *buf, void *d)
 		}
 		seq_printf(buf, "\n");
 	}
-	rt_mutex_unlock(&btsdev->mutex_lock);
+	mutex_unlock(&btsdev->mutex_lock);
 	return 0;
 }
 
@@ -861,7 +886,7 @@ static ssize_t bts_stats_show(struct device *dev, struct device_attribute *attr,
 	int i, j;
 	ssize_t ret = 0;
 
-	rt_mutex_lock(&btsdev->mutex_lock);
+	mutex_lock(&btsdev->mutex_lock);
 	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
 			"Total BW, Time in ms:\nkB/s:\t");
 	for (i = 0; i < BTS_HIST_BIN - 1; i++) {
@@ -918,7 +943,7 @@ static ssize_t bts_stats_show(struct device *dev, struct device_attribute *attr,
 		}
 		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	}
-	rt_mutex_unlock(&btsdev->mutex_lock);
+	mutex_unlock(&btsdev->mutex_lock);
 	return ret;
 }
 
@@ -1700,7 +1725,7 @@ static int bts_parse_setting(struct device_node *np, struct bts_stat *stat)
 static int bts_parse_nocl_data_index(struct device_node *np, struct bts_device *data,
 				     int index, const char *nocl_name)
 {
-	struct device_node *child_np, *nocl_np = NULL;
+	struct device_node *nocl_np = NULL;
 	int i = 0;
 
 	if (!np)
@@ -1724,7 +1749,7 @@ static int bts_parse_nocl_data_index(struct device_node *np, struct bts_device *
 			   "Unable to allocate memory for %s ip\n", nocl_name);
 		return -ENOMEM;
 	}
-	for_each_child_of_node(nocl_np, child_np) {
+	for_each_child_of_node_scoped(nocl_np, child_np) {
 		if (!child_np->name)
 			return -EINVAL;
 		data->nocl_infos[index].nocl_ips[i].ip_name = child_np->name;
@@ -1744,8 +1769,6 @@ static int bts_parse_data(struct device_node *np, struct bts_device *data)
 {
 	struct bts_scen *scen;
 	struct bts_info *info;
-	struct device_node *child_np = NULL;
-	struct device_node *snp = NULL;
 	struct resource res;
 	int i, j, map_cnt, count;
 	int of_data_int_array[OF_DATA_NUM_MAX];
@@ -1906,7 +1929,7 @@ static int bts_parse_data(struct device_node *np, struct bts_device *data)
 
 	i = 0;
 
-	for_each_child_of_node(np, child_np) {
+	for_each_child_of_node_scoped(np, child_np) {
 #if IS_ENABLED(CONFIG_SOC_ZUMA)
 		if (of_property_read_bool(child_np, "nocl_node"))
 			continue;
@@ -1994,7 +2017,7 @@ static int bts_parse_data(struct device_node *np, struct bts_device *data)
 		for (j = 0; j < data->num_scen; j++)
 			info[i].stat[j].stat_on = 0;
 
-		for_each_child_of_node(child_np, snp) {
+		for_each_child_of_node_scoped(child_np, snp) {
 			for (j = 0; j < data->num_scen; j++) {
 				if (strcmp(snp->name, scen[j].name))
 					continue;
@@ -2084,7 +2107,7 @@ static int bts_probe(struct platform_device *pdev)
 		return ret;
 	}
 	spin_lock_init(&btsdev->lock);
-	rt_mutex_init(&btsdev->mutex_lock);
+	mutex_init(&btsdev->mutex_lock);
 	INIT_LIST_HEAD(&btsdev->scen_node);
 
 	ret = bts_initialize(btsdev);
@@ -2104,7 +2127,8 @@ static int bts_probe(struct platform_device *pdev)
 	pm_qos_add_request(&exynos_mif_qos, PM_QOS_BUS_THROUGHPUT, 0);
 	pm_qos_add_request(&exynos_int_qos, PM_QOS_DEVICE_THROUGHPUT, 0);
 #endif
-	if (exynos_bts_debugfs_init())
+	ret = exynos_bts_debugfs_init();
+	if (ret)
 		dev_err(btsdev->dev, "exynos_bts_debugfs_init failed\n");
 
 	register_syscore_ops(&exynos_bts_syscore_ops);
@@ -2114,12 +2138,10 @@ static int bts_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int bts_remove(struct platform_device *pdev)
+static void bts_remove(struct platform_device *pdev)
 {
 	devm_kfree(&pdev->dev, btsdev);
 	platform_set_drvdata(pdev, NULL);
-
-	return 0;
 }
 
 /* Device tree compatible information */

@@ -6,10 +6,11 @@
  */
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM systrace
-#define NOTRACE
 
 #if !defined(_TRACE_SYSTRACE_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_SYSTRACE_H
+
+#if IS_ENABLED(CONFIG_VH_SYSTRACE)
 
 #include <linux/tracepoint.h>
 
@@ -29,9 +30,6 @@ enum {
 		{ SYSTRACE_EVENT_END,	"E" },	\
 		{ SYSTRACE_EVENT_INT64,	"C" })
 
-#ifdef NOTRACE
-#define trace_0(a, b, c, d)
-#else
 /*
  * To comply with systrace format: [BEC]|pid|name|value
  *
@@ -51,7 +49,7 @@ TRACE_EVENT(0,
 	TP_fast_assign(
 		__entry->flag = flag;
 		__entry->pid = pid;
-		__assign_str(name, name);
+		__assign_str(name);
 		__entry->value = value;
 	),
 	TP_printk("%s|%d|%s|%lld",
@@ -61,7 +59,6 @@ TRACE_EVENT(0,
 		__entry->value
 	)
 );
-#endif
 
 #define __ATRACE_INT_PID(pid, name, value) \
 	trace_0(SYSTRACE_EVENT_INT64,	\
@@ -80,6 +77,14 @@ TRACE_EVENT(0,
 		pid,			\
 		name,			\
 		0)
+
+#else /* CONFIG_VH_SYSTRACE */
+
+static inline void __ATRACE_INT_PID(int pid, const char *name, int64_t value) {}
+static inline void __ATRACE_BEGIN_PID(int pid, const char *name) {}
+static inline void __ATRACE_END_PID(int pid, const char *name) {}
+
+#endif /* CONFIG_VH_SYSTRACE */
 
 #define ATRACE_INT(name, value)		\
 	__ATRACE_INT_PID(current->tgid, name, value)

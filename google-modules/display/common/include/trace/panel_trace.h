@@ -10,43 +10,49 @@
 #if !defined(_PANEL_TRACE_H_) || defined(TRACE_HEADER_MULTI_READ)
 #define _PANEL_TRACE_H_
 
+#include <linux/bitmap.h>
 #include <linux/tracepoint.h>
 
+#include "gs_drm/gs_drm_connector.h"
+
 TRACE_EVENT_CONDITION(dsi_tx,
-	TP_PROTO(u8 type, const u8 *tx_buf, size_t length, bool last, u32 delay_ms),
-	TP_ARGS(type, tx_buf, length, last, delay_ms),
+	TP_PROTO(u8 idx, u8 type, const u8 *tx_buf, size_t length, bool last, u32 delay_ms),
+	TP_ARGS(idx, type, tx_buf, length, last, delay_ms),
 	TP_CONDITION(length > 0),
 	TP_STRUCT__entry(
+			__field(u8, idx)
 			__field(u8, type)
 			__dynamic_array(u8, tx_buf, length)
 			__field(bool, last)
 			__field(u32, delay_ms)
 		),
 	TP_fast_assign(
+			__entry->idx = idx;
 			__entry->type = type;
 			memcpy(__get_dynamic_array(tx_buf), tx_buf, length);
 			__entry->last = last;
 			__entry->delay_ms = delay_ms;
 		),
-	TP_printk("type=0x%02x length=%u last=%d delay=%d tx=[%s]", __entry->type,
-			  __get_dynamic_array_len(tx_buf), __entry->last, __entry->delay_ms,
-			  __print_hex(__get_dynamic_array(tx_buf),
-				      __get_dynamic_array_len(tx_buf)))
+	TP_printk("idx=%d type=0x%02x length=%u last=%d delay=%d tx=[%s]", __entry->idx,
+			  __entry->type, __get_dynamic_array_len(tx_buf), __entry->last,
+			  __entry->delay_ms, __print_hex(__get_dynamic_array(tx_buf),
+							 __get_dynamic_array_len(tx_buf)))
 );
-
 TRACE_EVENT_CONDITION(dsi_rx,
-	TP_PROTO(u8 cmd, const u8 *rx_buf, size_t length),
-	TP_ARGS(cmd, rx_buf, length),
+	TP_PROTO(u8 idx, u8 cmd, const u8 *rx_buf, size_t length),
+	TP_ARGS(idx, cmd, rx_buf, length),
 	TP_CONDITION(length > 0),
 	TP_STRUCT__entry(
+			__field(u8, idx)
 			__field(u8, cmd)
 			__dynamic_array(u8, rx_buf, length)
 		),
 	TP_fast_assign(
+			__entry->idx = idx;
 			__entry->cmd = cmd;
 			memcpy(__get_dynamic_array(rx_buf), rx_buf, length);
 		),
-	TP_printk("cmd=0x%02x length=%u rx=[%s]", __entry->cmd,
+	TP_printk("idx=%d cmd=0x%02x length=%u rx=[%s]", __entry->idx, __entry->cmd,
 			  __get_dynamic_array_len(rx_buf),
 			  __print_hex(__get_dynamic_array(rx_buf),
 				      __get_dynamic_array_len(rx_buf)))
@@ -66,6 +72,119 @@ TRACE_EVENT(dsi_cmd_fifo_status,
 	TP_printk("header=%d payload=%d", __entry->header, __entry->payload)
 );
 
+#define PANEL_ERROR_FLAGS_NAME(name) \
+	{ (1UL << GS_PANEL_ERR_##name), #name }
+TRACE_EVENT(panel_errors,
+	TP_PROTO(int panel_index, unsigned long *panel_errors),
+	TP_ARGS(panel_index, panel_errors),
+	TP_STRUCT__entry(
+		__field(int, panel_index)
+		__field(u64, panel_errors)
+	),
+	TP_fast_assign(
+		__entry->panel_index = panel_index;
+		bitmap_to_arr64(&__entry->panel_errors, panel_errors, GS_PANEL_ERR_MAX);
+	),
+	TP_printk("idx:%d panel_errors:[%s]", __entry->panel_index,
+		__print_flags(__entry->panel_errors, "|",
+			PANEL_ERROR_FLAGS_NAME(DSI_SOT),
+			PANEL_ERROR_FLAGS_NAME(DSI_SOT_SYNC),
+			PANEL_ERROR_FLAGS_NAME(DSI_EOT_SYNC),
+			PANEL_ERROR_FLAGS_NAME(DSI_ESCAPE_MODE_ENTRY),
+			PANEL_ERROR_FLAGS_NAME(DSI_LP_XMIT_SYNC),
+			PANEL_ERROR_FLAGS_NAME(DSI_HS_RX_TIMEOUT),
+			PANEL_ERROR_FLAGS_NAME(DSI_FALSE_CONTROL),
+			PANEL_ERROR_FLAGS_NAME(DSI_DATA_LANE_CONTENTION),
+			PANEL_ERROR_FLAGS_NAME(DSI_ECC_SINGLE),
+			PANEL_ERROR_FLAGS_NAME(DSI_ECC_MULTI),
+			PANEL_ERROR_FLAGS_NAME(DSI_CHECKSUM),
+			PANEL_ERROR_FLAGS_NAME(DSI_DATA_TYPE),
+			PANEL_ERROR_FLAGS_NAME(DSI_VC_ID_INVALID),
+			PANEL_ERROR_FLAGS_NAME(DSI_XMIT_LEN),
+			PANEL_ERROR_FLAGS_NAME(DSI_RESERVED),
+			PANEL_ERROR_FLAGS_NAME(DSI_PROTOCOL_VIOLATION),
+			PANEL_ERROR_FLAGS_NAME(DSI_READ_FAILURE),
+			PANEL_ERROR_FLAGS_NAME(VLIN1),
+			PANEL_ERROR_FLAGS_NAME(PPS),
+			PANEL_ERROR_FLAGS_NAME(CHECKSUM),
+			PANEL_ERROR_FLAGS_NAME(ESD),
+			PANEL_ERROR_FLAGS_NAME(DISP_INVALID),
+			PANEL_ERROR_FLAGS_NAME(VGH),
+			PANEL_ERROR_FLAGS_NAME(GRAM_COLLISION)))
+);
+
+TRACE_EVENT(gram_collision,
+	TP_PROTO(int panel_index, u32 collision_cnt),
+	TP_ARGS(panel_index, collision_cnt),
+	TP_STRUCT__entry(
+		__field(int, panel_index)
+		__field(u32, collision_cnt)
+	),
+	TP_fast_assign(
+		__entry->panel_index = panel_index;
+		__entry->collision_cnt = collision_cnt;
+	),
+	TP_printk("idx:%d GRAM collision found (underrun), total:%u", __entry->panel_index,
+		  __entry->collision_cnt)
+);
+
+TRACE_EVENT(panel_settings_full,
+	TP_PROTO(int panel_index, bool hbm, u32 irc, bool h_pwm, bool fi_auto, bool fi_manual,
+		 bool early_exit, u32 min_rr, u32 max_rr, u32 te_freq),
+	TP_ARGS(panel_index, hbm, irc, h_pwm, fi_auto, fi_manual, early_exit, min_rr, max_rr,
+		te_freq),
+	TP_STRUCT__entry(
+			__field(int, panel_index)
+			__field(bool, hbm)
+			__field(u32, irc)
+			__field(bool, h_pwm)
+			__field(bool, fi_auto)
+			__field(bool, fi_manual)
+			__field(bool, early_exit)
+			__field(u32, min_rr)
+			__field(u32, max_rr)
+			__field(u32, te_freq)
+		),
+	TP_fast_assign(
+			__entry->panel_index = panel_index;
+			__entry->hbm = hbm;
+			__entry->irc = irc;
+			__entry->h_pwm = h_pwm;
+			__entry->fi_auto = fi_auto;
+			__entry->fi_manual = fi_manual;
+			__entry->early_exit = early_exit;
+			__entry->min_rr = min_rr;
+			__entry->max_rr = max_rr;
+			__entry->te_freq = te_freq;
+		),
+	TP_printk("idx:%d feat: hbm=%d irc=%u h_pwm=%d fi=%d@a,%d@m ee=%d rr=%3u-%3u@%3u",
+		  __entry->panel_index, __entry->hbm, __entry->irc, __entry->h_pwm,
+		  __entry->fi_auto, __entry->fi_manual, __entry->early_exit, __entry->min_rr,
+		  __entry->max_rr, __entry->te_freq)
+);
+
+TRACE_EVENT(panel_settings_lite,
+	TP_PROTO(int panel_index, bool vrr, u32 min_rr, u32 max_rr, u32 te_freq),
+	TP_ARGS(panel_index, vrr, min_rr, max_rr, te_freq),
+	TP_STRUCT__entry(
+			__field(int, panel_index)
+			__field(bool, vrr)
+			__field(u32, min_rr)
+			__field(u32, max_rr)
+			__field(u32, te_freq)
+		),
+	TP_fast_assign(
+			__entry->panel_index = panel_index;
+			__entry->vrr = vrr;
+			__entry->min_rr = min_rr;
+			__entry->max_rr = max_rr;
+			__entry->te_freq = te_freq;
+		),
+	TP_printk("idx:%d vrr=%d rr=%3u-%3u@%3u",
+		  __entry->panel_index, __entry->vrr, __entry->min_rr, __entry->max_rr,
+		  __entry->te_freq)
+);
+
 TRACE_EVENT(msleep,
 	TP_PROTO(u32 delay_ms),
 	TP_ARGS(delay_ms),
@@ -82,7 +201,7 @@ TRACE_EVENT(dsi_label_scope,
 			__field(bool, begin)
 		),
 	TP_fast_assign(
-			__assign_str(name, name);
+			__assign_str(name);
 			__entry->begin = begin;
 		),
 	TP_printk("%s %s", __get_str(name), __entry->begin ? "begin" : "end")

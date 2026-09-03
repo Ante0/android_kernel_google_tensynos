@@ -1,0 +1,119 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "google-pmu-ehld",
+    out = "google-pmu-ehld.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_PMU_EHLD": {
+            True: [
+                "google-pmu-ehld.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs/drivers/soc/google:hardlockup-watchdog",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-gdmc-iface",
+        "//private/google-modules/soc/rdo/drivers/soc/google:google_gtc",
+        "//private/google-modules/soc/rdo/drivers/soc/google/cdd:gcdd",
+    ],
+)
+
+ddk_module(
+    name = "google-ehld-coreinstr",
+    out = "google-ehld-coreinstr.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_EHLD_COREINSTR": {
+            True: [
+                "google-ehld-coreinstr.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs/drivers/soc/google:hardlockup-watchdog",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-gdmc-iface",
+        "//private/google-modules/soc/rdo/drivers/soc/google:google_gtc",
+        "//private/google-modules/soc/rdo/drivers/soc/google/cdd:gcdd",
+    ],
+)
+
+ddk_module(
+    name = "google-skip-s2m-voter",
+    out = "google-skip-s2m-voter.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_SKIP_S2M_VOTER": {
+            True: [
+                "google-skip-s2m-voter.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/input:keydebug",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-gdmc-iface",
+    ],
+)
+
+ddk_module(
+    name = "towerci",
+    out = "towerci.ko",
+    conditional_srcs = {
+        "CONFIG_TOWERCI": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "towerci.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "towerci_test_",
+    out = "towerci_test.ko",
+    conditional_srcs = {
+        "CONFIG_TOWERCI_TEST": {
+            True: glob([
+                "**/*.h",
+            ]) + [
+                "towerci_test.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":towerci",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)

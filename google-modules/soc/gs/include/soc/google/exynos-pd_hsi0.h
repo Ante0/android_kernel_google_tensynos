@@ -20,13 +20,6 @@ struct exynos_pd_hsi0_data {
 #if IS_ENABLED(CONFIG_EXYNOS_PD_HSI0)
 int exynos_pd_hsi0_ldo_manual_control(bool on);
 bool exynos_pd_hsi0_get_ldo_status(void);
-#if IS_ENABLED(CONFIG_PHY_EXYNOS_EUSB_REPEATER)
-extern void eusb_repeater_update_usb_state(bool on);
-#else
-static inline void eusb_repeater_update_usb_state(bool on)
-{
-}
-#endif
 #if IS_ENABLED(CONFIG_SOC_GS101) || IS_ENABLED(CONFIG_SOC_GS201)
 int exynos_pd_hsi0_vdd_hsi_manual_control(bool on);
 #else

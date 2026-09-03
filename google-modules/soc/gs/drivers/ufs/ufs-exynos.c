@@ -9,26 +9,28 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+#include <linux/clk.h>
+#include <linux/mfd/syscon.h>
 #include <linux/module.h>
-#include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
-#include <linux/clk.h>
+#include <linux/platform_device.h>
+#include <linux/regmap.h>
 #include <linux/smc.h>
+#include <linux/spinlock.h>
+#include <trace/hooks/ufshcd.h>
+#include <ufs/ufs_quirks.h>
 #include <ufs/ufshcd.h>
-#include <host/ufshcd-pltfrm.h>
 #include <ufs/ufshci.h>
 #include <ufs/unipro.h>
-#include <ufs/ufs_quirks.h>
-#include <linux/mfd/syscon.h>
-#include <linux/regmap.h>
-#include <linux/spinlock.h>
+
+#include <soc/google/exynos-cpupm.h>
+#include <soc/google/exynos-pmu-if.h>
+
+#include <drivers/ufs/host/ufshcd-pltfrm.h>
 
 #include "ufs-exynos-gs.h"
 #include "ufs-pixel-crypto.h"
-#include <soc/google/exynos-pmu-if.h>
-#include <soc/google/exynos-cpupm.h>
-#include <trace/hooks/ufshcd.h>
 
 static unsigned int desired_power_mode_gear;
 module_param(desired_power_mode_gear, uint, 0444);
@@ -1113,6 +1115,12 @@ static int __device_reset(struct ufs_hba *hba)
 	return 0;
 }
 
+static void exynos_ufs_config_scsi_dev(struct scsi_device *sdev)
+{
+	/* do not use slow FUA */
+	sdev->broken_fua = 1;
+}
+
 static struct ufs_hba_variant_ops exynos_ufs_ops = {
 	.init = exynos_ufs_init,
 	.setup_clocks = exynos_ufs_setup_clocks,
@@ -1128,6 +1136,7 @@ static struct ufs_hba_variant_ops exynos_ufs_ops = {
 	.apply_dev_quirks = __apply_dev_quirks,
 	.fixup_dev_quirks = __fixup_dev_quirks,
 	.device_reset = __device_reset,
+	.config_scsi_dev = exynos_ufs_config_scsi_dev,
 };
 
 static void __check_int_errors(void *data, struct ufs_hba *hba,
@@ -1183,6 +1192,7 @@ static int __ufs_populate_dt_extern(struct device *dev,
 
 	ret = 0;
 out:
+	of_node_put(np);
 	return ret;
 }
 
@@ -1311,9 +1321,11 @@ static int exynos_ufs_populate_dt(struct device *dev,
 	ufs->pm_qos_int_value = 0;
 	if (!child_np)
 		dev_info(dev, "No ufs-pm-qos node, not guarantee pm qos\n");
-	else
+	else {
 		of_property_read_u32(child_np, "freq-int",
 				     &ufs->pm_qos_int_value);
+		of_node_put(child_np);
+	}
 
 	/* UIC specifics */
 	exynos_ufs_get_pwr_mode(np, ufs);
@@ -1750,7 +1762,7 @@ free_exynos_ufs:
 	return ret;
 }
 
-static int exynos_ufs_remove(struct platform_device *pdev)
+static void exynos_ufs_remove(struct platform_device *pdev)
 {
 	struct exynos_ufs *ufs = dev_get_platdata(&pdev->dev);
 	struct ufs_hba *hba =  platform_get_drvdata(pdev);
@@ -1766,13 +1778,6 @@ static int exynos_ufs_remove(struct platform_device *pdev)
 	exynos_pm_qos_remove_request(&ufs->pm_qos_int);
 
 	exynos_ufs_ctrl_phy_pwr(ufs, false);
-
-	return 0;
-}
-
-static void exynos_ufs_shutdown(struct platform_device *pdev)
-{
-	ufshcd_shutdown((struct ufs_hba *)platform_get_drvdata(pdev));
 }
 
 static const struct dev_pm_ops exynos_ufs_dev_pm_ops = {
@@ -1795,7 +1800,6 @@ static struct platform_driver exynos_ufs_driver = {
 	},
 	.probe = exynos_ufs_probe,
 	.remove = exynos_ufs_remove,
-	.shutdown = exynos_ufs_shutdown,
 };
 
 module_platform_driver(exynos_ufs_driver);

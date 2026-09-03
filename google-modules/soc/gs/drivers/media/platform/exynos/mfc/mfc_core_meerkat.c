@@ -112,7 +112,7 @@ const u32 mfc_logging_sfr_set2[MFC_SFR_LOGGING_COUNT_SET2] = {
 	0xA1A0, 0xA1A4, 0xA1A8, 0xA1AC, 0xA1B0, 0xA1B4, 0xA1B8, 0xA1BC
 };
 
-int __mfc_change_hex_to_ascii(struct mfc_core *core, u32 hex, u32 byte, char *ascii, int idx)
+static int __mfc_change_hex_to_ascii(struct mfc_core *core, u32 hex, u32 byte, char *ascii, int idx)
 {
 	int i;
 	char tmp;
@@ -370,7 +370,7 @@ void mfc_dump_state(struct mfc_dev *dev)
 	}
 }
 
-void __mfc_core_dump_state(struct mfc_core *core, int curr_ctx)
+static void __mfc_core_dump_state(struct mfc_core *core, int curr_ctx)
 {
 	nal_queue_handle *nal_q_handle = core->nal_q_handle;
 	int i;
@@ -433,7 +433,7 @@ static void __mfc_dump_trace(struct mfc_core *core)
 	}
 }
 
-void __mfc_dump_nal_q_buffer_info(struct mfc_core *core, int curr_ctx)
+static void __mfc_dump_nal_q_buffer_info(struct mfc_core *core, int curr_ctx)
 {
 	struct mfc_dev *dev = core->dev;
 	struct mfc_ctx *ctx = dev->ctx[curr_ctx];
@@ -525,7 +525,7 @@ void __mfc_dump_nal_q_buffer_info(struct mfc_core *core, int curr_ctx)
 	}
 }
 
-void __mfc_dump_buffer_info(struct mfc_core *core)
+static void __mfc_dump_buffer_info(struct mfc_core *core)
 {
 	int curr_ctx = __mfc_get_curr_ctx(core);
 	struct mfc_ctx *ctx;

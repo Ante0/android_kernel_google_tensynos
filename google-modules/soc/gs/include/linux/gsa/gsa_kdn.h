@@ -69,11 +69,37 @@ int gsa_kdn_set_operating_mode(struct device *gsa,
  *
  * This routine derives a 256-bit value from specified ESK wrapped GSA KDN key.
  *
- * Return: number of bytes placed into @buf buffer on success or a negative
+ * Return: number of bytes placed into @buf on success or a negative
  * error code otherwise.
  */
 int gsa_kdn_derive_raw_secret(struct device *gsa, void *buf, size_t buf_sz,
 			      const void *key_blob, size_t key_blob_len);
+
+/**
+ * gsa_kdn_generate_key() - Generate long termed key
+ * @gsa: pointer to GSA device
+ * @buf: pointer to the buffer to store the long termed key
+ * @buf_sz: size of the buffer specified by @buf parameter
+ *
+ * Return: number of bytes placed into @buf buffer on success or a negative
+ * error code otherwise.
+ */
+int gsa_kdn_generate_key(struct device *gsa, void *buf, size_t buf_sz);
+
+
+/**
+ * gsa_kdn_prepare_key() - Convert long termed key to ephemerally wrapped key
+ * @gsa: pointer to GSA device
+ * @buf: pointer to the buffer to store the ephemerally wrapped key
+ * @buf_sz: size of the buffer specified by @buf parameter
+ * @key_blob: pointer to the buffer containing long term  key blob
+ * @key_blob_len: number of bytes in @key_blob buffer
+ *
+ * Return: number of bytes placed into @buf on success or a negative
+ * error code otherwise.
+ */
+int gsa_kdn_prepare_key(struct device *gsa, void *buf, size_t buf_sz,
+			const void *key_blob, size_t key_blob_len);
 
 /**
  * gsa_kdn_program_key() - program specified ESK wrapped GSA KDN key

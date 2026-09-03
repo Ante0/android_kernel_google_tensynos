@@ -1,0 +1,120 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2023 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/booker-ci/google,booker-ci.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ARM Booker-CI coherrent interconnect
+
+maintainers:
+  - Ivan Zaitsev <zaitsev@google.com>
+
+description:
+  Provides access to Booker-CI configuration
+  Provides details for detected Booker-CI errors and faults
+
+properties:
+  compatible:
+    const: google,booker-ci
+
+  reg_base:
+    Items:
+      - description: Base address for Booker-CI registers
+
+  interrupts:
+    minItems: 4
+    maxItems: 4
+    items:
+      - description: Non-secure error interrupt
+      - description: Secure error interrupt
+      - description: Non-secure fault interrupt
+      - description: Secure fault interrupt
+
+  interrupt-names:
+    minItems: 4
+    maxItems: 4
+    - enum: [ BCI: Non-secure error, BCI: Non-secure error,
+      BCI: Non-secure fault, BCI: Secure fault ]
+    description: Array of interrupt names
+
+  interrupt-is-secure:
+    minItems: 4
+    maxItems: 4
+    - enum: [ 0, 1 ]
+    description: One item per interrupt describing if corresponding interrupt
+      triggers for secure(1) or non-secure(0) events
+
+  interrupt-is-error:
+    minItems: 4
+    maxItems: 4
+    - enum: [ 0, 1 ]
+    description: One item per interrupt describing if corresponding interrupt
+      triggers for error(1) or fault(0) events
+
+  patternProperties:
+  '^node([0-99]*)':
+    type: object
+    description: Booker-CI consists of nodes connected into mesh network.
+      Memory layout for BCI nodes depends on topology which was selected
+      during IP instantiation. Booker does support auto discovery mechanism.
+      This logic is implemented in the ARM CMN driver. Once functionality
+      of this driver merged into ARM CMN we'll switch to auto discovery.
+    properties:
+      device_type:
+        items:
+          - enum:
+            - booker-cfg
+            - booker-mtsx
+            - booker-hnf
+            - booker-rnf
+            - booker-rnd
+            - booker-hnd
+            - booker-hni
+            - booker-xp
+
+      offset:
+        items:
+          - description: Node base address offset in Booker-CI address range.
+
+      id:
+        items:
+          - description: Topology specific node ID. Should be taken from
+            Booker-CI design documentation.
+
+    required:
+      - device_type
+      - offset
+      - id
+
+required:
+  - reg_base
+  - interrupts
+  - interrupt-names
+  - interrupt-is-secure
+  - interrupt-is-error
+
+additionalProperties: false
+
+examples:
+  - |
+    booker {
+    compatible = "google,booker-ci";
+    reg_base = <0x10000000>;
+    interrupts = <GIC_SPI 71 IRQ_TYPE_LEVEL_HIGH>,
+                 <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>,
+                 <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>,
+                 <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
+    interrupt-names = "BCI: Non-secure error",
+                      "BCI: Secure error",
+                      "BCI: Non-secure fault",
+                      "BCI: Secure fault";
+    interrupt-is-secure = <0>, <1>, <0>, <1>;
+    interrupt-is-error = <1>, <1>, <0>, <0>;
+    status = "ok";
+    node0 {
+      device_type = "booker-cfg";
+      offset = <0x0>;
+      id = <20>;
+    };
+...

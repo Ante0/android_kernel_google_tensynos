@@ -1,0 +1,2 @@
+obj-m += s2mpu-bypass.o
+s2mpu-bypass-y := s2mpu_bypass.o

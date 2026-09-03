@@ -272,12 +272,12 @@ static int hall_sensor_probe(struct platform_device *pdev) {
 	return ret;
 }
 
-static int hall_sensor_remove(struct platform_device *pdev) {
+static void hall_sensor_remove(struct platform_device *pdev)
+{
 	struct hall_sensor_drv_data *hall_data = platform_get_drvdata(pdev);
 
 	sysfs_remove_group(&pdev->dev.kobj, &attribute_group);
 	hall_sensor_enable(hall_data, false);
-	return 0;
 }
 
 static struct of_device_id hall_sensor_of_match[] = {

@@ -3,6 +3,7 @@
  * Copyright (c) 2020 Samsung Electronics Co., Ltd.
  */
 
+#include <linux/cleanup.h>
 #include <linux/module.h>
 #include <linux/suspend.h>
 #include <linux/wakeup_reason.h>
@@ -288,14 +289,6 @@ int register_pcie_is_connect(u32 (*func)(void))
 }
 EXPORT_SYMBOL_GPL(register_pcie_is_connect);
 
-bool is_test_pcieon_suspend_set(void)
-{
-	if (!pm_dbg)
-		return false;
-	return pm_dbg->test_pcieon_suspend;
-}
-EXPORT_SYMBOL_GPL(is_test_pcieon_suspend_set);
-
 static struct syscore_ops exynos_pm_syscore_ops = {
 	.suspend	= exynos_pm_syscore_suspend,
 	.resume		= exynos_pm_syscore_resume,
@@ -380,10 +373,12 @@ static struct notifier_block exynos_pm_notifier_block = {
 
 static int parse_dt_wakeup_stat_names(struct device *dev, struct device_node *np)
 {
-	struct device_node *root, *child;
+	struct device_node *root __free(device_node);
 	int ret;
 	int size, n, idx = 0;
 
+	/* balance of_node_put() in of_find_node_by_name() */
+	of_node_get(np);
 	root = of_find_node_by_name(np, "wakeup_stats");
 	n = of_get_child_count(root);
 
@@ -396,7 +391,7 @@ static int parse_dt_wakeup_stat_names(struct device *dev, struct device_node *np
 	if (!pm_info->ws_names)
 		return -ENOMEM;
 
-	for_each_child_of_node(root, child) {
+	for_each_child_of_node_scoped(root, child) {
 		size = of_property_count_strings(child, "ws-name");
 		if (size < 0 || size > 32) {
 			dev_err(dev, "failed to get wakeup_stats name cnt(%d)\n", size);

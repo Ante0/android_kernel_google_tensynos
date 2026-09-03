@@ -22,6 +22,7 @@
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
 #include <linux/types.h>
+#include <trace/events/gcip.h>
 
 #include <gcip/gcip-config.h>
 #include <gcip/gcip-iommu.h>
@@ -105,11 +106,13 @@ static unsigned int gcip_iommu_domain_map_sg(struct gcip_iommu_domain *domain,
 	 * as amount of the size of each segment successively.
 	 * Returns an error on failure or the total length of mapped segments on success.
 	 */
+	trace_gcip_iommu_map_sg_start(domain->dev, domain->pasid, iova, iova_len);
 #if GCIP_IOMMU_MAP_HAS_GFP
 	map_size = iommu_map_sg(domain->domain, iova, sgl, nents, prot, GFP_KERNEL);
 #else
 	map_size = iommu_map_sg(domain->domain, iova, sgl, nents, prot);
 #endif
+	trace_gcip_iommu_map_sg_end(domain->dev, domain->pasid, iova, map_size);
 	if (map_size < 0 || map_size < iova_len)
 		goto err_free_iova;
 
@@ -373,6 +376,7 @@ struct gcip_iommu_domain *gcip_iommu_domain_create(struct device *dev, struct io
 	gdomain->domain = domain;
 	gdomain->pasid = IOMMU_PASID_INVALID;
 
+	gdomain->attach_handle.domain = domain;
 
 	ret = gcip_iommu_domain_space_init(&gdomain->space, dev, domain_type, space_daddr,
 					   space_size, reserved_daddr, reserved_size, granule);
@@ -474,10 +478,12 @@ static inline void sync_sg_if_needed(struct device *dev, struct sg_table *sgt, u
 	if (GCIP_MAP_FLAGS_GET_DMA_ATTR(gcip_map_flags) & DMA_ATTR_SKIP_CPU_SYNC)
 		return;
 
+	trace_gcip_sync_sg_start(dev, sg_dma_address(sgt->sgl), for_device);
 	if (for_device)
 		dma_sync_sg_for_device(dev, sgt->sgl, sgt->orig_nents, dir);
 	else
 		dma_sync_sg_for_cpu(dev, sgt->sgl, sgt->orig_nents, dir);
+	trace_gcip_sync_sg_end(dev, sg_dma_address(sgt->sgl));
 }
 
 /* Maps @sgt to @iova. If @iova is 0, this function allocates an IOVA space internally. */

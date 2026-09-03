@@ -293,7 +293,7 @@ static irqreturn_t max30102_interrupt_handler(int irq, void *private)
 	struct iio_dev *indio_dev = private;
 	struct max30102_data *data = iio_priv(indio_dev);
 	unsigned int measurements = bitmap_weight(indio_dev->active_scan_mask,
-						  indio_dev->masklength);
+						  iio_get_masklength(indio_dev));
 	int ret, cnt = 0;
 
 	mutex_lock(&data->lock);
@@ -448,9 +448,8 @@ static int max30102_get_temp(struct max30102_data *data, int *val, bool en)
 	}
 
 	/* start acquisition */
-	ret = regmap_update_bits(data->regmap, MAX30102_REG_TEMP_CONFIG,
-				 MAX30102_REG_TEMP_CONFIG_TEMP_EN,
-				 MAX30102_REG_TEMP_CONFIG_TEMP_EN);
+	ret = regmap_set_bits(data->regmap, MAX30102_REG_TEMP_CONFIG,
+			      MAX30102_REG_TEMP_CONFIG_TEMP_EN);
 	if (ret)
 		goto out;
 
@@ -477,12 +476,23 @@ static int max30102_read_raw(struct iio_dev *indio_dev,
 		 * Temperature reading can only be acquired when not in
 		 * shutdown; leave shutdown briefly when buffer not running
 		 */
-		mutex_lock(&indio_dev->mlock);
-		if (!iio_buffer_enabled(indio_dev))
+any_mode_retry:
+		if (iio_device_claim_buffer_mode(indio_dev)) {
+			/*
+			 * This one is a *bit* hacky. If we cannot claim buffer
+			 * mode, then try direct mode so that we make sure
+			 * things cannot concurrently change. And we just keep
+			 * trying until we get one of the modes...
+			 */
+			if (iio_device_claim_direct_mode(indio_dev))
+				goto any_mode_retry;
+
 			ret = max30102_get_temp(data, val, true);
-		else
+			iio_device_release_direct_mode(indio_dev);
+		} else {
 			ret = max30102_get_temp(data, val, false);
-		mutex_unlock(&indio_dev->mlock);
+			iio_device_release_buffer_mode(indio_dev);
+		}
 		if (ret)
 			return ret;
 
@@ -502,9 +512,9 @@ static const struct iio_info max30102_info = {
 	.read_raw = max30102_read_raw,
 };
 
-static int max30102_probe(struct i2c_client *client,
-			  const struct i2c_device_id *id)
+static int max30102_probe(struct i2c_client *client)
 {
+	const struct i2c_device_id *id = i2c_client_get_device_id(client);
 	struct max30102_data *data;
 	struct iio_dev *indio_dev;
 	int ret;
@@ -602,6 +612,7 @@ static void max30102_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id max30102_id[] = {
+	{ "max30101", max30105 },
 	{ "max30102", max30102 },
 	{ "max30105", max30105 },
 	{}
@@ -609,6 +620,7 @@ static const struct i2c_device_id max30102_id[] = {
 MODULE_DEVICE_TABLE(i2c, max30102_id);
 
 static const struct of_device_id max30102_dt_ids[] = {
+	{ .compatible = "maxim,max30101" },
 	{ .compatible = "maxim,max30102" },
 	{ .compatible = "maxim,max30105" },
 	{ }

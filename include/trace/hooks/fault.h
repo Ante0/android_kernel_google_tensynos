@@ -5,6 +5,7 @@
 
 #if !defined(_TRACE_HOOK_FAULT_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_HOOK_FAULT_H
+
 #include <trace/hooks/vendor_hooks.h>
 
 struct pt_regs;
@@ -25,6 +26,10 @@ DECLARE_HOOK(android_vh_try_fixup_sea,
 	TP_PROTO(unsigned long addr, unsigned long esr, struct pt_regs *regs,
 		 bool *can_fixup),
 	TP_ARGS(addr, esr, regs, can_fixup));
+
+DECLARE_HOOK(android_vh_kernel_nofault,
+	TP_PROTO(bool *use_nofault),
+	TP_ARGS(use_nofault));
 
 #endif /* _TRACE_HOOK_FAULT_H */
 /* This part must be outside protection */

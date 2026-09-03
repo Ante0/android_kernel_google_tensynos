@@ -327,8 +327,7 @@ static const struct tpm_tis_phy_ops tpm_i2c_phy_ops = {
 	.verify_crc = tpm_tis_i2c_verify_crc,
 };
 
-static int tpm_tis_i2c_probe(struct i2c_client *dev,
-			     const struct i2c_device_id *id)
+static int tpm_tis_i2c_probe(struct i2c_client *dev)
 {
 	struct tpm_tis_i2c_phy *phy;
 	const u8 crc_enable = 1;
@@ -376,7 +375,7 @@ static void tpm_tis_i2c_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id tpm_tis_i2c_id[] = {
-	{ "tpm_tis_i2c", 0 },
+	{ "tpm_tis_i2c" },
 	{}
 };
 MODULE_DEVICE_TABLE(i2c, tpm_tis_i2c_id);
@@ -384,6 +383,8 @@ MODULE_DEVICE_TABLE(i2c, tpm_tis_i2c_id);
 #ifdef CONFIG_OF
 static const struct of_device_id of_tis_i2c_match[] = {
 	{ .compatible = "infineon,slb9673", },
+	{ .compatible = "nuvoton,npct75x", },
+	{ .compatible = "tcg,tpm-tis-i2c", },
 	{}
 };
 MODULE_DEVICE_TABLE(of, of_tis_i2c_match);

@@ -1,0 +1,47 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/*
+ * Copyright 2024 Google LLC.
+ */
+
+#include "lga-cpm-clk.dtsi"
+
+/ {
+    ehld_coreinstr: ehld-coreinstr {
+		compatible = "google,ehld-coreinstr";
+		gdmc-iface = <&goog_mba_gdmc_iface>;
+
+		clocks = <&cpu_sswrp_tss_clk>;
+		clock-names = "tss_clk";
+
+		interval = <1000>;
+		warn-count = <4>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		sgi_base {
+			reg = <0x5910000 0x40000>,
+				<0x5950000 0x40000>,
+				<0x5990000 0x40000>,
+				<0x59D0000 0x40000>,
+				<0x5A10000 0x40000>,
+				<0x5A50000 0x40000>,
+				<0x5A90000 0x40000>,
+				<0x5AD0000 0x40000>;
+		};
+		coreinstret_base {
+			reg = <0x200c07c0 0x20>;
+		};
+		coreinstr_base {
+			reg = <0x200c0504 0x24>;
+		};
+		pmu_base {
+			reg = <0x228A0000 0x1000>,
+				<0x22920000 0x1000>,
+				<0x229A0000 0x1000>,
+				<0x22A20000 0x1000>,
+				<0x22AA0000 0x1000>,
+				<0x22B20000 0x1000>,
+				<0x22BA0000 0x1000>,
+				<0x22C20000 0x1000>;
+		};
+	};
+};

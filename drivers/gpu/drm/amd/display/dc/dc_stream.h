@@ -38,6 +38,14 @@ struct timing_sync_info {
 	bool master;
 };
 
+struct mall_stream_config {
+	/* MALL stream config to indicate if the stream is phantom or not.
+	 * We will use a phantom stream to indicate that the pipe is phantom.
+	 */
+	enum mall_stream_type type;
+	struct dc_stream_state *paired_stream;	// master / slave stream
+};
+
 struct dc_stream_status {
 	int primary_otg_inst;
 	int stream_enc_inst;
@@ -48,8 +56,10 @@ struct dc_stream_status {
 	int plane_count;
 	int audio_inst;
 	struct timing_sync_info timing_sync_info;
-	struct dc_plane_state *plane_states[MAX_SURFACE_NUM];
+	struct dc_plane_state *plane_states[MAX_SURFACES];
 	bool is_abm_supported;
+	struct mall_stream_config mall_stream_config;
+	bool fpo_in_use;
 };
 
 enum hubp_dmdata_mode {
@@ -132,6 +142,7 @@ union stream_update_flags {
 		uint32_t mst_bw : 1;
 		uint32_t crtc_timing_adjust : 1;
 		uint32_t fams_changed : 1;
+		uint32_t scaler_sharpener : 1;
 	} bits;
 
 	uint32_t raw;
@@ -145,20 +156,28 @@ struct test_pattern {
 	unsigned int cust_pattern_size;
 };
 
-#define SUBVP_DRR_MARGIN_US 500 // 500us for DRR margin (SubVP + DRR)
+#define SUBVP_DRR_MARGIN_US 100 // 100us for DRR margin (SubVP + DRR)
 
-enum mall_stream_type {
-	SUBVP_NONE, // subvp not in use
-	SUBVP_MAIN, // subvp in use, this stream is main stream
-	SUBVP_PHANTOM, // subvp in use, this stream is a phantom stream
+struct dc_stream_debug_options {
+	char force_odm_combine_segments;
+	/*
+	 * When force_odm_combine_segments is non zero, allow dc to
+	 * temporarily transition to ODM bypass when minimal transition state
+	 * is required to prevent visual glitches showing on the screen
+	 */
+	char allow_transition_for_forced_odm;
 };
 
-struct mall_stream_config {
-	/* MALL stream config to indicate if the stream is phantom or not.
-	 * We will use a phantom stream to indicate that the pipe is phantom.
-	 */
-	enum mall_stream_type type;
-	struct dc_stream_state *paired_stream;	// master / slave stream
+#define LUMINANCE_DATA_TABLE_SIZE 10
+
+struct luminance_data {
+	bool is_valid;
+	int refresh_rate_hz[LUMINANCE_DATA_TABLE_SIZE];
+	int luminance_millinits[LUMINANCE_DATA_TABLE_SIZE];
+	int flicker_criteria_milli_nits_GAMING;
+	int flicker_criteria_milli_nits_STATIC;
+	int nominal_refresh_rate;
+	int dm_max_decrease_from_nominal;
 };
 
 struct dc_stream_state {
@@ -171,8 +190,8 @@ struct dc_stream_state {
 	 * a stream via the volatile dc_state rather than the static dc_link.
 	 */
 	struct link_encoder *link_enc;
+	struct dc_stream_debug_options debug;
 	struct dc_panel_patch sink_patches;
-	union display_content_support content_support;
 	struct dc_crtc_timing timing;
 	struct dc_crtc_timing_adjust adjust;
 	struct dc_info_packet vrr_infopacket;
@@ -180,6 +199,8 @@ struct dc_stream_state {
 	struct dc_info_packet vsp_infopacket;
 	struct dc_info_packet hfvsif_infopacket;
 	struct dc_info_packet vtem_infopacket;
+	struct dc_info_packet adaptive_sync_infopacket;
+	struct dc_info_packet avi_infopacket;
 	uint8_t dsc_packed_pps[128];
 	struct rect src; /* composition area */
 	struct rect dst; /* stream addressable area */
@@ -190,11 +211,12 @@ struct dc_stream_state {
 	PHYSICAL_ADDRESS_LOC dmdata_address;
 	bool   use_dynamic_meta;
 
-	struct dc_transfer_func *out_transfer_func;
+	struct dc_transfer_func out_transfer_func;
 	struct colorspace_transform gamut_remap_matrix;
 	struct dc_csc_transform csc_color_matrix;
 
 	enum dc_color_space output_color_space;
+	enum display_content_type content_type;
 	enum dc_dither_option dither_option;
 
 	enum view_3d_format view_format;
@@ -216,6 +238,7 @@ struct dc_stream_state {
 	 */
 	bool vrr_active_variable;
 	bool freesync_on_desktop;
+	bool vrr_active_fixed;
 
 	bool converter_disable_audio;
 	uint8_t qs_bit;
@@ -245,6 +268,8 @@ struct dc_stream_state {
 
 	struct dc_cursor_attributes cursor_attributes;
 	struct dc_cursor_position cursor_position;
+	bool hw_cursor_req;
+
 	uint32_t sdr_white_level; // for boosting (SDR) cursor in HDR mode
 
 	/* from stream struct */
@@ -282,7 +307,10 @@ struct dc_stream_state {
 
 	bool has_non_synchronizable_pclk;
 	bool vblank_synchronized;
-	struct mall_stream_config mall_stream_config;
+	bool is_phantom;
+
+	struct luminance_data lumin_data;
+	bool scaler_sharpener_update;
 };
 
 #define ABM_LEVEL_IMMEDIATE_DISABLE 255
@@ -303,10 +331,14 @@ struct dc_stream_update {
 	struct dc_info_packet *vsp_infopacket;
 	struct dc_info_packet *hfvsif_infopacket;
 	struct dc_info_packet *vtem_infopacket;
+	struct dc_info_packet *adaptive_sync_infopacket;
+	struct dc_info_packet *avi_infopacket;
+
 	bool *dpms_off;
 	bool integer_scaling_update;
 	bool *allow_freesync;
 	bool *vrr_active_variable;
+	bool *vrr_active_fixed;
 
 	struct colorspace_transform *gamut_remap;
 	enum dc_color_space *output_color_space;
@@ -322,6 +354,11 @@ struct dc_stream_update {
 
 	struct test_pattern *pending_test_pattern;
 	struct dc_crtc_timing_adjust *crtc_timing_adjust;
+
+	struct dc_cursor_attributes *cursor_attributes;
+	struct dc_cursor_position *cursor_position;
+	bool *hw_cursor_req;
+	bool *scaler_sharpener_update;
 };
 
 bool dc_is_stream_unchanged(
@@ -394,44 +431,13 @@ bool dc_stream_get_scanoutpos(const struct dc_stream_state *stream,
 				  uint32_t *h_position,
 				  uint32_t *v_position);
 
-enum dc_status dc_add_stream_to_ctx(
-			struct dc *dc,
-		struct dc_state *new_ctx,
-		struct dc_stream_state *stream);
-
-enum dc_status dc_remove_stream_from_ctx(
-		struct dc *dc,
-			struct dc_state *new_ctx,
-			struct dc_stream_state *stream);
-
-
-bool dc_add_plane_to_context(
-		const struct dc *dc,
-		struct dc_stream_state *stream,
-		struct dc_plane_state *plane_state,
-		struct dc_state *context);
-
-bool dc_remove_plane_from_context(
-		const struct dc *dc,
-		struct dc_stream_state *stream,
-		struct dc_plane_state *plane_state,
-		struct dc_state *context);
-
-bool dc_rem_all_planes_for_stream(
-		const struct dc *dc,
-		struct dc_stream_state *stream,
-		struct dc_state *context);
-
-bool dc_add_all_planes_for_stream(
-		const struct dc *dc,
-		struct dc_stream_state *stream,
-		struct dc_plane_state * const *plane_states,
-		int plane_count,
-		struct dc_state *context);
-
 bool dc_stream_add_writeback(struct dc *dc,
 		struct dc_stream_state *stream,
 		struct dc_writeback_info *wb_info);
+
+bool dc_stream_fc_disable_writeback(struct dc *dc,
+		struct dc_stream_state *stream,
+		uint32_t dwb_pipe_inst);
 
 bool dc_stream_remove_writeback(struct dc *dc,
 		struct dc_stream_state *stream,
@@ -453,14 +459,6 @@ bool dc_stream_set_dynamic_metadata(struct dc *dc,
 
 enum dc_status dc_validate_stream(struct dc *dc, struct dc_stream_state *stream);
 
-/*
- * Set up streams and links associated to drive sinks
- * The streams parameter is an absolute set of all active streams.
- *
- * After this call:
- *   Phy, Encoder, Timing Generator are programmed and enabled.
- *   New streams are enabled with blank stream; no memory read.
- */
 /*
  * Enable stereo when commit_streams is not required,
  * for example, frame alternate.
@@ -493,27 +491,35 @@ void update_stream_signal(struct dc_stream_state *stream, struct dc_sink *sink);
 void dc_stream_retain(struct dc_stream_state *dc_stream);
 void dc_stream_release(struct dc_stream_state *dc_stream);
 
-struct dc_stream_status *dc_stream_get_status_from_state(
-	struct dc_state *state,
-	struct dc_stream_state *stream);
 struct dc_stream_status *dc_stream_get_status(
 	struct dc_stream_state *dc_stream);
-
-#ifndef TRIM_FSFT
-bool dc_optimize_timing_for_fsft(
-	struct dc_stream_state *pStream,
-	unsigned int max_input_rate_in_khz);
-#endif
 
 /*******************************************************************************
  * Cursor interfaces - To manages the cursor within a stream
  ******************************************************************************/
 /* TODO: Deprecated once we switch to dc_set_cursor_position */
+
+void program_cursor_attributes(
+	struct dc *dc,
+	struct dc_stream_state *stream);
+
+void program_cursor_position(
+	struct dc *dc,
+	struct dc_stream_state *stream);
+
 bool dc_stream_set_cursor_attributes(
 	struct dc_stream_state *stream,
 	const struct dc_cursor_attributes *attributes);
 
+bool dc_stream_program_cursor_attributes(
+	struct dc_stream_state *stream,
+	const struct dc_cursor_attributes *attributes);
+
 bool dc_stream_set_cursor_position(
+	struct dc_stream_state *stream,
+	const struct dc_cursor_position *position);
+
+bool dc_stream_program_cursor_position(
 	struct dc_stream_state *stream,
 	const struct dc_cursor_position *position);
 
@@ -533,10 +539,9 @@ bool dc_stream_get_crtc_position(struct dc *dc,
 				 unsigned int *nom_v_pos);
 
 #if defined(CONFIG_DRM_AMD_SECURE_DISPLAY)
-bool dc_stream_forward_dmcu_crc_window(struct dc *dc, struct dc_stream_state *stream,
-			     struct crc_params *crc_window);
-bool dc_stream_stop_dmcu_crc_win_update(struct dc *dc,
-				 struct dc_stream_state *stream);
+bool dc_stream_forward_crc_window(struct dc_stream_state *stream,
+		struct rect *rect,
+		bool is_stop);
 #endif
 
 bool dc_stream_configure_crc(struct dc *dc,

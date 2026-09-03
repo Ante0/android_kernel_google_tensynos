@@ -17,7 +17,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/of_device.h>
+#include <linux/of.h>
 #include <linux/rtc.h>
 #include <linux/slab.h>
 #include <linux/mutex.h>
@@ -692,7 +692,7 @@ static void wdt_disable(void)
  *	@ppos: pointer to the position to write. No seeks allowed
  *
  *	A write to a watchdog device is defined as a keepalive signal. Any
- *	write of data will do, as we we don't define content meaning.
+ *	write of data will do, as we don't define content meaning.
  */
 static ssize_t wdt_write(struct file *file, const char __user *buf,
 			 size_t count, loff_t *ppos)
@@ -850,7 +850,6 @@ static const struct file_operations wdt_fops = {
 	.write	= wdt_write,
 	.open	= wdt_open,
 	.release = wdt_release,
-	.llseek = no_llseek,
 };
 
 static struct miscdevice wdt_dev = {
@@ -876,8 +875,7 @@ static struct notifier_block wdt_notifier = {
  *****************************************************************************
  */
 
-static int m41t80_probe(struct i2c_client *client,
-			const struct i2c_device_id *id)
+static int m41t80_probe(struct i2c_client *client)
 {
 	struct i2c_adapter *adapter = client->adapter;
 	int rc = 0;
@@ -897,25 +895,29 @@ static int m41t80_probe(struct i2c_client *client,
 		return -ENOMEM;
 
 	m41t80_data->client = client;
-	if (client->dev.of_node)
+	if (client->dev.of_node) {
 		m41t80_data->features = (unsigned long)
 			of_device_get_match_data(&client->dev);
-	else
+	} else {
+		const struct i2c_device_id *id = i2c_match_id(m41t80_id, client);
 		m41t80_data->features = id->driver_data;
+	}
 	i2c_set_clientdata(client, m41t80_data);
 
 	m41t80_data->rtc =  devm_rtc_allocate_device(&client->dev);
 	if (IS_ERR(m41t80_data->rtc))
 		return PTR_ERR(m41t80_data->rtc);
 
-#ifdef CONFIG_OF
-	wakeup_source = of_property_read_bool(client->dev.of_node,
-					      "wakeup-source");
-#endif
+	wakeup_source = device_property_read_bool(&client->dev, "wakeup-source");
 	if (client->irq > 0) {
+		unsigned long irqflags = IRQF_TRIGGER_LOW;
+
+		if (dev_fwnode(&client->dev))
+			irqflags = 0;
+
 		rc = devm_request_threaded_irq(&client->dev, client->irq,
 					       NULL, m41t80_handle_irq,
-					       IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+					       irqflags | IRQF_ONESHOT,
 					       "m41t80", client);
 		if (rc) {
 			dev_warn(&client->dev, "unable to request IRQ, alarms disabled\n");

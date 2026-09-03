@@ -52,7 +52,7 @@ struct test_batched_req {
 };
 
 /**
- * test_config - represents configuration for the test for different triggers
+ * struct test_config - represents configuration for the test for different triggers
  *
  * @name: the name of the firmware file to look for
  * @into_buf: when the into_buf is used if this is true
@@ -292,7 +292,7 @@ static ssize_t config_show(struct device *dev,
 				test_fw_config->name);
 	else
 		len += scnprintf(buf + len, PAGE_SIZE - len,
-				"name:\tEMTPY\n");
+				"name:\tEMPTY\n");
 
 	len += scnprintf(buf + len, PAGE_SIZE - len,
 			"num_requests:\t%u\n", test_fw_config->num_requests);
@@ -323,7 +323,7 @@ static ssize_t config_show(struct device *dev,
 				test_fw_config->upload_name);
 	else
 		len += scnprintf(buf + len, PAGE_SIZE - len,
-				"upload_name:\tEMTPY\n");
+				"upload_name:\tEMPTY\n");
 
 	mutex_unlock(&test_fw_mutex);
 
@@ -1132,6 +1132,7 @@ static const char * const fw_upload_err_str[] = {
 	[FW_UPLOAD_ERR_INVALID_SIZE] = "invalid-file-size",
 	[FW_UPLOAD_ERR_RW_ERROR]     = "read-write-error",
 	[FW_UPLOAD_ERR_WEAROUT]	     = "flash-wearout",
+	[FW_UPLOAD_ERR_FW_INVALID]   = "firmware-invalid",
 };
 
 static void upload_err_inject_error(struct test_firmware_upload *tst,
@@ -1566,4 +1567,5 @@ static void __exit test_firmware_exit(void)
 module_exit(test_firmware_exit);
 
 MODULE_AUTHOR("Kees Cook <keescook@chromium.org>");
+MODULE_DESCRIPTION("interface to trigger and test firmware loading");
 MODULE_LICENSE("GPL");

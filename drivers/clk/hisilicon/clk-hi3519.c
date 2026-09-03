@@ -162,13 +162,12 @@ static int hi3519_clk_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int hi3519_clk_remove(struct platform_device *pdev)
+static void hi3519_clk_remove(struct platform_device *pdev)
 {
 	struct hi3519_crg_data *crg = platform_get_drvdata(pdev);
 
 	hisi_reset_exit(crg->rstc);
 	hi3519_clk_unregister(pdev);
-	return 0;
 }
 
 

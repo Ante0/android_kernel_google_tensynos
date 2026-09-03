@@ -2,69 +2,36 @@
 /*
  * Copyright (C) 2019 Google LLC.
  */
+#include <asm-generic/errno.h>
+#include <kunit/visibility.h>
 #include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
-#include <linux/irq.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/mod_devicetable.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
+#include <linux/mailbox_controller.h>
 #include <linux/slab.h>
-
-#if IS_ENABLED(CONFIG_GSA_PKVM)
 #include <linux/pm_runtime.h>
-#include <soc/google/pkvm-s2mpu.h>
-#endif
+#include <linux/pm_wakeup.h>
 
 #include "gsa_mbox.h"
-
-/* Mailbox control Register */
-#define MBOX_MCUCTLR_REG 0x0000
-
-/* Interrupt Generation Register */
-#define MBOX_INTGR0_REG 0x0020
-
-/* Interrupt Clear Register 0 */
-#define MBOX_INTCR0_REG 0x0024
-
-/* Interrupt Mask Register 0 */
-#define MBOX_INTMR0_REG 0x0028
-
-/* Interrupt Raw Status Register 0 */
-#define MBOX_INTSR0_REG 0x002C
-
-/* Interrupt Masked status register */
-#define MBOX_INTMSR0_REG 0x0030
-
-/* Interrupt Generation Register 1 */
-#define MBOX_INTGR1_REG 0x0040
-
-/* Interrupt Mask register  */
-#define MBOX_INTMR1_REG 0x0048
-
-/* Interrupt Raw status register */
-#define MBOX_INTSR1_REG 0x004C
-
-/* Interrupt Masked status register  */
-#define MBOX_INTMSR1_REG 0x0050
-
-/* Shared registers */
-#define MBOX_SR_BASE_REG 0x0080
-#define MBOX_SR_REG(n) (MBOX_SR_BASE_REG + (n) * 4)
 
 /* Number of shared registers  */
 #define MBOX_SR_NUM 16
 
-enum mbox_host_irq {
-	MBOX_HOST_REQ_IRQ = 0,
-	MBOX_HOST_IRQ_NUM,
-};
+/* Shared register semantics for outgoing messages */
+#define MBOX_SR_SEND_CMD_IDX 0
+#define MBOX_SR_SEND_ARGC_IDX 1
+#define MBOX_SR_SEND_ARGV_IDX 2
 
-enum mbox_client_irq {
-	MBOX_CLIENT_RSP_IRQ = 0,
-	MBOX_CLIENT_IRQ_NUM,
-};
+/* Shared register semantics for incoming messages */
+#define MBOX_SR_RECV_CMD_IDX 0
+#define MBOX_SR_RECV_ERR_IDX 1
+#define MBOX_SR_RECV_ARGC_IDX 2
+#define MBOX_SR_RECV_ARGV_IDX 3
 
 struct gsa_mbox_req {
 	u32 cmd;
@@ -79,83 +46,9 @@ struct gsa_mbox_rsp {
 	u32 *args;
 };
 
-struct gsa_mbox {
-	struct device *dev;
-	void __iomem *base;
-	int irq;
-	spinlock_t slock; /* protects RMW like access to some registers */
-	struct mutex mbox_lock; /* protects access to SRs */
-	struct completion mbox_cmd_completion;
-	u32 exp_intmr0;
-	u32 wake_ref_cnt;
-	struct device *s2mpu;
-};
-
-static void gsa_mbox_mask_irq0(struct gsa_mbox *mb, u32 mask)
-{
-	u32 v;
-	unsigned long irq_flags;
-
-	spin_lock_irqsave(&mb->slock, irq_flags);
-	v = readl(mb->base + MBOX_INTMR0_REG);
-	v |= mask;
-	writel(v, mb->base + MBOX_INTMR0_REG);
-	mb->exp_intmr0 = v;
-	spin_unlock_irqrestore(&mb->slock, irq_flags);
-}
-
-static void gsa_mbox_unmask_irq0(struct gsa_mbox *mb, u32 mask)
-{
-	u32 v;
-	unsigned long irq_flags;
-
-	spin_lock_irqsave(&mb->slock, irq_flags);
-	v = readl(mb->base + MBOX_INTMR0_REG);
-	v &= ~mask;
-	writel(v, mb->base + MBOX_INTMR0_REG);
-	mb->exp_intmr0 = v;
-	spin_unlock_irqrestore(&mb->slock, irq_flags);
-}
-
-static void gsa_mbox_sync_irq0(struct gsa_mbox *mb)
-{
-	u32 v;
-	unsigned long irq_flags;
-
-	spin_lock_irqsave(&mb->slock, irq_flags);
-	v = readl(mb->base + MBOX_INTMR0_REG);
-	if (v != mb->exp_intmr0)
-		writel(mb->exp_intmr0, mb->base + MBOX_INTMR0_REG);
-	spin_unlock_irqrestore(&mb->slock, irq_flags);
-}
-
-static void gsa_mbox_clr_irq0(struct gsa_mbox *mb, u32 mask)
-{
-	writel(mask, mb->base + MBOX_INTCR0_REG);
-}
-
-static irqreturn_t gsa_mb_irq_handler(int irq, void *data)
-{
-	u32 v;
-	struct gsa_mbox *mb = data;
-
-	dev_dbg(mb->dev, "%s: got irq %d\n", __func__, irq);
-
-	/*
-	 * check if somehow we have lost state, like a host resets mailbox
-	 * under us
-	 */
-	gsa_mbox_sync_irq0(mb);
-
-	v = readl(mb->base + MBOX_INTMSR0_REG);
-	if (v & (0x1u << MBOX_CLIENT_RSP_IRQ)) {
-		/* response */
-		gsa_mbox_mask_irq0(mb, (0x1u << MBOX_CLIENT_RSP_IRQ));
-		complete(&mb->mbox_cmd_completion);
-	}
-
-	return IRQ_HANDLED;
-}
+static bool bug_on_mbox_error;
+module_param(bug_on_mbox_error, bool, 0644);
+MODULE_PARM_DESC(bug_on_mbox_error, "Trigger a crash when the GSA mailbox receives an error.");
 
 #if IS_ENABLED(CONFIG_GSA_PKVM)
 
@@ -203,62 +96,179 @@ static int gsa_link_s2mpu(struct device *dev, struct gsa_mbox *mb)
 }
 #endif /* CONFIG_GSA_PKVM */
 
+#if IS_ENABLED(CONFIG_GSA_IPC)
+static void mbox_doorbell_irq_callback(struct mbox_client *cl, void *mssg)
+{
+	struct mbox_slot *slot = container_of(cl, struct mbox_slot, client);
+	struct gsa_mbox *mb = container_of(slot, struct gsa_mbox, doorbell_irq_slot);
+
+	if (mb->ipc_irq_handler)
+		mb->ipc_irq_handler(mb->ipc_irq_handler_args);
+}
+
+void mbox_set_ipc_irq_handler(struct gsa_mbox *mb,
+			     void (*handler)(void *),
+			     void *handler_args)
+{
+	/* Attach handler */
+	mb->ipc_irq_handler = handler;
+	mb->ipc_irq_handler_args = handler_args;
+}
+
+static int mbox_doorbell_irq_slot_init(struct gsa_mbox *mb)
+{
+
+	/* Initialize Doorbell IRQ slot */
+	mb->doorbell_irq_slot.client.dev = mb->dev;
+	mb->doorbell_irq_slot.client.rx_callback = mbox_doorbell_irq_callback;
+
+	/* Slot MBOX_DOORBELL_IRQ_SLOT_IDX is a doorbell interrupt for GSA device */
+	mb->doorbell_irq_slot.channel = mbox_request_channel(&mb->doorbell_irq_slot.client,
+							     MBOX_DOORBELL_IRQ_SLOT_IDX);
+	if (IS_ERR(mb->doorbell_irq_slot.channel)) {
+		dev_err(mb->dev, "failed to find mailbox interface %u : %ld\n",
+			MBOX_DOORBELL_IRQ_SLOT_IDX,
+			PTR_ERR(mb->doorbell_irq_slot.channel));
+		return -EIO;
+	}
+	return 0;
+}
+
+#else /* CONFIG_GSA_IPC */
+
+/* doorbell interrupt is not needed if IPC is not enabled */
+static int mbox_doorbell_irq_slot_init(struct gsa_mbox *mb)
+{
+	return 0;
+}
+
+#endif /* CONFIG_GSA_IPC */
+
 struct gsa_mbox *gsa_mbox_init(struct platform_device *pdev)
 {
-	int err;
-	struct gsa_mbox *mb;
-	struct resource *res;
+	int err = 0;
+	struct gsa_mbox *mb = NULL;
 	struct device *dev = &pdev->dev;
+
+	dev_dbg(dev, "Initializing GSA mailbox with Linux framework.\n");
 
 	mb = devm_kzalloc(dev, sizeof(*mb), GFP_KERNEL);
 	if (!mb)
 		return ERR_PTR(-ENOMEM);
 
+#if IS_ENABLED(CONFIG_GSA_WAKELOCK)
+	err = device_init_wakeup(dev, true);
+	if (err) {
+		dev_err(dev, "failed to initialize GSA wakeup: %d\n", err);
+		goto err_free_mb;
+	}
+#endif
+
+	mb->send_mbox_msg = mbox_send_message;
+
 	err = gsa_link_s2mpu(dev, mb);
 	if (err)
-		return ERR_PTR(err);
+		goto err_unregister_ws;
 
 	mb->dev = dev;
-	spin_lock_init(&mb->slock);
-	mutex_init(&mb->mbox_lock);
-	init_completion(&mb->mbox_cmd_completion);
+	mutex_init(&mb->share_reg_lock);
 
-	/* map mbox registers */
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	mb->base = devm_ioremap_resource(dev, res);
-	if (IS_ERR(mb->base)) {
-		dev_err(dev, "ioremap failed (%d)\n", (int)PTR_ERR(mb->base));
-		return mb->base;
+	/* Initialize the linux mailbox client */
+	mb->msg_slot.client.dev = dev;
+	mb->msg_slot.client.tx_block = true;
+	mb->msg_slot.client.tx_tout = 100 /* ms */;
+	mb->msg_slot.client.knows_txdone = false;
+	mb->msg_slot.client.rx_callback = mbox_rx_callback;
+	mb->msg_slot.client.tx_done = mbox_tx_done;
+	mb->msg_slot.client.tx_prepare = mbox_tx_prepare;
+
+	mb->msg_slot.rsp_buffer = NULL;
+	init_completion(&mb->msg_slot.mbox_cmd_completion);
+
+	mb->msg_slot.channel = mbox_request_channel(&mb->msg_slot.client, MBOX_MSG_SLOT_IDX);
+	if (IS_ERR(mb->msg_slot.channel)) {
+		dev_err(dev, "failed to find mailbox interface %u : %ld\n", MBOX_MSG_SLOT_IDX,
+			PTR_ERR(mb->msg_slot.channel));
+		mb->msg_slot.channel = NULL;
+		err = -EIO;
+		goto err_destroy_mutex;
 	}
 
-	/* place hardware into known state */
-	mb->exp_intmr0 = 0xFFFF;
-	writel(mb->exp_intmr0, mb->base + MBOX_INTMR0_REG);
-
-	/* register mbox interrupt */
-	mb->irq = platform_get_irq(pdev, 0);
-	if (mb->irq <= 0) {
-		dev_err(dev, "get_irq failed (%d)\n", mb->irq);
-		return ERR_PTR(mb->irq);
-	}
-
-	err = devm_request_irq(dev, mb->irq, gsa_mb_irq_handler, 0,
-			       "gsa-mb-irq", mb);
-	if (err) {
-		dev_err(dev, "request_irq failed %d\n", err);
-		return ERR_PTR(err);
-	}
+	/* Init doorbell irq mbox slot  */
+	err = mbox_doorbell_irq_slot_init(mb);
+	if (err < 0)
+		goto err_free_msg_chan;
 
 	return mb;
+
+err_free_msg_chan:
+	mbox_free_channel(mb->msg_slot.channel);
+err_destroy_mutex:
+	mutex_destroy(&mb->share_reg_lock);
+#if IS_ENABLED(CONFIG_GSA_PKVM)
+	devm_release_action(dev, gsa_unlink_s2mpu, mb);
+#endif
+err_unregister_ws:
+#if IS_ENABLED(CONFIG_GSA_WAKELOCK)
+	device_init_wakeup(dev, false);
+err_free_mb:
+#endif
+	devm_kfree(dev, mb);
+	return ERR_PTR(err);
 }
+
+void gsa_mbox_destroy(struct gsa_mbox *mb)
+{
+	mbox_free_channel(mb->msg_slot.channel);
+#if IS_ENABLED(CONFIG_GSA_IPC)
+	mbox_free_channel(mb->doorbell_irq_slot.channel);
+#endif
+#if IS_ENABLED(CONFIG_GSA_WAKELOCK)
+	device_init_wakeup(mb->dev, false);
+#endif
+#if IS_ENABLED(CONFIG_GSA_PKVM)
+	devm_release_action(mb->dev, gsa_unlink_s2mpu, mb);
+#endif
+	mutex_destroy(&mb->share_reg_lock);
+}
+
+VISIBLE_IF_KUNIT void mbox_tx_prepare(struct mbox_client *cl, void *mssg)
+{
+}
+EXPORT_SYMBOL_IF_KUNIT(mbox_tx_prepare);
+
+VISIBLE_IF_KUNIT void mbox_tx_done(struct mbox_client *cl, void *mssg, int rc)
+{
+}
+EXPORT_SYMBOL_IF_KUNIT(mbox_tx_done);
+
+/* This functions gets called whenever there is an incoming message from the
+ * GSA.
+ * Since the GSA only sends a message as a response to a message, this
+ * function gets called whenever an outgoing request has finished.
+ */
+VISIBLE_IF_KUNIT void mbox_rx_callback(struct mbox_client *cl, void *mssg)
+{
+	/* Get the slot that cl points into. */
+	struct mbox_slot *slot = container_of(cl, struct mbox_slot, client);
+	/* Store the message for exec_mbox_cmd_sync_locked to pick up. */
+	slot->rsp_buffer = (u32 *)mssg;
+	/* Signal to exwec_mbox_sync_locked that the message has been
+	 * received. */
+	complete(&slot->mbox_cmd_completion);
+}
+EXPORT_SYMBOL_IF_KUNIT(mbox_rx_callback);
 
 static int exec_mbox_cmd_sync_locked(struct gsa_mbox *mb,
 				     struct gsa_mbox_req *req,
 				     struct gsa_mbox_rsp *rsp)
 {
-	u32 i;
-	int ret;
-	u32 max_rsp_argc;
+	struct mbox_slot *slot = &mb->msg_slot;
+	struct mbox_chan *channel = slot->channel;
+	size_t i = 0;
+	int ret = 0;
+	u32 message[MBOX_SR_NUM] = { 0 };
+	u32 max_rsp_argc = rsp->argc;
 
 	if (!mb)
 		return -ENODEV;
@@ -281,33 +291,47 @@ static int exec_mbox_cmd_sync_locked(struct gsa_mbox *mb,
 		return -EINVAL;
 	}
 
-	/* save max response arg count */
-	max_rsp_argc = rsp->argc;
-
-	/* write command */
-	writel(req->cmd, mb->base + MBOX_SR_REG(0));
-	writel(req->argc, mb->base + MBOX_SR_REG(1));
+	/* Build the message */
+	message[MBOX_SR_SEND_CMD_IDX] = req->cmd;
+	message[MBOX_SR_SEND_ARGC_IDX] = req->argc;
 	for (i = 0; i < req->argc; i++)
-		writel(req->args[i], mb->base + MBOX_SR_REG(i + 2));
+		message[MBOX_SR_SEND_ARGV_IDX + i] = req->args[i];
 
-	/* initiate request */
-	reinit_completion(&mb->mbox_cmd_completion);
+#if IS_ENABLED(CONFIG_GSA_WAKELOCK)
+	/* Prevent system suspend during mailbox exchange.
+	 * This is needed to avoid the possibility of the system trying to
+	 * reach a low power-state and getting blocked because the GSA is
+	 * asserting a pending IRQ source from the mailbox.
+	 *
+	 * We must not acquire the wakelock for the suspend hint itself,
+	 * otherwise we will abort the suspend we are currently starting.
+	 */
+	if (req->cmd != GSA_MB_CMD_AP_SUSPEND_HINT)
+		pm_stay_awake(mb->dev);
+#endif
 
-	/* unmask response interrupt */
-	gsa_mbox_clr_irq0(mb, (0x1u << MBOX_CLIENT_RSP_IRQ));
-	gsa_mbox_unmask_irq0(mb, (0x1u << MBOX_CLIENT_RSP_IRQ));
+	/* Prep the return buffer */
+	reinit_completion(&slot->mbox_cmd_completion);
 
-	/* raise request interrupt */
-	writel((0x1u << MBOX_HOST_REQ_IRQ), mb->base + MBOX_INTGR1_REG);
+	/* Send the message */
+	ret = mb->send_mbox_msg(channel, (void *)&message);
 
 	/* wait for response */
-	wait_for_completion(&mb->mbox_cmd_completion);
+	/* Maybe this should use a timeout? */
+	wait_for_completion(&slot->mbox_cmd_completion);
 
-	/*  read response */
-	rsp->cmd = readl(mb->base + MBOX_SR_REG(0));
-	rsp->err = readl(mb->base + MBOX_SR_REG(1));
-	rsp->argc = readl(mb->base + MBOX_SR_REG(2));
+#if IS_ENABLED(CONFIG_GSA_WAKELOCK)
+	if (req->cmd != GSA_MB_CMD_AP_SUSPEND_HINT)
+		pm_relax(mb->dev);
+#endif
 
+	/* Data received via mbox_rx_callback */
+
+	rsp->cmd = slot->rsp_buffer[MBOX_SR_RECV_CMD_IDX];
+	rsp->err = slot->rsp_buffer[MBOX_SR_RECV_ERR_IDX];
+	rsp->argc = slot->rsp_buffer[MBOX_SR_RECV_ARGC_IDX];
+
+	/* Validity check argc */
 	/* check argc: first 3 registers are for cmd, err and argc */
 	if (WARN_ON(rsp->argc + 3 > MBOX_SR_NUM)) {
 		/* malformed response */
@@ -320,44 +344,25 @@ static int exec_mbox_cmd_sync_locked(struct gsa_mbox *mb,
 		rsp->argc = max_rsp_argc;
 	}
 
-	/* copy response */
+	/* Read the rest of the data */
 	for (i = 0; i < rsp->argc; i++)
-		rsp->args[i] = readl(mb->base + MBOX_SR_REG(i + 3));
+		rsp->args[i] = slot->rsp_buffer[MBOX_SR_RECV_ARGV_IDX + i];
 
 	ret = 0;
 
 err_bad_rsp:
-	/* clear and mask response interrupts */
-	gsa_mbox_clr_irq0(mb, (0x1u << MBOX_CLIENT_RSP_IRQ));
-	gsa_mbox_mask_irq0(mb, (0x1u << MBOX_CLIENT_RSP_IRQ));
-
 	return ret;
 }
 
-/*
- * GSA specific mailbox protocol support
- */
-
-/* Command response bit */
-#define GSA_MB_CMD_RSP	(0x1U << 31)
-
-/* Mailbox error codes */
-enum gsa_mb_error {
-	/* Defined by GSA ROM */
-	GSA_MB_OK = 0U,
-	GSA_MB_ERR_INVALID_ARGS = 1U,
-	GSA_MB_ERR_AUTH_FAILED = 2U,
-	GSA_MB_ERR_BUSY = 3U,
-	GSA_MB_ERR_ALREADY_RUNNING = 4U,
-	GSA_MB_ERR_OUT_OF_RESOURCES = 5U,
-	GSA_MB_ERR_BAD_HANDLE = 6U,
-
-	/* Extended by GSA firmware */
-	GSA_MB_ERR_GENERIC = 128U,
-	GSA_MB_ERR_INTERNAL = 129U,
-	GSA_MB_ERR_TIMED_OUT = 130U,
-	GSA_MB_ERR_BAD_STATE = 131U,
-};
+static bool is_gsp_cmd(enum gsa_mbox_cmd cmd)
+{
+	switch (cmd) {
+	case GSA_MB_CMD_PQ_AUTH_IMG:
+		return true;
+	default:
+		return false;
+	}
+}
 
 static int check_mbox_cmd_rsp(struct device *dev,
 			      struct gsa_mbox_rsp *rsp, u32 cmd)
@@ -368,10 +373,18 @@ static int check_mbox_cmd_rsp(struct device *dev,
 		return -EIO;
 	}
 
+	/* The value of success code used by GSA ROM changed on GSP platforms.
+	 * For commands exclusive to GSP, rewrite that value to what is expected.
+	 */
+	if (is_gsp_cmd(cmd) && rsp->err == GSA_MB_GSP_ROM_SUCCESS)
+		rsp->err = GSA_MB_OK;
+
 	if (rsp->err == GSA_MB_OK)
 		return 0;
 
 	dev_err(dev, "mbox cmd=0x%x returned err=%u\n", cmd, rsp->err);
+
+	BUG_ON(bug_on_mbox_error);
 
 	switch (rsp->err) {
 	case GSA_MB_ERR_BAD_HANDLE:
@@ -400,6 +413,8 @@ static int check_mbox_cmd_rsp(struct device *dev,
 	return 0;
 }
 
+/* Builds up the request into a standard struct, sends the command, and
+ * translates any resulting error codes. */
 static int gsa_send_mbox_cmd_locked(struct gsa_mbox *mb, u32 cmd,
 				    u32 *req_args, u32 req_argc,
 				    u32 *rsp_args, u32 rsp_max_argc)
@@ -432,10 +447,11 @@ static int gsa_send_mbox_cmd_locked(struct gsa_mbox *mb, u32 cmd,
 	return mb_rsp.argc;
 }
 
-static bool is_data_xfer(uint32_t cmd)
+static bool is_data_xfer(u32 cmd)
 {
 	switch (cmd) {
 	case GSA_MB_CMD_AUTH_IMG:
+	case GSA_MB_CMD_PQ_AUTH_IMG:
 	case GSA_MB_CMD_LOAD_FW_IMG:
 	case GSA_MB_TEST_CMD_START_UNITTEST:
 	case GSA_MB_TEST_CMD_RUN_UNITTEST:
@@ -454,6 +470,9 @@ static bool is_data_xfer(uint32_t cmd)
 	case GSA_MB_CMD_SJTAG_GET_CHALLENGE:
 	case GSA_MB_CMD_SJTAG_ENABLE:
 	case GSA_MB_CMD_LOAD_APP_PKG:
+	case GSA_MB_CMD_GET_GSA_VERSION:
+	case GSA_MB_CMD_RUN_TRACE_DUMP:
+	case GSA_MB_CMD_GET_PM_STATS:
 		return true;
 
 	default:
@@ -562,13 +581,27 @@ err_wakelock_release:
 
 static int gsa_data_xfer_prepare_locked(struct gsa_mbox *mb)
 {
-	return 0;
+	int rc;
+
+	rc = pm_runtime_resume_and_get(mb->dev);
+	if (rc < 0)
+		dev_err(mb->dev, "failed to resume pm_runtime (%d)\n", rc);
+
+	return rc;
 }
 
-static void gsa_data_xfer_finish_locked(struct gsa_mbox *mb) {}
+static void gsa_data_xfer_finish_locked(struct gsa_mbox *mb)
+{
+	int rc;
+
+	rc = pm_runtime_put(mb->dev);
+	if (rc < 0)
+		dev_err(mb->dev, "failed to suspend pm_runtime device (%d)\n", rc);
+}
 
 #endif /* CONFIG_GSA_PKVM */
 
+/* Lock the shared memory, prepare the DMA, and then send the command. */
 int gsa_send_mbox_cmd(struct gsa_mbox *mb, u32 cmd,
 		      u32 *req_args, u32 req_argc,
 		      u32 *rsp_args, u32 rsp_max_argc)
@@ -576,7 +609,7 @@ int gsa_send_mbox_cmd(struct gsa_mbox *mb, u32 cmd,
 	int ret;
 	bool data_xfer = is_data_xfer(cmd);
 
-	mutex_lock(&mb->mbox_lock);
+	mutex_lock(&mb->share_reg_lock);
 
 	if (data_xfer) {
 		ret = gsa_data_xfer_prepare_locked(mb);
@@ -592,7 +625,7 @@ int gsa_send_mbox_cmd(struct gsa_mbox *mb, u32 cmd,
 		gsa_data_xfer_finish_locked(mb);
 
 err_data_prepare:
-	mutex_unlock(&mb->mbox_lock);
+	mutex_unlock(&mb->share_reg_lock);
 	return ret;
 }
 

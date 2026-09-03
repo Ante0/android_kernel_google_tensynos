@@ -1,0 +1,45 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/mbu-gic.h>
+#include <dt-bindings/interrupt-controller/irq-gia-google-mbu.h>
+
+/ {
+	sswrp_g2d: sswrp_g2d@f800000 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0xf800000 0x1d00b4>;
+
+		g2d_core: g2d_core@150000 {
+			compatible = "google,g2d-drm-device";
+			reg = <0x0150000 0x20000>;
+			interrupt-parent = <&g2d_multicast_aggr_0>;
+			interrupts = <G2D_GIA_MULTICAST_AGGR_0_IP_IRQ_PIPE0_FRAME_DONE>,
+				<G2D_GIA_MULTICAST_AGGR_0_IP_IRQ_PIPE0_FRAME_START>,
+				<G2D_GIA_MULTICAST_AGGR_0_IP_IRQ_SW_RST_DONE>,
+				<G2D_GIA_MULTICAST_AGGR_0_IP_IRQ_PIPE0_PVRIC_ENCODE_ERROR>,
+				<G2D_GIA_MULTICAST_AGGR_0_IP_IRQ_PIPE0_PVRIC_DECODE_ERROR>,
+				<G2D_GIA_MULTICAST_AGGR_0_IP_IRQ_AXI_BUS_ERROR>,
+				<G2D_GIA_MULTICAST_AGGR_0_IP_IRQ_AXI_WR_BUS_HANG>,
+				<G2D_GIA_MULTICAST_AGGR_0_IP_IRQ_AXI_RD_BUS_HANG>,
+				<G2D_GIA_MULTICAST_AGGR_0_IP_IRQ_APB_HANG>;
+			interrupt-names = "irq_g2d_pipe0_frame_done",
+				"irq_g2d_pipe0_frame_start",
+				"irq_g2d_sw_rst_done",
+				"irq_g2d_pipe0_pvric_encode_error",
+				"irq_g2d_pipe0_pvric_decode_error",
+				"irq_g2d_axi_bus_error",
+				"irq_g2d_axi_wr_bus_hang",
+				"irq_g2d_axi_rd_bus_hang",
+				"irq_g2d_apb_hang";
+			power-domains = <&g2d_core_pd>;
+			iommus = <&disp_smmu 0x8101>;
+
+			interconnects = <&icc_gmc SSWRP_G2D &icc_gmc GMC>;
+			interconnect-names = "sswrp-g2d";
+
+		};
+	};
+};
+

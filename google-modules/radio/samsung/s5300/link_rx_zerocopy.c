@@ -252,10 +252,8 @@ int setup_zerocopy_adaptor(struct sbd_ipc_device *ipc_dev)
 
 	if (ipc_dev->zdptr == NULL) {
 		ipc_dev->zdptr = kzalloc(sizeof(struct zerocopy_adaptor), GFP_ATOMIC);
-		if (!ipc_dev->zdptr) {
-			mif_err("fail to allocate memory!\n");
+		if (!ipc_dev->zdptr)
 			return -ENOMEM;
-		}
 	}
 
 	/* register reset_zerocopy func */

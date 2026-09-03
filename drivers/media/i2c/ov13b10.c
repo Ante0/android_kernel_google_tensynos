@@ -2,6 +2,9 @@
 // Copyright (c) 2021 Intel Corporation.
 
 #include <linux/acpi.h>
+#include <linux/clk.h>
+#include <linux/delay.h>
+#include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
 #include <linux/module.h>
 #include <linux/pm_runtime.h>
@@ -28,10 +31,8 @@
 #define OV13B10_REG_VTS			0x380e
 #define OV13B10_VTS_30FPS		0x0c7c
 #define OV13B10_VTS_60FPS		0x063e
+#define OV13B10_VTS_120FPS		0x0320
 #define OV13B10_VTS_MAX			0x7fff
-
-/* HBLANK control - read only */
-#define OV13B10_PPL_560MHZ		4704
 
 /* Exposure control */
 #define OV13B10_REG_EXPOSURE		0x3500
@@ -91,7 +92,7 @@ struct ov13b10_reg_list {
 
 /* Link frequency config */
 struct ov13b10_link_freq_config {
-	u32 pixels_per_line;
+	u64 link_freq;
 
 	/* registers for this link frequency */
 	struct ov13b10_reg_list reg_list;
@@ -110,6 +111,10 @@ struct ov13b10_mode {
 
 	/* Index of Link frequency config to be used */
 	u32 link_freq_index;
+
+	/* Pixels per line in current mode */
+	u32 ppl;
+
 	/* Default register values */
 	struct ov13b10_reg_list reg_list;
 };
@@ -243,7 +248,6 @@ static const struct ov13b10_reg mipi_data_rate_1120mbps[] = {
 	{0x5047, 0xa4},
 	{0x5048, 0x20},
 	{0x5049, 0xa4},
-	{0x0100, 0x01},
 };
 
 static const struct ov13b10_reg mode_4208x3120_regs[] = {
@@ -466,6 +470,96 @@ static const struct ov13b10_reg mode_2080x1170_regs[] = {
 	{0x5001, 0x0d},
 };
 
+static const struct ov13b10_reg mode_1364x768_120fps_regs[] = {
+	{0x0305, 0xaf},
+	{0x3011, 0x7c},
+	{0x3501, 0x03},
+	{0x3502, 0x00},
+	{0x3662, 0x88},
+	{0x3714, 0x28},
+	{0x3739, 0x10},
+	{0x37c2, 0x14},
+	{0x37d9, 0x06},
+	{0x37e2, 0x0c},
+	{0x37e4, 0x00},
+	{0x3800, 0x02},
+	{0x3801, 0xe4},
+	{0x3802, 0x03},
+	{0x3803, 0x48},
+	{0x3804, 0x0d},
+	{0x3805, 0xab},
+	{0x3806, 0x09},
+	{0x3807, 0x60},
+	{0x3808, 0x05},
+	{0x3809, 0x54},
+	{0x380a, 0x03},
+	{0x380b, 0x00},
+	{0x380c, 0x04},
+	{0x380d, 0x8e},
+	{0x380e, 0x03},
+	{0x380f, 0x20},
+	{0x3811, 0x07},
+	{0x3813, 0x07},
+	{0x3814, 0x03},
+	{0x3816, 0x03},
+	{0x3820, 0x8b},
+	{0x3c8c, 0x18},
+	{0x4008, 0x00},
+	{0x4009, 0x05},
+	{0x4050, 0x00},
+	{0x4051, 0x05},
+	{0x4501, 0x08},
+	{0x4505, 0x04},
+	{0x5000, 0xfd},
+	{0x5001, 0x0d},
+};
+
+static const struct ov13b10_reg mode_2lanes_2104x1560_60fps_regs[] = {
+	{0x3016, 0x32},
+	{0x3106, 0x29},
+	{0x0305, 0xaf},
+	{0x3501, 0x06},
+	{0x3662, 0x88},
+	{0x3714, 0x28},
+	{0x3739, 0x10},
+	{0x37c2, 0x14},
+	{0x37d9, 0x06},
+	{0x37e2, 0x0c},
+	{0x3800, 0x00},
+	{0x3801, 0x00},
+	{0x3802, 0x00},
+	{0x3803, 0x08},
+	{0x3804, 0x10},
+	{0x3805, 0x8f},
+	{0x3806, 0x0c},
+	{0x3807, 0x47},
+	{0x3808, 0x08},
+	{0x3809, 0x38},
+	{0x380a, 0x06},
+	{0x380b, 0x18},
+	{0x380c, 0x04},
+	{0x380d, 0x98},
+	{0x380e, 0x06},
+	{0x380f, 0x3e},
+	{0x3810, 0x00},
+	{0x3811, 0x07},
+	{0x3812, 0x00},
+	{0x3813, 0x05},
+	{0x3814, 0x03},
+	{0x3816, 0x03},
+	{0x3820, 0x8b},
+	{0x3c8c, 0x18},
+	{0x4008, 0x00},
+	{0x4009, 0x05},
+	{0x4050, 0x00},
+	{0x4051, 0x05},
+	{0x4501, 0x08},
+	{0x4505, 0x00},
+	{0x4837, 0x0e},
+	{0x5000, 0xfd},
+	{0x5001, 0x0d},
+};
+
 static const char * const ov13b10_test_pattern_menu[] = {
 	"Disabled",
 	"Vertical Color Bar Type 1",
@@ -479,15 +573,16 @@ static const char * const ov13b10_test_pattern_menu[] = {
 #define OV13B10_LINK_FREQ_INDEX_0	0
 
 #define OV13B10_EXT_CLK			19200000
-#define OV13B10_DATA_LANES		4
+#define OV13B10_4_DATA_LANES		4
+#define OV13B10_2_DATA_LANES		2
 
 /*
- * pixel_rate = link_freq * data-rate * nr_of_lanes / bits_per_sample
- * data rate => double data rate; number of lanes => 4; bits per pixel => 10
+ * pixel_rate = data_rate * nr_of_lanes / bits_per_pixel
+ * data_rate => link_freq * 2; number of lanes => 4 or 2; bits per pixel => 10
  */
-static u64 link_freq_to_pixel_rate(u64 f)
+static u64 link_freq_to_pixel_rate(u64 f, u8 lanes)
 {
-	f *= 2 * OV13B10_DATA_LANES;
+	f *= 2 * lanes;
 	do_div(f, 10);
 
 	return f;
@@ -502,7 +597,7 @@ static const s64 link_freq_menu_items[] = {
 static const struct ov13b10_link_freq_config
 			link_freq_configs[] = {
 	{
-		.pixels_per_line = OV13B10_PPL_560MHZ,
+		.link_freq = OV13B10_LINK_FREQ_560MHZ,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mipi_data_rate_1120mbps),
 			.regs = mipi_data_rate_1120mbps,
@@ -511,12 +606,14 @@ static const struct ov13b10_link_freq_config
 };
 
 /* Mode configs */
-static const struct ov13b10_mode supported_modes[] = {
+static const struct ov13b10_mode supported_4_lanes_modes[] = {
+	/* 4 data lanes */
 	{
 		.width = 4208,
 		.height = 3120,
 		.vts_def = OV13B10_VTS_30FPS,
 		.vts_min = OV13B10_VTS_30FPS,
+		.ppl = 4704,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_4208x3120_regs),
 			.regs = mode_4208x3120_regs,
@@ -528,6 +625,7 @@ static const struct ov13b10_mode supported_modes[] = {
 		.height = 3120,
 		.vts_def = OV13B10_VTS_30FPS,
 		.vts_min = OV13B10_VTS_30FPS,
+		.ppl = 4704,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_4160x3120_regs),
 			.regs = mode_4160x3120_regs,
@@ -539,6 +637,7 @@ static const struct ov13b10_mode supported_modes[] = {
 		.height = 2340,
 		.vts_def = OV13B10_VTS_30FPS,
 		.vts_min = OV13B10_VTS_30FPS,
+		.ppl = 4704,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_4160x2340_regs),
 			.regs = mode_4160x2340_regs,
@@ -550,6 +649,7 @@ static const struct ov13b10_mode supported_modes[] = {
 		.height = 1560,
 		.vts_def = OV13B10_VTS_60FPS,
 		.vts_min = OV13B10_VTS_60FPS,
+		.ppl = 4704,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_2104x1560_regs),
 			.regs = mode_2104x1560_regs,
@@ -561,12 +661,42 @@ static const struct ov13b10_mode supported_modes[] = {
 		.height = 1170,
 		.vts_def = OV13B10_VTS_60FPS,
 		.vts_min = OV13B10_VTS_60FPS,
+		.ppl = 4704,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_2080x1170_regs),
 			.regs = mode_2080x1170_regs,
 		},
 		.link_freq_index = OV13B10_LINK_FREQ_INDEX_0,
-	}
+	},
+	{
+		.width = 1364,
+		.height = 768,
+		.vts_def = OV13B10_VTS_120FPS,
+		.vts_min = OV13B10_VTS_120FPS,
+		.link_freq_index = OV13B10_LINK_FREQ_INDEX_0,
+		.ppl = 4664,
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_1364x768_120fps_regs),
+			.regs = mode_1364x768_120fps_regs,
+		},
+	},
+};
+
+static const struct ov13b10_mode supported_2_lanes_modes[] = {
+	/* 2 data lanes */
+	{
+		.width = 2104,
+		.height = 1560,
+		.vts_def = OV13B10_VTS_60FPS,
+		.vts_min = OV13B10_VTS_60FPS,
+		.link_freq_index = OV13B10_LINK_FREQ_INDEX_0,
+		.ppl = 2352,
+		.reg_list = {
+			.num_of_regs =
+				ARRAY_SIZE(mode_2lanes_2104x1560_60fps_regs),
+			.regs = mode_2lanes_2104x1560_60fps_regs,
+		},
+	},
 };
 
 struct ov13b10 {
@@ -574,6 +704,11 @@ struct ov13b10 {
 	struct media_pad pad;
 
 	struct v4l2_ctrl_handler ctrl_handler;
+
+	struct clk *img_clk;
+	struct regulator *avdd;
+	struct gpio_desc *reset;
+
 	/* V4L2 Controls */
 	struct v4l2_ctrl *link_freq;
 	struct v4l2_ctrl *pixel_rate;
@@ -581,14 +716,19 @@ struct ov13b10 {
 	struct v4l2_ctrl *hblank;
 	struct v4l2_ctrl *exposure;
 
+	/* Supported modes */
+	const struct ov13b10_mode *supported_modes;
+
 	/* Current mode */
 	const struct ov13b10_mode *cur_mode;
 
 	/* Mutex for serialized access */
 	struct mutex mutex;
 
-	/* Streaming on/off */
-	bool streaming;
+	u8 supported_modes_num;
+
+	/* Data lanes used */
+	u8 data_lanes;
 
 	/* True if the device has been identified */
 	bool identified;
@@ -693,11 +833,10 @@ static int ov13b10_write_reg_list(struct ov13b10 *ov13b,
 /* Open sub-device */
 static int ov13b10_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
-	const struct ov13b10_mode *default_mode = &supported_modes[0];
 	struct ov13b10 *ov13b = to_ov13b10(sd);
-	struct v4l2_mbus_framefmt *try_fmt = v4l2_subdev_get_try_format(sd,
-									fh->state,
-									0);
+	const struct ov13b10_mode *default_mode = ov13b->supported_modes;
+	struct v4l2_mbus_framefmt *try_fmt = v4l2_subdev_state_get_format(fh->state,
+									  0);
 
 	mutex_lock(&ov13b->mutex);
 
@@ -914,7 +1053,10 @@ static int ov13b10_enum_frame_size(struct v4l2_subdev *sd,
 				   struct v4l2_subdev_state *sd_state,
 				   struct v4l2_subdev_frame_size_enum *fse)
 {
-	if (fse->index >= ARRAY_SIZE(supported_modes))
+	struct ov13b10 *ov13b = to_ov13b10(sd);
+	const struct ov13b10_mode *supported_modes = ov13b->supported_modes;
+
+	if (fse->index >= ov13b->supported_modes_num)
 		return -EINVAL;
 
 	if (fse->code != MEDIA_BUS_FMT_SGRBG10_1X10)
@@ -942,10 +1084,9 @@ static int ov13b10_do_get_pad_format(struct ov13b10 *ov13b,
 				     struct v4l2_subdev_format *fmt)
 {
 	struct v4l2_mbus_framefmt *framefmt;
-	struct v4l2_subdev *sd = &ov13b->sd;
 
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-		framefmt = v4l2_subdev_get_try_format(sd, sd_state, fmt->pad);
+		framefmt = v4l2_subdev_state_get_format(sd_state, fmt->pad);
 		fmt->format = *framefmt;
 	} else {
 		ov13b10_update_pad_format(ov13b->cur_mode, fmt);
@@ -975,6 +1116,7 @@ ov13b10_set_pad_format(struct v4l2_subdev *sd,
 {
 	struct ov13b10 *ov13b = to_ov13b10(sd);
 	const struct ov13b10_mode *mode;
+	const struct ov13b10_mode *supported_modes = ov13b->supported_modes;
 	struct v4l2_mbus_framefmt *framefmt;
 	s32 vblank_def;
 	s32 vblank_min;
@@ -989,34 +1131,29 @@ ov13b10_set_pad_format(struct v4l2_subdev *sd,
 		fmt->format.code = MEDIA_BUS_FMT_SGRBG10_1X10;
 
 	mode = v4l2_find_nearest_size(supported_modes,
-				      ARRAY_SIZE(supported_modes),
+				      ov13b->supported_modes_num,
 				      width, height,
 				      fmt->format.width, fmt->format.height);
 	ov13b10_update_pad_format(mode, fmt);
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-		framefmt = v4l2_subdev_get_try_format(sd, sd_state, fmt->pad);
+		framefmt = v4l2_subdev_state_get_format(sd_state, fmt->pad);
 		*framefmt = fmt->format;
 	} else {
 		ov13b->cur_mode = mode;
 		__v4l2_ctrl_s_ctrl(ov13b->link_freq, mode->link_freq_index);
 		link_freq = link_freq_menu_items[mode->link_freq_index];
-		pixel_rate = link_freq_to_pixel_rate(link_freq);
+		pixel_rate = link_freq_to_pixel_rate(link_freq,
+						     ov13b->data_lanes);
 		__v4l2_ctrl_s_ctrl_int64(ov13b->pixel_rate, pixel_rate);
 
 		/* Update limits and set FPS to default */
-		vblank_def = ov13b->cur_mode->vts_def -
-			     ov13b->cur_mode->height;
-		vblank_min = ov13b->cur_mode->vts_min -
-			     ov13b->cur_mode->height;
+		vblank_def = mode->vts_def - mode->height;
+		vblank_min = mode->vts_min - mode->height;
 		__v4l2_ctrl_modify_range(ov13b->vblank, vblank_min,
-					 OV13B10_VTS_MAX
-					 - ov13b->cur_mode->height,
-					 1,
-					 vblank_def);
+					 OV13B10_VTS_MAX - mode->height,
+					 1, vblank_def);
 		__v4l2_ctrl_s_ctrl(ov13b->vblank, vblank_def);
-		h_blank =
-			link_freq_configs[mode->link_freq_index].pixels_per_line
-			 - ov13b->cur_mode->width;
+		h_blank = mode->ppl - mode->width;
 		__v4l2_ctrl_modify_range(ov13b->hblank, h_blank,
 					 h_blank, 1, h_blank);
 	}
@@ -1048,6 +1185,49 @@ static int ov13b10_identify_module(struct ov13b10 *ov13b)
 	}
 
 	ov13b->identified = true;
+
+	return 0;
+}
+
+static int ov13b10_power_off(struct device *dev)
+{
+	struct v4l2_subdev *sd = dev_get_drvdata(dev);
+	struct ov13b10 *ov13b10 = to_ov13b10(sd);
+
+	gpiod_set_value_cansleep(ov13b10->reset, 1);
+
+	if (ov13b10->avdd)
+		regulator_disable(ov13b10->avdd);
+
+	clk_disable_unprepare(ov13b10->img_clk);
+
+	return 0;
+}
+
+static int ov13b10_power_on(struct device *dev)
+{
+	struct v4l2_subdev *sd = dev_get_drvdata(dev);
+	struct ov13b10 *ov13b10 = to_ov13b10(sd);
+	int ret;
+
+	ret = clk_prepare_enable(ov13b10->img_clk);
+	if (ret < 0) {
+		dev_err(dev, "failed to enable imaging clock: %d", ret);
+		return ret;
+	}
+
+	if (ov13b10->avdd) {
+		ret = regulator_enable(ov13b10->avdd);
+		if (ret < 0) {
+			dev_err(dev, "failed to enable avdd: %d", ret);
+			clk_disable_unprepare(ov13b10->img_clk);
+			return ret;
+		}
+	}
+
+	gpiod_set_value_cansleep(ov13b10->reset, 0);
+	/* 5ms to wait ready after XSHUTDN assert */
+	usleep_range(5000, 5500);
 
 	return 0;
 }
@@ -1111,10 +1291,6 @@ static int ov13b10_set_stream(struct v4l2_subdev *sd, int enable)
 	int ret = 0;
 
 	mutex_lock(&ov13b->mutex);
-	if (ov13b->streaming == enable) {
-		mutex_unlock(&ov13b->mutex);
-		return 0;
-	}
 
 	if (enable) {
 		ret = pm_runtime_resume_and_get(&client->dev);
@@ -1133,7 +1309,6 @@ static int ov13b10_set_stream(struct v4l2_subdev *sd, int enable)
 		pm_runtime_put(&client->dev);
 	}
 
-	ov13b->streaming = enable;
 	mutex_unlock(&ov13b->mutex);
 
 	return ret;
@@ -1146,35 +1321,16 @@ err_unlock:
 	return ret;
 }
 
-static int __maybe_unused ov13b10_suspend(struct device *dev)
+static int ov13b10_suspend(struct device *dev)
 {
-	struct v4l2_subdev *sd = dev_get_drvdata(dev);
-	struct ov13b10 *ov13b = to_ov13b10(sd);
-
-	if (ov13b->streaming)
-		ov13b10_stop_streaming(ov13b);
+	ov13b10_power_off(dev);
 
 	return 0;
 }
 
-static int __maybe_unused ov13b10_resume(struct device *dev)
+static int ov13b10_resume(struct device *dev)
 {
-	struct v4l2_subdev *sd = dev_get_drvdata(dev);
-	struct ov13b10 *ov13b = to_ov13b10(sd);
-	int ret;
-
-	if (ov13b->streaming) {
-		ret = ov13b10_start_streaming(ov13b);
-		if (ret)
-			goto error;
-	}
-
-	return 0;
-
-error:
-	ov13b10_stop_streaming(ov13b);
-	ov13b->streaming = false;
-	return ret;
+	return ov13b10_power_on(dev);
 }
 
 static const struct v4l2_subdev_video_ops ov13b10_video_ops = {
@@ -1234,7 +1390,8 @@ static int ov13b10_init_controls(struct ov13b10 *ov13b)
 	if (ov13b->link_freq)
 		ov13b->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
-	pixel_rate_max = link_freq_to_pixel_rate(link_freq_menu_items[0]);
+	pixel_rate_max = link_freq_to_pixel_rate(link_freq_menu_items[0],
+						 ov13b->data_lanes);
 	pixel_rate_min = 0;
 	/* By default, PIXEL_RATE is read only */
 	ov13b->pixel_rate = v4l2_ctrl_new_std(ctrl_hdlr, &ov13b10_ctrl_ops,
@@ -1251,8 +1408,7 @@ static int ov13b10_init_controls(struct ov13b10 *ov13b)
 					  OV13B10_VTS_MAX - mode->height, 1,
 					  vblank_def);
 
-	hblank = link_freq_configs[mode->link_freq_index].pixels_per_line -
-		 mode->width;
+	hblank = mode->ppl - mode->width;
 	ov13b->hblank = v4l2_ctrl_new_std(ctrl_hdlr, &ov13b10_ctrl_ops,
 					  V4L2_CID_HBLANK,
 					  hblank, hblank, 1, hblank);
@@ -1318,7 +1474,35 @@ static void ov13b10_free_controls(struct ov13b10 *ov13b)
 	mutex_destroy(&ov13b->mutex);
 }
 
-static int ov13b10_check_hwcfg(struct device *dev)
+static int ov13b10_get_pm_resources(struct device *dev)
+{
+	struct v4l2_subdev *sd = dev_get_drvdata(dev);
+	struct ov13b10 *ov13b = to_ov13b10(sd);
+	int ret;
+
+	ov13b->reset = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_LOW);
+	if (IS_ERR(ov13b->reset))
+		return dev_err_probe(dev, PTR_ERR(ov13b->reset),
+				     "failed to get reset gpio\n");
+
+	ov13b->img_clk = devm_clk_get_optional(dev, NULL);
+	if (IS_ERR(ov13b->img_clk))
+		return dev_err_probe(dev, PTR_ERR(ov13b->img_clk),
+				     "failed to get imaging clock\n");
+
+	ov13b->avdd = devm_regulator_get_optional(dev, "avdd");
+	if (IS_ERR(ov13b->avdd)) {
+		ret = PTR_ERR(ov13b->avdd);
+		ov13b->avdd = NULL;
+		if (ret != -ENODEV)
+			return dev_err_probe(dev, ret,
+					     "failed to get avdd regulator\n");
+	}
+
+	return 0;
+}
+
+static int ov13b10_check_hwcfg(struct device *dev, struct ov13b10 *ov13b)
 {
 	struct v4l2_fwnode_endpoint bus_cfg = {
 		.bus_type = V4L2_MBUS_CSI2_DPHY
@@ -1328,9 +1512,14 @@ static int ov13b10_check_hwcfg(struct device *dev)
 	unsigned int i, j;
 	int ret;
 	u32 ext_clk;
+	u8 dlane;
 
 	if (!fwnode)
 		return -ENXIO;
+
+	ep = fwnode_graph_get_next_endpoint(fwnode, NULL);
+	if (!ep)
+		return -EPROBE_DEFER;
 
 	ret = fwnode_property_read_u32(dev_fwnode(dev), "clock-frequency",
 				       &ext_clk);
@@ -1345,21 +1534,36 @@ static int ov13b10_check_hwcfg(struct device *dev)
 		return -EINVAL;
 	}
 
-	ep = fwnode_graph_get_next_endpoint(fwnode, NULL);
-	if (!ep)
-		return -ENXIO;
-
 	ret = v4l2_fwnode_endpoint_alloc_parse(ep, &bus_cfg);
 	fwnode_handle_put(ep);
 	if (ret)
 		return ret;
 
-	if (bus_cfg.bus.mipi_csi2.num_data_lanes != OV13B10_DATA_LANES) {
+	dlane = bus_cfg.bus.mipi_csi2.num_data_lanes;
+	switch (dlane) {
+	case OV13B10_4_DATA_LANES:
+		ov13b->supported_modes = supported_4_lanes_modes;
+		ov13b->supported_modes_num =
+			ARRAY_SIZE(supported_4_lanes_modes);
+		break;
+
+	case OV13B10_2_DATA_LANES:
+		ov13b->supported_modes = supported_2_lanes_modes;
+		ov13b->supported_modes_num =
+			ARRAY_SIZE(supported_2_lanes_modes);
+		break;
+
+	default:
 		dev_err(dev, "number of CSI2 data lanes %d is not supported",
-			bus_cfg.bus.mipi_csi2.num_data_lanes);
+			dlane);
 		ret = -EINVAL;
 		goto out_err;
 	}
+
+	ov13b->data_lanes = dlane;
+	ov13b->cur_mode = ov13b->supported_modes;
+	dev_dbg(dev, "%u lanes with %u modes selected\n",
+		ov13b->data_lanes, ov13b->supported_modes_num);
 
 	if (!bus_cfg.nr_of_link_frequencies) {
 		dev_err(dev, "no link frequencies defined");
@@ -1394,36 +1598,43 @@ static int ov13b10_probe(struct i2c_client *client)
 	bool full_power;
 	int ret;
 
+	ov13b = devm_kzalloc(&client->dev, sizeof(*ov13b), GFP_KERNEL);
+	if (!ov13b)
+		return -ENOMEM;
+
 	/* Check HW config */
-	ret = ov13b10_check_hwcfg(&client->dev);
+	ret = ov13b10_check_hwcfg(&client->dev, ov13b);
 	if (ret) {
 		dev_err(&client->dev, "failed to check hwcfg: %d", ret);
 		return ret;
 	}
 
-	ov13b = devm_kzalloc(&client->dev, sizeof(*ov13b), GFP_KERNEL);
-	if (!ov13b)
-		return -ENOMEM;
-
 	/* Initialize subdev */
 	v4l2_i2c_subdev_init(&ov13b->sd, client, &ov13b10_subdev_ops);
 
+	ret = ov13b10_get_pm_resources(&client->dev);
+	if (ret)
+		return ret;
+
 	full_power = acpi_dev_state_d0(&client->dev);
 	if (full_power) {
+		ret = ov13b10_power_on(&client->dev);
+		if (ret) {
+			dev_err(&client->dev, "failed to power on\n");
+			return ret;
+		}
+
 		/* Check module identity */
 		ret = ov13b10_identify_module(ov13b);
 		if (ret) {
 			dev_err(&client->dev, "failed to find sensor: %d\n", ret);
-			return ret;
+			goto error_power_off;
 		}
 	}
 
-	/* Set default mode to max resolution */
-	ov13b->cur_mode = &supported_modes[0];
-
 	ret = ov13b10_init_controls(ov13b);
 	if (ret)
-		return ret;
+		goto error_power_off;
 
 	/* Initialize subdev */
 	ov13b->sd.internal_ops = &ov13b10_internal_ops;
@@ -1466,6 +1677,9 @@ error_handler_free:
 	ov13b10_free_controls(ov13b);
 	dev_err(&client->dev, "%s failed:%d\n", __func__, ret);
 
+error_power_off:
+	ov13b10_power_off(&client->dev);
+
 	return ret;
 }
 
@@ -1482,13 +1696,13 @@ static void ov13b10_remove(struct i2c_client *client)
 	pm_runtime_set_suspended(&client->dev);
 }
 
-static const struct dev_pm_ops ov13b10_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(ov13b10_suspend, ov13b10_resume)
-};
+static DEFINE_RUNTIME_DEV_PM_OPS(ov13b10_pm_ops, ov13b10_suspend,
+				 ov13b10_resume, NULL);
 
 #ifdef CONFIG_ACPI
 static const struct acpi_device_id ov13b10_acpi_ids[] = {
 	{"OVTIDB10"},
+	{"OVTI13B1"},
 	{ /* sentinel */ }
 };
 
@@ -1498,10 +1712,10 @@ MODULE_DEVICE_TABLE(acpi, ov13b10_acpi_ids);
 static struct i2c_driver ov13b10_i2c_driver = {
 	.driver = {
 		.name = "ov13b10",
-		.pm = &ov13b10_pm_ops,
+		.pm = pm_ptr(&ov13b10_pm_ops),
 		.acpi_match_table = ACPI_PTR(ov13b10_acpi_ids),
 	},
-	.probe_new = ov13b10_probe,
+	.probe = ov13b10_probe,
 	.remove = ov13b10_remove,
 	.flags = I2C_DRV_ACPI_WAIVE_D0_PROBE,
 };

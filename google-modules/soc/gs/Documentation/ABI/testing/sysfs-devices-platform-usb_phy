@@ -1,0 +1,39 @@
+What:		/sys/devices/platform/*.usb*_phy/dp_tune/<rate>/vs_<vs>/pe_<pe>/<coeff>
+Date:		April, 2025
+Contact:	"RD Babiera" <rdbabiera@google.com>
+Description:
+		These files are used to adjust the DPTX tuning parameters on the USB PHY driver.
+        <rate> is one of [rbr, hbr, hbr2, hbr3]. vs, or voltage swing, has valid
+        values of [0,3]. pe, or pre-emphasis level, has valid values of [0,3], where
+        vs + pe is less than 4. The coefficients are [main, pre, post], where each
+        coefficient is a tap in the TX equalizer.
+
+        Each of these nodes are rw. The read value reflects the current PHY
+        driver override table value, and are applied during DisplayPort link
+        training. Writes are presistent for the lifetime of the platform device,
+        and should be performed prior to establishing the link. The values are
+        only applied if dp_tune_ovrd_en is enabled.
+
+What:		/sys/kernel/debug/*.usb*_phy/tx_eq/lane*/<coeff>
+Date:		April, 2025
+Contact:	"RD Babiera" <rdbabiera@google.com>
+Description:
+		These files are used to read the live TX EQ values through ASIC on the
+        USB PHY driver. USB or DisplayPort is expected to be active in order for
+        the read to function. lane* ranges from lane0 to lane3, and coeff is one
+        of [main, pre, post].
+
+        These nodes are read only.
+
+What:		/sys/module/google_usb_phy/parameters/dp_tune_ovrd_en
+Date:		April, 2025
+Contact:	"RD Babiera" <rdbabiera@google.com>
+Description:
+		dp_tune_ovrd_en is used to determine if the USB PHY driver will use
+        software mapped TX EQ values for the DisplayPort Alt Mode use case when
+        true. When false, the hardware default lookup table will be used.
+
+        This node is rw. The value should be changed outside of a DisplayPort link
+        to avoid a case where an override tune value is applied during link
+        training but the default message bus teardown sequence is used during
+        HPD_UNPLUG.

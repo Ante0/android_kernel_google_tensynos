@@ -21,9 +21,10 @@
  * Qorvo. Please contact Qorvo to inquire about licensing terms.
  */
 
+#include "fira_round_hopping_sequence.h"
 #include "fira_session.h"
 #include <linux/string.h>
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 
 int fira_round_hopping_sequence_init(struct fira_session *session)
 {

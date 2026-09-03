@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Usecases specific to the Deepspace Platform + Gargantua
+ *
+ * Copyright 2024 Google LLC
+ *
+ */
+
+/* system use cases */
+&max77779_chg {
+	max77779,extbst-ctl-gpio = <&max77759_tcpc_gpio 0 GPIO_ACTIVE_HIGH>;
+	post-init-providers = <&max77759_tcpc_gpio>;
+	/* for OTG related usecase*/
+	max77779,rx-to-rx-otg-en; /* support RX -> RX+OTG */
+};

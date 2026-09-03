@@ -1,36 +1,117 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
 
-kernel_module(
-    name = "drm_panel.google",
-    srcs = glob([
-        "**/*.c",
-        "**/*.h",
-    ]) + [
-        "Kbuild",
-    ] + [
-        "//private/google-modules/display/common:headers",
-        "//private/google-modules/display/samsung:headers",
-        "//private/google-modules/display/samsung/include:headers",
-        "//private/google-modules/soc/gs:gs_soc_headers",
+package(default_visibility = [
+    "//private/devices/google/comet:__subpackages__",
+])
+
+ddk_module(
+    name = "panel-gs-ct3a",
+    srcs = [
+        "panel-gs-ct3a.c",
     ],
-    outs = [
-        # keep sorted
-        "panel-gs-ct3a.ko",
-        "panel-gs-ct3b.ko",
-        "panel-gs-ct3c.ko",
-        "panel-gs-ct3d.ko",
-        "panel-gs-ct3e.ko",
+    out = "panel-gs-ct3a.ko",
+    copts = [
+        "-Werror",
     ],
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
     ],
     deps = [
-        "//private/google-modules/display/common/gs_panel",
-        "//private/google-modules/display/samsung:display.samsung",
-        "//private/google-modules/soc/gs:gs_soc_module",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common:ddk_headers",
+        "//private/google-modules/display/common/gs_panel:gs-panel",
+        "//private/google-modules/display/samsung:headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-gs-ct3b",
+    srcs = [
+        "panel-gs-ct3b.c",
+    ],
+    out = "panel-gs-ct3b.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common:ddk_headers",
+        "//private/google-modules/display/common/gs_panel:gs-panel",
+        "//private/google-modules/display/samsung:headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-gs-ct3c",
+    srcs = [
+        "panel-gs-ct3c.c",
+    ],
+    out = "panel-gs-ct3c.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common:ddk_headers",
+        "//private/google-modules/display/common/gs_panel:gs-panel",
+        "//private/google-modules/display/samsung:headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-gs-ct3d",
+    srcs = [
+        "panel-gs-ct3d.c",
+    ],
+    out = "panel-gs-ct3d.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common:ddk_headers",
+        "//private/google-modules/display/common/gs_panel:gs-panel",
+        "//private/google-modules/display/samsung:headers",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-gs-ct3e",
+    srcs = [
+        "panel-gs-ct3e.c",
+    ],
+    out = "panel-gs-ct3e.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common:ddk_headers",
+        "//private/google-modules/display/common/gs_panel:gs-panel",
+        "//private/google-modules/display/samsung:headers",
+        "//private/google-modules/soc/gs:headers",
     ],
 )

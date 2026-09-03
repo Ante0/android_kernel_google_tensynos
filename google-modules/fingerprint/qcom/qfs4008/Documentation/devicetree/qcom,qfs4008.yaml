@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2025 Google LLC
+%YAML 1.2
+---
+
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google QFS4008 Fingerprint Sensor Driver
+
+description: Fingerprint sensor driver for QFS4008
+maintainers:
+  - Alec Foster <ajfoster@google.com>
+
+properties:
+  compatible:
+    type: string
+    description: Compatible string for the device.
+    const: "qcom,qbt-handler"
+
+  properties:
+  spi-gpio-provider:
+    type: phandle
+    description: |
+      A phandle to the pinctrl device node that acts as the
+      GPIO provider for the SPI bus. This is typically used
+      to manage the GPIO lines (like chip select) associated
+      with the SPI bus through the pinctrl subsystem.
+    required: true

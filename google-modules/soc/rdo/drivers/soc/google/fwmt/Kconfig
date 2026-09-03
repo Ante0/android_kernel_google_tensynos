@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_FWMT
+	tristate "Firmware Metrics"
+	help
+	  This option enables the driver for Firmware Metrics (FWMT).
+	  The firmware collects various metrics such as system events,
+	  error counts, and feature usage. This driver allows the Linux
+	  kernel to retrieve these metrics and expose them to userspace
+	  for monitoring and debugging purposes.

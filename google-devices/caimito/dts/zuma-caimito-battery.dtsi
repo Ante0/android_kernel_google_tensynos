@@ -83,8 +83,8 @@
 
 &max77779_chg {
 	status = "okay";
-	max77779,wlc-en = <&p9xxx_gpio 1 GPIO_ACTIVE_HIGH>;
-	max77779,wlc-spoof = <&p9xxx_gpio 5 GPIO_ACTIVE_HIGH>;
+	max77779,wlc-en-gpios = <&p9xxx_gpio 1 GPIO_ACTIVE_HIGH>;
+	max77779,wlc-spoof-gpios = <&p9xxx_gpio 5 GPIO_ACTIVE_HIGH>;
 	max77779,wlc-spoof-vbyp = <6>;	/* VBYP=5.3V */
 	max77779,wcin-inlim-headroom = <40000>;
 };

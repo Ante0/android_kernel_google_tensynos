@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Configurations for Google Perf Domain Driver
+#
+
+config GS_PERF_DOMAIN
+	tristate "Perf Domain"
+	default n
+	help
+	  Enable support for google sources perf domain driver.
+	  This driver obtains performance domain information
+	  from the cpm, and allows control of device frequencies
+	  based on devfreq framework.

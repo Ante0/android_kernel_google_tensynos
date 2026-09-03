@@ -1,0 +1,184 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+#include <dt-bindings/interrupt-controller/irq-gia-google-mbu.h>
+
+/ {
+	gpdma0: gpdma_wrapper@9180000 {
+		compatible = "google,gpdma";
+		reg = <0 0x91a0000 0 0x80>,
+			  <0 0x91810c0 0 0x90>;
+		reg-names = "req_ack_csr", "axuser_csr";
+		power-domains = <&cpuacc_gpdma_pd>;
+		#address-cells = <2>;
+		#size-cells = <2>;
+		#dma-cells = <2>;
+		dma-channels = <9>;
+		dma-requests = <32>;
+		google,qos-vc = <1>;
+		ranges;
+		status = "disabled";
+		dma0: dma-controller@9180000 {
+			compatible = "arm,pl330", "arm,primecell";
+			reg = <0 0x9180000 0 0x1000>;
+			power-domains = <&cpuacc_gpdma_pd>;
+			ip-idle-index = <IP_IDLE_IDX_GPDMA_0>;
+			#dma-cells = <1>;
+			/* 8 channel intrs and 1 manager intr */
+			interrupts-extended = <&cpuacc_multicast_aggr_16 CPUACC_GIA_MULTICAST_AGGR_16_AUX_GPDMA_TOP_GPDMA0_IRQ_0>,
+					<&cpuacc_multicast_aggr_16 CPUACC_GIA_MULTICAST_AGGR_16_AUX_GPDMA_TOP_GPDMA0_IRQ_1>,
+					<&cpuacc_multicast_aggr_16 CPUACC_GIA_MULTICAST_AGGR_16_AUX_GPDMA_TOP_GPDMA0_IRQ_2>,
+					<&cpuacc_multicast_aggr_16 CPUACC_GIA_MULTICAST_AGGR_16_AUX_GPDMA_TOP_GPDMA0_IRQ_3>,
+					<&cpuacc_multicast_aggr_16 CPUACC_GIA_MULTICAST_AGGR_16_AUX_GPDMA_TOP_GPDMA0_IRQ_4>,
+					<&cpuacc_multicast_aggr_16 CPUACC_GIA_MULTICAST_AGGR_16_AUX_GPDMA_TOP_GPDMA0_IRQ_5>,
+					<&cpuacc_multicast_aggr_16 CPUACC_GIA_MULTICAST_AGGR_16_AUX_GPDMA_TOP_GPDMA0_IRQ_6>,
+					<&cpuacc_multicast_aggr_16 CPUACC_GIA_MULTICAST_AGGR_16_AUX_GPDMA_TOP_GPDMA0_IRQ_7>,
+					<&cpuacc_multicast_aggr_6 CPUACC_GIA_MULTICAST_AGGR_6_AUX_GPDMA_TOP_GPDMA0_IRQ_ABORT>;
+			clocks = <&cpuacc_gpdma0_clk>;
+			clock-names = "apb_pclk";
+			iommus = <&amb_smmu 0x8400>;
+		};
+	};
+
+	gpdma1: gpdma_wrapper@9188000 {
+		compatible = "google,gpdma";
+		reg = <0 0x91a1000 0 0x80>,
+			  <0 0x91890c0 0 0x90>;
+		reg-names = "req_ack_csr", "axuser_csr";
+		power-domains = <&cpuacc_gpdma_pd>;
+		#address-cells = <2>;
+		#size-cells = <2>;
+		#dma-cells = <2>;
+		dma-channels = <9>;
+		dma-requests = <32>;
+		google,qos-vc = <1>;
+		ranges;
+		dma1: dma-controller@9188000 {
+			compatible = "arm,pl330", "arm,primecell";
+			reg = <0 0x9188000 0 0x1000>;
+			power-domains = <&cpuacc_gpdma_pd>;
+			ip-idle-index = <IP_IDLE_IDX_GPDMA_1>;
+			#dma-cells = <1>;
+			/* 8 channel intrs and 1 manager intr */
+			interrupts-extended = <&cpuacc_multicast_aggr_17 CPUACC_GIA_MULTICAST_AGGR_17_AUX_GPDMA_TOP_GPDMA1_IRQ_0>,
+					<&cpuacc_multicast_aggr_17 CPUACC_GIA_MULTICAST_AGGR_17_AUX_GPDMA_TOP_GPDMA1_IRQ_1>,
+					<&cpuacc_multicast_aggr_17 CPUACC_GIA_MULTICAST_AGGR_17_AUX_GPDMA_TOP_GPDMA1_IRQ_2>,
+					<&cpuacc_multicast_aggr_17 CPUACC_GIA_MULTICAST_AGGR_17_AUX_GPDMA_TOP_GPDMA1_IRQ_3>,
+					<&cpuacc_multicast_aggr_17 CPUACC_GIA_MULTICAST_AGGR_17_AUX_GPDMA_TOP_GPDMA1_IRQ_4>,
+					<&cpuacc_multicast_aggr_17 CPUACC_GIA_MULTICAST_AGGR_17_AUX_GPDMA_TOP_GPDMA1_IRQ_5>,
+					<&cpuacc_multicast_aggr_17 CPUACC_GIA_MULTICAST_AGGR_17_AUX_GPDMA_TOP_GPDMA1_IRQ_6>,
+					<&cpuacc_multicast_aggr_17 CPUACC_GIA_MULTICAST_AGGR_17_AUX_GPDMA_TOP_GPDMA1_IRQ_7>,
+					<&cpuacc_multicast_aggr_6 CPUACC_GIA_MULTICAST_AGGR_6_AUX_GPDMA_TOP_GPDMA1_IRQ_ABORT>;
+			clocks = <&cpuacc_gpdma1_clk>;
+			clock-names = "apb_pclk";
+			iommus = <&amb_smmu 0x8401>;
+		};
+	};
+
+	gpdma2: gpdma_wrapper@9190000 {
+		compatible = "google,gpdma";
+		reg = <0 0x91a2000 0 0x80>,
+			  <0 0x91910c0 0 0x90>;
+		reg-names = "req_ack_csr", "axuser_csr";
+		power-domains = <&cpuacc_gpdma_pd>;
+		#address-cells = <2>;
+		#size-cells = <2>;
+		#dma-cells = <2>;
+		dma-channels = <9>;
+		dma-requests = <32>;
+		google,qos-vc = <1>;
+		ranges;
+		status = "disabled";
+		dma2: dma-controller@9190000 {
+			compatible = "arm,pl330", "arm,primecell";
+			reg = <0 0x9190000 0 0x1000>;
+			power-domains = <&cpuacc_gpdma_pd>;
+			ip-idle-index = <IP_IDLE_IDX_GPDMA_2>;
+			#dma-cells = <1>;
+			/* 8 channel intrs and 1 manager intr */
+			interrupts-extended = <&cpuacc_multicast_aggr_18 CPUACC_GIA_MULTICAST_AGGR_18_AUX_GPDMA_TOP_GPDMA2_IRQ_0>,
+					<&cpuacc_multicast_aggr_18 CPUACC_GIA_MULTICAST_AGGR_18_AUX_GPDMA_TOP_GPDMA2_IRQ_1>,
+					<&cpuacc_multicast_aggr_18 CPUACC_GIA_MULTICAST_AGGR_18_AUX_GPDMA_TOP_GPDMA2_IRQ_2>,
+					<&cpuacc_multicast_aggr_18 CPUACC_GIA_MULTICAST_AGGR_18_AUX_GPDMA_TOP_GPDMA2_IRQ_3>,
+					<&cpuacc_multicast_aggr_18 CPUACC_GIA_MULTICAST_AGGR_18_AUX_GPDMA_TOP_GPDMA2_IRQ_4>,
+					<&cpuacc_multicast_aggr_18 CPUACC_GIA_MULTICAST_AGGR_18_AUX_GPDMA_TOP_GPDMA2_IRQ_5>,
+					<&cpuacc_multicast_aggr_18 CPUACC_GIA_MULTICAST_AGGR_18_AUX_GPDMA_TOP_GPDMA2_IRQ_6>,
+					<&cpuacc_multicast_aggr_18 CPUACC_GIA_MULTICAST_AGGR_18_AUX_GPDMA_TOP_GPDMA2_IRQ_7>,
+					<&cpuacc_multicast_aggr_6 CPUACC_GIA_MULTICAST_AGGR_6_AUX_GPDMA_TOP_GPDMA2_IRQ_ABORT>;
+			clocks = <&cpuacc_gpdma2_clk>;
+			clock-names = "apb_pclk";
+			iommus = <&amb_smmu 0x8402>;
+		};
+	};
+
+	gpdma3: gpdma_wrapper@9198000 {
+		compatible = "google,gpdma";
+		reg = <0 0x91a3000 0 0x80>,
+			  <0 0x91990c0 0 0x90>;
+		reg-names = "req_ack_csr", "axuser_csr";
+		power-domains = <&cpuacc_gpdma_pd>;
+		#address-cells = <2>;
+		#size-cells = <2>;
+		#dma-cells = <2>;
+		dma-channels = <9>;
+		dma-requests = <32>;
+		google,qos-vc = <1>;
+		ranges;
+		status = "disabled";
+		dma3: dma-controller@9198000 {
+			compatible = "arm,pl330", "arm,primecell";
+			reg = <0 0x9198000 0 0x1000>;
+			power-domains = <&cpuacc_gpdma_pd>;
+			ip-idle-index = <IP_IDLE_IDX_GPDMA_3>;
+			#dma-cells = <1>;
+			/* 8 channel intrs and 1 manager intr */
+			interrupts-extended = <&cpuacc_multicast_aggr_19 CPUACC_GIA_MULTICAST_AGGR_19_AUX_GPDMA_TOP_GPDMA3_IRQ_0>,
+					<&cpuacc_multicast_aggr_19 CPUACC_GIA_MULTICAST_AGGR_19_AUX_GPDMA_TOP_GPDMA3_IRQ_1>,
+					<&cpuacc_multicast_aggr_19 CPUACC_GIA_MULTICAST_AGGR_19_AUX_GPDMA_TOP_GPDMA3_IRQ_2>,
+					<&cpuacc_multicast_aggr_19 CPUACC_GIA_MULTICAST_AGGR_19_AUX_GPDMA_TOP_GPDMA3_IRQ_3>,
+					<&cpuacc_multicast_aggr_19 CPUACC_GIA_MULTICAST_AGGR_19_AUX_GPDMA_TOP_GPDMA3_IRQ_4>,
+					<&cpuacc_multicast_aggr_19 CPUACC_GIA_MULTICAST_AGGR_19_AUX_GPDMA_TOP_GPDMA3_IRQ_5>,
+					<&cpuacc_multicast_aggr_19 CPUACC_GIA_MULTICAST_AGGR_19_AUX_GPDMA_TOP_GPDMA3_IRQ_6>,
+					<&cpuacc_multicast_aggr_19 CPUACC_GIA_MULTICAST_AGGR_19_AUX_GPDMA_TOP_GPDMA3_IRQ_7>,
+					<&cpuacc_multicast_aggr_6 CPUACC_GIA_MULTICAST_AGGR_6_AUX_GPDMA_TOP_GPDMA3_IRQ_ABORT>;
+			clocks = <&cpuacc_gpdma3_clk>;
+			clock-names = "apb_pclk";
+			iommus = <&amb_smmu 0x8403>;
+		};
+	};
+
+	gpdma4: gpdma_wrapper@91a8000 {
+		compatible = "google,gpdma";
+		reg = <0 0x91a4000 0 0x80>,
+			  <0 0x91a90c0 0 0x90>;
+		reg-names = "req_ack_csr", "axuser_csr";
+		power-domains = <&cpuacc_gpdma_pd>;
+		#address-cells = <2>;
+		#size-cells = <2>;
+		#dma-cells = <2>;
+		dma-channels = <9>;
+		dma-requests = <32>;
+		google,qos-vc = <1>;
+		ranges;
+		status = "disabled";
+		dma4: dma-controller@91a8000 {
+			compatible = "arm,pl330", "arm,primecell";
+			reg = <0 0x91a8000 0 0x1000>;
+			power-domains = <&cpuacc_gpdma_pd>;
+			ip-idle-index = <IP_IDLE_IDX_GPDMA_4>;
+			#dma-cells = <1>;
+			/* 8 channel intrs and 1 manager intr */
+			interrupts-extended = <&cpuacc_multicast_aggr_20 CPUACC_GIA_MULTICAST_AGGR_20_AUX_GPDMA_TOP_GPDMA4_IRQ_0>,
+					<&cpuacc_multicast_aggr_20 CPUACC_GIA_MULTICAST_AGGR_20_AUX_GPDMA_TOP_GPDMA4_IRQ_1>,
+					<&cpuacc_multicast_aggr_20 CPUACC_GIA_MULTICAST_AGGR_20_AUX_GPDMA_TOP_GPDMA4_IRQ_2>,
+					<&cpuacc_multicast_aggr_20 CPUACC_GIA_MULTICAST_AGGR_20_AUX_GPDMA_TOP_GPDMA4_IRQ_3>,
+					<&cpuacc_multicast_aggr_20 CPUACC_GIA_MULTICAST_AGGR_20_AUX_GPDMA_TOP_GPDMA4_IRQ_4>,
+					<&cpuacc_multicast_aggr_20 CPUACC_GIA_MULTICAST_AGGR_20_AUX_GPDMA_TOP_GPDMA4_IRQ_5>,
+					<&cpuacc_multicast_aggr_20 CPUACC_GIA_MULTICAST_AGGR_20_AUX_GPDMA_TOP_GPDMA4_IRQ_6>,
+					<&cpuacc_multicast_aggr_20 CPUACC_GIA_MULTICAST_AGGR_20_AUX_GPDMA_TOP_GPDMA4_IRQ_7>,
+					<&cpuacc_multicast_aggr_6 CPUACC_GIA_MULTICAST_AGGR_6_AUX_GPDMA_TOP_GPDMA4_IRQ_ABORT>;
+			clocks = <&cpuacc_gpdma4_clk>;
+			clock-names = "apb_pclk";
+			iommus = <&amb_smmu 0x8404>;
+		};
+	};
+};

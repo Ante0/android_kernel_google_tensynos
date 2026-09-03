@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+# WiFi performance tracker driver
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+filegroup(
+    name = "wlan_ptracker.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "wlan_ptracker",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "main.c",
+        "notifier.c",
+        "scenes_fsm.c",
+        "tp_monitor.c",
+    ],
+    out = "wlan_ptracker.ko",
+    conditional_srcs = {
+        "CONFIG_DEBUG_FS": {
+            True: [
+                "debugfs.c",
+            ],
+        },
+        "CONFIG_DYNAMIC_TWT_SETUP": {
+            True: [
+                "dynamic_twt_manager.c",
+            ],
+        },
+    },
+    defconfig = "defconfig",
+    kconfig = "Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+    ],
+)

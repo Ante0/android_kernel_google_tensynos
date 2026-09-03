@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0
+config DRM_DW_MIPI_DSI2H
+	tristate "Synopsys Designware MIPI DSI2 Host Controller"
+	select DRM_MIPI_DSI
+	select DRM_PANEL_BRIDGE
+	select REGMAP_MMIO
+	help
+	  Support for the DesignWare DSI2 Host controller.

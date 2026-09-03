@@ -1,12 +1,21 @@
 # SPDX-License-Identifier: GPL-2.0
 
-filegroup(
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
     name = "headers",
-    srcs = glob([
+    hdrs = glob([
         "**/*.h",
     ]),
+    includes = [
+        "include",
+    ],
     visibility = [
-        "//private/devices/google:__subpackages__",
         "//private/google-modules/gpu:__subpackages__",
     ],
 )

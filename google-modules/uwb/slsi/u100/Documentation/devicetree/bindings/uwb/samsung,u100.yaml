@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2025 Google LLC
+%YAML 1.2
+---
+
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google SLSI U100 UWB Driver
+
+description: UWB driver for SLI U100
+maintainers:
+  - Victor Liu <victorliu@google.com>
+
+properties:
+  compatible:
+    type: string
+    description: Compatible string for the device.
+    const: "slsi,u100"
+
+  reg:
+    description: CS address of SPI device
+
+  pinctrl-names:
+    type: array
+    description: Names of pinctrl states.
+    items:
+      type: string
+      default: ["default", "func"]
+
+  pinctrl-0:
+    type: array
+    description: Pinctrl configuration for "default" state.
+
+  pinctrl-1:
+    type: array
+    description: Pinctrl configuration for "func" state.
+
+  u100-rst-gpios:
+    description: GPIO descriptor for the reset line.
+
+  u100-en-gpios:
+    description: GPIO descriptor for the enable line.
+
+  u100-sync-gpios:
+    description: GPIO descriptor for the sync gpio line.
+
+  u100-power-switch-gpios:
+    description: GPIO descriptor for the power switch gpio line.
+
+  ignore-boot-error:
+    description: Flag to ignore boot error.
+
+required:
+  - compatible
+  - reg
+  - u100-reset-gpios
+  - u100-en-gpios
+  - u100-sync-gpios
+
+examples:
+  - |
+    u100@0 {
+      compatible = "samsung,u100";
+      reg = <0>;
+      pinctrl-0 = <&uwb2aoc_int_1v2>, <&ap2uwb_rst_l_1v2>,
+        <&aoc2uwb_en_1v2>, <&ap2uwb_vsys_disable_l_1v2_default>;
+      pinctrl-1 = <&uwb2aoc_int_1v2>, <&ap2uwb_rst_l_1v2_sleep>,
+        <&aoc2uwb_en_1v2_sleep>, <&ap2uwb_vsys_disable_l_1v2_default_sleep>;
+      pinctrl-names = "default", "sleep";
+      interrupt-parent = <&aoc_pinctrl>;
+      interrupts = <XAOC_GPIO4 0 0>;
+      u100-rst-gpios = <AP2UWB_RST_L_1V2(GPIO_ACTIVE_LOW)>;
+      u100-en-gpios = <&aoc_pinctrl XAOC_GPIO3 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+      u100-sync-gpios = <AOC2UWB_WAKEUP_SYNC_1V2(GPIO_ACTIVE_HIGH)>;
+      status = "okay";
+    };
+

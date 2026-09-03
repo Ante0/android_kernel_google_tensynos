@@ -459,7 +459,7 @@ void fira_check_all_missed_ranging(struct fira_local *local,
 	}
 }
 
-int __init fira_region_init(void)
+static int __init fira_region_init(void)
 {
 	if (do_crypto_selftest_on_module_init)
 		WARN_RETURN(fira_crypto_test());
@@ -467,7 +467,7 @@ int __init fira_region_init(void)
 	return mcps802154_region_register(&fira_region_ops);
 }
 
-void __exit fira_region_exit(void)
+static void __exit fira_region_exit(void)
 {
 	mcps802154_region_unregister(&fira_region_ops);
 }

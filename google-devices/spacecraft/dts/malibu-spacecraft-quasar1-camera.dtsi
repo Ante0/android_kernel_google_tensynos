@@ -1,0 +1,1005 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * camera lwis device tree for spacecraft
+ *
+ * Copyright 2025 Google LLC.
+ *
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	fragment@lwiscamera {
+		target-path = "/";
+		__overlay__ {
+			quasar1_rear_main_camera_power_seq: quasar1_module_power_seq@0 {
+				/* Power up sequence */
+				power-up-seqs =
+					"ldo1",
+					"lvbuck_enable",
+					"vdig",
+					"vio",
+					"ldo5",
+					"ldo8",
+					"ldo4",
+					"resume",
+					"mclk_on";
+				power-up-seq-types =
+					"regulator",
+					"gpio",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"controller",
+					"pinctrl";
+				power-up-seq-delays-us =
+					<10
+					 0
+					 0
+					 10
+					 1000
+					 2000
+					 7000
+					 0
+					 0>;
+
+				/* Power down sequence */
+				power-down-seqs =
+					"suspend",
+					"mclk_off",
+					"ldo4",
+					"ldo8",
+					"ldo5",
+					"vio",
+					"vdig",
+					"lvbuck_enable",
+					"ldo1";
+				power-down-seq-types =
+					"controller",
+					"pinctrl",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"gpio",
+					"regulator";
+				power-down-seq-delays-us =
+					<0
+					 1000
+					 0
+					 0
+					 0
+					 0
+					 1000
+					 0
+					 0>;
+			};
+
+			quasar1_outer_front_camera_power_seq: quasar1_module_power_seq@1 {
+				/* Power up sequence */
+				power-up-seqs =
+					"vio",
+					"gpio1",
+					"reset",
+					"mclk_on",
+					"resume";
+				power-up-seq-types =
+					"regulator",
+					"regulator",
+					"gpio",
+					"pinctrl",
+					"controller";
+				power-up-seq-delays-us =
+					<10
+					 10
+					 0
+					 8000
+					 0>;
+
+				/* Power down sequence */
+				power-down-seqs =
+					"suspend",
+					"mclk_off",
+					"reset",
+					"gpio1",
+					"vio";
+				power-down-seq-types =
+					"controller",
+					"pinctrl",
+					"gpio",
+					"regulator",
+					"regulator";
+				power-down-seq-delays-us =
+					<0
+					 0
+					 0
+					 0
+					 1000>;
+			};
+
+			quasar1_rear_uw_camera_power_seq: quasar1_module_power_seq@2 {
+				/* Power up sequence */
+				power-up-seqs =
+					"vio",
+					"ldo6",
+					"ldo2",
+					"ldo4",
+					"reset",
+					"mclk_on",
+					"resume";
+				power-up-seq-types =
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"gpio",
+					"pinctrl",
+					"controller";
+				power-up-seq-delays-us =
+					<0
+					 0
+					 0
+					 1000
+					 0
+					 10000
+					 0>;
+
+				/* Power down sequence */
+				power-down-seqs =
+					"suspend",
+					"mclk_off",
+					"reset",
+					"ldo4",
+					"ldo2",
+					"ldo6",
+					"vio";
+				power-down-seq-types =
+					"controller",
+					"pinctrl",
+					"gpio",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator";
+				power-down-seq-delays-us =
+					<0
+					 0
+					 1000
+					 0
+					 0
+					 0
+					 1000>;
+			};
+
+			quasar1_rear_tele_camera_power_seq: quasar1_module_power_seq@3 {
+				/* Power up sequence */
+				power-up-seqs =
+					"vio",
+					"ldo7",
+					"ldo3",
+					"ldo5",
+					"gpio3",
+					"reset",
+					"shared-reset",
+					"mclk_on",
+					"resume";
+				power-up-seq-types =
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"gpio",
+					"gpio",
+					"pinctrl",
+					"controller";
+				power-up-seq-delays-us =
+					<0
+					 0
+					 0
+					 1000
+					 1000
+					 0
+					 0
+					 10000
+					 0>;
+
+				/* Power down sequence */
+				power-down-seqs =
+					"suspend",
+					"mclk_off",
+					"shared-reset",
+					"reset",
+					"gpio3",
+					"ldo5",
+					"ldo3",
+					"ldo7",
+					"vio";
+				power-down-seq-types =
+					"controller",
+					"pinctrl",
+					"gpio",
+					"gpio",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator";
+				power-down-seq-delays-us =
+					<0
+					 0
+					 1000
+					 0
+					 1000
+					 0
+					 0
+					 0
+					 0>;
+			};
+
+			quasar1_front_camera_power_seq: quasar1_module_power_seq@4 {
+				/* Power up sequence */
+				power-up-seqs =
+					"vio",
+					"gpio2",
+					"reset",
+					"mclk_on",
+					"resume";
+				power-up-seq-types =
+					"regulator",
+					"regulator",
+					"gpio",
+					"pinctrl",
+					"controller";
+				power-up-seq-delays-us =
+					<10
+					 10
+					 0
+					 1000
+					 0>;
+
+				/* Power down sequence */
+				power-down-seqs =
+					"suspend",
+					"mclk_off",
+					"reset",
+					"gpio2",
+					"vio";
+				power-down-seq-types =
+					"controller",
+					"pinctrl",
+					"gpio",
+					"regulator",
+					"regulator";
+				power-down-seq-delays-us =
+					<0
+					 0
+					 0
+					 0
+					 0>;
+			};
+
+			/* REAR CAMERA BOITATA CSIB */
+			quasar1_sensor0: quasar1_sensor@0 {
+				compatible = "google,lwis-i3c-proxy-device";
+
+				/* Device node name */
+				node-name = "sensor-boitata";
+
+				/* I2C */
+				i2c-bus = <&lsios_i3c2>;
+				i2c-addr = <0x3D>;
+				/* I3C */
+				i3c-enabled;
+				i3c-dcr = <130>;
+
+				/* Power up mode */
+				lwis,power-up-to-suspend;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <16>;
+
+				 /* I2C OTP settings (reg, val) */
+				i2c-otp-settings =
+					<0xFCFC 0x4000
+					 0x6012 0x0001
+					 0x7002 0x0008
+					 0x6014 0x0001>;
+				i2c-otp-settle-time = <10000>;
+
+				/* I3C OTP settings (reg, val) */
+				i3c-otp-settings =
+					<0xFCFC 0x4000
+					 0x6012 0x0001
+					 0x7002 0x1008
+					 0x6066 0x0216
+					 0x6068 0x08EF
+					 0x6014 0x0001>;
+				i3c-otp-settle-time = <10000>;
+
+				/* I3C IBI */
+				ibi-max-payload-len = <3>;
+				ibi-num-slots = <8>;
+
+				/* GPIOs */
+				lvbuck_enable-gpios = <PMICM2CAM_LVBUCK_EN(GPIO_ACTIVE_HIGH)>;
+				reset-gpios = <AP2RCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&rcam_vdig>;
+				ldo1-supply = <&slg51002_ldo1>;
+				ldo8-supply = <&slg51002_ldo8>;
+				ldo4-supply = <&slg51002_ldo4>;
+				ldo5-supply = <&slg51002_ldo5>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m4_clk>;
+				clock-names = "MCLK4";
+				clock-rates = <24576000>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar1_rear_main_camera_power_seq>;
+
+				/* resume sequence */
+				resume-seqs = "reset";
+				resume-seq-types = "gpio";
+				resume-seq-delays-us = <9000>;
+
+				/* suspend sequence */
+				suspend-seqs = "reset";
+				suspend-seq-types = "gpio";
+				suspend-seq-delays-us = <1000>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <0>;
+				transaction-process-limit = <20>;
+			};
+
+			/* FRONT CAMERA DOKKAEBI CSIF */
+			quasar1_sensor1: quasar1_sensor@1 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "sensor-dokkaebi";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c1>;
+				i2c-addr = <0x10>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <16>;
+
+				/* GPIOs */
+				reset-gpios = <AP2FCAM0_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				gpio1-supply = <&slg51002_gpio1>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m6_clk>;
+				clock-names = "MCLK6";
+				clock-rates = <24576000>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2fcam0_mclk_24mhz>;
+				pinctrl-1 = <&ap2fcam0_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar1_outer_front_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <1>;
+			};
+
+			/* REAR ULTRA WIDE CAMERA TAOTIE CSIA */
+			quasar1_sensor2: quasar1_sensor@2 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "sensor-taotie-uw";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c2>;
+				i2c-addr = <0x1A>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RUWCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				ldo2-supply = <&slg51002_ldo2>;
+				ldo4-supply = <&slg51002_ldo4>;
+				ldo6-supply = <&slg51002_ldo6>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m2_clk>;
+				clock-names = "MCLK2";
+				clock-rates = <24576000>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2ruwcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2ruwcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar1_rear_uw_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <2>;
+			};
+
+			/* REAR Folded Tele / FCAM1 Camera TAOTIE CSIE */
+			quasar1_sensor3: quasar1_sensor@3 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "sensor-taotie-tele";
+
+				/* I2C */
+				i2c-bus = <&lsios_i2c0>;
+				i2c-addr = <0x33>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2FCAM1_RST_L(GPIO_ACTIVE_HIGH)>;
+				shared-reset-gpios = <AP2RTCAM_AF_OIS_RST(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				ldo3-supply = <&slg51002_ldo3>;
+				ldo5-supply = <&slg51002_ldo5>;
+				ldo7-supply = <&slg51002_ldo7>;
+				gpio3-supply = <&slg51002_gpio3>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m3_clk>;
+				clock-names = "MCLK3";
+				clock-rates = <24576000>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2fcam1_mclk_24mhz>;
+				pinctrl-1 = <&ap2fcam1_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar1_rear_tele_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <3>;
+			};
+
+			/* FRONT / RT CAMERA TAOTIE CSIC */
+			quasar1_sensor4: quasar1_sensor@4 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "sensor-taotie-front";
+
+				/* I2C */
+				i2c-bus = <&lsios_i2c3>;
+				i2c-addr = <0x1A>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RTCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				gpio2-supply = <&slg51002_gpio2>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m5_clk>;
+				clock-names = "MCLK5";
+				clock-rates = <24576000>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rtcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rtcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar1_front_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <1>;
+			};
+
+			/* Actuator CORNERFOLK for BOITATA */
+			quasar1_actuator0: quasar1_actuator@0 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "act-cornerfolk";
+
+				/* I2C */
+				i2c-bus = <&lsios_i3c2>;
+				i2c-addr = <0xC>;
+
+				/* Registers */
+				reg-addr-bitwidth = <8>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				lvbuck_enable-gpios = <PMICM2CAM_LVBUCK_EN(GPIO_ACTIVE_HIGH)>;
+				reset-gpios = <AP2RCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&rcam_vdig>;
+				ldo1-supply = <&slg51002_ldo1>;
+				ldo8-supply = <&slg51002_ldo8>;
+				ldo4-supply = <&slg51002_ldo4>;
+				ldo5-supply = <&slg51002_ldo5>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar1_rear_main_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <0>;
+			};
+
+			/* Actuator CORNERFOLK for DOKKAEBI */
+			quasar1_actuator1: quasar1_actuator@1 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "act-cornerfolk-dokkaebi";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c1>;
+				i2c-addr = <0xC>;
+
+				/* Registers */
+				reg-addr-bitwidth = <8>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2FCAM0_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				gpio1-supply = <&slg51002_gpio1>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2fcam0_mclk_24mhz>;
+				pinctrl-1 = <&ap2fcam0_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar1_outer_front_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <1>;
+			};
+
+			/* Actuator for INNER FRONT CAMERA */
+			quasar1_actuator5: quasar1_actuator@5 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "act-cornerfolk-taotie-front";
+
+				/* I2C */
+				i2c-bus = <&lsios_i2c3>;
+				i2c-addr = <0xF>;
+
+				/* Registers */
+				reg-addr-bitwidth = <8>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RTCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				gpio2-supply = <&slg51002_gpio2>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rtcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rtcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar1_front_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <1>;
+			};
+
+
+			/* Actuator for REAR ULTRAWIDE CAMERA */
+			quasar1_actuator2: quasar1_actuator@2 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "act-cornerfolk-taotie-uw";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c2>;
+				i2c-addr = <0xF>;
+
+				/* Registers */
+				reg-addr-bitwidth = <8>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RUWCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				ldo2-supply = <&slg51002_ldo2>;
+				ldo4-supply = <&slg51002_ldo4>;
+				ldo6-supply = <&slg51002_ldo6>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2ruwcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2ruwcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar1_rear_uw_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <2>;
+			};
+
+			/* OIS DJINN for BOITATA */
+			quasar1_ois0: quasar1_ois@0 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "ois-djinn";
+
+				/* I2C */
+				i2c-bus = <&lsios_i3c2>;
+				i2c-addr = <0x24>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <32>;
+
+				/* GPIOs */
+				lvbuck_enable-gpios = <PMICM2CAM_LVBUCK_EN(GPIO_ACTIVE_HIGH)>;
+				reset-gpios = <AP2RCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&rcam_vdig>;
+				ldo1-supply = <&slg51002_ldo1>;
+				ldo8-supply = <&slg51002_ldo8>;
+				ldo4-supply = <&slg51002_ldo4>;
+				ldo5-supply = <&slg51002_ldo5>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar1_rear_main_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <0>;
+			};
+
+			/* OIS HUMBABA for Tele */
+			quasar1_ois1: quasar1_ois@1 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "ois-humbaba";
+
+				/* I2C */
+				i2c-bus = <&lsios_i2c0>;
+				i2c-addr = <0x61>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2FCAM1_RST_L(GPIO_ACTIVE_HIGH)>;
+				shared-reset-gpios = <AP2RTCAM_AF_OIS_RST(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				ldo3-supply = <&slg51002_ldo3>;
+				ldo5-supply = <&slg51002_ldo5>;
+				ldo7-supply = <&slg51002_ldo7>;
+				gpio3-supply = <&slg51002_gpio3>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2fcam1_mclk_24mhz>;
+				pinctrl-1 = <&ap2fcam1_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar1_rear_tele_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <3>;
+				lwis,disable-group-transfer;
+			};
+
+			/* EEPROM DJINN for BOITATA */
+			quasar1_eeprom0: quasar1_eeprom@0 {
+				compatible = "google,lwis-i2c-device";
+				/* Device node name */
+				node-name = "eeprom-djinn";
+				/* I2C */
+				i2c-bus = <&lsios_i3c2>;
+				i2c-addr = <0x24>;
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <32>;
+
+				/* GPIOs */
+				lvbuck_enable-gpios = <PMICM2CAM_LVBUCK_EN(GPIO_ACTIVE_HIGH)>;
+				reset-gpios = <AP2RCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&rcam_vdig>;
+				ldo1-supply = <&slg51002_ldo1>;
+				ldo8-supply = <&slg51002_ldo8>;
+				ldo4-supply = <&slg51002_ldo4>;
+				ldo5-supply = <&slg51002_ldo5>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar1_rear_main_camera_power_seq>;
+
+				/* Thread priority */
+				/* Match with other bus devices */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <0>;
+			};
+
+			/* EEPROM SMAUG for DOKKAEBI */
+			quasar1_eeprom1: quasar1_eeprom@1 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "eeprom-smaug-dokkaebi";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c1>;
+				i2c-addr = <0x51>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2FCAM0_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				gpio1-supply = <&slg51002_gpio1>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2fcam0_mclk_24mhz>;
+				pinctrl-1 = <&ap2fcam0_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar1_outer_front_camera_power_seq>;
+
+				/* Thread priority */
+				/* Match with other bus devices */
+				transaction-thread-priority = <99>;
+
+			};
+
+			/* EEPROM SMAUG for UW */
+			quasar1_eeprom2: quasar1_eeprom@2 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "eeprom-smaug-taotie-uw";
+				/* I2C */
+				i2c-bus = <&lsioe_i2c2>;
+				i2c-addr = <0x50>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RUWCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				ldo2-supply = <&slg51002_ldo2>;
+				ldo4-supply = <&slg51002_ldo4>;
+				ldo6-supply = <&slg51002_ldo6>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2ruwcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2ruwcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar1_rear_uw_camera_power_seq>;
+
+				i2c-lock-group-id = <2>;
+			};
+
+			/* EEPROM HUMBABA for Tele */
+			quasar1_eeprom3: quasar1_eeprom@3 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "eeprom-humbaba";
+
+				/* I2C */
+				i2c-bus = <&lsios_i2c0>;
+				i2c-addr = <0x61>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2FCAM1_RST_L(GPIO_ACTIVE_HIGH)>;
+				shared-reset-gpios = <AP2RTCAM_AF_OIS_RST(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				ldo3-supply = <&slg51002_ldo3>;
+				ldo5-supply = <&slg51002_ldo5>;
+				ldo7-supply = <&slg51002_ldo7>;
+				gpio3-supply = <&slg51002_gpio3>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2fcam1_mclk_24mhz>;
+				pinctrl-1 = <&ap2fcam1_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar1_rear_tele_camera_power_seq>;
+
+				/* Thread priority */
+				/* Match with other bus devices */
+				transaction-thread-priority = <99>;
+				lwis,disable-group-transfer;
+			};
+
+			/* EEPROM SMAUG for TAOTIE Front */
+			quasar1_eeprom4: quasar1_eeprom@4 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "eeprom-smaug-taotie-front";
+				/* I2C */
+				i2c-bus = <&lsios_i2c3>;
+				i2c-addr = <0x50>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RTCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				gpio2-supply = <&slg51002_gpio2>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rtcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rtcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar1_front_camera_power_seq>;
+
+				/* Thread priority */
+				/* Match with other bus devices */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <1>;
+			};
+
+			/* EEPROM SMAUG for SVAROG OUTER */
+			quasar1_eeprom6: quasar1_eeprom@6 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "eeprom-smaug-svarog-outer";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c1>;
+				i2c-addr = <0x50>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+
+				/* Power up sequence */
+				power-up-seqs =
+					"vio";
+				power-up-seq-types =
+					"regulator";
+				power-up-seq-delays-us =
+					<1000>;
+				/* Power down sequence */
+				power-down-seqs =
+					"vio";
+				power-down-seq-types =
+					"regulator";
+				power-down-seq-delays-us =
+					<0>;
+
+				/* Thread priority */
+				/* Match with other bus devices */
+				transaction-thread-priority = <99>;
+			};
+		};
+	};
+};

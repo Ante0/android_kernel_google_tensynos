@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Deepspace touch device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+#include "google-base/platform/lga-platform-touch.dtsi"
+#include "google-base/platform/lga-synaptics-touch.dtsi"
+
+&tbn {
+	tbn,mode = <3>;
+};
+
+&spitouch {
+	synaptics,panel_map = <&google_gs_km4 0>,
+			      <&google_gs_bzea 1>,
+			      <&google_gs_mtea 2>;
+	synaptics,firmware_names = "synaptics_km4.img",
+				   "synaptics_bz.img",
+				   "synaptics_mt.img";
+
+	goog,channel-num = /bits/ 16 <17 38>;
+
+	goog,manual-heatmap-from-irq;
+	goog,coord-filter-enabled;
+	vdd-supply = <&ldo_24m_reg>;
+	avdd-supply = <&ldo_26m_reg>;
+};

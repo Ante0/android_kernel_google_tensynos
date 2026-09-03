@@ -1,0 +1,91 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include "lga-deepspace-pinctrl-test-aoc.dtsi"
+#include "lga-deepspace-pinctrl-test-cpm.dtsi"
+#include "lga-deepspace-pinctrl-test-gdmc.dtsi"
+#include "lga-deepspace-pinctrl-test-hsion.dtsi"
+#include "lga-deepspace-pinctrl-test-hsios.dtsi"
+#include "lga-deepspace-pinctrl-test-lsioe.dtsi"
+#include "lga-deepspace-pinctrl-test-lsion.dtsi"
+#include "lga-deepspace-pinctrl-test-lsios.dtsi"
+
+/ {
+	fragment@pinctrl-test {
+		target-path = "/";
+		__overlay__ {
+			pinctrl_test {
+				compatible = "google,pinctrl-test";
+				pinctrl-0 = <&cli20_int3_spi_clk_mosi_miso_func>,
+					    <&cli20_int3_spi_cs_gpio_func>,
+					    <&cli19_int2_spi_clk_mosi_miso_func>,
+			    		    <&cli19_int2_spi_cs_gpio_func>,
+					    <&aoc_ts_input_gpios>,
+					    <&cli17_int0_spi_clk_mosi_miso_func>,
+					    <&cli17_int0_spi_cs_gpio_func>,
+					    <&aoc_uwb_input_gpios>,
+					    <&lsion_uwb_output_gpios>,
+					    <&hsios_uwb_output_gpios>,
+					    <&cli21_int4_spi_clk_mosi_miso_func>,
+					    <&cli21_int4_spi_cs_gpio_func>,
+					    <&cpm_gnss_input_gpios>,
+					    <&aoc_gnss_input_gpios>,
+					    <&lsioe_gnss_output_gpios>,
+					    <&cli18_int1_spi_clk_mosi_miso_func>,
+					    <&cli18_int1_spi_cs0_gpio_func>,
+					    <&cli18_int1_spi_cs1_cs2_gpio_func>,
+					    <&lsion_audio_output_gpios>,
+					    <&cpm_audio_input_gpios>,
+					    <&aoc_audio_input_gpios>,
+					    <&cpm_ifpmic_input_gpios>,
+					    <&cli10_2_wire_func>,
+					    <&cpm_haptic_input_gpios>,
+					    <&lsioe_haptic_output_gpios>,
+					    <&cli15_spi_clk_mosi_miso_func>,
+					    <&cli15_spi_cs_gpio_func>,
+					    <&hsion_nfc_output_gpios>,
+					    <&hsion_nfc_input_gpios>,
+					    <&lsioe_ifpmic_output_gpios>,
+					    <&gdmc_nfc_input_gpios>,
+					    <&cli0_2_wire_func>,
+					    <&cli1_2_wire_func>,
+					    <&cli3_2_wire_func>,
+					    <&cli7_2_wire_func>,
+					    <&cli8_2_wire_func>,
+					    <&cli13_2_wire_func>,
+					    <&lsioe_camera_output_gpios>,
+					    <&lsios_camera_output_gpios>,
+					    <&lsios_modem_output_gpios>,
+					    <&hsios_modem_output_gpios>,
+					    <&cpm_modem_input_gpios>,
+					    <&gdmc_modem_input_gpios>,
+					    <&hsios_wifi_output_gpios>,
+					    <&cpm_wifi_input_gpios>,
+					    <&cli12_4_wire_func>,
+					    <&aoc_bt_input_gpios>,
+					    <&aoc_bt_output_gpios>;
+				pinctrl-names = "ds-test-1";
+				ds-gpios = <&aoc_pinctrl XAOC_GPIO12 GPIO_ACTIVE_LOW>,			// TS0_2_AOC_INT_L
+					   <&aoc_pinctrl XAOC_GPIO13 GPIO_ACTIVE_LOW>,			// TS1_2_AOC_INT_L
+					   <&aoc_pinctrl XAOC_GPIO3 GPIO_ACTIVE_HIGH>,			// UWB2AOC_SS_RDY
+					   <&aoc_pinctrl XAOC_GPIO4 GPIO_ACTIVE_HIGH>,			// UWB2AOC_INT
+					   <&cpm_pinctrl XCPM_EINT_3 GPIO_ACTIVE_HIGH>,			// GNSS2AP_HOST_REQ
+					   <&aoc_pinctrl XAOC_GPIO9 GPIO_ACTIVE_HIGH>,			// GNSS2AOC_PPS
+					   <&aoc_pinctrl XAOC_GPIO11 GPIO_ACTIVE_HIGH>,			// GNSS2AOC_HOST_REQ
+					   <&cpm_pinctrl XCPM_SRC_OPT0 GPIO_ACTIVE_LOW>,		// AMP1_CPM_IRQ_L
+					   <&cpm_pinctrl XCPM_SRC_OPT1 GPIO_ACTIVE_LOW>,		// AMP2_CPM_IRQ_L
+					   <&aoc_pinctrl XAOC_SPI4_SSB GPIO_ACTIVE_LOW>,		// AMP3_2_AOC_IRQ_OD_L
+					   <&cpm_pinctrl XCPM_EINT_11 GPIO_ACTIVE_LOW>,			// IFPMIC2AP_INT_L
+					   <&cpm_pinctrl XCPM_EINT_10 GPIO_ACTIVE_LOW>,			// IFPMIC2AP_ALERT_L
+					   <&cpm_pinctrl XCPM_SRC_OPT2 GPIO_ACTIVE_LOW>,		// HAPTICS2AP_ALERT_OD_L
+					   <&hsion_pinctrl XHSION_GPIO3 GPIO_ACTIVE_HIGH>,		// NFC2AP_COEX
+					   <&hsion_pinctrl XHSION_GPIO8 GPIO_ACTIVE_HIGH>,		// NFC2AP_PWR_STATE
+					   <&gdmc_pinctrl XGDMC_DEBUG_DEFAULT_1 GPIO_ACTIVE_LOW>,	// NFC2AP_HOST_IRQ
+					   <&cpm_pinctrl XCPM_EINT_4 GPIO_ACTIVE_LOW>,			// CP2AP_WAKEUP
+					   <&cpm_pinctrl XCPM_EINT_1 GPIO_ACTIVE_LOW>,			// CP2AP_ACTIVE
+					   <&cpm_pinctrl XCPM_EINT_2 GPIO_ACTIVE_LOW>,			// CP2AP_WRSTBI_L
+					   <&cpm_pinctrl XCPM_EINT_8 GPIO_ACTIVE_LOW>,			// WLAN2AP_HOST_WAKE
+					   <&aoc_pinctrl XAOC_GPIO2 GPIO_ACTIVE_HIGH>;			// BT2AOC_HOST_WAKE
+			};
+		};
+	};
+};

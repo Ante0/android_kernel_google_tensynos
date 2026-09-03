@@ -1,27 +1,37 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
 
-filegroup(
-    name = "headers",
-    srcs = glob([
-        "uapi/*.h",
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "ddk_headers",
+    hdrs = glob([
         "*.h",
+        "uapi/*.h",
     ]),
+    includes = [
+        ".",
+        "uapi",
+    ],
     visibility = [
         "//private/google-modules/aoc/alsa:__pkg__",
     ],
 )
 
-kernel_module(
+ddk_module(
     name = "audiometrics",
-    outs = [
-        "audiometrics.ko",
+    srcs = [
+        "audiometrics.c",
+        "audiometrics.h",
     ],
+    out = "audiometrics.ko",
+    hdrs = [":ddk_headers"],
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/aoc/alsa:__pkg__",
-        "//private/google-modules/soc/gs:__pkg__",
+    deps = [
+        "//common:all_headers_aarch64",
     ],
 )

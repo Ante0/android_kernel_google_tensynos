@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * eSE device tree entries specific to the mbu platform
+ *
+ * Copyright 2026 Google LLC.
+ *
+ */
+
+// TODO: b/479119309 - Autogenerate output-high in mission mode
+&ap2ese_spi_reset_l_1v2 {
+	output-high;
+};
+
+&ese1 {
+	pinctrl-names = "default", "func";
+	pinctrl-0 = <&ap2ese_spi_reset_l_1v2>;
+	pinctrl-1 = <&ap2ese_spi_reset_l_1v2>;
+};

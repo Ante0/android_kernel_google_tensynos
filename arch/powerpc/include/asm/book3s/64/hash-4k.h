@@ -74,21 +74,6 @@
 #define remap_4k_pfn(vma, addr, pfn, prot)	\
 	remap_pfn_range((vma), (addr), (pfn), PAGE_SIZE, (prot))
 
-#ifdef CONFIG_HUGETLB_PAGE
-static inline int hash__hugepd_ok(hugepd_t hpd)
-{
-	unsigned long hpdval = hpd_val(hpd);
-	/*
-	 * if it is not a pte and have hugepd shift mask
-	 * set, then it is a hugepd directory pointer
-	 */
-	if (!(hpdval & _PAGE_PTE) && (hpdval & _PAGE_PRESENT) &&
-	    ((hpdval & HUGEPD_SHIFT_MASK) != 0))
-		return true;
-	return false;
-}
-#endif
-
 /*
  * With 4K page size the real_pte machinery is all nops.
  */
@@ -161,12 +146,6 @@ static inline void mark_hpte_slot_valid(unsigned char *hpte_slot_array,
 
 static inline int hash__pmd_trans_huge(pmd_t pmd)
 {
-	return 0;
-}
-
-static inline int hash__pmd_same(pmd_t pmd_a, pmd_t pmd_b)
-{
-	BUG();
 	return 0;
 }
 

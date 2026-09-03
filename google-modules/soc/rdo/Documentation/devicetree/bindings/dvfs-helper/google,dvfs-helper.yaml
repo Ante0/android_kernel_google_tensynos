@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2023 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/dvfs-helper/google,dvfs-helper.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google DVFS Helper
+
+maintainers:
+  - Vinod Modhe <vmodhe@google.com>
+
+description:
+  The Google DVFS Helper reads the DVFS tables from the CPM firmware via mailbox
+  and makes them available to voting clients like the CPU freq driver. The client
+  device node needs to have a 'dvfs-helper-domain-name' string property containing
+  the domain string used in CPM firmware.
+
+properties:
+  compatible:
+    const: google,dvfs-helper
+
+  mba-dest-channel:
+    description:
+      Mailbox service ID.
+
+  mboxes:
+    description:
+      Mailbox to use.
+
+required:
+  - compatible
+  - mba-dest-channel
+  - mboxes
+
+additionalProperties: false
+
+examples:
+    - |
+      dvfs_helper {
+        compatible = "google,dvfs-helper";
+        mba-dest-channel = <0xE>; // PWRBLK mbox service ID on CPM
+        mboxes = <&mbactrl_ap_cpm 19>;
+      };

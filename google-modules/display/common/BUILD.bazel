@@ -1,12 +1,26 @@
 # SPDX-License-Identifier: MIT
 
-load("//build/kernel/kleaf:kernel.bzl", "ddk_headers")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_uapi_headers")
 
-filegroup(
-    name = "headers",
-    srcs = glob([
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_headers(
+    name = "ddk_headers",
+    hdrs = glob([
         "include/**/*.h",
     ]),
+    includes = [
+        "include",
+        "include/uapi",
+    ],
     visibility = [
         "//private/devices/google:__subpackages__",
         "//private/google-modules/display:__subpackages__",
@@ -14,16 +28,17 @@ filegroup(
     ],
 )
 
-ddk_headers(
-    name = "ddk_headers",
-    hdrs = ["headers"],
-    includes = [
-        "include",
+ddk_uapi_headers(
+    name = "uapi_headers",
+    srcs = glob([
+        "include/uapi/**/*.h",
+    ]) + [
+        "//common:include/uapi/drm/drm_fourcc.h",
     ],
+    out = "gs-drm-uapi-headers.tar.gz",
+    kernel_build = "//private/devices/google/common:kernel",
     visibility = [
         "//private/devices/google:__subpackages__",
-        "//private/google-modules/display/panels:__subpackages__",
-        "//private/google-modules/touch:__subpackages__",
     ],
 )
 
@@ -34,6 +49,5 @@ filegroup(
     ],
     visibility = [
         "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
     ],
 )

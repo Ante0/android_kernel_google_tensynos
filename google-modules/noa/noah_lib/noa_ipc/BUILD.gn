@@ -1,0 +1,101 @@
+import("//build_overrides/noa.gni")
+import("//build_overrides/pigweed.gni")
+
+import("$dir_pw_build/target_types.gni")
+import("$dir_pw_perf_test/perf_test.gni")
+import("$dir_pw_unit_test/test.gni")
+
+config("public_include_path") {
+  include_dirs = [ "public" ]
+}
+
+pw_source_set("os") {
+  public_configs = [ ":public_include_path" ]
+  deps = [
+    "$dir_noa_common:debug",
+    "$dir_noa_common:headers",
+    "$dir_noa_drivers/arch",
+    "$dir_noa_drivers/mailbox",
+    "$dir_noa_modules/notifier",
+    "$dir_noa_modules/notifier:notifier_mailbox",
+    "$dir_pw_sync:thread_notification",
+    "$dir_pw_thread:yield",
+  ]
+  sources = [ "os_pw.cc" ]
+  visibility = [ ":*" ]
+}
+
+pw_source_set("buffer_shared_memory") {
+  public_configs = [ ":public_include_path" ]
+  deps = [ ":os" ]
+  sources = [
+    "ipc_buffer.c",
+    "ipc_buffer_shared_memory.c",
+  ]
+}
+
+pw_source_set("ipc_structure") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    "$dir_noa_common:headers",
+    "$dir_noa_modules/ipc:ipc_structure",
+  ]
+  public = [ "public/noa_ipc/ipc.h" ]
+}
+
+pw_source_set("channel") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    ":buffer_shared_memory",
+    ":ipc_structure",
+  ]
+  deps = [ ":os" ]
+  sources = [ "ipc_channel.c" ]
+}
+
+pw_source_set("manager") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    ":channel",
+    ":ipc_structure",
+    "$dir_pw_log",
+  ]
+  deps = [ ":os" ]
+  sources = [ "ipc_manager.c" ]
+}
+
+group("noa_ipc") {
+  public_deps = [ ":manager" ]
+}
+
+pw_test_group("tests") {
+  tests = [
+    ":buffer_shared_memory_test",
+    ":channel_test",
+    ":manager_test",
+    ":mixed_buffer_shared_memory_test",
+  ]
+}
+
+pw_test("buffer_shared_memory_test") {
+  deps = [ ":buffer_shared_memory" ]
+  sources = [ "buffer_shared_memory_test.cc" ]
+}
+
+pw_test("mixed_buffer_shared_memory_test") {
+  deps = [
+    ":buffer_shared_memory",
+    "$dir_noa_modules/ipc:ipc_buffer_shared_memory",
+  ]
+  sources = [ "mixed_buffer_shared_memory_test.cc" ]
+}
+
+pw_test("channel_test") {
+  deps = [ ":channel" ]
+  sources = [ "channel_test.cc" ]
+}
+
+pw_test("manager_test") {
+  deps = [ ":manager" ]
+  sources = [ "manager_test.cc" ]
+}

@@ -1,0 +1,105 @@
+# SPDX-License-Identifier: MIT
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module", "ddk_uapi_headers")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+filegroup(
+    name = "drm-g2d.kconfig",
+    srcs = glob([
+        "**/Kconfig",
+    ]),
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "ddk_headers",
+    hdrs = glob([
+        "**/*.h",
+    ]) + [
+        "//private/google-modules/display/common:ddk_headers",
+    ],
+    includes = [
+        ".",
+        "include",
+        "include/uapi",
+    ],
+    visibility = [
+        ":__subpackages__",
+    ],
+)
+
+ddk_uapi_headers(
+    name = "uapi_headers",
+    srcs = glob([
+        "include/uapi/**/*.h",
+    ]),
+    out = "vsi-g2d-uapi-headers.tar.gz",
+    kernel_build = "//private/devices/google/common:kernel",
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "drm-g2d",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "google/g2d_crtc.c",
+        "google/g2d_debugfs.c",
+        "google/g2d_drm_atomic.c",
+        "google/g2d_drv.c",
+        "google/g2d_fb.c",
+        "google/g2d_gem.c",
+        "google/g2d_hw_constraints.c",
+        "google/g2d_plane.c",
+        "google/g2d_plane_hw.c",
+        "google/g2d_pvric.c",
+        "google/g2d_pvric_hw.c",
+        "google/g2d_qos.c",
+        "google/g2d_recovery.c",
+        "google/g2d_sc.c",
+        "google/g2d_sc_hw.c",
+        "google/g2d_trace.c",
+        "google/g2d_writeback.c",
+        "google/g2d_writeback_hw.c",
+    ],
+    out = "drm_g2d.ko",
+    copts = [
+        "-Wall",
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        ":ddk_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common/gs_drm:gs-drm-connector",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/core/gs_perf_domain:perf_domain",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/interconnect:google_icc",
+    ],
+)
+
+exports_files(
+    [
+        "Kconfig",
+    ],
+    [
+        "//private/google-modules/display/vsi-g2d:__pkg__",
+    ],
+)

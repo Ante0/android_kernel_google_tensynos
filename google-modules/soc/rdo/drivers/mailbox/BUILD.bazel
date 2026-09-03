@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "goog-mba-ctrl",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "goog-mba-ctrl.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_MBA_CTRL": {
+            True: [
+                "goog-mba-ctrl.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "goog-mba-ctrl-test",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "goog-mba-ctrl-test.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_MBA_CTRL_TEST": {
+            True: [
+                "goog-mba-ctrl-test.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)

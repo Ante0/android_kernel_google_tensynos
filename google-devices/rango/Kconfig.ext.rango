@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# soc level Kconfigs are at private/devices/google/lga/Kconfig.ext.lga
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/radio/samsung/s5400/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/touch/fts/fst2/Kconfig"

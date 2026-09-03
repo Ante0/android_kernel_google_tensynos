@@ -239,6 +239,10 @@ struct eh_compress_desc {
 
 #define EH_VENDOR_ID_GOOGLE 1
 
+/* Hardware IDs */
+#define EH_HWID_V1	0x3
+#define EH_HWID_V2	0x7
+
 /* compression related */
 #define EH_REG_CDESC_LOC     0x400
 #define EH_REG_CDESC_WRIDX   0x408
@@ -310,6 +314,7 @@ enum eh_dcmd_status {
 #define EH_DCMD_DEST_INTR_SHIFT        0x0UL
 #define EH_DCMD_CSIZE_HASH_SHIFT       32UL
 #define EH_DCMD_CSIZE_SIZE_SHIFT       16UL
+#define EH_DCMD_INFO_SIZE_SHIFT        41UL
 #define EH_DCMD_CSIZE_HASH_ENABLE_MASK 0x1UL
 #define EH_DCMD_BUF_SIZE_SHIFT         60UL
 #define EH_DCMD_RES_ADDR_MASK          0x000000FFFFFFFFF8UL

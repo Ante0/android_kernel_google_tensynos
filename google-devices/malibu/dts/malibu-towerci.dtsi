@@ -1,0 +1,121 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright 2025 Google LLC.
+ */
+
+/ {
+	pmu@10000000 {
+		compatible = "arm,ni-700";
+		reg = <0x0 0x10000000 0x0 0x10000000>;
+		interrupts = <GIC_SPI SSWRP_APC_TOWER_GDMC_AP_INTR_0 IRQ_TYPE_LEVEL_HIGH 0>;
+	};
+
+	tower_global: tower-ci@10000000 {
+		compatible = "google,tower-ci-global";
+		reg = <0x0 0x10000000 0x0 0x10000000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x10000000 0x10000000>;
+
+		asni0: asni@40000 {
+			compatible = "google,tower-ci-node";
+			reg = <0x40000 0x30000>;
+		};
+
+		asni1: asni@70000 {
+			compatible = "google,tower-ci-node";
+			reg = <0x70000 0x30000>;
+		};
+
+		asni2: asni@a0000 {
+			compatible = "google,tower-ci-node";
+			reg = <0xa0000 0x30000>;
+		};
+
+		asni3: asni@d0000 {
+			compatible = "google,tower-ci-node";
+			reg = <0xd0000 0x30000>;
+		};
+
+		mcn0: mcn@1d0000 {
+			compatible = "google,tower-ci-node";
+			reg = <0x1d0000 0x130000>;
+			interrupts =
+				<GIC_SPI SSWRP_APC_U_TOWER_CI_MCN_0_IRPT_RAS_ERI_NS
+					 IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_APC_U_TOWER_CI_MCN_0_IRPT_RAS_ERI_S
+					 IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_APC_U_TOWER_CI_MCN_0_IRPT_RAS_FHI_NS
+					 IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_APC_U_TOWER_CI_MCN_0_IRPT_RAS_FHI_S
+					 IRQ_TYPE_LEVEL_HIGH 0>;
+			interrupt-names = "MCN0: Non-secure error",
+				"MCN0: Secure error",
+				"MCN0: Non-secure fault",
+				"MCN0: Secure fault";
+			interrupt-is-secure = <0>, <1>, <0>, <1>;
+			interrupt-is-error = <1>, <1>, <0>, <0>;
+		};
+
+		mcn1: mcn@300000 {
+			compatible = "google,tower-ci-node";
+			reg = <0x300000 0x130000>;
+			interrupts =
+				<GIC_SPI SSWRP_APC_U_TOWER_CI_MCN_1_IRPT_RAS_ERI_NS
+					 IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_APC_U_TOWER_CI_MCN_1_IRPT_RAS_ERI_S
+					 IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_APC_U_TOWER_CI_MCN_1_IRPT_RAS_FHI_NS
+					 IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_APC_U_TOWER_CI_MCN_1_IRPT_RAS_FHI_S
+					 IRQ_TYPE_LEVEL_HIGH 0>;
+			interrupt-names = "MCN1: Non-secure error",
+				"MCN1: Secure error",
+				"MCN1: Non-secure fault",
+				"MCN1: Secure fault";
+			interrupt-is-secure = <0>, <1>, <0>, <1>;
+			interrupt-is-error = <1>, <1>, <0>, <0>;
+		};
+
+		mcn2: mcn@430000 {
+			compatible = "google,tower-ci-node";
+			reg = <0x430000 0x130000>;
+			interrupts =
+				<GIC_SPI SSWRP_APC_U_TOWER_CI_MCN_2_IRPT_RAS_ERI_NS
+					 IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_APC_U_TOWER_CI_MCN_2_IRPT_RAS_ERI_S
+					 IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_APC_U_TOWER_CI_MCN_2_IRPT_RAS_FHI_NS
+					 IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_APC_U_TOWER_CI_MCN_2_IRPT_RAS_FHI_S
+					 IRQ_TYPE_LEVEL_HIGH 0>;
+			interrupt-names = "MCN2: Non-secure error",
+				"MCN2: Secure error",
+				"MCN2: Non-secure fault",
+				"MCN2: Secure fault";
+			interrupt-is-secure = <0>, <1>, <0>, <1>;
+			interrupt-is-error = <1>, <1>, <0>, <0>;
+		};
+
+		mcn3: mcn@560000 {
+			compatible = "google,tower-ci-node";
+			reg = <0x560000 0x130000>;
+			interrupts =
+				<GIC_SPI SSWRP_APC_U_TOWER_CI_MCN_3_IRPT_RAS_ERI_NS
+					 IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_APC_U_TOWER_CI_MCN_3_IRPT_RAS_ERI_S
+					 IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_APC_U_TOWER_CI_MCN_3_IRPT_RAS_FHI_NS
+					 IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_APC_U_TOWER_CI_MCN_3_IRPT_RAS_FHI_S
+					 IRQ_TYPE_LEVEL_HIGH 0>;
+			interrupt-names = "MCN3: Non-secure error",
+				"MCN3: Secure error",
+				"MCN3: Non-secure fault",
+				"MCN3: Secure fault";
+			interrupt-is-secure = <0>, <1>, <0>, <1>;
+			interrupt-is-error = <1>, <1>, <0>, <0>;
+		};
+	};
+};
+

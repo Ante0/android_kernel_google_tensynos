@@ -79,6 +79,26 @@ bool aoc_service_is_buffer(aoc_service *service);
  */
 int aoc_service_irq_index(aoc_service *service);
 
+#if __KERNEL__
+/**
+ * Set pointer to prvdata of aoc as global pointer
+ *
+ * \param[in] prvdata pointer to aoc data
+ *
+ * \return None
+ */
+void aoc_service_set_aoc_prvdata(void *prvdata);
+#endif
+
+/**
+ * Return the logical index for a service
+ *
+ * \param[in] service pointer to a service
+ *
+ * \return interrupt index for the service
+ */
+int aoc_service_irq_logical(aoc_service *service);
+
 /**
  * Return the name of a service
  *

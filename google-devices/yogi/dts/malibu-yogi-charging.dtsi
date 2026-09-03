@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Charging device tree entries specific to Yogi
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+
+&max77779_chg {
+	max77779,thm2_tz_name = "charging_therm";
+};
+
+&pe26100_charge_pump {
+	pe26100_cp,wcrx-vol-loop-delay = <1000>;
+	pe26100_cp,wcrx-vol-up-step = <30000>;
+
+	/* Charge pump thermal zone */
+	google,usb-port-tz-name = "cp-therm-adc";
+};

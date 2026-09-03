@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Configurations for Tick Driven Memory
+# Latency Governors.
+#
+
+config GS_DSULAT_GOVERNOR
+        tristate "Google DSU Latency Governor"
+        depends on GS_PERF_MON
+        depends on GOOGLE_PM_QOS
+        default n
+        help
+          The Google dsulat governors provides DVFS frequency votes for the
+          DSU cache. The governors only compute target frequencies for the DSU,
+          then submits the votes via the Google PM QOS system for vote processing.

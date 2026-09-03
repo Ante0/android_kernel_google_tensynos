@@ -12,10 +12,9 @@
 #include <linux/types.h>
 #include <linux/string.h>
 #include <linux/kernel.h>
-#include <linux/module.h>
 #include <linux/init.h>
 #include <linux/bug.h>
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 
 static const u8 blake2s_sigma[10][16] = {
 	{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
@@ -109,7 +108,3 @@ void blake2s_compress_generic(struct blake2s_state *state, const u8 *block,
 }
 
 EXPORT_SYMBOL(blake2s_compress_generic);
-
-MODULE_LICENSE("GPL v2");
-MODULE_DESCRIPTION("BLAKE2s hash function");
-MODULE_AUTHOR("Jason A. Donenfeld <Jason@zx2c4.com>");

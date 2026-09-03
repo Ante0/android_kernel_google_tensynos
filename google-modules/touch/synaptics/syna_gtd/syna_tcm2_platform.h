@@ -2,7 +2,7 @@
  *
  * Synaptics TouchCom touchscreen driver
  *
- * Copyright (C) 2017-2020 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2024 Synaptics Incorporated. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,69 +29,47 @@
  * DOLLARS.
  */
 
-/*
+/**
  * @file: syna_tcm2_platform.h
  *
  * This file declares the platform-specific or hardware relevant data.
- *
- * The main structure, syna_hw_interface, abstracts the bus transferred,
- * ATTN signal, RST_N pin, and power control operations.
  */
 
 #ifndef _SYNAPTICS_TCM2_PLATFORM_H_
 #define _SYNAPTICS_TCM2_PLATFORM_H_
 
+#include "synaptics_touchcom_platform.h"
 #include "syna_tcm2_runtime.h"
+
 #if IS_ENABLED(CONFIG_SPI_S3C64XX_GS)
 #include <linux/platform_data/spi-s3c64xx-gs.h>
 #endif
-/*
- * @section: The capability of bus transferred
+/**
+ * Capability of bus transferred
  *
- * Declare read/write capability in bytes (0 = unlimited)
+ *    RD_CHUNK_SIZE: the max. transferred size for one 'read' operation
+ *    WR_CHUNK_SIZE: the max. transferred size for one 'write' operation
  */
 #define RD_CHUNK_SIZE (2048)
 #define WR_CHUNK_SIZE (1024)
 
 #define LIMIT_NAME_LEN 32
 
-/*
- * @section: Type of power supply
- *
- * The below enumerates the type of power supply
- */
+
+/** Type of power supply */
 enum power_supply {
-	PSU_REGULATOR = 0,
+	PSU_REGULATOR = 1,
 	PSU_GPIO,
 	PSU_PWR_MODULES,
 };
 
+
 /*
- * @section: Defined Hardware-Specific Data
- *
- * @brief: syna_hw_bus_data
- *         Hardware Data for bus transferred
- *
- * @brief: syna_hw_attn_data
- *         Hardware Data for ATTN signal
- *
- * @brief: syna_hw_rst_data
- *         Hardware Data for RST_N pin
- *
- * @brief: syna_hw_pwr_data
- *         Hardware Data for power control
- *
- * @brief: syna_hw_interface
- *         Contain all above hardware data and abstract the
- *         hardware operations
+ * Definitions of hardware interface
  */
 
-/* The hardware data especially for bus transferred */
+/** Hardware Data for bus transferred */
 struct syna_hw_bus_data {
-	unsigned char type;
-	/* capability of i/o chunk */
-	unsigned int rd_chunk_size;
-	unsigned int wr_chunk_size;
 	/* clock frequency in hz */
 	unsigned int frequency_hz;
 	/* parameters for i2c */
@@ -100,14 +78,14 @@ struct syna_hw_bus_data {
 	unsigned int spi_mode;
 	unsigned int spi_byte_delay_us;
 	unsigned int spi_block_delay_us;
-	/* mutex to protect the i/o, if needed */
+	/* mutex to protect the i/o */
 	syna_pal_mutex_t io_mutex;
-	/* parameters for io switch, if needed */
+	/* parameters for io switch */
 	int switch_gpio;
 	int switch_state;
 };
 
-/* The hardware data especially for ATTN signal */
+/** Hardware Data for ATTN signal */
 struct syna_hw_attn_data {
 	/* parameters */
 	int irq_gpio;
@@ -115,11 +93,11 @@ struct syna_hw_attn_data {
 	unsigned long irq_flags;
 	int irq_id;
 	bool irq_enabled;
-	/* mutex to protect the irq control, if needed */
+	/* mutex to protect the irq control */
 	syna_pal_mutex_t irq_en_mutex;
 };
 
-/* The hardware data especially for RST_N pin */
+/** Hardware Data for RST_N pin */
 struct syna_hw_rst_data {
 	/* parameters */
 	int reset_gpio;
@@ -128,45 +106,51 @@ struct syna_hw_rst_data {
 	unsigned int reset_active_ms;
 };
 
-/* The hardware data especially for power control */
+/** Hardware Data for power control */
+struct power_setup {
+	int control;
+	const char *regulator_name;
+	void *regulator_dev;
+	int gpio;
+	int voltage;
+	unsigned int power_on_delay_ms;
+	unsigned int power_off_delay_ms;
+};
 struct syna_hw_pwr_data {
-	int psu;
-	/* parameters */
-	int vdd_gpio;
-	int avdd_gpio;
+	/* VDD */
+	struct power_setup avdd;
+	/* IO VDD */
+	struct power_setup vdd;
+	/* indicate the state of powering on */
 	int power_on_state;
+	/* the delay time after the completion of power sequence */
 	unsigned int power_delay_ms;
-
-	unsigned int avdd_power_on_delay_ms;
-	unsigned int avdd_power_off_delay_ms;
-	unsigned int vdd_power_on_delay_ms;
-	unsigned int vdd_power_off_delay_ms;
-
-	/* voltage */
-	unsigned int vdd;
-	unsigned int vled;
-	unsigned int vio;
-	unsigned int vddtx;
-	/* regulators */
-	const char *vdd_reg_name;
-	void *vdd_reg_dev;
-	const char *avdd_reg_name;
-	void *avdd_reg_dev;
 };
 
-/*
- * @section: Hardware Interface Abstraction Layer
- *
- * The structure contains the hardware-specific implementations
- * on the target platform.
- */
+/** Product specific data */
+struct product_specific {
+	/* time settings for command processing */
+	int default_cmd_timeout_ms;
+	int default_cmd_polling_ms;
+	int default_cmd_turnaround_us[2];
+	int default_cmd_retry_us[2];
+	/* time settings for flash operations */
+	int default_fw_switch_delay_ms;
+	/* time settings for flash operations */
+	int default_flash_delay_us[3];
+};
+
+/** Abstractions of hardware-specific interface */
 struct syna_hw_interface {
-	/* The handle of hardware device */
+	/* The handle of target platform */
 	void *pdev;
 #if IS_ENABLED(CONFIG_SPI_S3C64XX_GS)
 	struct s3c64xx_spi_info *s3c64xx_sci;
 #endif
-	/* Hardware specific data */
+	/* Hardware abstraction interface linked to tcm/ core lib. */
+	struct tcm_hw_platform hw_platform;
+
+	/* Hardware resources */
 	struct syna_hw_bus_data bdata_io;
 	struct syna_hw_attn_data bdata_attn;
 	struct syna_hw_rst_data bdata_rst;
@@ -194,142 +178,44 @@ struct syna_hw_interface {
 	u16 compression_threshold;
 	u16 grip_delta_threshold;
 	u16 grip_border_threshold;
+	bool metadata_enabled;
 	bool dma_mode;
 
-	/* Operation to read data from bus
-	 *
-	 * This is an essential operation; otherwise, the communication
-	 * will not be created.
-	 *
-	 * @param
-	 *    [ in] hw_if:   the handle of hw interface
-	 *    [out] rd_data: buffer for storing data retrieved
-	 *    [ in] rd_len:  length of reading data in bytes
-	 *
-	 * @return
-	 *    0 or positive value on success; otherwise, on error.
-	 */
-	int (*ops_read_data)(struct syna_hw_interface *hw_if,
-			unsigned char *rd_data, unsigned int rd_len);
 
-	/* Operation to write data to bus
-	 *
-	 * This is an essential operation; otherwise, the communication
-	 * will not be created.
-	 *
-	 * @param
-	 *    [ in] hw_if:   the handle of hw interface
-	 *    [ in] wr_data: written data
-	 *    [ in] wr_len:  length of written data in bytes
-	 *
-	 * @return
-	 *    0 or positive value on success; otherwise, on error.
-	 */
-	int (*ops_write_data)(struct syna_hw_interface *hw_if,
-			unsigned char *wr_data, unsigned int wr_len);
+	/* Product specific data */
+	struct product_specific product;
 
-	/* Operation to do power on/off, if supported
-	 *
-	 * This is an optional operation.
-	 *
-	 * Implementation should set up the proper power rails to the device.
-	 *
-	 * Assign the pointer NULL if power supply module is not controllable.
-	 *
-	 * @param
-	 *    [ in] hw_if: the handle of hw interface
-	 *    [ in] on:    '1' to power-on, and '0' to power-off
-	 *
-	 * @return
-	 *    0 on success; otherwise, on error.
-	 */
+	/* Implementation of power on/off operation */
 	int (*ops_power_on)(struct syna_hw_interface *hw_if, bool on);
 
-	/* Operation to perform the hardware reset, if supported
-	 *
-	 * This is an optional operation.
-	 *
-	 * The actual reset waveform should be reference to the device spec.
-	 *
-	 * Assign the pointer NULL if RST_N pin is not controllable.
-	 *
-	 * @param
-	 *    [ in] hw_if: the handle of hw interface
-	 *
-	 * @return
-	 *    0 on success; otherwise, on error.
-	 */
+	/* Implementation of hardware reset operation */
 	void (*ops_hw_reset)(struct syna_hw_interface *hw_if);
-
-	/* Operation to enable/disable the irq, if supported
-	 *
-	 * This is an optional operation. Providing this operation could
-	 * minimize the frequency of ISR being called.
-	 *
-	 * Once disabled, ISR will not be invoked even ATTN is asserted.
-	 *
-	 * Assign the pointer NULL if irq is not controllable.
-	 *
-	 * @param
-	 *    [ in] hw_if: the handle of hw interface
-	 *    [ in] en:    '1' for enabling, and '0' for disabling
-	 *
-	 * @return
-	 *    0 on success; otherwise, on error.
-	 */
-	int (*ops_enable_irq)(struct syna_hw_interface *hw_if, bool en);
-	int (*ops_disable_irq_sync)(struct syna_hw_interface *hw_if);
-
-	/* Operation to wait for the signal of interrupt, if supported
-	 *
-	 * This is an optional operation to help for creating the
-	 * custom interrupt handler. Besides, the recommendation is to
-	 * implement in one-shot approach if possible.
-	 *
-	 * Implementation should return control if ATTN is asserted or
-	 * specified timeout expire. If timeout is 0, should check the
-	 * state of the ATTN signal and return control immediately.
-	 *
-	 * Assign the pointer NULL if customized ISR is not required.
-	 *
-	 * @param
-	 *    [ in] hw_if:      the handle of hw interface
-	 *    [ in] timeout_ms: time frame in milliseconds
-	 *
-	 * @return
-	 *    0 on success; otherwise, on error.
-	 */
-	int (*ops_wait_irq)(struct syna_hw_interface *hw_if,
-			unsigned int timeout_ms);
-
 };
-/* end of structure syna_hw_interface */
 
 
 /*
- * syna_hw_interface_init()
- *
- * Initialize the lower-level hardware interface module.
- * After returning, the handle of hw interface should be ready.
+ * Common Helpers
+ */
+
+/**
+ * @brief  Initialize the hardware module.
  *
  * @param
  *    void
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 int syna_hw_interface_init(void);
 
-/*
- * syna_hw_interface_exit()
- *
- * Delete the lower-level hardware interface module.
+/**
+ * @brief  Delete the hardware module.
  *
  * @param
  *    void
  *
  * @return
- *    none.
+ *    void.
  */
 void syna_hw_interface_exit(void);
 

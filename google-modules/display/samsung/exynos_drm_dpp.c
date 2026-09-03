@@ -25,7 +25,7 @@
 #include <linux/platform_device.h>
 #include <linux/component.h>
 #include <linux/irq.h>
-#include <uapi/linux/videodev2_exynos_media.h>
+#include <linux/videodev2_exynos_media.h>
 #include <linux/dma-buf.h>
 #include <linux/soc/samsung/exynos-smc.h>
 #include <linux/dma-heap.h>
@@ -354,111 +354,6 @@ bool dpp_need_enable_hdr(const struct dpp_device *dpp)
 	return hdr_en;
 }
 
-static dma_addr_t dpp_alloc_map_buf_test(void)
-{
-	struct dma_heap *dma_heap;
-	struct dma_buf *buf;
-	struct dma_buf_attachment *attachment;
-	struct sg_table *sg_table;
-	size_t size;
-	struct iosys_map map;
-	dma_addr_t dma_addr;
-	struct decon_device *decon = get_decon_drvdata(0);
-	struct drm_device *drm_dev = decon->drm_dev;
-	struct exynos_drm_private *priv = drm_to_exynos_dev(drm_dev);
-	int ret;
-
-	size = PAGE_ALIGN(1440 * 3040 * 4);
-	dma_heap = dma_heap_find("system");
-	if (!dma_heap) {
-		pr_err("Failed to find DMA-BUF system heap\n");
-		return -EINVAL;
-	}
-
-	buf = dma_heap_buffer_alloc(dma_heap, size, O_RDWR, 0);
-	dma_heap_put(dma_heap);
-	if (IS_ERR(buf)) {
-		pr_err("Failed to allocate %#zx bytes from DMA-BUF system heap\n", size);
-		return PTR_ERR(buf);
-	}
-
-	ret = dma_buf_vmap(buf, &map);
-	if (ret) {
-		pr_err("failed to vmap buffer\n");
-		dma_buf_put(buf);
-		return -EINVAL;
-	}
-
-	memset(map.vaddr, 0x80, size);
-	dma_buf_vunmap(buf, &map);
-
-	/* mapping buffer for translating to DVA */
-	attachment = dma_buf_attach(buf, priv->iommu_client);
-	if (IS_ERR_OR_NULL(attachment)) {
-		pr_err("failed to attach dma_buf\n");
-		dma_buf_put(buf);
-		return -EINVAL;
-	}
-
-	sg_table = dma_buf_map_attachment(attachment, DMA_TO_DEVICE);
-	if (IS_ERR_OR_NULL(sg_table)) {
-		pr_err("failed to map attachment\n");
-		dma_buf_put(buf);
-		return -EINVAL;
-	}
-
-	dma_addr = sg_dma_address(sg_table->sgl);
-	if (IS_ERR_VALUE(dma_addr)) {
-		pr_err("failed to map iovmm\n");
-		dma_buf_put(buf);
-		return -EINVAL;
-	}
-
-	return dma_addr;
-}
-
-__maybe_unused
-static void dpp_test_fixed_config_params(struct dpp_params_info *config, u32 w,
-		u32 h)
-{
-	config->src.x = 0;
-	config->src.y = 0;
-	config->src.w = w;
-	config->src.h = h;
-	config->src.f_w = w;
-	config->src.f_h = h;
-
-	config->dst.x = 0;
-	config->dst.y = 0;
-	config->dst.w = w;
-	config->dst.h = h;
-	/* TODO: This hard coded value will be changed */
-	config->dst.f_w = w;
-	config->dst.f_h = h;
-
-	config->rot = 0; /* no rotation */
-	config->comp_type = COMP_TYPE_NONE;
-	config->format = DRM_FORMAT_BGRA8888;
-
-	/* TODO: how to handle ? ... I don't know ... */
-	config->addr[0] = dpp_alloc_map_buf_test();
-
-	config->max_luminance = 0;
-	config->min_luminance = 0;
-	config->y_hd_y2_stride = 0;
-	config->y_pl_c2_stride = 0;
-
-	config->h_ratio = mult_frac(1 << 20, config->src.w, config->dst.w);
-	config->v_ratio = mult_frac(1 << 20, config->src.h, config->dst.h);
-
-	config->is_block = false;
-#if IS_ENABLED(CONFIG_ARM_EXYNOS_DEVFREQ)
-	config->rcv_num = exynos_devfreq_get_domain_freq(DEVFREQ_DISP) ? : 0x7FFFFFFF;
-#else
-	config->rcv_num = 0x7FFFFFFF;
-#endif
-}
-
 static int dpp_convert_plane_state_to_config(struct dpp_params_info *config,
 				const struct exynos_drm_plane_state *state,
 				const struct drm_display_mode *mode)
@@ -626,9 +521,8 @@ static void __dpp_enable(struct dpp_device *dpp)
 	dpp_reg_init(dpp->id, dpp->attr);
 
 	dpp->state = DPP_STATE_ON;
-	if (dpp->dma_irq)
-		enable_irq(dpp->dma_irq);
-	if (dpp->dpp_irq)
+	enable_irq(dpp->dma_irq);
+	if (test_bit(DPP_ATTR_DPP, &dpp->attr))
 		enable_irq(dpp->dpp_irq);
 
 	dpp_debug(dpp, "enabled\n");
@@ -714,7 +608,7 @@ static int set_protection(struct dpp_device *dpp, uint64_t modifier)
 		return -EINVAL;
 	}
 
-        /* Forward some register update to el3 if transit to protection mode */
+	/* Forward some register update to el3 if transit to protection mode */
 
 	if (protection)
 		res_protection_changed = update_resource_protection(dpp, true);
@@ -775,10 +669,9 @@ static void __dpp_disable(struct dpp_device *dpp)
 		hdr_reg_set_tm(dpp->id, NULL);
 	}
 
-	if (dpp->dpp_irq)
+	if (test_bit(DPP_ATTR_DPP, &dpp->attr))
 		disable_irq_nosync(dpp->dpp_irq);
-	if (dpp->dma_irq)
-		disable_irq_nosync(dpp->dma_irq);
+	disable_irq_nosync(dpp->dma_irq);
 
 	dpp_reg_deinit(dpp->id, false, dpp->attr);
 
@@ -1256,7 +1149,6 @@ fail:
 	return ret;
 }
 
-#ifdef CONFIG_DRM_SAMSUNG_ENABLE_DEBUG_IRQS
 static irqreturn_t dpp_irq_handler(int irq, void *priv)
 {
 	struct dpp_device *dpp = priv;
@@ -1367,7 +1259,6 @@ static irqreturn_t cgc_irq_handler(int irq, void *priv)
 	spin_unlock(&dma->dma_slock);
 	return IRQ_HANDLED;
 }
-#endif
 
 static int dpp_init_resources(struct dpp_device *dpp)
 {
@@ -1391,7 +1282,6 @@ static int dpp_init_resources(struct dpp_device *dpp)
 	}
 	dpp_regs_desc_init(dpp->regs.dma_base_regs, res.start, "dma", REGS_DMA, dpp->id);
 
-#ifdef CONFIG_DRM_SAMSUNG_ENABLE_DEBUG_IRQS
 	dpp->dma_irq = of_irq_get_byname(np, "dma");
 	dpp_info(dpp, "dma irq no = %d\n", dpp->dma_irq);
 	ret = devm_request_irq(dev, dpp->dma_irq, dma_irq_handler, 0,
@@ -1401,7 +1291,6 @@ static int dpp_init_resources(struct dpp_device *dpp)
 		return -EINVAL;
 	}
 	disable_irq(dpp->dma_irq);
-#endif
 
 	if (test_bit(DPP_ATTR_DPP, &dpp->attr)) {
 		i = of_property_match_string(np, "reg-names", "dpp");
@@ -1417,7 +1306,6 @@ static int dpp_init_resources(struct dpp_device *dpp)
 		dpp_regs_desc_init(dpp->regs.dpp_base_regs, res.start, "dpp", REGS_DPP,
 				dpp->id);
 
-#ifdef CONFIG_DRM_SAMSUNG_ENABLE_DEBUG_IRQS
 		dpp->dpp_irq = of_irq_get_byname(np, "dpp");
 		dpp_info(dpp, "dpp irq no = %d\n", dpp->dpp_irq);
 		ret = devm_request_irq(dev, dpp->dpp_irq, dpp_irq_handler, 0,
@@ -1427,7 +1315,6 @@ static int dpp_init_resources(struct dpp_device *dpp)
 			return -EINVAL;
 		}
 		disable_irq(dpp->dpp_irq);
-#endif
 	}
 
 	if (test_bit(DPP_ATTR_SCL_COEF, &dpp->attr)) {
@@ -1535,7 +1422,6 @@ struct exynos_dma *exynos_cgc_dma_register(struct decon_device *decon)
 	dpp_regs_desc_init(dma->regs, res.start, "cgc-dma", REGS_DMA, dma->id);
 
 	spin_lock_init(&dma->dma_slock);
-#ifdef CONFIG_DRM_SAMSUNG_ENABLE_DEBUG_IRQS
 	dma->dma_irq = of_irq_get_byname(np, "cgc-dma");
 	ret = devm_request_irq(dev, dma->dma_irq, cgc_irq_handler, 0,
 			pdev->name, decon);
@@ -1543,7 +1429,6 @@ struct exynos_dma *exynos_cgc_dma_register(struct decon_device *decon)
 		pr_err("failed to install CGC DMA irq\n");
 		return NULL;
 	}
-#endif
 
 	pr_debug("cgc-dma is supported\n");
 
@@ -1596,7 +1481,7 @@ fail:
 	return ret;
 }
 
-static int dpp_remove(struct platform_device *pdev)
+static void dpp_remove(struct platform_device *pdev)
 {
 	struct dpp_device *dpp = platform_get_drvdata(pdev);
 
@@ -1612,8 +1497,6 @@ static int dpp_remove(struct platform_device *pdev)
 	if (test_bit(DPP_ATTR_HDR_COMM, &dpp->attr))
 		iounmap(dpp->regs.hdr_comm_base_regs);
 	iounmap(dpp->regs.dma_base_regs);
-
-	return 0;
 }
 
 struct platform_driver dpp_driver = {

@@ -183,7 +183,7 @@ TRACE_DEFINE_ENUM(MCPS802154_RX_FRAME_INFO_AACK);
 	RX_FRAME_INFO_FLAGS_PR_ARG
 
 #define KEY_ENTRY	__string(key, key)
-#define KEY_ASSIGN	__assign_str(key, key)
+#define KEY_ASSIGN	__assign_str(key)
 #define KEY_PR_FMT	"key=%s"
 #define KEY_PR_ARG	__get_str(key)
 
@@ -767,7 +767,7 @@ TRACE_EVENT(ca_set_scheduler,
 		),
 	TP_fast_assign(
 		LOCAL_ASSIGN;
-		__assign_str(name, name);
+		__assign_str(name);
 		),
 	TP_printk(LOCAL_PR_FMT " name=%s", LOCAL_PR_ARG, __get_str(name))
 	);
@@ -781,7 +781,7 @@ TRACE_EVENT(ca_set_scheduler_parameters,
 		),
 	TP_fast_assign(
 		LOCAL_ASSIGN;
-		__assign_str(name, name);
+		__assign_str(name);
 		),
 	TP_printk(LOCAL_PR_FMT " name=%s", LOCAL_PR_ARG, __get_str(name))
 	);
@@ -799,9 +799,9 @@ TRACE_EVENT(ca_set_region,
 		),
 	TP_fast_assign(
 		LOCAL_ASSIGN;
-		__assign_str(scheduler_name, scheduler_name);
+		__assign_str(scheduler_name);
 		__entry->region_id = region_id;
-		__assign_str(region_name, region_name);
+		__assign_str(region_name);
 		),
 	TP_printk(LOCAL_PR_FMT " scheduler=%s region_id=%u region_name=%s",
 		  LOCAL_PR_ARG, __get_str(scheduler_name), __entry->region_id,
@@ -819,7 +819,7 @@ TRACE_EVENT(ca_scheduler_call,
 		),
 	TP_fast_assign(
 		LOCAL_ASSIGN;
-		__assign_str(scheduler_name, scheduler_name);
+		__assign_str(scheduler_name);
 		__entry->call_id = call_id;
 		),
 	TP_printk(LOCAL_PR_FMT" scheduler=%s call_id=0x%x",
@@ -839,9 +839,9 @@ TRACE_EVENT(ca_set_region_params,
 		    ),
 	    TP_fast_assign(
 		    LOCAL_ASSIGN;
-		    __assign_str(scheduler_name, scheduler_name);
+		    __assign_str(scheduler_name);
 		    __entry->region_id = region_id;
-		    __assign_str(region_name, region_name);
+		    __assign_str(region_name);
 		    ),
 	    TP_printk(LOCAL_PR_FMT " scheduler=%s region_id=%u region_name=%s",
 		      LOCAL_PR_ARG, __get_str(scheduler_name), __entry->region_id,
@@ -862,9 +862,9 @@ TRACE_EVENT(ca_call_region,
 		),
 	TP_fast_assign(
 		LOCAL_ASSIGN;
-		__assign_str(scheduler_name, scheduler_name);
+		__assign_str(scheduler_name);
 		__entry->region_id = region_id;
-		__assign_str(region_name, region_name);
+		__assign_str(region_name);
 		__entry->call_id = call_id;
 		),
 	TP_printk(LOCAL_PR_FMT " scheduler=%s region_id=%u region_name=%s call_id=0x%x",
@@ -989,7 +989,7 @@ TRACE_EVENT(
 		__string(region_name, region->ops->name)
 		),
 	TP_fast_assign(
-		__assign_str(region_name, region->ops->name);
+		__assign_str(region_name);
 		),
 	TP_printk("region=%s",
 		  __get_str(region_name)
@@ -1006,7 +1006,7 @@ TRACE_EVENT(
 		__field(u32, next_timestamp_dtu)
 		),
 	TP_fast_assign(
-		__assign_str(region_name, region->ops->name);
+		__assign_str(region_name);
 		__entry->next_timestamp_dtu = next_timestamp_dtu;
 		),
 	TP_printk("region=%s next_timestamp_dtu=%#x",
@@ -1054,7 +1054,7 @@ TRACE_EVENT(region_get_access,
 		),
 	TP_fast_assign(
 		LOCAL_ASSIGN;
-		__assign_str(region_name, region->ops->name);
+		__assign_str(region_name);
 		__entry->next_timestamp_dtu = next_timestamp_dtu;
 		__entry->next_in_region_dtu = next_in_region_dtu;
 		__entry->region_duration_dtu = region_duration_dtu;

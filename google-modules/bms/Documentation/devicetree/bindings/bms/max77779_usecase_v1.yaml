@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2024 Google LLC
+%YAML 1.2
+---
+
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: max77779 usecase V1 state machine driver
+
+maintainers:
+  - Daniel Okazaki <dtokazaki@google.com>
+  - Prasanna Prapancham <prapancham@google.com>
+  - Jack Wu <wjack@google.com>
+
+description: |
+  max77779 usecase v1 state machine driver.
+
+properties:
+  # A dictionary of DT properties for this binding schema
+  max77779,dcin-is-dock:
+    description: DC input is a dock.
+    type: boolean
+
+  max77779,bst-on:
+    description: external boost enable gpio.
+
+  max77779,extbst-ctl:
+    description: external boost control gpio.
+
+  max77779,extbst-mode:
+    description: External boost mode gpio.
+
+  max77779,extbst-supply:
+    description: External Boost regulator control
+
+  max77779,wlc-en:
+    description: WLC enable gpio.
+
+  max77779,wlc-spoof:
+    description: WLC spoof gpio. Used during thermal throttling.
+
+  max77779,wlc-spoof-vbyp:
+    description: WLC spoof vbypass gpio.
+
+  max77779,rx-to-rx-otg-en:
+    description: wlc_rx to wlc_rx + otg supported.
+    type: boolean
+
+  max77779,ext-otg-only:
+    description: external boost OTG only.
+    type: boolean
+
+  max77779,chrg-byp-en:
+    description: Charger bypass mode enable.
+    type: boolean
+
+  max77779,rtx-ready:
+    description: RTX usecase ready gpio.
+
+  max77779,rtx-available:
+    description: RTX usecase available gpio.
+
+  max77779,wlc-dc-otg-en:
+    description: Enable WLC_DC + OTG usecase. Default disabled. Default behavior to drop out of
+    wlc_dc and switch to wlc_rx_otg.
+
+required:
+  - compatible
+

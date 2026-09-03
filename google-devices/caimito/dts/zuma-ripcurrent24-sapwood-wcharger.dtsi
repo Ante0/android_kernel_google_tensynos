@@ -51,9 +51,9 @@
 	status = "okay";
 	pinctrl-0 = <&wc_irq &wc_en>;
 
-	idt,gpio_wlc_en = <&gph1 4 GPIO_ACTIVE_LOW>;
-	idt,gpio_qien = <&gph1 4 GPIO_ACTIVE_LOW>;
-	idt,irq_gpio = <&gpa8 1 GPIO_ACTIVE_LOW>;
+	idt,wlc_en-gpios = <&gph1 4 GPIO_ACTIVE_LOW>;
+	idt,qien-gpios = <&gph1 4 GPIO_ACTIVE_LOW>;
+	idt,irq-gpios = <&gpa8 1 GPIO_ACTIVE_LOW>;
 
 	idt,ramp-disable;
 };

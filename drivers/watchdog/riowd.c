@@ -14,7 +14,7 @@
 #include <linux/miscdevice.h>
 #include <linux/watchdog.h>
 #include <linux/of.h>
-#include <linux/of_device.h>
+#include <linux/platform_device.h>
 #include <linux/io.h>
 #include <linux/uaccess.h>
 #include <linux/slab.h>
@@ -160,7 +160,6 @@ static ssize_t riowd_write(struct file *file, const char __user *buf,
 
 static const struct file_operations riowd_fops = {
 	.owner =		THIS_MODULE,
-	.llseek =		no_llseek,
 	.unlocked_ioctl =	riowd_ioctl,
 	.compat_ioctl	=	compat_ptr_ioctl,
 	.open =			riowd_open,
@@ -217,14 +216,12 @@ out:
 	return err;
 }
 
-static int riowd_remove(struct platform_device *op)
+static void riowd_remove(struct platform_device *op)
 {
 	struct riowd *p = platform_get_drvdata(op);
 
 	misc_deregister(&riowd_miscdev);
 	of_iounmap(&op->resource[0], p->regs, 2);
-
-	return 0;
 }
 
 static const struct of_device_id riowd_match[] = {
@@ -241,7 +238,7 @@ static struct platform_driver riowd_driver = {
 		.of_match_table = riowd_match,
 	},
 	.probe		= riowd_probe,
-	.remove		= riowd_remove,
+	.remove_new	= riowd_remove,
 };
 
 module_platform_driver(riowd_driver);

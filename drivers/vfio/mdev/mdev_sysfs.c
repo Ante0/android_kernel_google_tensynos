@@ -96,7 +96,7 @@ static MDEV_TYPE_ATTR_RO(device_api);
 static ssize_t name_show(struct mdev_type *mtype,
 			 struct mdev_type_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%s\n",
+	return sysfs_emit(buf, "%s\n",
 		mtype->pretty_name ? mtype->pretty_name : mtype->sysfs_name);
 }
 
@@ -160,7 +160,7 @@ static void mdev_type_release(struct kobject *kobj)
 	put_device(type->parent->dev);
 }
 
-static struct kobj_type mdev_type_ktype = {
+static const struct kobj_type mdev_type_ktype = {
 	.sysfs_ops	= &mdev_type_sysfs_ops,
 	.release	= mdev_type_release,
 	.default_groups	= mdev_type_groups,

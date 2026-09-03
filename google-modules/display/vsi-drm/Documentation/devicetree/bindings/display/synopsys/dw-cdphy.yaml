@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/display/synopsys/dw-cdphy.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Synopsys DSI2 CDPhy controller
+
+description: |
+  This document defines device tree properties for the Synopsys DSI2 CDPhy
+  controller.
+
+properties:
+  compatible:
+    enum:
+      - synopsys,dw-mipi-cdphy
+      - synopsys,dw-mipi-cdphy-v1
+
+  is_cphy:
+    type: boolean
+    description: false for DPHY, true for CPHY
+
+  non24x_fix:
+    type: boolean
+    description: true for enabling the HW fix applicable to panel widths not multiple of 24
+
+  clocks:
+    minItems: 1
+    items:
+      - description: PLL reference clock
+
+  clock-names:
+    minItems: 1
+    items:
+      - const: pllref
+
+required:
+  - compatible
+  - clocks
+  - clock-names
+
+example:
+  - |
+    dw_mipi_cdphy_g301: dw_mipi_cdphy@3c0000 {
+        compatible = "synopsys,dw-mipi-cdphy";
+        reg = <0x3c0000 0x18000>, <0x3d8800 0x800>;
+        reg-names = "cdphy-tx", "u0-apb-regbank";
+        #phy-cells = <1>;
+        /* 0: dphy, 1: cdphy */
+        is_cphy = <0>;
+        clocks = <&osc_cdphy>;
+        clock-names = "pllref";
+    };

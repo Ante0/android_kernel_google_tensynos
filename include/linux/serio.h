@@ -6,6 +6,7 @@
 #define _SERIO_H
 
 
+#include <linux/cleanup.h>
 #include <linux/types.h>
 #include <linux/interrupt.h>
 #include <linux/list.h>
@@ -16,7 +17,7 @@
 #include <linux/android_kabi.h>
 #include <uapi/linux/serio.h>
 
-extern struct bus_type serio_bus;
+extern const struct bus_type serio_bus;
 
 struct serio {
 	void *port_data;
@@ -85,7 +86,7 @@ struct serio_driver {
 
 	ANDROID_KABI_RESERVE(1);
 };
-#define to_serio_driver(d)	container_of(d, struct serio_driver, driver)
+#define to_serio_driver(d)	container_of_const(d, struct serio_driver, driver)
 
 int serio_open(struct serio *serio, struct serio_driver *drv);
 void serio_close(struct serio *serio);
@@ -165,5 +166,7 @@ static inline void serio_continue_rx(struct serio *serio)
 {
 	spin_unlock_irq(&serio->lock);
 }
+
+DEFINE_GUARD(serio_pause_rx, struct serio *, serio_pause_rx(_T), serio_continue_rx(_T))
 
 #endif

@@ -2891,7 +2891,7 @@ exit:
  * @return
  *    the string of devtmpfs
  */
-static char *syna_cdev_devnode(struct device *dev, umode_t *mode)
+static char *syna_cdev_devnode(const struct device *dev, umode_t *mode)
 {
 	if (!mode)
 		return NULL;
@@ -2960,7 +2960,7 @@ int syna_cdev_create_sysfs(struct syna_tcm *tcm,
 		goto err_add_chardev;
 	}
 
-	device_class = class_create(THIS_MODULE, PLATFORM_DRIVER_NAME);
+	device_class = class_create(PLATFORM_DRIVER_NAME);
 	if (IS_ERR(device_class)) {
 		LOGE("Fail to create device class\n");
 		retval = PTR_ERR(device_class);

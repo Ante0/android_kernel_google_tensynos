@@ -1,0 +1,25 @@
+import("//build_overrides/noa.gni")
+import("$dir_noa_packages/noa_common/sim/ncp/wlan_fw/wlan_service.gni")
+
+wlan_source_set("ext_svc") {
+  sources = [
+    "$dir_wlan_fw/ext_svc/ext_svc.cc",
+    "$dir_wlan_fw/ext_svc/ext_svc.h",
+  ]
+  public_deps = [
+    "$dir_wlan_fw/sys_if:common",
+    "$dir_wlan_fw/sys_if:types",
+  ]
+}
+
+wlan_test("ext_svc_test") {
+  # These tests are currently unsupported in the device unit test
+  # environment due to limited memory resources.
+  enable_if = current_os == "linux"
+  sources = [ "$dir_wlan_fw/ext_svc/ext_svc_test.cc" ]
+  deps = [ ":ext_svc" ]
+}
+
+wlan_test_group("tests") {
+  tests = [ ":ext_svc_test" ]
+}

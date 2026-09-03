@@ -1,0 +1,4 @@
+config POWERVR_TC
+	tristate "PowerVR test chip support"
+	depends on X86
+	default n

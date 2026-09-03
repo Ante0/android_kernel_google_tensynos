@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_headers(
+    name = "iif_headers",
+    hdrs = glob([
+        "include/**/*.h",
+    ]),
+    includes = ["include"],
+)
+
+filegroup(
+    name = "iif.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "iif",
+    srcs = glob([
+        "iif*.c",
+    ]),
+    out = "iif.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "CONFIG_IIF",
+    ],
+    deps = [
+        ":iif_headers",
+        "//common:all_headers_aarch64",
+    ],
+)

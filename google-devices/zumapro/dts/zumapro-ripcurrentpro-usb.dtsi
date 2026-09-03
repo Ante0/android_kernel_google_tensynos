@@ -14,10 +14,6 @@
 	maximum-speed = "super-speed";
 };
 
-&usbdrd_phy0 {
-	extcon = <&max77759tcpc>;
-};
-
 &pinctrl_8 {
 	eusb_init_state: eusb_init_state {
 		samsung,pins = "gph1-0";

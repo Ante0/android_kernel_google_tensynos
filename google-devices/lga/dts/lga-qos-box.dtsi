@@ -1,0 +1,589 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+/ {
+	qos_box_common: qos_box_common {
+		null_policy = <&qos_box_null_policy>;
+	};
+
+	qos_box_null_policy: qos_box_null_policy {
+		/* QOS_OVRD_CFG */
+		google,arqos_ovrd_en = <0>;
+		google,arqos_ovrd_val = <0x0>;
+		google,awqos_ovrd_en = <0>;
+		google,awqos_ovrd_val = <0x0>;
+		/* QOS_LATMOD_CFG */
+		google,arqos_latmod_en = <0>;
+		google,arqos_lat_step_th = <0x0>;
+		google,awqos_latmod_en = <0>;
+		google,awqos_lat_step_th = <0x0>;
+		/* QOS_BWMOD_CFG */
+		google,arqos_bwmod_en = <0>;
+		google,arqos_bw_step_th = <0x0>;
+		google,awqos_bwmod_en = <0>;
+		google,awqos_bw_step_th = <0x0>;
+		/* QOS_URGOVRD_CFG */
+		google,arqos_urgovrd_en = <0>;
+		google,awqos_urgovrd_en = <0>;
+		/* URG_OVRD_CFG */
+		google,rurglvl_ovrd_en = <0>;
+		google,rurglvl_ovrd_val = <0x0>;
+		google,wurglvl_ovrd_en = <0>;
+		google,wurglvl_ovrd_val = <0x0>;
+		/* URG_LATMOD_CFG */
+		google,rurglvl_latmod_en = <0>;
+		google,rurglvl_lat_step_th = <0x0>;
+		google,wurglvl_latmod_en = <0>;
+		google,wurglvl_lat_step_th = <0x0>;
+		/* URG_BWMOD_CFG */
+		google,rurglvl_bwmod_en = <0>;
+		google,rurglvl_bw_step_th = <0x0>;
+		google,wurglvl_bwmod_en = <0>;
+		google,wurglvl_bw_step_th = <0x0>;
+		/* MO_LIMIT_CFG */
+		google,rdmo_limit_en = <1>;
+		google,wrmo_limit_en = <1>;
+		/* RDMO_LIMIT_CFG */
+		google,rdmo_limit_trtl0 = <0xFF>;
+		google,rdmo_limit_trtl1 = <0xFF>;
+		google,rdmo_limit_trtl2 = <0xFF>;
+		google,rdmo_limit_trtl3 = <0xFF>;
+		/* WRMO_LIMIT_CFG */
+		google,wrmo_limit_trtl0 = <0xFF>;
+		google,wrmo_limit_trtl1 = <0xFF>;
+		google,wrmo_limit_trtl2 = <0xFF>;
+		google,wrmo_limit_trtl3 = <0xFF>;
+		/* BW_LIMIT_CFG */
+		google,rdbw_limit_en = <0>;
+		google,wrbw_limit_en = <0>;
+		/* RDBW_LIMIT_CTRL[0] */
+		google,rdbw_slot_limit_trtl_0 = <0x0>;
+		google,rdbw_window_limit_trtl_0 = <0x0>;
+		/* RDBW_LIMIT_CTRL[1] */
+		google,rdbw_slot_limit_trtl_1 = <0x0>;
+		google,rdbw_window_limit_trtl_1 = <0x0>;
+		/* RDBW_LIMIT_CTRL[2] */
+		google,rdbw_slot_limit_trtl_2 = <0x0>;
+		google,rdbw_window_limit_trtl_2 = <0x0>;
+		/* RDBW_LIMIT_CTRL[3] */
+		google,rdbw_slot_limit_trtl_3 = <0x0>;
+		google,rdbw_window_limit_trtl_3 = <0x0>;
+		/* WRBW_LIMIT_CTRL[0] */
+		google,wrbw_slot_limit_trtl_0 = <0x0>;
+		google,wrbw_window_limit_trtl_0 = <0x0>;
+		/* WRBW_LIMIT_CTRL[1] */
+		google,wrbw_slot_limit_trtl_1 = <0x0>;
+		google,wrbw_window_limit_trtl_1 = <0x0>;
+		/* WRBW_LIMIT_CTRL[2] */
+		google,wrbw_slot_limit_trtl_2 = <0x0>;
+		google,wrbw_window_limit_trtl_2 = <0x0>;
+		/* WRBW_LIMIT_CTRL[3] */
+		google,wrbw_slot_limit_trtl_3 = <0x0>;
+		google,wrbw_window_limit_trtl_3 = <0x0>;
+		/* RGLTR_RD_CFG */
+		google,arqos_rgltr_en = <0>;
+		google,arqos_rgltr_val = <0x0>;
+		google,rgltr_rdbw_gap_en = <0>;
+		google,rgltr_rdreq_gap = <0x0>;
+		/* RGLTR_WR_CFG */
+		google,awqos_rgltr_en = <0>;
+		google,awqos_rgltr_val = <0x0>;
+		google,rgltr_wrbw_gap_en = <0>;
+		google,rgltr_wrreq_gap = <0x0>;
+		/* RGLTR_BW_CTRL[0] */
+		google,rgltr_rdbw_th_trtl_0 = <0x0>;
+		google,rgltr_wrbw_th_trtl_0 = <0x0>;
+		/* RGLTR_BW_CTRL[1] */
+		google,rgltr_rdbw_th_trtl_1 = <0x0>;
+		google,rgltr_wrbw_th_trtl_1 = <0x0>;
+		/* RGLTR_BW_CTRL[2] */
+		google,rgltr_rdbw_th_trtl_2 = <0x0>;
+		google,rgltr_wrbw_th_trtl_2 = <0x0>;
+		/* RGLTR_BW_CTRL[3] */
+		google,rgltr_rdbw_th_trtl_3 = <0x0>;
+		google,rgltr_wrbw_th_trtl_3 = <0x0>;
+	};
+
+	qos_box_aoc: qos_box@bc00000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0xbc00000 0x0 0x2000>;
+		power-domains = <&aoc_core_pd>;
+		google,name = "aoc";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_aurdsp_core_0: qos_box@38520000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x38520000 0x0 0x2000>;
+		power-domains = <&sswrp_aurora_pd>;
+		google,name = "aurora_core0";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_aurdsp_core_1: qos_box@38522000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x38522000 0x0 0x2000>;
+		power-domains = <&sswrp_aurora_pd>;
+		google,name = "aurora_core1";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+//done
+
+	qos_box_aurdsp_core_2: qos_box@38524000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x38524000 0x0 0x2000>;
+		power-domains = <&sswrp_aurora_pd>;
+		google,name = "aurora_core2";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_aurdsp_mcu: qos_box@38526000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x38526000 0x0 0x2000>;
+		power-domains = <&sswrp_aurora_pd>;
+		google,name = "aurora_mcu";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_aurdsp_tcu: qos_box@38528000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x38528000 0x0 0x2000>;
+		power-domains = <&sswrp_aurora_pd>;
+		google,name = "aurora_tcu";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_codec_3p_axi0: qos_box@3f160000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x3f160000 0x0 0x2000>;
+		power-domains = <&sswrp_codec_3p_pd>;
+		google,name = "codec_3p_axi0";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_codec_3p_axi1: qos_box@3f162000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x3f162000 0x0 0x2000>;
+		power-domains = <&sswrp_codec_3p_pd>;
+		google,name = "codec_3p_axi1";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_cpu_0: qos_box@200c6000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x200c6000 0x0 0x2000>;
+		google,name = "cpu_0";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_cpu_1: qos_box@200c8000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x200c8000 0x0 0x2000>;
+		google,name = "cpu_1";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_cpu_2: qos_box@200ca000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x200ca000 0x0 0x2000>;
+		google,name = "cpu_2";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_cpu_3: qos_box@200cc000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x200cc000 0x0 0x2000>;
+		google,name = "cpu_3";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_cpuacc_tcu: qos_box@5cb0000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x5cb0000 0x0 0x2000>;
+		google,name = "cpuacc_tcu";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_cpuacc_gic: qos_box@5d00000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x5d00000 0x0 0x2000>;
+		google,name = "cpuacc_gic";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_dpu_0: qos_box@ed10000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0xed10000 0x0 0x2000>;
+		power-domains = <&sswrp_dpu_pd>;
+		google,name = "dpu_dpu0";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_dpu_1: qos_box@ed12000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0xed12000 0x0 0x2000>;
+		power-domains = <&sswrp_dpu_pd>;
+		google,name = "dpu_dpu1";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_dpu_2: qos_box@ed14000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0xed14000 0x0 0x2000>;
+		power-domains = <&sswrp_dpu_pd>;
+		google,name = "dpu_dpu2";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_dpu_3: qos_box@ed16000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0xed16000 0x0 0x2000>;
+		power-domains = <&sswrp_dpu_pd>;
+		google,name = "dpu_dpu3";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_dpu_4: qos_box@ed18000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0xed18000 0x0 0x2000>;
+		power-domains = <&sswrp_dpu_pd>;
+		google,name = "dpu_dpu4";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_dpu_5: qos_box@ed1a000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0xed1a000 0x0 0x2000>;
+		power-domains = <&sswrp_dpu_pd>;
+		google,name = "dpu_dpu5";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_eh: qos_box@23ea2000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x23ea2000 0x0 0x2000>;
+		power-domains = <&sswrp_eh_pd>;
+		google,name = "eh";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_g2d: qos_box@3f308000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x3f308000 0x0 0x2000>;
+		power-domains = <&sswrp_g2d_pd>;
+		google,name = "g2d_g2d";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_gpdma: qos_box@3b970000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x3b970000 0x0 0x2000>;
+		power-domains = <&sswrp_gpdma_pd>;
+		google,name = "gpdma_top";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_gpu_m0: qos_box@34b80000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x34b80000 0x0 0x2000>;
+		power-domains = <&sswrp_gpu_pd>;
+		google,name = "gpu_m0";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_gpu_m1: qos_box@34b82000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x34b82000 0x0 0x2000>;
+		power-domains = <&sswrp_gpu_pd>;
+		google,name = "gpu_m1";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_gpu_m2: qos_box@34b84000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x34b84000 0x0 0x2000>;
+		power-domains = <&sswrp_gpu_pd>;
+		google,name = "gpu_m2";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_gpu_mmu: qos_box@34b88000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x34b88000 0x0 0x2000>;
+		power-domains = <&sswrp_gpu_pd>;
+		google,name = "gpu_mmu";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_gsw_0: qos_box@3ed90000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x3ed90000 0x0 0x2000>;
+		power-domains = <&sswrp_gsw_pd>;
+		google,name = "gsw_qbox0";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_gsw_1: qos_box@3ed92000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x3ed92000 0x0 0x2000>;
+		power-domains = <&sswrp_gsw_pd>;
+		google,name = "gsw_qbox1";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_hsio_n_pcie: qos_box@c270000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0xc270000 0x0 0x2000>;
+		power-domains = <&sswrp_hsio_n_pd>;
+		google,name = "hsio_n_pcie";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_hsio_n_usbm: qos_box@c280000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0xc280000 0x0 0x2000>;
+		power-domains = <&sswrp_hsio_n_pd>;
+		google,name = "hsio_n_usbm";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_hsio_s_sd: qos_box@3c270000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x3c270000 0x0 0x2000>;
+		power-domains = <&sswrp_hsio_s_pd>;
+		google,name = "hsio_s_sd";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_hsio_s_pcie: qos_box@3c280000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x3c280000 0x0 0x2000>;
+		power-domains = <&sswrp_hsio_s_pd>;
+		google,name = "hsio_s_pcie";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_hsio_s_ufs: qos_box@3c290000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x3c290000 0x0 0x2000>;
+		power-domains = <&sswrp_hsio_s_pd>;
+		google,name = "hsio_s_ufs";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_inf_tcu: qos_box@350e0000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x350e0000 0x0 0x2000>;
+		google,name = "inf_tcu_top";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_ispbe_axi0: qos_box@3e6ba000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x3e6ba000 0x0 0x2000>;
+		power-domains = <&sswrp_ispbe_pd>;
+		google,name = "ispbe_axi0";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_ispbe_axi1: qos_box@3e6bc000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x3e6bc000 0x0 0x2000>;
+		power-domains = <&sswrp_ispbe_pd>;
+		google,name = "ispbe_axi1";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_ispbe_axi2: qos_box@3e6be000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x3e6be000 0x0 0x2000>;
+		power-domains = <&sswrp_ispbe_pd>;
+		google,name = "ispbe_axi2";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_ispbe_axi3: qos_box@3e6c0000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x3e6c0000 0x0 0x2000>;
+		power-domains = <&sswrp_ispbe_pd>;
+		google,name = "ispbe_axi3";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_ispbe_axi4: qos_box@3e6c2000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x3e6c2000 0x0 0x2000>;
+		power-domains = <&sswrp_ispbe_pd>;
+		google,name = "ispbe_axi4";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_ispbe_axi5: qos_box@3e6c4000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x3e6c4000 0x0 0x2000>;
+		power-domains = <&sswrp_ispbe_pd>;
+		google,name = "ispbe_axi5";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_ispbe_axi6: qos_box@3e6c6000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x3e6c6000 0x0 0x2000>;
+		power-domains = <&sswrp_ispbe_pd>;
+		google,name = "ispbe_axi6";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_ispfe_0: qos_box@fc00000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0xfc00000 0x0 0x2000>;
+		power-domains = <&sswrp_ispfe_pd>;
+		google,name = "ispfe_ispfe0";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_ispfe_1: qos_box@fc02000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0xfc02000 0x0 0x2000>;
+		power-domains = <&sswrp_ispfe_pd>;
+		google,name = "ispfe_ispfe1";
+		google,qos-box-commom-prop = <&qos_box_common>;
+		/* VC_MAP_CFG */
+		google,vc_map_cfg = <0x6546210>;
+	};
+
+	qos_box_ispfe_2: qos_box@fc04000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0xfc04000 0x0 0x2000>;
+		power-domains = <&sswrp_ispfe_pd>;
+		google,name = "ispfe_ispfe2";
+		google,qos-box-commom-prop = <&qos_box_common>;
+		/* VC_MAP_CFG */
+		google,vc_map_cfg = <0x6546210>;
+	};
+
+	qos_box_ispfe_3: qos_box@fc06000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0xfc06000 0x0 0x2000>;
+		power-domains = <&sswrp_ispfe_pd>;
+		google,name = "ispfe_ispfe3";
+		google,qos-box-commom-prop = <&qos_box_common>;
+		/* VC_MAP_CFG */
+		google,vc_map_cfg = <0x6546210>;
+	};
+
+	qos_box_ispfe_tcu: qos_box@fc08000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0xfc08000 0x0 0x2000>;
+		power-domains = <&sswrp_ispfe_pd>;
+		google,name = "ispfe_ispfe4_tcu";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_tpu_tcu: qos_box@360a0000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x360a0000 0x0 0x2000>;
+		power-domains = <&sswrp_tpu_pd>;
+		google,name = "tpu_tcu";
+		google,qos-box-commom-prop = <&qos_box_common>;
+	};
+
+	qos_box_tpu_0: qos_box@360a2000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x360a2000 0x0 0x2000>;
+		power-domains = <&sswrp_tpu_pd>;
+		google,name = "tpu_ss0";
+		google,qos-box-commom-prop = <&qos_box_common>;
+		/* VC_MAP_CFG */
+		google,vc_map_cfg = <0x6543200>;
+	};
+
+	qos_box_tpu_1: qos_box@360a4000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x360a4000 0x0 0x2000>;
+		power-domains = <&sswrp_tpu_pd>;
+		google,name = "tpu_ss1";
+		google,qos-box-commom-prop = <&qos_box_common>;
+		/* VC_MAP_CFG */
+		google,vc_map_cfg = <0x6543200>;
+	};
+
+	qos_box_tpu_2: qos_box@360a6000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x360a6000 0x0 0x2000>;
+		power-domains = <&sswrp_tpu_pd>;
+		google,name = "tpu_ss2";
+		google,qos-box-commom-prop = <&qos_box_common>;
+		/* VC_MAP_CFG */
+		google,vc_map_cfg = <0x6543200>;
+	};
+
+	qos_box_tpu_3: qos_box@360a8000 {
+		compatible = "google,lga-qos-box";
+		status = "disabled";
+		reg = <0x0 0x360a8000 0x0 0x2000>;
+		power-domains = <&sswrp_tpu_pd>;
+		google,name = "tpu_ss3";
+		google,qos-box-commom-prop = <&qos_box_common>;
+		/* VC_MAP_CFG */
+		google,vc_map_cfg = <0x6543200>;
+	};
+	mem_qos_mock_client: mem_qos_mock_client {
+		compatible = "google,mem-qos-mock-client";
+	};
+};
+
+
+// We need to declare the qos_box nodes prior to including `lga-qos-box-tunables.dtsi`,
+// because the tunables dtsi references those nodes with phandle.
+#include "lga-qos-box-tunables.dtsi"

@@ -5,8 +5,7 @@
  * Copyright 2021 Google LLC.
  */
 
-/* This file must be included after sc7180-trogdor.dtsi */
-#include <arm/cros-ec-keyboard.dtsi>
+#include "sc7180-trogdor-clamshell.dtsi"
 
 &ap_sar_sensor {
 	compatible = "semtech,sx9324";
@@ -83,14 +82,10 @@
 	gpio = <&tlmm 67 GPIO_ACTIVE_HIGH>;
 };
 
-&en_pp3300_dx_edp {
-	pinmux {
-		pins = "gpio67";
-	};
+/* PINCTRL - modifications to sc7180-trogdor.dtsi */
 
-	pinconf {
-		pins = "gpio67";
-	};
+&en_pp3300_dx_edp {
+	pins = "gpio67";
 };
 
 /* PINCTRL - board-specific pinctrl */

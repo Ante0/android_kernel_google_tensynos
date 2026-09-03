@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_DEVFREQ
+	tristate "Google devfreq driver"
+	depends on PM_DEVFREQ
+	depends on GOOGLE_DVFS_HELPER
+	depends on GOOGLE_MBA_CPM_INTERFACE
+	select PM_OPP
+	help
+	  Enable support for Google devfreq driver.
+	  The devfreq driver exposes the device frequency controls.
+
+config GOOGLE_CCF_DEVFREQ
+	tristate "Google CCF-based devfreq driver"
+	depends on GOOGLE_DVFS_HELPER
+	depends on PM_DEVFREQ
+	select PM_OPP
+	help
+	  Enable support for Google CCF-based devfreq driver.
+	  The devfreq driver exposes the device frequency controls for the
+	  clock consumer IPs of kernel-controlled clocks.

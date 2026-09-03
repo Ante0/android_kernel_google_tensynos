@@ -1,0 +1,171 @@
+import("//build_overrides/noa.gni")
+import("$dir_noa_packages/noa_common/sim/ncp/wlan_fw/wlan_service.gni")
+
+wlan_source_set("wlan_dp") {
+  public = [ "$dir_wlan_fw/core/dp/wlan_dp.h" ]
+  public_deps = [
+    "$dir_wlan_fw/modules/sta_table",
+    "$dir_wlan_fw/modules/wlan_nep_buffer_pool",
+    "$dir_wlan_fw/modules/wlan_ring_manager",
+    "$dir_wlan_fw/sys_if:common",
+    "$dir_wlan_fw/sys_if:interrupt",
+    "$dir_wlan_fw/sys_if:types",
+    "$dir_wlan_fw/sys_if:workqueue",
+    "$dir_wlan_fw/wdev_if",
+  ]
+  deps = [
+    "$dir_wlan_fw:wlan_cast",
+    "$dir_wlan_fw/modules/flow_id_table",
+    "$dir_wlan_fw/sys_if:mailbox",
+    "$dir_wlan_fw/sys_if:memory",
+    "$dir_wlan_fw/wlan_debug_controller:wlan_debug_packet_sniffer",
+    "$dir_wlan_fw/wlan_log",
+  ]
+  sources = [ "$dir_wlan_fw/core/dp/wlan_dp.cc" ]
+}
+
+wlan_test("wlan_dp_test") {
+  # These tests are currently unsupported in the device unit test
+  # environment due to limited memory resources.
+  enable_if = current_os == "linux" &&
+              pw_unit_test_BACKEND == "$dir_pigweed/pw_unit_test:googletest"
+  deps = [
+    ":wlan_dp",
+    "$dir_noa_modules/interrupt",
+    "$dir_wlan_fw/sys_if:mailbox",
+  ]
+  sources = [ "$dir_wlan_fw/core/dp/wlan_dp_test.cc" ]
+}
+
+wlan_source_set("memory_map") {
+  public = [ "$dir_wlan_fw/core/wlan_shared_mem/memory_map_helper.h" ]
+  public_deps = [
+    "$dir_wlan_fw:wlan_cast",
+    "$dir_wlan_fw/modules/memory_map:memory_map_header",
+    "$dir_wlan_fw/wlan_log",
+  ]
+  deps = [
+    "$dir_noa_common:headers",
+    "$dir_wlan_fw/core:wlan_dp",
+    "$dir_wlan_fw/modules/noa_ring_svc:noa_ring_svc",
+    "$dir_wlan_fw/sys_if:memory",
+    "$dir_wlan_fw/sys_if:types",
+    "$dir_wlan_fw/wlan_log",
+  ]
+  sources = [ "$dir_wlan_fw/core/wlan_shared_mem/memory_map_helper.cc" ]
+}
+
+wlan_test("memory_map_test") {
+  enable_if = current_os == "linux" &&
+              pw_unit_test_BACKEND == "$dir_pigweed/pw_unit_test:googletest"
+  deps = [
+    ":memory_map",
+    "$dir_wlan_fw/core:wlan_dp",
+    "$dir_wlan_fw/sys_if:log_test_lib",
+  ]
+  sources = [ "$dir_wlan_fw/core/wlan_shared_mem/memory_map_helper_test.cc" ]
+}
+
+wlan_source_set("wlan_svc_header") {
+  public = [
+    "$dir_wlan_fw/core/wlan_svc/wlan_service.h",
+    "$dir_wlan_fw/core/wlan_svc/wlan_service_fsm.h",
+  ]
+  public_deps = [
+    ":memory_map",
+    ":wlan_pm",
+    "$dir_wlan_fw/core:wlan_dp",
+    "$dir_wlan_fw/ext_svc:ext_svc",
+    "$dir_wlan_fw/modules/flow_id_table",
+    "$dir_wlan_fw/modules/noa_ring_svc",
+    "$dir_wlan_fw/modules/sta_table",
+    "$dir_wlan_fw/modules/wlan_buffer_management",
+    "$dir_wlan_fw/modules/wlan_nep_buffer_pool",
+    "$dir_wlan_fw/modules/wlan_ring_manager",
+    "$dir_wlan_fw/sys_if:common",
+    "$dir_wlan_fw/sys_if:types",
+    "$dir_wlan_fw/wdev_if:wdev_if",
+    "$dir_wlan_fw/wlan_log",
+  ]
+}
+
+wlan_source_set("wlan_svc") {
+  public = [ "$dir_wlan_fw/core/wlan_svc/wlan_service.h" ]
+  cflags = [
+    # To enhance array initialization clarity and readability, the
+    # -Wno-c99-designator flag is used to enable C99-style designated
+    # initializers.
+    "-Wno-c99-designator",
+  ]
+  sources = [
+    "$dir_wlan_fw/core/wlan_svc/wlan_service.cc",
+    "$dir_wlan_fw/core/wlan_svc/wlan_service_fsm.cc",
+  ]
+  public_deps = [ ":wlan_svc_header" ]
+  deps = [
+    ":memory_map",
+    "$dir_wlan_fw:wlan_cast",
+    "$dir_wlan_fw/modules/flow_id_table",
+    "$dir_wlan_fw/sys_if:mailbox",
+    "$dir_wlan_fw/sys_if:noa_net",
+    "$dir_wlan_fw/wlan_debug_controller:wlan_debug_log_sys_controller",
+    "$dir_wlan_fw/wlan_debug_controller:wlan_debug_packet_sniffer_controller",
+  ]
+}
+
+wlan_source_set("wlan_pm") {
+  public = [ "$dir_wlan_fw/core/wlan_pm/wlan_pm.h" ]
+  sources = [ "$dir_wlan_fw/core/wlan_pm/wlan_pm.cc" ]
+  public_deps = [
+    "$dir_wlan_fw/ext_svc:ext_svc",
+    "$dir_wlan_fw/sys_if:types",
+  ]
+  deps = [
+    "$dir_wlan_fw:wlan_cast",
+    "$dir_wlan_fw/wlan_log",
+  ]
+}
+
+wlan_test("wlan_svc_test") {
+  # Disabled device UT temporarily due to insufficient memory.
+  enable_if = current_os == "linux" &&
+              pw_unit_test_BACKEND == "$dir_pigweed/pw_unit_test:googletest"
+  public = [ "$dir_wlan_fw/core/wlan_svc/wlan_service_test_lib.h" ]
+  deps = [
+    ":wlan_svc",
+    "$dir_noa_modules/interrupt",
+    "$dir_noa_modules/mock:mock_system_clock",
+    "$dir_noa_services/ring_service:mock_ring_shared_info",
+    "$dir_wlan_fw/modules/memory_map:memory_map_header",
+    "$dir_wlan_fw/modules/sta_table",
+    "$dir_wlan_fw/sys_if:log_test_lib",
+    "$dir_wlan_fw/sys_if:mailbox",
+    "$dir_wlan_fw/wdev_if",
+    "$dir_wlan_fw/wdev_if:headers",
+    "$dir_wlan_fw/wlan_log",
+  ]
+  sources = [
+    "$dir_wlan_fw/core/wlan_svc/wlan_service_test.cc",
+    "$dir_wlan_fw/core/wlan_svc/wlan_service_test_brcm4390.cc",
+  ]
+}
+
+wlan_test("wlan_pm_test") {
+  # Disabled device UT temporarily due to insufficient memory.
+  enable_if = current_os == "linux" &&
+              pw_unit_test_BACKEND == "$dir_pigweed/pw_unit_test:googletest"
+  deps = [
+    ":wlan_pm",
+    "$dir_wlan_fw/sys_if:log_test_lib",
+  ]
+  sources = [ "$dir_wlan_fw/core/wlan_pm/wlan_pm_test.cc" ]
+}
+
+wlan_test_group("tests") {
+  tests = [
+    ":wlan_dp_test",
+    ":wlan_svc_test",
+    ":wlan_pm_test",
+    ":memory_map_test",
+  ]
+}

@@ -9,16 +9,17 @@
 #include <linux/clkdev.h>
 #include <linux/clk-provider.h>
 #include <linux/module.h>
-#include <linux/of_platform.h>
+#include <linux/mod_devicetable.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/platform_device.h>
 #include <soc/google/cal-if.h>
 #include <dt-bindings/clock/gs101.h>
 
-#include "../../soc/google/cal-if/gs101/cmucal-vclk.h"
-#include "../../soc/google/cal-if/gs101/cmucal-node.h"
-#include "../../soc/google/cal-if/gs101/cmucal-qch.h"
-#include "../../soc/google/cal-if/gs101/clkout_gs101.h"
+#include "gs101/cmucal-vclk.h"
+#include "gs101/cmucal-node.h"
+#include "gs101/cmucal-qch.h"
+#include "gs101/clkout_gs101.h"
 #include "composite.h"
 
 static struct samsung_clk_provider *gs101_clk_provider;
@@ -1515,11 +1516,6 @@ static const struct of_device_id ext_clk_match[] = {
 	{},
 };
 
-void gs101_vclk_init(void)
-{
-	/* Common clock init */
-}
-
 /* register gs101 clocks */
 static int gs101_clock_probe(struct platform_device *pdev)
 {
@@ -1727,8 +1723,6 @@ static int gs101_clock_probe(struct platform_device *pdev)
 				1);
 
 	samsung_clk_of_add_provider(np, gs101_clk_provider);
-
-	gs101_vclk_init();
 
 	pr_info("GS101: Clock setup completed\n");
 

@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+)
+
+ddk_module(
+    name = "arm_smmuv3_pmu",
+    out = "arm_smmuv3_pmu.ko",
+    conditional_srcs = {
+        "CONFIG_ARM_SMMU_V3_PMU_PIXEL": {
+            True: [
+                "arm_smmuv3_pmu.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/iommu/arm-smmu-v3:headers",
+    ],
+)

@@ -60,6 +60,7 @@ union large_integer {
 
 enum dc_plane_addr_type {
 	PLN_ADDR_TYPE_GRAPHICS = 0,
+	PLN_ADDR_TYPE_3DLUT,
 	PLN_ADDR_TYPE_GRPH_STEREO,
 	PLN_ADDR_TYPE_VIDEO_PROGRESSIVE,
 	PLN_ADDR_TYPE_RGBEA
@@ -75,6 +76,10 @@ struct dc_plane_address {
 			PHYSICAL_ADDRESS_LOC meta_addr;
 			union large_integer dcc_const_color;
 		} grph;
+
+		struct {
+			PHYSICAL_ADDRESS_LOC addr;
+		} lut3d;
 
 		/*stereo*/
 		struct {
@@ -93,7 +98,6 @@ struct dc_plane_address {
 			PHYSICAL_ADDRESS_LOC right_alpha_addr;
 			PHYSICAL_ADDRESS_LOC right_alpha_meta_addr;
 			union large_integer right_alpha_dcc_const_color;
-
 		} grph_stereo;
 
 		/*video  progressive*/
@@ -263,6 +267,9 @@ enum tripleBuffer_enable {
 	DC_TRIPLEBUFFER_DISABLE = 0x0,
 	DC_TRIPLEBUFFER_ENABLE = 0x1,
 };
+enum tile_split_values_new {
+	DC_SURF_TILE_SPLIT_1KB = 0x4,
+};
 
 /* TODO: These values come from hardware spec. We need to readdress this
  * if they ever change.
@@ -318,6 +325,20 @@ enum swizzle_mode_values {
 	DC_SW_VAR_R_X = 31,
 	DC_SW_MAX = 32,
 	DC_SW_UNKNOWN = DC_SW_MAX
+};
+
+// Definition of swizzle modes with addr3 ASICs
+enum swizzle_mode_addr3_values {
+	DC_ADDR3_SW_LINEAR = 0,
+	DC_ADDR3_SW_256B_2D = 1,
+	DC_ADDR3_SW_4KB_2D = 2,
+	DC_ADDR3_SW_64KB_2D = 3,
+	DC_ADDR3_SW_256KB_2D = 4,
+	DC_ADDR3_SW_4KB_3D = 5,
+	DC_ADDR3_SW_64KB_3D = 6,
+	DC_ADDR3_SW_256KB_3D = 7,
+	DC_ADDR3_SW_MAX = 8,
+	DC_ADDR3_SW_UNKNOWN = DC_ADDR3_SW_MAX
 };
 
 union dc_tiling_info {
@@ -399,7 +420,10 @@ union dc_tiling_info {
 		bool rb_aligned;
 		bool pipe_aligned;
 		unsigned int num_pkrs;
-	} gfx9;
+	} gfx9;/*gfx9, gfx10 and above*/
+	struct {
+		enum swizzle_mode_addr3_values swizzle;
+	} gfx_addr3;/*gfx with addr3 and above*/
 };
 
 /* Rotation angle */
@@ -461,6 +485,7 @@ struct dc_cursor_mi_param {
 	unsigned int pixel_clk_khz;
 	unsigned int ref_clk_khz;
 	struct rect viewport;
+	struct rect recout;
 	struct fixed31_32 h_scale_ratio;
 	struct fixed31_32 v_scale_ratio;
 	enum dc_rotation_angle rotation;
@@ -616,7 +641,8 @@ enum dc_color_space {
 	COLOR_SPACE_YCBCR709_LIMITED,
 	COLOR_SPACE_2020_RGB_FULLRANGE,
 	COLOR_SPACE_2020_RGB_LIMITEDRANGE,
-	COLOR_SPACE_2020_YCBCR,
+	COLOR_SPACE_2020_YCBCR_LIMITED,
+	COLOR_SPACE_2020_YCBCR_FULL,
 	COLOR_SPACE_ADOBERGB,
 	COLOR_SPACE_DCIP3,
 	COLOR_SPACE_DISPLAYNATIVE,
@@ -624,6 +650,7 @@ enum dc_color_space {
 	COLOR_SPACE_APPCTRL,
 	COLOR_SPACE_CUSTOMPOINTS,
 	COLOR_SPACE_YCBCR709_BLACK,
+	COLOR_SPACE_2020_YCBCR = COLOR_SPACE_2020_YCBCR_LIMITED,
 };
 
 enum dc_dither_option {
@@ -770,9 +797,6 @@ struct dc_crtc_timing_flags {
 	uint32_t LTE_340MCSC_SCRAMBLE:1;
 
 	uint32_t DSC : 1; /* Use DSC with this timing */
-#ifndef TRIM_FSFT
-	uint32_t FAST_TRANSPORT: 1;
-#endif
 	uint32_t VBLANK_SYNCHRONIZABLE: 1;
 };
 
@@ -798,6 +822,29 @@ enum dc_timing_3d_format {
 	TIMING_3D_FORMAT_MAX,
 };
 
+#define DC_DSC_QP_SET_SIZE 15
+#define DC_DSC_RC_BUF_THRESH_SIZE 14
+struct dc_dsc_rc_params_override {
+	int32_t rc_model_size;
+	int32_t rc_buf_thresh[DC_DSC_RC_BUF_THRESH_SIZE];
+	int32_t rc_minqp[DC_DSC_QP_SET_SIZE];
+	int32_t rc_maxqp[DC_DSC_QP_SET_SIZE];
+	int32_t rc_offset[DC_DSC_QP_SET_SIZE];
+
+	int32_t rc_tgt_offset_hi;
+	int32_t rc_tgt_offset_lo;
+	int32_t rc_edge_factor;
+	int32_t rc_quant_incr_limit0;
+	int32_t rc_quant_incr_limit1;
+
+	int32_t initial_fullness_offset;
+	int32_t initial_delay;
+
+	int32_t flatness_min_qp;
+	int32_t flatness_max_qp;
+	int32_t flatness_det_thresh;
+};
+
 struct dc_dsc_config {
 	uint32_t num_slices_h; /* Number of DSC slices - horizontal */
 	uint32_t num_slices_v; /* Number of DSC slices - vertical */
@@ -807,11 +854,10 @@ struct dc_dsc_config {
 	uint32_t version_minor; /* DSC minor version. Full version is formed as 1.version_minor. */
 	bool ycbcr422_simple; /* Tell DSC engine to convert YCbCr 4:2:2 to 'YCbCr 4:2:2 simple'. */
 	int32_t rc_buffer_size; /* DSC RC buffer block size in bytes */
-#if defined(CONFIG_DRM_AMD_DC_DCN)
 	bool is_frl; /* indicate if DSC is applied based on HDMI FRL sink's capability */
-#endif
 	bool is_dp; /* indicate if DSC is applied based on DP's capability */
 	uint32_t mst_pbn; /* pbn of display on dsc mst hub */
+	const struct dc_dsc_rc_params_override *rc_params_ovrd; /* DM owned memory. If not NULL, apply custom dsc rc params */
 };
 
 /**
@@ -921,15 +967,12 @@ struct dc_crtc_timing {
 	uint32_t hdmi_vic;
 	uint32_t rid;
 	uint32_t fr_index;
+	uint32_t frl_uncompressed_video_bandwidth_in_kbps;
 	enum dc_timing_3d_format timing_3d_format;
 	enum dc_color_depth display_color_depth;
 	enum dc_pixel_encoding pixel_encoding;
 	enum dc_aspect_ratio aspect_ratio;
 	enum scanning_type scan_type;
-
-#ifndef TRIM_FSFT
-	uint32_t fast_transport_output_rate_100hz;
-#endif
 
 	struct dc_crtc_timing_flags flags;
 	uint32_t dsc_fixed_bits_per_pixel_x16; /* DSC target bitrate in 1/16 of bpp (e.g. 128 -> 8bpp) */
@@ -958,6 +1001,8 @@ struct dc_crtc_timing_adjust {
 	uint32_t v_total_max;
 	uint32_t v_total_mid;
 	uint32_t v_total_mid_frame_num;
+	uint32_t allow_otg_v_count_halt;
+	uint8_t timing_adjust_pending;
 };
 
 
@@ -1034,6 +1079,24 @@ enum cm_gamut_coef_format {
 	CM_GAMUT_REMAP_COEF_FORMAT_S3_12 = 1
 };
 
+enum mpcc_gamut_remap_mode_select {
+	MPCC_GAMUT_REMAP_MODE_SELECT_0 = 0,
+	MPCC_GAMUT_REMAP_MODE_SELECT_1,
+	MPCC_GAMUT_REMAP_MODE_SELECT_2
+};
+
+enum mpcc_gamut_remap_id {
+	MPCC_OGAM_GAMUT_REMAP,
+	MPCC_MCM_FIRST_GAMUT_REMAP,
+	MPCC_MCM_SECOND_GAMUT_REMAP
+};
+
+enum cursor_matrix_mode {
+	CUR_MATRIX_BYPASS = 0,
+	CUR_MATRIX_SET_A,
+	CUR_MATRIX_SET_B
+};
+
 struct mcif_warmup_params {
 	union large_integer	start_address;
 	unsigned int		address_increment;
@@ -1060,6 +1123,20 @@ struct tg_color {
 	uint16_t color_r_cr;
 	uint16_t color_g_y;
 	uint16_t color_b_cb;
+};
+
+enum symclk_state {
+	SYMCLK_OFF_TX_OFF,
+	SYMCLK_ON_TX_ON,
+	SYMCLK_ON_TX_OFF,
+};
+
+struct phy_state {
+	struct {
+		uint8_t otg		: 1;
+		uint8_t reserved	: 7;
+	} symclk_ref_cnts;
+	enum symclk_state symclk_state;
 };
 
 #endif /* DC_HW_TYPES_H */

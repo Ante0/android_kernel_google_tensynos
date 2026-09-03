@@ -8,6 +8,7 @@
 
 #include <dt-bindings/clock/zuma.h>
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
 #include <arm64/exynos/exynos-pinctrl.h>
 #include <dt-bindings/lwis/platform/zuma/tof.h>
 
@@ -274,8 +275,7 @@
 		irq-gpios = <&gpn3 0 GPIO_ACTIVE_LOW>;
 		irq-gpios-names = "tof-irq";
 		irq-gpios-events = <LWIS_PLATFORM_EVENT_ID_TOF_DATA_POLLING>;
-		/* IRQF_ONESHOT | IRQF_TRIGGER_FALLING */
-		irq-gpios-types = <0x2002>;
+		irq-gpios-types = <IRQ_TYPE_EDGE_FALLING>;
 
 		/* Power up sequence */
 		power-up-seqs =
@@ -1240,14 +1240,18 @@
 				reg-addr-bitwidth = <8>;
 				reg-value-bitwidth = <8>;
 
-				/* Power Management hibernation (deep sleep) */
-				/* 1 : enable, 0 : disable */
-				pm-hibernation = <0>;
-
 				/* GPIOs */
 				/* FLASH_EN GPP24[1] */
 				enable-gpios =
 					<&gpp24 1 GPIO_ACTIVE_HIGH>;
+
+				power-up-seqs = "enable";
+				power-up-seq-types = "gpio";
+				power-up-seq-delays-us = <0>;
+
+				power-down-seqs = "enable";
+				power-down-seq-types = "gpio";
+				power-down-seq-delays-us = <0>;
 			};
 		};
 	};

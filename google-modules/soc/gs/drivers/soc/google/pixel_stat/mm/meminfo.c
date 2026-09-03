@@ -8,8 +8,9 @@
 
 #include <linux/module.h>
 #include <linux/seq_file.h>
+#include <linux/vmalloc.h>
 #include <soc/google/meminfo.h>
-#include "../../../../dma-buf/heaps/samsung/samsung-dma-heap.h"
+#include "samsung-dma-heap.h"
 
 /*****************************************************************************/
 /*                       Modified Code Section                               */
@@ -99,9 +100,9 @@ static unsigned long __get_meminfo_item_size(const char *name)
 
 /*
  * Get memory dump information of pixel device, should be careful
- * adding dump information since get_meminfo_item_size_no_lock
- * could be executed in hardirq context, so items for querying
- * should be atomic operation.
+ * adding dump information since __get_meminfo_item_size could be
+ * executed in hardirq context, so items for querying should be
+ * atomic operation.
  */
 void dump_pixel_meminfo(void)
 {

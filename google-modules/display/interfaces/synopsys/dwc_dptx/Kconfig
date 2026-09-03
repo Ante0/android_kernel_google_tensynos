@@ -1,0 +1,36 @@
+config DWC_DPTX
+	tristate "DP TX: control DP Tx driver"
+	select DRM_DISPLAY_HELPER
+	select DRM_DISPLAY_DP_HELPER
+	select DRM_DISPLAY_HDCP_HELPER
+	help
+	  Choose y to include the dptx driver. Driver controls the main DP Tx
+	  functionalities.
+
+config DWC_DPTX_PCI
+	tristate "DP TX: PCI interface"
+	depends on DWC_DPTX
+	help
+	  Choose y to include the dptx pci interface. This driver controls the
+	  PCI interface for the DP Tx driver.
+
+config DWC_DPTX_AUDIO
+	bool "DP TX: Audio"
+	depends on DWC_DPTX
+	depends on EXTCON
+	help
+	  Choose y to enable DP Audio support.
+	  This driver controls the DP Audio support for the DP Tx driver.
+	  Depends on DWC_DPTX driver.
+	  Depends on EXTCON to notify audio device connection.
+
+config DWC_DPTX_HDCP
+	bool "DP TX: HDCP"
+	depends on DWC_DPTX
+	default y if TZ_PROT
+	help
+	  Enable HDCP support for the DisplayPort transmitter driver.
+	  This option allows the driver to handle High-bandwidth Digital
+	  Content Protection, enabling the transmission of protected content
+	  over the DP interface. It defaults to enabled when TrustZone
+	  protection (TZ_PROT) is active.

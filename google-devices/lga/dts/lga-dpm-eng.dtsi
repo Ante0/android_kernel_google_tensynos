@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+
+#include <dt-bindings/soc/google/google-cdd-def.h>
+
+&dpm {
+	/* If you change 'version', please bump dpm_ver in the init_dpm.sh script (b/351346396) */
+	version = <101>; /* 'version' should be equal in all lga-dpm-*.dtsi files */
+	variant = "eng";
+
+	security {
+		cp_mem_not_clear	= <0>;
+		dbg_mem_enable		= <1>;
+		seh_enable		= <0>;
+		pm_test_enable		= <0>;
+		seclog_enable		= <0>;
+		harxlog_enable		= <0>;
+		sdm_enable		= <0>;
+		ERXPFG_enable		= <1>;
+	};
+
+	abl {
+		ramdump_mode		= <DPM_ENABLE>;
+		ramdump2usb		= <DPM_ENABLE>;
+		tp_dram_enable		= <1>;
+		aoc_sram_dump		= <1>;
+		gslc_dump		= <1>;
+		apc_cache_dump		= <1>;
+	};
+}; /* end of dpm */

@@ -50,14 +50,14 @@ static void uclogic_inrange_timeout(struct timer_list *t)
 	input_sync(input);
 }
 
-static __u8 *uclogic_report_fixup(struct hid_device *hdev, __u8 *rdesc,
+static const __u8 *uclogic_report_fixup(struct hid_device *hdev, __u8 *rdesc,
 					unsigned int *rsize)
 {
 	struct uclogic_drvdata *drvdata = hid_get_drvdata(hdev);
 
 	if (drvdata->desc_ptr != NULL) {
-		rdesc = drvdata->desc_ptr;
 		*rsize = drvdata->desc_size;
+		return drvdata->desc_ptr;
 	}
 	return rdesc;
 }
@@ -244,6 +244,34 @@ static int uclogic_resume(struct hid_device *hdev)
 #endif
 
 /**
+ * uclogic_exec_event_hook - if the received event is hooked schedules the
+ * associated work.
+ *
+ * @p:		Tablet interface report parameters.
+ * @event:	Raw event.
+ * @size:	The size of event.
+ *
+ * Returns:
+ *	Whether the event was hooked or not.
+ */
+static bool uclogic_exec_event_hook(struct uclogic_params *p, u8 *event, int size)
+{
+	struct uclogic_raw_event_hook *curr;
+
+	if (!p->event_hooks)
+		return false;
+
+	list_for_each_entry(curr, &p->event_hooks->list, list) {
+		if (curr->size == size && memcmp(curr->event, event, size) == 0) {
+			schedule_work(&curr->work);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
  * uclogic_raw_event_pen - handle raw pen events (pen HID reports).
  *
  * @drvdata:	Driver data.
@@ -401,6 +429,9 @@ static int uclogic_raw_event(struct hid_device *hdev,
 	if (report->type != HID_INPUT_REPORT)
 		return 0;
 
+	if (uclogic_exec_event_hook(params, data, size))
+		return 0;
+
 	while (true) {
 		/* Tweak pen reports, if necessary */
 		if ((report_id == params->pen.id) && (size >= 2)) {
@@ -537,4 +568,10 @@ module_hid_driver(uclogic_driver);
 
 MODULE_AUTHOR("Martin Rusko");
 MODULE_AUTHOR("Nikolai Kondrashov");
+MODULE_DESCRIPTION("HID driver for UC-Logic devices not fully compliant with HID standard");
 MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("HID driver for UC-Logic devices not fully compliant with HID standard");
+
+#ifdef CONFIG_HID_KUNIT_TEST
+#include "hid-uclogic-core-test.c"
+#endif

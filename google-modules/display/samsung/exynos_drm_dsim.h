@@ -100,7 +100,7 @@ struct dsim_device {
 	bool force_set_hs_clk;
 
 #ifdef CONFIG_DEBUG_FS
-        struct dentry *debugfs_entry;
+	struct dentry *debugfs_entry;
 #endif
 
 	int irq;
@@ -214,9 +214,9 @@ void dsim_diag_create_debugfs(struct dsim_device *dsim);
 void dsim_diag_remove_debugfs(struct dsim_device *dsim);
 
 int dsim_dphy_diag_get_reg(struct dsim_device *dsim,
-                           struct dsim_dphy_diag *diag, uint32_t *vals);
+			   struct dsim_dphy_diag *diag, uint32_t *vals);
 int dsim_dphy_diag_set_reg(struct dsim_device *dsim,
-                           struct dsim_dphy_diag *diag, uint32_t val);
+			   struct dsim_dphy_diag *diag, uint32_t val);
 #endif
 
 #endif /* __EXYNOS_DRM_DSI_H__ */

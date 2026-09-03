@@ -9,6 +9,10 @@ config VH_SCHED_MAX_CPU_NR
 	int "CPU number on this platform"
 	default 9
 
+config VH_SCHED_MAX_CLUSTER_NR
+	int "Max cluster number on this platform"
+	default 4
+
 config VH_PREEMPTIRQ_TRACEPOINTS
 	tristate "Vendor hooks for long preemptirq trace points"
 	depends on VH_SCHED

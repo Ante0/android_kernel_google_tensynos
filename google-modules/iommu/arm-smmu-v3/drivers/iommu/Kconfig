@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config IOMMU_IO_PGTABLE_PIXEL
+	tristate "ARMv7/v8 Long Descriptor Format"
+	depends on ARM || ARM64 || COMPILE_TEST
+	help
+	  Enable support for the ARM long descriptor pagetable format.
+	  This allocator supports 4K/2M/1G, 16K/32M and 64K/512M page
+	  sizes at both stage-1 and stage-2, as well as address spaces
+	  up to 48-bits in size.
+
+config ARM_SMMU_V3_PIXEL
+	tristate "ARM Ltd. System MMU Version 3 (SMMUv3) Support"
+	depends on ARM64
+	depends on IOMMU_API
+	select IOMMU_IO_PGTABLE_PIXEL
+	help
+	  Support for implementations of the ARM System MMU architecture
+	  version 3 providing translation support to a PCIe root complex.
+
+	  Say Y here if your system includes an IOMMU device implementing
+	  the ARM SMMUv3 architecture.
+
+config ARM_SMMU_V3_PKVM_PIXEL
+	tristate "ARM SMMUv3 support for protected Virtual Machines"
+	depends on KVM && ARM64
+	select IOMMU_IO_PGTABLE_PIXEL
+	help
+	  Enable a SMMUv3 driver in the KVM hypervisor, to protect VMs against
+	  memory accesses from devices owned by the host.
+
+	  Say Y here if you intend to enable KVM in protected mode.
+
+config GOOGLE_ACFW_DEBUG
+	tristate "Driver to trigger dumping of ACFW logs into Trusty logs"
+	help
+	  Enable a driver that registers a kernel panic handler which calls
+	  into ACFW to dump the event queues of all SMMU instance into the
+	  Trusty logs.
+	  Enable this driver only if you intend to use ACFW.

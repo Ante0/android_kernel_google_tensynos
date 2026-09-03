@@ -10,7 +10,7 @@
 
 #include "bigo_priv.h"
 
-#if IS_ENABLED(ENABLE_SLC)
+#if IS_ENABLED(CONFIG_BIGWAVE_ENABLE_SLC)
 #include <soc/google/pt.h>
 int bigo_pt_client_register(struct device_node *node, struct bigo_core *core);
 void bigo_pt_client_unregister(struct bigo_core *core);

@@ -18,9 +18,9 @@
 #include <linux/ctype.h>
 #include <linux/i2c.h>
 #include <linux/of.h>
-#include <linux/of_gpio.h>
 #include <linux/of_irq.h>
 #include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/gpio/driver.h>
 #include <linux/module.h>
 #include <linux/regmap.h>
@@ -465,6 +465,7 @@ static int max77759_find_fg(struct max77729_pmic_data *data)
 		return -ENXIO;
 
 	data->fg_i2c_client = of_find_i2c_device_by_node(dn);
+	of_node_put(dn);
 	if (!data->fg_i2c_client)
 		return -EAGAIN;
 
@@ -890,9 +891,13 @@ static int max77759_gpio_get_direction(struct gpio_chip *chip,
 	}
 
 	if (offset == MAX77759_GPIO5_OFF)
-		return !(val & MAX77759_GPIO5_DIR_MASK);
+		return ((val & MAX77759_GPIO5_DIR_MASK)
+			? GPIO_LINE_DIRECTION_OUT
+			: GPIO_LINE_DIRECTION_IN);
 
-	return !(val & MAX77759_GPIO6_DIR_MASK);
+	return ((val & MAX77759_GPIO6_DIR_MASK)
+		? GPIO_LINE_DIRECTION_OUT
+		: GPIO_LINE_DIRECTION_IN);
 }
 
 /* offset is gpionum - 1 */
@@ -937,16 +942,16 @@ static void max77759_gpio_set(struct gpio_chip *chip,
 	}
 
 	if (offset == MAX77759_GPIO5_OFF) {
-		dir = !(val & MAX77759_GPIO5_DIR_MASK);
-		if (dir != GPIOF_DIR_OUT)  {
+		dir = val & MAX77759_GPIO5_DIR_MASK;
+		if (dir != MAX77759_GPIO5_DIR(MAX77759_GPIO_DIR_OUT))  {
 			dev_err(data->dev, "not output\n");
 			return;
 		}
 		new_val = val & ~MAX77759_GPIO5_VAL_MASK;
 		new_val |= MAX77759_GPIO5_VAL(value);
 	} else {  /* MAX77759_GPIO6_OFF */
-		dir = !(val & MAX77759_GPIO6_DIR_MASK);
-		if (dir != GPIOF_DIR_OUT)  {
+		dir = val & MAX77759_GPIO6_DIR_MASK;
+		if (dir != MAX77759_GPIO6_DIR(MAX77759_GPIO_DIR_OUT))  {
 			dev_err(data->dev, "not output\n");
 			return;
 		}
@@ -1207,12 +1212,12 @@ static struct irq_chip max77729_gpio_irq_chip = {
 /* ----------------------------------------------------------------------- */
 
 
-static int max77729_pmic_probe(struct i2c_client *client,
-			       const struct i2c_device_id *id)
+static int max77729_pmic_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
 	struct max77729_pmic_data *data;
-	int irq_gpio, pmic_id, ret =0;
+	struct gpio_desc *irq_gpio;
+	int pmic_id, ret =0;
 
 	pmic_id = max77729_pmic_read_id(client);
 	if (pmic_id < 0)
@@ -1266,11 +1271,11 @@ static int max77729_pmic_probe(struct i2c_client *client,
 		}
 	}
 
-	irq_gpio = of_get_named_gpio(dev->of_node, "max777x9,irq-gpio", 0);
-	if (irq_gpio < 0) {
-		dev_err(dev, "irq is not defined\n");
+	irq_gpio = devm_gpiod_get(dev, "max777x9,irq", GPIOD_IN | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
+	if (IS_ERR(irq_gpio)) {
+		dev_err(dev, "faile to get ieq_gpio: %ld\n", PTR_ERR(irq_gpio));
 	} else {
-		client->irq = gpio_to_irq(irq_gpio);
+		client->irq = gpiod_to_irq(irq_gpio);
 
 		/* NOTE: all interrupts are masked here */
 		ret = devm_request_threaded_irq(data->dev, client->irq, NULL,
@@ -1293,7 +1298,8 @@ static int max77729_pmic_probe(struct i2c_client *client,
 		}
 	}
 
-	if (dbg_init_fs(data) < 0)
+	ret = dbg_init_fs(data);
+	if (ret < 0)
 		dev_err(dev, "Failed to initialize debug fs\n");
 
 	if (pmic_id == MAX77759_PMIC_PMIC_ID_MW) {
@@ -1317,6 +1323,7 @@ static int max77729_pmic_probe(struct i2c_client *client,
 
 	if (pmic_id == MAX77759_PMIC_PMIC_ID_MW) {
 		struct gpio_irq_chip *girq = &data->gpio.irq;
+		struct device_node *dp;
 
 		/* Setup GPIO controller */
 		data->gpio.owner = THIS_MODULE;
@@ -1330,10 +1337,12 @@ static int max77729_pmic_probe(struct i2c_client *client,
 		data->gpio.ngpio = MAX77759_NUM_GPIOS;
 		data->gpio.can_sleep = true;
 		data->gpio.base	= -1;
-		data->gpio.of_node = of_find_node_by_name(dev->of_node,
-							  data->gpio.label);
-		if (!data->gpio.of_node)
+		/* balance of_node_put() in of_find_node_by_name() */
+		of_node_get(dev->of_node);
+		dp = of_find_node_by_name(dev->of_node, data->gpio.label);
+		if (!dp)
 			dev_err(dev, "Failed to find %s DT node\n", data->gpio.label);
+		data->gpio.fwnode = of_node_to_fwnode(dp);
 
 		/* check regmap-irq */
 		girq->chip = &max77729_gpio_irq_chip;

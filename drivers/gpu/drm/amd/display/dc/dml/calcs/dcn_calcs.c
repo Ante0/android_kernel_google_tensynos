@@ -30,7 +30,7 @@
 #include "dcn_calc_auto.h"
 #include "dal_asic_id.h"
 #include "resource.h"
-#include "dcn10/dcn10_resource.h"
+#include "resource/dcn10/dcn10_resource.h"
 #include "dcn10/dcn10_hubbub.h"
 #include "dml/dml1_display_rq_dlg_calc.h"
 
@@ -690,7 +690,7 @@ static void hack_disable_optional_pipe_split(struct dcn_bw_internal_vars *v)
 static void hack_force_pipe_split(struct dcn_bw_internal_vars *v,
 		unsigned int pixel_rate_100hz)
 {
-	float pixel_rate_mhz = pixel_rate_100hz / 10000;
+	float pixel_rate_mhz = pixel_rate_100hz / 10000.0;
 
 	/*
 	 * force enabling pipe split by lower dpp clock for DPM0 to just
@@ -1258,7 +1258,7 @@ bool dcn_validate_bandwidth(
 						hsplit_pipe->pipe_dlg_param.vblank_end = pipe->pipe_dlg_param.vblank_end;
 					} else {
 						/* pipe not split previously needs split */
-						hsplit_pipe = find_idle_secondary_pipe(&context->res_ctx, pool, pipe);
+						hsplit_pipe = resource_find_free_secondary_pipe_legacy(&context->res_ctx, pool, pipe);
 						ASSERT(hsplit_pipe);
 						split_stream_across_pipes(&context->res_ctx, pool, pipe, hsplit_pipe);
 					}

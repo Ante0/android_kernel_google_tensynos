@@ -1,0 +1,136 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "irq-google-cpm",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "irq-google-cpm.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_IRQ_CPM": {
+            True: [
+                "irq-google-cpm.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-cpm-iface",
+    ],
+)
+
+ddk_module(
+    name = "irq-gia-lib",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "irq-gia-lib.ko",
+    conditional_srcs = {
+        "CONFIG_GIA_LIB": {
+            True: [
+                "irq-gia-lib.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "irq-gia-google",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "irq-gia-google.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_GIA_IRQ": {
+            True: [
+                "irq-gia-google.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":irq-gia-lib",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "irq-extended-sysfs",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "irq-extended-sysfs.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_IRQ_EXTENDED_SYSFS": {
+            True: [
+                "irq-extended-sysfs.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "irq-gia-google-test",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "irq-gia-google-test.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_GIA_TEST": {
+            True: [
+                "irq-gia-google-test.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":irq-gia-lib",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)

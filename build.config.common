@@ -1,17 +1,10 @@
+echo 'WARNING: Do not source build.config.common. Instead:
+    - If you need -D__ANDROID_COMMON_KERNEL__ in KCFLAGS, set kernel_build.kcflags.
+    - If you still have build configs, use:
+        . ${ROOT_DIR}/${KERNEL_DIR}/build.config.constants
+    - If you do not have any build configs, delete kernel_build.build_config entirely.
+' >&2
+
 . ${ROOT_DIR}/${KERNEL_DIR}/build.config.constants
 
-KMI_GENERATION=11
-
-LLVM=1
-DEPMOD=depmod
-CLANG_PREBUILT_BIN=prebuilts/clang/host/linux-x86/clang-${CLANG_VERSION}/bin
-BUILDTOOLS_PREBUILT_BIN=build/kernel/build-tools/path/linux-x86
-DTC=${ROOT_DIR}/${BUILDTOOLS_PREBUILT_BIN}/dtc
-
 KCFLAGS="${KCFLAGS} -D__ANDROID_COMMON_KERNEL__"
-EXTRA_CMDS=''
-STOP_SHIP_TRACEPRINTK=1
-IN_KERNEL_MODULES=1
-DO_NOT_STRIP_MODULES=1
-
-HERMETIC_TOOLCHAIN=${HERMETIC_TOOLCHAIN:-1}

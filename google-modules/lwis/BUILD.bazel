@@ -1,25 +1,150 @@
 # SPDX-License-Identifier: GPL-2.0
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module")
 
-kernel_module(
-    name = "lwis",
-    srcs = glob([
-        "**/*.c",
-        "**/*.h",
-    ]) + [
-        "Kbuild",
-        "//private/google-modules/soc/gs:gs_soc_headers",
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+filegroup(
+    name = "lwis.kconfig",
+    srcs = [
+        "Kconfig",
     ],
-    outs = [
-        "lwis.ko",
-    ],
-    kernel_build = "//private/devices/google/common:kernel",
     visibility = [
         "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
     ],
+)
+
+ddk_headers(
+    name = "private_headers",
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+    visibility = ["//visibility:private"],
+)
+
+ddk_headers(
+    name = "common_headers",
+    hdrs = [
+        ":private_headers",
+        "//common:all_headers_aarch64",
+    ],
+)
+
+_COMMON_COPTS = [
+    "-Wall",
+    "-Werror",
+]
+
+ddk_module(
+    name = "lwis.anchorage",
+    srcs = glob([
+        "*.c",
+        "platform/anchorage/*.c",
+        "platform/anchorage/*.h",
+    ]),
+    out = "lwis.ko",
+    copts = _COMMON_COPTS,
+    kernel_build = "//private/devices/google/common:kernel",
     deps = [
-        "//private/google-modules/soc/gs:gs_soc_module",
+        ":common_headers",
+        "//private/google-modules/soc/gs:headers",
     ],
+)
+
+ddk_module(
+    name = "lwis.busan",
+    srcs = glob([
+        "*.c",
+        "platform/busan/*.c",
+        "platform/busan/*.h",
+    ]),
+    out = "lwis.ko",
+    copts = _COMMON_COPTS,
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":common_headers",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/bts",
+        "//private/google-modules/soc/gs/drivers/input/misc/vl53l1:stmvl53l1",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos_pm_qos",
+        "//private/google-modules/soc/gs/drivers/soc/google/pt:slc_pt",
+    ],
+)
+
+ddk_module(
+    name = "lwis.casablanca",
+    srcs = glob([
+        "*.c",
+        "platform/casablanca/*.c",
+        "platform/casablanca/*.h",
+    ]),
+    out = "lwis.ko",
+    copts = _COMMON_COPTS,
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":common_headers",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/bts",
+        "//private/google-modules/soc/gs/drivers/input/misc/vl53l1:stmvl53l1",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos_pm_qos",
+        "//private/google-modules/soc/gs/drivers/soc/google/pt:slc_pt",
+    ],
+)
+
+ddk_module(
+    name = "lwis.dublin",
+    srcs = glob([
+        "*.c",
+        "platform/dublin/*.c",
+        "platform/dublin/*.h",
+    ]),
+    out = "lwis.ko",
+    copts = _COMMON_COPTS,
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":common_headers",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/pt:slc_pt",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google/cdd:gcdd",
+        "//private/google-modules/soc/rdo/interconnect:google_icc",
+        "//private/google-modules/soc/rdo/interconnect:google_irm",
+        "//private/google-modules/soc/rdo/mem-qos:google-mem-qos",
+    ],
+)
+
+ddk_module(
+    name = "lwis.erie",
+    srcs = glob([
+        "*.c",
+        "platform/erie/*.c",
+        "platform/erie/*.h",
+    ]),
+    out = "lwis.ko",
+    copts = _COMMON_COPTS,
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":common_headers",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/infra/mbfs",
+        "//private/google-modules/perf/core/gs_perf_domain:perf_domain",
+        #"//private/google-modules/soc/gs:gs_soc_module",
+        "//private/google-modules/soc/gs:headers",
+    ] + select({
+        "//private/devices/google/common:soc_is_laguna_or_later": [
+            "//private/google-modules/soc/rdo:rdo_soc_headers",
+            "//private/google-modules/soc/rdo/drivers/soc/google/cdd:gcdd",
+            "//private/google-modules/soc/rdo/interconnect:google_icc",
+            "//private/google-modules/soc/rdo/interconnect:google_irm",
+            "//private/google-modules/soc/rdo/mem-qos:google-mem-qos",
+        ],
+    }),
 )

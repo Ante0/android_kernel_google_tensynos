@@ -361,7 +361,7 @@ int slc_init_data(struct slc_data *data, struct device* dev)
 		goto err_exit;
 	}
 
-	if (IS_ENABLED(PIXEL_GPU_SLC_ACPM_SIGNAL)) {
+	if (IS_ENABLED(CONFIG_MALI_PIXEL_GPU_SLC_ACPM_SIGNAL)) {
 		u32 size;
 
 		/* Obtain a handle to the ACPM provided GPU partition signal */

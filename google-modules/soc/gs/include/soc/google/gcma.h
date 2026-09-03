@@ -4,8 +4,8 @@
 
 #include <linux/types.h>
 
-extern void gcma_alloc_range(unsigned long start_pfn, unsigned long end_pfn);
-extern void gcma_free_range(unsigned long start_pfn, unsigned long end_pfn);
-extern int register_gcma_area(const char *name, phys_addr_t base,
-				phys_addr_t size);
+extern void pixel_gcma_alloc_range(unsigned long start_pfn, unsigned long end_pfn);
+extern void pixel_gcma_free_range(unsigned long start_pfn, unsigned long end_pfn);
+extern int register_pixel_gcma_area(const char *name, phys_addr_t base,
+				    phys_addr_t size);
 #endif

@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+%YAML 1.2
+---
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Silergy SY70206 Voltage Regulator
+
+maintainers:
+  - Xu Han <xuhanyz@google.com>
+  - Kamal Shafi <kamalshafi@google.com>
+
+properties:
+  compatible:
+    enum:
+      - sy,sy70206
+
+  reg:
+    maxItems: 3
+
+  enable-gpios:
+    description: A connection of the 'enable' gpio line.
+    maxItems: 1
+
+  regulator-initial-mode:
+    enum: [1, 2]
+    description: 1 - Forced PWM mode, 2 - Auto PFM mode
+
+  regulator-allowed-modes:
+    description: |
+        1: Forced PWM mode
+        2: Auto PFM mode
+    items:
+      enum: [1, 2]
+
+  google,disable-auto-headroom:
+    description:
+      Used to indicates the regulator with auto headroom disabled.
+    type: boolean
+
+required:
+  - compatible
+  - reg
+
+additionalProperties: false
+
+examples:
+  - |
+    i2c {
+      sy70206@63 {
+        compatible = "sy,sy70206";
+        reg = <0x63>;
+        enable-gpios = <&enable_gpio 9 GPIO_ACTIVE_HIGH>;
+        status = "ok";
+        regulator-name = "sy70206-regulator";
+        regulator-min-microvolt = <3200000>;
+        regulator-max-microvolt = <3200000>;
+        regulator-always-on;
+        /* REGULATOR_MODE_NORMAL (auto) */
+        regulator-initial-mode = <0x2>;
+        /* Allow for NORMAL (auto) and FAST (FPWM) mode */
+        regulator-allowed-modes = <0x2>, <0x1>;
+      };
+    };

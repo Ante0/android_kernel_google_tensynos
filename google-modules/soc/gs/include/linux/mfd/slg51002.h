@@ -668,14 +668,13 @@ struct slg51002_dev {
 	struct regmap *regmap, *i2c_regmap;
 	struct regulator_desc *rdesc[SLG51002_MAX_REGULATORS];
 	struct regulator_dev *rdev[SLG51002_MAX_REGULATORS];
-	struct gpio_desc *cs_gpiod;
+	struct gpio_desc *cs_gpio;
+	struct gpio_desc *buck_gpio;
+	struct gpio_desc *bb_gpio;
+	struct gpio_desc *pu_gpio;
 	struct workqueue_struct *slg51002_wq;
 	struct work_struct slg51002_work;
 	int chip_irq;
-	int chip_cs_pin;
-	int chip_buck_pin;
-	int chip_bb_pin;
-	int chip_pu_pin;
 	int chip_id;
 	u32 op_mode;
 	bool chip_always_on;

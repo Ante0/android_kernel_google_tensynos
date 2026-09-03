@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Charging device tree entries specific to Grizzly devices
+ *
+ * Copyright 2026 Google LLC
+ *
+ */
+
+&pe26100_charge_pump {
+	/* Charge pump thermal zone */
+	google,usb-port-tz-name = "cp-therm-adc";
+};

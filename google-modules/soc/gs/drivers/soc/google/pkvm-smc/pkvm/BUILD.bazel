@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_library")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_library(
+    name = "pkvm",
+    srcs = [
+        "pkvm_smc_el2.c",
+    ],
+    copts = [
+        "-Wno-missing-prototypes",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    pkvm_el2 = True,
+    visibility = [
+        "//private/google-modules/soc/gs/drivers/soc/google/pkvm-smc:__subpackages__",
+    ],
+)

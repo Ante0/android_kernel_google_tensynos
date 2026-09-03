@@ -19,7 +19,11 @@
 #ifndef _LINUX_FTS_IO_H_
 #define _LINUX_FTS_IO_H_
 
-/*#define I2C_INTERFACE*/
+#include "fts_hardware.h"
+
+// #define HK3_SPI
+// #define I2C_INTERFACE
+
 #ifdef I2C_INTERFACE
 #define I2C_SAD				0x49	/* /< slave address of the IC */
 #define DUMMY_BYTE			0	/* /< first byte read is not
@@ -48,10 +52,11 @@
 					 * request if FTI */
 #define FTS_CMD_HDM_SPI_R		0xB7 /* /< command to read a HDM
 					 * request if FTI */
-#define FTS_CMD_REG_SPI_W		0xB2 /* /< command to write  fw
+#define FTS_CMD_REG_SPI_W		0xB2 /* /< command to write fw
 					 * register if FTI */
 #define FTS_CMD_REG_SPI_R		0xB1 /* /< command to read fw register
 					 * if FTI */
+#define FTS_CMD_FIFO_SPI_R		0xED /* /< command to read fifo events */
 #define FTS_CMD_NONE			0x00
 #define FTS_CMD_HW_REG_W		0xFA /* /< command to write an hw
 					 * register if FTI */
@@ -66,7 +71,7 @@
 #define WRITE_CHUNK			1024	/* /< chunk dimension of
 						  * a single i2c write,
 						  * max allowed value is 2kB */
-#define MEMORY_CHUNK			1024	/* /< chunk dimenasion of
+#define MEMORY_CHUNK			1024	/* /< chunk dimension of
 						  * a single i2c write on mem,
 						  * max allowed value is 2kB */
 #else
@@ -76,17 +81,17 @@
 							 * address in memory */
 #define SPI_REG_W_CHUNK			128 /* /< chunk dimension of a
 						  * single SPI register write*/
-#define SPI_REG_R_CHUNK			1024 /* /< chunk dimension of
+#define SPI_REG_R_CHUNK			2040 /* /< chunk dimension of
 						  * a single SPI register read*/
-#define SPI_HDM_W_CHUNK			1024 /* /< chunk dimension of
+#define SPI_HDM_W_CHUNK			2040 /* /< chunk dimension of
 						  * a single SPI HDM write*/
-#define SPI_HDM_R_CHUNK			1024 /* /< chunk dimension of
+#define SPI_HDM_R_CHUNK			4096 /* /< chunk dimension of
 						  * a single SPI HDM read*/
 #define READ_CHUNK			SPI_HDM_R_CHUNK /* /< chunk dimension of
 						  * a single SPI  read*/
 #define WRITE_CHUNK			SPI_HDM_W_CHUNK /* /< chunk dimension of
 						  * a single SPI wrtite*/
-#define MEMORY_CHUNK			SPI_HDM_R_CHUNK /* /< chunk dimenasion
+#define MEMORY_CHUNK			SPI_HDM_R_CHUNK /* /< chunk dimension
 						  * of single spi write on mem*/
 #endif
 #define I2C_RETRY			3 /* /< number of retry in case of i2c
@@ -102,7 +107,36 @@
 					 * register in FTI @see AddrSize */
 #define HW_ADDR_SIZE			BITS_32 /* /< value of AddrSize for Hw
 					 * register in FTI @see AddrSize */
+#define MAX_ADDR_SIZE			BITS_64 /* /< Maximum AddrSize */
 
+#ifndef SPRUCE
+#define GPIO_INPUT_REG_ADDR 	0x2001A01C /* /< gpio input register address
+							 * for FTI */
+#define GPIO_OUTPUT_REG_ADDR 	0x2001A025 /* /< gpio output register address
+							 * for FTI */
+#define INT_DEASSERT_ADDR 	0x2001A055 /* /< INTB deassert address
+							 * for FTI */
+#define INT_ASSERT_ADDR 	0x2001A059 /* /< INTB assert address
+							 * for FTI */
+#define CHIP_ID_ADDRESS			0x2001C000 /* /< chip id address
+							 * for FTI */
+#define SYS_RST_ADDR			0x2001F200 /* /< address of system control
+							 * reg in FTI */
+							// TODO SYSTEM reset is BIT0
+#define BOOT_OPT_ADDR			0x2001F208	/* /< boot option  address
+							 * for FTI */
+
+#define SPI4_CONFIG_ADDR		0x2001F300 /* /< address of spi control
+							 * reg in FTI*/
+#define FRAME_BUFFER_ADDRESS		0x20030000/* /< frame buffer
+							 * address in memory */
+#define DRAM_ADDRESS			0x00180000 /* /< DRAM address in memory*/
+
+#else
+#define GPIO_INPUT_REG_ADDR 	0x20000033 /* /< gpio input register address
+							 * for FTI */
+#define GPIO_OUTPUT_REG_ADDR 	0x20000029 /* /< gpio output register address
+							 * for FTI */
 #define CHIP_ID_ADDRESS			0x20000000 /* /< chip id address
 							 * for FTI */
 #define UVLO_CTRL_ADDR			0x2000001B/* /< uvlo control address
@@ -136,6 +170,9 @@
 
 #define FRAME_BUFFER_ADDRESS		0x20010000/* /< frame buffer
 							 * address in memory */
+#define DRAM_ADDRESS			0x00100000 /* /< DRAM address in memory*/
+#endif
+
 #define FLASH_START_ADDR		0x00000000 /* /< flash start address
 							 * for FTI */
 
@@ -151,10 +188,31 @@
 							 * address */
 #define ITO_TRIGGER_ADDR		0x0024 /* /< FW reg ITO trigger
 							 * address */
+#define FW_SETTINGS_ADDR		0x0030 /* /< FW settings address */
 #define SYS_ERROR_ADDR			0x0040 /* /< FW reg system error
 							 * status  address */
-#define FIFO_READ_ADDR			0x0060 /* /< FW reg FIFO read
+#define FIFO_EVENT_CNT_ADDR		0x005F /* Fw reg FIFO event count
 							 * address */
+#define FIFO_SINGLE_READ_ADDR	0x0060 /* Fw reg FIFO to read single
+							 * event */
+#define MP_FLAG_ADDR                   0x0070 /* /< FW MP FLAG address*/
+#define FIFO_GROUP_READ_ADDR	0xED00 /* Fw reg address to read group
+							 * events */
+
+#ifndef SPRUCE
+#define BL_SPI4_CONFIG_ADDR	0x2004701F /* /< bootloader SPI control reg
+							 * in FTI */
+#define BL_SYS_CMD_ADDR 	0x20047020	/* /< bootloader system command reg
+							 * in FTI */
+#define BL_MODE_ADDR	0x0020/* /< bootloader mode address
+							 * for FTI */
+#define BL_FLASH_ADDR	0x0078/* /< bootloader flash address
+							 * for FTI */
+#define BL_CTRL_ADDR	0x007D/* /< bootloader control address
+							 * for FTI */
+#define BL_KEY_ADDR		0x007F/* /< bootloader key address
+							 * for FTI */
+#endif
 
 /* EVENT ID */
 /** @defgroup events_group	 FW Event IDs and Types
@@ -170,9 +228,12 @@
 						* touch changed position) */
 #define EVT_ID_LEAVE_POINT		0x33	/* /< Touch leave the sensing
 						* area */
+#define EVT_ID_STATUS_UPDATE		0x43	/* /< FW report a system condition
+						* change */
 #define EVT_ID_USER_REPORT		0x53	/* /< User related events
 						* triggered (keys,
 						* gestures, proximity etc) */
+#define EVT_ID_TOUCH_HEADER		0x63	/* /< Touch header */
 #define EVT_ID_DEBUG			0xE3	/* /< Debug Info */
 #define EVT_ID_ERROR			0xF3	/* /< Error Event */
 
@@ -183,11 +244,41 @@
 #define EVT_ID_LEAVE_PEN		0x93	/* /< Pen leave the sensing
 						* area */
 
-
-#define FIFO_EVENT_SIZE			8 /* /< number of bytes of one event */
-#define NUM_EVT_ID			(((EVT_ID_ERROR & 0xF0) >> 4)+1)
+#define FIFO_MAX_EVENT					32 /* /< maximum number of fifo events */
+#define FIFO_8_BYTES_EVENT_SIZE			8 /* /< number of bytes of one 8-bytes event */
+#define FIFO_16_BYTES_EVENT_SIZE		16 /* /< number of bytes of one 16-bytes event */
+#define NUM_EVT_ID		        (((EVT_ID_ERROR & 0xF0) >> 4)+1)
 /* /< Max number of unique event IDs supported */
 /** @}*/
+
+/* STATUS TYPE */
+/** @defgroup status_type	 Status Event Types
+  * @ingroup events_group
+  * Types of EVT_ID_STATUS_UPDATE events
+  * @{
+  */
+#define EVT_TYPE_STATUS_ECHO		0x01	/* /< Echo event,
+						 * contain the first 5 bytes of
+						 * the FW command sent */
+#define EVT_TYPE_STATUS_GPIO_CHAR_DET	0x02	/*/< Gpio Charger detected */
+#define EVT_TYPE_STATUS_FRAME_DROP	0x03	/* /< Some frame was skipped
+						 * during the elaboration */
+#define EVT_TYPE_STATUS_FORCE_CAL	0x05	/* /< Force Calibration has
+						 * triggered */
+#define EVT_TYPE_STATUS_WATER		0x06	/* /< Water Mode */
+#define EVT_TYPE_STATUS_PRE_WATER	0x08	/* /< Pre-Water Mode */
+#define EVT_TYPE_STATUS_NOISE		0x09	/* /< Noise Status */
+#define EVT_TYPE_STATUS_PALM_TOUCH	0x0D	/* /< Palm Touch Status */
+#define EVT_TYPE_STATUS_GRIP_TOUCH	0x0E	/* /< Grip Touch Status */
+#define EVT_TYPE_STATUS_GOLDEN_RAW_ERR	0x17	/* /< Abnormal golden ms raw */
+#define EVT_TYPE_STATUS_INV_GESTURE	0x18	/* /< Invalid gesture */
+#define EVT_TYPE_STATUS_HIGH_SENS	0x1A	/* /< High sensitivity mode */
+#define EVT_TYPE_STATUS_VSYNC		0x22	/* /< VSync Status */
+
+#define EVT_TYPE_STATUS_MAX_NUM		(EVT_TYPE_STATUS_VSYNC + 1)
+					/* /< Max event type number */
+
+/** @} */
 
 #define BYTES_PER_NODE			2 /* /< number of data bytes for each
 						* node */
@@ -205,6 +296,7 @@
 						* Active  */
 #define HDM_REQ_CX_SS_TOUCH_IDLE	0x13 /* /< Load HDM SS Init Data for
 						* Low power Mode */
+#define HDM_REQ_FRAME_DATA		0x33 /* /< Load HDM frame data */
 #define HDM_REQ_TOT_CX_MS_TOUCH		0x50 /* /< Load HDM TOT MS Init
 						* Data for Active  */
 #define HDM_REQ_TOT_CX_MS_LOW_POWER	0x51 /* /< Load HDM TOT MS Init Data
@@ -214,8 +306,34 @@
 #define HDM_REQ_TOT_IX_SS_TOUCH_IDLE	0x53 /* /< Load HDM TOT SS Init Data
 						 *  for Low power Mode */
 
+/* @defgroup mp_flags MP Flags value
+ * @ingroup mp_test
+ * Specify the MP flags value which are written into the flash after performing
+ * a full panel initialization which pass all the tests.
+ * @{
+ */
+#define MP_FLAG_UNSET		0x00	/* /< Original value when a panel module
+					 * just got built. */
+#define MP_FLAG_FACTORY		0xA5	/* /< Full Panel Init done in factory */
+#define MP_FLAG_BOOT		0x5A	/* /< Full Panel Init done at boot */
+#define MP_FLAG_OTHERS		0xFF	/* /< Full Panel Init done somewhere else */
+#define MP_FLAG_NEED_FPI	0xDF	/* /< Manual firmware update with keep_cx=0
+					 * and Full Panel Init is not executed yet */
+#define MP_FLAG_CX_AFE_CHG	0xCF	/* /< Need to do Full Panel Init when cx_afe
+					 * version change during auto firmware update. */
+/** @}*/
 
+
+
+#ifndef SPRUCE
+#ifdef HK3_SPI
+#define SYSTEM_RESET_VAL		0x21 /* /< System reset Value */
+#else
+#define SYSTEM_RESET_VAL		0x01 /* /< System reset Value */
+#endif
+#else
 #define SYSTEM_RESET_VAL		0x80 /* /< System reset Value*/
+#endif
 #define SCAN_MODE_HIBERNATE		0x00 /* /< Scan mode Hibernate Value*/
 #define SCAN_MODE_ACTIVE		0x01 /* /< Scan mode active Value*/
 #define SCAN_MODE_LOW_POWER		0x02 /* /< Scan mode Low Power  Value*/
@@ -224,7 +342,15 @@
 						* Value */
 #define SCAN_MODE_LOCK_LP_ACTIVE	0x14 /* /<  can mode lock LP Active
 						* Value */
+#if IS_ENABLED(CONFIG_SPI_S3C64XX_GS)
+#define spi_len_dma_align(len) ((len) >= 64) ? ALIGN(len, 4) : (len)
+#define spi_bits_dma_align(len) ((len) >= 64) ? (32) : (8)
+#else
+#define spi_len_dma_align(len) ((len) >= 256) ? ALIGN(len, 16) : (len)
+#define spi_bits_dma_align(len) (8)
+#endif
 
+#define FTS_GPIO6_UNUSED	/* /< uncomment this if GPIO6 is unused */
 /*#define MS_GV_METHOD
 #define SS_GV_METHOD*/
 
@@ -449,6 +575,119 @@ struct self_total_cx_data {
 };
 
 /**
+  * Possible FW settings
+  */
+typedef enum {
+	FW_SETTINGS_CONTINUOUS_REPORT = 0x10, /* /< Continuous report*/
+	FW_SETTINGS_PALM_MODE = 0x11, /* /< Palm mode*/
+	FW_SETTINGS_GRIP_MODE = 0x12, /* /< Grip mode*/
+	FW_SETTINGS_HIGH_SENSITIVITY_MODE = 0x15, /* /< High sensitivity mode */
+	FW_SETTINGS_COORDINATE_FILTER = 0x16, /* /< Coordinate filter*/
+
+	FW_SETTINGS_HDM_FRAME_MODE = 0x50, /* /< HDM frame mode */
+	FW_SETTINGS_GOOG_DEBUG_INFO = 0xF0, /* /< Google debug info */
+} fw_settings_type_t;
+
+typedef enum {
+	FW_PALM_MODE_DISABLE = 0x00, /* /< Disabled*/
+	FW_PALM_MODE_TYPE1 = 0x01, /* /< Only reject palms*/
+	FW_PALM_MODE_TYPE2 = 0x02, /* /< Reject palms and fingers. Recover after all lift*/
+	FW_PALM_MODE_TYPE3 = 0x03, /* /< Reject palms and fingers. Recover after all palm lift*/
+} fw_palm_mode_t;
+
+/**
+  * Struct which contains the header of frame data
+  */
+#pragma pack(1)
+struct frame_data_header {
+	u8 type; /* /< HDM data type */
+	u8 head_count; /* /< Frame id */
+	u16 total_length; /* /< Frame length */
+	u8 gui_dbg_length; /* /< Debug info length */
+	u8 tx_count; /* /< Tx count */
+	u8 rx_count; /* /< Rx count */
+	u8 frame_valid_flag; /* /< Flag if frame is valid */
+	u8 event_count; /* /< FIFO event count */
+	u8 reserved1; /* /< Reserved */
+	u8 reserved2; /* /< Reserved */
+	u8 reserved3; /* /< Reserved */
+	u32 frame_timestamp; /* /< Frame timestamp */
+	u8 gui_debug_info[0xF8]; /* /< Debug info */
+};
+
+/**
+  * Struct which contains the goog debug info
+  */
+struct goog_debug_info {
+	u16 fpi_attempts_count; /* /< FPI attempts cont */
+	u16 fpi_attempts_success_count; /* /< FPI attempts success cont */
+	u16 cfg_of_fpi; /* /< CFG version of FPI */
+	u16 cfg_of_rom_ms_raw; /* /< CFG version of rom ms raw */
+	u8 last_2nd_fpi_status; /* /< The status of last 2nd FPI */
+	u8 last_fpi_status; /* /< The status of last FPI */
+	u8 fpi_attempts_sign; /* /< FPI attempts sign */
+	u8 reserved1; /* /< Reserved */
+	u8 scan_mode; /* /< The current scan mode */
+	u8 pre_touch_det; /* /< Touch detection status*/
+	u8 noise_level; /* /< Noise level */
+	u8 water_status; /* /< Water mode */
+	u8 island_count; /* /< First level island classification */
+	u8 touch_count; /* /< Touch count */
+	u8 valid_touch_count; /* /< Valid touch count */
+	u8 main_freq_band; /* /< Frequency band */
+	u16 mm_std0; /* /< Standard deviation of frequency band R0 */
+	u16 mm_std1; /* /< Standard deviation of frequency band R1 */
+	u16 mm_std2; /* /< Standard deviation of frequency band R2 */
+	u16 mm_std3; /* /< Standard deviation of frequency band R3 */
+	u16 ml_diff_coeff1; /* /< ML coefficients of differential filter data 1 */
+	u16 ml_diff_coeff2; /* /< ML coefficients of differential filter data 2 */
+	u16 ml_str_coeff1; /* /< ML coefficients of strength data 1 */
+	u16 ml_str_coeff2; /* /< ML coefficients of strength data 2 */
+	u8 ml_status; /* /< ML status */
+	u8 reserved2; /* /< Reserved */
+	u8 reserved3; /* /< Reserved */
+	u8 reserved4; /* /< Reserved */
+	u8 reserved5[0x58]; /* /< Reserved */
+};
+
+/**
+  * Struct which contains the footer of frame data
+  */
+struct frame_data_footer {
+	u8 tail_count; /* /< Frame id */
+	u8 checksum; /* /< Checksum */
+	u8 reserved1; /* /< Reserved */
+	u8 reserved2; /* /< Reserved */
+	u8 reserved3; /* /< Reserved */
+	u8 reserved4; /* /< Reserved */
+	u8 reserved5; /* /< Reserved */
+	u8 reserved6; /* /< Reserved */
+};
+
+/**
+  * Struct which contains the frame data
+  */
+struct frame_data {
+	struct frame_data_header *header; /* /< Header of frame data */
+	u8 *mutual_data; /* /< Mutual sensing data */
+	u8 *self_data; /* /< Self sensing data */
+	u8 *events; /* /< FIFO events */
+	struct goog_debug_info *goog_dbg_info; /* /< Google debug info */
+	struct frame_data_footer *footer; /* /< Footer of frame data */
+	u8 last_frame_id;
+};
+
+struct touch_header_event {
+	u8 type;
+	u8 reserved1;
+	u32 timestamp;
+	u16 delta_timestamp;
+	u32 reserved2;
+	u32 reserved3;
+};
+#pragma pack()
+
+/**
   * Possible data sizes
   */
 
@@ -474,12 +713,11 @@ struct i2c_client *get_client(void);
 struct spi_device *get_client(void);
 #endif
 struct device *get_dev(void);
-void set_reset_gpio(int gpio);
 int open_channel(void *clt);
-void log_info(int force, const char *msg, ...);
 int fts_read(u8 *outBuf, int byte_to_read);
 int fts_write_read(u8 *cmd, int cmd_length, u8 *out_buf, int byte_to_read);
 int fts_write(u8 *cmd, int cmd_length);
+int fts_write_no_lock(u8 *cmd, int cmd_length);
 int fts_write_u8ux(u8 cmd, addr_size_t addr_size, u64 address, u8 *data, int
 	data_size);
 int fts_write_read_u8ux(u8 cmd, addr_size_t addr_size, u64 address,
@@ -497,16 +735,19 @@ int u32_to_u8_be(u32 src, u8 *dst);
 int u8_to_u64_be(u8 *src, u64 *dest, int size);
 int u64_to_u8_be(u64 src, u8 *dest, int size);
 int from_id_to_mask(u8 id, u8 *mask, int size);
-int fts_system_reset(int poll_event);
+int fts_poll_controller_ready_event(void);
 int fts_hdm_write_request(u8 save_to_flash);
 int fts_request_hdm(u8 type);
 int fts_fw_request(u16 address, u8 bit_to_set, u8 auto_clear,
 	int time_to_wait);
-char *print_hex(char *label, u8 *buff, int count, u8 *result);
+char *print_hex(const char *label, const u8 *buff, int count, u8 *result,
+		size_t result_sz);
 int poll_for_event(int *event_to_search, int event_bytes,
-	u8 *read_data, int time_to_wait);
+	u8 *read_data, int read_length, int time_to_wait);
 int fts_write_fw_reg(u16 address, u8 *data, uint32_t length);
 int fts_read_fw_reg(u16 address, u8 *read_data, uint32_t read_length);
+int fts_read_fw_fifo(u8 *read_data, int read_length);
+int fts_read_all_fw_fifo(u8 **read_data, int *length, int *count);
 int fts_write_hdm(u16 address, u8 *data, int length);
 int fts_read_hdm(u16 address, u8 *read_data, uint32_t read_length);
 int fts_read_sys_errors(void);
@@ -522,6 +763,11 @@ int get_mutual_total_cx_data(u8 type,
 				 struct mutual_total_cx_data *tot_ms_cx_data);
 int get_self_total_cx_data(u8 type, struct self_total_cx_data *tot_ss_cx_data);
 int poll_fw_reg_clear_status(u16 address, u8 bit_to_check, int time_to_wait);
+int fts_read_hdm_frame_data(void);
+int fts_set_fw_settings(fw_settings_type_t type, u8 setting);
 
+#if !defined(I2C_INTERFACE) && defined(ANGSANA)
+int fts_fw_data_length_cmd(int length);
+#endif
 
 #endif

@@ -1,0 +1,182 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module")
+load(":build_variants.bzl", "define_build_variants")
+load(":sources_copts.bzl", "CONDITIONAL_SRCS", "PIXEL_SRCS", "POWERVR_COMMON_SRCS", "POWERVR_VOLCANIC_SRCS", "SOC_SPECIFIC_COPTS")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+define_build_variants()
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+filegroup(
+    name = "powervr.kconfig",
+    srcs = glob([
+        "**/Kconfig",
+    ]),
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "config_kernel_header",
+    srcs = select({
+        ":rdo_bringup": ["pixel/rdo/bringup/config_kernel.h"],
+        ":rdo_production": ["pixel/rdo/production/config_kernel.h"],
+        ":lga_bringup": ["pixel/lga/bringup/config_kernel.h"],
+        ":lga_production": ["pixel/lga/production/config_kernel.h"],
+        ":mbu_bringup": ["pixel/mbu/bringup/config_kernel.h"],
+        ":mbu_production": ["pixel/mbu/production/config_kernel.h"],
+        "//conditions:default": [],
+    }),
+)
+
+ddk_headers(
+    name = "common_headers",
+    hdrs = glob(
+        [
+            "**/*.h",
+        ],
+        exclude = [
+            "pvrsrvkm/rogue/*",
+        ],
+    ),
+    includes = [
+        ".",
+        "include",
+        "pvrsrvkm",
+        "pvrsrvkm/generated/volcanic/cache_bridge",
+        "pvrsrvkm/generated/volcanic/cmm_bridge",
+        "pvrsrvkm/generated/volcanic/devicememhistory_bridge",
+        "pvrsrvkm/generated/volcanic/di_bridge",
+        "pvrsrvkm/generated/volcanic/dma_bridge",
+        "pvrsrvkm/generated/volcanic/dmabuf_bridge",
+        "pvrsrvkm/generated/volcanic/htbuffer_bridge",
+        "pvrsrvkm/generated/volcanic/mm_bridge",
+        "pvrsrvkm/generated/volcanic/mmextmem_bridge",
+        "pvrsrvkm/generated/volcanic/pdump_bridge",
+        "pvrsrvkm/generated/volcanic/pdumpctrl_bridge",
+        "pvrsrvkm/generated/volcanic/pdumpmm_bridge",
+        "pvrsrvkm/generated/volcanic/pvrtl_bridge",
+        "pvrsrvkm/generated/volcanic/rgxcmp_bridge",
+        "pvrsrvkm/generated/volcanic/rgxfwdbg_bridge",
+        "pvrsrvkm/generated/volcanic/rgxhwperf_bridge",
+        "pvrsrvkm/generated/volcanic/rgxkicksync_bridge",
+        "pvrsrvkm/generated/volcanic/rgxpdump_bridge",
+        "pvrsrvkm/generated/volcanic/rgxray_bridge",
+        "pvrsrvkm/generated/volcanic/rgxregconfig_bridge",
+        "pvrsrvkm/generated/volcanic/rgxta3d_bridge",
+        "pvrsrvkm/generated/volcanic/rgxtimerquery_bridge",
+        "pvrsrvkm/generated/volcanic/rgxtq2_bridge",
+        "pvrsrvkm/generated/volcanic/ri_bridge",
+        "pvrsrvkm/generated/volcanic/srvcore_bridge",
+        "pvrsrvkm/generated/volcanic/sync_bridge",
+        "pvrsrvkm/generated/volcanic/synctracking_bridge",
+        "pvrsrvkm/hwdefs/volcanic",
+        "pvrsrvkm/hwdefs/volcanic/km",
+        "pvrsrvkm/hwdefs/volcanic/km/configs",
+        "pvrsrvkm/hwdefs/volcanic/km/cores",
+        "pvrsrvkm/include",
+        "pvrsrvkm/include/drm",
+        "pvrsrvkm/include/public",
+        "pvrsrvkm/include/public/powervr",
+        "pvrsrvkm/include/volcanic",
+        "pvrsrvkm/services/include",
+        "pvrsrvkm/services/include/volcanic",
+        "pvrsrvkm/services/server/common",
+        "pvrsrvkm/services/server/devices",
+        "pvrsrvkm/services/server/devices/hal/env/ree",
+        "pvrsrvkm/services/server/devices/hal/include",
+        "pvrsrvkm/services/server/devices/hal/rgx",
+        "pvrsrvkm/services/server/devices/volcanic",
+        "pvrsrvkm/services/server/env/linux",
+        "pvrsrvkm/services/server/include",
+        "pvrsrvkm/services/shared/common",
+        "pvrsrvkm/services/shared/include",
+        "pvrsrvkm/services/system/common",
+        "pvrsrvkm/services/system/common/env/linux",
+        "pvrsrvkm/services/system/include",
+        "pvrsrvkm/services/system/volcanic/include",
+    ],
+)
+
+ddk_headers(
+    name = "pixel_headers",
+    includes = [
+        "customer/pixel/include",
+        "pixel",
+    ] + select({
+        ":rdo_bringup": [
+            "pixel/rdo",
+            "pixel/rdo/bringup",
+        ],
+        ":rdo_production": [
+            "pixel/rdo",
+            "pixel/rdo/production",
+        ],
+        ":lga_bringup": [
+            "pixel/lga",
+            "pixel/lga/bringup",
+        ],
+        ":lga_production": [
+            "pixel/lga",
+            "pixel/lga/production",
+        ],
+        ":mbu_bringup": [
+            "pixel/mbu",
+            "pixel/mbu/bringup",
+        ],
+        ":mbu_production": [
+            "pixel/mbu",
+            "pixel/mbu/production",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+ddk_module(
+    name = "powervr",
+    srcs = PIXEL_SRCS + POWERVR_COMMON_SRCS + POWERVR_VOLCANIC_SRCS + [
+        ":config_kernel_header",
+    ],
+    out = "pvrsrvkm.ko",
+    hdrs = [
+        ":common_headers",
+        ":pixel_headers",
+    ],
+    conditional_srcs = CONDITIONAL_SRCS,
+    copts = [
+        "-include",
+        "$(location :config_kernel_header)",
+        "-DPVR_ARCH_VOLCANIC",
+    ] + SOC_SPECIFIC_COPTS,
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//private/google-modules/iif",
+        "//private/google-modules/iif:iif_headers",
+        "//private/google-modules/perf/core/google_pm_qos:google_vote_manager",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/misc/sbb-mux",
+        "//private/google-modules/soc/gs/drivers/soc/google/pixel_stat:pixel_stat_sysfs",
+        "//private/google-modules/soc/gs/drivers/soc/google/pixel_stat/mm:pixel_stat_mm",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel:systrace",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:google_gtc",
+        "//private/google-modules/soc/rdo/drivers/soc/google/dvfs-helper:dvfs_helper",
+        "//private/google-modules/trusty:trusty-ipc",
+        "//private/google-modules/trusty:trusty_headers",
+    ] + select({
+        "//private/devices/google/common:soc_is_laguna": [
+            "//private/google-modules/soc/gs/drivers/soc/google/pt:slc_pt",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -29,7 +29,7 @@
 	gpio-keys {
 		compatible = "gpio-keys";
 
-		volup {
+		key-volup {
 			label = "Volume Up";
 			gpios = <&pm660l_gpios 7 GPIO_ACTIVE_LOW>;
 			linux,code = <KEY_VOLUMEUP>;
@@ -43,7 +43,7 @@
 	 */
 	extcon_usb: extcon-usb {
 		compatible = "linux,extcon-usb-gpio";
-		id-gpio = <&tlmm 58 GPIO_ACTIVE_HIGH>;
+		id-gpios = <&tlmm 58 GPIO_ACTIVE_HIGH>;
 	};
 
 	hdmi-out {
@@ -96,10 +96,22 @@
 
 		vin-supply = <&vph_pwr>;
 	};
+
+	/*
+	 * this is also used for APC1 CPU power, touching it resets the board
+	 */
+	vreg_l10a_1p8: vreg-l10a-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vreg_l10a_1p8";
+		regulator-min-microvolt = <1804000>;
+		regulator-max-microvolt = <1804000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
 };
 
 &adsp_pil {
-	firmware-name = "qcom/ifc6560/adsp.mbn";
+	firmware-name = "qcom/sda660/adsp.mbn";
 };
 
 &blsp_i2c6 {
@@ -134,7 +146,7 @@
 				reg = <0>;
 
 				adv7533_in: endpoint {
-					remote-endpoint = <&dsi0_out>;
+					remote-endpoint = <&mdss_dsi0_out>;
 				};
 			};
 
@@ -185,23 +197,23 @@
 	};
 };
 
-&dsi0 {
+&mdss {
+	status = "okay";
+};
+
+&mdss_dsi0 {
 	status = "okay";
 	vdda-supply = <&vreg_l1a_1p225>;
 };
 
-&dsi0_out {
+&mdss_dsi0_out {
 	remote-endpoint = <&adv7533_in>;
 	data-lanes = <0 1 2 3>;
 };
 
-&dsi0_phy {
+&mdss_dsi0_phy {
 	status = "okay";
 	vcca-supply = <&vreg_l1b_0p925>;
-};
-
-&mdss {
-	status = "okay";
 };
 
 &mmss_smmu {
@@ -222,6 +234,7 @@
 	status = "okay";
 
 	vdd-supply = <&vreg_l1b_0p925>;
+	vdda-pll-supply = <&vreg_l10a_1p8>;
 	vdda-phy-dpdm-supply = <&vreg_l7b_3p125>;
 };
 
@@ -229,11 +242,12 @@
 	status = "okay";
 
 	vdd-supply = <&vreg_l1b_0p925>;
+	vdda-pll-supply = <&vreg_l10a_1p8>;
 	vdda-phy-dpdm-supply = <&vreg_l7b_3p125>;
 };
 
 &rpm_requests {
-	pm660-regulators {
+	regulators-0 {
 		compatible = "qcom,rpm-pm660-regulators";
 
 		vdd_s1-supply = <&vph_pwr>;
@@ -315,7 +329,7 @@
 		};
 	};
 
-	pm660l-regulators {
+	regulators-1 {
 		compatible = "qcom,rpm-pm660l-regulators";
 
 		vdd_s1-supply = <&vph_pwr>;
@@ -403,16 +417,18 @@
 };
 
 &sdc2_state_on {
-	sd-cd {
+	sd-cd-pins {
 		pins = "gpio54";
+		function = "gpio";
 		bias-pull-up;
 		drive-strength = <2>;
 	};
 };
 
 &sdc2_state_off {
-	sd-cd {
+	sd-cd-pins {
 		pins = "gpio54";
+		function = "gpio";
 		bias-disable;
 		drive-strength = <2>;
 	};
@@ -438,7 +454,7 @@
 
 	cd-gpios = <&tlmm 54 GPIO_ACTIVE_LOW>;
 	no-sdio;
-	no-emmc;
+	no-mmc;
 };
 
 &tlmm {
@@ -460,4 +476,10 @@
 &usb3_dwc3 {
 	dr_mode = "peripheral";
 	extcon = <&extcon_usb>;
+};
+
+&usb3_qmpphy {
+	vdda-phy-supply = <&vreg_l1b_0p925>;
+	vdda-pll-supply = <&vreg_l10a_1p8>;
+	status = "okay";
 };

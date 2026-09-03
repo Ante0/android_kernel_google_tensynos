@@ -1,0 +1,2 @@
+# SPDX-License-Identifier: GPL-2.0-only
+package(default_visibility = ["//private/devices/google/common/kleaf:__subpackages__"])

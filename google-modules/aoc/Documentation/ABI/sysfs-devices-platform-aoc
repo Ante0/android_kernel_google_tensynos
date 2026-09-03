@@ -7,3 +7,77 @@ Description:
 		if a request for AOC fabric to reach a certain state has timed out.
 
 Users:		AOC kernel driver, aocd process in userspace.
+
+What:		/sys/devices/platform/[0-9]+.aoc/voltage_pf[0-7]
+Date:		August 2024
+KernelVersion:	2.6.22
+Contact:	alexiacobucci@google.com
+Description:
+		Read-only node used by AOC's kernel driver to share stats on AOC's
+		voltage levels.
+
+Users:		userspace processes
+
+What:		/sys/devices/platform/[0-9]+.aoc/control/memory_votes_[a-z0-9]*
+Date:		April 2025
+KernelVersion:	2.6.22
+Contact:	alexiacobucci@google.com
+Description:
+		Read-only node used by AOC's kernel driver to share stats on AOC's
+		memory interface votes for a given core.
+
+Users:		userspace processes
+
+What:		/sys/devices/platform/[0-9]+.aoc/control/trigger_ssr_sequence
+Date:		August 2025
+KernelVersion:	2.6.22
+Contact:	alexiacobucci@google.com
+Description:
+		Write-only node to trigger SSR sequence only, without any of the
+		surrounding operations.
+
+Users:		userspace processes
+
+What:		/sys/devices/platform/[0-9]+.aoc/control/trigger_ssr_notification
+Date:		August 2025
+KernelVersion:	2.6.22
+Contact:	alexiacobucci@google.com
+Description:
+		RW node used to trigger AOC dependencies that sub-system reset event
+		about to take place (if applicable).
+		 * Set event for the notification
+		    echo <event-id> > trigger_ssr_notification
+		 *  Send notification for event
+		 		cat trigger_ssr_notification
+
+Users:		userspace processes
+
+What:		/sys/devices/platform/[a-z0-9]+.aoc/control/e[a-z0-9_]+
+Date:		October 2025
+KernelVersion:	2.6.22
+Contact:	iicastro@google.com
+Description:
+		Read-only node used by AOC's kernel driver to share stats on AOC's
+		E-State residencies.
+
+Users:		userspace processes
+
+What:		/sys/devices/platform/[a-z0-9]+.aoc/control/[a-zA-Z0-9_]+_(wfi|retention|down)
+Date:		October 2025
+KernelVersion:	2.6.22
+Contact:	iicastro@google.com
+Description:
+		Read-only node used by AOC's kernel driver to share stats on AOC's
+		core state residencies.
+
+Users:		userspace processes
+
+What:		/sys/devices/platform/[0-9]+.aoc/control/dvfs_frequencies
+Date:		January 2026
+KernelVersion:	2.6.22
+Contact:	tomaszewskid@google.com
+Description:
+		RO node used to share available DVFS frequencies corresponding to
+		volate levels: voltage_pf[0-7].
+
+Users:		userspace processes

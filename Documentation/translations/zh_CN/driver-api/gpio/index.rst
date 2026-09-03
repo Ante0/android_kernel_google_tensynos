@@ -14,12 +14,9 @@
 通用型输入/输出（GPIO）
 =======================
 
-目录:
-
 .. toctree::
+   :caption: 目录
    :maxdepth: 2
-
-   legacy
 
 Todolist:
 
@@ -45,7 +42,7 @@ ACPI支持
 
 该API在以下内核代码中:
 
-drivers/gpio/gpiolib-acpi.c
+drivers/gpio/gpiolib-acpi-core.c
 
 设备树支持
 ==========

@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/anon_inodes.h>
 #include <linux/file.h>
 #include <linux/gunyah.h>
-#include <linux/gunyah_vm_mgr.h>
 #include <linux/interrupt.h>
 #include <linux/kref.h>
 #include <linux/mm.h>
@@ -17,33 +16,13 @@
 #include "vm_mgr.h"
 
 #include <uapi/linux/gunyah.h>
+#include <trace/hooks/gunyah.h>
 
-#define MAX_VCPU_NAME		20 /* gh-vcpu:u32_max+NUL */
-
-struct gh_vcpu {
-	struct gh_vm_function_instance *f;
-	struct gh_resource *rsc;
-	struct mutex run_lock;
-	/* Track why vcpu_run left last time around. */
-	enum {
-		GH_VCPU_UNKNOWN = 0,
-		GH_VCPU_READY,
-		GH_VCPU_MMIO_READ,
-		GH_VCPU_SYSTEM_DOWN,
-	} state;
-	u8 mmio_read_len;
-	struct gh_vcpu_run *vcpu_run;
-	struct completion ready;
-	struct gh_vm *ghvm;
-
-	struct notifier_block nb;
-	struct gh_vm_resource_ticket ticket;
-	struct kref kref;
-};
+#define MAX_VCPU_NAME 20 /* gh-vcpu:strlen(U32::MAX)+NUL */
 
 static void vcpu_release(struct kref *kref)
 {
-	struct gh_vcpu *vcpu = container_of(kref, struct gh_vcpu, kref);
+	struct gunyah_vcpu *vcpu = container_of(kref, struct gunyah_vcpu, kref);
 
 	free_page((unsigned long)vcpu->vcpu_run);
 	kfree(vcpu);
@@ -52,108 +31,185 @@ static void vcpu_release(struct kref *kref)
 /*
  * When hypervisor allows us to schedule vCPU again, it gives us an interrupt
  */
-static irqreturn_t gh_vcpu_irq_handler(int irq, void *data)
+static irqreturn_t gunyah_vcpu_irq_handler(int irq, void *data)
 {
-	struct gh_vcpu *vcpu = data;
+	struct gunyah_vcpu *vcpu = data;
 
 	complete(&vcpu->ready);
 	return IRQ_HANDLED;
 }
 
-static bool gh_handle_mmio(struct gh_vcpu *vcpu,
-				struct gh_hypercall_vcpu_run_resp *vcpu_run_resp)
+static bool gunyah_handle_page_fault(
+	struct gunyah_vcpu *vcpu,
+	const struct gunyah_hypercall_vcpu_run_resp *vcpu_run_resp)
 {
+	u64 addr = vcpu_run_resp->state_data[0];
+	bool write = !!vcpu_run_resp->state_data[1];
 	int ret = 0;
+
+	ret = gunyah_demand_page(vcpu->ghvm, addr, write);
+	if (!ret || ret == -EAGAIN)
+		return true;
+
+	vcpu->vcpu_run->page_fault.resume_action = GUNYAH_VCPU_RESUME_FAULT;
+	vcpu->vcpu_run->page_fault.attempt = ret;
+	vcpu->vcpu_run->page_fault.phys_addr = addr;
+	vcpu->vcpu_run->exit_reason = GUNYAH_VCPU_EXIT_PAGE_FAULT;
+	return false;
+}
+
+static bool
+gunyah_handle_mmio(struct gunyah_vcpu *vcpu, unsigned long resume_data[3],
+		   const struct gunyah_hypercall_vcpu_run_resp *vcpu_run_resp)
+{
 	u64 addr = vcpu_run_resp->state_data[0],
-	    len  = vcpu_run_resp->state_data[1],
+	    len = vcpu_run_resp->state_data[1],
 	    data = vcpu_run_resp->state_data[2];
+	int ret;
 
 	if (WARN_ON(len > sizeof(u64)))
 		len = sizeof(u64);
 
-	if (vcpu_run_resp->state == GH_VCPU_ADDRSPACE_VMMIO_READ) {
-		vcpu->vcpu_run->mmio.is_write = 0;
-		/* Record that we need to give vCPU user's supplied value next gh_vcpu_run() */
-		vcpu->state = GH_VCPU_MMIO_READ;
-		vcpu->mmio_read_len = len;
-	} else { /* GH_VCPU_ADDRSPACE_VMMIO_WRITE */
-		/* Try internal handlers first */
-		ret = gh_vm_mmio_write(vcpu->f->ghvm, addr, len, data);
-		if (!ret)
-			return true;
-
-		/* Give userspace the info */
-		vcpu->vcpu_run->mmio.is_write = 1;
-		memcpy(vcpu->vcpu_run->mmio.data, &data, len);
+	ret = gunyah_demand_page(vcpu->ghvm, addr,
+					vcpu->vcpu_run->mmio.is_write);
+	if (!ret || ret == -EAGAIN) {
+		resume_data[1] = GUNYAH_ADDRSPACE_VMMIO_ACTION_RETRY;
+		return true;
 	}
 
-	vcpu->vcpu_run->mmio.phys_addr = addr;
+	if (vcpu_run_resp->state == GUNYAH_VCPU_ADDRSPACE_VMMIO_READ) {
+		vcpu->vcpu_run->mmio.is_write = 0;
+		/* Record that we need to give vCPU user's supplied value next gunyah_vcpu_run() */
+		vcpu->state = GUNYAH_VCPU_RUN_STATE_MMIO_READ;
+		vcpu->mmio_read_len = len;
+	} else { /* GUNYAH_VCPU_ADDRSPACE_VMMIO_WRITE */
+		if (!gunyah_vm_mmio_write(vcpu->ghvm, addr, len, data)) {
+			resume_data[0] = GUNYAH_ADDRSPACE_VMMIO_ACTION_EMULATE;
+			return true;
+		}
+		vcpu->vcpu_run->mmio.is_write = 1;
+		memcpy(vcpu->vcpu_run->mmio.data, &data, len);
+		vcpu->state = GUNYAH_VCPU_RUN_STATE_MMIO_WRITE;
+	}
+
+	/* Assume userspace is okay and handles the access due to existing userspace */
+	vcpu->vcpu_run->mmio.resume_action = GUNYAH_VCPU_RESUME_HANDLED;
+	vcpu->mmio_addr = vcpu->vcpu_run->mmio.phys_addr = addr;
 	vcpu->vcpu_run->mmio.len = len;
-	vcpu->vcpu_run->exit_reason = GH_VCPU_EXIT_MMIO;
+	vcpu->vcpu_run->exit_reason = GUNYAH_VCPU_EXIT_MMIO;
 
 	return false;
 }
 
-static int gh_vcpu_rm_notification(struct notifier_block *nb, unsigned long action, void *data)
+static int gunyah_handle_mmio_resume(struct gunyah_vcpu *vcpu,
+				     unsigned long resume_data[3])
 {
-	struct gh_vcpu *vcpu = container_of(nb, struct gh_vcpu, nb);
-	struct gh_rm_vm_exited_payload *exit_payload = data;
+	switch (vcpu->vcpu_run->mmio.resume_action) {
+	case GUNYAH_VCPU_RESUME_HANDLED:
+		if (vcpu->state == GUNYAH_VCPU_RUN_STATE_MMIO_READ) {
+			if (unlikely(vcpu->mmio_read_len >
+				     sizeof(resume_data[0])))
+				vcpu->mmio_read_len = sizeof(resume_data[0]);
+			memcpy(&resume_data[0], vcpu->vcpu_run->mmio.data,
+			       vcpu->mmio_read_len);
+		}
+		resume_data[1] = GUNYAH_ADDRSPACE_VMMIO_ACTION_EMULATE;
+		break;
+	case GUNYAH_VCPU_RESUME_FAULT:
+		resume_data[1] = GUNYAH_ADDRSPACE_VMMIO_ACTION_FAULT;
+		break;
+	default:
+		return -EINVAL;
+	}
 
-	if (action == GH_RM_NOTIFICATION_VM_EXITED &&
-		le16_to_cpu(exit_payload->vmid) == vcpu->ghvm->vmid)
+	return 0;
+}
+
+static int gunyah_vcpu_rm_notification(struct notifier_block *nb,
+				       unsigned long action, void *data)
+{
+	struct gunyah_vcpu *vcpu = container_of(nb, struct gunyah_vcpu, nb);
+	struct gunyah_rm_vm_exited_payload *exit_payload = data;
+
+	/* Wake up userspace waiting for the vCPU to be runnable again */
+	if (action == GUNYAH_RM_NOTIFICATION_VM_EXITED &&
+	    le16_to_cpu(exit_payload->vmid) == vcpu->ghvm->vmid)
 		complete(&vcpu->ready);
 
 	return NOTIFY_OK;
 }
 
-static inline enum gh_vm_status remap_vm_status(enum gh_rm_vm_status rm_status)
+static inline enum gunyah_vm_status
+remap_vm_status(enum gunyah_rm_vm_status rm_status)
 {
 	switch (rm_status) {
-	case GH_RM_VM_STATUS_INIT_FAILED:
-		return GH_VM_STATUS_LOAD_FAILED;
-	case GH_RM_VM_STATUS_EXITED:
-		return GH_VM_STATUS_EXITED;
+	case GUNYAH_RM_VM_STATUS_INIT_FAILED:
+		return GUNYAH_VM_STATUS_LOAD_FAILED;
+	case GUNYAH_RM_VM_STATUS_EXITED:
+		return GUNYAH_VM_STATUS_EXITED;
 	default:
-		return GH_VM_STATUS_CRASHED;
+		return GUNYAH_VM_STATUS_CRASHED;
 	}
 }
 
 /**
- * gh_vcpu_check_system() - Check whether VM as a whole is running
- * @vcpu: Pointer to gh_vcpu
+ * gunyah_vcpu_check_system() - Check whether VM as a whole is running
+ * @vcpu: Pointer to gunyah_vcpu
  *
  * Returns true if the VM is alive.
  * Returns false if the vCPU is the VM is not alive (can only be that VM is shutting down).
  */
-static bool gh_vcpu_check_system(struct gh_vcpu *vcpu)
+static bool gunyah_vcpu_check_system(struct gunyah_vcpu *vcpu)
 	__must_hold(&vcpu->run_lock)
 {
 	bool ret = true;
 
 	down_read(&vcpu->ghvm->status_lock);
-	if (likely(vcpu->ghvm->vm_status == GH_RM_VM_STATUS_RUNNING))
+	if (likely(vcpu->ghvm->vm_status == GUNYAH_RM_VM_STATUS_RUNNING))
 		goto out;
 
 	vcpu->vcpu_run->status.status = remap_vm_status(vcpu->ghvm->vm_status);
 	vcpu->vcpu_run->status.exit_info = vcpu->ghvm->exit_info;
-	vcpu->vcpu_run->exit_reason = GH_VCPU_EXIT_STATUS;
-	vcpu->state = GH_VCPU_SYSTEM_DOWN;
+	vcpu->vcpu_run->exit_reason = GUNYAH_VCPU_EXIT_STATUS;
+	vcpu->state = GUNYAH_VCPU_RUN_STATE_SYSTEM_DOWN;
 	ret = false;
 out:
 	up_read(&vcpu->ghvm->status_lock);
 	return ret;
 }
 
-/**
- * gh_vcpu_run() - Request Gunyah to begin scheduling this vCPU.
- * @vcpu: The client descriptor that was obtained via gh_vcpu_alloc()
+/*
+ * We must have interrupts enabled when making the hypercall to switch to
+ * guest vcpu, else guest vcpu runs until end of hypervisor scheduling time
+ * slice and also increases interrupt latency. Native vtime accounting
+ * requires that interrupts are disabled, so we can't do accounting.
  */
-static int gh_vcpu_run(struct gh_vcpu *vcpu)
+#if IS_ENABLED(CONFIG_TICK_CPU_ACCOUNTING)
+static inline void gh_guest_accounting_enter(void)
 {
-	struct gh_hypercall_vcpu_run_resp vcpu_run_resp;
-	u64 state_data[3] = { 0 };
-	enum gh_error gh_error;
+	vtime_account_guest_enter();
+}
+
+static inline void gh_guest_accounting_exit(void)
+{
+	vtime_account_guest_exit();
+}
+#else /* !CONFIG_TICK_CPU_ACCOUNTING */
+static inline void gh_guest_accounting_enter(void) { }
+static inline void gh_guest_accounting_exit(void) { }
+#endif /* CONFIG_TICK_CPU_ACCOUNTING */
+
+/**
+ * gunyah_vcpu_run() - Request Gunyah to begin scheduling this vCPU.
+ * @vcpu: The client descriptor that was obtained via gunyah_vcpu_alloc()
+ */
+static int gunyah_vcpu_run(struct gunyah_vcpu *vcpu)
+{
+	struct gunyah_hypercall_vcpu_run_resp vcpu_run_resp;
+	unsigned long resume_data[3] = { 0 };
+	enum gunyah_error gunyah_error;
 	int ret = 0;
+	u32 vcpu_id;
 
 	if (!vcpu->f)
 		return -ENODEV;
@@ -166,27 +222,36 @@ static int gh_vcpu_run(struct gh_vcpu *vcpu)
 		goto out;
 	}
 
+	vcpu_id = vcpu->ticket.label;
 	switch (vcpu->state) {
-	case GH_VCPU_UNKNOWN:
-		if (vcpu->ghvm->vm_status != GH_RM_VM_STATUS_RUNNING) {
-			/* Check if VM is up. If VM is starting, will block until VM is fully up
-			 * since that thread does down_write.
+	case GUNYAH_VCPU_RUN_STATE_UNKNOWN:
+		if (vcpu->ghvm->vm_status != GUNYAH_RM_VM_STATUS_RUNNING) {
+			/**
+			 * Check if VM is up. If VM is starting, will block
+			 * until VM is fully up since that thread does
+			 * down_write.
 			 */
-			if (!gh_vcpu_check_system(vcpu))
+			if (!gunyah_vcpu_check_system(vcpu))
 				goto out;
 		}
-		vcpu->state = GH_VCPU_READY;
+		vcpu->state = GUNYAH_VCPU_RUN_STATE_READY;
 		break;
-	case GH_VCPU_MMIO_READ:
-		if (unlikely(vcpu->mmio_read_len > sizeof(state_data[0])))
-			vcpu->mmio_read_len = sizeof(state_data[0]);
-		memcpy(&state_data[0], vcpu->vcpu_run->mmio.data, vcpu->mmio_read_len);
-		vcpu->state = GH_VCPU_READY;
+	case GUNYAH_VCPU_RUN_STATE_MMIO_READ:
+	case GUNYAH_VCPU_RUN_STATE_MMIO_WRITE:
+		ret = gunyah_handle_mmio_resume(vcpu, resume_data);
+		if (ret)
+			goto out;
+		vcpu->state = GUNYAH_VCPU_RUN_STATE_READY;
 		break;
-	case GH_VCPU_SYSTEM_DOWN:
+	case GUNYAH_VCPU_RUN_STATE_SYSTEM_DOWN:
 		goto out;
 	default:
 		break;
+	}
+
+	if (current->mm != vcpu->ghvm->mm_s) {
+		ret = -EPERM;
+		goto out;
 	}
 
 	while (!ret && !signal_pending(current)) {
@@ -195,56 +260,81 @@ static int gh_vcpu_run(struct gh_vcpu *vcpu)
 			goto out;
 		}
 
-		gh_error = gh_hypercall_vcpu_run(vcpu->rsc->capid, state_data, &vcpu_run_resp);
-		memset(state_data, 0, sizeof(state_data));
-		if (gh_error == GH_ERROR_OK) {
+		trace_android_rvh_gh_before_vcpu_run(vcpu->ghvm->vmid, vcpu_id);
+		gh_guest_accounting_enter();
+		gunyah_error = gunyah_hypercall_vcpu_run(
+			vcpu->rsc->capid, resume_data, &vcpu_run_resp);
+		gh_guest_accounting_exit();
+		trace_android_rvh_gh_after_vcpu_run(vcpu->ghvm->vmid,
+			vcpu_id, gunyah_error,
+			(const struct gunyah_hypercall_vcpu_run_resp *)&vcpu_run_resp);
+
+		if (gunyah_error == GUNYAH_ERROR_OK) {
+			memset(resume_data, 0, sizeof(resume_data));
 			switch (vcpu_run_resp.state) {
-			case GH_VCPU_STATE_READY:
+			case GUNYAH_VCPU_STATE_READY:
 				if (need_resched())
 					schedule();
 				break;
-			case GH_VCPU_STATE_POWERED_OFF:
-				/* vcpu might be off because the VM is shut down.
-				 * If so, it won't ever run again: exit back to user
+			case GUNYAH_VCPU_STATE_POWERED_OFF:
+				fallthrough;
+			case GUNYAH_VCPU_STATE_SYSTEM_OFF:
+				/**
+				 * vcpu might be off because the VM is shut down
+				 * If so, it won't ever run again
 				 */
-				if (!gh_vcpu_check_system(vcpu))
+				if (!gunyah_vcpu_check_system(vcpu))
 					goto out;
-				/* Otherwise, another vcpu will turn it on (e.g. by PSCI)
-				 * and hyp sends an interrupt to wake Linux up.
+				/**
+				 * Otherwise, another vcpu will turn it on (e.g.
+				 * by PSCI) and hyp sends an interrupt to wake
+				 * Linux up.
 				 */
 				fallthrough;
-			case GH_VCPU_STATE_EXPECTS_WAKEUP:
-				ret = wait_for_completion_interruptible(&vcpu->ready);
-				/* reinitialize completion before next hypercall. If we reinitialize
-				 * after the hypercall, interrupt may have already come before
-				 * re-initializing the completion and then end up waiting for
-				 * event that already happened.
+			case GUNYAH_VCPU_STATE_EXPECTS_WAKEUP:
+				ret = wait_for_completion_interruptible(
+					&vcpu->ready);
+				/**
+				 * reinitialize completion before next
+				 * hypercall. If we reinitialize after the
+				 * hypercall, interrupt may have already come
+				 * before re-initializing the completion and
+				 * then end up waiting for event that already
+				 * happened.
 				 */
 				reinit_completion(&vcpu->ready);
-				/* Check system status again. Completion might've
-				 * come from gh_vcpu_rm_notification
+				/**
+				 * Check VM status again. Completion
+				 * might've come from VM exiting
 				 */
-				if (!ret && !gh_vcpu_check_system(vcpu))
+				if (!ret && !gunyah_vcpu_check_system(vcpu))
 					goto out;
 				break;
-			case GH_VCPU_STATE_BLOCKED:
+			case GUNYAH_VCPU_STATE_BLOCKED:
 				schedule();
 				break;
-			case GH_VCPU_ADDRSPACE_VMMIO_READ:
-			case GH_VCPU_ADDRSPACE_VMMIO_WRITE:
-				if (!gh_handle_mmio(vcpu, &vcpu_run_resp))
+			case GUNYAH_VCPU_ADDRSPACE_VMMIO_READ:
+			case GUNYAH_VCPU_ADDRSPACE_VMMIO_WRITE:
+				if (!gunyah_handle_mmio(vcpu, resume_data,
+							&vcpu_run_resp))
+					goto out;
+				break;
+			case GUNYAH_VCPU_ADDRSPACE_PAGE_FAULT:
+				if (!gunyah_handle_page_fault(vcpu,
+							      &vcpu_run_resp))
 					goto out;
 				break;
 			default:
-				pr_warn_ratelimited("Unknown vCPU state: %llx\n",
-							vcpu_run_resp.sized_state);
-				schedule();
-				break;
+				pr_warn_ratelimited(
+					"Unknown vCPU state: %llx\n",
+					vcpu_run_resp.sized_state);
+				ret = -EINVAL;
+				goto out;
 			}
-		} else if (gh_error == GH_ERROR_RETRY) {
+		} else if (gunyah_error == GUNYAH_ERROR_RETRY) {
 			schedule();
 		} else {
-			ret = gh_error_remap(gh_error);
+			ret = gunyah_error_remap(gunyah_error);
 		}
 	}
 
@@ -257,16 +347,17 @@ out:
 	return ret;
 }
 
-static long gh_vcpu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+static long gunyah_vcpu_ioctl(struct file *filp, unsigned int cmd,
+			      unsigned long arg)
 {
-	struct gh_vcpu *vcpu = filp->private_data;
-	long ret = -EINVAL;
+	struct gunyah_vcpu *vcpu = filp->private_data;
+	long ret = -ENOTTY;
 
 	switch (cmd) {
-	case GH_VCPU_RUN:
-		ret = gh_vcpu_run(vcpu);
+	case GUNYAH_VCPU_RUN:
+		ret = gunyah_vcpu_run(vcpu);
 		break;
-	case GH_VCPU_MMAP_SIZE:
+	case GUNYAH_VCPU_MMAP_SIZE:
 		ret = PAGE_SIZE;
 		break;
 	default:
@@ -275,49 +366,53 @@ static long gh_vcpu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg
 	return ret;
 }
 
-static int gh_vcpu_release(struct inode *inode, struct file *filp)
+static int gunyah_vcpu_release(struct inode *inode, struct file *filp)
 {
-	struct gh_vcpu *vcpu = filp->private_data;
+	struct gunyah_vcpu *vcpu = filp->private_data;
 
-	gh_vm_put(vcpu->ghvm);
+	trace_android_rvh_gh_vcpu_release(vcpu->ghvm->vmid, vcpu);
+	gunyah_vm_put(vcpu->ghvm);
 	kref_put(&vcpu->kref, vcpu_release);
 	return 0;
 }
 
-static vm_fault_t gh_vcpu_fault(struct vm_fault *vmf)
+static vm_fault_t gunyah_vcpu_fault(struct vm_fault *vmf)
 {
-	struct gh_vcpu *vcpu = vmf->vma->vm_file->private_data;
-	struct page *page = NULL;
+	struct gunyah_vcpu *vcpu = vmf->vma->vm_file->private_data;
+	struct page *page;
 
-	if (vmf->pgoff == 0)
-		page = virt_to_page(vcpu->vcpu_run);
+	if (vmf->pgoff)
+		return VM_FAULT_SIGBUS;
 
+	page = virt_to_page(vcpu->vcpu_run);
 	get_page(page);
 	vmf->page = page;
 	return 0;
 }
 
-static const struct vm_operations_struct gh_vcpu_ops = {
-	.fault = gh_vcpu_fault,
+static const struct vm_operations_struct gunyah_vcpu_ops = {
+	.fault = gunyah_vcpu_fault,
 };
 
-static int gh_vcpu_mmap(struct file *file, struct vm_area_struct *vma)
+static int gunyah_vcpu_mmap(struct file *file, struct vm_area_struct *vma)
 {
-	vma->vm_ops = &gh_vcpu_ops;
+	vma->vm_ops = &gunyah_vcpu_ops;
 	return 0;
 }
 
-static const struct file_operations gh_vcpu_fops = {
+static const struct file_operations gunyah_vcpu_fops = {
 	.owner = THIS_MODULE,
-	.unlocked_ioctl = gh_vcpu_ioctl,
-	.release = gh_vcpu_release,
+	.unlocked_ioctl = gunyah_vcpu_ioctl,
+	.release = gunyah_vcpu_release,
 	.llseek = noop_llseek,
-	.mmap = gh_vcpu_mmap,
+	.mmap = gunyah_vcpu_mmap,
 };
 
-static bool gh_vcpu_populate(struct gh_vm_resource_ticket *ticket, struct gh_resource *ghrsc)
+static bool gunyah_vcpu_populate(struct gunyah_vm_resource_ticket *ticket,
+				 struct gunyah_resource *ghrsc)
 {
-	struct gh_vcpu *vcpu = container_of(ticket, struct gh_vcpu, ticket);
+	struct gunyah_vcpu *vcpu =
+		container_of(ticket, struct gunyah_vcpu, ticket);
 	int ret;
 
 	mutex_lock(&vcpu->run_lock);
@@ -329,12 +424,14 @@ static bool gh_vcpu_populate(struct gh_vm_resource_ticket *ticket, struct gh_res
 	}
 
 	vcpu->rsc = ghrsc;
-	init_completion(&vcpu->ready);
 
-	ret = request_irq(vcpu->rsc->irq, gh_vcpu_irq_handler, IRQF_TRIGGER_RISING, "gh_vcpu",
-			vcpu);
-	if (ret)
-		pr_warn("Failed to request vcpu irq %d: %d", vcpu->rsc->irq, ret);
+	ret = request_irq(vcpu->rsc->irq, gunyah_vcpu_irq_handler,
+			  IRQF_TRIGGER_RISING, "gunyah_vcpu", vcpu);
+	if (ret) {
+		pr_warn("Failed to request vcpu irq %d: %d", vcpu->rsc->irq,
+			ret);
+		goto out;
+	}
 
 	enable_irq_wake(vcpu->rsc->irq);
 
@@ -343,10 +440,11 @@ out:
 	return !ret;
 }
 
-static void gh_vcpu_unpopulate(struct gh_vm_resource_ticket *ticket,
-				   struct gh_resource *ghrsc)
+static void gunyah_vcpu_unpopulate(struct gunyah_vm_resource_ticket *ticket,
+				   struct gunyah_resource *ghrsc)
 {
-	struct gh_vcpu *vcpu = container_of(ticket, struct gh_vcpu, ticket);
+	struct gunyah_vcpu *vcpu =
+		container_of(ticket, struct gunyah_vcpu, ticket);
 
 	vcpu->vcpu_run->immediate_exit = true;
 	complete_all(&vcpu->ready);
@@ -356,10 +454,10 @@ static void gh_vcpu_unpopulate(struct gh_vm_resource_ticket *ticket,
 	mutex_unlock(&vcpu->run_lock);
 }
 
-static long gh_vcpu_bind(struct gh_vm_function_instance *f)
+static long gunyah_vcpu_bind(struct gunyah_vm_function_instance *f)
 {
-	struct gh_fn_vcpu_arg *arg = f->argp;
-	struct gh_vcpu *vcpu;
+	struct gunyah_fn_vcpu_arg *arg = f->argp;
+	struct gunyah_vcpu *vcpu;
 	char name[MAX_VCPU_NAME];
 	struct file *file;
 	struct page *page;
@@ -377,6 +475,7 @@ static long gh_vcpu_bind(struct gh_vm_function_instance *f)
 	f->data = vcpu;
 	mutex_init(&vcpu->run_lock);
 	kref_init(&vcpu->kref);
+	init_completion(&vcpu->ready);
 
 	page = alloc_page(GFP_KERNEL | __GFP_ZERO);
 	if (!page) {
@@ -385,30 +484,31 @@ static long gh_vcpu_bind(struct gh_vm_function_instance *f)
 	}
 	vcpu->vcpu_run = page_address(page);
 
-	vcpu->ticket.resource_type = GH_RESOURCE_TYPE_VCPU;
+	vcpu->ticket.resource_type = GUNYAH_RESOURCE_TYPE_VCPU;
 	vcpu->ticket.label = arg->id;
 	vcpu->ticket.owner = THIS_MODULE;
-	vcpu->ticket.populate = gh_vcpu_populate;
-	vcpu->ticket.unpopulate = gh_vcpu_unpopulate;
+	vcpu->ticket.populate = gunyah_vcpu_populate;
+	vcpu->ticket.unpopulate = gunyah_vcpu_unpopulate;
 
-	r = gh_vm_add_resource_ticket(f->ghvm, &vcpu->ticket);
+	r = gunyah_vm_add_resource_ticket(f->ghvm, &vcpu->ticket);
 	if (r)
 		goto err_destroy_page;
 
-	if (!gh_vm_get(f->ghvm)) {
+	if (!gunyah_vm_get(f->ghvm)) {
 		r = -ENODEV;
 		goto err_remove_resource_ticket;
 	}
 	vcpu->ghvm = f->ghvm;
 
-	vcpu->nb.notifier_call = gh_vcpu_rm_notification;
-	/* Ensure we run after the vm_mgr handles the notification and does
-	 * any necessary state changes. We wake up to check the new state.
+	vcpu->nb.notifier_call = gunyah_vcpu_rm_notification;
+	/**
+	 * Ensure we run after the vm_mgr handles the notification and does
+	 * any necessary state changes.
 	 */
 	vcpu->nb.priority = -1;
-	r = gh_rm_notifier_register(f->rm, &vcpu->nb);
+	r = gunyah_rm_notifier_register(f->rm, &vcpu->nb);
 	if (r)
-		goto err_put_gh_vm;
+		goto err_put_gunyah_vm;
 
 	kref_get(&vcpu->kref);
 
@@ -419,7 +519,7 @@ static long gh_vcpu_bind(struct gh_vm_function_instance *f)
 	}
 
 	snprintf(name, sizeof(name), "gh-vcpu:%u", vcpu->ticket.label);
-	file = anon_inode_getfile(name, &gh_vcpu_fops, vcpu, O_RDWR);
+	file = anon_inode_getfile(name, &gunyah_vcpu_fops, vcpu, O_RDWR);
 	if (IS_ERR(file)) {
 		r = PTR_ERR(file);
 		goto err_put_fd;
@@ -431,11 +531,11 @@ static long gh_vcpu_bind(struct gh_vm_function_instance *f)
 err_put_fd:
 	put_unused_fd(fd);
 err_notifier:
-	gh_rm_notifier_unregister(f->rm, &vcpu->nb);
-err_put_gh_vm:
-	gh_vm_put(vcpu->ghvm);
+	gunyah_rm_notifier_unregister(f->rm, &vcpu->nb);
+err_put_gunyah_vm:
+	gunyah_vm_put(vcpu->ghvm);
 err_remove_resource_ticket:
-	gh_vm_remove_resource_ticket(f->ghvm, &vcpu->ticket);
+	gunyah_vm_remove_resource_ticket(f->ghvm, &vcpu->ticket);
 err_destroy_page:
 	free_page((unsigned long)vcpu->vcpu_run);
 err_destroy_vcpu:
@@ -443,22 +543,21 @@ err_destroy_vcpu:
 	return r;
 }
 
-static void gh_vcpu_unbind(struct gh_vm_function_instance *f)
+static void gunyah_vcpu_unbind(struct gunyah_vm_function_instance *f)
 {
-	struct gh_vcpu *vcpu = f->data;
+	struct gunyah_vcpu *vcpu = f->data;
 
-	gh_rm_notifier_unregister(f->rm, &vcpu->nb);
-	gh_vm_remove_resource_ticket(vcpu->f->ghvm, &vcpu->ticket);
+	gunyah_rm_notifier_unregister(f->rm, &vcpu->nb);
+	gunyah_vm_remove_resource_ticket(vcpu->ghvm, &vcpu->ticket);
 	vcpu->f = NULL;
 
 	kref_put(&vcpu->kref, vcpu_release);
 }
 
-static bool gh_vcpu_compare(const struct gh_vm_function_instance *f,
+static bool gunyah_vcpu_compare(const struct gunyah_vm_function_instance *f,
 				const void *arg, size_t size)
 {
-	const struct gh_fn_vcpu_arg *instance = f->argp,
-					 *other = arg;
+	const struct gunyah_fn_vcpu_arg *instance = f->argp, *other = arg;
 
 	if (sizeof(*other) != size)
 		return false;
@@ -466,6 +565,7 @@ static bool gh_vcpu_compare(const struct gh_vm_function_instance *f,
 	return instance->id == other->id;
 }
 
-DECLARE_GH_VM_FUNCTION_INIT(vcpu, GH_FN_VCPU, 1, gh_vcpu_bind, gh_vcpu_unbind, gh_vcpu_compare);
+DECLARE_GUNYAH_VM_FUNCTION_INIT(vcpu, GUNYAH_FN_VCPU, 1, gunyah_vcpu_bind,
+				gunyah_vcpu_unbind, gunyah_vcpu_compare);
 MODULE_DESCRIPTION("Gunyah vCPU Function");
 MODULE_LICENSE("GPL");

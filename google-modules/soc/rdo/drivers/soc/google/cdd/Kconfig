@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_CRASH_DEBUG_DUMP
+	tristate "Google Crash Debug Dump"
+	depends on ARCH_GOOGLE
+	depends on ARM64
+	default n
+	help
+	  Crash Debug Dump supports SoC debugging easily. This feature
+	  supports to trace other module events such frequceny change and IPC.
+	  This supports to save GPR and PC when panic or exception and
+	  to enter ramdump mode when panic is occurred and other exception.
+	  This supports to reserve memory for h/w debug feature such as
+	  scan2dram, cachedump.
+
+config GOOGLE_CDD_NR_CPUS
+	int "NR CPUS for kevent"
+	range 1 16
+	default 8
+	depends on GOOGLE_CRASH_DEBUG_DUMP
+	help
+	  This sets the number of cores for the kevents logging data structure declaration.
+
+config GOOGLE_CDD_FREQ_DOMAIN_NUM
+	int "Number of freq logging domain types"
+	depends on GOOGLE_CRASH_DEBUG_DUMP
+	range 4 32
+	default 32
+	help
+	  This option decides number of frequency logging domain types.
+
+config GOOGLE_CDD_LOG_ITEM_SIZE
+	int "Size of logging item"
+	depends on GOOGLE_CRASH_DEBUG_DUMP
+	range 256 1024
+	default 1024
+	help
+	  This option decides size of logging item.

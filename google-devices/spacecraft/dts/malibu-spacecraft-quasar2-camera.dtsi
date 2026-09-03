@@ -1,0 +1,317 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * camera lwis device tree for spacecraft
+ *
+ * Copyright 2025 Google LLC.
+ *
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	fragment@lwiscamera {
+		target-path = "/";
+		__overlay__ {
+			quasar2_inner_front_camera_power_seq: quasar2_module_power_seq@0 {
+				power-up-seqs =
+					"vio",
+					"gpio2",
+					"reset",
+					"mclk_on",
+					"resume";
+				power-up-seq-types =
+					"regulator",
+					"regulator",
+					"gpio",
+					"pinctrl",
+					"controller";
+				power-up-seq-delays-us =
+					<0
+					 10
+					 10
+					 0
+					 1000>;
+
+				power-down-seqs =
+					"suspend",
+					"mclk_off",
+					"reset",
+					"gpio2",
+					"vio";
+				power-down-seq-types =
+					"controller",
+					"pinctrl",
+					"gpio",
+					"regulator",
+					"regulator";
+				power-down-seq-delays-us =
+					<0
+					 0
+					 0
+					 0
+					 0>;
+			};
+
+			quasar2_rear_uw_camera_power_seq: quasar2_module_power_seq@1 {
+				power-up-seqs =
+					"vio",
+					"ldo6",
+					"ldo2",
+					"ldo4",
+					"reset",
+					"mclk_on",
+					"resume";
+				power-up-seq-types =
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"gpio",
+					"pinctrl",
+					"controller";
+				power-up-seq-delays-us =
+					<0
+					 0
+					 0
+					 0
+					 1000
+					 0
+					 10000>;
+
+				power-down-seqs =
+					"suspend",
+					"mclk_off",
+					"reset",
+					"ldo4",
+					"ldo2",
+					"ldo6",
+					"vio";
+				power-down-seq-types =
+					"controller",
+					"pinctrl",
+					"gpio",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator";
+				power-down-seq-delays-us =
+					<0
+					 1000
+					 0
+					 0
+					 0
+					 1000
+					 0>;
+			};
+
+			/* INNER FRONT SVAROG CSIC */
+			quasar2_sensor0: quasar2_sensor@0 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "sensor-svarog";
+
+				/* I2C */
+				i2c-bus = <&lsios_i2c3>;
+				i2c-addr = <0x10>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <16>;
+
+				/* I2C setting in kernel */
+				lwis,i2c-otp;
+				i2c-otp-settings =
+					<0xFCFC 0x4000
+					 0x6000 0x0005
+					 0x6010 0x0001>;
+				i2c-otp-settle-time = <5000>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RTCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				gpio2-supply = <&slg51002_gpio2>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m5_clk>;
+				clock-names = "MCLK5";
+				clock-rates = <24576000>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rtcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rtcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar2_inner_front_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <5>;
+			};
+
+			/* REAR ULTRA WIDE IMENTET CSIA */
+			quasar2_sensor1: quasar2_sensor@1 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "sensor-imentet";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c2>;
+				i2c-addr = <0x2D>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <16>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RUWCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				ldo2-supply = <&slg51002_ldo2>;
+				ldo4-supply = <&slg51002_ldo4>;
+				ldo6-supply = <&slg51002_ldo6>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m2_clk>;
+				clock-names = "MCLK2";
+				clock-rates = <24576000>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2ruwcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2ruwcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar2_rear_uw_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <6>;
+			};
+
+			/* Actuator CORNERFOLK for IMENTET-UW */
+			quasar2_actuator0: quasar2_actuator@0 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "act-cornerfolk-imentet-uw";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c2>;
+				i2c-addr = <0xC>;
+
+				/* Registers */
+				reg-addr-bitwidth = <8>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RUWCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				ldo2-supply = <&slg51002_ldo2>;
+				ldo4-supply = <&slg51002_ldo4>;
+				ldo6-supply = <&slg51002_ldo6>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2ruwcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2ruwcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar2_rear_uw_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <6>;
+			};
+
+			/* EEPROM SMAUG for SVAROG INNER FRONT */
+			quasar2_eeprom0: quasar2_eeprom@0 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "eeprom-smaug-svarog";
+
+				/* I2C */
+				i2c-bus = <&lsios_i2c3>;
+				i2c-addr = <0x50>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RTCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				gpio2-supply = <&slg51002_gpio2>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rtcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rtcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar2_inner_front_camera_power_seq>;
+
+				/* Thread priority */
+				/* Match with other bus devices */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <5>;
+			};
+
+			/* EEPROM SMAUG for IMENTET-UW */
+			quasar2_eeprom1: quasar2_eeprom@1 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "eeprom-smaug-imentet-uw";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c2>;
+				i2c-addr = <0x50>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RUWCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				ldo2-supply = <&slg51002_ldo2>;
+				ldo4-supply = <&slg51002_ldo4>;
+				ldo6-supply = <&slg51002_ldo6>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2ruwcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2ruwcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&quasar2_rear_uw_camera_power_seq>;
+
+				/* Thread priority */
+				/* Match with other bus devices */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <6>;
+			};
+		};
+	};
+};

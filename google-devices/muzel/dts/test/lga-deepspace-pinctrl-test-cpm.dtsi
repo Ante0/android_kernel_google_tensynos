@@ -1,0 +1,47 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,lga.h>
+
+&cpm_pinctrl {
+	cpm_gnss_input_gpios: cpm_gnss_input_gpios {
+		pins = "XCPM_EINT_3";
+		function = "cpm_int";
+		bias-pull-down;
+		input-enable;
+	};
+	cpm_audio_input_gpios: cpm_audio_input_gpios {
+		pins = "XCPM_SRC_OPT0",
+		       "XCPM_SRC_OPT1";
+		function = "cpm_int";
+		bias-pull-up;
+		input-enable;
+	};
+	cpm_ifpmic_input_gpios: cpm_ifpmic_input_gpios {
+		pins = "XCPM_EINT_11",
+		       "XCPM_EINT_11";
+		function = "cpm_int";
+		bias-pull-up;
+		input-enable;
+	};
+	cpm_haptic_input_gpios: cpm_haptic_input_gpios {
+		pins = "XCPM_SRC_OPT2";
+		function = "cpm_int";
+		bias-pull-up;
+		input-enable;
+	};
+	cpm_modem_input_gpios: cpm_modem_input_gpios {
+		pins = "XCPM_EINT_1",
+		       "XCPM_EINT_2",
+		       "XCPM_EINT_4";
+		function = "cpm_int";
+		bias-pull-up;
+		input-enable;
+	};
+	cpm_wifi_input_gpios: cpm_wifi_input_gpios {
+		pins = "XCPM_EINT_8";
+		function = "cpm_int";
+		bias-pull-down;
+		input-enable;
+	};
+};

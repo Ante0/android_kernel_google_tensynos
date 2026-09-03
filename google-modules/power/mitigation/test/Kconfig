@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+config GOOGLE_DA918X_BCL_KUNIT_TEST
+	tristate "Google LLC DA918x BCL tests" if !KUNIT_ALL_TESTS
+	depends on KUNIT
+	default KUNIT_ALL_TESTS
+	help
+		This enables the test suite that will test DA918x BCL functionality. This suite
+		tests functionality such as calculating register values and reading register values.
+
+config GOOGLE_MAX77779_BCL_IRQ_KUNIT_TEST
+	tristate "Google LLC max77779 BCL IRQ tests" if !KUNIT_ALL_TESTS
+	depends on KUNIT
+	default KUNIT_ALL_TESTS
+	help
+		This enables the KUnit test suite for the max77779 BCL IRQ handler. This suite
+		tests various aspects of the max77779_bcl_irq functionality, including the
+		Interrupt Service Routine (ISR) behavior under different conditions and the
+		correct functioning of the associated API calls. Enabling this will build and run
+		tests for the max77779 BCL IRQ driver.
+
+config GOOGLE_MAX77759_BCL_IRQ_KUNIT_TEST
+	tristate "Google LLC max77759 BCL IRQ tests" if !KUNIT_ALL_TESTS
+	depends on KUNIT
+	default KUNIT_ALL_TESTS
+	help
+		This enables the KUnit test suite for the max77759 BCL IRQ handler. This suite
+		tests various aspects of the max77759_bcl_irq functionality, including the
+		Interrupt Service Routine (ISR) behavior under different conditions and the
+		correct functioning of the associated API calls. Enabling this will build and run
+		tests for the max77759 BCL IRQ driver.

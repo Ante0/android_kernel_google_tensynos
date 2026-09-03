@@ -1,0 +1,98 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * Ganymede CSR definitions.
+ *
+ * Copyright (C) 2024 Google LLC
+ */
+
+#ifndef __GANYMEDE_TOP_CSRS_H__
+#define __GANYMEDE_TOP_CSRS_H__
+
+/* TODO(b/235918452): Update values in this file. Also remove unused fields. */
+
+/* Offsets are declared relative to AUR_TOP=0x880000 */
+enum gxp_csrs {
+	GXP_REG_AURORA_REVISION = 0x0000,
+	GXP_REG_RAW_EXT_INT = 0x2000,
+	GXP_REG_CORE_PD_0 = 0x2800,
+	GXP_REG_GLOBAL_COUNTER_LOW = 0x3000,
+	GXP_REG_GLOBAL_COUNTER_HIGH = 0x3004,
+	GXP_REG_WDOG_CONTROL = 0x6000,
+	GXP_REG_WDOG_KEY = 0x6004,
+	GXP_REG_WDOG_VALUE = 0x6008,
+	GXP_REG_TIMER_0 = 0x10000,
+	/* We borrow the 8th timer's TIMER_COMPARATOR as an indicator of MCU boot stage */
+	GXP_REG_MCU_BOOT_STAGE = 0x17000,
+	GXP_REG_DOORBELL_0 = 0x40000,
+	GXP_REG_SYNC_BARRIER_0 = 0x80000,
+	GXP_REG_CORE_0 = 0x180000,
+	GXP_REG_ATB_FUNNEL = 0x1F1000,
+	GXP_REG_ETF = 0x1F2000,
+	GXP_REG_MCU = 0x200000,
+	GXP_REG_CFGVECTABLE0 = 0x204000,
+	GXP_REG_IREMAP_ENABLE = 0x205000,
+	GXP_REG_IREMAP_LOW = 0x205004,
+	GXP_REG_IREMAP_HIGH = 0x205008,
+	GXP_REG_IREMAP_TARGET = 0x20500c,
+	GXP_REG_IREMAP_SID = 0x205014,
+	GXP_REG_IREMAP_SSID = 0x205018,
+};
+
+#define GXP_REG_ETM_PWRCTL_CORE_RESET_SHIFT	16
+
+/* helpers for calculating core CSRs offsets */
+#define GXP_REG_MCU_ID GXP_NUM_CORES
+#define GXP_REG_CORE_CSR(core, off) (GXP_REG_CORE_0 + 0x10000 * (core) + (off))
+#define GXP_REG_MCU_CSR(off) (GXP_REG_MCU + (off))
+/* Uses @mcu_off as the offset when @core equals GXP_REG_MCU_ID. */
+#define GXP_REG_CORE_MCU_CSR(core, off, mcu_off) \
+	(core == GXP_REG_MCU_ID ? GXP_REG_MCU_CSR(mcu_off) : GXP_REG_CORE_CSR(core, off))
+
+/*
+ * Per core CSRs.
+ * @core is usually in region 0 ~ GXP_NUM_CORES-1, but can be GXP_REG_MCU_ID if
+ * the CSR also presents in the MCU CSRs.
+ */
+#define GXP_REG_CORE_INST_BPM(core) GXP_REG_CORE_MCU_CSR(core, 0x0, 0x0)
+#define GXP_REG_CORE_PROFILING_CONDITION(core) GXP_REG_CORE_MCU_CSR(core, 0x4000, 0x4010)
+#define GXP_REG_CORE_PROCESSOR_ID(core) GXP_REG_CORE_CSR(core, 0x4004)
+#define GXP_REG_CORE_ALT_RESET_VECTOR(core) GXP_REG_CORE_CSR(core, 0x4008)
+#define GXP_REG_CORE_COMMON_INT_MASK_0(core) GXP_REG_CORE_MCU_CSR(core, 0x4010, 0x4020)
+#define GXP_REG_CORE_COMMON_INT_MASK_1(core) GXP_REG_CORE_MCU_CSR(core, 0x4014, 0x4024)
+#define GXP_REG_CORE_DEDICATED_INT_MASK(core) GXP_REG_CORE_MCU_CSR(core, 0x401c, 0x4028)
+#define GXP_REG_CORE_ETM_PWRCTL(core) GXP_REG_CORE_CSR(core, 0xB020)
+
+#define GXP_REG_CORE_PD(i) (GXP_REG_CORE_PD_0 + 0x4 * (i))
+
+#define GXP_REG_TIMER_COUNT 8
+#define GXP_REG_TIMER_BASE(i) (GXP_REG_TIMER_0 + 0x1000 * (i))
+#define GXP_REG_TIMER_COMPARATOR(i) (GXP_REG_TIMER_BASE(i) + 0x0)
+#define GXP_REG_TIMER_CONTROL(i) (GXP_REG_TIMER_BASE(i) + 0x4)
+#define GXP_REG_TIMER_VALUE(i) (GXP_REG_TIMER_BASE(i) + 0x8)
+
+#define GXP_REG_DOORBELL_SET_WRITEMASK 0x1
+#define GXP_REG_DOORBELL_CLEAR_WRITEMASK 0x1
+#define GXP_REG_DOORBELL_BASE(i) (GXP_REG_DOORBELL_0 + 0x1000 * (i))
+#define GXP_REG_DOORBELL_STATUS(i) (GXP_REG_DOORBELL_BASE(i) + 0x0)
+#define GXP_REG_DOORBELL_SET(i) (GXP_REG_DOORBELL_BASE(i) + 0x4)
+#define GXP_REG_DOORBELL_CLEAR(i) (GXP_REG_DOORBELL_BASE(i) + 0x8)
+
+#define GXP_REG_ETF_RSZ (GXP_REG_ETF + 0x4)
+#define GXP_REG_ETF_STS (GXP_REG_ETF + 0xc)
+#define GXP_REG_ETF_RRD (GXP_REG_ETF + 0x10)
+#define GXP_REG_ETF_RRP (GXP_REG_ETF + 0x14)
+#define GXP_REG_ETF_RWP (GXP_REG_ETF + 0x18)
+#define GXP_REG_ETF_CTL (GXP_REG_ETF + 0x20)
+#define GXP_REG_ETF_MODE (GXP_REG_ETF + 0x28)
+#define GXP_REG_ETF_CBUFLEVEL (GXP_REG_ETF + 0x30)
+#define GXP_REG_ETF_FFCR (GXP_REG_ETF + 0x304)
+
+
+#define GXP_REG_SYNC_BARRIER_SHADOW(i) (GXP_REG_SYNC_BARRIER_0 + 0x1000 * (i) + 0x800)
+
+/* GEM offset */
+#define GXP_REG_GEM_CONFIG_OFFSET 0x14
+#define GXP_REG_GEM_CNTR_CONFIG_OFFSET 0x40
+#define GXP_REG_GEM_SNAPSHOT_CNTR_OFFSET 0x140
+
+#endif /* __GANYMEDE_TOP_CSRS_H__ */

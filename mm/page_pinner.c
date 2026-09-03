@@ -11,6 +11,7 @@
 #include <linux/stackdepot.h>
 #include <linux/seq_file.h>
 #include <linux/sched/clock.h>
+#include <linux/page_ref.h>
 
 #include "internal.h"
 
@@ -130,11 +131,13 @@ static noinline depot_stack_handle_t save_stack(gfp_t flags)
 static void capture_page_state(struct page *page,
 			       struct captured_pinner *record)
 {
+	struct folio *folio = page_folio(page);
+
 	record->flags = page->flags;
-	record->mapping = page_mapping(page);
+	record->mapping = folio_mapping(folio);
 	record->pfn = page_to_pfn(page);
 	record->count = page_count(page);
-	record->mapcount = page_mapcount(page);
+	record->mapcount = folio_mapcount(folio);
 }
 
 static void add_record(struct page_pinner_buffer *pp_buf,

@@ -1,14 +1,80 @@
 # SPDX-License-Identifier: GPL-2.0
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
 
-kernel_module(
-    name = "tas256x",
-    outs = [
-        "snd-soc-tas256x.ko",
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "headers",
+    hdrs = glob([
+        "**/inc/**/*.h",
+    ]),
+    includes = [
+        ".",
     ],
+)
+
+ddk_module(
+    name = "snd-soc-tas256x",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "logical_layer/src/tas256x-logic.c",
+        "os_layer/src/tas256x-codec.c",
+        "os_layer/src/tas256x-regmap.c",
+        "physical_layer/src/tas256x.c",
+    ],
+    out = "snd-soc-tas256x.ko",
+    conditional_srcs = {
+        "CONFIG_TAS256X_MISC": {
+            True: [
+                "misc/tas256x-misc.c",
+            ],
+        },
+        "CONFIG_TAS25XX_ALGO": {
+            True: [
+                "algo/src/tas25xx-algo-common.c",
+                "algo/src/tas25xx-algo-intf.c",
+                "algo/src/tas25xx-calib.c",
+            ],
+        },
+        "CONFIG_PLATFORM_QCOM": {
+            True: [
+                "algo/platform/qcom/tas25xx-algo-qdsp-intf.c",
+            ],
+        },
+        "CONFIG_TISA_KBIN_INTF": {
+            True: [
+                "algo/platform/mtk/tas256x-mtk-wrapper.c",
+                "algo/src/tas25xx-algo-bin-utils.c",
+                "algo/src/tas25xx-algo-kbin-intf.c",
+            ],
+        },
+        "CONFIG_TAS25XX_CALIB_VAL_BIG": {
+            True: [
+                "algo/src/tas25xx-calib-validation.c",
+            ],
+        },
+        "CONFIG_TISA_DEBUGFS_INTF": {
+            True: [
+                "algo/src/tas25xx-algo-debugfs.c",
+                "logical_layer/src/smartpa-debug-common.c",
+            ],
+        },
+        "CONFIG_TISA_BIN_INTF": {
+            True: [
+                "algo/src/tas25xx-algo-bin-intf.c",
+            ],
+        },
+    },
+    defconfig = "defconfig",
+    kconfig = "Kconfig",
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
     ],
 )

@@ -1,0 +1,32 @@
+What:		/sys/devices/platform/*pcie/*/l1ss/l1ss_force
+Date:		July 2024
+KernelVersion:	6.6.30-android15-8
+Description:
+		Control the L1SS override for the cpif driver.  Writing a
+		1, on, yes will enable the L1SS override feature.  Writing
+		a 0, off or no will disable the L1SS override.  The L1SS
+		override feature will restrict the L1SS states that the
+		endpoint is configured for.
+
+		When enabled, only L1 state is enabled.  Other L1 substates
+		may be enabled via the l11_enable and l12_enable sysfs
+
+What:		/sys/devices/platform/*pcie/*/l1ss/l11_enable
+Date:		July 2024
+KernelVersion:	6.6.30-android15-8
+Description:
+		Control the L1.1 PCIe L1SS substate.  Only takes affect when
+		l1ss_force sysfs is alaso enabled.  Writing a 1, on, yes
+		will configure the endpoint allow entering the L1.1 substate
+		Writing a 0, off or no will prevent the endpoint from
+		entering the L1.1 substate.
+
+What:		/sys/devices/platform/*pcie/*/l1ss/l12_enable
+Date:		July 2024
+KernelVersion:	6.6.30-android15-8
+Description:
+		Control the L1.2 PCIe L1SS substate.  Only takes affect when
+		l1ss_force sysfs is alaso enabled.  Writing a 1, on, yes
+		will configure the endpoint allow entering the L1.2 substate
+		Writing a 0, off or no will prevent the endpoint from
+		entering the L1.1 substate.

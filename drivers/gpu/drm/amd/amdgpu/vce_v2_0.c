@@ -398,9 +398,9 @@ static void vce_v2_0_enable_mgcg(struct amdgpu_device *adev, bool enable,
 	}
 }
 
-static int vce_v2_0_early_init(void *handle)
+static int vce_v2_0_early_init(struct amdgpu_ip_block *ip_block)
 {
-	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+	struct amdgpu_device *adev = ip_block->adev;
 
 	adev->vce.num_rings = 2;
 
@@ -440,8 +440,6 @@ static int vce_v2_0_sw_init(void *handle)
 		if (r)
 			return r;
 	}
-
-	r = amdgpu_vce_entity_init(adev);
 
 	return r;
 }
@@ -628,6 +626,8 @@ static const struct amd_ip_funcs vce_v2_0_ip_funcs = {
 	.soft_reset = vce_v2_0_soft_reset,
 	.set_clockgating_state = vce_v2_0_set_clockgating_state,
 	.set_powergating_state = vce_v2_0_set_powergating_state,
+	.dump_ip_state = NULL,
+	.print_ip_state = NULL,
 };
 
 static const struct amdgpu_ring_funcs vce_v2_0_ring_funcs = {

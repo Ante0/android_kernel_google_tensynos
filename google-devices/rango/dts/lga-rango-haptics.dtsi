@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * rango haptics device tree overlay
+ *
+ * Copyright 2024 Google LLC
+ */
+
+&lsioe_cli10_i2c {
+	cs40l27b@43 {
+		/* Overwrite properties in lga-platform-hapitcs.dtsi */
+		cirrus,f0-default = <0x280000>;		/* 160 Hz */
+	};
+};

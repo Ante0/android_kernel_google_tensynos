@@ -1,0 +1,33 @@
+import("//build_overrides/noa.gni")
+import("$dir_noa_packages/noa_common/sim/ncp/wlan_fw/wlan_service.gni")
+
+wlan_source_set("flow_id_table") {
+  sources = [
+    "$dir_wlan_fw/modules/flow_id_table/flow_id_table.cc",
+    "$dir_wlan_fw/modules/flow_id_table/flow_id_table.h",
+  ]
+  deps = [
+    "$dir_noa_common:core",
+    "$dir_noa_modules/net:headers",
+    "$dir_wlan_fw:wlan_cast",
+    "$dir_wlan_fw/sys_if:memory",
+    "$dir_wlan_fw/sys_if:noa_net",
+    "$dir_wlan_fw/sys_if:types",
+    "$dir_wlan_fw/wlan_log",
+  ]
+  public_deps = [
+    "$dir_wlan_fw/ext_svc:ext_svc",
+    "$dir_wlan_fw/sys_if:common",
+    "$dir_wlan_fw/sys_if:types",
+  ]
+}
+
+wlan_test("flow_id_table_test") {
+  enable_if = current_os == "linux"
+  sources = [ "$dir_wlan_fw/modules/flow_id_table/flow_id_table_test.cc" ]
+  deps = [ ":flow_id_table" ]
+}
+
+wlan_test_group("tests") {
+  tests = [ ":flow_id_table_test" ]
+}

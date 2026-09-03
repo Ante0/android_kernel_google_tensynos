@@ -217,7 +217,22 @@ static int otx2_qos_ctx_disable(struct otx2_nic *pfvf, u16 qidx, int aura_id)
 	return otx2_sync_mbox_msg(&pfvf->mbox);
 }
 
-int otx2_qos_enable_sq(struct otx2_nic *pfvf, int qidx, u16 smq)
+int otx2_qos_get_qid(struct otx2_nic *pfvf)
+{
+	int qidx;
+
+	qidx = find_first_zero_bit(pfvf->qos.qos_sq_bmap,
+				   pfvf->hw.tc_tx_queues);
+
+	return qidx == pfvf->hw.tc_tx_queues ? -ENOSPC : qidx;
+}
+
+void otx2_qos_free_qid(struct otx2_nic *pfvf, int qidx)
+{
+	clear_bit(qidx, pfvf->qos.qos_sq_bmap);
+}
+
+int otx2_qos_enable_sq(struct otx2_nic *pfvf, int qidx)
 {
 	struct otx2_hw *hw = &pfvf->hw;
 	int pool_id, sq_idx, err;
@@ -233,7 +248,6 @@ int otx2_qos_enable_sq(struct otx2_nic *pfvf, int qidx, u16 smq)
 		goto out;
 
 	pool_id = otx2_get_pool_idx(pfvf, AURA_NIX_SQ, sq_idx);
-	pfvf->qos.qid_to_sqmap[qidx] = smq;
 	err = otx2_sq_init(pfvf, sq_idx, pool_id);
 	if (err)
 		goto out;
@@ -242,7 +256,27 @@ out:
 	return err;
 }
 
-void otx2_qos_disable_sq(struct otx2_nic *pfvf, int qidx, u16 mdq)
+static int otx2_qos_nix_npa_ndc_sync(struct otx2_nic *pfvf)
+{
+	struct ndc_sync_op *req;
+	int rc;
+
+	mutex_lock(&pfvf->mbox.lock);
+
+	req = otx2_mbox_alloc_msg_ndc_sync_op(&pfvf->mbox);
+	if (!req) {
+		mutex_unlock(&pfvf->mbox.lock);
+		return -ENOMEM;
+	}
+
+	req->nix_lf_tx_sync = true;
+	req->npa_lf_sync = true;
+	rc = otx2_sync_mbox_msg(&pfvf->mbox);
+	mutex_unlock(&pfvf->mbox.lock);
+	return rc;
+}
+
+void otx2_qos_disable_sq(struct otx2_nic *pfvf, int qidx)
 {
 	struct otx2_qset *qset = &pfvf->qset;
 	struct otx2_hw *hw = &pfvf->hw;
@@ -271,6 +305,8 @@ void otx2_qos_disable_sq(struct otx2_nic *pfvf, int qidx, u16 mdq)
 
 	otx2_qos_sqb_flush(pfvf, sq_idx);
 	otx2_smq_flush(pfvf, otx2_get_smq_idx(pfvf, sq_idx));
+	/* NIX/NPA NDC sync */
+	otx2_qos_nix_npa_ndc_sync(pfvf);
 	otx2_cleanup_tx_cqes(pfvf, cq);
 
 	mutex_lock(&pfvf->mbox.lock);

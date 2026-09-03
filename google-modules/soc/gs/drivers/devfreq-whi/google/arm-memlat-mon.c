@@ -675,6 +675,7 @@ static int get_mask_from_dev_handle(struct platform_device *pdev,
 				break;
 			}
 		}
+		of_node_put(dev_phandle);
 		dev_phandle = of_parse_phandle(dev->of_node,
 						"cpulist", i++);
 	}

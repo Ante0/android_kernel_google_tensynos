@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2024 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/soc/google/dpa/google,google-irq.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google DPA Driver
+
+maintainers:
+  - Koudai Iwahori <koudai@google.com>
+
+description:
+  DPA device provides networking offloading features. google-dpa module
+  provides features like booting/communicating DPA firmware.
+
+properties:
+  compatible:
+    enum:
+      - google,dpa
+
+  reg:
+    description: |
+      Address regions for DPA in the SoC view. Should contain an entry for
+      each value in reg-names.
+
+  reg-names:
+    description: |
+      Names for each of address regions defined in the reg property.
+      Expects the names from the following list. Each of them represents the
+      corresponding address region.
+      "dpa" is DPA CSR region. "lpm" is DPA's LPM CSR region.
+    items:
+      - const: dpa
+      - const: lpm
+
+  in_emulation:
+    description: |
+      Flag to specify that the system is running on the hybrid emulation platform.
+      In the hybrid emulation, Linux runs faster and some parameters like boot completion timeout
+      need to be extended.
+
+  fw-image-carveout:
+    description: |
+      Phandle to the reserved memory for loading firmware image.
+      The predefined physically contiguous DRAM region is required for the firmware image authentication.
+
+required:
+  - compatible
+  - reg
+  - reg-names
+
+additionalProperties: false
+
+examples:
+  - |
+    google_dpa: dpa@123000 {
+      compatible = "google,dpa";
+      reg = <0x0 0x123000 0x0 0x10000>,
+            <0x0 0x456000 0x0 0x10000>;
+      reg-names = "dpa", "lpm";
+    };
+
+...

@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config SPI_DW_GOOGLE_QUIRKS
+	tristate "Support for Synopsys DesignWare DW_apb_ssi quirks"
+	depends on SPI_DESIGNWARE
+	help
+	  Enable support for the SPI controller
+	  on Google devices.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config SPI_DW_GOOGLE_TEST
+	tristate "Test driver for SPI controller"
+	help
+	  Enable SPI test driver which provides debugfs based API
+	  to generate SPI traffic.
+	  Select Y if you have such device.
+	  If unsure select "N".

@@ -18,7 +18,6 @@
 
 #include <linux/usb/pd.h>
 #include <linux/device.h>
-#include <misc/logbuffer.h>
 
 #define PD_T_PPS_TIMEOUT		9000	/* Maximum of 10 seconds */
 #define PD_T_PPS_DEADLINE_S		7

@@ -9,14 +9,31 @@
 #include <linux/slab.h>
 #include <linux/genalloc.h>
 #include <linux/module.h>
+#include <linux/samsung-secure-iova.h>
 
+#if IS_ENABLED(CONFIG_SOC_GS101) || IS_ENABLED(CONFIG_SOC_GS201) || IS_ENABLED(CONFIG_SOC_ZUMA)
 #define SECURE_DMA_BASE	0x40000000
+
 /*
- * MFC have H/W restriction that could only access 0xC000_0000
- * offset from base, so secure device virtual address manager
- * uses the size as 0xC000_0000.
+ * MFC have H/W restriction that could only access 0xC000_0000 offset
+ * from base, and we are reserving 0xF000_0000 to 0xFFFF_FFFF for
+ * other usage.
  */
-#define SECURE_DMA_SIZE 0xC0000000
+#define SECURE_DMA_SIZE 0xB0000000
+#else
+
+/*
+ * The Buenos TPU DIVE core cannot access memory below the 2 GB address
+ * range. IOVA allocator should only allocate from 0x80000000 and above.
+ * An additional 16MB is reserved for the model binary.
+ */
+#define SECURE_DMA_BASE	0x81000000
+
+/*
+ * DSP reserved 0xF000_0000 to 0xFFFF_FFFF for other usage.
+ */
+#define SECURE_DMA_SIZE 0x6F000000
+#endif
 
 static struct gen_pool *secure_iova_pool;
 

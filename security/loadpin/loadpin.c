@@ -20,6 +20,7 @@
 #include <linux/string_helpers.h>
 #include <linux/dm-verity-loadpin.h>
 #include <uapi/linux/loadpin.h>
+#include <uapi/linux/lsm.h>
 
 #define VERITY_DIGEST_FILE_HEADER "# LOADPIN_TRUSTED_VERITY_ROOT_DIGESTS"
 
@@ -52,13 +53,6 @@ static bool deny_reading_verity_digests;
 #endif
 
 #ifdef CONFIG_SYSCTL
-
-static struct ctl_path loadpin_sysctl_path[] = {
-	{ .procname = "kernel", },
-	{ .procname = "loadpin", },
-	{ }
-};
-
 static struct ctl_table loadpin_sysctl_table[] = {
 	{
 		.procname       = "enforce",
@@ -66,59 +60,69 @@ static struct ctl_table loadpin_sysctl_table[] = {
 		.maxlen         = sizeof(int),
 		.mode           = 0644,
 		.proc_handler   = proc_dointvec_minmax,
-		.extra1         = SYSCTL_ZERO,
+		.extra1         = SYSCTL_ONE,
 		.extra2         = SYSCTL_ONE,
 	},
-	{ }
 };
+
+static void set_sysctl(bool is_writable)
+{
+	/*
+	 * If load pinning is not enforced via a read-only block
+	 * device, allow sysctl to change modes for testing.
+	 */
+	if (is_writable)
+		loadpin_sysctl_table[0].extra1 = SYSCTL_ZERO;
+	else
+		loadpin_sysctl_table[0].extra1 = SYSCTL_ONE;
+}
+#else
+static inline void set_sysctl(bool is_writable) { }
+#endif
+
+static void report_writable(struct super_block *mnt_sb, bool writable)
+{
+	if (mnt_sb->s_bdev) {
+		pr_info("%pg (%u:%u): %s\n", mnt_sb->s_bdev,
+			MAJOR(mnt_sb->s_bdev->bd_dev),
+			MINOR(mnt_sb->s_bdev->bd_dev),
+			writable ? "writable" : "read-only");
+	} else
+		pr_info("mnt_sb lacks block device, treating as: writable\n");
+
+	if (!writable)
+		pr_info("load pinning engaged.\n");
+}
 
 /*
  * This must be called after early kernel init, since then the rootdev
  * is available.
  */
-static void check_pinning_enforcement(struct super_block *mnt_sb)
+static bool sb_is_writable(struct super_block *mnt_sb)
 {
-	bool ro = false;
+	bool writable = true;
 
-	/*
-	 * If load pinning is not enforced via a read-only block
-	 * device, allow sysctl to change modes for testing.
-	 */
-	if (mnt_sb->s_bdev) {
-		ro = bdev_read_only(mnt_sb->s_bdev);
-		pr_info("%pg (%u:%u): %s\n", mnt_sb->s_bdev,
-			MAJOR(mnt_sb->s_bdev->bd_dev),
-			MINOR(mnt_sb->s_bdev->bd_dev),
-			ro ? "read-only" : "writable");
-	} else
-		pr_info("mnt_sb lacks block device, treating as: writable\n");
+	if (mnt_sb->s_bdev)
+		writable = !bdev_read_only(mnt_sb->s_bdev);
 
-	if (!ro) {
-		if (!register_sysctl_paths(loadpin_sysctl_path,
-					   loadpin_sysctl_table))
-			pr_notice("sysctl registration failed!\n");
-		else
-			pr_info("enforcement can be disabled.\n");
-	} else
-		pr_info("load pinning engaged.\n");
+	return writable;
 }
-#else
-static void check_pinning_enforcement(struct super_block *mnt_sb)
-{
-	pr_info("load pinning engaged.\n");
-}
-#endif
 
 static void loadpin_sb_free_security(struct super_block *mnt_sb)
 {
 	/*
 	 * When unmounting the filesystem we were using for load
 	 * pinning, we acknowledge the superblock release, but make sure
-	 * no other modules or firmware can be loaded.
+	 * no other modules or firmware can be loaded when we are in
+	 * enforcing mode. Otherwise, allow the root to be reestablished.
 	 */
 	if (!IS_ERR_OR_NULL(pinned_root) && mnt_sb == pinned_root) {
-		pinned_root = ERR_PTR(-EIO);
-		pr_info("umount pinned fs: refusing further loads\n");
+		if (enforce) {
+			pinned_root = ERR_PTR(-EIO);
+			pr_info("umount pinned fs: refusing further loads\n");
+		} else {
+			pinned_root = NULL;
+		}
 	}
 }
 
@@ -126,6 +130,8 @@ static int loadpin_check(struct file *file, enum kernel_read_file_id id)
 {
 	struct super_block *load_root;
 	const char *origin = kernel_read_file_id_str(id);
+	bool first_root_pin = false;
+	bool load_root_writable;
 
 	/* If the file id is excluded, ignore the pinning. */
 	if ((unsigned int)id < ARRAY_SIZE(ignore_read_file_id) &&
@@ -146,26 +152,25 @@ static int loadpin_check(struct file *file, enum kernel_read_file_id id)
 	}
 
 	load_root = file->f_path.mnt->mnt_sb;
+	load_root_writable = sb_is_writable(load_root);
 
 	/* First loaded module/firmware defines the root for all others. */
 	spin_lock(&pinned_root_spinlock);
 	/*
-	 * pinned_root is only NULL at startup. Otherwise, it is either
-	 * a valid reference, or an ERR_PTR.
+	 * pinned_root is only NULL at startup or when the pinned root has
+	 * been unmounted while we are not in enforcing mode. Otherwise, it
+	 * is either a valid reference, or an ERR_PTR.
 	 */
 	if (!pinned_root) {
 		pinned_root = load_root;
-		/*
-		 * Unlock now since it's only pinned_root we care about.
-		 * In the worst case, we will (correctly) report pinning
-		 * failures before we have announced that pinning is
-		 * enforcing. This would be purely cosmetic.
-		 */
-		spin_unlock(&pinned_root_spinlock);
-		check_pinning_enforcement(pinned_root);
+		first_root_pin = true;
+	}
+	spin_unlock(&pinned_root_spinlock);
+
+	if (first_root_pin) {
+		report_writable(pinned_root, load_root_writable);
+		set_sysctl(load_root_writable);
 		report_load(origin, file, "pinned");
-	} else {
-		spin_unlock(&pinned_root_spinlock);
 	}
 
 	if (IS_ERR_OR_NULL(pinned_root) ||
@@ -203,7 +208,12 @@ static int loadpin_load_data(enum kernel_load_data_id id, bool contents)
 	return loadpin_check(NULL, (enum kernel_read_file_id) id);
 }
 
-static struct security_hook_list loadpin_hooks[] __lsm_ro_after_init = {
+static const struct lsm_id loadpin_lsmid = {
+	.name = "loadpin",
+	.id = LSM_ID_LOADPIN,
+};
+
+static struct security_hook_list loadpin_hooks[] __ro_after_init = {
 	LSM_HOOK_INIT(sb_free_security, loadpin_sb_free_security),
 	LSM_HOOK_INIT(kernel_read_file, loadpin_read_file),
 	LSM_HOOK_INIT(kernel_load_data, loadpin_load_data),
@@ -250,7 +260,12 @@ static int __init loadpin_init(void)
 	pr_info("ready to pin (currently %senforcing)\n",
 		enforce ? "" : "not ");
 	parse_exclude();
-	security_add_hooks(loadpin_hooks, ARRAY_SIZE(loadpin_hooks), "loadpin");
+#ifdef CONFIG_SYSCTL
+	if (!register_sysctl("kernel/loadpin", loadpin_sysctl_table))
+		pr_notice("sysctl registration failed!\n");
+#endif
+	security_add_hooks(loadpin_hooks, ARRAY_SIZE(loadpin_hooks),
+			   &loadpin_lsmid);
 
 	return 0;
 }
@@ -281,7 +296,7 @@ static int read_trusted_verity_root_digests(unsigned int fd)
 		return -EPERM;
 
 	f = fdget(fd);
-	if (!f.file)
+	if (!fd_file(f))
 		return -EINVAL;
 
 	data = kzalloc(SZ_4K, GFP_KERNEL);
@@ -290,7 +305,7 @@ static int read_trusted_verity_root_digests(unsigned int fd)
 		goto err;
 	}
 
-	rc = kernel_read_file(f.file, 0, (void **)&data, SZ_4K - 1, NULL, READING_POLICY);
+	rc = kernel_read_file(fd_file(f), 0, (void **)&data, SZ_4K - 1, NULL, READING_POLICY);
 	if (rc < 0)
 		goto err;
 
@@ -327,14 +342,13 @@ static int read_trusted_verity_root_digests(unsigned int fd)
 			rc = -ENOMEM;
 			goto err;
 		}
+		trd->len = len;
 
 		if (hex2bin(trd->data, d, len)) {
 			kfree(trd);
 			rc = -EPROTO;
 			goto err;
 		}
-
-		trd->len = len;
 
 		list_add_tail(&trd->node, &dm_verity_loadpin_trusted_root_digests);
 	}

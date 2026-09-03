@@ -3,7 +3,7 @@
 
 #include <net/mcps802154.h>
 
-#ifdef CONFIG_MCPS802154_TESTMODE
+#if IS_ENABLED(CONFIG_MCPS802154_TESTMODE)
 
 int dw3000_tm_cmd(struct mcps802154_llhw *llhw, void *data, int len);
 

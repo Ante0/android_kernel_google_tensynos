@@ -28,7 +28,7 @@
 #include "smfc.h"
 #include "smfc-sync.h"
 
-#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS)
 // wait time in milliseconds
 #define SMFC_QOS_WAIT 2
 #endif
@@ -297,8 +297,8 @@ static int smfc_vb2_buf_init(struct vb2_buffer *vb)
 		dbuf = dma_buf_get(vb->planes[plane].m.fd);
 		sbuf->info[plane].dba = dma_buf_attach(dbuf, smfc->dev);
 		sbuf->info[plane].dba->dma_map_attrs = DMA_ATTR_PRIVILEGED;
-		sbuf->info[plane].sgt = dma_buf_map_attachment(sbuf->info[plane].dba,
-							       vb->vb2_queue->dma_dir);
+		sbuf->info[plane].sgt = dma_buf_map_attachment_unlocked(sbuf->info[plane].dba,
+									vb->vb2_queue->dma_dir);
 	}
 	return 0;
 }
@@ -409,9 +409,9 @@ static void smfc_vb2_buf_cleanup(struct vb2_buffer *vb)
 	for (plane = 0; plane < vb->num_planes; ++plane) {
 		if (!sbuf->info[plane].sgt)
 			continue;
-		dma_buf_unmap_attachment(sbuf->info[plane].dba,
-					 sbuf->info[plane].sgt,
-					 vb->vb2_queue->dma_dir);
+		dma_buf_unmap_attachment_unlocked(sbuf->info[plane].dba,
+						  sbuf->info[plane].sgt,
+						  vb->vb2_queue->dma_dir);
 		dma_buf_detach(sbuf->info[plane].dba->dmabuf,
 			       sbuf->info[plane].dba);
 		sbuf->info[plane].dba = NULL;
@@ -866,25 +866,12 @@ err_clk:
 	return ret;
 }
 
-#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS)
 static void g2d_pm_qos_remove_request(struct smfc_dev *smfc)
 {
 	exynos_pm_qos_remove_request(&smfc->qosreq_int);
 	exynos_pm_qos_remove_request(&smfc->qosreq_mif);
 }
-
-#if IS_ENABLED(CONFIG_EXYNOS_BTS)
-void smfc_get_bandwidth(struct smfc_dev *smfc, struct bts_bw *bw)
-{
-	unsigned int bpc = smfc->bpc;
-	unsigned int core_clk = smfc->core_clk;
-	unsigned int bw_khz = bpc * core_clk / SZ_1K / BITS_PER_BYTE;
-
-	bw->read = bw_khz * 1000;
-	bw->write = bw->read;
-	bw->peak = (bw->read + bw->write) / 2;
-}
-#endif
 
 /* Helper function to request PM QoS */
 static void g2d_pm_qos_update_request(struct smfc_dev *smfc)
@@ -930,7 +917,8 @@ static void g2d_pm_qos_reset_request(struct smfc_dev *smfc)
 }
 #endif
 
-int smfc_iommu_fault_handler(struct iommu_fault *fault, void *token)
+static int smfc_iommu_fault_handler(struct iommu_domain *domain, struct device *dev,
+				    unsigned long iova, int flags, void *token)
 {
 	struct smfc_dev *smfc = token;
 
@@ -945,7 +933,8 @@ static const struct smfc_device_data smfc_8890_data = {
 			| V4L2_CAP_EXYNOS_JPEG_HWFC
 			| V4L2_CAP_EXYNOS_JPEG_NO_STREAMBASE_ALIGN
 			| V4L2_CAP_EXYNOS_JPEG_NO_IMAGEBASE_ALIGN
-			| V4L2_CAP_EXYNOS_JPEG_DECOMPRESSION,
+			| V4L2_CAP_EXYNOS_JPEG_DECOMPRESSION
+			| V4L2_CAP_STREAMING,
 	.burstlenth_bits = 4, /* 16 bytes: 1 burst */
 };
 
@@ -953,7 +942,8 @@ static const struct smfc_device_data smfc_7870_data = {
 	.device_caps = V4L2_CAP_EXYNOS_JPEG_B2B_COMPRESSION
 			| V4L2_CAP_EXYNOS_JPEG_NO_STREAMBASE_ALIGN
 			| V4L2_CAP_EXYNOS_JPEG_NO_IMAGEBASE_ALIGN
-			| V4L2_CAP_EXYNOS_JPEG_DECOMPRESSION,
+			| V4L2_CAP_EXYNOS_JPEG_DECOMPRESSION
+			| V4L2_CAP_STREAMING,
 	.burstlenth_bits = 4, /* 16 bytes: 1 burst */
 };
 
@@ -962,13 +952,15 @@ static const struct smfc_device_data smfc_7420_data = {
 			| V4L2_CAP_EXYNOS_JPEG_NO_IMAGEBASE_ALIGN
 			| V4L2_CAP_EXYNOS_JPEG_DECOMPRESSION
 			| V4L2_CAP_EXYNOS_JPEG_DOWNSCALING
-			| V4L2_CAP_EXYNOS_JPEG_DECOMPRESSION_CROP,
+			| V4L2_CAP_EXYNOS_JPEG_DECOMPRESSION_CROP
+			| V4L2_CAP_STREAMING,
 	.burstlenth_bits = 5, /* 32 bytes: 2 bursts */
 };
 
 static const struct smfc_device_data smfc_3475_data = {
 	.device_caps = V4L2_CAP_EXYNOS_JPEG_NO_STREAMBASE_ALIGN
-			| V4L2_CAP_EXYNOS_JPEG_NO_IMAGEBASE_ALIGN,
+			| V4L2_CAP_EXYNOS_JPEG_NO_IMAGEBASE_ALIGN
+			| V4L2_CAP_STREAMING,
 	.burstlenth_bits = 5, /* 32 bytes: 2 bursts */
 };
 
@@ -997,6 +989,7 @@ static int exynos_smfc_probe(struct platform_device *pdev)
 {
 	struct smfc_dev *smfc;
 	struct resource *res;
+	struct iommu_domain *domain;
 	const struct of_device_id *of_id;
 	int ret;
 	int irq;
@@ -1084,7 +1077,10 @@ static int exynos_smfc_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto err_v4l2;
 
-	iommu_register_device_fault_handler(&pdev->dev, smfc_iommu_fault_handler, smfc);
+	domain = iommu_get_domain_for_dev(&pdev->dev);
+	if (domain)
+		/* Used just for logging. */
+		iommu_set_fault_handler(domain, smfc_iommu_fault_handler, smfc);
 
 	timer_setup(&smfc->timer, smfc_timedout_handler, 0);
 
@@ -1115,17 +1111,13 @@ static void smfc_deinit_clock(struct smfc_dev *smfc)
 		clk_put(smfc->clk_gate);
 }
 
-static int exynos_smfc_remove(struct platform_device *pdev)
+static void exynos_smfc_remove(struct platform_device *pdev)
 {
 	struct smfc_dev *smfc = platform_get_drvdata(pdev);
 
 	g2d_pm_qos_remove_request(smfc);
 
 	smfc_deinit_clock(smfc);
-
-	iommu_unregister_device_fault_handler(&pdev->dev);
-
-	return 0;
 }
 
 #ifdef CONFIG_PM_SLEEP

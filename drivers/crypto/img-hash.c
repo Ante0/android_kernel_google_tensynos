@@ -13,7 +13,7 @@
 #include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/of_device.h>
+#include <linux/mod_devicetable.h>
 #include <linux/platform_device.h>
 #include <linux/scatterlist.h>
 
@@ -157,9 +157,9 @@ static inline void img_hash_write(struct img_hash_dev *hdev,
 	writel_relaxed(value, hdev->io_base + offset);
 }
 
-static inline u32 img_hash_read_result_queue(struct img_hash_dev *hdev)
+static inline __be32 img_hash_read_result_queue(struct img_hash_dev *hdev)
 {
-	return be32_to_cpu(img_hash_read(hdev, CR_RESULT_QUEUE));
+	return cpu_to_be32(img_hash_read(hdev, CR_RESULT_QUEUE));
 }
 
 static void img_hash_start(struct img_hash_dev *hdev, bool dma)
@@ -209,7 +209,7 @@ static int img_hash_xmit_cpu(struct img_hash_dev *hdev, const u8 *buf,
 
 static void img_hash_dma_callback(void *data)
 {
-	struct img_hash_dev *hdev = (struct img_hash_dev *)data;
+	struct img_hash_dev *hdev = data;
 	struct img_hash_request_ctx *ctx = ahash_request_ctx(hdev->req);
 
 	if (ctx->bufcnt) {
@@ -283,10 +283,10 @@ static int img_hash_finish(struct ahash_request *req)
 static void img_hash_copy_hash(struct ahash_request *req)
 {
 	struct img_hash_request_ctx *ctx = ahash_request_ctx(req);
-	u32 *hash = (u32 *)ctx->digest;
+	__be32 *hash = (__be32 *)ctx->digest;
 	int i;
 
-	for (i = (ctx->digsize / sizeof(u32)) - 1; i >= 0; i--)
+	for (i = (ctx->digsize / sizeof(*hash)) - 1; i >= 0; i--)
 		hash[i] = img_hash_read_result_queue(ctx->hdev);
 }
 
@@ -308,7 +308,7 @@ static void img_hash_finish_req(struct ahash_request *req, int err)
 		DRIVER_FLAGS_CPU | DRIVER_FLAGS_BUSY | DRIVER_FLAGS_FINAL);
 
 	if (req->base.complete)
-		req->base.complete(&req->base, err);
+		ahash_request_complete(req, err);
 }
 
 static int img_hash_write_via_dma(struct img_hash_dev *hdev)
@@ -436,7 +436,7 @@ static int img_hash_write_via_dma_stop(struct img_hash_dev *hdev)
 	struct img_hash_request_ctx *ctx = ahash_request_ctx(hdev->req);
 
 	if (ctx->flags & DRIVER_FLAGS_SG)
-		dma_unmap_sg(hdev->dev, ctx->sg, ctx->dma_ct, DMA_TO_DEVICE);
+		dma_unmap_sg(hdev->dev, ctx->sg, 1, DMA_TO_DEVICE);
 
 	return 0;
 }
@@ -526,7 +526,7 @@ static int img_hash_handle_queue(struct img_hash_dev *hdev,
 		return res;
 
 	if (backlog)
-		backlog->complete(backlog, -EINPROGRESS);
+		crypto_request_complete(backlog, -EINPROGRESS);
 
 	req = ahash_request_cast(async_req);
 	hdev->req = req;
@@ -927,7 +927,7 @@ finish:
 	img_hash_finish_req(hdev->req, err);
 }
 
-static const struct of_device_id img_hash_match[] = {
+static const struct of_device_id img_hash_match[] __maybe_unused = {
 	{ .compatible = "img,hash-accelerator" },
 	{}
 };
@@ -966,8 +966,7 @@ static int img_hash_probe(struct platform_device *pdev)
 	}
 
 	/* Write port (DMA or CPU) */
-	hash_res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	hdev->cpu_addr = devm_ioremap_resource(dev, hash_res);
+	hdev->cpu_addr = devm_platform_get_and_ioremap_resource(pdev, 1, &hash_res);
 	if (IS_ERR(hdev->cpu_addr)) {
 		err = PTR_ERR(hdev->cpu_addr);
 		goto res_err;
@@ -988,31 +987,23 @@ static int img_hash_probe(struct platform_device *pdev)
 	}
 	dev_dbg(dev, "using IRQ channel %d\n", irq);
 
-	hdev->hash_clk = devm_clk_get(&pdev->dev, "hash");
+	hdev->hash_clk = devm_clk_get_enabled(&pdev->dev, "hash");
 	if (IS_ERR(hdev->hash_clk)) {
 		dev_err(dev, "clock initialization failed.\n");
 		err = PTR_ERR(hdev->hash_clk);
 		goto res_err;
 	}
 
-	hdev->sys_clk = devm_clk_get(&pdev->dev, "sys");
+	hdev->sys_clk = devm_clk_get_enabled(&pdev->dev, "sys");
 	if (IS_ERR(hdev->sys_clk)) {
 		dev_err(dev, "clock initialization failed.\n");
 		err = PTR_ERR(hdev->sys_clk);
 		goto res_err;
 	}
 
-	err = clk_prepare_enable(hdev->hash_clk);
-	if (err)
-		goto res_err;
-
-	err = clk_prepare_enable(hdev->sys_clk);
-	if (err)
-		goto clk_err;
-
 	err = img_hash_dma_init(hdev);
 	if (err)
-		goto dma_err;
+		goto res_err;
 
 	dev_dbg(dev, "using %s for DMA transfers\n",
 		dma_chan_name(hdev->dma_lch));
@@ -1033,10 +1024,6 @@ err_algs:
 	list_del(&hdev->list);
 	spin_unlock(&img_hash.lock);
 	dma_release_channel(hdev->dma_lch);
-dma_err:
-	clk_disable_unprepare(hdev->sys_clk);
-clk_err:
-	clk_disable_unprepare(hdev->hash_clk);
 res_err:
 	tasklet_kill(&hdev->done_task);
 	tasklet_kill(&hdev->dma_task);
@@ -1044,7 +1031,7 @@ res_err:
 	return err;
 }
 
-static int img_hash_remove(struct platform_device *pdev)
+static void img_hash_remove(struct platform_device *pdev)
 {
 	struct img_hash_dev *hdev;
 
@@ -1059,11 +1046,6 @@ static int img_hash_remove(struct platform_device *pdev)
 	tasklet_kill(&hdev->dma_task);
 
 	dma_release_channel(hdev->dma_lch);
-
-	clk_disable_unprepare(hdev->hash_clk);
-	clk_disable_unprepare(hdev->sys_clk);
-
-	return 0;
 }
 
 #ifdef CONFIG_PM_SLEEP
@@ -1102,11 +1084,11 @@ static const struct dev_pm_ops img_hash_pm_ops = {
 
 static struct platform_driver img_hash_driver = {
 	.probe		= img_hash_probe,
-	.remove		= img_hash_remove,
+	.remove_new	= img_hash_remove,
 	.driver		= {
 		.name	= "img-hash-accelerator",
 		.pm	= &img_hash_pm_ops,
-		.of_match_table	= of_match_ptr(img_hash_match),
+		.of_match_table	= img_hash_match,
 	}
 };
 module_platform_driver(img_hash_driver);

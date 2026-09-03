@@ -1,0 +1,193 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+source "$(KCONFIG_SOC_RDO_PREFIX)Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)aoss-ssr-notifier/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)ap-pmic/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)boot-diary/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)cap-sysfs/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)clk/google/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)clocksource/google/sst/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)cpm-cli/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)cpmlog/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)cpufreq/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)cs-ets/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)cstate-ctrl/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)devfreq/dsufreq/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/clk/google/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/devfreq/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/dma/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/i2c/busses/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/i3c/master/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/i3c/master_thi/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/irqchip/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/mailbox/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/perf/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/pinctrl/google/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/power/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/rst/google/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/soc/google/cdd/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/soc/google/cdd-cpu/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/soc/google/debug/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/soc/google/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/soc/google/vdu/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/spi/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/spmi/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/tty/serial/8250/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)drivers/ufs/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)ebu/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)edac/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)experimental/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)gadget/dta/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)gadget/perf_test/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)gpca/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)hardlockup-debug/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)interconnect/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)ip-idle-notifier/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)cpu-lpm-stats/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)lpcm/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)mem-qos/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)odpm/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)pci/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)phy/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)power-controller/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)powerdashboard/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)pwm/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)soc/google/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)thermal/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)trace/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)usb/Kconfig"
+
+source "$(KCONFIG_SOC_RDO_PREFIX)watchdog/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/dma-buf/heaps/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/iommu/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/soc/google/gsa/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/mfd/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/misc/sbb-mux/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/pinctrl/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/power/reset/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/regulator/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/spmi/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/misc/s5910/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/misc/sscoredump/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/usb/dwc3/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/usb/gadget/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/usb/role-sw/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/usb/typec/tcpm/google/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/soc/google/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/input/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/aoc/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/aoc/alsa/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/aoc/usb/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/bms/misc/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/display/common/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/display/interfaces/synopsys/dwc_dptx/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/display/vsi-drm/bridge/synopsys/dsi2host/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/display/vsi-drm/phy/synopsys/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/display/vsi-drm/verisilicon/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/display/vsi-g2d/google/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/iif/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/iommu/arm-smmu-v3/drivers/iommu/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/iommu/arm-smmu-v3/drivers/perf/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/lwis/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/perf/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/power/mitigation/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/power/reset/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/powervr/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/radio/common/metrics_collection/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/touch/common/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/trusty/drivers/trusty/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/video/cnm/Kconfig"

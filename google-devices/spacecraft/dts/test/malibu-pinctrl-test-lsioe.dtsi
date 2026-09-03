@@ -1,0 +1,193 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,mbu.h>
+
+&lsioe_pinctrl {
+	xlsioe_gpio27_default: xlsioe_gpio27_default {
+		pins = "XLSIOE_GPIO27";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_gpio37_default: xlsioe_gpio37_default {
+		pins = "XLSIOE_GPIO37";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_gpio20_default: xlsioe_gpio20_default {
+		pins = "XLSIOE_GPIO20";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_gpio29_default: xlsioe_gpio29_default {
+		pins = "XLSIOE_GPIO29";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_gpio19_default: xlsioe_gpio19_default {
+		pins = "XLSIOE_GPIO19";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_i23c5_sda_default: xlsioe_i23c5_sda_default {
+		pins = "XLSIOE_I23C5_SDA";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsioe_i2c";
+	};
+
+	xlsioe_gpio28_default: xlsioe_gpio28_default {
+		pins = "XLSIOE_GPIO28";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_gpio36_default: xlsioe_gpio36_default {
+		pins = "XLSIOE_GPIO36";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_i23c9_scl_default: xlsioe_i23c9_scl_default {
+		pins = "XLSIOE_I23C9_SCL";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsioe_i2c";
+	};
+
+	xlsioe_i23c7_scl_default: xlsioe_i23c7_scl_default {
+		pins = "XLSIOE_I23C7_SCL";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsioe_i2c";
+	};
+
+	xlsioe_i23c8_sda_default: xlsioe_i23c8_sda_default {
+		pins = "XLSIOE_I23C8_SDA";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsioe_i2c";
+	};
+
+	xlsioe_gpio25_default: xlsioe_gpio25_default {
+		pins = "XLSIOE_GPIO25";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_gpio34_default: xlsioe_gpio34_default {
+		pins = "XLSIOE_GPIO34";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_i23c5_scl_default: xlsioe_i23c5_scl_default {
+		pins = "XLSIOE_I23C5_SCL";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsioe_i2c";
+	};
+
+	xlsioe_i23c6_scl_default: xlsioe_i23c6_scl_default {
+		pins = "XLSIOE_I23C6_SCL";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsioe_i3c";
+	};
+
+	xlsioe_i23c7_sda_default: xlsioe_i23c7_sda_default {
+		pins = "XLSIOE_I23C7_SDA";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "lsioe_i2c";
+	};
+
+	xlsioe_i23c8_scl_default: xlsioe_i23c8_scl_default {
+		pins = "XLSIOE_I23C8_SCL";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsioe_i2c";
+	};
+
+	xlsioe_i23c9_sda_default: xlsioe_i23c9_sda_default {
+		pins = "XLSIOE_I23C9_SDA";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsioe_i2c";
+	};
+
+	xlsioe_gpio24_default: xlsioe_gpio24_default {
+		pins = "XLSIOE_GPIO24";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "lsioe_gpio";
+	};
+
+	xlsioe_i23c6_sda_default: xlsioe_i23c6_sda_default {
+		pins = "XLSIOE_I23C6_SDA";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "lsioe_i3c";
+	};
+
+	xlsioe_gpio33_default: xlsioe_gpio33_default {
+		pins = "XLSIOE_GPIO33";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "lsioe_gpio";
+	};
+};

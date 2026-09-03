@@ -55,12 +55,12 @@ static const char *ext4_encrypted_get_link(struct dentry *dentry,
 	return paddr;
 }
 
-static int ext4_encrypted_symlink_getattr(struct user_namespace *mnt_userns,
+static int ext4_encrypted_symlink_getattr(struct mnt_idmap *idmap,
 					  const struct path *path,
 					  struct kstat *stat, u32 request_mask,
 					  unsigned int query_flags)
 {
-	ext4_getattr(mnt_userns, path, stat, request_mask, query_flags);
+	ext4_getattr(idmap, path, stat, request_mask, query_flags);
 
 	return fscrypt_symlink_getattr(path, stat);
 }
@@ -92,10 +92,12 @@ static const char *ext4_get_link(struct dentry *dentry, struct inode *inode,
 
 	if (!dentry) {
 		bh = ext4_getblk(NULL, inode, 0, EXT4_GET_BLOCKS_CACHED_NOWAIT);
-		if (IS_ERR(bh))
-			return ERR_CAST(bh);
-		if (!bh || !ext4_buffer_uptodate(bh))
+		if (IS_ERR(bh) || !bh)
 			return ERR_PTR(-ECHILD);
+		if (!ext4_buffer_uptodate(bh)) {
+			brelse(bh);
+			return ERR_PTR(-ECHILD);
+		}
 	} else {
 		bh = ext4_bread(NULL, inode, 0, 0);
 		if (IS_ERR(bh))

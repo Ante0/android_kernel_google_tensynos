@@ -15,6 +15,7 @@
 #include <linux/io.h>
 
 #include <soc/google/debug-snapshot.h>
+#include <soc/google/debug-test.h>
 #include <soc/google/exynos-adv-tracer.h>
 
 #include <asm/cacheflush.h>
@@ -273,8 +274,6 @@ static ssize_t dbgcore_slc_dump_read(struct file *file, char __user *ubuf,
 
 	return simple_read_from_buffer(ubuf, count, ppos, buf, len);
 }
-
-extern void pull_down_other_cpus(void);
 
 static ssize_t dbgcore_slc_dump_write(struct file *file, const char __user *ubuf,
 				     size_t count, loff_t *ppos)

@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Verisilicon DisplayPort Encoder
+
+description: |
+  This document defines the device tree bindings for the Verisilicon
+  DisplayPort encoder.
+
+properties:
+  compatible:
+    const: verisilicon,dp-encoder
+
+  verisilicon,mux-id:
+    type: int
+    description: DPU output path for DisplayPort.
+
+  ports:
+    $ref: /schemas/graph.yaml#/properties/ports
+    description:
+      Port node for the DisplayPort encoder. Requires two ports:
+      - port@0: Input node.
+      - port@1: DP encoder output node to DP driver.
+
+  power-domains:
+    description:
+      Power domain the device belongs to. Used for runtime power
+      management.
+
+required:
+  - compatible
+  - verisilicon,mux-id
+  - power-domains
+  - ports
+
+examples:
+  - |
+   dp_encoder: dp-encoder {
+        compatible = "verisilicon,dp-encoder";
+        verisilicon,mux-id = <0>;
+        power-domains = <&dp_powerdomain>;
+
+        ports {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            /* input */
+            port@0 {
+                reg = <0>;
+                dp_port0_in: endpoint {
+                    remote-endpoint = <&dc_dp_out>;
+                };
+            };
+
+            /* output */
+            port@1 {
+                reg = <1>;
+                dp_port1_out: endpoint {
+                    remote-endpoint = <&dpdriver_in>;
+                };
+            };
+        };
+    };

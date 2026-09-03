@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (C) 2025, Google LLC
+ *
+ * Type-C device tree
+ */
+
+&max77759tcpc {
+	phy-orientation-sw;
+	ports {
+		port@2 {
+			switch_notification_source: endpoint {
+				remote-endpoint = <&switch_notification_sink>;
+			};
+		};
+	};
+};
+
+&usbdrd_phy0 {
+	orientation-switch;
+	ports {
+		port@1 {
+			switch_notification_sink: endpoint {
+				remote-endpoint = <&switch_notification_source>;
+			};
+		};
+	};
+};

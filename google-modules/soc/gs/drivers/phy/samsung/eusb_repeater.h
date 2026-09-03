@@ -14,7 +14,7 @@
 #ifndef __EUSB_REPEATER_H__
 #define __EUSB_REPEATER_H__
 
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 #include <linux/completion.h>
 #include <linux/ctype.h>
 #include <linux/delay.h>
@@ -29,6 +29,7 @@
 #include <linux/kernel.h>
 #include <linux/debugfs.h>
 #include <linux/module.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/pinctrl/consumer.h>
@@ -46,7 +47,7 @@
 #include <linux/sec_sysfs.h>
 #endif
 
-#include "../../i2c/busses/i2c-exynos5.h"
+#include "i2c-exynos5.h"
 
 #define I2C_WRITE_BUFFER_SIZE		(32 - 1)//10
 #define TUSB_I2C_RETRY_CNT		3

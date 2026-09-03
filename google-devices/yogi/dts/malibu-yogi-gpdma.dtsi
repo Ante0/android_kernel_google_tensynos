@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * yogi GPDMA device tree source
+ *
+ * Copyright 2026 Google LLC
+ */
+
+&gpdma0 {
+	status = "okay";
+};

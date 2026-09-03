@@ -1,0 +1,42 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/*
+ * Yogi outer touch device tree
+ *
+ * Copyright 2025 Google, LLC.
+ */
+
+&outer_touch {
+	status = "okay";
+
+	compatible = "sec,sec_ts";
+	reg = <0>;
+	spi-max-frequency = <19200000>;
+	sec,irq_gpio = <TS0_2_AOSS_INT_L_1V2(GPIO_ACTIVE_LOW)>;
+	sec,reset_gpio = <PMICS2TS0_RESET_L_1V2(GPIO_ACTIVE_LOW)>;
+	sec,io-burstmax = <2560>;
+	sec,mm2px = /bits/ 8 <16>;
+
+	goog,tbn-enabled;
+	goog,touch-sim-enabled;
+	goog,offload-enabled;
+	goog,v4l2-enabled;
+	goog,dev-id = <1>;
+	goog,touch_offload_id = /bits/ 8 <0x26 0x50 0x11 0x00>;
+	goog,display-resolution = /bits/ 16 <1080 2342>;
+	goog,channel-num = /bits/ 16 <18 39>;
+	goog,offload-caps-data-types = /bits/ 16 <0x1F>;
+	goog,offload-caps-scan-types = /bits/ 16 <0xC0>;
+	goog,offload-caps-context-channel-types = /bits/ 16 <0x0500>;
+	goog,offload-caps-coord-filter;
+	goog,offload-device-name = "outer";
+	goog,panel_map = <&google_gs_iyidb 0>;
+	goog,firmware_names = "s6e3ft0_img.bin";
+	goog,test_limits_names = "s6e3ft0_selftest_limit.csv";
+	goog,manual-heatmap-from-irq;
+	goog,timestamp-correction-enabled;
+	goog,late-sense-on-enabled;
+};
+
+&google_gs_iyidb {
+	touch = <&outer_touch>;
+};

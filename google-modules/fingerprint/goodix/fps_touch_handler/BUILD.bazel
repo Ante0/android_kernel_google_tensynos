@@ -1,12 +1,25 @@
 # SPDX-License-Identifier: GPL-2.0
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module")
 
-filegroup(
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_headers(
     name = "headers",
-    srcs = glob([
+    hdrs = glob([
         "**/*.h",
     ]),
+    includes = [
+        ".",
+    ],
 )
 
 filegroup(
@@ -20,26 +33,17 @@ filegroup(
     ],
 )
 
-kernel_module(
+ddk_module(
     name = "fps_touch_handler",
-    srcs = glob([
-        "**/*.c",
-        "**/*.h",
-    ]) + [
-        "Kbuild",
-        "//private/google-modules/soc/gs:gs_soc_headers",
-        "//private/google-modules/touch/common:headers",
+    srcs = [
+        "fps_touch_handler.c",
+        "fps_touch_handler.h",
     ],
-    outs = [
-        "fps_touch_handler.ko",
-    ],
+    out = "fps_touch_handler.ko",
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
-    ],
     deps = [
-        "//private/google-modules/soc/gs:gs_soc_module",
-        "//private/google-modules/touch/common:touch.common",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/touch/common:ddk_headers",
+        "//private/google-modules/touch/common:goog_touch_interface",
     ],
 )

@@ -1,0 +1,15 @@
+What:		/sys/kernel/pixel_boot_metrics/suspend/
+Date:		August, 2024
+Contact:	"Mateusz Sulimowicz" <matsul@google.com>
+Description:
+		This file is read-only and contains recorded suspend mode entry times
+		(in microseconds). The quantity and placement of these measurements within the code
+		differ depending on the platform.
+
+What:		/sys/kernel/pixel_boot_metrics/resume/
+Date:		August, 2024
+Contact:	"Mateusz Sulimowicz" <matsul@google.com>
+Description:
+		This file is read-only and contains recorded suspend mode resume times
+		(in microseconds). The quantity and placement of these measurements within the code
+		differ depending on the platform.

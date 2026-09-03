@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+/*
+ * kodiak proto0 touch device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+&spitouch {
+	synaptics,firmware_names = "synaptics_mt.img";
+	synaptics,panel_map = <&google_gs_mtea 0>;
+};
+

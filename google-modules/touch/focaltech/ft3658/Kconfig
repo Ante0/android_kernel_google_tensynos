@@ -3,14 +3,19 @@
 #
 
 config TOUCHSCREEN_FTS
-    bool "Focaltech Touchscreen"
+    tristate "Focaltech Touchscreen"
     default n
     help
       Say Y here if you have Focaltech touch panel.
       If unsure, say N.
-      
+
 config TOUCHSCREEN_FTS_DIRECTORY
     string "Focaltech ts directory name"
     default "focaltech_touch"
     depends on TOUCHSCREEN_FTS
-    
+
+config TOUCHSCREEN_PANEL_BRIDGE
+    bool "Focaltech panel bridge"
+    depends on TOUCHSCREEN_FTS
+    help
+      Focaltech panel bridge

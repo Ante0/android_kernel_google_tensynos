@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2003-2014, 2018-2021 Intel Corporation
+ * Copyright (C) 2003-2014, 2018-2022, 2024 Intel Corporation
  * Copyright (C) 2015-2016 Intel Deutschland GmbH
  */
 #include <linux/delay.h>
@@ -72,6 +72,7 @@ u32 iwl_read_direct32(struct iwl_trans *trans, u32 reg)
 		return value;
 	}
 
+	/* return as if we have a HW timeout/failure */
 	return 0x5a5a5a5a;
 }
 IWL_EXPORT_SYMBOL(iwl_read_direct32);
@@ -143,6 +144,7 @@ u32 iwl_read_prph(struct iwl_trans *trans, u32 ofs)
 		return val;
 	}
 
+	/* return as if we have a HW timeout/failure */
 	return 0x5a5a5a5a;
 }
 IWL_EXPORT_SYMBOL(iwl_read_prph);
@@ -458,7 +460,7 @@ int iwl_finish_nic_init(struct iwl_trans *trans)
 	 */
 	if (cfg_trans->device_family >= IWL_DEVICE_FAMILY_BZ) {
 		iwl_set_bit(trans, CSR_GP_CNTRL,
-			    CSR_GP_CNTRL_REG_FLAG_MAC_CLOCK_READY |
+			    CSR_GP_CNTRL_REG_FLAG_BZ_MAC_ACCESS_REQ |
 			    CSR_GP_CNTRL_REG_FLAG_MAC_INIT);
 		poll_ready = CSR_GP_CNTRL_REG_FLAG_MAC_STATUS;
 	} else {

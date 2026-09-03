@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM compaction
 
@@ -12,9 +13,12 @@ DECLARE_HOOK(android_vh_compaction_exit,
 	TP_PROTO(int node_id, int order, const int highest_zoneidx),
 	TP_ARGS(node_id, order, highest_zoneidx));
 enum compact_result;
-DECLARE_HOOK(android_vh_compaction_try_to_compact_pages_exit,
+DECLARE_HOOK(android_vh_compaction_try_to_compact_exit,
         TP_PROTO(enum compact_result *compact_result),
         TP_ARGS(compact_result));
+DECLARE_HOOK(android_vh_mm_customize_zone_can_compact,
+	TP_PROTO(struct zone *zone, bool *can_compact),
+	TP_ARGS(zone, can_compact));
 #endif /* _TRACE_HOOK_COMPACTION_H */
 /* This part must be outside protection */
 #include <trace/define_trace.h>

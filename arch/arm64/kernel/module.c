@@ -7,76 +7,25 @@
  * Author: Will Deacon <will.deacon@arm.com>
  */
 
+#define pr_fmt(fmt) "Modules: " fmt
+
 #include <linux/bitops.h>
 #include <linux/elf.h>
 #include <linux/ftrace.h>
-#include <linux/gfp.h>
 #include <linux/kasan.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/moduleloader.h>
+#include <linux/random.h>
 #include <linux/scs.h>
-#include <linux/vmalloc.h>
+
 #include <asm/alternative.h>
 #include <asm/insn.h>
+#include <asm/kvm_hyptrace.h>
+#include <asm/kvm_hypevents_defs.h>
 #include <asm/scs.h>
 #include <asm/sections.h>
 
-#if defined(CONFIG_MODULES) || defined(CONFIG_BPF_JIT)
-void *module_alloc(unsigned long size)
-{
-	u64 module_alloc_end = module_alloc_base + MODULES_VSIZE;
-	gfp_t gfp_mask = GFP_KERNEL;
-	void *p;
-
-	/* Silence the initial allocation */
-	if (IS_ENABLED(CONFIG_ARM64_MODULE_PLTS))
-		gfp_mask |= __GFP_NOWARN;
-
-	if (IS_ENABLED(CONFIG_KASAN_GENERIC) ||
-	    IS_ENABLED(CONFIG_KASAN_SW_TAGS))
-		/* don't exceed the static module region - see below */
-		module_alloc_end = MODULES_END;
-
-	p = __vmalloc_node_range(size, MODULE_ALIGN, module_alloc_base,
-				module_alloc_end, gfp_mask, PAGE_KERNEL, VM_DEFER_KMEMLEAK,
-				NUMA_NO_NODE, __builtin_return_address(0));
-
-	if (!p && IS_ENABLED(CONFIG_ARM64_MODULE_PLTS) &&
-	    (IS_ENABLED(CONFIG_KASAN_VMALLOC) ||
-	     (!IS_ENABLED(CONFIG_KASAN_GENERIC) &&
-	      !IS_ENABLED(CONFIG_KASAN_SW_TAGS))))
-		/*
-		 * KASAN without KASAN_VMALLOC can only deal with module
-		 * allocations being served from the reserved module region,
-		 * since the remainder of the vmalloc region is already
-		 * backed by zero shadow pages, and punching holes into it
-		 * is non-trivial. Since the module region is not randomized
-		 * when KASAN is enabled without KASAN_VMALLOC, it is even
-		 * less likely that the module region gets exhausted, so we
-		 * can simply omit this fallback in that case.
-		 */
-		p = __vmalloc_node_range(size, MODULE_ALIGN, module_alloc_base,
-				module_alloc_base + SZ_2G, GFP_KERNEL,
-				PAGE_KERNEL, 0, NUMA_NO_NODE,
-				__builtin_return_address(0));
-
-	if (p && (kasan_alloc_module_shadow(p, size, gfp_mask) < 0)) {
-		vfree(p);
-		return NULL;
-	}
-
-	/* Memory is intended to be executable, reset the pointer tag. */
-	return kasan_reset_tag(p);
-}
-
-void module_memfree(void *module_region)
-{
-       vfree(module_region);
-}
-#endif /* CONFIG_MODULES || CONFIG_BPF_JIT */
-
-#ifdef CONFIG_MODULES
 enum aarch64_reloc_op {
 	RELOC_OP_NONE,
 	RELOC_OP_ABS,
@@ -456,9 +405,7 @@ int apply_relocate_add(Elf64_Shdr *sechdrs,
 		case R_AARCH64_CALL26:
 			ovf = reloc_insn_imm(RELOC_OP_PREL, loc, val, 2, 26,
 					     AARCH64_INSN_IMM_26);
-
-			if (IS_ENABLED(CONFIG_ARM64_MODULE_PLTS) &&
-			    ovf == -ERANGE) {
+			if (ovf == -ERANGE) {
 				val = module_emit_plt_entry(me, sechdrs, loc, &rel[i], sym);
 				if (!val)
 					return -ENOEXEC;
@@ -495,7 +442,7 @@ static int module_init_ftrace_plt(const Elf_Ehdr *hdr,
 				  const Elf_Shdr *sechdrs,
 				  struct module *mod)
 {
-#if defined(CONFIG_ARM64_MODULE_PLTS) && defined(CONFIG_DYNAMIC_FTRACE)
+#if defined(CONFIG_DYNAMIC_FTRACE)
 	const Elf_Shdr *s;
 	struct plt_entry *plts;
 
@@ -507,18 +454,91 @@ static int module_init_ftrace_plt(const Elf_Ehdr *hdr,
 
 	__init_plt(&plts[FTRACE_PLT_IDX], FTRACE_ADDR);
 
-	if (IS_ENABLED(CONFIG_DYNAMIC_FTRACE_WITH_REGS))
-		__init_plt(&plts[FTRACE_REGS_PLT_IDX], FTRACE_REGS_ADDR);
-
 	mod->arch.ftrace_trampolines = plts;
 #endif
 	return 0;
 }
 
+#ifdef CONFIG_KVM
+static const Elf_Shdr *find_symbol_table(const Elf_Ehdr *hdr,
+					 const Elf_Shdr *sechdrs)
+{
+	int idx;
+
+	for (idx = 1; idx < hdr->e_shnum; idx++) {
+		if (sechdrs[idx].sh_type == SHT_SYMTAB)
+			return &sechdrs[idx];
+	}
+
+	return NULL;
+}
+
+static int
+module_init_hyp_imported_sym(const Elf_Ehdr *hdr, const Elf_Shdr *sechdrs,
+			     struct module *mod)
+{
+	struct pkvm_el2_module *hyp_mod = &mod->arch.hyp;
+	struct pkvm_el2_sym *pkvm_sym;
+	const Elf_Shdr *symtab = NULL, *s, *se, *orig;
+	const char *strtab = NULL;
+	const Elf_Rela *rela;
+	const Elf_Sym *sym;
+
+	INIT_LIST_HEAD(&hyp_mod->ext_symbols);
+
+	for (s = sechdrs, se = sechdrs + hdr->e_shnum; s < se; s++) {
+		if (s->sh_type != SHT_RELA)
+			continue;
+
+		/* Imported symbols only used in .hyp.text */
+		orig = &sechdrs[s->sh_info];
+		if ((void *)orig->sh_addr != hyp_mod->text.start)
+			continue;
+
+		for (rela = (Elf_Rela *)((void *)hdr + s->sh_offset);
+		     rela < (Elf_Rela *)((void *)hdr + s->sh_offset + s->sh_size); rela++) {
+			size_t len;
+
+			symtab = symtab ? symtab : find_symbol_table(hdr, sechdrs);
+			if (!symtab)
+				return -ENOEXEC;
+			strtab = (const char *)hdr + sechdrs[symtab->sh_link].sh_offset;
+
+			sym = (Elf_Sym *)((const char *)hdr + symtab->sh_offset) +
+				ELF64_R_SYM(rela->r_info);
+
+			/* Imported symbols are UNDEF */
+			if (sym->st_shndx != SHN_UNDEF)
+				continue;
+
+			if (ELF64_R_TYPE(rela->r_info) != R_AARCH64_CALL26) {
+				pr_warn("Unknown relocation type for imported symbol %s\n",
+					strtab + sym->st_name);
+				return -EINVAL;
+			}
+
+			pkvm_sym = kmalloc(sizeof(*pkvm_sym), GFP_KERNEL);
+			if (!pkvm_sym)
+				return -ENOMEM;
+
+			len = strlen(strtab + sym->st_name) + 1;
+			pkvm_sym->name = kzalloc(len, GFP_KERNEL);
+			strscpy(pkvm_sym->name, strtab + sym->st_name, len);
+			pkvm_sym->rela_pos = (void *)orig->sh_addr + rela->r_offset;
+
+			list_add(&pkvm_sym->node, &hyp_mod->ext_symbols);
+		}
+	}
+
+	return 0;
+}
+#endif
+
 static int module_init_hyp(const Elf_Ehdr *hdr, const Elf_Shdr *sechdrs,
 			   struct module *mod)
 {
 #ifdef CONFIG_KVM
+	struct pkvm_el2_module *hyp_mod = &mod->arch.hyp;
 	const Elf_Shdr *s;
 
 	/*
@@ -529,10 +549,12 @@ static int module_init_hyp(const Elf_Ehdr *hdr, const Elf_Shdr *sechdrs,
 	if (!s || !s->sh_size)
 		return 0;
 
-	mod->arch.hyp.text = (struct pkvm_module_section) {
+	hyp_mod->text = (struct pkvm_module_section) {
 		.start	= (void *)s->sh_addr,
 		.end	= (void *)s->sh_addr + s->sh_size,
 	};
+
+	module_init_hyp_imported_sym(hdr, sechdrs, mod);
 
 	s = find_section(hdr, sechdrs, ".hyp.reloc");
 	if (!s)
@@ -564,6 +586,42 @@ static int module_init_hyp(const Elf_Ehdr *hdr, const Elf_Shdr *sechdrs,
 			.end	= (void *)s->sh_addr + s->sh_size,
 		};
 	}
+
+	s = find_section(hdr, sechdrs, ".hyp.event_ids");
+	if (s && s->sh_size) {
+		mod->arch.hyp.event_ids = (struct pkvm_module_section) {
+			.start	= (void *)s->sh_addr,
+			.end	= (void *)s->sh_addr + s->sh_size,
+		};
+	}
+
+	s = find_section(hdr, sechdrs, "_hyp_events");
+	if (s && s->sh_size) {
+		if (!mod->arch.hyp.event_ids.start) {
+			WARN(1, "%s: Did you forget define_events.h in the EL2 (hyp) code?",
+			     mod->name);
+		} else {
+			hyp_mod->hyp_events = (void *)s->sh_addr;
+			hyp_mod->nr_hyp_events = s->sh_size /
+				sizeof(*hyp_mod->hyp_events);
+		}
+	}
+
+	s = find_section(hdr, sechdrs, ".hyp.printk_fmts");
+	if (s && s->sh_size) {
+		hyp_mod->hyp_printk_fmts = (void *)s->sh_addr;
+		hyp_mod->nr_hyp_printk_fmts = s->sh_size /
+			sizeof(*hyp_mod->hyp_printk_fmts);
+	}
+
+	s = find_section(hdr, sechdrs, ".hyp.patchable_function_entries");
+	if (s && s->sh_size) {
+		hyp_mod->patchable_function_entries = (struct pkvm_module_section) {
+			.start	= (void *)s->sh_addr,
+			.end	= (void *)s->sh_addr + s->sh_size,
+		};
+	}
+
 #endif
 	return 0;
 }
@@ -582,7 +640,7 @@ int module_finalize(const Elf_Ehdr *hdr,
 	if (scs_is_dynamic()) {
 		s = find_section(hdr, sechdrs, ".init.eh_frame");
 		if (s)
-			scs_patch((void *)s->sh_addr, s->sh_size);
+			__pi_scs_patch((void *)s->sh_addr, s->sh_size);
 	}
 
 	err = module_init_ftrace_plt(hdr, sechdrs, me);
@@ -591,4 +649,3 @@ int module_finalize(const Elf_Ehdr *hdr,
 
 	return module_init_hyp(hdr, sechdrs, me);
 }
-#endif /* CONFIG_MODULES */

@@ -403,7 +403,7 @@ static int max77779_pmic_sgpio_probe(struct platform_device *pdev)
 	irq_in = platform_get_irq(pdev, 0);
 	if (irq_in < 0) {
 		dev_err(dev, "%s failed to get irq ret = %d\n", __func__, irq_in);
-		return -ENODEV;
+		return irq_in;
 	}
 
 	info = devm_kzalloc(dev, sizeof(*info), GFP_KERNEL);
@@ -430,7 +430,7 @@ static int max77779_pmic_sgpio_probe(struct platform_device *pdev)
 	gpio_chip->set_config = gpiochip_generic_config;
 	gpio_chip->base = -1;
 	gpio_chip->can_sleep = true;
-	gpio_chip->of_node = dev->of_node;
+	gpio_chip->fwnode = of_node_to_fwnode(dev->of_node);
 	gpio_chip->ngpio = MAX77779_SGPIO_NUM_GPIOS;
 
 	gpio_irq_chip_set_chip(&gpio_chip->irq, &max77779_pmic_sgpio_irq_chip);
@@ -459,15 +459,14 @@ static int max77779_pmic_sgpio_probe(struct platform_device *pdev)
 			"max77779_pmic_sgpio_irq", info);
 	if (err < 0) {
 		dev_err(dev, "failed get irq thread err = %d\n", err);
-		return -ENODEV;
+		return err;
 	}
 
 	return 0;
 }
 
-static int max77779_pmic_sgpio_remove(struct platform_device *pdev)
+static void max77779_pmic_sgpio_remove(struct platform_device *pdev)
 {
-	return 0;
 }
 static const struct platform_device_id max77779_pmic_sgpio_id[] = {
 	{ "max77779-pmic-sgpio", 0},

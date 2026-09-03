@@ -86,3 +86,12 @@ Description:
 
 Users:		Debug
 
+What:		/sys/devices/platform/google,cpm/active_charger_qual_stats
+Date:		Feb 2026
+KernelVersion:	6.12
+Contact:	"Alex Iacobucci" <alexiacobucci@google.com>
+Description:
+		Last charging session stats on active chargers
+
+Users:		Charge Stats
+

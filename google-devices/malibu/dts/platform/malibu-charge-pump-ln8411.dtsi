@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Charge Pump config for ln8411.
+ * Intended to be included into the approriate I2C bus.
+ *
+ * Copyright 2025 Google LLC
+ */
+
+ln8411_dc: ln8411@6e {
+	compatible = "ln8411";
+	reg = <0x6e>;
+
+	ln8411,psy_name = "ln8411-mains";
+
+	ln8411,input-itopoff = <500000>; /* 500mA */
+
+	/* Charge pump thermal zone */
+	google,usb-port-tz-name = "cp-therm-adc";
+
+	ln8411,google_cpm = <&google_cpm>;
+
+	ln8411,mpp-gpio = <&google_wlc_gpio 2 GPIO_ACTIVE_HIGH>;
+	ln8411,wcrx-vol-up-step = <20000>;
+	ln8411,wcrx-vol-down-step = <20000>;
+	ln8411,max-cal-power = <14400>;
+
+	ln8411_gpio: ln8411_gpio {
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <1>;
+	};
+};

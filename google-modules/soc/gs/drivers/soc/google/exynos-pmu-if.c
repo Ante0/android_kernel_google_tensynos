@@ -6,7 +6,7 @@
  */
 
 #include <linux/module.h>
-#include <linux/of_platform.h>
+#include <linux/of.h>
 #include <linux/smp.h>
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>

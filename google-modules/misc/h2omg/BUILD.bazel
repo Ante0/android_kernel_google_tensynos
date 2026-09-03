@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+# Google Water Detection
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "h2omg.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "h2omg",
+    srcs = [
+        "h2omg.h",
+        "h2omg_atl_v1.c",
+        "h2omg_common.c",
+        "h2omg_main.c",
+        "h2omg_slg_v2.c",
+        "h2omg_slg_v3.c",
+        "h2omg_timer.c",
+    ],
+    out = "h2omg.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

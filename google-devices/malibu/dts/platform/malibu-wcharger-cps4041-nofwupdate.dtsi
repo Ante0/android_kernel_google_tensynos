@@ -1,0 +1,3 @@
+&google_wlc {
+	google,rx_fwupdate_option = <0>;
+};

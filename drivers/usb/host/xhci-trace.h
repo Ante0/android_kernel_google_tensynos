@@ -116,7 +116,6 @@ DECLARE_EVENT_CLASS(xhci_log_trb,
 		__field(u32, field1)
 		__field(u32, field2)
 		__field(u32, field3)
-		__dynamic_array(char, str, XHCI_MSG_MAX)
 	),
 	TP_fast_assign(
 		__entry->type = ring->type;
@@ -126,8 +125,8 @@ DECLARE_EVENT_CLASS(xhci_log_trb,
 		__entry->field3 = le32_to_cpu(trb->field[3]);
 	),
 	TP_printk("%s: %s", xhci_ring_type_string(__entry->type),
-		  xhci_decode_trb(__get_str(str), XHCI_MSG_MAX, __entry->field0, __entry->field1,
-					__entry->field2, __entry->field3)
+		  xhci_decode_trb(__get_buf(XHCI_MSG_MAX), XHCI_MSG_MAX, __entry->field0,
+				  __entry->field1, __entry->field2, __entry->field3)
 	)
 );
 
@@ -173,8 +172,7 @@ DECLARE_EVENT_CLASS(xhci_log_free_virt_dev,
 		__field(void *, vdev)
 		__field(unsigned long long, out_ctx)
 		__field(unsigned long long, in_ctx)
-		__field(u8, fake_port)
-		__field(u8, real_port)
+		__field(int, slot_id)
 		__field(u16, current_mel)
 
 	),
@@ -182,13 +180,12 @@ DECLARE_EVENT_CLASS(xhci_log_free_virt_dev,
 		__entry->vdev = vdev;
 		__entry->in_ctx = (unsigned long long) vdev->in_ctx->dma;
 		__entry->out_ctx = (unsigned long long) vdev->out_ctx->dma;
-		__entry->fake_port = (u8) vdev->fake_port;
-		__entry->real_port = (u8) vdev->real_port;
+		__entry->slot_id = (int) vdev->slot_id;
 		__entry->current_mel = (u16) vdev->current_mel;
 		),
-	TP_printk("vdev %p ctx %llx | %llx fake_port %d real_port %d current_mel %d",
-		__entry->vdev, __entry->in_ctx, __entry->out_ctx,
-		__entry->fake_port, __entry->real_port, __entry->current_mel
+	TP_printk("vdev %p slot %d ctx %llx | %llx current_mel %d",
+		__entry->vdev, __entry->slot_id, __entry->in_ctx,
+		__entry->out_ctx, __entry->current_mel
 	)
 );
 
@@ -253,6 +250,7 @@ DECLARE_EVENT_CLASS(xhci_log_urb,
 	TP_PROTO(struct urb *urb),
 	TP_ARGS(urb),
 	TP_STRUCT__entry(
+		__string(devname, dev_name(&urb->dev->dev))
 		__field(void *, urb)
 		__field(unsigned int, pipe)
 		__field(unsigned int, stream)
@@ -268,6 +266,7 @@ DECLARE_EVENT_CLASS(xhci_log_urb,
 		__field(int, slot_id)
 	),
 	TP_fast_assign(
+		__assign_str(devname);
 		__entry->urb = urb;
 		__entry->pipe = urb->pipe;
 		__entry->stream = urb->stream_id;
@@ -282,7 +281,8 @@ DECLARE_EVENT_CLASS(xhci_log_urb,
 		__entry->type = usb_endpoint_type(&urb->ep->desc);
 		__entry->slot_id = urb->dev->slot_id;
 	),
-	TP_printk("ep%d%s-%s: urb %p pipe %u slot %d length %d/%d sgs %d/%d stream %d flags %08x",
+	TP_printk("%s ep%d%s-%s: urb %p pipe %u slot %d length %d/%d sgs %d/%d stream %d flags %08x",
+			__get_str(devname),
 			__entry->epnum, __entry->dir_in ? "in" : "out",
 			__print_symbolic(__entry->type,
 				   { USB_ENDPOINT_XFER_INT,	"intr" },
@@ -318,7 +318,6 @@ DECLARE_EVENT_CLASS(xhci_log_ep_ctx,
 		__field(u32, info2)
 		__field(u64, deq)
 		__field(u32, tx_info)
-		__dynamic_array(char, str, XHCI_MSG_MAX)
 	),
 	TP_fast_assign(
 		__entry->info = le32_to_cpu(ctx->ep_info);
@@ -326,7 +325,7 @@ DECLARE_EVENT_CLASS(xhci_log_ep_ctx,
 		__entry->deq = le64_to_cpu(ctx->deq);
 		__entry->tx_info = le32_to_cpu(ctx->tx_info);
 	),
-	TP_printk("%s", xhci_decode_ep_context(__get_str(str),
+	TP_printk("%s", xhci_decode_ep_context(__get_buf(XHCI_MSG_MAX),
 		__entry->info, __entry->info2, __entry->deq, __entry->tx_info)
 	)
 );
@@ -364,7 +363,6 @@ DECLARE_EVENT_CLASS(xhci_log_slot_ctx,
 		__field(u32, info2)
 		__field(u32, tt_info)
 		__field(u32, state)
-		__dynamic_array(char, str, XHCI_MSG_MAX)
 	),
 	TP_fast_assign(
 		__entry->info = le32_to_cpu(ctx->dev_info);
@@ -372,7 +370,7 @@ DECLARE_EVENT_CLASS(xhci_log_slot_ctx,
 		__entry->tt_info = le64_to_cpu(ctx->tt_info);
 		__entry->state = le32_to_cpu(ctx->dev_state);
 	),
-	TP_printk("%s", xhci_decode_slot_context(__get_str(str),
+	TP_printk("%s", xhci_decode_slot_context(__get_buf(XHCI_MSG_MAX),
 			__entry->info, __entry->info2,
 			__entry->tt_info, __entry->state)
 	)
@@ -429,13 +427,12 @@ DECLARE_EVENT_CLASS(xhci_log_ctrl_ctx,
 	TP_STRUCT__entry(
 		__field(u32, drop)
 		__field(u32, add)
-		__dynamic_array(char, str, XHCI_MSG_MAX)
 	),
 	TP_fast_assign(
 		__entry->drop = le32_to_cpu(ctrl_ctx->drop_flags);
 		__entry->add = le32_to_cpu(ctrl_ctx->add_flags);
 	),
-	TP_printk("%s", xhci_decode_ctrl_ctx(__get_str(str), __entry->drop, __entry->add)
+	TP_printk("%s", xhci_decode_ctrl_ctx(__get_buf(XHCI_MSG_MAX), __entry->drop, __entry->add)
 	)
 );
 
@@ -462,7 +459,6 @@ DECLARE_EVENT_CLASS(xhci_log_ring,
 		__field(unsigned int, num_segs)
 		__field(unsigned int, stream_id)
 		__field(unsigned int, cycle_state)
-		__field(unsigned int, num_trbs_free)
 		__field(unsigned int, bounce_buf_len)
 	),
 	TP_fast_assign(
@@ -473,18 +469,16 @@ DECLARE_EVENT_CLASS(xhci_log_ring,
 		__entry->enq_seg = ring->enq_seg->dma;
 		__entry->deq_seg = ring->deq_seg->dma;
 		__entry->cycle_state = ring->cycle_state;
-		__entry->num_trbs_free = ring->num_trbs_free;
 		__entry->bounce_buf_len = ring->bounce_buf_len;
 		__entry->enq = xhci_trb_virt_to_dma(ring->enq_seg, ring->enqueue);
 		__entry->deq = xhci_trb_virt_to_dma(ring->deq_seg, ring->dequeue);
 	),
-	TP_printk("%s %p: enq %pad(%pad) deq %pad(%pad) segs %d stream %d free_trbs %d bounce %d cycle %d",
+	TP_printk("%s %p: enq %pad(%pad) deq %pad(%pad) segs %d stream %d bounce %d cycle %d",
 			xhci_ring_type_string(__entry->type), __entry->ring,
 			&__entry->enq, &__entry->enq_seg,
 			&__entry->deq, &__entry->deq_seg,
 			__entry->num_segs,
 			__entry->stream_id,
-			__entry->num_trbs_free,
 			__entry->bounce_buf_len,
 			__entry->cycle_state
 		)
@@ -516,36 +510,38 @@ DEFINE_EVENT(xhci_log_ring, xhci_inc_deq,
 );
 
 DECLARE_EVENT_CLASS(xhci_log_portsc,
-		    TP_PROTO(u32 portnum, u32 portsc),
-		    TP_ARGS(portnum, portsc),
+		    TP_PROTO(struct xhci_port *port, u32 portsc),
+		    TP_ARGS(port, portsc),
 		    TP_STRUCT__entry(
+				     __field(u32, busnum)
 				     __field(u32, portnum)
 				     __field(u32, portsc)
-				     __dynamic_array(char, str, XHCI_MSG_MAX)
 				     ),
 		    TP_fast_assign(
-				   __entry->portnum = portnum;
+				   __entry->busnum = port->rhub->hcd->self.busnum;
+				   __entry->portnum = port->hcd_portnum;
 				   __entry->portsc = portsc;
 				   ),
-		    TP_printk("port-%d: %s",
+		    TP_printk("port %d-%d: %s",
+			      __entry->busnum,
 			      __entry->portnum,
-			      xhci_decode_portsc(__get_str(str), __entry->portsc)
+			      xhci_decode_portsc(__get_buf(XHCI_MSG_MAX), __entry->portsc)
 			      )
 );
 
 DEFINE_EVENT(xhci_log_portsc, xhci_handle_port_status,
-	     TP_PROTO(u32 portnum, u32 portsc),
-	     TP_ARGS(portnum, portsc)
+	     TP_PROTO(struct xhci_port *port, u32 portsc),
+	     TP_ARGS(port, portsc)
 );
 
 DEFINE_EVENT(xhci_log_portsc, xhci_get_port_status,
-	     TP_PROTO(u32 portnum, u32 portsc),
-	     TP_ARGS(portnum, portsc)
+	     TP_PROTO(struct xhci_port *port, u32 portsc),
+	     TP_ARGS(port, portsc)
 );
 
 DEFINE_EVENT(xhci_log_portsc, xhci_hub_status_data,
-	     TP_PROTO(u32 portnum, u32 portsc),
-	     TP_ARGS(portnum, portsc)
+	     TP_PROTO(struct xhci_port *port, u32 portsc),
+	     TP_ARGS(port, portsc)
 );
 
 DECLARE_EVENT_CLASS(xhci_log_doorbell,
@@ -554,14 +550,13 @@ DECLARE_EVENT_CLASS(xhci_log_doorbell,
 	TP_STRUCT__entry(
 		__field(u32, slot)
 		__field(u32, doorbell)
-		__dynamic_array(char, str, XHCI_MSG_MAX)
 	),
 	TP_fast_assign(
 		__entry->slot = slot;
 		__entry->doorbell = doorbell;
 	),
 	TP_printk("Ring doorbell for %s",
-		  xhci_decode_doorbell(__get_str(str), __entry->slot, __entry->doorbell)
+		  xhci_decode_doorbell(__get_buf(XHCI_MSG_MAX), __entry->slot, __entry->doorbell)
 	)
 );
 

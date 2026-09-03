@@ -16,25 +16,25 @@ static int __init mali_pixel_init(void)
 {
 	int ret = 0;
 
-#ifdef CONFIG_MALI_PIXEL_STATS
+#if IS_ENABLED(CONFIG_MALI_PIXEL_STATS)
 	ret = mali_pixel_init_pixel_stats();
 #endif
 	if (ret)
 		goto fail_pixel_stats;
 
-#ifdef CONFIG_MALI_MEMORY_GROUP_MANAGER
+#if IS_ENABLED(CONFIG_MALI_MEMORY_GROUP_MANAGER)
 	ret = platform_driver_register(&memory_group_manager_driver);
 #endif
 	if (ret)
 		goto fail_mgm;
 
-#ifdef CONFIG_MALI_PRIORITY_CONTROL_MANAGER
+#if IS_ENABLED(CONFIG_MALI_PRIORITY_CONTROL_MANAGER)
 	ret = platform_driver_register(&priority_control_manager_driver);
 #endif
 	if (ret)
 		goto fail_pcm;
 
-#ifdef CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR
+#if IS_ENABLED(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR)
 	ret = platform_driver_register(&protected_memory_allocator_driver);
 #endif
 	if (ret)
@@ -43,12 +43,12 @@ static int __init mali_pixel_init(void)
 	goto exit;
 
 fail_pma:
-#ifdef CONFIG_MALI_PRIORITY_CONTROL_MANAGER
+#if IS_ENABLED(CONFIG_MALI_PRIORITY_CONTROL_MANAGER)
 	platform_driver_unregister(&priority_control_manager_driver);
 #endif
 
 fail_pcm:
-#ifdef CONFIG_MALI_MEMORY_GROUP_MANAGER
+#if IS_ENABLED(CONFIG_MALI_MEMORY_GROUP_MANAGER)
 	platform_driver_unregister(&memory_group_manager_driver);
 #endif
 
@@ -64,13 +64,13 @@ module_init(mali_pixel_init);
 
 static void __exit mali_pixel_exit(void)
 {
-#ifdef CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR
+#if IS_ENABLED(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR)
 	platform_driver_unregister(&protected_memory_allocator_driver);
 #endif
-#ifdef CONFIG_MALI_PRIORITY_CONTROL_MANAGER
+#if IS_ENABLED(CONFIG_MALI_PRIORITY_CONTROL_MANAGER)
 	platform_driver_unregister(&priority_control_manager_driver);
 #endif
-#ifdef CONFIG_MALI_MEMORY_GROUP_MANAGER
+#if IS_ENABLED(CONFIG_MALI_MEMORY_GROUP_MANAGER)
 	platform_driver_unregister(&memory_group_manager_driver);
 #endif
 }

@@ -28,8 +28,7 @@ static int max7300_i2c_read(struct device *dev, unsigned int reg)
 	return i2c_smbus_read_byte_data(client, reg);
 }
 
-static int max7300_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id)
+static int max7300_probe(struct i2c_client *client)
 {
 	struct max7301 *ts;
 
@@ -54,7 +53,7 @@ static void max7300_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id max7300_id[] = {
-	{ "max7300", 0 },
+	{ "max7300" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, max7300_id);

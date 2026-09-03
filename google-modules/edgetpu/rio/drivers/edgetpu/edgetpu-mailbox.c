@@ -1,16 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Utility functions of mailbox protocol for Edge TPU ML accelerator.
  *
- * Copyright (C) 2019 Google, Inc.
+ * Copyright (C) 2019-2026 Google LLC
  */
 
 #include <asm/page.h>
 #include <linux/bitops.h>
 #include <linux/bits.h>
-#include <linux/dma-mapping.h>
 #include <linux/err.h>
-#include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/mmzone.h> /* MAX_ORDER_NR_PAGES */
 #include <linux/pm_runtime.h>
@@ -18,50 +16,31 @@
 
 #include <gcip/gcip-memory.h>
 
+#include "edgetpu-client.h"
+#include "edgetpu-config.h"
 #include "edgetpu-device-group.h"
 #include "edgetpu-dt-mailbox-adapter.h"
-#include "edgetpu-iif.h"
-#include "edgetpu-ikv.h"
 #include "edgetpu-iremap-pool.h"
 #include "edgetpu-kci.h"
 #include "edgetpu-mailbox.h"
-#include "edgetpu-mmu.h"
 #include "edgetpu-pm.h"
 #include "edgetpu-sw-watchdog.h"
-#include "edgetpu-telemetry.h"
 #include "edgetpu-wakelock.h"
 #include "edgetpu.h"
 
-/* Sets mailbox->cmd_queue_tail and corresponding CSR on device. */
-static void edgetpu_mailbox_set_cmd_queue_tail(struct edgetpu_mailbox *mailbox,
-					       u32 value)
+void edgetpu_mailbox_set_cmd_queue_tail(struct edgetpu_mailbox *mailbox, u32 value)
 {
 	mailbox->cmd_queue_tail = value;
 	EDGETPU_MAILBOX_CMD_QUEUE_WRITE_SYNC(mailbox, tail, value);
 }
 
-/* Sets mailbox->resp_queue_head and corresponding CSR on device. */
-static void edgetpu_mailbox_set_resp_queue_head(struct edgetpu_mailbox *mailbox,
-						u32 value)
+void edgetpu_mailbox_set_resp_queue_head(struct edgetpu_mailbox *mailbox, u32 value)
 {
 	mailbox->resp_queue_head = value;
 	EDGETPU_MAILBOX_RESP_QUEUE_WRITE(mailbox, head, value);
 }
 
-/*
- * Increases the command queue tail by @inc.
- *
- * The queue uses the mirrored circular buffer arrangement. Each index (head and
- * tail) has a wrap bit, represented by the constant CIRC_QUEUE_WRAP_BIT.
- * Whenever an index is increased and will exceed the end of the queue, the wrap
- * bit is xor-ed.
- *
- * This method will update both mailbox->cmd_queue_tail and CSR on device.
- *
- * Caller ensures @inc is less than the space remain in the command queue.
- */
-void edgetpu_mailbox_inc_cmd_queue_tail(struct edgetpu_mailbox *mailbox,
-					u32 inc)
+void edgetpu_mailbox_inc_cmd_queue_tail(struct edgetpu_mailbox *mailbox, u32 inc)
 {
 	u32 new_tail;
 
@@ -70,176 +49,13 @@ void edgetpu_mailbox_inc_cmd_queue_tail(struct edgetpu_mailbox *mailbox,
 	edgetpu_mailbox_set_cmd_queue_tail(mailbox, new_tail);
 }
 
-/*
- * Increases the response queue head by @inc.
- *
- * The queue uses the mirrored circular buffer arrangement. Each index (head and
- * tail) has a wrap bit, represented by the constant CIRC_QUEUE_WRAP_BIT.
- * Whenever an index is increased and will exceed the end of the queue, the wrap
- * bit is xor-ed.
- *
- * This method will update both mailbox->resp_queue_head and CSR on device.
- *
- * Caller ensures @inc is less than the distance between resp_head and
- * resp_tail.
- */
-void edgetpu_mailbox_inc_resp_queue_head(struct edgetpu_mailbox *mailbox,
-					 u32 inc)
+void edgetpu_mailbox_inc_resp_queue_head(struct edgetpu_mailbox *mailbox, u32 inc)
 {
 	u32 new_head;
 
 	new_head = gcip_circ_queue_inc(mailbox->resp_queue_head, inc, mailbox->resp_queue_size,
 				       CIRC_QUEUE_WRAP_BIT);
 	edgetpu_mailbox_set_resp_queue_head(mailbox, new_head);
-}
-
-/*
- * Sets address and size of queue.
- *
- * Sets the queue address with @addr, a 36-bit address, and with size @size in
- * units of number of elements.
- *
- * Returns 0 on success.
- * -EINVAL is returned if @addr or @size is invalid.
- */
-int edgetpu_mailbox_set_queue(struct edgetpu_mailbox *mailbox, enum gcip_mailbox_queue_type type,
-			      u64 addr, u32 size)
-{
-	u32 low = addr & 0xffffffff;
-	u32 high = addr >> 32;
-
-	if (!gcip_valid_circ_queue_size(size, CIRC_QUEUE_WRAP_BIT))
-		return -EINVAL;
-	/* addr is a 36-bit address, checks if the higher bits are clear */
-	if (high & 0xfffffff0)
-		return -EINVAL;
-
-	switch (type) {
-	case GCIP_MAILBOX_CMD_QUEUE:
-		EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, cmd_queue_address_low,
-					      low);
-		EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, cmd_queue_address_high,
-					      high);
-		EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, cmd_queue_size, size);
-		mailbox->cmd_queue_size = size;
-		edgetpu_mailbox_set_cmd_queue_tail(mailbox, 0);
-		EDGETPU_MAILBOX_CMD_QUEUE_WRITE(mailbox, head, 0);
-		break;
-	case GCIP_MAILBOX_RESP_QUEUE:
-		EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, resp_queue_address_low,
-					      low);
-		EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, resp_queue_address_high,
-					      high);
-		EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, resp_queue_size, size);
-		mailbox->resp_queue_size = size;
-		edgetpu_mailbox_set_resp_queue_head(mailbox, 0);
-		EDGETPU_MAILBOX_RESP_QUEUE_WRITE(mailbox, tail, 0);
-		break;
-	}
-
-	return 0;
-}
-
-/*
- * Sets address and size of queue to reflect that it is unused.
- *
- * Clears the registers of a mailbox to indicate that this mailbox does not make use of the
- * corresponding @type of queue.
- */
-void edgetpu_mailbox_set_queue_as_unused(struct edgetpu_mailbox *mailbox,
-					 enum gcip_mailbox_queue_type type)
-{
-	switch (type) {
-	case GCIP_MAILBOX_CMD_QUEUE:
-		EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, cmd_queue_address_low, 0);
-		EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, cmd_queue_address_high, 0);
-		EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, cmd_queue_size, 0);
-		mailbox->cmd_queue_size = 0;
-		edgetpu_mailbox_set_cmd_queue_tail(mailbox, 0);
-		EDGETPU_MAILBOX_CMD_QUEUE_WRITE(mailbox, head, 0);
-		break;
-	case GCIP_MAILBOX_RESP_QUEUE:
-		EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, resp_queue_address_low, 0);
-		EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, resp_queue_address_high, 0);
-		EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, resp_queue_size, 0);
-		mailbox->resp_queue_size = 0;
-		edgetpu_mailbox_set_resp_queue_head(mailbox, 0);
-		EDGETPU_MAILBOX_RESP_QUEUE_WRITE(mailbox, tail, 0);
-		break;
-	}
-}
-
-/* Reset mailbox queues, clear out any commands/responses left from before. */
-void edgetpu_mailbox_reset(struct edgetpu_mailbox *mailbox)
-{
-	edgetpu_mailbox_disable(mailbox);
-	EDGETPU_MAILBOX_CMD_QUEUE_WRITE(mailbox, head, 0);
-	edgetpu_mailbox_set_cmd_queue_tail(mailbox, 0);
-	edgetpu_mailbox_set_resp_queue_head(mailbox, 0);
-	EDGETPU_MAILBOX_RESP_QUEUE_WRITE(mailbox, tail, 0);
-	EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, config_spare_0, 0);
-	EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, config_spare_1, 0);
-	EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, config_spare_2, 0);
-	EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, config_spare_3, 0);
-	edgetpu_mailbox_enable(mailbox);
-}
-
-/* Helper function to request a mailbox's doorbell interrupt and initialize mailbox->irq. */
-static int edgetpu_mailbox_request_irq(struct edgetpu_mailbox *mailbox, int irq)
-{
-	struct edgetpu_dev *etdev = mailbox->etdev;
-	int ret;
-
-	/* Physical interrupts are not supported in the test environment. */
-	if (IS_ENABLED(CONFIG_EDGETPU_TEST))
-		return 0;
-
-	/* irq == 0 implies this mailbox does not route interrupts to the AP. */
-	if (!irq)
-		return 0;
-
-	ret = devm_request_irq(etdev->dev, irq, edgetpu_mailbox_irq_handler, IRQF_ONESHOT,
-			       etdev->dev_name, mailbox);
-	if (!ret)
-		mailbox->irq = irq;
-
-	return ret;
-}
-
-struct edgetpu_mailbox *edgetpu_mailbox_alloc(struct edgetpu_dev *etdev, void __iomem *csr_base,
-					      int irq, uint index)
-{
-	/*
-	 * TODO(b/376971597) switch from GFP_ATOMIC to GFP_KERNEL once this is no longer called
-	 *                   while holding a lock.
-	 */
-	struct edgetpu_mailbox *mailbox = kzalloc(sizeof(*mailbox), GFP_ATOMIC);
-	int ret;
-
-	if (!mailbox)
-		return ERR_PTR(-ENOMEM);
-	mailbox->mailbox_id = index;
-	mailbox->etdev = etdev;
-	mailbox->csr_base = csr_base;
-	ret = edgetpu_mailbox_request_irq(mailbox, irq);
-	if (ret) {
-		etdev_err(etdev, "failed to request irq %d for mailbox %u: %d\n", mailbox->irq,
-			  index, ret);
-		goto err;
-	}
-	edgetpu_mailbox_init_doorbells(mailbox);
-
-	return mailbox;
-err:
-	kfree(mailbox);
-	return ERR_PTR(ret);
-}
-
-void edgetpu_mailbox_release(struct edgetpu_mailbox *mailbox)
-{
-	if (mailbox->irq)
-		devm_free_irq(mailbox->etdev->dev, mailbox->irq, mailbox);
-	kfree(mailbox);
 }
 
 /*
@@ -274,12 +90,10 @@ int edgetpu_mailbox_validate_attr(const struct edgetpu_mailbox_attr *attr)
 {
 	int size;
 
-	size = convert_runtime_queue_size_to_fw(attr->cmd_queue_size,
-						attr->sizeof_cmd);
+	size = convert_runtime_queue_size_to_fw(attr->cmd_queue_size, attr->sizeof_cmd);
 	if (size < 0)
 		return size;
-	size = convert_runtime_queue_size_to_fw(attr->resp_queue_size,
-						attr->sizeof_resp);
+	size = convert_runtime_queue_size_to_fw(attr->resp_queue_size, attr->sizeof_resp);
 	if (size < 0)
 		return size;
 	return 0;
@@ -352,33 +166,6 @@ void edgetpu_mailbox_remove_ext_mailboxes(struct edgetpu_mailbox_manager *mgr, b
 		}
 	}
 	write_unlock_irqrestore(&mgr->ext_mailboxes_lock, flags);
-}
-
-void edgetpu_mailbox_clear_doorbells(struct edgetpu_mailbox *mailbox)
-{
-	/* Clear any stale doorbells requested */
-	EDGETPU_MAILBOX_RESP_QUEUE_WRITE(mailbox, doorbell_clear, 1);
-	EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, cmd_queue_doorbell_clear, 1);
-}
-
-void edgetpu_mailbox_disable_doorbells(struct edgetpu_mailbox *mailbox)
-{
-	/* Disable the command and response doorbell interrupts */
-	EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, cmd_queue_doorbell_enable, 0);
-	EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, resp_queue_doorbell_enable, 0);
-}
-
-void edgetpu_mailbox_enable_doorbells(struct edgetpu_mailbox *mailbox)
-{
-	/* Enable the command and response doorbell interrupts */
-	EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, cmd_queue_doorbell_enable, 1);
-	EDGETPU_MAILBOX_CONTEXT_WRITE(mailbox, resp_queue_doorbell_enable, 1);
-}
-
-void edgetpu_mailbox_init_doorbells(struct edgetpu_mailbox *mailbox)
-{
-	edgetpu_mailbox_clear_doorbells(mailbox);
-	edgetpu_mailbox_enable_doorbells(mailbox);
 }
 
 void edgetpu_mailbox_reset_ext_mailboxes(struct edgetpu_mailbox_manager *mgr)
@@ -524,10 +311,9 @@ static int edgetpu_mailbox_activate_bulk(struct edgetpu_dev *etdev, u32 mailbox_
 	if (ret == -ETIMEDOUT)
 		edgetpu_watchdog_bite(etdev);
 	return ret;
-
 }
 
-static void edgetpu_mailbox_deactivate_bulk(struct edgetpu_dev *etdev, u32 mailbox_map)
+static int edgetpu_mailbox_deactivate_bulk(struct edgetpu_dev *etdev, u32 mailbox_map)
 {
 	struct edgetpu_handshake *eh = &etdev->mailbox_manager->open_devices;
 	int ret = 0;
@@ -535,15 +321,14 @@ static void edgetpu_mailbox_deactivate_bulk(struct edgetpu_dev *etdev, u32 mailb
 	mutex_lock(&eh->lock);
 	if (mailbox_map & eh->fw_state)
 		ret = edgetpu_kci_close_device(etdev->etkci, mailbox_map & eh->fw_state);
-	if (ret)
-		etdev_err(etdev, "Deactivate mailbox for map %x failed: %d", mailbox_map, ret);
-	/*
-	 * Always clears the states, FW should never reject CLOSE_DEVICE requests unless it's
-	 * unresponsive.
-	 */
-	eh->state &= ~mailbox_map;
-	eh->fw_state &= ~mailbox_map;
+
+	if (!ret) {
+		eh->state &= ~mailbox_map;
+		eh->fw_state &= ~mailbox_map;
+	}
+
 	mutex_unlock(&eh->lock);
+	return ret;
 }
 
 void edgetpu_handshake_clear_fw_state(struct edgetpu_handshake *eh)
@@ -620,7 +405,9 @@ static int edgetpu_mailbox_external_alloc(struct edgetpu_device_group *group,
 {
 	u32 i, j = 0, bmap, start, end;
 	struct edgetpu_mailbox_manager *mgr = group->etdev->mailbox_manager;
+#if !EDGETPU_USE_CMF
 	void __iomem *csr_base;
+#endif
 	struct edgetpu_mailbox *mailbox;
 	int ret = 0, count;
 	struct edgetpu_external_mailbox *ext_mailbox;
@@ -684,9 +471,15 @@ static int edgetpu_mailbox_external_alloc(struct edgetpu_device_group *group,
 	bmap = ext_mailbox_req->mbox_map;
 	while (bmap) {
 		i = ffs(bmap) + start - 1;
+#if EDGETPU_USE_CMF
+		/* TODO(b/517784282): Update once we determine where external metadata should be */
+		mailbox = ERR_PTR(-ENOMEM);
+#else
 		csr_base = edgetpu_mailbox_get_ext_csr_base(mgr->etdev, i);
 		/* External mailboxes do not have doorbells to the AP. */
-		mailbox = edgetpu_mailbox_alloc(mgr->etdev, csr_base, /*irq=*/0, i);
+		mailbox = edgetpu_mailbox_alloc(mgr->etdev, csr_base, /*irq=*/0, i,
+						/*msi_enabled=*/false);
+#endif /* EDGETPU_USE_CMF */
 		if (!IS_ERR(mailbox)) {
 			mgr->ext_mailboxes[i - mgr->ext_index_from] = mailbox;
 			ext_mailbox->descriptors[j++].mailbox = mailbox;
@@ -739,7 +532,7 @@ static void edgetpu_mailbox_external_free(struct edgetpu_device_group *group)
 
 	edgetpu_mailbox_external_free_queue_batch(ext_mailbox);
 
-	for (i = 0; i < ext_mailbox->count; i++)  {
+	for (i = 0; i < ext_mailbox->count; i++) {
 		mailbox = ext_mailbox->descriptors[i].mailbox;
 		edgetpu_device_group_put(mailbox->internal.group);
 		mgr->ext_mailboxes[mailbox->mailbox_id - mgr->ext_index_from] = NULL;
@@ -819,14 +612,13 @@ static int edgetpu_mailbox_external_disable_free(struct edgetpu_client *client)
 
 void edgetpu_mailbox_external_disable_free_locked(struct edgetpu_device_group *group)
 {
-	if (!group->dev_inaccessible) {
-	/*
-	 * Deactivate only fails if f/w is unresponsive which will put group
-	 * in errored state or mailbox physically disabled before requesting
-	 * deactivate which will never be the case.
-	 */
-		edgetpu_mailbox_deactivate_external_mailbox(group);
-		edgetpu_mailbox_disable_external_mailbox(group);
+	if (pm_runtime_get_if_active(group->etdev->dev) > 0) {
+		int ret;
+
+		ret = edgetpu_mailbox_deactivate_external_mailbox(group);
+		if (!ret)
+			edgetpu_mailbox_disable_external_mailbox(group);
+		pm_runtime_put(group->etdev->dev);
 	}
 	edgetpu_mailbox_external_free(group);
 }
@@ -847,7 +639,8 @@ static int edgetpu_mailbox_external_enable_by_id(struct edgetpu_client *client, 
 
 	ret = edgetpu_mailbox_activate_bulk(client->etdev, BIT(mailbox_id), client_priv, -1, false);
 	if (ret)
-		etdev_err(client->etdev, "Activate mailbox %d failed: %d", mailbox_id, ret);
+		etdev_err(client->etdev, "client %s activate mailbox %d failed: %d", client->name,
+			  mailbox_id, ret);
 	else
 		edgetpu_wakelock_inc_event_locked(client, EDGETPU_WAKELOCK_EVENT_EXT_MAILBOX);
 	edgetpu_wakelock_unlock(client);
@@ -856,7 +649,7 @@ static int edgetpu_mailbox_external_enable_by_id(struct edgetpu_client *client, 
 
 static int edgetpu_mailbox_external_disable_by_id(struct edgetpu_client *client, int mailbox_id)
 {
-	int ret = 0;
+	int ret;
 
 	/*
 	 * A successful enable_ext() increases the wakelock event which prevents wakelock being
@@ -872,7 +665,10 @@ static int edgetpu_mailbox_external_disable_by_id(struct edgetpu_client *client,
 
 	etdev_dbg(client->etdev, "Disabling mailbox: %d\n", mailbox_id);
 
-	edgetpu_mailbox_deactivate_bulk(client->etdev, BIT(mailbox_id));
+	ret = edgetpu_mailbox_deactivate_bulk(client->etdev, BIT(mailbox_id));
+	if (ret)
+		etdev_err(client->etdev, "client %s deactivate mailbox %d failed: %d", client->name,
+			  mailbox_id, ret);
 	edgetpu_wakelock_dec_event_locked(client, EDGETPU_WAKELOCK_EVENT_EXT_MAILBOX);
 	edgetpu_wakelock_unlock(client);
 	return ret;
@@ -895,7 +691,8 @@ int edgetpu_mailbox_activate_external_mailbox(struct edgetpu_device_group *group
 					    group->mbox_attr.client_priv, vcid, false);
 
 	if (ret)
-		etdev_err(group->etdev, "Activate mailbox bulk failed: %d", ret);
+		etdev_err(group->etdev, "client %s activate external mailbox failed: %d",
+			  group->client->name, ret);
 	return ret;
 }
 
@@ -909,22 +706,26 @@ void edgetpu_mailbox_disable_external_mailbox(struct edgetpu_device_group *group
 
 	for (i = 0; i < ext_mailbox->count; i++)
 		edgetpu_mailbox_disable(ext_mailbox->descriptors[i].mailbox);
-
 }
 
-void edgetpu_mailbox_deactivate_external_mailbox(struct edgetpu_device_group *group)
+int edgetpu_mailbox_deactivate_external_mailbox(struct edgetpu_device_group *group)
 {
 	u32 i, mbox_map = 0;
 	struct edgetpu_external_mailbox *ext_mailbox = group->ext_mailbox;
+	int ret;
 
 	if (!ext_mailbox)
-		return;
+		return 0;
 
 	for (i = 0; i < ext_mailbox->count; i++)
 		mbox_map |= BIT(ext_mailbox->descriptors[i].mailbox->mailbox_id);
 
-	etdev_dbg(ext_mailbox->etdev, "Disabling mailboxes in map: %x\n", mbox_map);
-	edgetpu_mailbox_deactivate_bulk(ext_mailbox->etdev, mbox_map);
+	ret = edgetpu_mailbox_deactivate_bulk(ext_mailbox->etdev, mbox_map);
+	if (ret)
+		etdev_err(ext_mailbox->etdev,
+			  "client %s deactivate external mailbox map %#x failed: %d",
+			  group->client->name, mbox_map, ret);
+	return ret;
 }
 
 int edgetpu_mailbox_enable_ext(struct edgetpu_client *client, int mailbox_id,
@@ -943,63 +744,4 @@ int edgetpu_mailbox_disable_ext(struct edgetpu_client *client, int mailbox_id)
 		return edgetpu_mailbox_external_disable_free(client);
 	else
 		return edgetpu_mailbox_external_disable_by_id(client, mailbox_id);
-}
-
-/* Handle a mailbox response doorbell interrupt. */
-irqreturn_t edgetpu_mailbox_irq_handler(int irq, void *arg)
-{
-	struct edgetpu_mailbox *mailbox = arg;
-
-	edgetpu_telemetry_irq_handler(mailbox->etdev);
-
-	if (!EDGETPU_MAILBOX_RESP_QUEUE_READ(mailbox, doorbell_status))
-		return IRQ_HANDLED;
-
-	EDGETPU_MAILBOX_RESP_QUEUE_WRITE(mailbox, doorbell_clear, 1);
-	etdev_dbg(mailbox->etdev, "mbox %u resp doorbell irq tail=%u\n", mailbox->mailbox_id,
-		  EDGETPU_MAILBOX_RESP_QUEUE_READ(mailbox, tail));
-
-	if (mailbox->handle_irq)
-		mailbox->handle_irq(mailbox);
-
-	return IRQ_HANDLED;
-}
-
-void edgetpu_mailbox_irq_enable(struct edgetpu_mailbox *mailbox, bool enable)
-{
-	if (enable)
-		enable_irq(mailbox->irq);
-	else
-		disable_irq(mailbox->irq);
-}
-
-void edgetpu_mailbox_set_irq_handler(struct edgetpu_mailbox *mailbox,
-				     void (*handle_irq)(struct edgetpu_mailbox *mailbox))
-{
-	/* Interrupts must be paused when updating the handler to avoid races. */
-	if (mailbox->irq)
-		disable_irq(mailbox->irq);
-
-	mailbox->handle_irq = handle_irq;
-
-	if (mailbox->irq)
-		enable_irq(mailbox->irq);
-}
-
-void edgetpu_mailbox_dump(struct edgetpu_mailbox *mailbox)
-{
-	/* Ensure the TPU block is powered. */
-	if (pm_runtime_get_if_active(mailbox->etdev->dev, false) <= 0)
-		return;
-
-	etdev_info(mailbox->etdev, "mailbox id %u cmd head=%#x tail=%#x doorbell_status=%u",
-		   mailbox->mailbox_id,
-		   EDGETPU_MAILBOX_CMD_QUEUE_READ(mailbox, head),
-		   EDGETPU_MAILBOX_CMD_QUEUE_READ(mailbox, tail),
-		   EDGETPU_MAILBOX_CMD_QUEUE_READ(mailbox, doorbell_status));
-	etdev_info(mailbox->etdev, "  resp head=%#x tail=%#x doorbell_status=%u\n",
-		   EDGETPU_MAILBOX_RESP_QUEUE_READ(mailbox, head),
-		   EDGETPU_MAILBOX_RESP_QUEUE_READ(mailbox, tail),
-		   EDGETPU_MAILBOX_RESP_QUEUE_READ(mailbox, doorbell_status));
-	pm_runtime_put(mailbox->etdev->dev);
 }

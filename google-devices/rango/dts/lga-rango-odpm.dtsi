@@ -1,0 +1,66 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Rango pmic device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+// ODPM
+&m_ext1_rail {
+	google,schematic-name = "VSYS_PWR_WLAN_BT";
+	google,subsystem-name = "WLAN_BT";
+	google,shunt-res-uohm = <10000>;
+};
+
+&m_ext2_rail {
+	google,schematic-name = "VSYS_PWR_VBATT";
+	google,subsystem-name = "Battery";
+	google,shunt-res-uohm = <2000>;
+	google,power-coefficient = <243139>;// 3.71 * 65536
+};
+
+&m_ext3_rail {
+	google,schematic-name = "VSYS_PWR_CAMERA";
+	google,subsystem-name = "Camera";
+	google,shunt-res-uohm = <5000>;
+};
+
+&m_ext4_rail {
+	google,schematic-name = "VSYS_PWR_TOP_SPEAKER";
+	google,subsystem-name = "Top_Speaker";
+	google,shunt-res-uohm = <5000>;
+};
+
+&s_ext5_rail {
+	google,schematic-name = "VSYS_PWR_RFFE";
+	google,subsystem-name = "Cellular";
+	google,shunt-res-uohm = <5000>;
+};
+
+&s_ext6_rail {
+	google,schematic-name = "VSYS_PWR_MODEM";
+	google,subsystem-name = "Modem";
+	google,shunt-res-uohm = <5000>;
+};
+
+&s_ext7_rail {
+	google,schematic-name = "VSYS_PWR_DISP_INNER";
+	google,subsystem-name = "Display_Inner";
+	google,shunt-res-uohm = <5000>;
+};
+
+&s_ext8_rail {
+	google,schematic-name = "VSYS_PWR_DISP_OUTER";
+	google,subsystem-name = "Display_Outer";
+	google,shunt-res-uohm = <5000>;
+};
+
+/* b/430203693: remap CH8 from S9M_VDD_TPU_M to L26M_INNER_TS_AVDD */
+&ch8 {
+	rail-name = "ldo_26m";
+};
+
+/* b/430203693: remap CH45 from S5S_VDDQ_MEM to L26S_OUTER_TS_AVDD */
+&ch45 {
+	rail-name = "ldo_26s";
+};

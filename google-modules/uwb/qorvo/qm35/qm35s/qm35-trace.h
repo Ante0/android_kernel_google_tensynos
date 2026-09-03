@@ -57,7 +57,7 @@ TRACE_DEFINE_ENUM(HSSPI_WORK_COMPLETION);
 TRACE_EVENT(hsspi_get_work, TP_PROTO(const struct device *dev, int type),
 	    TP_ARGS(dev, type),
 	    TP_STRUCT__entry(__string(dev, dev_name(dev)) __field(int, type)),
-	    TP_fast_assign(__assign_str(dev, dev_name(dev));
+	    TP_fast_assign(__assign_str(dev);
 			   __entry->type = type;),
 	    TP_printk("[%s]: %s work", __get_str(dev),
 		      show_work_type(__entry->type)));
@@ -88,7 +88,7 @@ TRACE_EVENT(hsspi_is_txrx_waiting,
 	    TP_STRUCT__entry(__string(dev, dev_name(dev))
 				     __field(bool, is_empty)
 					     __field(enum hsspi_state, state)),
-	    TP_fast_assign(__assign_str(dev, dev_name(dev));
+	    TP_fast_assign(__assign_str(dev);
 			   __entry->is_empty = is_empty;
 			   __entry->state = state;),
 	    TP_printk("[%s]: is_empty: %d state: %s", __get_str(dev),
@@ -111,7 +111,7 @@ TRACE_EVENT(hsspi_spi_xfer,
 	    TP_ARGS(dev, host, soc, ret),
 	    TP_STRUCT__entry(__string(dev, dev_name(dev)) STC_ENTRY(host)
 				     STC_ENTRY(soc) __field(int, ret)),
-	    TP_fast_assign(__assign_str(dev, dev_name(dev));
+	    TP_fast_assign(__assign_str(dev);
 			   STC_ASSIGN(host, host); STC_ASSIGN(soc, soc);
 			   __entry->ret = ret;),
 	    TP_printk("[%s]: host " STC_FMT " | soc " STC_FMT " rc=%d",

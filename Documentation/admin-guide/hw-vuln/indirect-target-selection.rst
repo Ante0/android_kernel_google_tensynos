@@ -89,6 +89,11 @@ Retpoline sequence also mitigates ITS-unsafe indirect branches. For this
 reason, when retpoline is enabled, ITS mitigation only relocates the RETs to
 safe thunks. Unless user requested the RSB-stuffing mitigation.
 
+RSB Stuffing
+~~~~~~~~~~~~
+RSB-stuffing via Call Depth Tracking is a mitigation for Retbleed RSB-underflow
+attacks. And it also mitigates RETs that are vulnerable to ITS.
+
 Mitigation in guests
 ^^^^^^^^^^^^^^^^^^^^
 All guests deploy ITS mitigation by default, irrespective of eIBRS enumeration
@@ -120,6 +125,11 @@ kernel parameter. The available options are:
 	    useful when host userspace is not in the threat model, and only
 	    attacks from guest to host are considered.
 
+   stuff    Deploy RSB-fill mitigation when retpoline is also deployed.
+	    Otherwise, deploy the default mitigation. When retpoline mitigation
+	    is enabled, RSB-stuffing via Call-Depth-Tracking also mitigates
+	    ITS.
+
    force    Force the ITS bug and deploy the default mitigation.
    ======== ===================================================================
 
@@ -146,6 +156,8 @@ The possible values in this file are:
    * - Mitigation: Aligned branch/return thunks
      - The mitigation is enabled, affected indirect branches and RETs are
        relocated to safe thunks.
+   * - Mitigation: Retpolines, Stuffing RSB
+     - The mitigation is enabled using retpoline and RSB stuffing.
 
 References
 ----------

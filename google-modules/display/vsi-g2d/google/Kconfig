@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: MIT
+
+config DRM_G2D
+	tristate "VSI G2D support using DRM/KMS"
+	depends on DRM
+	select DRM_KMS_HELPER
+	help
+	  Choose this option if you have a VeriSilicon G2D block
+	  and want to use the DRM KMS driver for it developed by Google.
+
+config VERISILICON_ONE_LAYER_G2D
+	bool "G2D with one layer"
+	depends on DRM
+	default y if SOC_MBU
+	help
+		Choose this option to use register addresses that are
+		compatible with a G2D module that uses only one layer.
+		Enable this if your specific System-on-Chip (SoC) variant
+		lacks hardware support for multi-layer G2D.

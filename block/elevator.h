@@ -5,6 +5,7 @@
 #include <linux/percpu.h>
 #include <linux/hashtable.h>
 #include <linux/android_kabi.h>
+#include "blk-mq.h"
 
 struct io_cq;
 struct elevator_type;
@@ -38,7 +39,8 @@ struct elevator_mq_ops {
 	void (*limit_depth)(blk_opf_t, struct blk_mq_alloc_data *);
 	void (*prepare_request)(struct request *);
 	void (*finish_request)(struct request *);
-	void (*insert_requests)(struct blk_mq_hw_ctx *, struct list_head *, bool);
+	void (*insert_requests)(struct blk_mq_hw_ctx *hctx, struct list_head *list,
+			blk_insert_t flags);
 	struct request *(*dispatch_request)(struct blk_mq_hw_ctx *);
 	bool (*has_work)(struct blk_mq_hw_ctx *);
 	void (*completed_request)(struct request *, u64);
@@ -78,7 +80,6 @@ struct elevator_type
 	struct elv_fs_entry *elevator_attrs;
 	const char *elevator_name;
 	const char *elevator_alias;
-	const unsigned int elevator_features;
 	struct module *elevator_owner;
 #ifdef CONFIG_BLK_DEBUG_FS
 	const struct blk_mq_debugfs_attr *queue_debugfs_attrs;
@@ -92,6 +93,21 @@ struct elevator_type
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
 };
+
+static inline bool elevator_tryget(struct elevator_type *e)
+{
+	return try_module_get(e->elevator_owner);
+}
+
+static inline void __elevator_get(struct elevator_type *e)
+{
+	__module_get(e->elevator_owner);
+}
+
+static inline void elevator_put(struct elevator_type *e)
+{
+	module_put(e->elevator_owner);
+}
 
 #define ELV_HASH_BITS 6
 
@@ -109,9 +125,12 @@ struct elevator_queue
 	void *elevator_data;
 	struct kobject kobj;
 	struct mutex sysfs_lock;
-	unsigned int registered:1;
+	unsigned long flags;
 	DECLARE_HASHTABLE(hash, ELV_HASH_BITS);
 };
+
+#define ELEVATOR_FLAG_REGISTERED	0
+#define ELEVATOR_FLAG_DISABLE_WBT	1
 
 /*
  * block elevator interface
@@ -137,8 +156,10 @@ extern void elv_unregister(struct elevator_type *);
 /*
  * io scheduler sysfs switching
  */
-extern ssize_t elv_iosched_show(struct request_queue *, char *);
-extern ssize_t elv_iosched_store(struct request_queue *, const char *, size_t);
+ssize_t elv_iosched_show(struct gendisk *disk, char *page);
+int elv_iosched_load_module(struct gendisk *disk, const char *page,
+			    size_t count);
+ssize_t elv_iosched_store(struct gendisk *disk, const char *page, size_t count);
 
 extern bool elv_bio_merge_ok(struct request *, struct bio *);
 extern struct elevator_queue *elevator_alloc(struct request_queue *,

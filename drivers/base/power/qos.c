@@ -203,7 +203,7 @@ static int dev_pm_qos_constraints_allocate(struct device *dev)
 	if (!qos)
 		return -ENOMEM;
 
-	n = kzalloc(3 * sizeof(*n), GFP_KERNEL);
+	n = kcalloc(3, sizeof(*n), GFP_KERNEL);
 	if (!n) {
 		kfree(qos);
 		return -ENOMEM;
@@ -443,7 +443,6 @@ static int __dev_pm_qos_update_request(struct dev_pm_qos_request *req,
 			trace_android_vh_fas_gpu_qos_update_tracer(&req->data.freq, &new_value);
 		ret = apply_constraint(req, PM_QOS_UPDATE_REQ, new_value);
 	}
-
 	return ret;
 }
 

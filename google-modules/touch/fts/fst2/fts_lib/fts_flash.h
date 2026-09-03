@@ -17,10 +17,12 @@
   *process
   */
 
-#ifndef FTS_FLASH_H
-#define FTS_FLASH_H
+#ifndef _FTS_FLASH_H_
+#define _FTS_FLASH_H_
 
-/*#define FW_H_FILE*/
+#include "../fts.h"
+
+/* #define FW_H_FILE */
 
 #ifdef FW_H_FILE
 #define PATH_FILE_FW		"NULL"
@@ -87,9 +89,32 @@ typedef enum {
 	FINGERTIP_FW_REG		= 0x0001, /* /< FW Reg section */
 	FINGERTIP_MUTUAL_CX		= 0x0002, /* /< FW mutual cx */
 	FINGERTIP_SELF_CX		= 0x0003, /* /< FW self cx */
+	FINGERTIP_BOOTLOADER	= 0x0004, /* /< Bootloader FW */
 } fw_section_t;
 
+#ifndef SPRUCE
+#define FLASH_PAGE_SIZE			(8 * 1024) /* /<page size of 8KB*/
+#define NUM_FLASH_PAGES			24 /* /< number of flash pages in
+					   * fingertip device, angsana */
+#define FLASH_CHUNK			(2 * FLASH_PAGE_SIZE)/* /< Number of
+							 bytes that bootloader FW burn on
+							 the flash in one shot in TI */
+#else
 #define FLASH_PAGE_SIZE			(4 * 1024) /* /<page size of 4KB*/
+#define NUM_FLASH_PAGES			48 /* /< number of flash pages in
+					   * fingertip device, spruce */
+#define FLASH_CHUNK			(64 * 1024)/* /< Max number of bytes
+							* that the DMA can burn
+							* on the flash in one
+							* shot in FTI */
+#define FLASH_ERASE_READY_VAL		0x6A
+#define FLASH_PGM_READY_VAL			0x71
+#define FLASH_DMA_CODE_VAL			0xC0
+#define FLASH_DMA_CONFIG_VAL		0x72
+#endif
+
+
+
 #define BIN_HEADER_SIZE			(32 + 4) /* /< fw ubin main header size
 						 * including crc */
 #define SECTION_HEADER_SIZE		20 /* /< fw ubin section header size */
@@ -97,24 +122,10 @@ typedef enum {
 						   * identifier constant */
 #define SECTION_HEADER			0xB16B00B5 /* /< fw ubin section header
 						   * identifier constant */
-#define CHIP_ID				0x3652 /* /< chip id of finger tip
-					       * device, spruce */
-#define NUM_FLASH_PAGES			48 /* /< number of flash pages in
-					   * fingertip device, spruce */
-#define DMA_CHUNK			32 /* /< Max number of bytes that
-						* can be written to the DMA */
-#define FLASH_CHUNK			(64 * 1024)/* /< Max number of bytes
-							* that the DMA can burn
-							* on the flash in one
-							* shot in FTI */
 #define FLASH_RETRY_COUNT		200 /* /< number of attemps to read the
 					    * flash status */
 #define FLASH_WAIT_BEFORE_RETRY		50 /* /< time to wait in ms between
 					   * status readings */
-#define FLASH_ERASE_READY_VAL		0x6A
-#define FLASH_PGM_READY_VAL		0x71
-#define FLASH_DMA_CODE_VAL		0xC0
-#define FLASH_DMA_CONFIG_VAL		0x72
 #define REG_CRC_MASK			0x03 /* /< mask to read
 					     *fw register status of reg crc*/
 #define REG_MISC_MASK			0x0C /* /< mask to read
@@ -130,20 +141,25 @@ typedef enum {
 						     * raw frame data crc*/
 
 int read_fw_file(const char *path, struct firmware_file *fw);
-int flash_burn(struct firmware_file fw,
-		struct force_update_flag *force_update);
+int flash_burn(struct fts_ts_info *info, struct firmware_file fw,
+	struct force_update_flag *force_update);
 int flash_section_burn(struct firmware_file fw, fw_section_t section,
 	u8 save_to_flash);
 int read_sys_info(void);
-int flash_update(struct force_update_flag *force_update);
+int flash_update(struct fts_ts_info *info, struct force_update_flag *force_update);
 int configure_spi4(void);
-int full_panel_init(struct force_update_flag *force_update);
+int full_panel_init(struct fts_ts_info *info, struct force_update_flag *force_update);
 unsigned int calculate_crc(unsigned char *message, int size);
 int get_fw_file_data(const char *path_to_file, u8 **data, int *size);
+#ifndef SPRUCE
+int wait_for_flash_ready(void);
+int flash_code_update(struct firmware_file fw, int address);
+#else
 int flash_update_preset(void);
 int wait_for_flash_ready(u8 type);
 int flash_erase(int flash_pages);
 int start_flash_dma(void);
 int flash_dma(u32 address, u8 *data, int size);
 int fill_flash(u32 address, u8 *data, int size);
+#endif
 #endif

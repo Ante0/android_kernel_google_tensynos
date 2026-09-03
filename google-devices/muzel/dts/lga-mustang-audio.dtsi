@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * mustang audio device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+&aoc {
+	aoc-board-cfg = "MT5";
+	aoc-board-id = <0x70503>;
+	aoc-board-rev = <0x10000>;
+	prevent-fw-load = <0x0>;
+};

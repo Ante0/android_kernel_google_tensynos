@@ -69,7 +69,6 @@ static int goog_enter_deep_sleep_mode(struct fts_ts_data *ts_data)
 
     if (i >= 200) {
         FTS_ERROR("Enter deep sleep failed");
-        ret = -ETIMEDOUT;
         goto exit;
     } else {
         FTS_INFO("Enter deep sleep (%d ms)", i);
@@ -138,6 +137,7 @@ exit:
 static int goog_fts_ts_suspend(struct device *dev)
 {
     int ret = 0;
+    int retry_count = 0;
     struct fts_ts_data *ts_data = fts_data;
 
     FTS_FUNC_ENTER();
@@ -151,27 +151,42 @@ static int goog_fts_ts_suspend(struct device *dev)
     /* Disable irq */
     fts_irq_disable();
 
-    FTS_INFO("Do reset on suspend");
-    fts_reset_proc(FTS_RESET_INTERVAL);
+    for (retry_count = 1; retry_count <= 3; retry_count++) {
+        FTS_INFO("Do reset on suspend, attempt: %d", retry_count);
+        fts_reset_proc(FTS_RESET_INTERVAL);
 
-    ret = fts_wait_tp_to_valid();
-    if (ret != 0) {
-        FTS_ERROR("Suspend has been cancelled by wake up timeout");
-        return ret;
+        ret = fts_wait_tp_to_valid();
+        if (ret != 0) {
+            FTS_ERROR("Suspend has been cancelled by wake up timeout, ret=%d", ret);
+            continue;
+        }
+
+        // Clear reset flag
+        fts_write_reg(FTS_REG_CLR_RESET, 0x01);
+
+        FTS_INFO("Device has been reset");
+
+        fts_set_irq_report_onoff(ENABLE);
+
+        FTS_DEBUG("make TP enter into sleep mode");
+        ret = goog_enter_deep_sleep_mode(ts_data);
+        ts_data->is_deepsleep = !ret;
+        if (ret < 0) {
+            FTS_ERROR("set TP to sleep mode fail, ret=%d", ret);
+            continue;
+        }
+
+        ret = fts_pinctrl_select_suspend(ts_data);
+        if (ret < 0)
+            FTS_ERROR("set pinctrl suspend fail, ret=%d", ret);
+
+        break;
     }
 
-    // Clear reset flag
-    fts_write_reg(FTS_REG_CLR_RESET, 0x01);
-
-    FTS_INFO("Device has been reset");
-
-    fts_set_irq_report_onoff(ENABLE);
-
-    FTS_DEBUG("make TP enter into sleep mode");
-    ret = goog_enter_deep_sleep_mode(ts_data);
-    ts_data->is_deepsleep = !ret;
-    if (ret < 0)
-      FTS_ERROR("set TP to sleep mode fail, ret=%d", ret);
+    if (retry_count > 3) {
+        FTS_ERROR("Failed to suspend after trying 3 times, %d", ret);
+        return ret;
+    }
 
     ret = fts_pinctrl_select_suspend(ts_data);
     if (ret < 0)
@@ -225,7 +240,6 @@ extern int fts_test_get_uniformity_data(int *raw, int *rawdata_linearity, u8 tx,
 extern int fts_test_get_short(int *short_data, u8 tx, u8 rx);
 extern int fts_test_get_short_ch_to_gnd(int *res, u8 *ab_ch, u8 tx, u8 rx);
 extern int fts_test_get_short_ch_to_ch(int *res, u8 *ab_ch, u8 tx, u8 rx);
-extern size_t goog_internal_sttw_setting_read(char *buf, size_t buf_size);
 
 // Reference: proc_test_raw_show and proc_test_uniformity_show
 static int goog_selftest_test_rawdata_and_rawdata_uniformity(bool is_ical)
@@ -919,7 +933,7 @@ static int gti_reset(void *private_data, struct gti_reset_cmd *cmd)
         goto exit;
       }
     } else if (cmd->setting == GTI_RESET_MODE_HW || cmd->setting == GTI_RESET_MODE_AUTO) {
-        fts_reset_proc(FTS_RESET_INTERVAL);
+      fts_reset_proc(FTS_RESET_INTERVAL);
     } else {
       ret = -EOPNOTSUPP;
     }
@@ -1030,7 +1044,6 @@ static int gti_get_mutual_or_self_sensor_data(void *private_data, struct gti_sen
 
     int ms_cap_idx = FTS_CAP_DATA_LEN + 28 + 1;
     int ss_cap_on_idx = ms_cap_idx + tx * rx * sizeof(u16);
-    int ss_cap_off_idx = ss_cap_on_idx + FTS_SELF_DATA_LEN * sizeof(u16);
     int node_num = tx * rx;
     int self_node = tx + rx;
     u8 *base_raw = NULL;
@@ -1159,14 +1172,14 @@ self_data:
     /* Data in base_raw starts with RX first then TX, but cmd->buffer requires TX to be first */
     temp_pointer = (short *)out_buffer;
     for (i = rx; i < self_node; i++) {
-        base_result = (int)(base_raw[(i * 2) + ss_cap_off_idx] << 8) +
-            (int)base_raw[(i * 2) + ss_cap_off_idx + 1];
+        base_result = (int)(base_raw[(i * 2) + ss_cap_on_idx] << 8) +
+            (int)base_raw[(i * 2) + ss_cap_on_idx + 1];
         (*temp_pointer) = base_result;
         temp_pointer++;
     }
     for (i = 0; i < rx; i++) {
-        base_result = (int)(base_raw[(i * 2) + ss_cap_off_idx] << 8) +
-            (int)base_raw[(i * 2) + ss_cap_off_idx + 1];
+        base_result = (int)(base_raw[(i * 2) + ss_cap_on_idx] << 8) +
+            (int)base_raw[(i * 2) + ss_cap_on_idx + 1];
         (*temp_pointer) = base_result;
         temp_pointer++;
     }

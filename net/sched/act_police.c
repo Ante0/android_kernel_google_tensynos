@@ -16,9 +16,11 @@
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <net/act_api.h>
+#include <net/gso.h>
 #include <net/netlink.h>
 #include <net/pkt_cls.h>
 #include <net/tc_act/tc_police.h>
+#include <net/tc_wrapper.h>
 
 /* Each policer is serialized by its individual spinlock */
 
@@ -75,7 +77,7 @@ static int tcf_police_init(struct net *net, struct nlattr *nla,
 		return err;
 	exists = err;
 	if (exists && bind)
-		return 0;
+		return ACT_P_BOUND;
 
 	if (!exists) {
 		ret = tcf_idr_create(tn, index, NULL, a,
@@ -242,8 +244,9 @@ static bool tcf_police_mtu_check(struct sk_buff *skb, u32 limit)
 	return len <= limit;
 }
 
-static int tcf_police_act(struct sk_buff *skb, const struct tc_action *a,
-			  struct tcf_result *res)
+TC_INDIRECT_SCOPE int tcf_police_act(struct sk_buff *skb,
+				     const struct tc_action *a,
+				     struct tcf_result *res)
 {
 	struct tcf_police *police = to_police(a);
 	s64 now, toks, ppstoks = 0, ptoks = 0;
@@ -499,6 +502,7 @@ static struct tc_action_ops act_police_ops = {
 	.offload_act_setup =	tcf_police_offload_act_setup,
 	.size		=	sizeof(struct tcf_police),
 };
+MODULE_ALIAS_NET_ACT("police");
 
 static __net_init int police_init_net(struct net *net)
 {

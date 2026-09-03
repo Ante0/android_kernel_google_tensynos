@@ -1,23 +1,54 @@
 # SPDX-License-Identifier: MIT
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
 
-kernel_module(
-    name = "panels",
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+_PANEL_LOCAL_DEFINES = [
+    "DYNAMIC_DEBUG_MODULE",
+]
+
+_PANEL_COPTS = [
+    "-Werror",
+]
+
+ddk_headers(
+    name = "common_headers",
+    hdrs = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common:ddk_headers",
+    ],
+)
+
+ddk_module(
+    name = "panel-gs-s6e3hc4",
     srcs = [
-        "Kbuild",
-        "panel-gs-simple.c",
-        "//private/google-modules/display/common:headers",
+        "panel-gs-s6e3hc4.c",
     ],
-    outs = [
-        "panel-gs-simple.ko",
-    ],
+    out = "panel-gs-s6e3hc4.ko",
+    copts = _PANEL_COPTS,
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
-    ],
+    local_defines = _PANEL_LOCAL_DEFINES,
     deps = [
-        "//private/google-modules/display/common/gs_panel",
+        ":common_headers",
+        "//private/google-modules/display/common/gs_panel:gs-panel",
+    ],
+)
+
+ddk_module(
+    name = "panel-gs-simple",
+    srcs = [
+        "panel-gs-simple.c",
+    ],
+    out = "panel-gs-simple.ko",
+    copts = _PANEL_COPTS,
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = _PANEL_LOCAL_DEFINES,
+    deps = [
+        ":common_headers",
+        "//private/google-modules/display/common/gs_panel:gs-panel",
     ],
 )

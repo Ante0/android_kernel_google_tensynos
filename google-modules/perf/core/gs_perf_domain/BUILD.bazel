@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: MIT
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load(
+    "@kleaf//build/kernel/kleaf:kernel.bzl",
+    "ddk_headers",
+    "ddk_module",
+)
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "trace_headers",
+    hdrs = [
+        "cpufreq_trace.h",
+    ],
+    includes = ["."],
+)
+
+ddk_headers(
+    name = "perf_domain_api",
+    hdrs = ["include/perf/core/perf_domain.h"],
+    includes = ["include"],
+    kconfigs = ["Kconfig"],
+    visibility = ["//visibility:private"],
+)
+
+# The stub module when the device does not need this module.
+ddk_headers(
+    name = "perf_domain_stub",
+    # Export the API
+    hdrs = [":perf_domain_api"],
+    # Unset CONFIG_perf_domain to indicate that perf_domain module is disabled.
+    # This is so that the common code can use it as a directive.
+    defconfigs = ["perf_domain_disabled_defconfig"],
+    visibility = ["//visibility:private"],
+)
+
+ddk_module(
+    name = "perf_domain_real",
+    srcs = [
+        "perf_domain.c",
+    ],
+    out = "perf_domain.ko",
+    hdrs = [":perf_domain_api"],
+    defconfig = "perf_domain_enabled_defconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    visibility = ["//visibility:private"],
+    deps = [
+        ":trace_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/apc_irm:apc_irm_drv",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/core/google_pm_qos:google_vote_manager",
+        "//private/google-modules/perf/infra/mbfs",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google/cdd:gcdd",
+        "//private/google-modules/soc/rdo/drivers/soc/google/dvfs-helper:dvfs_helper",
+        "//private/google-modules/soc/rdo/drivers/soc/google/dvfs-target-frontend:dvfs_target_frontend",
+    ],
+)
+
+bool_flag(
+    name = "enable_perf_domain",
+    build_setting_default = False,
+    visibility = ["//visibility:private"],
+)
+
+# Helper target to `select()` based on the flag.
+config_setting(
+    name = "perf_domain_enabled",
+    flag_values = {":enable_perf_domain": "1"},
+    visibility = ["//visibility:private"],
+)
+
+# The exposed target that switches between the real and stub implementation based on the flag.
+alias(
+    name = "perf_domain",
+    actual = select({
+        ":perf_domain_enabled": ":perf_domain_real",
+        "//conditions:default": ":perf_domain_stub",
+    }),
+)

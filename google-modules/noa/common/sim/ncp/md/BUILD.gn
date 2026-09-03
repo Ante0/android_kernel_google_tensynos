@@ -1,0 +1,237 @@
+import("//build_overrides/noa.gni")
+import("//build_overrides/pigweed.gni")
+import("$dir_noa_packages/noa_common/sim/ncp/md/noa_ncp_modem.gni")
+import("$dir_pw_unit_test/test.gni")
+
+config("modules_pw_include_path") {
+  include_dirs = [ "modules_pw" ]
+}
+
+config("modem_fw_include_path") {
+  include_dirs = [ "mediatek/pw" ]
+}
+
+config("modem_dynamic_switch") {
+  defines = [ "NOA_MODEM_DYNAMIC_SWITCH_DISABLED=1" ]
+}
+
+pw_source_set("sys_log") {
+  public_configs = [ ":modules_pw_include_path" ]
+  public = [ "$dir_noa_ncp_modules/sys_log.h" ]
+  public_deps = [ "$dir_pw_log" ]
+}
+
+pw_source_set("sys_common") {
+  public_configs = [ ":modules_pw_include_path" ]
+  public = [ "$dir_noa_ncp_modules/sys_common.h" ]
+  public_deps = [
+    "$dir_noa_apps/noa/common:headers",
+    "$dir_noa_common:core",
+    "$dir_noa_common:ring",
+    "$dir_noa_modules/buffer_mgmt:buffer_mgmt",
+    "$dir_noa_modules/device_mgmt:device_mgmt",
+    "$dir_noa_modules/linux_port:bitops",
+    "$dir_noa_modules/linux_port:container_of",
+    "$dir_noa_modules/linux_port:device",
+    "$dir_noa_modules/linux_port:dma-mapping",
+    "$dir_noa_modules/linux_port:jiffies",
+    "$dir_noa_modules/linux_port:list",
+    "$dir_noa_modules/linux_port:mutex",
+    "$dir_noa_modules/linux_port:spinlock",
+    "$dir_noa_modules/linux_port:timer",
+    "$dir_noa_modules/linux_port:tasklet",
+    "$dir_noa_modules/linux_port:workqueue",
+    "$dir_noa_services/ring_service",
+    "$dir_noa_ncp_modem:sys_log",
+  ]
+}
+
+pw_source_set("ncp_modem_data") {
+  public_configs = [ ":modules_pw_include_path" ]
+  public = [ "$dir_noa_ncp_modules/ncp_modem_data.h" ]
+  public_deps = [
+      "$dir_noa_ncp_modem:sys_common",
+  ]
+}
+
+pw_source_set("noa_ncp_modem") {
+  public_configs = [
+    ":modules_pw_include_path",
+    ":modem_fw_include_path",
+  ]
+  public = [
+    "modules_pw/modem_fw_mailbox.h",
+    "modules_pw/modem_fw_ring.h",
+    "modules_pw/modem_interface.h",
+    "modules_pw/ncp_md_irq.h",
+    "modules_pw/noa_md_apc2ncp_ring.h",
+    "mediatek/pw/ncp_md.h",
+    "mediatek/pw/ncp_md_rx_data.h",
+    "mediatek/pw/ncp_md_tx_data.h",
+  ]
+  deps = [
+    "$dir_noa_common:core",
+    "$dir_noa_common:ring",
+    "$dir_noa_drivers/hwio",
+    "$dir_noa_modules/noa_configs",
+    "$dir_noa_modules/notifier:notifier_mailbox",
+    "$dir_noa_ncp_modem:sys_common",
+    "$dir_noa_ncp_modem:ncp_modem_data",
+    "$dir_noa_ncp_modem:sys_log",
+    "$dir_noa_services/ring_event_rpc_service:client",
+    "$dir_noa_services/ring_service",
+    "$dir_pw_function",
+  ]
+  sources = [
+    "modules_pw/modem_fw_mailbox.cc",
+    "modules_pw/modem_fw_ring.cc",
+    "modules_pw/modem_interface.cc",
+    "modules_pw/ncp_md_irq.cc",
+    "modules_pw/noa_md_apc2ncp_ring.cc",
+    "mediatek/pw/ncp_md.cc",
+    "mediatek/pw/ncp_md_rx_data.cc",
+    "mediatek/pw/ncp_md_tx_data.cc",
+  ]
+}
+
+pw_source_set("apc2ncp_ring") {
+  public_configs = [
+    ":modules_pw_include_path",
+    ":modem_fw_include_path",
+  ]
+  public = [
+    "$dir_noa_ncp_modules/ncp_md_irq.h",
+    "$dir_noa_ncp_modules/noa_md_apc2ncp_ring.h",
+  ]
+  deps = [
+    "$dir_noa_apps/noa/common:headers",
+    "$dir_noa_drivers/hwio",
+    "$dir_noa_modules/notifier:notifier_mailbox",
+    "$dir_noa_services/ring_service:ring_manager",
+  ]
+  sources = [
+    "modules_pw/ncp_md_irq.cc",
+    "modules_pw/noa_md_apc2ncp_ring.cc",
+  ]
+}
+
+# Add configurations for iph
+config("modules_iph_include_path") {
+  include_dirs = [ "modules_iph" ]
+}
+
+config("modem_iph_include_path") {
+  include_dirs = [ "mediatek/iph" ]
+}
+
+pw_source_set("sys_log_iph") {
+  public_configs = [ ":modules_iph_include_path" ]
+  public = [ "$dir_noa_ncp_modules_iph/sys_log.h" ]
+  public_deps = [ "$dir_pw_log" ]
+}
+
+pw_source_set("sys_common_iph") {
+  public_configs = [ ":modules_iph_include_path" ]
+  public = [ "$dir_noa_ncp_modules_iph/sys_common.h" ]
+  public_deps = [
+    "$dir_noa_apps/noa/common:headers",
+    "$dir_noa_common:core",
+    "$dir_noa_common:ring",
+    "$dir_noa_modules/buffer_mgmt:buffer_mgmt",
+    "$dir_noa_modules/device_mgmt:device_mgmt",
+    "$dir_noa_modules/linux_port:bitops",
+    "$dir_noa_modules/linux_port:container_of",
+    "$dir_noa_modules/linux_port:device",
+    "$dir_noa_modules/linux_port:dma-mapping",
+    "$dir_noa_modules/linux_port:jiffies",
+    "$dir_noa_modules/linux_port:list",
+    "$dir_noa_modules/linux_port:mutex",
+    "$dir_noa_modules/linux_port:spinlock",
+    "$dir_noa_modules/linux_port:timer",
+    "$dir_noa_modules/linux_port:tasklet",
+    "$dir_noa_modules/linux_port:workqueue",
+    "$dir_noa_services/ring_service",
+    "$dir_noa_ncp_modem:sys_log_iph",
+  ]
+}
+
+pw_source_set("ncp_modem_data_iph") {
+  public_configs = [ ":modules_iph_include_path" ]
+  public = [ "$dir_noa_ncp_modules_iph/ncp_modem_data.h" ]
+  public_deps = [
+      "$dir_noa_drivers/modem:modem_hif_alcedo",
+      "$dir_noa_drivers/modem:noa_common_alcedo_headers",
+      "$dir_noa_ncp_modem:sys_common_iph",
+  ]
+}
+
+pw_source_set("apc2ncp_ring_iph") {
+  public_configs = [
+    ":modules_iph_include_path",
+    ":modem_iph_include_path",
+  ]
+  public = [
+    "$dir_noa_ncp_modules_iph/ncp_md_irq.h",
+    "$dir_noa_ncp_modules_iph/noa_md_apc2ncp_ring.h",
+  ]
+  deps = [
+    "$dir_noa_apps/noa/common:headers",
+    "$dir_noa_drivers/hwio",
+    "$dir_noa_modules/notifier:notifier_mailbox",
+    "$dir_noa_ncp_modem:sys_log_iph",
+    "$dir_noa_services/ring_service:ring_manager",
+  ]
+  sources = [
+    "modules_iph/ncp_md_irq.cc",
+    "modules_iph/noa_md_apc2ncp_ring.cc",
+  ]
+}
+
+pw_source_set("noa_ncp_modem_iph") {
+  public_configs = [
+    ":modules_iph_include_path",
+    ":modem_iph_include_path",
+  ]
+  if (noa_modem_dynamic_switch_disabled) {
+    public_configs += [ ":modem_dynamic_switch" ]
+  }
+  public = [
+    "modules_iph/modem_fw_mailbox.h",
+    "modules_iph/modem_fw_ring.h",
+    "modules_iph/modem_interface.h",
+    "modules_iph/ncp_md_irq.h",
+    "modules_iph/noa_md_apc2ncp_ring.h",
+    "mediatek/iph/ncp_md.h",
+    "mediatek/iph/ncp_md_rx_data.h",
+    "mediatek/iph/ncp_md_shmem_sync.h",
+    "mediatek/iph/ncp_md_tx_data.h",
+  ]
+  deps = [
+    "$dir_noa_common:core",
+    "$dir_noa_common:ring",
+    "$dir_noa_drivers/hwio",
+    "$dir_noa_drivers/modem:modem_hif_alcedo",
+    "$dir_noa_modules/noa_configs",
+    "$dir_noa_modules/notifier:notifier_mailbox",
+    "$dir_noa_ncp_modem:sys_common_iph",
+    "$dir_noa_ncp_modem:ncp_modem_data_iph",
+    "$dir_noa_ncp_modem:sys_log_iph",
+    "$dir_noa_services/ring_event_rpc_service:client",
+    "$dir_noa_services/ring_service",
+    "$dir_pw_function",
+  ]
+  public_deps = [
+    "$dir_noa_drivers/modem:noa_common_alcedo_headers",
+  ]
+  sources = [
+    "modules_iph/modem_fw_mailbox.cc",
+    "modules_iph/modem_fw_ring.cc",
+    "modules_iph/modem_interface.cc",
+    "modules_iph/ncp_md_irq.cc",
+    "modules_iph/noa_md_apc2ncp_ring.cc",
+    "mediatek/iph/ncp_md.cc",
+    "mediatek/iph/ncp_md_rx_data.cc",
+    "mediatek/iph/ncp_md_shmem_sync.cc",
+    "mediatek/iph/ncp_md_tx_data.cc",
+  ]
+}

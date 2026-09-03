@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "pixelmd_headers",
+    hdrs = [
+        "pixelmd_api.h",
+        "pixelmd_client.h",
+        "pixelmd_cmd_kswapd.h",
+        "pixelmd_cmd_lmkd_kill.h",
+        "pixelmd_device.h",
+        "pixelmd_events.h",
+    ],
+)
+
+ddk_module(
+    name = "pixelmd",
+    srcs = [
+        "pixelmd_client.c",
+        "pixelmd_client_ioctl.c",
+        "pixelmd_cmd_kswapd.c",
+        "pixelmd_cmd_lmkd_kill.c",
+        "pixelmd_device.c",
+        "pixelmd_events.c",
+        "pixelmd_module.c",
+    ],
+    out = "pixelmd.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":pixelmd_headers",
+        "//common:all_headers_aarch64",
+    ],
+)
+
+ddk_module(
+    name = "pixelmd_kunit_test",
+    srcs = [
+        "pixelmd_client_test.c",
+    ],
+    out = "pixelmd_kunit_test.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":pixelmd",
+        ":pixelmd_headers",
+        "//common:all_headers_aarch64",
+    ],
+)

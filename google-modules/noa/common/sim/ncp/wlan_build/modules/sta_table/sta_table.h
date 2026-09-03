@@ -1,0 +1,1 @@
+../../../wlan_fw/modules/sta_table/sta_table.h

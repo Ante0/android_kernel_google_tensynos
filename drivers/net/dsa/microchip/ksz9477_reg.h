@@ -2,7 +2,7 @@
 /*
  * Microchip KSZ9477 register definitions
  *
- * Copyright (C) 2017-2024 Microchip Technology Inc.
+ * Copyright (C) 2017-2025 Microchip Technology Inc.
  */
 
 #ifndef __KSZ9477_REGS_H
@@ -37,11 +37,6 @@
 #define SWITCH_REVISION_M		0x0F
 #define SWITCH_REVISION_S		4
 #define SWITCH_RESET			0x01
-
-#define REG_SW_PME_CTRL			0x0006
-
-#define PME_ENABLE			BIT(1)
-#define PME_POLARITY			BIT(0)
 
 #define REG_GLOBAL_OPTIONS		0x000F
 
@@ -112,19 +107,6 @@
 
 #define REG_SW_IBA_SYNC__1		0x010C
 
-#define REG_SW_IO_STRENGTH__1		0x010D
-#define SW_DRIVE_STRENGTH_M		0x7
-#define SW_DRIVE_STRENGTH_2MA		0
-#define SW_DRIVE_STRENGTH_4MA		1
-#define SW_DRIVE_STRENGTH_8MA		2
-#define SW_DRIVE_STRENGTH_12MA		3
-#define SW_DRIVE_STRENGTH_16MA		4
-#define SW_DRIVE_STRENGTH_20MA		5
-#define SW_DRIVE_STRENGTH_24MA		6
-#define SW_DRIVE_STRENGTH_28MA		7
-#define SW_HI_SPEED_DRIVE_STRENGTH_S	4
-#define SW_LO_SPEED_DRIVE_STRENGTH_S	0
-
 #define REG_SW_IBA_STATUS__4		0x0110
 
 #define SW_IBA_REQ			BIT(31)
@@ -165,13 +147,6 @@
 
 #define SW_DOUBLE_TAG			BIT(7)
 #define SW_RESET			BIT(1)
-
-#define REG_SW_MAC_ADDR_0		0x0302
-#define REG_SW_MAC_ADDR_1		0x0303
-#define REG_SW_MAC_ADDR_2		0x0304
-#define REG_SW_MAC_ADDR_3		0x0305
-#define REG_SW_MAC_ADDR_4		0x0306
-#define REG_SW_MAC_ADDR_5		0x0307
 
 #define REG_SW_MTU__2			0x0308
 #define REG_SW_MTU_MASK			GENMASK(13, 0)
@@ -422,7 +397,6 @@
 
 #define ALU_RESV_MCAST_INDEX_M		(BIT(6) - 1)
 #define ALU_STAT_START			BIT(7)
-#define ALU_RESV_MCAST_ADDR		BIT(1)
 
 #define REG_SW_ALU_VAL_A		0x0420
 
@@ -825,13 +799,6 @@
 #define REG_PORT_AVB_SR_1_TYPE		0x0008
 #define REG_PORT_AVB_SR_2_TYPE		0x000A
 
-#define REG_PORT_PME_STATUS		0x0013
-#define REG_PORT_PME_CTRL		0x0017
-
-#define PME_WOL_MAGICPKT		BIT(2)
-#define PME_WOL_LINKUP			BIT(1)
-#define PME_WOL_ENERGY			BIT(0)
-
 #define REG_PORT_INT_STATUS		0x001B
 #define REG_PORT_INT_MASK		0x001F
 
@@ -849,7 +816,11 @@
 #define PORT_FORCE_TX_FLOW_CTRL		BIT(4)
 #define PORT_FORCE_RX_FLOW_CTRL		BIT(3)
 #define PORT_TAIL_TAG_ENABLE		BIT(2)
-#define PORT_QUEUE_SPLIT_ENABLE		0x3
+#define PORT_QUEUE_SPLIT_MASK		GENMASK(1, 0)
+#define PORT_EIGHT_QUEUE		0x3
+#define PORT_FOUR_QUEUE			0x2
+#define PORT_TWO_QUEUE			0x1
+#define PORT_SINGLE_QUEUE		0x0
 
 #define REG_PORT_CTRL_1			0x0021
 
@@ -857,8 +828,8 @@
 
 #define REG_PORT_STATUS_0		0x0030
 
-#define PORT_INTF_SPEED_M		0x3
-#define PORT_INTF_SPEED_S		3
+#define PORT_INTF_SPEED_MASK		GENMASK(4, 3)
+#define PORT_INTF_SPEED_NONE		GENMASK(1, 0)
 #define PORT_INTF_FULL_DUPLEX		BIT(2)
 #define PORT_TX_FLOW_CTRL		BIT(1)
 #define PORT_RX_FLOW_CTRL		BIT(0)
@@ -1182,6 +1153,11 @@
 #define PORT_RMII_CLK_SEL		BIT(7)
 #define PORT_MII_SEL_EDGE		BIT(5)
 
+#define REG_PMAVBC			0x03AC
+
+#define PMAVBC_MASK			GENMASK(26, 16)
+#define PMAVBC_MIN			0x580
+
 /* 4 - MAC */
 #define REG_PORT_MAC_CTRL_0		0x0400
 
@@ -1479,33 +1455,10 @@
 
 /* 9 - Shaping */
 
-#define REG_PORT_MTI_QUEUE_INDEX__4	0x0900
+#define REG_PORT_MTI_QUEUE_CTRL_0__4   0x0904
 
-#define REG_PORT_MTI_QUEUE_CTRL_0__4	0x0904
+#define MTI_PVID_REPLACE               BIT(0)
 
-#define MTI_PVID_REPLACE		BIT(0)
-
-#define REG_PORT_MTI_QUEUE_CTRL_0	0x0914
-
-#define MTI_SCHEDULE_MODE_M		0x3
-#define MTI_SCHEDULE_MODE_S		6
-#define MTI_SCHEDULE_STRICT_PRIO	0
-#define MTI_SCHEDULE_WRR		2
-#define MTI_SHAPING_M			0x3
-#define MTI_SHAPING_S			4
-#define MTI_SHAPING_OFF			0
-#define MTI_SHAPING_SRP			1
-#define MTI_SHAPING_TIME_AWARE		2
-
-#define REG_PORT_MTI_QUEUE_CTRL_1	0x0915
-
-#define MTI_TX_RATIO_M			(BIT(7) - 1)
-
-#define REG_PORT_MTI_QUEUE_CTRL_2__2	0x0916
-#define REG_PORT_MTI_HI_WATER_MARK	0x0916
-#define REG_PORT_MTI_QUEUE_CTRL_3__2	0x0918
-#define REG_PORT_MTI_LO_WATER_MARK	0x0918
-#define REG_PORT_MTI_QUEUE_CTRL_4__2	0x091A
 #define REG_PORT_MTI_CREDIT_INCREMENT	0x091A
 
 /* A - QM */
@@ -1532,6 +1485,7 @@
 
 #define PORT_QM_TX_CNT_USED_S		0
 #define PORT_QM_TX_CNT_M		(BIT(11) - 1)
+#define PORT_QM_TX_CNT_MAX		0x200
 
 #define REG_PORT_QM_TX_CNT_1__4		0x0A14
 
@@ -1613,7 +1567,5 @@
 
 #define PTP_TRIG_UNIT_M			(BIT(MAX_TRIG_UNIT) - 1)
 #define PTP_TS_UNIT_M			(BIT(MAX_TIMESTAMP_UNIT) - 1)
-
-#define KSZ9477_MAX_FRAME_SIZE		9000
 
 #endif /* KSZ9477_REGS_H */

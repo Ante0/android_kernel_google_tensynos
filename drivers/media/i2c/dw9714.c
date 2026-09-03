@@ -2,6 +2,7 @@
 // Copyright (c) 2015--2017 Intel Corporation.
 
 #include <linux/delay.h>
+#include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
 #include <linux/module.h>
 #include <linux/pm_runtime.h>
@@ -38,6 +39,7 @@ struct dw9714_device {
 	struct v4l2_subdev sd;
 	u16 current_val;
 	struct regulator *vcc;
+	struct gpio_desc *powerdown_gpio;
 };
 
 static inline struct dw9714_device *to_dw9714_vcm(struct v4l2_ctrl *ctrl)
@@ -137,6 +139,28 @@ static int dw9714_init_controls(struct dw9714_device *dev_vcm)
 	return hdl->error;
 }
 
+static int dw9714_power_up(struct dw9714_device *dw9714_dev)
+{
+	int ret;
+
+	ret = regulator_enable(dw9714_dev->vcc);
+	if (ret)
+		return ret;
+
+	gpiod_set_value_cansleep(dw9714_dev->powerdown_gpio, 0);
+
+	usleep_range(12000, 14000);
+
+	return 0;
+}
+
+static int dw9714_power_down(struct dw9714_device *dw9714_dev)
+{
+	gpiod_set_value_cansleep(dw9714_dev->powerdown_gpio, 1);
+
+	return regulator_disable(dw9714_dev->vcc);
+}
+
 static int dw9714_probe(struct i2c_client *client)
 {
 	struct dw9714_device *dw9714_dev;
@@ -151,11 +175,18 @@ static int dw9714_probe(struct i2c_client *client)
 	if (IS_ERR(dw9714_dev->vcc))
 		return PTR_ERR(dw9714_dev->vcc);
 
-	rval = regulator_enable(dw9714_dev->vcc);
-	if (rval < 0) {
-		dev_err(&client->dev, "failed to enable vcc: %d\n", rval);
-		return rval;
-	}
+	dw9714_dev->powerdown_gpio = devm_gpiod_get_optional(&client->dev,
+							     "powerdown",
+							     GPIOD_OUT_HIGH);
+	if (IS_ERR(dw9714_dev->powerdown_gpio))
+		return dev_err_probe(&client->dev,
+				     PTR_ERR(dw9714_dev->powerdown_gpio),
+				     "could not get powerdown gpio\n");
+
+	rval = dw9714_power_up(dw9714_dev);
+	if (rval)
+		return dev_err_probe(&client->dev, rval,
+				     "failed to power up: %d\n", rval);
 
 	v4l2_i2c_subdev_init(&dw9714_dev->sd, client, &dw9714_ops);
 	dw9714_dev->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE |
@@ -183,7 +214,7 @@ static int dw9714_probe(struct i2c_client *client)
 	return 0;
 
 err_cleanup:
-	regulator_disable(dw9714_dev->vcc);
+	dw9714_power_down(dw9714_dev);
 	v4l2_ctrl_handler_free(&dw9714_dev->ctrls_vcm);
 	media_entity_cleanup(&dw9714_dev->sd.entity);
 
@@ -198,10 +229,10 @@ static void dw9714_remove(struct i2c_client *client)
 
 	pm_runtime_disable(&client->dev);
 	if (!pm_runtime_status_suspended(&client->dev)) {
-		ret = regulator_disable(dw9714_dev->vcc);
+		ret = dw9714_power_down(dw9714_dev);
 		if (ret) {
 			dev_err(&client->dev,
-				"Failed to disable vcc: %d\n", ret);
+				"Failed to power down: %d\n", ret);
 		}
 	}
 	pm_runtime_set_suspended(&client->dev);
@@ -232,9 +263,9 @@ static int __maybe_unused dw9714_vcm_suspend(struct device *dev)
 		usleep_range(DW9714_CTRL_DELAY_US, DW9714_CTRL_DELAY_US + 10);
 	}
 
-	ret = regulator_disable(dw9714_dev->vcc);
+	ret = dw9714_power_down(dw9714_dev);
 	if (ret)
-		dev_err(dev, "Failed to disable vcc: %d\n", ret);
+		dev_err(dev, "Failed to power down: %d\n", ret);
 
 	return ret;
 }
@@ -255,12 +286,11 @@ static int  __maybe_unused dw9714_vcm_resume(struct device *dev)
 	if (pm_runtime_suspended(&client->dev))
 		return 0;
 
-	ret = regulator_enable(dw9714_dev->vcc);
+	ret = dw9714_power_up(dw9714_dev);
 	if (ret) {
-		dev_err(dev, "Failed to enable vcc: %d\n", ret);
+		dev_err(dev, "Failed to power up: %d\n", ret);
 		return ret;
 	}
-	usleep_range(1000, 2000);
 
 	for (val = dw9714_dev->current_val % DW9714_CTRL_STEPS;
 	     val < dw9714_dev->current_val + DW9714_CTRL_STEPS - 1;
@@ -277,8 +307,8 @@ static int  __maybe_unused dw9714_vcm_resume(struct device *dev)
 }
 
 static const struct i2c_device_id dw9714_id_table[] = {
-	{ DW9714_NAME, 0 },
-	{ { 0 } }
+	{ DW9714_NAME },
+	{ }
 };
 MODULE_DEVICE_TABLE(i2c, dw9714_id_table);
 
@@ -299,7 +329,7 @@ static struct i2c_driver dw9714_i2c_driver = {
 		.pm = &dw9714_pm_ops,
 		.of_match_table = dw9714_of_table,
 	},
-	.probe_new = dw9714_probe,
+	.probe = dw9714_probe,
 	.remove = dw9714_remove,
 	.id_table = dw9714_id_table,
 };
@@ -308,8 +338,8 @@ module_i2c_driver(dw9714_i2c_driver);
 
 MODULE_AUTHOR("Tianshu Qiu <tian.shu.qiu@intel.com>");
 MODULE_AUTHOR("Jian Xu Zheng");
-MODULE_AUTHOR("Yuning Pu <yuning.pu@intel.com>");
-MODULE_AUTHOR("Jouni Ukkonen <jouni.ukkonen@intel.com>");
-MODULE_AUTHOR("Tommi Franttila <tommi.franttila@intel.com>");
+MODULE_AUTHOR("Yuning Pu");
+MODULE_AUTHOR("Jouni Ukkonen");
+MODULE_AUTHOR("Tommi Franttila");
 MODULE_DESCRIPTION("DW9714 VCM driver");
 MODULE_LICENSE("GPL v2");

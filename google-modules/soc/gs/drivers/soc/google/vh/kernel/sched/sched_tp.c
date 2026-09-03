@@ -22,8 +22,11 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(sched_cpu_util_rt);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_find_least_loaded_cpu);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_select_task_rq_rt);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_setscheduler_uclamp);
+EXPORT_TRACEPOINT_SYMBOL_GPL(sched_per_cluster_energy);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_compute_energy);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_wakeup_task_attr);
+EXPORT_TRACEPOINT_SYMBOL_GPL(per_task_memory_pressure);
+EXPORT_TRACEPOINT_SYMBOL_GPL(per_task_pmu_stats);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_group_tracker);
 
 static inline struct sched_avg *sched_trace_cfs_rq_avg(struct cfs_rq *cfs_rq)
@@ -45,14 +48,14 @@ static inline void cfs_rq_tg_path(struct cfs_rq *cfs_rq, char *path, int len)
 	else if (cfs_rq && cfs_rq->tg->css.cgroup)
 		cgroup_path(cfs_rq->tg->css.cgroup, path, len);
 	else
-		strlcpy(path, "(null)", len);
+		strscpy(path, "(null)", len);
 }
 
 static inline char *sched_trace_cfs_rq_path(struct cfs_rq *cfs_rq, char *str, int len)
 {
 	if (!cfs_rq) {
 		if (str)
-			strlcpy(str, "(null)", len);
+			strscpy(str, "(null)", len);
 		else
 			return NULL;
 	}

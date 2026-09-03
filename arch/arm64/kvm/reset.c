@@ -27,18 +27,20 @@
 #include <asm/kvm_asm.h>
 #include <asm/kvm_emulate.h>
 #include <asm/kvm_mmu.h>
+#include <asm/kvm_nested.h>
 #include <asm/virt.h>
 
 /* Maximum phys_shift supported for any VM on this host */
-static u32 kvm_ipa_limit;
+static u32 __ro_after_init kvm_ipa_limit;
+unsigned int __ro_after_init kvm_host_sve_max_vl;
 
-unsigned int kvm_sve_max_vl;
-unsigned int kvm_host_sve_max_vl;
+unsigned int __ro_after_init kvm_sve_max_vl;
 
-int kvm_arm_init_sve(void)
+int __init kvm_arm_init_sve(void)
 {
 	if (system_supports_sve()) {
 		kvm_sve_max_vl = sve_max_virtualisable_vl();
+		kvm_nvhe_sym(kvm_sve_max_vl) = kvm_sve_max_vl;
 		kvm_host_sve_max_vl = sve_max_vl();
 		kvm_nvhe_sym(kvm_host_sve_max_vl) = kvm_host_sve_max_vl;
 
@@ -63,11 +65,8 @@ int kvm_arm_init_sve(void)
 	return 0;
 }
 
-static int kvm_vcpu_enable_sve(struct kvm_vcpu *vcpu)
+static void kvm_vcpu_enable_sve(struct kvm_vcpu *vcpu)
 {
-	if (!system_supports_sve())
-		return -EINVAL;
-
 	vcpu->arch.sve_max_vl = kvm_sve_max_vl;
 
 	/*
@@ -75,7 +74,29 @@ static int kvm_vcpu_enable_sve(struct kvm_vcpu *vcpu)
 	 * KVM_REG_ARM64_SVE_VLS.  Allocation is deferred until
 	 * kvm_arm_vcpu_finalize(), which freezes the configuration.
 	 */
-	vcpu_set_flag(vcpu, GUEST_HAS_SVE);
+	set_bit(KVM_ARCH_FLAG_GUEST_HAS_SVE, &vcpu->kvm->arch.flags);
+}
+
+static int alloc_sve_state(struct kvm_vcpu *vcpu)
+{
+	size_t reg_sz = PAGE_ALIGN(vcpu_sve_state_size(vcpu));
+	void *buf;
+	int ret;
+
+	if (kvm_vm_is_protected(vcpu->kvm))
+		return 0;
+
+	buf = alloc_pages_exact(reg_sz, GFP_KERNEL_ACCOUNT);
+	if (!buf)
+		return -ENOMEM;
+
+	ret = kvm_share_hyp(buf, buf + reg_sz);
+	if (ret) {
+		free_pages_exact(buf, reg_sz);
+		return ret;
+	}
+
+	vcpu->arch.sve_state = buf;
 
 	return 0;
 }
@@ -86,9 +107,7 @@ static int kvm_vcpu_enable_sve(struct kvm_vcpu *vcpu)
  */
 static int kvm_vcpu_finalize_sve(struct kvm_vcpu *vcpu)
 {
-	void *buf;
 	unsigned int vl;
-	size_t reg_sz;
 	int ret;
 
 	vl = vcpu->arch.sve_max_vl;
@@ -102,18 +121,10 @@ static int kvm_vcpu_finalize_sve(struct kvm_vcpu *vcpu)
 		    vl > VL_ARCH_MAX))
 		return -EIO;
 
-	reg_sz = vcpu_sve_state_size(vcpu);
-	buf = kzalloc(reg_sz, GFP_KERNEL_ACCOUNT);
-	if (!buf)
-		return -ENOMEM;
-
-	ret = kvm_share_hyp(buf, buf + reg_sz);
-	if (ret) {
-		kfree(buf);
+	ret = alloc_sve_state(vcpu);
+	if (ret)
 		return ret;
-	}
 
-	vcpu->arch.sve_state = buf;
 	vcpu_set_flag(vcpu, VCPU_SVE_FINALIZED);
 	return 0;
 }
@@ -147,62 +158,24 @@ void kvm_arm_vcpu_destroy(struct kvm_vcpu *vcpu)
 	void *sve_state = vcpu->arch.sve_state;
 
 	kvm_unshare_hyp(vcpu, vcpu + 1);
-	if (sve_state)
-		kvm_unshare_hyp(sve_state, sve_state + vcpu_sve_state_size(vcpu));
-	kfree(sve_state);
+
+	if (sve_state) {
+		size_t reg_sz = PAGE_ALIGN(vcpu_sve_state_size(vcpu));
+
+		/* sve_allocate within the hypervisor when protected */
+		BUG_ON(kvm_vm_is_protected(vcpu->kvm));
+
+		kvm_unshare_hyp(sve_state, sve_state + reg_sz);
+		free_pages_exact(sve_state, reg_sz);
+	}
+
+	kfree(vcpu->arch.ccsidr);
 }
 
 static void kvm_vcpu_reset_sve(struct kvm_vcpu *vcpu)
 {
-	if (vcpu_has_sve(vcpu))
+	if (!kvm_vm_is_protected(vcpu->kvm) && vcpu_has_sve(vcpu))
 		memset(vcpu->arch.sve_state, 0, vcpu_sve_state_size(vcpu));
-}
-
-/**
- * kvm_set_vm_width() - set the register width for the guest
- * @vcpu: Pointer to the vcpu being configured
- *
- * Set both KVM_ARCH_FLAG_EL1_32BIT and KVM_ARCH_FLAG_REG_WIDTH_CONFIGURED
- * in the VM flags based on the vcpu's requested register width, the HW
- * capabilities and other options (such as MTE).
- * When REG_WIDTH_CONFIGURED is already set, the vcpu settings must be
- * consistent with the value of the FLAG_EL1_32BIT bit in the flags.
- *
- * Return: 0 on success, negative error code on failure.
- */
-static int kvm_set_vm_width(struct kvm_vcpu *vcpu)
-{
-	struct kvm *kvm = vcpu->kvm;
-	bool is32bit;
-
-	is32bit = vcpu_has_feature(vcpu, KVM_ARM_VCPU_EL1_32BIT);
-
-	lockdep_assert_held(&kvm->arch.config_lock);
-
-	if (test_bit(KVM_ARCH_FLAG_REG_WIDTH_CONFIGURED, &kvm->arch.flags)) {
-		/*
-		 * The guest's register width is already configured.
-		 * Make sure that the vcpu is consistent with it.
-		 */
-		if (is32bit == test_bit(KVM_ARCH_FLAG_EL1_32BIT, &kvm->arch.flags))
-			return 0;
-
-		return -EINVAL;
-	}
-
-	if (!cpus_have_const_cap(ARM64_HAS_32BIT_EL1) && is32bit)
-		return -EINVAL;
-
-	/* MTE is incompatible with AArch32 */
-	if (kvm_has_mte(kvm) && is32bit)
-		return -EINVAL;
-
-	if (is32bit)
-		set_bit(KVM_ARCH_FLAG_EL1_32BIT, &kvm->arch.flags);
-
-	set_bit(KVM_ARCH_FLAG_REG_WIDTH_CONFIGURED, &kvm->arch.flags);
-
-	return 0;
 }
 
 /**
@@ -223,18 +196,10 @@ static int kvm_set_vm_width(struct kvm_vcpu *vcpu)
  * disable preemption around the vcpu reset as we would otherwise race with
  * preempt notifiers which also call put/load.
  */
-int kvm_reset_vcpu(struct kvm_vcpu *vcpu)
+void kvm_reset_vcpu(struct kvm_vcpu *vcpu)
 {
 	struct vcpu_reset_state reset_state;
-	int ret;
 	bool loaded;
-
-	mutex_lock(&vcpu->kvm->arch.config_lock);
-	ret = kvm_set_vm_width(vcpu);
-	mutex_unlock(&vcpu->kvm->arch.config_lock);
-
-	if (ret)
-		return ret;
 
 	spin_lock(&vcpu->arch.mp_state_lock);
 	reset_state = vcpu->arch.reset_state;
@@ -250,26 +215,10 @@ int kvm_reset_vcpu(struct kvm_vcpu *vcpu)
 		kvm_arch_vcpu_put(vcpu);
 
 	if (!kvm_arm_vcpu_sve_finalized(vcpu)) {
-		if (test_bit(KVM_ARM_VCPU_SVE, vcpu->arch.features)) {
-			ret = kvm_vcpu_enable_sve(vcpu);
-			if (ret)
-				goto out;
-		}
+		if (vcpu_has_feature(vcpu, KVM_ARM_VCPU_SVE))
+			kvm_vcpu_enable_sve(vcpu);
 	} else {
 		kvm_vcpu_reset_sve(vcpu);
-	}
-
-	if (test_bit(KVM_ARM_VCPU_PTRAUTH_ADDRESS, vcpu->arch.features) ||
-	    test_bit(KVM_ARM_VCPU_PTRAUTH_GENERIC, vcpu->arch.features)) {
-		if (kvm_vcpu_enable_ptrauth(vcpu)) {
-			ret = -EINVAL;
-			goto out;
-		}
-	}
-
-	if (kvm_vcpu_has_pmu(vcpu) && !kvm_arm_support_pmu_v3()) {
-		ret = -EINVAL;
-		goto out;
 	}
 
 	/* Reset core registers */
@@ -286,12 +235,17 @@ int kvm_reset_vcpu(struct kvm_vcpu *vcpu)
 		kvm_reset_vcpu_psci(vcpu, &reset_state);
 
 	/* Reset timer */
-	ret = kvm_timer_vcpu_reset(vcpu);
-out:
+	kvm_timer_vcpu_reset(vcpu);
+
 	if (loaded)
 		kvm_arch_vcpu_load(vcpu, smp_processor_id());
 	preempt_enable();
-	return ret;
+}
+
+u32 kvm_get_pa_bits(struct kvm *kvm)
+{
+	/* Fixed limit until we can configure ID_AA64MMFR0.PARange */
+	return kvm_ipa_limit;
 }
 
 u32 get_kvm_ipa_limit(void)
@@ -299,7 +253,7 @@ u32 get_kvm_ipa_limit(void)
 	return kvm_ipa_limit;
 }
 
-int kvm_set_ipa_limit(void)
+int __init kvm_set_ipa_limit(void)
 {
 	unsigned int parange;
 	u64 mmfr0;
@@ -308,12 +262,11 @@ int kvm_set_ipa_limit(void)
 	parange = cpuid_feature_extract_unsigned_field(mmfr0,
 				ID_AA64MMFR0_EL1_PARANGE_SHIFT);
 	/*
-	 * IPA size beyond 48 bits could not be supported
-	 * on either 4K or 16K page size. Hence let's cap
-	 * it to 48 bits, in case it's reported as larger
-	 * on the system.
+	 * IPA size beyond 48 bits for 4K and 16K page size is only supported
+	 * when LPA2 is available. So if we have LPA2, enable it, else cap to 48
+	 * bits, in case it's reported as larger on the system.
 	 */
-	if (PAGE_SIZE != SZ_64K)
+	if (!kvm_lpa2_is_enabled() && PAGE_SIZE != SZ_64K)
 		parange = min(parange, (unsigned int)ID_AA64MMFR0_EL1_PARANGE_48);
 
 	/*

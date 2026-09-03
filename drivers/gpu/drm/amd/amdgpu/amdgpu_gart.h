@@ -51,10 +51,10 @@ struct amdgpu_gart {
 	uint64_t			gart_pte_flags;
 };
 
+int amdgpu_gart_table_ram_alloc(struct amdgpu_device *adev);
+void amdgpu_gart_table_ram_free(struct amdgpu_device *adev);
 int amdgpu_gart_table_vram_alloc(struct amdgpu_device *adev);
 void amdgpu_gart_table_vram_free(struct amdgpu_device *adev);
-int amdgpu_gart_table_vram_pin(struct amdgpu_device *adev);
-void amdgpu_gart_table_vram_unpin(struct amdgpu_device *adev);
 int amdgpu_gart_init(struct amdgpu_device *adev);
 void amdgpu_gart_dummy_page_fini(struct amdgpu_device *adev);
 void amdgpu_gart_unbind(struct amdgpu_device *adev, uint64_t offset,

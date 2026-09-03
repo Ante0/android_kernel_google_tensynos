@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "dmabuf-heaps-kconfig_group",
+    srcs = [
+        ":kconfig",
+        "//private/google-modules/soc/gs/drivers/dma-buf/heaps/samsung:kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "headers",
+    hdrs = [
+        "deferred-free-helper.h",
+        "page_pool.h",
+    ],
+    includes = ["."],
+    visibility = [
+        ":__subpackages__",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/mm:__pkg__",
+    ],
+)
+
+ddk_module(
+    name = "deferred-free-helper",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "deferred-free-helper.ko",
+    conditional_srcs = {
+        "CONFIG_DMABUF_HEAPS_DEFERRED_FREE": {
+            True: [
+                "deferred-free-helper.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "page_pool",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "page_pool.ko",
+    conditional_srcs = {
+        "CONFIG_DMABUF_HEAPS_PAGE_POOL": {
+            True: [
+                "page_pool.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

@@ -23,8 +23,10 @@ struct debug_trigger {
 
 #if IS_ENABLED(CONFIG_PIXEL_DEBUG_TEST)
 extern void debug_trigger_register(struct debug_trigger *soc_trigger, char *arch_name);
+extern void pull_down_other_cpus(void);
 #else
 static inline void debug_trigger_register(struct debug_trigger *soc_trigger, char *arch_name) {}
+static inline void pull_down_other_cpus(void) {}
 #endif
 
 #endif /* DEBUG_TEST_H */

@@ -283,8 +283,7 @@ static const struct dvb_tuner_ops mxl301rf_ops = {
 };
 
 
-static int mxl301rf_probe(struct i2c_client *client,
-			  const struct i2c_device_id *id)
+static int mxl301rf_probe(struct i2c_client *client)
 {
 	struct mxl301rf_state *state;
 	struct mxl301rf_config *cfg;
@@ -318,7 +317,7 @@ static void mxl301rf_remove(struct i2c_client *client)
 
 
 static const struct i2c_device_id mxl301rf_id[] = {
-	{"mxl301rf", 0},
+	{ "mxl301rf" },
 	{}
 };
 MODULE_DEVICE_TABLE(i2c, mxl301rf_id);

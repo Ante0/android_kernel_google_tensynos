@@ -12,6 +12,7 @@
 #include "lwis_device_i2c.h"
 #include "lwis_device_ioreg.h"
 #include "lwis_bus_scheduler.h"
+#include "lwis_allocator.h"
 
 bool lwis_bus_manager_debug;
 module_param(lwis_bus_manager_debug, bool, 0644);
@@ -30,16 +31,13 @@ static struct lwis_bus_manager_list bus_manager_list;
 static bool is_valid_connected_device(struct lwis_device *lwis_dev,
 				      struct lwis_bus_manager *bus_manager)
 {
-	struct lwis_connected_device *connected_lwis_device;
-	struct list_head *connected_device_node, *connected_device_tmp_node;
+	struct lwis_connected_device *connected_lwis_device, *connected_lwis_device_tmp;
 
 	if ((!lwis_dev) || (!bus_manager))
 		return false;
 
-	list_for_each_safe(connected_device_node, connected_device_tmp_node,
-			   &bus_manager->connected_devices) {
-		connected_lwis_device = list_entry(
-			connected_device_node, struct lwis_connected_device, connected_device_node);
+	list_for_each_entry_safe(connected_lwis_device, connected_lwis_device_tmp,
+				 &bus_manager->connected_devices, connected_device_node) {
 		if (connected_lwis_device->connected_device == lwis_dev)
 			return true;
 	}
@@ -55,8 +53,7 @@ static bool is_valid_connected_device(struct lwis_device *lwis_dev,
 static void process_high_priority_transaction_queue(struct lwis_bus_manager *bus_manager)
 {
 	struct lwis_process_queue *high_priority_process_queue = NULL;
-	struct list_head *request, *request_tmp;
-	struct lwis_process_request *processing_node;
+	struct lwis_process_request *processing_node, *processing_node_tmp;
 	struct lwis_client *processing_client = NULL;
 	struct lwis_device *processing_dev = NULL;
 	unsigned long flags;
@@ -74,8 +71,8 @@ static void process_high_priority_transaction_queue(struct lwis_bus_manager *bus
 		spin_unlock_irqrestore(&bus_manager->transaction_queue_lock, flags);
 		return;
 	}
-	list_for_each_safe(request, request_tmp, &high_priority_process_queue->head) {
-		processing_node = list_entry(request, struct lwis_process_request, request_node);
+	list_for_each_entry_safe(processing_node, processing_node_tmp,
+				 &high_priority_process_queue->head, request_node) {
 		processing_client = processing_node->requesting_client;
 		processing_dev = processing_client->lwis_dev;
 		if (lwis_bus_manager_debug) {
@@ -98,7 +95,7 @@ static void process_high_priority_transaction_queue(struct lwis_bus_manager *bus
 		}
 		list_del(&processing_node->request_node);
 		processing_node->requesting_client = NULL;
-		kfree(processing_node);
+		lwis_allocator_free(processing_dev, processing_node);
 		processing_node = NULL;
 		high_priority_process_queue->number_of_nodes--;
 	}
@@ -138,20 +135,15 @@ static int insert_bus_manager_id_in_list(struct lwis_bus_manager *bus_manager, i
  */
 static void delete_bus_manager_id_in_list(int bus_handle, int32_t bus_type)
 {
-	struct lwis_bus_manager_identifier *bus_manager_identifier_node;
-	struct list_head *bus_manager_list_node;
-	struct list_head *bus_manager_list_tmp_node;
+	struct lwis_bus_manager_identifier *bus_manager_identifier_node,
+		*bus_manager_identifier_tmp;
 
 	if ((bus_type != DEVICE_TYPE_I2C) && (bus_type != DEVICE_TYPE_IOREG))
 		return;
 
 	mutex_lock(&bus_manager_list_lock);
-	list_for_each_safe(bus_manager_list_node, bus_manager_list_tmp_node,
-			   &bus_manager_list.bus_manager_list_head) {
-		bus_manager_identifier_node =
-			list_entry(bus_manager_list_node, struct lwis_bus_manager_identifier,
-				   bus_manager_list_node);
-
+	list_for_each_entry_safe(bus_manager_identifier_node, bus_manager_identifier_tmp,
+				 &bus_manager_list.bus_manager_list_head, bus_manager_list_node) {
 		if (bus_manager_identifier_node->bus_manager_handle != bus_handle)
 			continue;
 
@@ -172,17 +164,11 @@ static void delete_bus_manager_id_in_list(int bus_handle, int32_t bus_type)
 static struct lwis_bus_manager *find_bus_manager(int bus_handle, int32_t type)
 {
 	struct lwis_bus_manager *bus_manager = NULL;
-	struct list_head *bus_manager_list_node;
-	struct list_head *bus_manager_list_tmp_node;
-	struct lwis_bus_manager_identifier *bus_manager_identifier;
+	struct lwis_bus_manager_identifier *bus_manager_identifier, *bus_manager_identifier_tmp;
 
 	mutex_lock(&bus_manager_list_lock);
-	list_for_each_safe(bus_manager_list_node, bus_manager_list_tmp_node,
-			   &bus_manager_list.bus_manager_list_head) {
-		bus_manager_identifier =
-			list_entry(bus_manager_list_node, struct lwis_bus_manager_identifier,
-				   bus_manager_list_node);
-
+	list_for_each_entry_safe(bus_manager_identifier, bus_manager_identifier_tmp,
+				 &bus_manager_list.bus_manager_list_head, bus_manager_list_node) {
 		if (bus_manager_identifier->bus_manager_handle != bus_handle)
 			continue;
 
@@ -226,7 +212,7 @@ static int create_kthread_workers(struct lwis_bus_manager *bus_manager,
 	scnprintf(bus_thread_name, LWIS_MAX_NAME_STRING_LEN, "lwis_%s", bus_manager->bus_name);
 	kthread_init_worker(&bus_manager->bus_worker);
 	bus_manager->bus_worker_thread =
-		kthread_run(kthread_worker_fn, &bus_manager->bus_worker, bus_thread_name);
+		kthread_run(kthread_worker_fn, &bus_manager->bus_worker, "%s", bus_thread_name);
 	if (IS_ERR(bus_manager->bus_worker_thread)) {
 		dev_err(lwis_dev->dev, "Creation of bus_worker_thread failed for bus %s\n",
 			bus_manager->bus_name);
@@ -239,16 +225,16 @@ static int create_kthread_workers(struct lwis_bus_manager *bus_manager,
  * check_thread_priority:
  * Checks if the lwis device being connected has the same priority as other devices
  * connected on the same bus.
- * Prints a warning message if there is a difference between the priorities on the
+ * Prints an error message if there is a difference between the priorities on the
  * device threads.
  */
 static void check_thread_priority(struct lwis_bus_manager *bus_manager,
 				  struct lwis_device *lwis_dev)
 {
 	if (bus_manager->bus_thread_priority != lwis_dev->transaction_thread_priority) {
-		dev_warn(lwis_dev->dev,
-			 "Mismatching thread priority for Bus manager(%d), device(%d)\n",
-			 bus_manager->bus_thread_priority, lwis_dev->transaction_thread_priority);
+		dev_err(lwis_dev->dev,
+			"Thread priority conflict: Bus manager(%d), device transaction priority(%d). Ensure these are aligned in the device tree.\n",
+			bus_manager->bus_thread_priority, lwis_dev->transaction_thread_priority);
 	}
 }
 
@@ -359,12 +345,10 @@ void lwis_bus_manager_process_worker_queue(struct lwis_client *client)
 	struct lwis_client *client_to_process;
 	struct lwis_device *lwis_dev_to_process;
 	struct lwis_process_queue *process_queue;
-	struct lwis_process_request *process_request;
-
-	struct list_head *client_node, *client_tmp_node;
+	struct lwis_process_request *process_request, *process_request_tmp;
 
 	lwis_dev = client->lwis_dev;
-	bus_manager = lwis_bus_manager_get(lwis_dev);
+	bus_manager = lwis_dev->bus_manager;
 
 	if (lwis_bus_manager_debug)
 		dev_info(lwis_dev->dev, "%s scheduled by %s\n", bus_manager->bus_name,
@@ -373,11 +357,9 @@ void lwis_bus_manager_process_worker_queue(struct lwis_client *client)
 	mutex_lock(&bus_manager->process_queue_lock);
 	for (i = 0; i < MAX_DEVICE_PRIORITY_LEVELS; i++) {
 		process_queue = &bus_manager->bus_process_queue[i];
-		list_for_each_safe(client_node, client_tmp_node, &process_queue->head) {
+		list_for_each_entry_safe(process_request, process_request_tmp, &process_queue->head,
+					 request_node) {
 			process_high_priority_transaction_queue(bus_manager);
-
-			process_request =
-				list_entry(client_node, struct lwis_process_request, request_node);
 			if (!process_request) {
 				dev_err(lwis_dev->dev, "LWIS Bus Worker process_request is null\n");
 				break;
@@ -504,16 +486,7 @@ int lwis_bus_manager_create(struct lwis_device *lwis_dev)
 		 bus_manager->bus_name, lwis_dev->name, bus_manager->number_of_connected_devices);
 
 	/* Assign created/found bus manager to specific device type */
-	switch (lwis_dev->type) {
-	case DEVICE_TYPE_I2C:
-		i2c_dev->i2c_bus_manager = bus_manager;
-		break;
-	case DEVICE_TYPE_IOREG:
-		ioreg_dev->ioreg_bus_manager = bus_manager;
-		break;
-	default:
-		break;
-	}
+	lwis_dev->bus_manager = bus_manager;
 
 	return ret;
 
@@ -533,28 +506,16 @@ error_creating_bus_manager:
 void lwis_bus_manager_disconnect_device(struct lwis_device *lwis_dev)
 {
 	struct lwis_bus_manager *bus_manager;
-	struct lwis_connected_device *connected_lwis_device;
-	struct list_head *connected_device_node, *connected_device_tmp_node;
-	struct lwis_i2c_device *i2c_dev;
-	struct lwis_ioreg_device *ioreg_dev;
+	struct lwis_connected_device *connected_lwis_device, *connected_lwis_device_tmp;
 
-	bus_manager = lwis_bus_manager_get(lwis_dev);
+	bus_manager = lwis_dev->bus_manager;
 	if (!bus_manager)
 		return;
 
-	list_for_each_safe(connected_device_node, connected_device_tmp_node,
-			   &bus_manager->connected_devices) {
-		connected_lwis_device = list_entry(
-			connected_device_node, struct lwis_connected_device, connected_device_node);
-
+	list_for_each_entry_safe(connected_lwis_device, connected_lwis_device_tmp,
+				 &bus_manager->connected_devices, connected_device_node) {
 		/* Reset the bus manager pointer for this LWIS device. */
-		if (lwis_check_device_type(lwis_dev, DEVICE_TYPE_I2C)) {
-			i2c_dev = container_of(lwis_dev, struct lwis_i2c_device, base_dev);
-			i2c_dev->i2c_bus_manager = NULL;
-		} else if (lwis_check_device_type(lwis_dev, DEVICE_TYPE_IOREG)) {
-			ioreg_dev = container_of(lwis_dev, struct lwis_ioreg_device, base_dev);
-			ioreg_dev->ioreg_bus_manager = NULL;
-		}
+		lwis_dev->bus_manager = NULL;
 
 		if (connected_lwis_device->connected_device == lwis_dev) {
 			list_del(&connected_lwis_device->connected_device_node);
@@ -579,10 +540,8 @@ void lwis_bus_manager_disconnect_device(struct lwis_device *lwis_dev)
  */
 void lwis_bus_manager_lock_bus(struct lwis_device *lwis_dev)
 {
-	struct lwis_bus_manager *bus_manager = lwis_bus_manager_get(lwis_dev);
-
-	if (bus_manager)
-		mutex_lock(&bus_manager->bus_lock);
+	if (lwis_dev->bus_manager)
+		mutex_lock(&lwis_dev->bus_manager->bus_lock);
 }
 
 /*
@@ -591,36 +550,8 @@ void lwis_bus_manager_lock_bus(struct lwis_device *lwis_dev)
  */
 void lwis_bus_manager_unlock_bus(struct lwis_device *lwis_dev)
 {
-	struct lwis_bus_manager *bus_manager = lwis_bus_manager_get(lwis_dev);
-
-	if (bus_manager)
-		mutex_unlock(&bus_manager->bus_lock);
-}
-
-/*
- * lwis_bus_manager_get:
- * Gets LWIS Bus Manager for a given lwis device.
- */
-struct lwis_bus_manager *lwis_bus_manager_get(struct lwis_device *lwis_dev)
-{
-	struct lwis_i2c_device *i2c_dev;
-	struct lwis_ioreg_device *ioreg_dev;
-
-	switch (lwis_dev->type) {
-	case DEVICE_TYPE_I2C:
-		i2c_dev = container_of(lwis_dev, struct lwis_i2c_device, base_dev);
-		if (i2c_dev)
-			return i2c_dev->i2c_bus_manager;
-		break;
-	case DEVICE_TYPE_IOREG:
-		ioreg_dev = container_of(lwis_dev, struct lwis_ioreg_device, base_dev);
-		if (ioreg_dev)
-			return ioreg_dev->ioreg_bus_manager;
-		break;
-	default:
-		break;
-	}
-	return NULL;
+	if (lwis_dev->bus_manager)
+		mutex_unlock(&lwis_dev->bus_manager->bus_lock);
 }
 
 /*
@@ -629,10 +560,8 @@ struct lwis_bus_manager *lwis_bus_manager_get(struct lwis_device *lwis_dev)
  */
 void lwis_bus_manager_flush_worker(struct lwis_device *lwis_dev)
 {
-	struct lwis_bus_manager *bus_manager = lwis_bus_manager_get(lwis_dev);
-
-	if (bus_manager)
-		kthread_flush_worker(&bus_manager->bus_worker);
+	if (lwis_dev->bus_manager)
+		kthread_flush_worker(&lwis_dev->bus_manager->bus_worker);
 }
 
 /*
@@ -652,15 +581,11 @@ void lwis_bus_manager_list_initialize(void)
  */
 void lwis_bus_manager_list_deinitialize(void)
 {
-	struct list_head *bus_manager_list_node, *bus_manager_list_tmp_node;
-	struct lwis_bus_manager_identifier *bus_manager_identifier;
+	struct lwis_bus_manager_identifier *bus_manager_identifier, *bus_manager_identifier_tmp;
 
 	mutex_lock(&bus_manager_list_lock);
-	list_for_each_safe(bus_manager_list_node, bus_manager_list_tmp_node,
-			   &bus_manager_list.bus_manager_list_head) {
-		bus_manager_identifier =
-			list_entry(bus_manager_list_node, struct lwis_bus_manager_identifier,
-				   bus_manager_list_node);
+	list_for_each_entry_safe(bus_manager_identifier, bus_manager_identifier_tmp,
+				 &bus_manager_list.bus_manager_list_head, bus_manager_list_node) {
 		bus_manager_identifier->bus_manager = NULL;
 		list_del(&bus_manager_identifier->bus_manager_list_node);
 		kfree(bus_manager_identifier);
@@ -731,15 +656,13 @@ static int do_client_disconnect(struct lwis_client *disconnecting_client,
 static int find_client(int device_priority, struct lwis_bus_manager *bus_manager,
 		       struct lwis_client *client, enum lwis_client_connection connection_status)
 {
-	struct list_head *request, *request_tmp;
 	struct lwis_process_queue *process_queue;
-	struct lwis_process_request *client_node;
+	struct lwis_process_request *client_node, *client_node_tmp;
 
 	process_queue = &bus_manager->bus_process_queue[device_priority];
 	if (!lwis_process_request_queue_is_empty(process_queue)) {
-		list_for_each_safe(request, request_tmp, &process_queue->head) {
-			client_node =
-				list_entry(request, struct lwis_process_request, request_node);
+		list_for_each_entry_safe(client_node, client_node_tmp, &process_queue->head,
+					 request_node) {
 			if (client_node->requesting_client != client)
 				continue;
 
@@ -811,7 +734,7 @@ static int get_device_priority_and_bus_manager(struct lwis_client *client, int *
 	 * the transactions and events for IOREG devices. Hence, NULL bus manager for
 	 * IOREG devices is not necessarily an error.
 	 */
-	*bus_manager = lwis_bus_manager_get(client->lwis_dev);
+	*bus_manager = client->lwis_dev->bus_manager;
 	if (!(*bus_manager)) {
 		switch (client->lwis_dev->type) {
 		case DEVICE_TYPE_I2C:
@@ -895,9 +818,8 @@ int lwis_bus_manager_add_high_priority_client(struct lwis_client *client)
 {
 	struct lwis_process_queue *high_priority_process_queue;
 	struct lwis_process_request *high_priority_client_node;
-	struct list_head *request, *request_tmp;
-	struct lwis_process_request *search_node;
-	struct lwis_bus_manager *bus_manager = lwis_bus_manager_get(client->lwis_dev);
+	struct lwis_process_request *search_node, *search_node_tmp;
+	struct lwis_bus_manager *bus_manager = client->lwis_dev->bus_manager;
 	unsigned long flags;
 	bool add_node = true;
 
@@ -914,9 +836,8 @@ int lwis_bus_manager_add_high_priority_client(struct lwis_client *client)
 
 	high_priority_process_queue = &bus_manager->high_priority_transaction_queue;
 	if (!lwis_process_request_queue_is_empty(high_priority_process_queue)) {
-		list_for_each_safe(request, request_tmp, &high_priority_process_queue->head) {
-			search_node =
-				list_entry(request, struct lwis_process_request, request_node);
+		list_for_each_entry_safe(search_node, search_node_tmp,
+					 &high_priority_process_queue->head, request_node) {
 			if (search_node->requesting_client == client) {
 				if (lwis_bus_manager_debug) {
 					dev_info(
@@ -932,8 +853,8 @@ int lwis_bus_manager_add_high_priority_client(struct lwis_client *client)
 	}
 
 	if (add_node) {
-		high_priority_client_node =
-			kzalloc(sizeof(struct lwis_process_request), GFP_ATOMIC);
+		high_priority_client_node = lwis_allocator_zallocate(
+			client->lwis_dev, sizeof(struct lwis_process_request), GFP_ATOMIC);
 		if (!high_priority_client_node) {
 			spin_unlock_irqrestore(&bus_manager->transaction_queue_lock, flags);
 			return -ENOMEM;

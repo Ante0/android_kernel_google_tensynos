@@ -19,6 +19,7 @@
 #include <linux/bits.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/of.h>
 #include <linux/io.h>
 #include <linux/platform_device.h>
 #include <linux/platform_data/b53.h>
@@ -262,7 +263,7 @@ static int b53_mmap_probe_of(struct platform_device *pdev,
 		return -ENOMEM;
 
 	pdata->regs = mem;
-	pdata->chip_id = BCM63XX_DEVICE_ID;
+	pdata->chip_id = (u32)(unsigned long)device_get_match_data(dev);
 	pdata->big_endian = of_property_read_bool(np, "big-endian");
 
 	of_ports = of_get_child_by_name(np, "ports");
@@ -323,14 +324,12 @@ static int b53_mmap_probe(struct platform_device *pdev)
 	return b53_switch_register(dev);
 }
 
-static int b53_mmap_remove(struct platform_device *pdev)
+static void b53_mmap_remove(struct platform_device *pdev)
 {
 	struct b53_device *dev = platform_get_drvdata(pdev);
 
 	if (dev)
 		b53_switch_remove(dev);
-
-	return 0;
 }
 
 static void b53_mmap_shutdown(struct platform_device *pdev)
@@ -344,17 +343,34 @@ static void b53_mmap_shutdown(struct platform_device *pdev)
 }
 
 static const struct of_device_id b53_mmap_of_table[] = {
-	{ .compatible = "brcm,bcm3384-switch" },
-	{ .compatible = "brcm,bcm6328-switch" },
-	{ .compatible = "brcm,bcm6368-switch" },
-	{ .compatible = "brcm,bcm63xx-switch" },
-	{ /* sentinel */ },
+	{
+		.compatible = "brcm,bcm3384-switch",
+		.data = (void *)BCM63XX_DEVICE_ID,
+	}, {
+		.compatible = "brcm,bcm6318-switch",
+		.data = (void *)BCM63268_DEVICE_ID,
+	}, {
+		.compatible = "brcm,bcm6328-switch",
+		.data = (void *)BCM63XX_DEVICE_ID,
+	}, {
+		.compatible = "brcm,bcm6362-switch",
+		.data = (void *)BCM63XX_DEVICE_ID,
+	}, {
+		.compatible = "brcm,bcm6368-switch",
+		.data = (void *)BCM63XX_DEVICE_ID,
+	}, {
+		.compatible = "brcm,bcm63268-switch",
+		.data = (void *)BCM63268_DEVICE_ID,
+	}, {
+		.compatible = "brcm,bcm63xx-switch",
+		.data = (void *)BCM63XX_DEVICE_ID,
+	}, { /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, b53_mmap_of_table);
 
 static struct platform_driver b53_mmap_driver = {
 	.probe = b53_mmap_probe,
-	.remove = b53_mmap_remove,
+	.remove_new = b53_mmap_remove,
 	.shutdown = b53_mmap_shutdown,
 	.driver = {
 		.name = "b53-switch",

@@ -372,9 +372,9 @@ static int mcps802154_ca_next_region(struct mcps802154_local *local,
  *
  * Return: Pointer to access allocated inside the context.
  */
-struct mcps802154_access *mcps802154_ca_nothing(struct mcps802154_local *local,
-						u32 timestamp_dtu,
-						int duration_dtu)
+static struct mcps802154_access *mcps802154_ca_nothing(struct mcps802154_local *local,
+						       u32 timestamp_dtu,
+						       int duration_dtu)
 {
 	struct mcps802154_access *access = &local->ca.idle_access;
 

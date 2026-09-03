@@ -11,6 +11,8 @@
 
 #include <asm/kvm_mmu.h>
 
+#include <kvm/iommu.h>
+
 #define S2MPU_MMIO_SIZE				SZ_64K
 #define SYSMMU_SYNC_MMIO_SIZE			SZ_64K
 #define SYSMMU_SYNC_S2_OFFSET			SZ_32K
@@ -398,12 +400,16 @@ static_assert(SMPT_GRAN <= PAGE_SIZE);
  */
 #define S2MPU_DENY_ALL				BIT(1)
 
+#define S2MPU_HAS_TZ_SIBLING			BIT(2)
+
 /*
  * Iterate over S2MPU gigabyte regions. Skip those that cannot be modified
  * (the MMIO registers are read only, with reset value MPT_PROT_NONE).
  */
 #define for_each_gb_in_range(i, first, last) \
-	for ((i) = (first); (i) <= (last) && (i) < NR_GIGABYTES; \
+	for ((i) = (first), (i) = ((i) >= RO_GIGABYTES_FIRST && (i) <= RO_GIGABYTES_LAST) ? \
+	     RO_GIGABYTES_LAST + 1 : (i); \
+	     (i) <= (last) && (i) < NR_GIGABYTES; \
 	     (i) = (((i) + 1 == RO_GIGABYTES_FIRST) ? RO_GIGABYTES_LAST : (i)) + 1)
 
 #define for_each_gb(i)			for_each_gb_in_range(i, 0, NR_GIGABYTES - 1)
@@ -438,6 +444,28 @@ struct fmpt {
 
 struct mpt {
 	struct fmpt fmpt[NR_GIGABYTES];
+};
+
+struct s2mpu_drv_data {
+	u32 version;
+	u32 context_cfg_valid_vid;
+};
+
+struct s2mpu_sync_dev {
+	phys_addr_t pa;
+	void *va;
+};
+
+#define MAX_SYNC_DEVS	4
+struct pkvm_iommu {
+	struct kvm_hyp_iommu iommu;
+	phys_addr_t pa;
+	void *va;
+	size_t size;
+	struct s2mpu_sync_dev sync_devs[MAX_SYNC_DEVS];
+	int num_sync_devs;
+	u8 flags;
+	struct s2mpu_drv_data data;
 };
 
 /* Compile time configuration for S2MPU. */
@@ -481,5 +509,7 @@ static const u64 mpt_prot_doubleword[] = {
 #else
 #error "Unknown S2MPU version"
 #endif
+
+int s2mpu_hyp_init(const struct pkvm_module_ops *ops);
 
 #endif /* __ARM64_KVM_S2MPU_H__ */

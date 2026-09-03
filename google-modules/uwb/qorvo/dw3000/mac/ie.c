@@ -21,7 +21,7 @@
  * Qorvo. Please contact Qorvo to inquire about licensing terms.
  */
 
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 #include <linux/bitfield.h>
 #include <linux/errno.h>
 #include <linux/kernel.h>

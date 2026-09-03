@@ -1,0 +1,11 @@
+KCONFIG_EXT_MODULES_PREFIX=$(realpath -m ${ROOT_DIR} --relative-to ${ROOT_DIR}/${KERNEL_DIR})/
+KCONFIG_SOC_GS_PREFIX=${KCONFIG_EXT_MODULES_PREFIX}/private/google-modules/soc/gs/
+KCONFIG_SOC_RDO_PREFIX=${KCONFIG_EXT_MODULES_PREFIX}/private/google-modules/soc/rdo/
+
+DTC_FLAGS="-@"
+DTC_INCLUDE=" \
+  ${ROOT_DIR}/${KERNEL_DIR}/include \
+  ${ROOT_DIR}/private/google-modules/soc/gs/include \
+  ${ROOT_DIR}/private/google-modules/soc/rdo/include \
+  include \
+  "

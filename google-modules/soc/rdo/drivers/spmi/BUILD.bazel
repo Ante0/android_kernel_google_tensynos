@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "spmi-goog-mba",
+    out = "spmi-goog-mba.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_SPMI_MBA": {
+            True: [
+                "spmi-goog-mba.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "regmap-goog-spmi",
+    out = "regmap-goog-spmi.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_REGMAP_SPMI": {
+            True: [
+                "regmap-goog-spmi.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "spmi-smartdv",
+    out = "spmi-smartdv.ko",
+    conditional_srcs = {
+        "CONFIG_SPMI_SMARTDV": {
+            True: [
+                "spmi-smartdv.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)

@@ -10,6 +10,7 @@
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/mod_devicetable.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
@@ -73,6 +74,10 @@ enum gsc_nos_call_rsp {
 	GSC_NOS_CALL_RSP_ARGC,
 };
 
+static bool bug_on_mbox_error;
+module_param(bug_on_mbox_error, bool, 0644);
+MODULE_PARM_DESC(bug_on_mbox_error, "Trigger a crash when the GSA GSC mailbox receives an error.");
+
 static int gsc_tpm_datagram(struct gsc_state *s,
 			    unsigned int cmd,
 			    unsigned long arg)
@@ -111,6 +116,7 @@ static int gsc_tpm_datagram(struct gsc_state *s,
 	req[3] = (u32)(s->bbuf_da >> 32);
 	ret = gsa_send_cmd(s->dev->parent, GSA_MB_CMD_GSC_TPM_DATAGRAM,
 			   req, 4, NULL, 0);
+	BUG_ON(bug_on_mbox_error && ret < 0);
 	if (ret < 0)
 		goto out;
 
@@ -173,6 +179,7 @@ static int gsc_nos_call(struct gsc_state *s, unsigned int cmd, unsigned long arg
 	ret = gsa_send_cmd(s->dev->parent, GSA_MB_CMD_GSC_NOS_CALL,
 			   req, GSC_NOS_CALL_ARGC,
 			   rsp, GSC_NOS_CALL_RSP_ARGC);
+	BUG_ON(bug_on_mbox_error && ret < 0);
 	if (ret < 0)
 		goto out;
 
@@ -283,7 +290,6 @@ static const struct file_operations gsc_fops = {
 	.poll		= gsc_poll,
 	.release	= gsc_release,
 	.unlocked_ioctl	= gsc_ioctl,
-	.llseek		= no_llseek,
 	.owner		= THIS_MODULE,
 };
 
@@ -380,10 +386,8 @@ static int gsa_gsc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	ret = devm_request_irq(dev,
-			       gpio_to_irq(s->ctdl_ap_irq),
-			       gsc_irq_handler,
-			       IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+	ret = devm_request_irq(dev, gpio_to_irq(s->ctdl_ap_irq),
+			       gsc_irq_handler, IRQF_TRIGGER_RISING,
 			       dev_name(dev), s);
 	if (ret) {
 		dev_err(s->dev, "devm_request_irq failed (%d)\n", ret);
@@ -401,14 +405,12 @@ static int gsa_gsc_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int gsa_gsc_remove(struct platform_device *pdev)
+static void gsa_gsc_remove(struct platform_device *pdev)
 {
 	struct gsc_state *s = platform_get_drvdata(pdev);
 
 	cdev_del(&s->cdn.cdev);
 	device_destroy(gsc_class, s->cdn.devt);
-
-	return 0;
 }
 
 static const struct of_device_id gsa_gsc_of_match[] = {
@@ -437,7 +439,7 @@ static int __init gsa_gsc_driver_init(void)
 		return ret;
 	}
 
-	gsc_class = class_create(THIS_MODULE, KBUILD_MODNAME);
+	gsc_class = class_create(KBUILD_MODNAME);
 	if (IS_ERR(gsc_class)) {
 		ret = PTR_ERR(gsc_class);
 		pr_err("%s: failed (%d) to device class\n", __func__, ret);
@@ -467,4 +469,5 @@ static void __exit gsa_gsc_driver_exit(void)
 module_init(gsa_gsc_driver_init);
 module_exit(gsa_gsc_driver_exit);
 
+MODULE_DESCRIPTION("Google GSC through GSA platform driver");
 MODULE_LICENSE("GPL v2");

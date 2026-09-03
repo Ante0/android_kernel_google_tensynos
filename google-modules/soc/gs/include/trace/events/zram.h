@@ -64,7 +64,7 @@ TRACE_EVENT(zram_read_from_bdev,
 	),
 
 	TP_fast_assign(
-		__entry->nr_bd_read	= zram_stat_read(zram, NR_BD_READ);
+		__entry->nr_bd_read	= atomic64_read(&zram->stats.bd_reads);
 		__entry->entry_element	= entry_element;
 	),
 

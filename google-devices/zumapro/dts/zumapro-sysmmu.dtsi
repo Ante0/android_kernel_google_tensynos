@@ -619,6 +619,7 @@
 			<17 STR_CFG(STR_SPTLB(0x00, 0x00), S2_EN, BL1, PREF_ASC, STLB_PREF, PTLB_PREF) DIR_RW STR_ID(0x3F) STR_MASK(0x3C)>;
 		sysmmu,async-fault;
 		sysmmu,hide-page-fault;
+		pasid-num-bits = <3>;
 	};
 
 	sysmmu_yuvp: sysmmu@1C870000 {
@@ -1237,6 +1238,7 @@
 			<8 STR_CFG(STR_SPTLB(0x08, 0x08), S2_EN, BL1, PREF_PRED, STLB_PREF, PTLB_NONE) DIR_RW STR_ID(0x28) STR_MASK(0x78)>,
 			<9 STR_CFG(STR_SPTLB(0x09, 0x09), S2_EN, BL1, PREF_PRED, STLB_PREF, PTLB_PREF) DIR_RW STR_ID(0x30) STR_MASK(0x70)>;
 		sysmmu,async-fault;
+		pasid-num-bits = <3>;
 	};
 
 	sysmmu_aoc: sysmmu@19090000 {

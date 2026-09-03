@@ -1,0 +1,153 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2025 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/thermal/google,tmu-thermal.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google TMU driver
+
+maintainers:
+  - Jikai Ma <jikai@google.com>
+
+description: |
+  TMU driver manages sensors, governors and cooling devices of hardware thermal
+  zones. The relevant thermal zone devices in kernel are only for monitoring and
+  configuring purposes. This driver registers hardware thermal zones with support
+  of messages between kernel and TMU hardware.
+
+  Configuration properties of a specific TMU HW thermal zone need to be defined
+  inside the relevant thermal zone.
+
+properties:
+  compatible:
+    const: google,tmu-thermal
+
+  "#thermal-sensor-cells":
+    const: 1
+    description:
+      Number of cells required to uniquely identify the thermal sensors.
+      Since we have multiple thermistor channels/sensors, this is sent to 1.
+
+  tmu:
+    type: object
+    description:
+      This node describes a set of properties of TMU HW thermal zone configuration.
+      This node should be defined inside the relevant thermal zone devicetree definition.
+
+        properties:
+          polling-delay-on:
+            type: uint32
+            description:
+              Polling cycle delay of the TMU HW Tj loop in milliseconds.
+
+        properties:
+          pi-enable:
+            type: boolean
+            description:
+              Property that turns on and off the PI governor.
+
+        properties:
+          k-po:
+            type: int32
+            description:
+              PI parameter K_P in overshoot condition.
+
+        properties:
+          k-pu:
+            type: int32
+            description:
+              PI parameter K_P in undershoot condition.
+
+        properties:
+          k-i:
+            type: int32
+            description:
+              PI parameter K_I.
+
+        properties:
+          early-throttle-enable:
+            type: boolean
+            description:
+              Property that turns on and off the early throttle feature.
+
+        properties:
+          early-throttle-k-p:
+            type: int32
+            description:
+              Early throttle parameter K_P.
+
+        properties:
+          irq-gradual-gain:
+            type: int32
+            description:
+              Gain of the gradual governor in irq condition.
+
+        properties:
+          timer-gradual-gain:
+            type: int32
+            description:
+              Gain of the gradual governor in timer elapsed condition.
+
+        properties:
+          hardlimit-via-pid-enable:
+            type: boolean
+            description:
+              Property that turns on and off the hard limit via pid feature.
+
+        properties:
+          temp-lut-enable:
+            type: boolean
+            description:
+              Property that turns on and off the temperature look-up table feature.
+
+        properties:
+          junction-offset:
+            type: int32 array
+            description:
+              A set of trip point offsets which are applied and released by the
+              smooth transition feature. Offsets should be in milli degree celsius,
+              and number of the offsets should align with the number of trips in
+              the thermal zone.
+
+  required:
+    - compatible
+    - "#thermal-sensor-cells"
+
+additionalProperties: false
+
+examples:
+  - |
+    tmu: tmu_thermal {
+      compatible = "google,tmu-thermal";
+      #thermal-sensor-cells = <1>;
+    };
+
+    thermal-zones {
+      thermal_0: BIG {
+        /* ... */
+        tmu {
+          polling-delay-on = <25>;
+
+          /* PI control param */
+          pi-enable;
+          k-po = <60>;
+          k-pu = <60>;
+          k-i = <50>;
+
+          /* early throttle param */
+          early-throttle-enable;
+          early-throttle-k-p = <50>;
+
+          /* temp lut param */
+          temp-lut-enable;
+
+          /* gradual param */
+          irq-gradual-gain = <2>
+          timer-gradual-gain = <1>;
+
+          /* Tj control offset - mC */
+          junction-offset = <0 (-10000) (-10000) (-10000) 0 0 0 0>; // mC
+        };
+      };
+    };

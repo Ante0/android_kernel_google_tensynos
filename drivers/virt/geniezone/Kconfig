@@ -2,7 +2,7 @@
 
 config MTK_GZVM
 	tristate "GenieZone Hypervisor driver for guest VM operation"
-	depends on ARM64
+	depends on ARM64 && EVENTFD
 	help
 	  This driver, gzvm, enables to run guest VMs on MTK GenieZone
 	  hypervisor. It exports kvm-like interfaces for VMM (e.g., crosvm) in

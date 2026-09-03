@@ -16,11 +16,15 @@ properties:
       - const: allwinner,sun4i-a10-lradc-keys
       - const: allwinner,sun8i-a83t-r-lradc
       - items:
-          - const: allwinner,sun50i-a64-lradc
+          - enum:
+              - allwinner,suniv-f1c100s-lradc
+              - allwinner,sun50i-a64-lradc
           - const: allwinner,sun8i-a83t-r-lradc
       - const: allwinner,sun50i-r329-lradc
       - items:
-          - const: allwinner,sun20i-d1-lradc
+          - enum:
+              - allwinner,sun50i-h616-lradc
+              - allwinner,sun20i-d1-lradc
           - const: allwinner,sun50i-r329-lradc
 
   reg:
@@ -47,7 +51,6 @@ patternProperties:
     $ref: input.yaml#
     properties:
       label:
-        $ref: /schemas/types.yaml#/definitions/string
         description: Descriptive name of the key
 
       linux,code: true

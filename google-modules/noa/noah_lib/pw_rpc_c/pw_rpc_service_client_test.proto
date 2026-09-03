@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package noa.module.linux_rpc_client;
+
+message Request {
+  int32 value = 1;
+}
+
+message Response {
+  int32 value = 1;
+}
+
+service Test {
+  rpc ClientStreamingMethod(stream Request) returns (Response);
+  rpc ServerStreamingMethod(Request) returns (stream Response);
+  rpc BidirectionalStreamingMethod(stream Request) returns (stream Response);
+}

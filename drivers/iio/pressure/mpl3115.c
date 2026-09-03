@@ -230,9 +230,9 @@ static const struct iio_info mpl3115_info = {
 	.read_raw = &mpl3115_read_raw,
 };
 
-static int mpl3115_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id)
+static int mpl3115_probe(struct i2c_client *client)
 {
+	const struct i2c_device_id *id = i2c_client_get_device_id(client);
 	struct mpl3115_data *data;
 	struct iio_dev *indio_dev;
 	int ret;
@@ -318,7 +318,7 @@ static DEFINE_SIMPLE_DEV_PM_OPS(mpl3115_pm_ops, mpl3115_suspend,
 				mpl3115_resume);
 
 static const struct i2c_device_id mpl3115_id[] = {
-	{ "mpl3115", 0 },
+	{ "mpl3115" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, mpl3115_id);

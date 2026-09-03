@@ -8,7 +8,6 @@
  *   Copyright (C) 2021, Red Hat, Inc.
  *
  */
-
 #include <stdatomic.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -34,17 +33,25 @@ static void l2_guest_code_int(void);
 static void guest_int_handler(struct ex_regs *regs)
 {
 	int_fired++;
-	GUEST_ASSERT_2(regs->rip == (unsigned long)l2_guest_code_int,
-		       regs->rip, (unsigned long)l2_guest_code_int);
+	GUEST_ASSERT_EQ(regs->rip, (unsigned long)l2_guest_code_int);
 }
 
 static void l2_guest_code_int(void)
 {
-	GUEST_ASSERT_1(int_fired == 1, int_fired);
-	vmmcall();
-	ud2();
+	GUEST_ASSERT_EQ(int_fired, 1);
 
-	GUEST_ASSERT_1(bp_fired == 1, bp_fired);
+	/*
+         * Same as the vmmcall() function, but with a ud2 sneaked after the
+         * vmmcall.  The caller injects an exception with the return address
+         * increased by 2, so the "pop rbp" must be after the ud2 and we cannot
+	 * use vmmcall() directly.
+         */
+	__asm__ __volatile__("push %%rbp; vmmcall; ud2; pop %%rbp"
+                             : : "a"(0xdeadbeef), "c"(0xbeefdead)
+                             : "rbx", "rdx", "rsi", "rdi", "r8", "r9",
+                               "r10", "r11", "r12", "r13", "r14", "r15");
+
+	GUEST_ASSERT_EQ(bp_fired, 1);
 	hlt();
 }
 
@@ -57,9 +64,9 @@ static void guest_nmi_handler(struct ex_regs *regs)
 
 	if (nmi_stage_get() == 1) {
 		vmmcall();
-		GUEST_ASSERT(false);
+		GUEST_FAIL("Unexpected resume after VMMCALL");
 	} else {
-		GUEST_ASSERT_1(nmi_stage_get() == 3, nmi_stage_get());
+		GUEST_ASSERT_EQ(nmi_stage_get(), 3);
 		GUEST_DONE();
 	}
 }
@@ -95,7 +102,8 @@ static void l1_guest_code(struct svm_test_data *svm, uint64_t is_nmi, uint64_t i
 	}
 
 	run_guest(vmcb, svm->vmcb_gpa);
-	GUEST_ASSERT_3(vmcb->control.exit_code == SVM_EXIT_VMMCALL,
+	__GUEST_ASSERT(vmcb->control.exit_code == SVM_EXIT_VMMCALL,
+		       "Expected VMMCAL #VMEXIT, got '0x%x', info1 = '0x%lx, info2 = '0x%lx'",
 		       vmcb->control.exit_code,
 		       vmcb->control.exit_info_1, vmcb->control.exit_info_2);
 
@@ -103,7 +111,7 @@ static void l1_guest_code(struct svm_test_data *svm, uint64_t is_nmi, uint64_t i
 		clgi();
 		x2apic_write_reg(APIC_ICR, APIC_DEST_SELF | APIC_INT_ASSERT | APIC_DM_NMI);
 
-		GUEST_ASSERT_1(nmi_stage_get() == 1, nmi_stage_get());
+		GUEST_ASSERT_EQ(nmi_stage_get(), 1);
 		nmi_stage_inc();
 
 		stgi();
@@ -124,7 +132,8 @@ static void l1_guest_code(struct svm_test_data *svm, uint64_t is_nmi, uint64_t i
 	vmcb->control.next_rip = vmcb->save.rip + 2;
 
 	run_guest(vmcb, svm->vmcb_gpa);
-	GUEST_ASSERT_3(vmcb->control.exit_code == SVM_EXIT_HLT,
+	__GUEST_ASSERT(vmcb->control.exit_code == SVM_EXIT_HLT,
+		       "Expected HLT #VMEXIT, got '0x%x', info1 = '0x%lx, info2 = '0x%lx'",
 		       vmcb->control.exit_code,
 		       vmcb->control.exit_info_1, vmcb->control.exit_info_2);
 
@@ -143,9 +152,6 @@ static void run_test(bool is_nmi)
 
 	vm = vm_create_with_one_vcpu(&vcpu, l1_guest_code);
 
-	vm_init_descriptor_tables(vm);
-	vcpu_init_descriptor_tables(vcpu);
-
 	vm_install_exception_handler(vm, NMI_VECTOR, guest_nmi_handler);
 	vm_install_exception_handler(vm, BP_VECTOR, guest_bp_handler);
 	vm_install_exception_handler(vm, INT_NR, guest_int_handler);
@@ -157,7 +163,7 @@ static void run_test(bool is_nmi)
 
 		idt_alt_vm = vm_vaddr_alloc_page(vm);
 		idt_alt = addr_gva2hva(vm, idt_alt_vm);
-		idt = addr_gva2hva(vm, vm->idt);
+		idt = addr_gva2hva(vm, vm->arch.idt);
 		memcpy(idt_alt, idt, getpagesize());
 	} else {
 		idt_alt_vm = 0;
@@ -167,20 +173,16 @@ static void run_test(bool is_nmi)
 	memset(&debug, 0, sizeof(debug));
 	vcpu_guest_debug_set(vcpu, &debug);
 
-	struct kvm_run *run = vcpu->run;
 	struct ucall uc;
 
 	alarm(2);
 	vcpu_run(vcpu);
 	alarm(0);
-	TEST_ASSERT(run->exit_reason == KVM_EXIT_IO,
-		    "Got exit_reason other than KVM_EXIT_IO: %u (%s)\n",
-		    run->exit_reason,
-		    exit_reason_str(run->exit_reason));
+	TEST_ASSERT_KVM_EXIT_REASON(vcpu, KVM_EXIT_IO);
 
 	switch (get_ucall(vcpu, &uc)) {
 	case UCALL_ABORT:
-		REPORT_GUEST_ASSERT_3(uc, "vals = 0x%lx 0x%lx 0x%lx");
+		REPORT_GUEST_ASSERT(uc);
 		break;
 		/* NOT REACHED */
 	case UCALL_DONE:
@@ -194,9 +196,6 @@ done:
 
 int main(int argc, char *argv[])
 {
-	/* Tell stdout not to buffer its content */
-	setbuf(stdout, NULL);
-
 	TEST_REQUIRE(kvm_cpu_has(X86_FEATURE_SVM));
 
 	TEST_ASSERT(kvm_cpu_has(X86_FEATURE_NRIPS),

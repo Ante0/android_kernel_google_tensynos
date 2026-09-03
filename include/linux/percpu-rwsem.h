@@ -9,9 +9,6 @@
 #include <linux/rcu_sync.h>
 #include <linux/lockdep.h>
 
-void _trace_android_vh_record_pcpu_rwsem_starttime(
-		struct task_struct *tsk, unsigned long settime);
-
 struct percpu_rw_semaphore {
 	struct rcu_sync		rss;
 	unsigned int __percpu	*read_count;
@@ -21,15 +18,22 @@ struct percpu_rw_semaphore {
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	struct lockdep_map	dep_map;
 #endif
+	ANDROID_OEM_DATA(1);
 };
 
-void _trace_android_vh_record_pcpu_rwsem_time_early(
-		unsigned long settime, struct percpu_rw_semaphore *sem);
+void _trace_android_vh_record_pcpu_rwsem_starttime(
+		struct percpu_rw_semaphore *sem, unsigned long settime);
 
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 #define __PERCPU_RWSEM_DEP_MAP_INIT(lockname)	.dep_map = { .name = #lockname },
 #else
 #define __PERCPU_RWSEM_DEP_MAP_INIT(lockname)
+#endif
+
+#ifdef CONFIG_ANDROID_VENDOR_OEM_DATA
+#define __PERCPU_RWSEM_OEM_DATA_INIT(lockname)	.android_oem_data1 = 0,
+#else
+#define __PERCPU_RWSEM_OEM_DATA_INIT(lockname)
 #endif
 
 #define __DEFINE_PERCPU_RWSEM(name, is_static)				\
@@ -41,6 +45,7 @@ is_static struct percpu_rw_semaphore name = {				\
 	.waiters = __WAIT_QUEUE_HEAD_INITIALIZER(name.waiters),		\
 	.block = ATOMIC_INIT(0),					\
 	__PERCPU_RWSEM_DEP_MAP_INIT(name)				\
+	__PERCPU_RWSEM_OEM_DATA_INIT(name)				\
 }
 
 #define DEFINE_PERCPU_RWSEM(name)		\
@@ -57,8 +62,6 @@ static inline void percpu_down_read(struct percpu_rw_semaphore *sem)
 	rwsem_acquire_read(&sem->dep_map, 0, 0, _RET_IP_);
 
 	preempt_disable();
-	_trace_android_vh_record_pcpu_rwsem_time_early(jiffies, sem);
-
 	/*
 	 * We are in an RCU-sched read-side critical section, so the writer
 	 * cannot both change sem->state from readers_fast and start checking
@@ -75,8 +78,8 @@ static inline void percpu_down_read(struct percpu_rw_semaphore *sem)
 	 * The preempt_enable() prevents the compiler from
 	 * bleeding the critical section out.
 	 */
+	_trace_android_vh_record_pcpu_rwsem_starttime(sem, jiffies);
 	preempt_enable();
-	_trace_android_vh_record_pcpu_rwsem_starttime(current, jiffies);
 }
 
 static inline bool percpu_down_read_trylock(struct percpu_rw_semaphore *sem)
@@ -98,8 +101,7 @@ static inline bool percpu_down_read_trylock(struct percpu_rw_semaphore *sem)
 	 */
 
 	if (ret) {
-		_trace_android_vh_record_pcpu_rwsem_time_early(jiffies, sem);
-		_trace_android_vh_record_pcpu_rwsem_starttime(current, jiffies);
+		_trace_android_vh_record_pcpu_rwsem_starttime(sem, jiffies);
 		rwsem_acquire_read(&sem->dep_map, 0, 1, _RET_IP_);
 	}
 
@@ -130,8 +132,7 @@ static inline void percpu_up_read(struct percpu_rw_semaphore *sem)
 		this_cpu_dec(*sem->read_count);
 		rcuwait_wake_up(&sem->writer);
 	}
-	_trace_android_vh_record_pcpu_rwsem_time_early(0, sem);
-	_trace_android_vh_record_pcpu_rwsem_starttime(current, 0);
+	_trace_android_vh_record_pcpu_rwsem_starttime(sem, 0);
 	preempt_enable();
 }
 
@@ -159,7 +160,7 @@ extern void percpu_free_rwsem(struct percpu_rw_semaphore *);
 #define percpu_rwsem_assert_held(sem)	lockdep_assert_held(sem)
 
 static inline void percpu_rwsem_release(struct percpu_rw_semaphore *sem,
-					bool read, unsigned long ip)
+					unsigned long ip)
 {
 	lock_release(&sem->dep_map, ip);
 }

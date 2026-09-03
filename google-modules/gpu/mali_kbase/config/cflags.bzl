@@ -18,6 +18,10 @@
 #
 #
 
+"""
+CFLAGS and COPTS for Pixel Mali CSF driver
+"""
+
 KUTF_CFLAGS = [
     "-Wno-sign-compare",
     "-Wno-unused-but-set-variable",
@@ -42,15 +46,18 @@ CFLAGS_MODULE = [
     "-Wmissing-field-initializers",
     "-Wno-type-limits",
     "-Wunused-macros",
+    "-Wmissing-format-attribute",
+    "-Wunused-but-set-variable",
+    "-Wuninitialized",
 ] + select({
-    "//config:mali_gcov_kernel": [
+    "//private/google-modules/gpu/mali_kbase/config:mali_gcov_kernel": [
         "-DGCOV_PROFILE=1",
         "-ftest-coverage",
         "-fprofile-arcs",
     ],
     "//conditions:default": [],
 }) + select({
-    "//config:mali_kcov": [
+    "//private/google-modules/gpu/mali_kbase/config:mali_kcov": [
         "-DKCOV=1",
         "-DKCOV_ENABLE_COMPARISONS=1",
         "-fsanitize-coverage=trace-cmp",
@@ -68,14 +75,20 @@ CFLAGS_CORESIGHT = [
 COPTS_KBASE = [
     "-DMALI_COVERAGE=0",
     "-DMALI_JIT_PRESSURE_LIMIT_BASE=0",
-    "-DMALI_RELEASE_NAME=\"r54p3-00eac0\"",
+    "-DMALI_RELEASE_NAME=\"r56p0-18eac0\"",
 ] + select({
-    "//config:mali_debug": ["-DMALI_UNIT_TEST=1"],
+    "//private/google-modules/gpu/mali_kbase/config:mali_debug": ["-DMALI_UNIT_TEST=1"],
     "//conditions:default": ["-DMALI_UNIT_TEST=0"],
 }) + select({
-    "//config:mali_customer_release": ["-DMALI_CUSTOMER_RELEASE=0"],
+    "//private/google-modules/gpu/mali_kbase/config:mali_customer_release": ["-DMALI_CUSTOMER_RELEASE=1"],
     "//conditions:default": ["-DMALI_CUSTOMER_RELEASE=0"],
 }) + select({
-    "//config:mali_debug_kutf": ["-DMALI_KERNEL_TEST_API=1"],
+    "//private/google-modules/gpu/mali_kbase/config:mali_kutf": ["-DMALI_KERNEL_TEST_API=1"],
     "//conditions:default": ["-DMALI_KERNEL_TEST_API=0"],
 })
+
+# Pixel specific copts
+COPTS_PIXEL = [
+    "-DCONFIG_GOOGLE_BCL",
+    "-DMALI_USE_CSF=1",
+]

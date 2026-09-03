@@ -3,34 +3,39 @@
 lib-objs := clear_page.o copy_page.o memcpy.o memset.o
 lib-objs := $(addprefix ../../../lib/, $(lib-objs))
 
+CFLAGS_switch.nvhe.o += -Wno-override-init
+
 hyp-obj-y := timer-sr.o sysreg-sr.o debug-sr.o switch.o tlb.o hyp-init.o host.o \
-	 hyp-main.o hyp-smp.o psci-relay.o early_alloc.o page_alloc.o \
-	 cache.o setup.o mm.o mem_protect.o sys_regs.o pkvm.o stacktrace.o ffa.o iommu.o \
-	 serial.o
+	 hyp-main.o hyp-smp.o psci-relay.o alloc.o early_alloc.o page_alloc.o \
+	 cache.o setup.o mm.o mem_protect.o sys_regs.o pkvm.o stacktrace.o ffa.o \
+	 serial.o alloc_mgt.o iommu/iommu.o power/hvc.o power/scmi.o device/device.o
 hyp-obj-y += ../vgic-v3-sr.o ../aarch32.o ../vgic-v2-cpuif-proxy.o ../entry.o \
-	 ../fpsimd.o ../hyp-entry.o ../exception.o ../pgtable.o
+	 ../fpsimd.o ../hyp-entry.o ../exception.o ../pgtable.o iommu/pviommu-host.o  iommu/pviommu.o \
+	 ../../../kernel/smccc-call.o
+hyp-obj-$(CONFIG_LIST_HARDENED) += list_debug.o
 hyp-obj-$(CONFIG_TRACING) += clock.o events.o trace.o
-hyp-obj-$(CONFIG_DEBUG_LIST) += list_debug.o
+hyp-obj-$(CONFIG_PKVM_FTRACE) += ftrace.o
 hyp-obj-$(CONFIG_MODULES) += modules.o
 hyp-obj-y += $(lib-objs)
 
-ifneq ($(or $(CONFIG_PKVM_S2MPU),$(CONFIG_PKVM_S2MPU_V9)),)
-SRC_ROOT := ../../../../..
-GS_CMN := google-modules/soc/gs/drivers/soc/google/pkvm-s2mpu/common
-GS_HYP := $(SRC_ROOT)/$(GS_CMN)/hyp
-hyp-obj-y += $(GS_HYP)/s2mpu.o $(GS_HYP)/io-mpt-s2mpu.o
-
-ifdef CONFIG_PKVM_S2MPU
-GS_HYP_CFLAGS := -I$(srctree)/$(GS_CMN) -DS2MPU_V1
-else
-GS_HYP_CFLAGS := -I$(srctree)/$(GS_CMN) -DS2MPU_V9
-endif
-CFLAGS_$(GS_HYP)/s2mpu.nvhe.o := $(GS_HYP_CFLAGS)
-CFLAGS_$(GS_HYP)/io-mpt-s2mpu.nvhe.o := $(GS_HYP_CFLAGS)
+#Only for built-in, not modules
+ifeq ($(CONFIG_ARM_SMMU_V3_PKVM),y)
+# There is no way to compile this separately as calling Makefile.nvhe again would
+# create duplicate sections
+hyp-obj-$(CONFIG_ARM_SMMU_V3_PKVM) += ../../../../../drivers/iommu/arm/arm-smmu-v3/pkvm/arm-smmu-v3.o
+hyp-obj-$(CONFIG_ARM_SMMU_V3_PKVM) += ../../../../../drivers/iommu/arm/arm-smmu-v3/pkvm/io-pgtable-arm.o
+hyp-obj-$(CONFIG_ARM_SMMU_V3_PKVM) += ../../../../../drivers/iommu/io-pgtable-arm-common.o
 endif
 
 $(obj)/hyp.lds: $(src)/hyp.lds.S FORCE
 	$(call if_changed_dep,cpp_lds_S)
 
 include $(srctree)/arch/arm64/kvm/hyp/nvhe/Makefile.nvhe
+
+CFLAGS_REMOVE_trace.nvhe.o := -fpatchable-function-entry=3
+CFLAGS_REMOVE_events.nvhe.o := -fpatchable-function-entry=3
+CFLAGS_REMOVE_ftrace.nvhe.o := -fpatchable-function-entry=3
+CFLAGS_REMOVE_setup.nvhe.o := -fpatchable-function-entry=3
+CFLAGS_REMOVE_stacktrace.nvhe.o := -fpatchable-function-entry=3
+
 obj-y := kvm_nvhe.o

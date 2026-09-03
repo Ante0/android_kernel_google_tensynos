@@ -19,9 +19,11 @@
 #include <linux/highmem.h>
 #include <linux/mm.h>
 #include <linux/module.h>
+#include <linux/pixel-dma-iommu.h>
 #include <linux/samsung-dma-mapping.h>
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 #include <uapi/linux/dma-buf.h>
 
 #include "dmabuf_heap_trace.h"
@@ -91,7 +93,7 @@ static void dma_iova_release(struct dma_buf *dmabuf)
 	}
 }
 
-#define DMA_MAP_ATTRS_MASK	DMA_ATTR_PRIVILEGED
+#define DMA_MAP_ATTRS_MASK	DMA_ATTR_NO_CACHE
 #define DMA_MAP_ATTRS(attrs)	((attrs) & DMA_MAP_ATTRS_MASK)
 
 /* this function should only be called while buffer->lock is held */
@@ -105,13 +107,20 @@ static struct dma_iovm_map *dma_find_iovm_map(struct dma_buf_attachment *a,
 	if (dma_heap_flags_uncached(buffer->flags)) {
 		/*
 		 * If the device of sharable domain would access non-cachable
-		 * memory with sharable mapping, device could access prefetched clean
-		 * cache data which is not coherent with memory, so we need to map
-		 * non-sharable for non-cached. To support non-sharable mapping,
-		 * DMA_ATTR_PRIVILEGED is set because samsung sysmmu driver clear
-		 * the sharable bit when DMA_ATTR_PRIVILEGED (i.e. IOMMU_PRIV) is set.
+		 * memory with sharable mapping, device could access prefetched
+		 * clean cache data which is not coherent with memory, so we
+		 * need to map non-sharable for non-cached.
 		 */
-		a->dma_map_attrs |= (DMA_ATTR_PRIVILEGED | DMA_ATTR_SKIP_CPU_SYNC);
+		a->dma_map_attrs |= DMA_ATTR_NO_CACHE;
+#if IS_ENABLED(CONFIG_SAMSUNG_IOMMU) || IS_ENABLED(CONFIG_SAMSUNG_IOMMU_V9)
+		/*
+		 * To support non-sharable mapping on SysMMU platforms,
+		 * DMA_ATTR_PRIVILEGED is set because samsung sysmmu driver
+		 * clear the sharable bit when DMA_ATTR_PRIVILEGED (i.e.
+		 * IOMMU_PRIV) is set.
+		 */
+		a->dma_map_attrs |= DMA_ATTR_PRIVILEGED;
+#endif
 	}
 	attrs = DMA_MAP_ATTRS(a->dma_map_attrs);
 
@@ -180,7 +189,8 @@ static struct dma_iovm_map *dma_get_iovm_map(struct dma_buf_attachment *a,
 		iovm_map->table.nents = 1;
 	} else {
 		ret = dma_map_sgtable(iovm_map->dev, &iovm_map->table, iovm_map->dir,
-				      iovm_map->attrs | DMA_ATTR_SKIP_CPU_SYNC);
+				      iovm_map->attrs | DMA_ATTR_SKIP_CPU_SYNC |
+							DMA_ATTR_GFP_KERNEL);
 		if (ret) {
 			dma_iova_remove(iovm_map);
 			return NULL;
@@ -194,7 +204,8 @@ static struct dma_iovm_map *dma_get_iovm_map(struct dma_buf_attachment *a,
 	} else {
 		if (!dma_heap_tzmp_buffer(iovm_map->dev, buffer->flags))
 			dma_unmap_sgtable(iovm_map->dev, &iovm_map->table, iovm_map->dir,
-					  DMA_ATTR_SKIP_CPU_SYNC);
+					  DMA_ATTR_SKIP_CPU_SYNC |
+					  DMA_ATTR_GFP_KERNEL);
 		dma_iova_remove(iovm_map);
 		iovm_map = dup_iovm_map;
 	}

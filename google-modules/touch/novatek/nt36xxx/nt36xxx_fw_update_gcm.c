@@ -19,7 +19,7 @@
 #include <linux/slab.h>
 
 #include "nt36xxx.h"
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 
 #if BOOT_UPDATE_FIRMWARE
 
@@ -1377,4 +1377,4 @@ int32_t nvt_check_flash_end_flag_gcm(void)
 }
 
 #endif /* BOOT_UPDATE_FIRMWARE */
-#endif /* SPI_FLASH */
+#endif /* IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH) */

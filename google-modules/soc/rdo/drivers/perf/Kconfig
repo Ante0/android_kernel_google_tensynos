@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_GEM
+	tristate "Google GEM driver"
+	depends on ARCH_GOOGLE
+	depends on GOOGLE_MBA_GDMC_INTERFACE
+	help
+	  Enable support for Google GEM driver.
+	  It is a module to access Google GEM IPs functions, and expose
+	  interfaces to user-space programs for profiling bus throughput and
+	  performance.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config GOOGLE_GEM_TEST
+	tristate "Kunit test for Google GEM driver"
+	depends on ARCH_GOOGLE
+	depends on KUNIT
+	help
+	  This builds the Google GEM driver KUnit tests.
+
+	  For more information on KUnit and unit tests in general, please refer
+	  to the KUnit documentation in Documentation/dev-tools/kunit
+
+	  Select Y if you have such device.
+	  If unsure select "N".

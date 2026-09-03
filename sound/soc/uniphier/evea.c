@@ -536,7 +536,7 @@ err_out_clock:
 	return ret;
 }
 
-static int evea_remove(struct platform_device *pdev)
+static void evea_remove(struct platform_device *pdev)
 {
 	struct evea_priv *evea = platform_get_drvdata(pdev);
 
@@ -546,8 +546,6 @@ static int evea_remove(struct platform_device *pdev)
 
 	clk_disable_unprepare(evea->clk_exiv);
 	clk_disable_unprepare(evea->clk);
-
-	return 0;
 }
 
 static const struct of_device_id evea_of_match[] __maybe_unused = {

@@ -227,6 +227,10 @@ properties:
     description: interval to run battery work
     $ref: /schemas/types.yaml#/definitions/uint32
 
+  google,charging-update-interval:
+    description: interval to run battery work during charging
+    $ref: /schemas/types.yaml#/definitions/uint32
+
   google,update-high-temp-threshold:
     description: temperature threshold to report power supply change
     $ref: /schemas/types.yaml#/definitions/uint32
@@ -335,6 +339,11 @@ properties:
     description: cycle count grace for bhi algo with boundary
     $ref: /schemas/types.yaml#/definitions/uint32
 
+  google,bhi-grace-index-threshold:
+    description: health index threshold under grace cycle count to not report BH_NOT_AVAILABLE,
+      in hundredths of a percent (e.g., 9250 = 92.5%)
+    $ref: /schemas/types.yaml#/definitions/uint32
+
   google,bhi-l-bound:
     description: capacity lower bound for bhi algo with boundary
     $ref: /schemas/types.yaml#/definitions/uint16-array
@@ -358,3 +367,8 @@ properties:
     $ref: /schemas/types.yaml#/definitions/uint16-array
     items:
       maximum: 10
+  google,skip-first-cv:
+    description: skip the CV charging stage after the first vbatt_idx index (0) and switch
+      immediately to the next charge tier. Decreases the charge loop rerun time from the default to
+      5 seconds.
+    type: boolean

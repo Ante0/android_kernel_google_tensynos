@@ -14,7 +14,7 @@
 #include "g2d_debug.h"
 #include "g2d_trace.h"
 
-#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS)
 static void g2d_pm_qos_update_devfreq(struct g2d_device *g2d_dev, u32 freq)
 {
 	if (!exynos_pm_qos_request_active(&g2d_dev->req))

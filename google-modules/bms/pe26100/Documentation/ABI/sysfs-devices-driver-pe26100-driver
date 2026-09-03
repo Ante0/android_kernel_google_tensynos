@@ -1,0 +1,8 @@
+What:		/sys/devices/platform/*.spmi/spmi-[0-9]/[0-9]-02/i2c-[0-9]/+/[0-9]+-006d/registers_dump
+Date:		Feb 2025
+KernelVersion:	6.12
+Contact:	"Daniel Okazaki" <dtokazaki@google.com>
+Description:
+		Print pe26100 registers
+
+Users:		Dumpstate

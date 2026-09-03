@@ -227,6 +227,7 @@ static const struct of_device_id of_match_clk_mt8186_infra_ao[] = {
 		/* sentinel */
 	}
 };
+MODULE_DEVICE_TABLE(of, of_match_clk_mt8186_infra_ao);
 
 static struct platform_driver clk_mt8186_infra_ao_drv = {
 	.probe = mtk_clk_simple_probe,
@@ -237,4 +238,6 @@ static struct platform_driver clk_mt8186_infra_ao_drv = {
 	},
 };
 module_platform_driver(clk_mt8186_infra_ao_drv);
+
+MODULE_DESCRIPTION("MediaTek MT8186 infracfg clocks driver");
 MODULE_LICENSE("GPL");

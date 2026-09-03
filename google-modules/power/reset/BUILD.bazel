@@ -1,6 +1,16 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
 
 filegroup(
     name = "reset.kconfig",
@@ -13,27 +23,24 @@ filegroup(
     ],
 )
 
-kernel_module(
-    name = "reset",
-    srcs = glob([
-        "**/*.c",
-        "**/*.h",
-    ]) + [
-        "Kbuild",
-        "//private/google-modules/bms:headers",
-        "//private/google-modules/bms/misc:headers",
-        "//private/google-modules/soc/gs:gs_soc_headers",
+ddk_module(
+    name = "pixel-reboot",
+    srcs = [
+        "pixel-reboot.c",
     ],
-    outs = [
-        "pixel-reboot.ko",
-    ],
+    out = "pixel-reboot.ko",
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
-    ],
     deps = [
-        "//private/google-modules/bms",
-        "//private/google-modules/soc/gs:gs_soc_module",
-    ],
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms:google-bms",
+        "//private/google-modules/bms:headers",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ] + select({
+        "//private/devices/google/common:soc_is_zumapro_or_before": [
+            "//private/google-modules/soc/gs/drivers/soc/google:exynos-pmu-if",
+            "//private/google-modules/soc/gs/drivers/soc/google/acpm:gs_acpm",
+        ],
+        "//conditions:default": [],
+    }),
 )

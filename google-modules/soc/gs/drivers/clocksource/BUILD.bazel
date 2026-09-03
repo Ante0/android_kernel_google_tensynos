@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "exynos_mct",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "exynos_mct.ko",
+    conditional_srcs = {
+        "CONFIG_CLKSRC_EXYNOS_MCT_GS": {
+            True: [
+                "exynos_mct.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "exynos_mct_v3",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "exynos_mct_v3.ko",
+    conditional_srcs = {
+        "CONFIG_CLKSRC_EXYNOS_MCT_V3_GS": {
+            True: [
+                "exynos_mct_v3.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

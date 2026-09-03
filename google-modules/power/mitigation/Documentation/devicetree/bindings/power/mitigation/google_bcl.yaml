@@ -11,6 +11,9 @@ maintainers:
   - George Lee <geolee@google.com>
   - Sam Ou <samou@google.com>
   - Hiroshi Akiyama <hiroshiakiyama@google.com>
+  - Allen Jiang <alljiang@google.com>
+  - Jasmine Cha <chajasmine@google.com>
+  - Maggie Cheng <maggiecheng@google.com>
 
 description:
   Google Battery Current Limiter driver.
@@ -21,7 +24,7 @@ properties:
   # A dictionary of DT properties for this binding schema
   compatible:
     enum:
-      - google,mitigation
+      - google-mitigation
 
   google,ifpmic:
     description: IFPMIC enum
@@ -73,10 +76,6 @@ properties:
 
   batoilo2_usb_trig_lvl:
     description: BATOILO2 threshold when plugged in
-    $ref: /schemas/types.yaml#/definitions/int32
-
-  batoilo_otg_bat_open_to:
-    description: BATOILO timer when BATFET opens and OTG enabled
     $ref: /schemas/types.yaml#/definitions/int32
 
   batoilo_bat_open_to:
@@ -139,12 +138,40 @@ properties:
     description: Event Counter Enable
     $ref: /schemas/types.yaml#/definitions/uint32
 
-  usb_otg_conf:
-    description: USB OTG Enable
-    $ref: /schemas/types.yaml#/definitions/bool
-
   evt_cnt_rate:
     description: Event Counter Sampling Rate
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  odpm_cpu1_ch:
+    description: ODPM channel for cpu1 for sys-evt collection
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  odpm_cpu1_pmic:
+    description: ODPM pmic for cpu1 for sys-evt collection
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  odpm_cpu2_ch:
+    description: ODPM channel for cpu2 for sys-evt collection
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  odpm_cpu2_pmic:
+    description: ODPM pmic for cpu2 for sys-evt collection
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  odpm_tpu_ch:
+    description: ODPM channel for tpu for sys-evt collection
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  odpm_tpu_pmic:
+    description: ODPM pmic for tpu for sys-evt collection
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  odpm_gpu_ch:
+    description: ODPM channel for gpu for sys-evt collection
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  odpm_gpu_pmic:
+    description: ODPM pmic for gpu for sys-evt collection
     $ref: /schemas/types.yaml#/definitions/uint32
 
   vimon_pwr_loop_thresh:
@@ -155,18 +182,254 @@ properties:
     description: vimon sample num to start power loop
     $ref: /schemas/types.yaml#/definitions/uint32
 
+  min_v_thrs:
+    description: minimum voltage threshold for failed zero pct convergence
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  min_v_thrs_cnt_max:
+    description: minimum voltage threshold registration count max
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  min_v_shdn_en:
+    description: minimum voltage shutdown enable
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  min_i_clr_thrs:
+    description: minimum current threshold for clearing zero pct convergence
+    $ref: /schemas/types.yaml#/definitions/int32
+
+  vimon_trig:
+    description: vimon trigger method for client
+    $ref: /schemas/types.yaml#/definitions/int32
+
+  cme_con_heavy:
+      description: CME heavy divider ratio setting
+      $ref: /schemas/types.yaml#/definitions/uint32
+
+  dsu_con_heavy:
+      description: DSU heavy divider ratio setting
+      $ref: /schemas/types.yaml#/definitions/uint32
+
+  aur_con_heavy:
+    description: AUR heavy divider ratio setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  tpu_con_heavy:
+    description: TPU heavy divider ratio setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  gpu_con_heavy:
+    description: GPU heavy divider ratio setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cpu0_con_heavy:
+    description: CPU0 heavy divider ratio setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cpu1a_con_heavy:
+    description: CPU1A heavy divider ratio setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cpu1b_con_heavy:
+    description: CPU1B heavy divider ratio setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cpu2_con_heavy:
+    description: CPU2 heavy divider ratio setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cme_con_light:
+    description: CME light divider ratio setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  dsu_con_light:
+    description: DSU light divider ratio setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  aur_con_light:
+    description: AUR light divider ratio setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  tpu_con_light:
+    description: TPU light divider ratio setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  gpu_con_light:
+    description: GPU light divider ratio setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cpu0_con_light:
+    description: CPU0 light divider ratio setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cpu1a_con_light:
+    description: CPU1A light divider ratio setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cpu1b_con_light:
+    description: CPU1B light divider ratio setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cpu2_con_light:
+    description: CPU2 light divider ratio setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cme_mitigation_res_en:
+    description: CME mitigation response setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  dsu_mitigation_res_en:
+    description: DSU mitigation response setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  aur_mitigation_res_en:
+    description: AUR mitigation response setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  tpu_mitigation_res_en:
+    description: TPU mitigation response setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  gpu_mitigation_res_en:
+    description: GPU mitigation response setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cpu0_mitigation_res_en:
+    description: CPU0 mitigation response setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cpu1a_mitigation_res_en:
+    description: CPU1A mitigation response setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cpu1b_mitigation_res_en:
+    description: CPU1B mitigation response setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cpu2_mitigation_res_en:
+    description: CPU2 mitigation response setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cme_mitigation_type:
+    description: CME mitigation type setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  dsu_mitigation_type:
+    description: DSU mitigation type setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  aur_mitigation_type:
+    description: AUR mitigation type setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  tpu_mitigation_type:
+    description: TPU mitigation type setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  gpu_mitigation_type:
+    description: GPU mitigation type setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cpu0_mitigation_type:
+    description: CPU0 mitigation type setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cpu1a_mitigation_type:
+    description: CPU1A mitigation type setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cpu1b_mitigation_type:
+    description: CPU1B mitigation type setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  cpu2_mitigation_type:
+    description: CPU2 mitigation type setting
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  freq_qos:
+    description: QOS settings for different zones; cpu0, cpu1, cpu2, gpu, tpu, gxp
+    $ref: /schemas/types.yaml#/definitions/uint32-array
+
+  non_monitored_module_ids:
+    description: ID of module that will not report stats prior to brownout
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  main_limit:
+    description: Thresholds for ODPM PWRWARN IRQ for main PMIC
+
+  sub_limit:
+    description: Thresholds for ODPM PWRWARN IRQ for sub PMIC
+
+  module_id:
+    description: Module mitigation stats prior to brownout for main pmic
+
+  sub_mitigation:
+    description: Module mitigation stats prior to brownout for sub pmic
+
+  ifpmic_irq_drv_en:
+    description: Enable external driver battery mitigation IRQ trigger
+    $ref: boolean
+
+  module_id:
+    description: ID of module that will report stats prior to brownout
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  threshold:
+    description: Threshold for when the module is counted
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  ocp_batfet_timeout:
+    description: VDROOP2 OCP batfet timer
+    $ref: /schemas/types.yaml#/definitions/uint16
+
   vimon_pwr_loop_en:
     description: vimon power loop enable
     $ref: /schemas/types.yaml#/definitions/flag
 
-  bat_ktimer_supported:
-    description: BATFET Kernel Timer Support
-    $ref: /schemas/types.yaml#/definitions/bool
+  ocp_batfet_timeout_en:
+    description: VDROOP2 OCP batfet timer enable
+    $ref: /schemas/types.yaml#/definitions/flag
 
-  bat_ktimer_en:
-    description: BATFET Kernel Timer Enable
-    $ref: /schemas/types.yaml#/definitions/bool
+  pre_uvlo_th:
+    description: PRE_UVLO threshold setting
+    $ref: /schemas/types.yaml#/definitions/uint8
 
-  bat_ktimer:
-    description: BATFET Kernel Timer (unit ms)
-    $ref: /schemas/types.yaml#/definitions/uint32
+  pre_uvlo_debounce:
+    description: PRE_UVLO debounce setting
+    $ref: /schemas/types.yaml#/definitions/uint8
+
+  cpu2_dyn_clk_div_en:
+    description: cpu2 dynamic clock division enable
+    $ref: /schemas/types.yaml#/definitions/flag
+
+  cpu1a_dyn_clk_div_en:
+    description: cpu1a dynamic clock division enable
+    $ref: /schemas/types.yaml#/definitions/flag
+
+  cpu1b_dyn_clk_div_en:
+    description: cpu1b dynamic clock division enable
+    $ref: /schemas/types.yaml#/definitions/flag
+
+  cpu2_dyn_clk_div_ratio:
+    description: cpu2 div ratio for every oplvl tier; high, mid-high, mid-low, low
+    $ref: /schemas/types.yaml#/definitions/uint8-array
+
+  cpu1a_dyn_clk_div_ratio:
+    description: cpu1a div ratio for every oplvl tier; high, mid-high, mid-low, low
+    $ref: /schemas/types.yaml#/definitions/uint8-array
+
+  cpu1b_dyn_clk_div_ratio:
+    description: cpu1b div ratio for every oplvl tier; high, mid-high, mid-low, low
+    $ref: /schemas/types.yaml#/definitions/uint8-array
+
+  cpu2_dyn_clk_oplv_thresh:
+    description: cpu2 oplvl tier threshold; high, mid-high, mid-low, low
+    $ref: /schemas/types.yaml#/definitions/uint16-array
+
+  cpu1a_dyn_clk_oplv_thresh:
+    description: cpu1a oplvl tier threshold; high, mid-high, mid-low, low
+    $ref: /schemas/types.yaml#/definitions/uint16-array
+
+  cpu1b_dyn_clk_oplv_thresh:
+    description: cpu1b oplvl tier threshold; high, mid-high, mid-low, low
+    $ref: /schemas/types.yaml#/definitions/uint16-array

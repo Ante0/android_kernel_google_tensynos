@@ -129,10 +129,9 @@ static int orc_sort_cmp(const void *_a, const void *_b)
 	 */
 	orc_a = g_orc_table + (a - g_orc_ip_table);
 	orc_b = g_orc_table + (b - g_orc_ip_table);
-	if (orc_a->sp_reg == ORC_REG_UNDEFINED && !orc_a->end &&
-	    orc_b->sp_reg == ORC_REG_UNDEFINED && !orc_b->end)
+	if (orc_a->type == ORC_TYPE_UNDEFINED && orc_b->type == ORC_TYPE_UNDEFINED)
 		return 0;
-	return orc_a->sp_reg == ORC_REG_UNDEFINED && !orc_a->end ? -1 : 1;
+	return orc_a->type == ORC_TYPE_UNDEFINED ? -1 : 1;
 }
 
 static void *sort_orctable(void *arg)

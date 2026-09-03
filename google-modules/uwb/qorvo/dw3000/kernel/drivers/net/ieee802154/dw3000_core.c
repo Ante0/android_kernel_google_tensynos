@@ -1307,7 +1307,7 @@ static int dw3000_clear_all_sys_status(struct dw3000 *dw, u64 clear_bits)
  *
  * Return: 0 on success, else a negative error code.
  */
-int dw3000_read_all_sys_status(struct dw3000 *dw, u64 *status)
+static int dw3000_read_all_sys_status(struct dw3000 *dw, u64 *status)
 {
 	/* Use a prebuilt SPI message to be as fast as possible. */
 	struct spi_message *msg = dw->msg_read_all_sys_status;
@@ -1350,7 +1350,7 @@ int dw3000_clear_dss_status(struct dw3000 *dw, u8 clear_bits)
  *
  * Return: 0 on success, else a negative error code.
  */
-int dw3000_read_dss_status(struct dw3000 *dw, u8 *status)
+static int dw3000_read_dss_status(struct dw3000 *dw, u8 *status)
 {
 	/* Use a prebuilt SPI message to be as fast as possible. */
 	struct spi_message *msg = dw->msg_read_dss_status;
@@ -2241,7 +2241,7 @@ static int dw3000_handle_idle_timeout(struct dw3000 *dw, const void *in,
  *
  * Return: True when the wakeup is started, false otherwise.
  */
-bool dw3000_deepsleep_wakeup(struct dw3000 *dw)
+static bool dw3000_deepsleep_wakeup(struct dw3000 *dw)
 {
 	trace_dw3000_deepsleep_wakeup(dw);
 	if (dw->current_operational_state == DW3000_OP_STATE_DEEP_SLEEP &&
@@ -2351,7 +2351,7 @@ void dw3000_wakeup_and_wait(struct dw3000 *dw)
  * Return: 0 if ready, 1 if in deep-sleep or waking-up, or a negative error
  *         code.
  */
-int dw3000_check_operational_state(struct dw3000 *dw, int delay_dtu,
+static int dw3000_check_operational_state(struct dw3000 *dw, int delay_dtu,
 				   bool can_sync)
 {
 	int delay_us = DTU_TO_US(delay_dtu);
@@ -3461,9 +3461,9 @@ static int dw3000_setrxaftertxdelay(struct dw3000 *dw, u32 rx_delay_time)
  *
  * Return: zero on success, else a negative error code.
  */
-int dw3000_tx_frame(struct dw3000 *dw, struct sk_buff *skb, bool tx_delayed,
-		    u32 tx_date_dtu, int rx_delay_dly, u32 rx_timeout_pac,
-		    bool ranging)
+static int dw3000_tx_frame(struct dw3000 *dw, struct sk_buff *skb, bool tx_delayed,
+			   u32 tx_date_dtu, int rx_delay_dly, u32 rx_timeout_pac,
+			   bool ranging)
 {
 	u32 cur_time_dtu = 0;
 	int rc, len;
@@ -4353,7 +4353,7 @@ static int dw3000_configmrxlut(struct dw3000 *dw)
 	return rc;
 }
 
-int dw3000_configure_dgc(struct dw3000 *dw)
+static int dw3000_configure_dgc(struct dw3000 *dw)
 {
 	struct dw3000_config *config = &dw->config;
 	/* Only enable DGC for PRF 64. */
@@ -5729,8 +5729,8 @@ int dw3000_set_promiscuous(struct dw3000 *dw, bool on)
  *
  * Return: zero on success, else a negative error code.
  */
-int dw3000_set_autoack_reply_delay(struct dw3000 *dw,
-				   u8 response_delay_time_symbols)
+static int dw3000_set_autoack_reply_delay(struct dw3000 *dw,
+					  u8 response_delay_time_symbols)
 {
 	struct dw3000_local_data *local = &dw->data;
 	int rc;

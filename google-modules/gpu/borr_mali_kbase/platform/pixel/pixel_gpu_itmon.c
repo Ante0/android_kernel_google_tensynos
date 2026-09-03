@@ -337,8 +337,9 @@ int gpu_itmon_init(struct kbase_device *kbdev)
 	 * disabled in "user" builds, so query the build variant and skip
 	 * initialization if that is the case.
 	 */
-	struct device_node *dpm = of_find_node_by_name(NULL, "dpm");
+	struct device_node *dpm __free(device_node) = of_find_node_by_name(NULL, "dpm");
 	const char *variant = NULL;
+
 	if ((!dpm) || of_property_read_string(dpm, "variant", &variant) ||
 	    (!strcmp(variant, "user")))
 		return 0;

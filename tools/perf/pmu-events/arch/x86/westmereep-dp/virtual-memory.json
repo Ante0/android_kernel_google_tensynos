@@ -64,7 +64,7 @@
         "UMask": "0x80"
     },
     {
-        "BriefDescription": "DTLB misses casued by low part of address",
+        "BriefDescription": "DTLB misses caused by low part of address",
         "Counter": "0,1,2,3",
         "EventCode": "0x49",
         "EventName": "DTLB_MISSES.PDE_MISS",

@@ -952,9 +952,9 @@
 #define DPP_SCL_COEF(_v)                        ((_v) << 0)
 #define DPP_SCL_COEF_MASK                       (0x7FF << 0)
 #define DPP_H_COEF(id, n, s)                    ((SCL_COEF_OFFS(id) + 0x0090) \
-                                                + (n) * 0x4 + (s) * 0x24)
+						 + (n) * 0x4 + (s) * 0x24)
 #define DPP_V_COEF(id, n, s)                    ((SCL_COEF_OFFS(id) + 0x0000) \
-                                                + (n) * 0x4 + (s) * 0x24)
+						 + (n) * 0x4 + (s) * 0x24)
 
 /* core_id = [0,1] */
 #define SCL_DBG_OFFS(_id)                       (0x4000 + 0x1000 * (_id))

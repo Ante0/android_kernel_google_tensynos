@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "dvfs_target_frontend",
+    out = "dvfs_target_frontend.ko",
+    hdrs = [
+        "dvfs_target_frontend_debug.h",
+        "dvfs_target_frontend_direct.h",
+    ],
+    conditional_srcs = {
+        "CONFIG_GOOGLE_DVFS_TARGET_FRONTEND": {
+            True: [
+                "dvfs_target_frontend_main.c",
+                "dvfs_target_frontend_debug.c",
+                "dvfs_target_frontend_direct.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/infra/mbfs",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google/dvfs-helper:dvfs_helper",
+        "//private/google-modules/soc/rdo/power-controller:power_controller",
+    ],
+)

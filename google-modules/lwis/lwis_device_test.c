@@ -24,15 +24,17 @@
 
 static int lwis_test_device_enable(struct lwis_device *lwis_dev);
 static int lwis_test_device_disable(struct lwis_device *lwis_dev);
-static int lwis_test_register_io(struct lwis_device *lwis_dev, struct lwis_io_entry *entry,
-				 int access_size);
+static int lwis_test_register_io(struct lwis_device *lwis_dev, struct lwis_io_entry *entry);
 
 static struct lwis_device_subclass_operations test_vops = {
 	.register_io = lwis_test_register_io,
 	.register_io_locked = lwis_test_register_io,
+	.batch_register_io = NULL,
 	.register_io_barrier = NULL,
 	.device_enable = lwis_test_device_enable,
 	.device_disable = lwis_test_device_disable,
+	.device_resume = NULL,
+	.device_suspend = NULL,
 	.event_enable = NULL,
 	.event_flags_updated = NULL,
 	.close = NULL,
@@ -48,8 +50,7 @@ static int lwis_test_device_disable(struct lwis_device *lwis_dev)
 	return 0;
 }
 
-static int lwis_test_register_io(struct lwis_device *lwis_dev, struct lwis_io_entry *entry,
-				 int access_size)
+static int lwis_test_register_io(struct lwis_device *lwis_dev, struct lwis_io_entry *entry)
 {
 	struct lwis_test_device *test_dev =
 		container_of(lwis_dev, struct lwis_test_device, base_dev);
@@ -59,7 +60,7 @@ static int lwis_test_register_io(struct lwis_device *lwis_dev, struct lwis_io_en
 		return -EINVAL;
 	}
 
-	lwis_save_register_io_info(lwis_dev, entry, access_size);
+	lwis_save_register_io_info(lwis_dev, entry);
 
 	switch (entry->type) {
 	case LWIS_IO_ENTRY_READ:
@@ -78,7 +79,7 @@ static int lwis_test_register_io(struct lwis_device *lwis_dev, struct lwis_io_en
 	case LWIS_IO_ENTRY_READ_BATCH:
 	case LWIS_IO_ENTRY_READ_BATCH_V2: {
 		struct lwis_io_entry_rw_batch *rw_batch;
-		size_t sum_offset_size;
+		uint64_t sum_offset_size;
 
 		rw_batch = &entry->rw_batch;
 		if (rw_batch->offset >= SCRATCH_TEST_DEV_MEMORY_SIZE ||
@@ -86,8 +87,8 @@ static int lwis_test_register_io(struct lwis_device *lwis_dev, struct lwis_io_en
 				       &sum_offset_size) ||
 		    sum_offset_size > SCRATCH_TEST_DEV_MEMORY_SIZE) {
 			dev_err(test_dev->base_dev.dev,
-				"Read range[offset(%llu) + size_in_bytes(%zu)] exceeds scratch memory (%d)\n",
-				rw_batch->offset, rw_batch->size_in_bytes,
+				"Read range[offset(%llu) + size_in_bytes(%llu)] exceeds scratch memory (%d)\n",
+				rw_batch->offset, (unsigned long long)rw_batch->size_in_bytes,
 				SCRATCH_TEST_DEV_MEMORY_SIZE);
 			return -EINVAL;
 		}
@@ -111,7 +112,7 @@ static int lwis_test_register_io(struct lwis_device *lwis_dev, struct lwis_io_en
 	case LWIS_IO_ENTRY_WRITE_BATCH:
 	case LWIS_IO_ENTRY_WRITE_BATCH_V2: {
 		struct lwis_io_entry_rw_batch *rw_batch;
-		size_t sum_offset_size;
+		uint64_t sum_offset_size;
 
 		rw_batch = &entry->rw_batch;
 		if (rw_batch->offset >= SCRATCH_TEST_DEV_MEMORY_SIZE ||
@@ -119,8 +120,8 @@ static int lwis_test_register_io(struct lwis_device *lwis_dev, struct lwis_io_en
 				       &sum_offset_size) ||
 		    sum_offset_size > SCRATCH_TEST_DEV_MEMORY_SIZE) {
 			dev_err(test_dev->base_dev.dev,
-				"Write range[offset(%llu) + size_in_bytes(%zu)] exceeds scratch memory (%d)\n",
-				rw_batch->offset, rw_batch->size_in_bytes,
+				"Write range[offset(%llu) + size_in_bytes(%llu)] exceeds scratch memory (%d)\n",
+				rw_batch->offset, (unsigned long long)rw_batch->size_in_bytes,
 				SCRATCH_TEST_DEV_MEMORY_SIZE);
 			return -EINVAL;
 		}

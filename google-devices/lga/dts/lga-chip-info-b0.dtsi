@@ -1,0 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+&dvfs_table {
+	compatible = "google,lga_b0_dvfs";
+};
+
+&device_table {
+	compatible = "google,lga_b0_ptde";
+};

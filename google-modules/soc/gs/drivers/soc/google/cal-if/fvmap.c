@@ -77,7 +77,7 @@ module_param(margin_mfc, int, 0);
 module_param(margin_disp, int, 0);
 module_param(margin_bw, int, 0);
 
-void margin_table_init(void)
+static void margin_table_init(void)
 {
 	margin_table[MARGIN_MIF] = &margin_mif;
 	margin_table[MARGIN_INT] = &margin_int;
@@ -95,25 +95,6 @@ void margin_table_init(void)
 	margin_table[MARGIN_MFC] = &margin_mfc;
 	margin_table[MARGIN_DISP] = &margin_disp;
 	margin_table[MARGIN_BW] = &margin_bw;
-}
-
-int fvmap_set_raw_voltage_table(unsigned int id, int uV)
-{
-	struct fvmap_header *fvmap_header;
-	struct rate_volt_header *fv_table;
-	int num_of_lv;
-	int idx, i;
-
-	idx = GET_IDX(id);
-
-	fvmap_header = sram_fvmap_base;
-	fv_table = sram_fvmap_base + fvmap_header[idx].o_ratevolt;
-	num_of_lv = fvmap_header[idx].num_of_lv;
-
-	for (i = 0; i < num_of_lv; i++)
-		fv_table->table[i].volt += uV;
-
-	return 0;
 }
 
 int fvmap_get_voltage_table(unsigned int id, unsigned int *table)
@@ -138,29 +119,6 @@ int fvmap_get_voltage_table(unsigned int id, unsigned int *table)
 	return num_of_lv;
 }
 EXPORT_SYMBOL_GPL(fvmap_get_voltage_table);
-
-int fvmap_get_raw_voltage_table(unsigned int id)
-{
-	struct fvmap_header *fvmap_header;
-	struct rate_volt_header *fv_table;
-	int idx, i;
-	int num_of_lv;
-	unsigned int table[20];
-
-	idx = GET_IDX(id);
-
-	fvmap_header = sram_fvmap_base;
-	fv_table = sram_fvmap_base + fvmap_header[idx].o_ratevolt;
-	num_of_lv = fvmap_header[idx].num_of_lv;
-
-	for (i = 0; i < num_of_lv; i++)
-		table[i] = fv_table->table[i].volt;
-
-	for (i = 0; i < num_of_lv; i++)
-		printk("dvfs id : %d  %d Khz : %d uv\n", ACPM_VCLK_TYPE | id, fv_table->table[i].rate, table[i]);
-
-	return 0;
-}
 
 static void fvmap_copy_from_sram(void *map_base, void __iomem *sram_base)
 {
@@ -219,8 +177,8 @@ static void fvmap_copy_from_sram(void *map_base, void __iomem *sram_base)
 		}
 
 		for (j = 0; j < fvmap_header[i].num_of_lv; j++) {
-			int volt = new->table[j].volt = readl_relaxed(&old->table[j].volt);
-			new->table[j].rate = readl_relaxed(&old->table[j].rate);
+			int volt = new->table[j].volt = old->table[j].volt;
+			new->table[j].rate = old->table[j].rate;
 			if (margin) {
 				if (margin <= 100 && margin >= -100) {
 					volt = volt + (volt * margin / 100);

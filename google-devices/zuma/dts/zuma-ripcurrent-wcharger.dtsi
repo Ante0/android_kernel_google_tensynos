@@ -53,15 +53,15 @@
 		idt,apbst_en;
 
 		/* Granvilla GPIO 2~4 */
-		idt,gpio_ben = <&max777x9_gpio 4 GPIO_ACTIVE_HIGH>;  /* EXT_BST_EN */
-		idt,gpio_boost = <&s2mpg14_gpio 3 GPIO_ACTIVE_HIGH>; /* WLC_TX_SW_EN */
-		/* idt,gpio_switch = <&p9xxx_gpio 3 GPIO_ACTIVE_HIGH>; */ /* EXT_BST_VTRX */
-		idt,gpio_extben = <&s2mpg14_gpio 2 GPIO_ACTIVE_HIGH>; /* AP2QI_EXTBST_EN */
+		idt,ben-gpios = <&max777x9_gpio 4 GPIO_ACTIVE_HIGH>;  /* EXT_BST_EN */
+		idt,boost-gpios = <&s2mpg14_gpio 3 GPIO_ACTIVE_HIGH>; /* WLC_TX_SW_EN */
+		/* idt,switch-gpios = <&p9xxx_gpio 3 GPIO_ACTIVE_HIGH>; */ /* EXT_BST_VTRX */
+		idt,extben-gpios = <&s2mpg14_gpio 2 GPIO_ACTIVE_HIGH>; /* AP2QI_EXTBST_EN */
 		/* CSP */
 		idt,fuel-gauge = <&google_battery>;
 
 		/* WLCDC */
-		idt,gpio_dc_switch = <&s2mpg14_gpio 0 GPIO_ACTIVE_HIGH>; /* WLC_RX_SW_EN */
+		idt,dc_switch-gpios = <&s2mpg14_gpio 0 GPIO_ACTIVE_HIGH>; /* WLC_RX_SW_EN */
 		idt,max_vout_mv = <19500>;
 		idt,has_wlc_dc = <1>;
 		google,power_mitigate_threshold = <90>;
@@ -70,10 +70,10 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&wc_irq &wc_en>;
 
-		idt,gpio_wlc_en = <&gph1 4 GPIO_ACTIVE_LOW>;
-		/* idt,gpio_qi_vbus_en = <PP1800_L14S_ALIVE>; always high after boot */
-		idt,gpio_qien = <&gph1 4 GPIO_ACTIVE_LOW>;
-		idt,irq_gpio = <&gpa8 1 GPIO_ACTIVE_LOW>;
+		idt,wlc_en-gpios = <&gph1 4 GPIO_ACTIVE_LOW>;
+		/* idt,qi_vbus_en-gpios = <PP1800_L14S_ALIVE>; always high after boot */
+		idt,qien-gpios = <&gph1 4 GPIO_ACTIVE_LOW>;
+		idt,irq-gpios = <&gpa8 1 GPIO_ACTIVE_LOW>;
 
 		/* TXID: Phone type */
 		idt,tx_id_phone_type = /bits/ 8 <3>;

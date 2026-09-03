@@ -1,0 +1,9 @@
+config POWERVR_ROGUE
+	tristate "PowerVR GPU"
+	default n
+	depends on DRM
+	help
+	  Driver for PowerVR graphics processor hardware.
+
+	  Say Y here if your SoC contains a PowerVR GPU. For more
+	  information, see <https://www.imaginationtech.com/products/gpu/>.

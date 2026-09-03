@@ -3,11 +3,21 @@
 menu "GS Display Configuration"
 	depends on DRM
 
+config GOOGLE_DRM_BRIDGE_MODE_SET
+	bool "Support for Google specific DRM bridge mode set"
+	depends on DRM
+	default y if DRM_SAMSUNG
+	help
+	  Choose this option to support Google's specific DRM bridge modeset
+	  operations. This ensures DPU resources are enabled before the bridge
+	  modeset. Note that new drivers should not be setting modeset operations.
+
 config GS_DRM_PANEL_UNIFIED
 	tristate "Support for GS Unified panel driver"
 	depends on OF && DRM
 	select DRM_DISPLAY_HELPER
 	select DRM_DISPLAY_DP_HELPER
+	select DRM_BRIDGE_CONNECTOR
 	help
 	  Choose this option to support the unified panel driver framework.
 	  This option is designed to be decoupled from DPU code
@@ -20,6 +30,27 @@ config GS_PANEL_SIMPLE
 	help
 	  Select this option to enable support for the simple (sim) panel
 
+config GS_PANEL_S6E3HC4
+	tristate "Support for gs_drm-enabled s6e3hc4 panel"
+	depends on GS_DRM_PANEL_UNIFIED
+	select DRM_DISPLAY_DP_HELPER
+	select DRM_DISPLAY_HELPER
+	help
+	  Select this option to enable support for the s6e3hc4 panel.
+	  Specifically, this is the version of the panel driver supported
+	  through the newer gs_panel framework.
+
+config GS_PANEL_SMOOTH_HANDOFF_ENABLED
+	bool "Support for smooth handoff from bootloader to panel"
+	depends on GS_DRM_PANEL_UNIFIED
+	default y
+	help
+	  Select this option to enable a smooth transition from bootloader
+	  to panel. When disabled, kernel will turn off panel during handoff
+	  if it is on, and turn panel on later in the sequence.
+	  Defaults to enabled for desired operational state; disabling should
+	  occur for debugging purposes only.
+
 config DEBUG_PANEL_TEST
 	bool "Support for panel test module"
 	default n
@@ -30,6 +61,9 @@ config COMMON_PANEL_TEST
 	tristate "Support for common panel test module"
 	depends on DEBUG_PANEL_TEST
 	help
-	  Select this option to enable support for the common panel test
+	  Select this option to enable support for the common panel test.
+	  By default, this option should be disabled for devices that does not
+	  use the panel test modules. For devices that need to use the common test module
+	  this option should be enabled.
 
 endmenu

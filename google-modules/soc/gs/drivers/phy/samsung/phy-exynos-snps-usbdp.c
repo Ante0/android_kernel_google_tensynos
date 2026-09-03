@@ -9,6 +9,7 @@
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/vmalloc.h>
+#include "phy-exynos-snps-usbdp.h"
 #include "phy-samsung-usb-cal.h"
 #include "snps-usbdp-con-reg.h"
 #include "snps-usbdp-tca-reg.h"
@@ -219,7 +220,8 @@ static void lane0_reset(struct exynos_usbphy_info *info, int val)
 #define TCA_USB31_DPALT_2L 3
 #define FLD_OP_MODE 1
 
-int phy_exynos_snps_usbdp_tca_ctrl_sync(struct exynos_usbphy_info *info, int mux, int low_power_en)
+static int phy_exynos_snps_usbdp_tca_ctrl_sync(struct exynos_usbphy_info *info, int mux,
+					       int low_power_en)
 {
 	u32 reg;
 	void *tca_base = info->regs_base_2nd;
@@ -291,7 +293,7 @@ void phy_exynos_snps_usbdp_tca_set(struct exynos_usbphy_info *info, int mux, int
 	phy_exynos_snps_usbdp_tca_ctrl_sync(info, mux, low_power_en);
 }
 
-int phy_exynos_snps_usbdp_nc2usb_mode(struct exynos_usbphy_info *info, int val)
+static int phy_exynos_snps_usbdp_nc2usb_mode(struct exynos_usbphy_info *info, int val)
 {
 	u32 reg;
 	void *tca_base = info->regs_base_2nd;
@@ -328,7 +330,7 @@ int phy_exynos_snps_usbdp_nc2usb_mode(struct exynos_usbphy_info *info, int val)
 	return ret;
 }
 
-void phy_exynos_snps_dptx_reset(struct exynos_usbphy_info *info, int val)
+static void phy_exynos_snps_dptx_reset(struct exynos_usbphy_info *info, int val)
 {
 	u32 reg;
 	void *base = info->regs_base;
@@ -719,7 +721,7 @@ static void phy_exynos_snps_usbdp_lane_config(struct exynos_usbphy_info *info)
 	writel(reg, base + SNPS_USBDPPHY_REG_PHY_EXT_CONFIG14);
 }
 #endif
-void phy_exynos_snps_usbdp_config_mplla(struct exynos_usbphy_info *info)
+static void phy_exynos_snps_usbdp_config_mplla(struct exynos_usbphy_info *info)
 {
 	u32 reg;
 	void *base = info->regs_base;
@@ -775,7 +777,7 @@ static int update_fw_to_sram(struct exynos_usbphy_info *info)
 	return 0;
 }
 
-void phy_exynos_snps_usbdp_phy_sram_ext_ld_done(struct exynos_usbphy_info *info, int val)
+static void phy_exynos_snps_usbdp_phy_sram_ext_ld_done(struct exynos_usbphy_info *info, int val)
 {
 	u32 reg;
 	void *base = info->regs_base;
@@ -902,7 +904,7 @@ static int additional_cr_reg_update(struct exynos_usbphy_info *info)
 	return 0;
 }
 
-void phy_exynos_snps_tx_gen2_deemp_set(struct exynos_usbphy_info *info)
+static void phy_exynos_snps_tx_gen2_deemp_set(struct exynos_usbphy_info *info)
 {
 	void __iomem *link_base;
 	u32 reg;

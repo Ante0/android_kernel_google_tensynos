@@ -545,7 +545,7 @@ void mfc_cleanup_enc_dst_queue(struct mfc_ctx *ctx)
 	spin_unlock_irqrestore(&ctx->buf_queue_lock, flags);
 }
 
-void __mfc_print_dpb_queue(struct mfc_core_ctx *core_ctx, struct mfc_dec *dec)
+static void __mfc_print_dpb_queue(struct mfc_core_ctx *core_ctx, struct mfc_dec *dec)
 {
 	struct mfc_ctx *ctx = core_ctx->ctx;
 	struct mfc_buf *mfc_buf = NULL;
@@ -730,7 +730,7 @@ struct mfc_buf *mfc_search_move_dpb_nal_q(struct mfc_core_ctx *core_ctx)
 	return NULL;
 }
 
-int __mfc_assign_dpb_index(struct mfc_ctx *ctx, struct mfc_buf *mfc_buf)
+static int __mfc_assign_dpb_index(struct mfc_ctx *ctx, struct mfc_buf *mfc_buf)
 {
 	struct mfc_dec *dec = ctx->dec_priv;
 	struct mfc_dev *dev = ctx->dev;
@@ -775,8 +775,8 @@ int __mfc_assign_dpb_index(struct mfc_ctx *ctx, struct mfc_buf *mfc_buf)
 	return index;
 }
 
-void __mfc_update_base_addr_dpb(struct mfc_ctx *ctx, struct mfc_buf *buf,
-					int index)
+static void __mfc_update_base_addr_dpb(struct mfc_ctx *ctx, struct mfc_buf *buf,
+				       int index)
 {
 	struct mfc_dec *dec = ctx->dec_priv;
 	struct mfc_raw_info *raw;
@@ -801,7 +801,7 @@ void __mfc_update_base_addr_dpb(struct mfc_ctx *ctx, struct mfc_buf *buf,
 			index, buf->addr[0][0], buf->addr[0][1], buf->addr[0][2]);
 }
 
-int __mfc_update_dpb_fd(struct mfc_ctx *ctx, struct vb2_buffer *vb, int index)
+static int __mfc_update_dpb_fd(struct mfc_ctx *ctx, struct vb2_buffer *vb, int index)
 {
 	struct mfc_dec *dec = ctx->dec_priv;
 

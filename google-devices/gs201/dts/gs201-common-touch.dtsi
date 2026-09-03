@@ -30,8 +30,8 @@
 
 				/* Low: AP, High: AOC */
 				/* Note: The following GPIO flags are not used by the driver. */
-				tbn,ap2aoc_gpio = <&gph1 0 GPIO_ACTIVE_LOW>;
-				tbn,aoc2ap_gpio = <&gpa8 7 GPIO_ACTIVE_LOW>;
+				tbn,ap2aoc-gpios = <&gph1 0 GPIO_ACTIVE_LOW>;
+				tbn,aoc2ap-gpios = <&gpa8 7 GPIO_ACTIVE_LOW>;
 			};
 		};
 	};

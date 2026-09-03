@@ -1385,6 +1385,9 @@ static int __mfc_core_nal_q_run_in_buf_dec(struct mfc_core *core, struct mfc_cor
 	pInStr->ScratchBufAddr = core_ctx->codec_buf.daddr;
 	pInStr->ScratchBufSize = ctx->scratch_buf_size;
 
+	MFC_TRACE_CTX("scratch buf addr: 0x%#llx, size: %ld\n",
+			core_ctx->codec_buf.daddr, ctx->scratch_buf_size);
+
 	if (call_cop(ctx, set_buf_ctrls_val_nal_q_dec, ctx,
 				&ctx->src_ctrls[src_index], pInStr) < 0)
 		mfc_err("[NALQ] failed in set_buf_ctrls_val\n");
@@ -1887,10 +1890,10 @@ static void __mfc_core_nal_q_get_img_size(struct mfc_core *core, struct mfc_ctx 
 	if (img_size == MFC_GET_RESOL_SIZE) {
 		dec->disp_drc.width[dec->disp_drc.push_idx] = ctx->img_width;
 		dec->disp_drc.height[dec->disp_drc.push_idx] = ctx->img_height;
-		dec->disp_drc.disp_res_change = (dec->disp_drc.disp_res_change + 1) % MFC_MAX_DRC_FRAME;
+		dec->disp_drc.disp_res_change = ++dec->disp_drc.disp_res_change % MFC_MAX_DRC_FRAME;
 		mfc_debug(3, "[NALQ][DRC] disp_res_change[%d] count %d\n",
 				dec->disp_drc.push_idx, dec->disp_drc.disp_res_change);
-		dec->disp_drc.push_idx = (dec->disp_drc.push_idx + 1) % MFC_MAX_DRC_FRAME;
+		dec->disp_drc.push_idx = ++dec->disp_drc.push_idx % MFC_MAX_DRC_FRAME;
 	} else if (img_size == MFC_GET_RESOL_DPB_SIZE) {
 		ctx->scratch_buf_size = mfc_core_get_scratch_size();
 		for (i = 0; i < ctx->dst_fmt->num_planes; i++) {
@@ -2463,8 +2466,8 @@ static void __mfc_core_nal_q_handle_frame_input(struct mfc_core *core, struct mf
 	vb2_buffer_done(&src_mb->vb.vb2_buf, VB2_BUF_STATE_DONE);
 }
 
-void __mfc_core_nal_q_handle_frame(struct mfc_core *core, struct mfc_core_ctx *core_ctx,
-			DecoderOutputStr *pOutStr)
+static void __mfc_core_nal_q_handle_frame(struct mfc_core *core, struct mfc_core_ctx *core_ctx,
+					  DecoderOutputStr *pOutStr)
 {
 	struct mfc_ctx *ctx = core_ctx->ctx;
 	struct mfc_dec *dec = ctx->dec_priv;
@@ -2660,8 +2663,8 @@ leave_handle_frame:
 	mfc_debug_leave();
 }
 
-int __mfc_core_nal_q_handle_error(struct mfc_core *core, struct mfc_core_ctx *core_ctx,
-			EncoderOutputStr *pOutStr, int err)
+static int __mfc_core_nal_q_handle_error(struct mfc_core *core, struct mfc_core_ctx *core_ctx,
+					 EncoderOutputStr *pOutStr, int err)
 {
 	struct mfc_ctx *ctx = core_ctx->ctx;
 	struct mfc_dec *dec;

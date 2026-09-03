@@ -1,0 +1,93 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/*
+ * codec3p device tree source
+ *
+ * Copyright 2023 Google LLC.
+ *
+ */
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/lga-gic.h>
+#include <dt-bindings/power/genpd_lga.h>
+#include <dt-bindings/interconnect/google,rdo.h>
+
+/ {
+	sswrp_codec3p: sswrp_codec3p@3f000000 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x3f000000 0x200000>;
+
+		vpu: vpu@140000 {
+			compatible = "google,vpu";
+			status = "ok";
+			reg = <0x140000 0x8000>, <0x171000 0x50>;
+			reg-names = "vpu", "qchctl_vpu";
+			devfreq = <&codec_3p_freq>;
+			ras = <&codec_3p_ra_axi0>, <&codec_3p_ra_axi1>;
+			ra-names = "ra0", "ra1";
+			interrupts = <GIC_SPI SSWRP_CODEC_3P_C3P_VM0_IRQ IRQ_TYPE_LEVEL_HIGH 0>;
+			/* Context: b/282904855#comment8. We're specifying
+			 * two identical power domains here so that Linux
+			 * will not auto attach the domain to the device.
+			 */
+			power-domains =
+				<&sswrp_codec_3p_pd>,
+				<&sswrp_codec_3p_pd>;
+			interconnects =
+				<&icc_gmc SSWRP_CODEC_3P &icc_gmc GMC>;
+			interconnect-names =
+				"sswrp-codec-3p";
+
+			iommus =
+				<&inf_smmu 0x8940>,
+				<&inf_smmu 0x8948>,
+				<&inf_smmu 0x8902>,
+				<&inf_smmu 0x890a>,
+				<&inf_smmu 0x8901>,
+				<&inf_smmu 0x8909>,
+				<&inf_smmu 0x8903>,
+				<&inf_smmu 0x890b>,
+				<&inf_smmu 0x890d>,
+				<&inf_smmu 0x8906>,
+				<&inf_smmu 0x890e>,
+				<&inf_smmu 0x890c>,
+				<&inf_smmu 0x8907>,
+				<&inf_smmu 0x890f>;
+			iommu-names =
+				"c3p_seqid_0_ns_0",
+				"c3p_seqid_0_ns_1",
+				"c3p_seqid_2_ns_0",
+				"c3p_seqid_2_ns_1",
+				"c3p_seqid_1_ns_0",
+				"c3p_seqid_1_ns_1",
+				"c3p_seqid_3_ns_0",
+				"c3p_seqid_3_ns_1",
+				"c3p_seqid_5_ns",
+				"c3p_seqid_6_ns_0",
+				"c3p_seqid_6_ns_1",
+				"c3p_seqid_4_ns",
+				"c3p_seqid_7_ns_0",
+				"c3p_seqid_7_ns_1";
+
+			/* SLC partitions */
+			pt_id =
+				"vpu_p0";
+
+			qchctl_active_mask_0_offset = <0x10>;
+
+			firmware-name = "seurat.bin";
+		};
+
+		codec_3p_ra_axi0: ra@80000 {
+			compatible = "google,ra";
+			reg = <0x80000 0x1000>;
+			power-domains = <&sswrp_codec_3p_pd>;
+		};
+
+		codec_3p_ra_axi1: ra@90000 {
+			compatible = "google,ra";
+			reg = <0x90000 0x1000>;
+			power-domains = <&sswrp_codec_3p_pd>;
+		};
+	};
+};

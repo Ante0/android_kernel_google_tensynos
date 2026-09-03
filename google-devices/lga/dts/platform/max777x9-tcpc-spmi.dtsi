@@ -1,0 +1,165 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * MAX777*9 TCPC SPMI (on SPMI bus) node
+ *
+ * Copyright 2023-2024 Google LLC
+ *
+ */
+
+max77759tcpcspmi: max77759tcpc-spmi@4 {
+	dev-name = "max77759tcpc-spmi";
+	compatible = "max77759tcpc-spmi";
+	reg = <0x4 0>;
+	usb-psy-name = "usb";
+	conn = <&conn>;
+	orientation-switch;
+	mode-switch;
+	pullup-supply = <&ldo_19m_reg>;
+	vbus-dis-gpio = <&max77779_sgpio 0 GPIO_ACTIVE_HIGH>;
+
+	conn: connector {
+		compatible = "usb-c-connector";
+		label = "USB-C";
+		data-role = "dual";
+		power-role = "dual";
+		try-power-role = "sink";
+		self-powered;
+		op-sink-microwatt = <2600000>;
+		new-source-frs-typec-current = <FRS_5V_1P5A>;
+		usb-role-switch;
+		slow-charger-loop;
+		sink-wait-cap-time-ms = <450>;
+		ps-source-off-time-ms = <870>;
+		cc-debounce-time-ms = <170>;
+		pd-revision = /bits/ 8 <3 1 1 8>;
+		charging-adapter-pdp-milliwatt = <30000>;
+
+		/*
+		 * b/174044466: Extboost can only do ~1A.
+		 * However, max77759 operating in reverse boost
+		 * mode (0xA) can do till 1.5A.
+		 * Since extboost is the primary path, set this
+		 * to 900mA.
+		 */
+		source-pdos = <PDO_FIXED(5000, 900,
+					 PDO_FIXED_SUSPEND |
+					 PDO_FIXED_USB_COMM |
+					 PDO_FIXED_DATA_SWAP |
+					 PDO_FIXED_DUAL_ROLE)>;
+		sink-pdos = <PDO_FIXED(5000, 3000,
+				       PDO_FIXED_DATA_SWAP |
+				       PDO_FIXED_USB_COMM |
+				       PDO_FIXED_HIGHER_CAP |
+				       PDO_FIXED_DUAL_ROLE)
+			     PDO_FIXED(9000, 2200, 0)
+			     PDO_PPS_APDO(5000, 11000, 3000)>;
+		sink-vdos = <VDO_IDH(/* usbh */ 1, /* usbd */ 1, IDH_PTYPE_PERIPH,
+				     /* is_modal */ 0, IDH_PTYPE_DFP_HOST, /* conn */ 2,
+				     0x18D1)
+			     VDO_CERT(0x0)
+			     VDO_PRODUCT(0x4EE1, 0x0)
+			     VDO_UFP(UFP_VDO_VER1_2, DEV_USB2_CAPABLE | DEV_USB3_CAPABLE,
+				     UFP_RECEPTACLE, /* rsvd */ 0, AMA_VCONN_NOT_REQ,
+				     /* rsvd */ 0, UFP_ALTMODE_NOT_SUPP, UFP_USB32_GEN1)
+			     /* padding */ 0
+			     VDO_DFP(DFP_VDO_VER1_1, HOST_USB2_CAPABLE | HOST_USB3_CAPABLE,
+				     DFP_RECEPTACLE, /* pnum */ 0)>;
+		sink-vdos-v1 = <VDO_IDH(/* usbh */ 1, /* usbd */ 1, IDH_PTYPE_PERIPH,
+					/* is_modal */ 0, /* rsvd */ 0, /* rsvd */ 0,
+					0x18D1)
+				VDO_CERT(0x0)
+				VDO_PRODUCT(0x4EE1, 0x0)>;
+		capabilities {
+			caps0 {
+				source-pdos = <PDO_FIXED(5000, 900,
+							 PDO_FIXED_SUSPEND |
+							 PDO_FIXED_USB_COMM |
+							 PDO_FIXED_DATA_SWAP |
+							 PDO_FIXED_DUAL_ROLE)>;
+				sink-pdos = <PDO_FIXED(5000, 3000,
+						       PDO_FIXED_DATA_SWAP |
+						       PDO_FIXED_USB_COMM |
+						       PDO_FIXED_HIGHER_CAP |
+						       PDO_FIXED_DUAL_ROLE)
+					     PDO_FIXED(9000, 2200, 0)
+					     PDO_PPS_APDO(5000, 11000, 3000)>;
+				op-sink-microwatt = <2600000>;
+			};
+			caps1 {
+				source-pdos = <PDO_FIXED(5000, 900,
+							 PDO_FIXED_SUSPEND |
+							 PDO_FIXED_USB_COMM |
+							 PDO_FIXED_DATA_SWAP |
+							 PDO_FIXED_DUAL_ROLE)>;
+				sink-pdos = <PDO_FIXED(5000, 3000,
+						       PDO_FIXED_DATA_SWAP |
+						       PDO_FIXED_USB_COMM |
+						       PDO_FIXED_HIGHER_CAP |
+						       PDO_FIXED_DUAL_ROLE)>;
+				op-sink-microwatt = <2600000>;
+			};
+			caps2 {
+				source-pdos = <PDO_FIXED(5000, 0,
+							 PDO_FIXED_SUSPEND |
+							 PDO_FIXED_USB_COMM |
+							 PDO_FIXED_DATA_SWAP |
+							 PDO_FIXED_DUAL_ROLE)>;
+				sink-pdos = <PDO_FIXED(5000, 3000,
+						       PDO_FIXED_DATA_SWAP |
+						       PDO_FIXED_USB_COMM |
+						       PDO_FIXED_HIGHER_CAP |
+						       PDO_FIXED_DUAL_ROLE)>;
+				op-sink-microwatt = <2600000>;
+			};
+		};
+		altmodes {
+			displayport {
+				svid = /bits/ 16 <0xff01>;
+				vdo = <0x1cc6>;
+			};
+		};
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				mux_notification_source_1: endpoint {
+					remote-endpoint = <&mux_notification_sink_1>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				mode_notification_source_2: endpoint {
+					remote-endpoint = <&mode_notification_sink_2>;
+				};
+			};
+		};
+	};
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			mux_notification_sink_1: endpoint {
+				remote-endpoint = <&mux_notification_source_1>;
+			};
+		};
+		port@1 {
+			reg = <1>;
+			mode_notification_sink_2: endpoint {
+				remote-endpoint = <&mode_notification_source_2>;
+			};
+		};
+	};
+
+	/* EXT_BST_EN exposed as GPIO */
+	max77759_tcpc_gpio: max77759_tcpc_gpio {
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <1>;
+	};
+};

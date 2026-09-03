@@ -504,14 +504,13 @@ static int max9611_init(struct max9611_dev *max9611)
 }
 
 static const struct of_device_id max9611_of_table[] = {
-	{.compatible = "maxim,max9611", .data = "max9611"},
-	{.compatible = "maxim,max9612", .data = "max9612"},
-	{ },
+	{ .compatible = "maxim,max9611", .data = "max9611" },
+	{ .compatible = "maxim,max9612", .data = "max9612" },
+	{ }
 };
 
 MODULE_DEVICE_TABLE(of, max9611_of_table);
-static int max9611_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id)
+static int max9611_probe(struct i2c_client *client)
 {
 	const char * const shunt_res_prop = "shunt-resistor-micro-ohms";
 	struct max9611_dev *max9611;

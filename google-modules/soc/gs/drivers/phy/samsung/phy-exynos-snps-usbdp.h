@@ -8,6 +8,8 @@
 #ifndef _PHY_EXYNOS_SNPS_USBDP_H_
 #define _PHY_EXYNOS_SNPS_USBDP_H_
 
+struct exynos_usbphy_info;
+
 extern void phy_exynos_snps_usbdp_phy_initiate(struct exynos_usbphy_info *info);
 extern int phy_exynos_snps_usbdp_phy_enable(struct exynos_usbphy_info *info);
 extern void phy_exynos_snps_usbdp_phy_disable(struct exynos_usbphy_info *info);

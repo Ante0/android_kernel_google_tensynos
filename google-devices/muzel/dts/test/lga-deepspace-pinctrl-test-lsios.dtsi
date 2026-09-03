@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,lga.h>
+
+&lsios_pinctrl {
+	lsios_camera_output_gpios: lsion_camera_output_gpios {
+		pins = "XLSIOS_CLI0_PIN3",
+		       "XLSIOS_CLI1_PIN2",
+		       "XLSIOS_CLI3_PIN2",
+		       "XLSIOS_CLI3_PIN3",
+		       "XLSIOS_PWM_1",
+		       "XLSIOS_PWM_2";
+		function = "lsios_gpio";
+		bias-pull-up;
+		output-high;
+	};
+	lsios_modem_output_gpios: lsion_modem_output_gpios {
+		pins = "XLSIOS_GPIO3";
+		function = "lsios_gpio";
+		bias-pull-up;
+		output-high;
+	};
+};

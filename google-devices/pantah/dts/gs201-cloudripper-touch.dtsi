@@ -23,7 +23,7 @@
  */
 
 &tbn {
-	tbn,aoc2ap_gpio = <&gpa9 2 GPIO_ACTIVE_LOW>;
+	tbn,aoc2ap-gpios = <&gpa9 2 GPIO_ACTIVE_LOW>;
 };
 
 &spi_0 {

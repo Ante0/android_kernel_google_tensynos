@@ -16,6 +16,7 @@
 #include <drm/drm_drv.h>
 #include <drm/drm_modeset_lock.h>
 #include <drm/drm_atomic_helper.h>
+#include <linux/mutex.h>
 
 #include <dqe_cal.h>
 #include <decon_cal.h>
@@ -23,6 +24,10 @@
 #include <trace/dpu_trace.h>
 
 #include "exynos_drm_decon.h"
+
+static void *g_hist_aligned_bins;
+static int g_hist_bins_ref_count;
+static DEFINE_MUTEX(g_hist_bins_mutex);
 
 static inline u8 get_actual_dstep(u8 dstep, int vrefresh)
 {
@@ -96,7 +101,9 @@ static void histogram_chan_collect_bins_locked(struct exynos_dqe *dqe,
 	DPU_ATRACE_BEGIN(__func__);
 	/* collect data from bins */
 	DPU_EVENT_LOG(DPU_EVT_HIST_COLLECT_BINS, dqe->decon->id, &hist_id);
-	dqe_reg_get_histogram_bins(dqe->dev, dqe->decon->id, hist_id, bins);
+
+	dqe_reg_get_histogram_bins(dqe->dev, dqe->decon->id, hist_id, dqe->hist_aligned_bins);
+	memcpy(bins, dqe->hist_aligned_bins, sizeof(*bins));
 	DPU_ATRACE_END(__func__);
 }
 
@@ -1566,7 +1573,7 @@ struct exynos_dqe *exynos_dqe_register(struct decon_device *decon)
 	dqe_name_heap = kstrdup(dqe_name, GFP_KERNEL);
 	if (!dqe_name_heap)
 		return NULL;
-	dqe->dqe_class = class_create(THIS_MODULE, dqe_name_heap);
+	dqe->dqe_class = class_create(dqe_name_heap);
 	if (IS_ERR(dqe->dqe_class)) {
 		pr_err("failed to create dqe class\n");
 		return NULL;
@@ -1586,5 +1593,34 @@ struct exynos_dqe *exynos_dqe_register(struct decon_device *decon)
 
 	dma_coerce_mask_and_coherent(dqe->dev, DMA_BIT_MASK(64));
 
+	mutex_lock(&g_hist_bins_mutex);
+	if (!g_hist_aligned_bins) {
+		g_hist_aligned_bins = (void *)__get_free_page(GFP_KERNEL);
+		if (!g_hist_aligned_bins) {
+			pr_err("failed to allocate page for histogram bins\n");
+			mutex_unlock(&g_hist_bins_mutex);
+			return NULL;
+		}
+		pr_info("global hist aligned buffer allocated at %lx\n",
+			(uintptr_t)g_hist_aligned_bins);
+	}
+	dqe->hist_aligned_bins = g_hist_aligned_bins;
+	g_hist_bins_ref_count++;
+	mutex_unlock(&g_hist_bins_mutex);
+
 	return dqe;
+}
+
+void exynos_dqe_unregister(struct exynos_dqe *dqe)
+{
+	if (!dqe)
+		return;
+
+	mutex_lock(&g_hist_bins_mutex);
+	g_hist_bins_ref_count--;
+	if (g_hist_bins_ref_count == 0) {
+		free_page((unsigned long)g_hist_aligned_bins);
+		g_hist_aligned_bins = NULL;
+	}
+	mutex_unlock(&g_hist_bins_mutex);
 }

@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+/*
+ * Device tree source for Laguna A0 "Buenos" TPU.
+ *
+ * Copyright 2024 Google LLC
+ */
+
+#include "lga-tpu-base.dtsi"
+
+&edgetpu {
+	gcip-dvfs-table-size = <16 2>; /*<row col>*/
+	gcip-dvfs-table = <
+	/*	freq	power(mW) */
+		1113600 3808 /*  0 */
+		1036800 3462 /*  1 */
+		 960000 3171 /*  2 */
+		 883200 2863 /*  3 */
+		 825600 2581 /*  4 */
+		 768000 2255 /*  5 */
+		 691200 1872 /*  6 */
+		 595200 1515 /*  7 */
+		 533000 1335 /*  8 */
+		 480000 1230 /*  9 */
+		 403200 1017 /* 10 */
+		 345600  864 /* 11 */
+		 288000  718 /* 12 */
+		 192000  523 /* 13 */
+		 134400  399 /* 14 */
+		  38400  200 /* 15 */
+	>;
+};

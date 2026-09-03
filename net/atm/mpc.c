@@ -1534,4 +1534,5 @@ static void __exit atm_mpoa_cleanup(void)
 module_init(atm_mpoa_init);
 module_exit(atm_mpoa_cleanup);
 
+MODULE_DESCRIPTION("Multi-Protocol Over ATM (MPOA) driver");
 MODULE_LICENSE("GPL");

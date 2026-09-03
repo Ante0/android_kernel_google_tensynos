@@ -50,6 +50,14 @@ int lwis_buffer_alloc(struct lwis_client *lwis_client, struct lwis_alloc_buffer_
 		      struct lwis_allocated_buffer *buffer);
 
 /*
+ * lwis_buffer_realloc: Reallocates a DMA buffer repesented by alloc_info.
+ * Assumes: lwisclient->lock is locked
+ * Alloc: Reallocates existing buffer
+ * Returns 0 on success
+ */
+int lwis_buffer_realloc(struct lwis_client *lwis_client, struct lwis_alloc_buffer_info *alloc_info,
+			struct lwis_allocated_buffer *buffer);
+/*
  * lwis_buffer_free: Frees a DMA buffer represented by file descriptor.
  *
  * Assumes: lwisclient->lock is locked

@@ -1,0 +1,1202 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+#include <dt-bindings/lpcm/clock_mbu.h>
+
+/ {
+	cpm_clk: cpm_clk {
+		compatible = "google,cpm-clk";
+		mboxes = <&goog_mba_cpm_iface>;
+
+		power-domains = <&sswrp_dpu_pd>, <&dpu_be_pd>, <&dpu_fe0_pd>, <&sswrp_hsio_n_pd>,
+				<&sswrp_hsio_s_pd>, <&sswrp_lsio_s_pd>, <&sswrp_lsio_e_pd>,
+				<&cpuacc_gpdma_pd>;
+
+		/* dpu */
+		dpu_dp0_pix_clk: dpu_dp0_pix_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_DPU>;
+			clock-id = <DPU_DP0_PIX_CLK>;
+			rates = /bits/ 64 <1 2 4 38400000>;
+		};
+
+		dpu_dsi0_pix_clk: dpu_dsi0_pix_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_DPU>;
+			clock-id = <DPU_DSI0_PIX_CLK>;
+			rates = /bits/ 64 <50000000 100000000 150000000>;
+		};
+
+		dpu_dsi1_pix_clk: dpu_dsi1_pix_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_DPU>;
+			clock-id = <DPU_DSI1_PIX_CLK>;
+			rates = /bits/ 64 <50000000 100000000 150000000>;
+		};
+
+		dpu_dsi1_phy_clk: dpu_dsi1_phy_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_DPU>;
+			clock-id = <DPU_DSI_PHY_CLK>;
+			rates = /bits/ 64 <300000000>;
+		};
+
+		dpu_be_clk: dpu_be_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_DPU>;
+			clock-id = <DPU_BE_CLK>;
+			rates = /bits/ 64 <200000000 356000000 480000000 672000000>;
+		};
+
+		dpu_fe0_clk: dpu_fe0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_DPU>;
+			clock-id = <DPU_FE0_CLK>;
+			rates = /bits/ 64 <200000000 356000000 480000000 672000000>;
+		};
+
+		dpu_fe1_clk: dpu_fe1_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_DPU>;
+			clock-id = <DPU_FE1_CLK>;
+			rates = /bits/ 64 <200000000 356000000 480000000 672000000>;
+		};
+
+		gpcm_hsion_pll_dp_clk: gpcm_hsion_pll_dp_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_GPCM_AMB>;
+			clock-id = <GPCM_HSION_PLL_DP_CLK>;
+			rates = /bits/ 64 < 12587500  20000000  32500000  37125000
+					    38400000  54000000  67500000  74250000
+					    77000000  96625000  99000000 117295000
+					   118800000 120750000 148500000 159875000
+					   174250000 197500000 261305000 266625000
+					   297000000>;
+		};
+
+		gpcm_dpu_chnl_clk: gpcm_dpu_chnl_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_GPCM_INFRA>;
+			clock-id = <GPCM_DPU_CHNL_CLK>;
+			rates = /bits/ 64 <200000000 356000000 480000000 672000000>;
+		};
+
+		/* hsion */
+		hsion_usbc_sticky_clk: hsion_usbc_sticky_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSION_USBC_STICKY_CLK>;
+		};
+
+		hsion_usbc_non_sticky_clk: hsion_usbc_non_sticky_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSION_USBC_NON_STICKY_CLK>;
+		};
+
+		hsion_usbdp_usbdrd_ref_clk: hsion_usbdp_usbdrd_ref_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSION_USBDP_USBDRD_REF_CLK>;
+		};
+
+		hsion_usbctrlref_clk: hsion_usbctrlref_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSION_USBCTRLREF_CLK>;
+			rates = /bits/ 64 <19200000>;
+		};
+
+		hsion_usb2_phy_reset_clk: hsion_usb2_phy_reset_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSION_USB2_PHY_RESET_CLK>;
+		};
+
+		hsion_usb3dp_phy_reset_clk: hsion_usb3dp_phy_reset_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSION_USB3DP_PHY_RESET_CLK>;
+		};
+
+		hsion_usbdp_u3phy_fw_clk: hsion_usbdp_u3phy_fw_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSION_USBDP_U3PHY_FW_CLK>;
+		};
+
+		hsion_usbdp_u2phy_apb_clk: hsion_usbdp_u2phy_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSION_USBDP_U2PHY_APB_CLK>;
+		};
+
+		hsion_usbdp_usbdrd_bus_clk: hsion_usbdp_usbdrd_bus_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSION_USBDP_USBDRD_BUS_CLK>;
+		};
+
+		hsion_usbdp_top_clk: hsion_usbdp_top_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSION_USBDP_TOP_CLK>;
+		};
+
+		hsio_n_usb2aux_ctrl_vaux_sticky_clk: hsio_n_usb2aux_ctrl_vaux_sticky_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_USB2AUX_CTRL_VAUX_STICKY_CLK>;
+		};
+
+		hsio_n_usb2aux_ctrl_vcc_non_sticky_clk: hsio_n_usb2aux_ctrl_vcc_non_sticky_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_USB2AUX_CTRL_VCC_NON_STICKY_CLK>;
+		};
+
+		hsio_n_usb2aux_phy_reset_clk: hsio_n_usb2aux_phy_reset_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_USB2AUX_PHY_RESET_CLK>;
+		};
+
+		hsio_n_usbdp_usb2aux_ctrl_bus_clk: hsio_n_usbdp_usb2aux_ctrl_bus_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_USBDP_USB2AUX_CTRL_BUS_CLK>;
+		};
+
+		hsio_n_usbdp_usb2aux_phy_apb_clk: hsio_n_usbdp_usb2aux_phy_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_USBDP_USB2AUX_PHY_APB_CLK>;
+		};
+
+		hsio_n_usbdp_usb2aux_ctrl_ref_clk: hsio_n_usbdp_usb2aux_ctrl_ref_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_USBDP_USB2AUX_CTRL_REF_CLK>;
+		};
+
+		hsio_n_usbdp_usb2aux_suspend_clk: hsio_n_usbdp_usb2aux_suspend_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_USBDP_USB2AUX_SUSPEND_CLK>;
+		};
+		hsio_n_usbdp_sclk0_clk: hsio_n_usbdp_sclk0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_USBDP_SCLK0_CLK>;
+			rates = /bits/ 64 <24576000 38400000>;
+		};
+		hsio_n_sresetn0_clk: hsio_n_sresetn0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_SRESETN0_CLK>;
+			rates = /bits/ 64 <24576000 38400000>;
+		};
+		hsio_n_usbdp_aux16m_clk: hsio_n_usbdp_aux16m_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_USBDP_AUX16M_CLK>;
+			rates = /bits/ 64 <16000000>;
+		};
+		hsio_n_video_0_clk: hsio_n_video_0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_VIDEO_0_CLK>;
+		};
+		hsio_n_dp_pixel_0_clk: hsio_n_dp_pixel_0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_DP_PIXEL_0_CLK>;
+		};
+		hsio_n_usbdp_pixel_0_clk: hsio_n_usbdp_pixel_0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_USBDP_PIXEL_0_CLK>;
+			rates = /bits/ 64 <1 2 4 38400000>;
+		};
+		hsio_n_sw_pixel0clk_videobuff_rstn_clk: hsio_n_sw_pixel0clk_videobuff_rstn_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_SW_PIXEL0CLK_VIDEOBUFF_RSTN_CLK>;
+		};
+		hsio_n_usbdp_dptop_clk: hsio_n_usbdp_dptop_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_USBDP_DPTOP_CLK>;
+			rates = /bits/ 64 <288000000>;
+		};
+		hsio_n_csr_clk: hsio_n_csr_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_CSR_CLK>;
+			rates = /bits/ 64 <288000000>;
+		};
+		hsio_n_sdp_0_clk: hsio_n_sdp_0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_SDP_0_CLK>;
+			rates = /bits/ 64 <288000000>;
+		};
+		hsio_n_trng_clk: hsio_n_trng_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_TRNG_CLK>;
+			rates = /bits/ 64 <288000000>;
+		};
+		hsio_n_presetn0_clk: hsio_n_presetn0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_PRESETN0_CLK>;
+			rates = /bits/ 64 <288000000>;
+		};
+		hsio_n_hdcp22_clk: hsio_n_hdcp22_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_HDCP22_CLK>;
+			rates = /bits/ 64 <288000000>;
+		};
+		hsio_n_dp_vcc_clk: hsio_n_dp_vcc_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_DP_VCC_CLK>;
+		};
+		hsio_n_usbdp_esm_clk: hsio_n_usbdp_esm_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_USBDP_ESM_CLK>;
+			rates = /bits/ 64 <38400000 305000000>;
+		};
+		hsio_n_maxi_clk: hsio_n_maxi_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_N>;
+			clock-id = <HSIO_N_MAXI_CLK>;
+			rates = /bits/ 64 <38400000 305000000>;
+		};
+
+		/* hsios */
+		hsios_gpio_ref_clk: hsios_gpio_ref_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_S>;
+			clock-id = <HSIOS_GPIO_REF_CLK>;
+		};
+
+		hsios_mphy_ref_clk: hsios_mphy_ref_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_S>;
+			clock-id = <HSIOS_MPHY_REF_CLK>;
+			rates = /bits/ 64 <38400000>;
+		};
+
+		hsios_ufs_clk: hsios_ufs_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_S>;
+			clock-id = <HSIOS_UFS_CLK>;
+			rates = /bits/ 64 <38400000 300000000 400000000>;
+		};
+
+		hsios_cp_core_clk: hsios_cp_core_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_S>;
+			clock-id = <HSIOS_CP_CORE_CLK>;
+		};
+
+		hsios_ufs_deep_h8_clk: hsios_ufs_deep_h8_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_HSIO_S>;
+			clock-id = <HSIOS_UFS_DEEP_H8_CLK>;
+		};
+
+		/* isp */
+		gpcm_ispbe_chnl_clk: gpcm_ispbe_chnl_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_GPCM_INFRA>;
+			clock-id = <GPCM_ISPBE_CHNL_CLK>;
+			rates = /bits/ 64 <172000000 343000000 480000000 672000000>;
+		};
+
+		gpcm_gcv_chnl_clk: gpcm_gcv_chnl_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_GPCM_INFRA>;
+			clock-id = <GPCM_GCV_CHNL_CLK>;
+			rates = /bits/ 64 <172000000 343000000 480000000 672000000>;
+		};
+
+		gpcm_ispfe_chnl_clk: gpcm_ispfe_chnl_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_GPCM_INFRA>;
+			clock-id = <GPCM_ISPFE_CHNL_CLK>;
+			rates = /bits/ 64 <115000000 356000000 533000000 711000000>;
+		};
+
+		gpcm_ispfe_scan_wordclkhs_clk: gpcm_ispfe_scan_wordclkhs_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_GPCM_INFRA>;
+			clock-id = <GPCM_ISPFE_SCAN_WORDCLKHS_CLK>;
+			rates = /bits/ 64 <115000000 400000000 533000000>;
+		};
+
+		gpcm_ispfe_p2d6_400m_clk: gpcm_ispfe_p2d6_400m_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_GPCM_INFRA>;
+			clock-id = <GPCM_ISPFE_P2D6_400M_CLK>;
+		};
+
+		gpcm_ispfe_p2d4_600m_clk: gpcm_ispfe_p2d4_600m_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_GPCM_INFRA>;
+			clock-id = <GPCM_ISPFE_P2D4_600M_CLK>;
+		};
+
+		/* lsio_s */
+		lsio_s_pwm_clk: lsio_s_pwm_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_PWM_CLK>;
+			rates = /bits/ 64 <24576000 38400000>;
+		};
+
+		lsio_s_m0_clk: lsio_s_m0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_M0_CLK>;
+			rates = /bits/ 64 <24576000 38400000>;
+		};
+
+		lsio_s_m1_clk: lsio_s_m1_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_M1_CLK>;
+			rates = /bits/ 64 <24576000 38400000>;
+		};
+
+		lsio_s_m2_clk: lsio_s_m2_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_M2_CLK>;
+			rates = /bits/ 64 <24576000 38400000>;
+		};
+
+		lsio_s_m3_clk: lsio_s_m3_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_M3_CLK>;
+			rates = /bits/ 64 <24576000 38400000>;
+		};
+
+		lsio_s_m4_clk: lsio_s_m4_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_M4_CLK>;
+			rates = /bits/ 64 <24576000 38400000>;
+		};
+
+		lsio_s_m5_clk: lsio_s_m5_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_M5_CLK>;
+			rates = /bits/ 64 <24576000 38400000>;
+		};
+
+		lsio_s_m6_clk: lsio_s_m6_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_M6_CLK>;
+			rates = /bits/ 64 <24576000 38400000>;
+		};
+
+		lsio_s_m7_clk: lsio_s_m7_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_M7_CLK>;
+			rates = /bits/ 64 <24576000 38400000>;
+		};
+
+		lsio_s_i2c_0_clk: lsio_s_i2c_0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I2C_0_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i3c_0_clk: lsio_s_i3c_0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I3C_0_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i2c_1_clk: lsio_s_i2c_1_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I2C_1_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i3c_1_clk: lsio_s_i3c_1_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I3C_1_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i2c_2_clk: lsio_s_i2c_2_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I2C_2_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i3c_2_clk: lsio_s_i3c_2_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I3C_2_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i2c_3_clk: lsio_s_i2c_3_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I2C_3_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i3c_3_clk: lsio_s_i3c_3_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I3C_3_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i2c_4_clk: lsio_s_i2c_4_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I2C_4_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i3c_4_clk: lsio_s_i3c_4_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I3C_4_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_spi_0_clk: lsio_s_spi_0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_SPI_0_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_uart_0_clk: lsio_s_uart_0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_UART_0_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_spi_1_clk: lsio_s_spi_1_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_SPI_1_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_uart_1_clk: lsio_s_uart_1_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_UART_1_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_spi_2_clk: lsio_s_spi_2_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_SPI_2_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_uart_2_clk: lsio_s_uart_2_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_UART_2_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_spi_3_clk: lsio_s_spi_3_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_SPI_3_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_uart_3_clk: lsio_s_uart_3_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_UART_3_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_qspi_clk: lsio_s_qspi_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_QSPI_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i2c_0_cfg_clk: lsio_s_i2c_0_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I2C_0_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i3c_0_cfg_clk: lsio_s_i3c_0_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I3C_0_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i2c_1_cfg_clk: lsio_s_i2c_1_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I2C_1_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i3c_1_cfg_clk: lsio_s_i3c_1_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I3C_1_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i2c_2_cfg_clk: lsio_s_i2c_2_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I2C_2_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i3c_2_cfg_clk: lsio_s_i3c_2_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I3C_2_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i2c_3_cfg_clk: lsio_s_i2c_3_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I2C_3_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i3c_3_cfg_clk: lsio_s_i3c_3_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I3C_3_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i2c_4_cfg_clk: lsio_s_i2c_4_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I2C_4_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_i3c_4_cfg_clk: lsio_s_i3c_4_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_I3C_4_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_spi_0_cfg_clk: lsio_s_spi_0_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_SPI_0_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_uart_0_cfg_clk: lsio_s_uart_0_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_UART_0_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_spi_1_cfg_clk: lsio_s_spi_1_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_SPI_1_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_uart_1_cfg_clk: lsio_s_uart_1_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_UART_1_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+  		lsio_s_spi_2_cfg_clk: lsio_s_spi_2_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_SPI_2_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_uart_2_cfg_clk: lsio_s_uart_2_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_UART_2_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_spi_3_cfg_clk: lsio_s_spi_3_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_SPI_3_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_uart_3_cfg_clk: lsio_s_uart_3_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_UART_3_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_qspi_cfg_clk: lsio_s_qspi_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_QSPI_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_pwm_cfg_clk: lsio_s_pwm_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_PWM_CFG_CLK>;
+			rates = /bits/ 64 <200000000>;
+		};
+
+		lsio_s_gpio_clk: lsio_s_gpio_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_S>;
+			clock-id = <LSIO_S_GPIO_CLK>;
+		};
+
+		/* lsio_e */
+		lsio_e_i2c_0_clk: lsio_e_i2c_0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I2C_0_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i3c_0_clk: lsio_e_i3c_0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I3C_0_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i2c_1_clk: lsio_e_i2c_1_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I2C_1_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i3c_1_clk: lsio_e_i3c_1_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I3C_1_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i2c_2_clk: lsio_e_i2c_2_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I2C_2_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i3c_2_clk: lsio_e_i3c_2_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I3C_2_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i2c_3_clk: lsio_e_i2c_3_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I2C_3_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i3c_3_clk: lsio_e_i3c_3_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I3C_3_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i2c_4_clk: lsio_e_i2c_4_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I2C_4_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i3c_4_clk: lsio_e_i3c_4_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I3C_4_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_spi_0_clk: lsio_e_spi_0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_SPI_0_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_uart_0_clk: lsio_e_uart_0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_UART_0_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_spi_1_clk: lsio_e_spi_1_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_SPI_1_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_uart_1_clk: lsio_e_uart_1_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_UART_1_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i2c_0_cfg_clk: lsio_e_i2c_0_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I2C_0_CFG_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i3c_0_cfg_clk: lsio_e_i3c_0_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I3C_0_CFG_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i2c_1_cfg_clk: lsio_e_i2c_1_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I2C_1_CFG_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i3c_1_cfg_clk: lsio_e_i3c_1_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I3C_1_CFG_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i2c_2_cfg_clk: lsio_e_i2c_2_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I2C_2_CFG_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i3c_2_cfg_clk: lsio_e_i3c_2_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I3C_2_CFG_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i2c_3_cfg_clk: lsio_e_i2c_3_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I2C_3_CFG_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i3c_3_cfg_clk: lsio_e_i3c_3_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I3C_3_CFG_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i2c_4_cfg_clk: lsio_e_i2c_4_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I2C_4_CFG_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_i3c_4_cfg_clk: lsio_e_i3c_4_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_I3C_4_CFG_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_spi_0_cfg_clk: lsio_e_spi_0_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_SPI_0_CFG_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_uart_0_cfg_clk: lsio_e_uart_0_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_UART_0_CFG_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_spi_1_cfg_clk: lsio_e_spi_1_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_SPI_1_CFG_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_uart_1_cfg_clk: lsio_e_uart_1_cfg_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_UART_1_CFG_CLK>;
+			rates = /bits/ 64 <197000000>;
+		};
+
+		lsio_e_gpio_clk: lsio_e_gpio_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_LSIO_E>;
+			clock-id = <LSIO_E_GPIO_CLK>;
+		};
+
+		/* AOSS_PG */
+		aoss_pg_amb_i2c0_apb_clk: aoss_pg_amb_i2c0_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_I2C0_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_i3c0_apb_clk: aoss_pg_amb_i3c0_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_I3C0_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_i3c1_apb_clk: aoss_pg_amb_i3c1_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_I3C1_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_i3c2_apb_clk: aoss_pg_amb_i3c2_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_I3C2_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_uart0_apb_clk: aoss_pg_amb_uart0_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_UART0_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_uart1_apb_clk: aoss_pg_amb_uart1_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_UART1_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_uart2_apb_clk: aoss_pg_amb_uart2_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_UART2_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_uart3_apb_clk: aoss_pg_amb_uart3_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_UART3_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_uart4_apb_clk: aoss_pg_amb_uart4_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_UART4_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_uart5_apb_clk: aoss_pg_amb_uart5_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_UART5_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_spi0_apb_clk: aoss_pg_amb_spi0_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_SPI0_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_spi1_apb_clk: aoss_pg_amb_spi1_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_SPI1_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_spi2_apb_clk: aoss_pg_amb_spi2_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_SPI2_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_spi3_apb_clk: aoss_pg_amb_spi3_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_SPI3_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_spi4_apb_clk: aoss_pg_amb_spi4_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_SPI4_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_spi5_apb_clk: aoss_pg_amb_spi5_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_SPI5_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_spi6_apb_clk: aoss_pg_amb_spi6_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_SPI6_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_tspi_apb_clk: aoss_pg_amb_tspi_apb_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_TSPI_APB_CLK>;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_i2c0_peri_clk: aoss_pg_amb_i2c0_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_I2C0_PERI_CLK>;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		aoss_pg_amb_i3c0_peri_clk: aoss_pg_amb_i3c0_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_I3C0_PERI_CLK>;
+			restore-rate-on-aoss-ssr;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		aoss_pg_amb_i3c1_peri_clk: aoss_pg_amb_i3c1_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_I3C1_PERI_CLK>;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		aoss_pg_amb_i3c2_peri_clk: aoss_pg_amb_i3c2_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_I3C2_PERI_CLK>;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		aoss_pg_amb_uart0_peri_clk: aoss_pg_amb_uart0_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_UART0_PERI_CLK>;
+			restore-rate-on-aoss-ssr;
+			rates = /bits/ 64 <192000000>;
+		};
+
+		aoss_pg_amb_uart1_peri_clk: aoss_pg_amb_uart1_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_UART1_PERI_CLK>;
+			restore-rate-on-aoss-ssr;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		aoss_pg_amb_uart2_peri_clk: aoss_pg_amb_uart2_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_UART2_PERI_CLK>;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		aoss_pg_amb_uart3_peri_clk: aoss_pg_amb_uart3_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_UART3_PERI_CLK>;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		aoss_pg_amb_uart4_peri_clk: aoss_pg_amb_uart4_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_UART4_PERI_CLK>;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		aoss_pg_amb_uart5_peri_clk: aoss_pg_amb_uart5_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_UART5_PERI_CLK>;
+			restore-rate-on-aoss-ssr;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		aoss_pg_amb_spi0_peri_clk: aoss_pg_amb_spi0_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_SPI0_PERI_CLK>;
+			restore-rate-on-aoss-ssr;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		aoss_pg_amb_spi1_peri_clk: aoss_pg_amb_spi1_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_SPI1_PERI_CLK>;
+			restore-rate-on-aoss-ssr;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		aoss_pg_amb_spi2_peri_clk: aoss_pg_amb_spi2_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_SPI2_PERI_CLK>;
+			restore-rate-on-aoss-ssr;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		aoss_pg_amb_spi3_peri_clk: aoss_pg_amb_spi3_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_SPI3_PERI_CLK>;
+			restore-rate-on-aoss-ssr;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		aoss_pg_amb_spi4_peri_clk: aoss_pg_amb_spi4_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_SPI4_PERI_CLK>;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		aoss_pg_amb_spi5_peri_clk: aoss_pg_amb_spi5_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_SPI5_PERI_CLK>;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		aoss_pg_amb_spi6_peri_clk: aoss_pg_amb_spi6_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_SPI6_PERI_CLK>;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		aoss_pg_amb_tspi_peri_clk: aoss_pg_amb_tspi_peri_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_AOSS_PG>;
+			clock-id = <AOSS_PG_AMB_TSPI_PERI_CLK>;
+			rates = /bits/ 64 <38400000 192000000>;
+		};
+
+		cpuacc_gpdma0_clk: cpuacc_gpdma0_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_CPUACC>;
+			clock-id = <CPUACC_GPDMA0_CLK>;
+		};
+
+		cpuacc_gpdma1_clk: cpuacc_gpdma1_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_CPUACC>;
+			clock-id = <CPUACC_GPDMA1_CLK>;
+		};
+
+		cpuacc_gpdma2_clk: cpuacc_gpdma2_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_CPUACC>;
+			clock-id = <CPUACC_GPDMA2_CLK>;
+		};
+
+		cpuacc_gpdma3_clk: cpuacc_gpdma3_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_CPUACC>;
+			clock-id = <CPUACC_GPDMA3_CLK>;
+		};
+
+		cpuacc_gpdma4_clk: cpuacc_gpdma4_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_CPUACC>;
+			clock-id = <CPUACC_GPDMA4_CLK>;
+		};
+
+		cpu_sswrp_tss_clk: cpu_sswrp_tss_clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_CPU>;
+			clock-id = <CPU_SSWRP_TSS_CLK>;
+		};
+
+		pcie_dpa_uart_clk: pcie-dpa-uart-clk {
+			#clock-cells = <0>;
+			lpcm-id = <LPCM_PCIE>;
+			clock-id = <CLK_PCIE_DPA_UART_CLK>;
+		};
+	};
+};

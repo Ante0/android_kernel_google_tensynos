@@ -84,15 +84,13 @@ static struct aa_profile *alloc_unconfined(const char *name)
 {
 	struct aa_profile *profile;
 
-	profile = aa_alloc_profile(name, NULL, GFP_KERNEL);
+	profile = aa_alloc_null(NULL, name, GFP_KERNEL);
 	if (!profile)
 		return NULL;
 
 	profile->label.flags |= FLAG_IX_ON_NAME_ERROR |
 		FLAG_IMMUTIBLE | FLAG_NS_COUNT | FLAG_UNCONFINED;
 	profile->mode = APPARMOR_UNCONFINED;
-	profile->file.dfa = aa_get_dfa(nulldfa);
-	profile->policy.dfa = aa_get_dfa(nulldfa);
 
 	return profile;
 }
@@ -162,43 +160,6 @@ void aa_free_ns(struct aa_ns *ns)
 }
 
 /**
- * aa_findn_ns  -  look up a profile namespace on the namespace list
- * @root: namespace to search in  (NOT NULL)
- * @name: name of namespace to find  (NOT NULL)
- * @n: length of @name
- *
- * Returns: a refcounted namespace on the list, or NULL if no namespace
- *          called @name exists.
- *
- * refcount released by caller
- */
-struct aa_ns *aa_findn_ns(struct aa_ns *root, const char *name, size_t n)
-{
-	struct aa_ns *ns = NULL;
-
-	rcu_read_lock();
-	ns = aa_get_ns(__aa_findn_ns(&root->sub_ns, name, n));
-	rcu_read_unlock();
-
-	return ns;
-}
-
-/**
- * aa_find_ns  -  look up a profile namespace on the namespace list
- * @root: namespace to search in  (NOT NULL)
- * @name: name of namespace to find  (NOT NULL)
- *
- * Returns: a refcounted namespace on the list, or NULL if no namespace
- *          called @name exists.
- *
- * refcount released by caller
- */
-struct aa_ns *aa_find_ns(struct aa_ns *root, const char *name)
-{
-	return aa_findn_ns(root, name, strlen(name));
-}
-
-/**
  * __aa_lookupn_ns - lookup the namespace matching @hname
  * @view: namespace to search in  (NOT NULL)
  * @hname: hierarchical ns name  (NOT NULL)
@@ -262,6 +223,8 @@ static struct aa_ns *__aa_create_ns(struct aa_ns *parent, const char *name,
 	AA_BUG(!name);
 	AA_BUG(!mutex_is_locked(&parent->lock));
 
+	if (parent->level > MAX_NS_DEPTH)
+		return ERR_PTR(-ENOSPC);
 	ns = alloc_ns(parent->base.hname, name);
 	if (!ns)
 		return ERR_PTR(-ENOMEM);

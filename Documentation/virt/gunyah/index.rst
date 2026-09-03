@@ -7,15 +7,15 @@ Gunyah Hypervisor
 .. toctree::
    :maxdepth: 1
 
-   vm-manager
    message-queue
 
 Gunyah is a Type-1 hypervisor which is independent of any OS kernel, and runs in
-a higher CPU privilege level. It does not depend on any lower-privileged operating system
-for its core functionality. This increases its security and can support a much smaller
-trusted computing base than a Type-2 hypervisor.
+a more privileged CPU level (EL2 on Aarch64). It does not depend on a less
+privileged operating system for its core functionality. This increases its
+security and can support a much smaller trusted computing base than a Type-2
+hypervisor.
 
-Gunyah is an open source hypervisor. The source repo is available at
+Gunyah is an open source hypervisor. The source repository is available at
 https://github.com/quic/gunyah-hypervisor.
 
 Gunyah provides these following features.
@@ -23,11 +23,13 @@ Gunyah provides these following features.
 - Scheduling:
 
   A scheduler for virtual CPUs (vCPUs) on physical CPUs enables time-sharing
-  of the CPUs. Gunyah supports two models of scheduling:
+  of the CPUs. Gunyah supports two models of scheduling which can coexist on
+  a running system:
 
-    1. "Behind the back" scheduling in which Gunyah hypervisor schedules vCPUS on its own.
-    2. "Proxy" scheduling in which a delegated VM can donate part of one of its vCPU slice
-       to another VM's vCPU via a hypercall.
+    1. Hypervisor vCPU scheduling in which Gunyah hypervisor schedules vCPUS on
+       its own. The default is a real-time priority with round-robin scheduler.
+    2. "Proxy" scheduling in which an owner-VM can donate the remainder of its
+       own vCPU's time slice to an owned-VM's vCPU via a hypercall.
 
 - Memory Management:
 
@@ -37,54 +39,69 @@ Gunyah provides these following features.
 
 - Interrupt Virtualization:
 
-  Uses CPU hardware interrupt virtualization capabilities. Interrupts are handled
-  in the hypervisor and routed to the assigned VM.
+  Interrupt ownership is tracked and interrupt delivery is directly to the
+  assigned VM. Gunyah makes use of hardware interrupt virtualization where
+  possible.
 
 - Inter-VM Communication:
 
   There are several different mechanisms provided for communicating between VMs.
 
+    1. Message queues
+    2. Doorbells
+    3. Virtio MMIO transport
+    4. Shared memory
+
 - Virtual platform:
 
-  Architectural devices such as interrupt controllers and CPU timers are directly provided
-  by the hypervisor as well as core virtual platform devices and system APIs such as ARM PSCI.
+  Architectural devices such as interrupt controllers and CPU timers are
+  directly provided by the hypervisor as well as core virtual platform devices
+  and system APIs such as ARM PSCI.
 
 - Device Virtualization:
 
-  Para-virtualization of devices is supported using inter-VM communication.
+  Para-virtualization of devices is supported using inter-VM communication and
+  virtio transport support. Select stage 2 faults by virtual machines that use
+  proxy-scheduled vCPUs can be handled directly by Linux to provide Type-2
+  hypervisor style on-demand paging and/or device emulation.
 
 Architectures supported
 =======================
-AArch64 with a GIC
+AArch64 with a GICv3 or GICv4.1
 
 Resources and Capabilities
 ==========================
 
-Some services or resources provided by the Gunyah hypervisor are described to a virtual machine by
-capability IDs. For instance, inter-VM communication is performed with doorbells and message queues.
-Gunyah allows access to manipulate that doorbell via the capability ID. These resources are
-described in Linux as a struct gh_resource.
+Services/resources provided by the Gunyah hypervisor are accessible to a
+virtual machine through capabilities. A capability is an access control
+token granting the holder a set of permissions to operate on a specific
+hypervisor object (conceptually similar to a file-descriptor).
+For example, inter-VM communication using Gunyah doorbells and message queues
+is performed using hypercalls taking Capability ID arguments for the required
+IPC objects. These resources are described in Linux as a struct gunyah_resource.
 
-High level management of these resources is performed by the resource manager VM. RM informs a
-guest VM about resources it can access through either the device tree or via guest-initiated RPC.
+Unlike UNIX file descriptors, there is no path-based or similar lookup of
+an object to create a new Capability, meaning simpler security analysis.
+Creation of a new Capability requires the holding of a set of privileged
+Capabilities which are typically never given out by the Resource Manager (RM).
 
-For each virtual machine, Gunyah maintains a table of resources which can be accessed by that VM.
-An entry in this table is called a "capability" and VMs can only access resources via this
-capability table. Hence, virtual Gunyah resources are referenced by a "capability IDs" and not
-"resource IDs". If 2 VMs have access to the same resource, they might not be using the same
-capability ID to access that resource since the capability tables are independent per VM.
+Gunyah itself provides no APIs for Capability ID discovery. Enumeration of
+Capability IDs is provided by RM as a higher level service to VMs.
 
 Resource Manager
 ================
 
-The resource manager (RM) is a privileged application VM supporting the Gunyah Hypervisor.
-It provides policy enforcement aspects of the virtualization system. The resource manager can
-be treated as an extension of the Hypervisor but is separated to its own partition to ensure
-that the hypervisor layer itself remains small and secure and to maintain a separation of policy
-and mechanism in the platform. RM runs at arm64 NS-EL1 similar to other virtual machines.
+The Gunyah Resource Manager (RM) is a privileged application VM supporting the
+Gunyah Hypervisor. It provides policy enforcement aspects of the virtualization
+system. The resource manager can be treated as an extension of the Hypervisor
+but is separated to its own partition to ensure that the hypervisor layer itself
+remains small and secure and to maintain a separation of policy and mechanism in
+the platform. The resource manager runs at arm64 NS-EL1, similar to other
+virtual machines.
 
-Communication with the resource manager from each guest VM happens with message-queue.rst. Details
-about the specific messages can be found in drivers/virt/gunyah/rsc_mgr.c
+Communication with the resource manager from other virtual machines happens as
+described in message-queue.rst. Details about the specific messages can be found
+in drivers/virt/gunyah/rsc_mgr.c
 
 ::
 
@@ -98,7 +115,8 @@ about the specific messages can be found in drivers/virt/gunyah/rsc_mgr.c
   |            Gunyah               |
   +---------------------------------+
 
-The source for the resource manager is available at https://github.com/quic/gunyah-resource-manager.
+The source for the resource manager is available at
+https://github.com/quic/gunyah-resource-manager.
 
 The resource manager provides the following features:
 
@@ -106,9 +124,12 @@ The resource manager provides the following features:
 - VM access control policy, including memory sharing and lending
 - Interrupt routing configuration
 - Forwarding of system-level events (e.g. VM shutdown) to owner VM
+- Resource (capability) discovery
 
-When booting a virtual machine which uses a devicetree such as Linux, resource manager overlays a
-/hypervisor node. This node can let Linux know it is running as a Gunyah guest VM,
-how to communicate with resource manager, and basic description and capabilities of
-this VM. See Documentation/devicetree/bindings/firmware/gunyah-hypervisor.yaml for a description
-of this node.
+A VM requires boot configuration to establish communication with the resource
+manager. This is provided to VMs via a 'hypervisor' device tree node which is
+overlaid to the VMs DT by the RM. This node lets guests know they are running
+as a Gunyah guest VM, how to communicate with resource manager, and basic
+description and capabilities of this VM. See
+Documentation/devicetree/bindings/firmware/gunyah-hypervisor.yaml for a
+description of this node.

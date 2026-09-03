@@ -1,0 +1,130 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2024 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/pinctrl/google,power-domain.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google Power Domains
+
+maintainers:
+  - Jakub Glowacki <jglow@google.com>
+  - Mahesh Sivasubramanian <msivasub@google.com>
+  - Ben Schwartz <bsschwar@google.com>
+
+description: |
+  This binding describes power domains that can be controlled via one of two
+  mutually exclusive methods, based on the support of their driver:
+  1. MBA Direct Communication: Uses a System Software Wrapper (SSWRP) ID to
+     directly control the power domain, and
+  2. Mailbox File System (MBFS): Uses a SysPM resource ID and a control node
+     name to manage power through a mailbox interface.
+
+properties:
+  power-domains:
+    description:
+      For subdomains within a SSWRP, defines the parent subdomain reference. Not
+      required if power domain is the top domain.
+
+  reg:
+    description:
+      Offset and size of the control register region within the device. For some
+      peripherals (e.g., GPU), this can specify a particular sub-block to control
+
+  rpm-always-on:
+    description:
+      If present, runtime PM suspend is disallowed. This prevents the power-off
+      callback from being called while the kernel is active but does not prevent
+      power-off during system suspend.
+
+  irq-safe:
+    description:
+      If present, indicates that the power domain's on/off callbacks are safe
+      to be called from an IRQ context.
+
+  always-on:
+    description:
+      If present, the domain is never powered off, even during system-wide
+      suspend. The power_off callback will never be called.
+
+  force-on:
+    description:
+      If present, forces the power domain's power_on callback to be executed
+      during the probe of the power controller.
+
+  use-smc:
+    description:
+      If present, Secure Monitor Calls (SMC) are used for power transitions
+      instead of the standard mailbox. This is for latency-sensitive domains
+      where the Kernel is the only voter.
+
+  no-auto-resume:
+    description:
+      If present, this prevents the power domain from being automatically turned
+      on when a device's driver is resumed during the kernel resume flow.
+
+  active-wakeup:
+    description:
+      Sets the GENPD_FLAG_ACTIVE_WAKEUP, allowing the device to be powered on
+      during system suspend to generate wakeup signals.
+
+  google,boot-stay-on:
+    description:
+      If present, the power domain will stay on during boot. All power off and
+      power on requests will be ignored (no-op) until the sync-state callback
+      is triggered, which clears this flag. It can cause the device to be
+      unnecessarily powered on after sync_state is called, until next request
+      resynchronizes HW and SW state of the domain.
+    type: boolean
+
+oneOf:
+  - description: Properties for MBA direct communication.
+    required:
+      - sswrp-id
+    properties:
+      sswrp-id:
+        description: The identifier for the SSWRP to be controlled.
+
+      subdomain-id:
+        description:
+          A unique ID for a subdomain within a parent SSWRP. Not required for
+          top-level domains.
+
+      on-at-init:
+        description:
+          If present, indicates that the power domain is powered on during the
+          probe of the power controller.
+
+  - description: Properties for MBFS-based communication.
+    required:
+      - pm-resource-id
+      - mbfs-node-name
+    properties:
+      pm-resource-id:
+        description:
+          The unique System Power Management (SysPM) resource identifier for the
+          domain.
+
+      mbfs-node-name:
+        type: string
+        description:
+          The name of the MBFS node file used to control the power state of the
+          resource.
+
+examples:
+  - |
+    /* Example 1: A GPU power domain using MBA direct communication */
+    sswrp_gpu_pd: sswrp_gpu_pd {
+        #power-domain-cells = <0>;
+        reg = <0x100 0x4>;
+        sswrp-id = <5>; /* GPU SSWRP ID */
+        on-at-init;
+    };
+
+  - |
+    /* Example 2: A DSP power domain using MBFS communication */
+    sswrp_aurdsp_pd: sswrp_aurdsp_pd {
+        #power-domain-cells = <0>;
+        pm-resource-id = <12>;
+        mbfs-node-name = "dsp-power";
+    };

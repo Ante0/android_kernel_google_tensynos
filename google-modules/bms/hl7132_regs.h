@@ -144,7 +144,7 @@ enum {
 
 #define HL7132_REG_CTRL_1 0x13
 /* Default from HW guide, not datasheet */
-#define HL7132_REG_CTRL_1_INIT_DFT 0x10
+#define HL7132_REG_CTRL_1_INIT_DFT 0x18
 #define HL7132_BIT_DEEP_SLEEP_EN BIT(7)
 #define HL7132_BIT_R_SENSE_CFG BIT(6)
 #define HL7132_BIT_VOUT_OVP_DIS BIT(5)
@@ -207,7 +207,6 @@ enum {
 /* Default from HW guide, not datasheet */
 #define HL7132_ADC_CTRL_1_INIT_DFT (HL7132_BIT_VIN_ADC_DIS | \
 					HL7132_BIT_IBAT_ADC_DIS | \
-					HL7132_BIT_TS_ADC_DIS | \
 					HL7132_BIT_TDIE_ADC_DIS)
 
 #define HL7132_REG_ADC_VIN_0 0x1D

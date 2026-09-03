@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Mbu uwb device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+&aoss_pg_spi0 {
+	u100@0 {
+		ignore-boot-error = <1>;
+	};
+};

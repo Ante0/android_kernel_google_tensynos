@@ -35,7 +35,7 @@ TRACE_EVENT(dsulat_dev_meas,
 	),
 
 	TP_fast_assign(
-		__assign_str(name, name);
+		__assign_str(name);
 		__entry->dev_id = dev_id;
 		__entry->inst = inst;
 		__entry->l2_cachemiss = l2_cachemiss;
@@ -84,7 +84,7 @@ TRACE_EVENT(dsulat_dev_update,
 	),
 
 	TP_fast_assign(
-		__assign_str(name, name);
+		__assign_str(name);
 		__entry->dev_id = dev_id;
 		__entry->latency_mode = latency_mode;
 		__entry->inst = inst;

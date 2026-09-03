@@ -6,6 +6,7 @@
  */
 
 #include <linux/device.h>
+#include <linux/of.h>
 #include <linux/property.h>
 #include <linux/slab.h>
 
@@ -35,9 +36,11 @@ static struct attribute *ssam_device_attrs[] = {
 };
 ATTRIBUTE_GROUPS(ssam_device);
 
-static int ssam_device_uevent(struct device *dev, struct kobj_uevent_env *env)
+static const struct bus_type ssam_bus_type;
+
+static int ssam_device_uevent(const struct device *dev, struct kobj_uevent_env *env)
 {
-	struct ssam_device *sdev = to_ssam_device(dev);
+	const struct ssam_device *sdev = to_ssam_device(dev);
 
 	return add_uevent_var(env, "MODALIAS=ssam:d%02Xc%02Xt%02Xi%02Xf%02X",
 			      sdev->uid.domain, sdev->uid.category,
@@ -136,9 +139,9 @@ int ssam_device_add(struct ssam_device *sdev)
 	 * is always valid and can be used for requests as long as the client
 	 * device we add here is registered as child under it. This essentially
 	 * guarantees that the client driver can always expect the preconditions
-	 * for functions like ssam_request_sync (controller has to be started
-	 * and is not suspended) to hold and thus does not have to check for
-	 * them.
+	 * for functions like ssam_request_do_sync() (controller has to be
+	 * started and is not suspended) to hold and thus does not have to check
+	 * for them.
 	 *
 	 * Note that for this to work, the controller has to be a parent device.
 	 * If it is not a direct parent, care has to be taken that the device is
@@ -304,9 +307,9 @@ const void *ssam_device_get_match_data(const struct ssam_device *dev)
 }
 EXPORT_SYMBOL_GPL(ssam_device_get_match_data);
 
-static int ssam_bus_match(struct device *dev, struct device_driver *drv)
+static int ssam_bus_match(struct device *dev, const struct device_driver *drv)
 {
-	struct ssam_device_driver *sdrv = to_ssam_device_driver(drv);
+	const struct ssam_device_driver *sdrv = to_ssam_device_driver(drv);
 	struct ssam_device *sdev = to_ssam_device(dev);
 
 	if (!is_ssam_device(dev))
@@ -329,13 +332,12 @@ static void ssam_bus_remove(struct device *dev)
 		sdrv->remove(to_ssam_device(dev));
 }
 
-struct bus_type ssam_bus_type = {
+static const struct bus_type ssam_bus_type = {
 	.name   = "surface_aggregator",
 	.match  = ssam_bus_match,
 	.probe  = ssam_bus_probe,
 	.remove = ssam_bus_remove,
 };
-EXPORT_SYMBOL_GPL(ssam_bus_type);
 
 /**
  * __ssam_device_driver_register() - Register a SSAM client device driver.
@@ -440,6 +442,7 @@ static int ssam_add_client_device(struct device *parent, struct ssam_controller 
 
 	sdev->dev.parent = parent;
 	sdev->dev.fwnode = fwnode_handle_get(node);
+	sdev->dev.of_node = to_of_node(node);
 
 	status = ssam_device_add(sdev);
 	if (status)

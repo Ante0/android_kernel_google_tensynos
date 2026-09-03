@@ -121,6 +121,7 @@ static int parse_device_node_cpumask(struct device_node *np, cpumask_t *mask, ch
 				break;
 			}
 		}
+		of_node_put(dev_phandle);
 		dev_phandle = of_parse_phandle(np, cpu_list_name, i++);
 	}
 	return ret;

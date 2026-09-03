@@ -1,0 +1,289 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * deepspace LSIO device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+#include <dt-bindings/cli/google,lga.h>
+#include <dt-bindings/dma/google,gpdma.h>
+#include <dt-bindings/dma/google,gpdma-lga.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,lga.h>
+
+/*
+ * UARTs
+ * Bluetooth
+ */
+&lsioe_cli12_uart {
+	pinctrl-0 = <&xlsioe_cli12_pin0>, <&xlsioe_cli12_pin1>,
+		    <&xlsioe_cli12_pin2>, <&xlsioe_cli12_pin3>,
+		    <&cli12_uart_conf>;
+	pinctrl-1 = <&xlsioe_cli12_pin0_sleep>, <&xlsioe_cli12_pin1_sleep>,
+		    <&xlsioe_cli12_pin2_sleep>, <&xlsioe_cli12_pin3_sleep>;
+};
+
+/*
+ * UARTs
+ * Modem
+ */
+&lsioe_cli9_uart {
+	pinctrl-0 = <&xlsioe_cli9_pin0>, <&xlsioe_cli9_pin1>, <&cli9_uart_conf>;
+	pinctrl-1 = <&xlsioe_cli9_pin0_sleep>, <&xlsioe_cli9_pin1_sleep>;
+	status = "okay";
+};
+
+/*
+ * I2C/I3C buses
+ * Haptics, NFC
+ */
+&lsioe_cli10_i2c {
+	clock-frequency = <1000000>;
+	i2c-sda-falling-time-ns = <100>;
+	i2c-scl-falling-time-ns = <100>;
+
+	pinctrl-0 = <&xlsioe_cli10_pin0>, <&xlsioe_cli10_pin1>,
+		    <&cli10_i2c_conf>;
+	pinctrl-1 = <&xlsioe_cli10_pin0_sleep>, <&xlsioe_cli10_pin1_sleep>;
+
+	status = "okay";
+};
+
+/* Camera FCAM */
+&cli8_i2c_conf {
+	pinctrl-single,pins = <
+		0x0 IPTYPE_I2C
+		0x4 CLI_PAD_OPEN
+		0x8 CLI_PAD_OPEN
+	>;
+};
+&lsioe_cli8_i2c {
+	clock-frequency = <1000000>;
+	i2c-sda-falling-time-ns = <100>;
+	i2c-scl-falling-time-ns = <100>;
+
+	hybrid-busy-wait-mode;
+
+	external-power-control;
+
+	pinctrl-0 = <&xlsioe_cli8_pin0>, <&xlsioe_cli8_pin1>,
+		    <&cli8_i2c_conf>;
+	pinctrl-1 = <&xlsioe_cli8_pin0_sleep>, <&xlsioe_cli8_pin1_sleep>;
+
+	status = "okay";
+};
+&lsioe_cli8_i3c {
+	pinctrl-0 = <&xlsioe_cli8_pin0>, <&xlsioe_cli8_pin1>,
+		    <&cli8_i3c_conf>;
+	pinctrl-1 = <&xlsioe_cli8_pin0_sleep>, <&xlsioe_cli8_pin1_sleep>;
+
+	status = "disabled";
+};
+
+/* Camera RUWCAM */
+&cli13_i2c_conf {
+	pinctrl-single,pins = <
+		0x0 IPTYPE_I2C
+		0x4 CLI_PAD_OPEN
+		0x8 CLI_PAD_OPEN
+	>;
+};
+&lsioe_cli13_i2c {
+	clock-frequency = <1000000>;
+	i2c-sda-falling-time-ns = <100>;
+	i2c-scl-falling-time-ns = <100>;
+
+	hybrid-busy-wait-mode;
+
+	external-power-control;
+
+	pinctrl-0 = <&xlsioe_cli13_pin0>, <&xlsioe_cli13_pin1>,
+		    <&cli13_i2c_conf>;
+	pinctrl-1 = <&xlsioe_cli13_pin0_sleep>, <&xlsioe_cli13_pin1_sleep>;
+
+	status = "okay";
+};
+
+/* Camera RTCAM */
+&cli3_i2c_conf {
+	pinctrl-single,pins = <
+		0x0 IPTYPE_I2C
+		0x4 CLI_PAD_OPEN
+		0x8 CLI_PAD_OPEN
+	>;
+};
+&lsios_cli3_i2c {
+	clock-frequency = <1000000>;
+	i2c-sda-falling-time-ns = <100>;
+	i2c-scl-falling-time-ns = <100>;
+
+	hybrid-busy-wait-mode;
+
+	external-power-control;
+
+	pinctrl-0 = <&xlsios_cli3_pin0>, <&xlsios_cli3_pin1>,
+		    <&cli3_i2c_conf>;
+	pinctrl-1 = <&xlsios_cli3_pin0_sleep>, <&xlsios_cli3_pin1_sleep>;
+
+	status = "okay";
+};
+
+/* Camera OUTER FCAM */
+&cli0_i2c_conf {
+	pinctrl-single,pins = <
+		0x0 IPTYPE_I2C
+		0x4 CLI_PAD_OPEN
+		0x8 CLI_PAD_OPEN
+	>;
+};
+&lsios_cli0_i2c {
+	clock-frequency = <1000000>;
+	i2c-sda-falling-time-ns = <100>;
+	i2c-scl-falling-time-ns = <100>;
+
+	hybrid-busy-wait-mode;
+
+	external-power-control;
+
+	status = "disabled";
+};
+
+/* Camera RCAM */
+&cli1_i2c_conf {
+	pinctrl-single,pins = <
+		0x0 IPTYPE_I2C
+		0x4 CLI_PAD_OPEN
+		0x8 CLI_PAD_OPEN
+	>;
+};
+&lsios_cli1_i2c {
+	clock-frequency = <1000000>;
+	i2c-sda-falling-time-ns = <100>;
+	i2c-scl-falling-time-ns = <100>;
+
+	external-power-control;
+
+	pinctrl-0 = <&xlsios_cli1_pin0>, <&xlsios_cli1_pin1>,
+		    <&cli1_i2c_conf>;
+	pinctrl-1 = <&xlsios_cli1_pin0_sleep>, <&xlsios_cli1_pin1_sleep>;
+
+	status = "disabled";
+};
+
+&lsios_cli1_i3c {
+	io-vreg-supply = <&ldo_22s_reg>;
+	ibi-capable;
+
+	external-power-control;
+
+	hybrid-busy-wait-mode;
+
+	pinctrl-0 = <&xlsios_cli1_pin0>, <&xlsios_cli1_pin1>,
+		    <&cli1_i3c_conf>;
+	pinctrl-1 = <&xlsios_cli1_pin0_sleep>, <&xlsios_cli1_pin1_sleep>;
+
+	status = "okay";
+};
+
+/* Camera NORTH */
+&lsioe_cli7_i2c {
+	clock-frequency = <400000>;
+
+	pinctrl-0 = <&xlsioe_cli7_pin0>, <&xlsioe_cli7_pin1>,
+		    <&cli7_i2c_conf>;
+	pinctrl-1 = <&xlsioe_cli7_pin0_sleep>, <&xlsioe_cli7_pin1_sleep>;
+
+	status = "okay";
+};
+
+/*
+ * SPI buses
+ * ESE
+ */
+&lsion_cli15_spi {
+	dmas = <&gpdma0 GPDMA_TX_ROUTE LSION_CLI15_DMA_TX_REQ>,
+	       <&gpdma0 GPDMA_RX_ROUTE LSION_CLI15_DMA_RX_REQ>;
+	dma-names = "tx", "rx";
+
+	pinctrl-0 = <&xlsion_cli15_pin0>, <&xlsion_cli15_pin1>,
+		    <&xlsion_cli15_pin2>, <&cli15_spi_cs_gpio_func>,
+		    <&cli15_spi_conf>;
+	pinctrl-1 = <&xlsion_cli15_pin0_sleep>, <&xlsion_cli15_pin1_sleep>,
+		    <&xlsion_cli15_pin2_sleep>, <&cli15_spi_cs_gpio_sleep>;
+
+	status = "disabled";
+};
+
+/* UWB */
+&lsion_cli17_int0_spi {
+	dmas = <&gpdma0 GPDMA_TX_ROUTE LSION_CLI_INT0_DMA_TX_REQ>,
+	       <&gpdma0 GPDMA_RX_ROUTE LSION_CLI_INT0_DMA_RX_REQ>;
+	dma-names = "tx", "rx";
+
+	status = "disabled";
+};
+
+/* Two audio amplifiers */
+&lsion_cli18_int1_spi {
+	num-cs = <2>;
+	cs-gpios = <XAOC_GPIO7_E3(GPIO_ACTIVE_LOW)
+		    XAOC_GPIO6_E4(GPIO_ACTIVE_LOW)>;
+	dmas = <&gpdma0 GPDMA_TX_ROUTE LSION_CLI_INT1_DMA_TX_REQ>,
+	       <&gpdma0 GPDMA_RX_ROUTE LSION_CLI_INT1_DMA_RX_REQ>;
+	dma-names = "tx", "rx";
+
+	pinctrl-0 = <&xaoc_spi1_sclk>, <&xaoc_spi1_miso>,
+		    <&xaoc_spi1_mosi>, <&cli18_int1_spi_cs1_cs2_gpio_func>,
+		    <&cli_int1_spi_conf>;
+	pinctrl-1 = <&xaoc_spi1_sclk_sleep>, <&xaoc_spi1_miso_sleep>,
+		    <&xaoc_spi1_mosi_sleep>, <&cli18_int1_spi_cs1_cs2_gpio_sleep>;
+
+	status = "okay";
+};
+
+/* LDAF or Secondary touch */
+&lsion_cli19_int2_spi {
+	dmas = <&gpdma0 GPDMA_TX_ROUTE LSION_CLI_INT2_DMA_TX_REQ>,
+	       <&gpdma0 GPDMA_RX_ROUTE LSION_CLI_INT2_DMA_RX_REQ>;
+	dma-names = "tx", "rx";
+
+	pinctrl-0 = <&xaoc_spi2_sclk>, <&xaoc_spi2_miso>,
+		    <&xaoc_spi2_mosi>, <&cli19_int2_spi_cs_gpio_func>,
+		    <&cli_int2_spi_conf>;
+	pinctrl-1 = <&xaoc_spi2_sclk_sleep>, <&xaoc_spi2_miso_sleep>,
+		    <&xaoc_spi2_mosi_sleep>, <&cli19_int2_spi_cs_gpio_sleep>;
+
+	status = "okay";
+};
+
+/* Primary touch */
+&lsion_cli20_int3_spi {
+	dmas = <&gpdma1 GPDMA_TX_ROUTE LSION_CLI_INT3_DMA_TX_REQ>,
+	       <&gpdma1 GPDMA_RX_ROUTE LSION_CLI_INT3_DMA_RX_REQ>;
+	dma-names = "tx", "rx";
+
+	pinctrl-0 = <&xaoc_spi3_sclk>, <&xaoc_spi3_miso>,
+		    <&xaoc_spi3_mosi>, <&cli20_int3_spi_cs_gpio_func>,
+		    <&cli_int3_spi_conf>;
+	pinctrl-1 = <&xaoc_spi3_sclk_sleep>, <&xaoc_spi3_miso_sleep>,
+		    <&xaoc_spi3_mosi_sleep>, <&cli20_int3_spi_cs_gpio_sleep>;
+
+	status = "okay";
+};
+
+/* GNSS */
+&lsios_cli6_spi {
+	dmas = <&gpdma1 GPDMA_TX_ROUTE LSIOS_CLI6_DMA_TX_REQ>,
+	       <&gpdma1 GPDMA_RX_ROUTE LSIOS_CLI6_DMA_RX_REQ>;
+	dma-names = "tx", "rx";
+
+	swap-mode = <1>;
+
+	pinctrl-0 = <&xlsios_cli6_pin0>, <&xlsios_cli6_pin1>,
+		    <&xlsios_cli6_pin2>, <&cli6_spi_cs_gpio_func>,
+		    <&cli6_spi_conf>;
+	pinctrl-1 = <&xlsios_cli6_pin0_sleep>, <&xlsios_cli6_pin1_sleep>,
+		    <&xlsios_cli6_pin2_sleep>, <&cli6_spi_cs_gpio_sleep>;
+
+	status = "okay";
+};

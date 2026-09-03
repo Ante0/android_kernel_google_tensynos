@@ -18,7 +18,7 @@
 #include <linux/slab.h>
 #include <linux/sysfs.h>
 #include <linux/regulator/consumer.h>
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 
 #include <linux/iio/iio.h>
 #include <linux/iio/sysfs.h>
@@ -993,9 +993,9 @@ static int ad5064_i2c_write(struct ad5064_state *st, unsigned int cmd,
 	return 0;
 }
 
-static int ad5064_i2c_probe(struct i2c_client *i2c,
-	const struct i2c_device_id *id)
+static int ad5064_i2c_probe(struct i2c_client *i2c)
 {
+	const struct i2c_device_id *id = i2c_client_get_device_id(i2c);
 	return ad5064_probe(&i2c->dev, id->driver_data, id->name,
 						ad5064_i2c_write);
 }

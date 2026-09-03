@@ -55,33 +55,6 @@ static inline u64 get_pre_allocated(u64 size)
 }
 
 /*
- * attr_must_be_resident
- *
- * Return: True if attribute must be resident.
- */
-static inline bool attr_must_be_resident(struct ntfs_sb_info *sbi,
-					 enum ATTR_TYPE type)
-{
-	const struct ATTR_DEF_ENTRY *de;
-
-	switch (type) {
-	case ATTR_STD:
-	case ATTR_NAME:
-	case ATTR_ID:
-	case ATTR_LABEL:
-	case ATTR_VOL_INFO:
-	case ATTR_ROOT:
-	case ATTR_EA_INFO:
-		return true;
-	default:
-		de = ntfs_query_def(sbi, type);
-		if (de && (de->flags & NTFS_ATTR_MUST_BE_RESIDENT))
-			return true;
-		return false;
-	}
-}
-
-/*
  * attr_load_runs - Load all runs stored in @attr.
  */
 static int attr_load_runs(struct ATTRIB *attr, struct ntfs_inode *ni,
@@ -315,22 +288,21 @@ int attr_make_nonresident(struct ntfs_inode *ni, struct ATTRIB *attr,
 			if (err)
 				goto out2;
 		} else if (!page) {
-			char *kaddr;
+			struct address_space *mapping = ni->vfs_inode.i_mapping;
+			struct folio *folio;
 
-			page = grab_cache_page(ni->vfs_inode.i_mapping, 0);
-			if (!page) {
-				err = -ENOMEM;
+			folio = __filemap_get_folio(
+				mapping, 0, FGP_LOCK | FGP_ACCESSED | FGP_CREAT,
+				mapping_gfp_mask(mapping));
+			if (IS_ERR(folio)) {
+				err = PTR_ERR(folio);
 				goto out2;
 			}
-			kaddr = kmap_atomic(page);
-			memcpy(kaddr, data, rsize);
-			memset(kaddr + rsize, 0, PAGE_SIZE - rsize);
-			kunmap_atomic(kaddr);
-			flush_dcache_page(page);
-			SetPageUptodate(page);
-			set_page_dirty(page);
-			unlock_page(page);
-			put_page(page);
+			folio_fill_tail(folio, 0, data, rsize);
+			folio_mark_uptodate(folio);
+			folio_mark_dirty(folio);
+			folio_unlock(folio);
+			folio_put(folio);
 		}
 	}
 
@@ -435,8 +407,8 @@ int attr_set_size(struct ntfs_inode *ni, enum ATTR_TYPE type,
 	int err = 0;
 	struct ntfs_sb_info *sbi = ni->mi.sbi;
 	u8 cluster_bits = sbi->cluster_bits;
-	bool is_mft =
-		ni->mi.rno == MFT_REC_MFT && type == ATTR_DATA && !name_len;
+	bool is_mft = ni->mi.rno == MFT_REC_MFT && type == ATTR_DATA &&
+		      !name_len;
 	u64 old_valid, old_size, old_alloc, new_alloc, new_alloc_tmp;
 	struct ATTRIB *attr = NULL, *attr_b;
 	struct ATTR_LIST_ENTRY *le, *le_b;
@@ -444,6 +416,7 @@ int attr_set_size(struct ntfs_inode *ni, enum ATTR_TYPE type,
 	CLST alen, vcn, lcn, new_alen, old_alen, svcn, evcn;
 	CLST next_svcn, pre_alloc = -1, done = 0;
 	bool is_ext, is_bad = false;
+	bool dirty = false;
 	u32 align;
 	struct MFT_REC *rec;
 
@@ -464,8 +437,10 @@ again:
 			return err;
 
 		/* Return if file is still resident. */
-		if (!attr_b->non_res)
+		if (!attr_b->non_res) {
+			dirty = true;
 			goto ok1;
+		}
 
 		/* Layout of records may be changed, so do a full search. */
 		goto again;
@@ -473,8 +448,10 @@ again:
 
 	is_ext = is_attr_ext(attr_b);
 	align = sbi->cluster_size;
-	if (is_ext)
+	if (is_ext) {
 		align <<= attr_b->nres.c_unit;
+		keep_prealloc = false;
+	}
 
 	old_valid = le64_to_cpu(attr_b->nres.valid_size);
 	old_size = le64_to_cpu(attr_b->nres.data_size);
@@ -488,7 +465,7 @@ again_1:
 
 	if (keep_prealloc && new_size < old_size) {
 		attr_b->nres.data_size = cpu_to_le64(new_size);
-		mi_b->dirty = true;
+		mi_b->dirty = dirty = true;
 		goto ok;
 	}
 
@@ -534,7 +511,7 @@ next_le:
 
 		if (new_alloc <= old_alloc) {
 			attr_b->nres.data_size = cpu_to_le64(new_size);
-			mi_b->dirty = true;
+			mi_b->dirty = dirty = true;
 			goto ok;
 		}
 
@@ -558,11 +535,10 @@ add_alloc_in_same_attr_seg:
 			pre_alloc = 0;
 			if (type == ATTR_DATA && !name_len &&
 			    sbi->options->prealloc) {
-				pre_alloc =
-					bytes_to_cluster(
-						sbi,
-						get_pre_allocated(new_size)) -
-					new_alen;
+				pre_alloc = bytes_to_cluster(
+						    sbi, get_pre_allocated(
+								 new_size)) -
+					    new_alen;
 			}
 
 			/* Get the last LCN to allocate from. */
@@ -600,8 +576,8 @@ add_alloc_in_same_attr_seg:
 			err = attr_allocate_clusters(
 				sbi, run, vcn, lcn, to_allocate, &pre_alloc,
 				is_mft ? ALLOCATE_MFT : ALLOCATE_DEF, &alen,
-				is_mft ? 0
-				       : (sbi->record_size -
+				is_mft ? 0 :
+					 (sbi->record_size -
 					  le32_to_cpu(rec->used) + 8) /
 							 3 +
 						 1,
@@ -625,7 +601,7 @@ pack_runs:
 		next_svcn = le64_to_cpu(attr->nres.evcn) + 1;
 		new_alloc_tmp = (u64)next_svcn << cluster_bits;
 		attr_b->nres.alloc_size = cpu_to_le64(new_alloc_tmp);
-		mi_b->dirty = true;
+		mi_b->dirty = dirty = true;
 
 		if (next_svcn >= vcn && !to_allocate) {
 			/* Normal way. Update attribute and exit. */
@@ -712,7 +688,7 @@ pack_runs:
 		old_valid = old_size = old_alloc = (u64)vcn << cluster_bits;
 		attr_b->nres.valid_size = attr_b->nres.data_size =
 			attr_b->nres.alloc_size = cpu_to_le64(old_size);
-		mi_b->dirty = true;
+		mi_b->dirty = dirty = true;
 		goto again_1;
 	}
 
@@ -774,7 +750,7 @@ pack_runs:
 				attr_b->nres.valid_size =
 					attr_b->nres.alloc_size;
 		}
-		mi_b->dirty = true;
+		mi_b->dirty = dirty = true;
 
 		err = run_deallocate_ex(sbi, run, vcn, evcn - vcn + 1, &dlen,
 					true);
@@ -835,16 +811,9 @@ ok1:
 	if (ret)
 		*ret = attr_b;
 
-	/* Update inode_set_bytes. */
 	if (((type == ATTR_DATA && !name_len) ||
 	     (type == ATTR_ALLOC && name == I30_NAME))) {
-		bool dirty = false;
-
-		if (ni->vfs_inode.i_size != new_size) {
-			ni->vfs_inode.i_size = new_size;
-			dirty = true;
-		}
-
+		/* Update inode_set_bytes. */
 		if (attr_b->non_res) {
 			new_alloc = le64_to_cpu(attr_b->nres.alloc_size);
 			if (inode_get_bytes(&ni->vfs_inode) != new_alloc) {
@@ -853,6 +822,7 @@ ok1:
 			}
 		}
 
+		/* Don't forget to update duplicate information in parent. */
 		if (dirty) {
 			ni->ni_flags |= NI_FLAG_UPDATE_PARENT;
 			mark_inode_dirty(&ni->vfs_inode);
@@ -921,12 +891,14 @@ int attr_data_get_block(struct ntfs_inode *ni, CLST vcn, CLST clen, CLST *lcn,
 	struct runs_tree *run = &ni->file.run;
 	struct ntfs_sb_info *sbi;
 	u8 cluster_bits;
-	struct ATTRIB *attr = NULL, *attr_b;
+	struct ATTRIB *attr, *attr_b;
 	struct ATTR_LIST_ENTRY *le, *le_b;
 	struct mft_inode *mi, *mi_b;
 	CLST hint, svcn, to_alloc, evcn1, next_svcn, asize, end, vcn0, alen;
-	unsigned int fr;
-	u64 total_size;
+	CLST alloc, evcn;
+	unsigned fr;
+	u64 total_size, total_size0;
+	int step = 0;
 
 	if (new)
 		*new = false;
@@ -937,12 +909,8 @@ int attr_data_get_block(struct ntfs_inode *ni, CLST vcn, CLST clen, CLST *lcn,
 		*len = 0;
 	up_read(&ni->file.run_lock);
 
-	if (*len) {
-		if (*lcn != SPARSE_LCN || !new)
-			return 0; /* Fast normal way without allocation. */
-		else if (clen > *len)
-			clen = *len;
-	}
+	if (*len && (*lcn != SPARSE_LCN || !new))
+		return 0; /* Fast normal way without allocation. */
 
 	/* No cluster in cache or we need to allocate cluster in hole. */
 	sbi = ni->mi.sbi;
@@ -950,6 +918,17 @@ int attr_data_get_block(struct ntfs_inode *ni, CLST vcn, CLST clen, CLST *lcn,
 
 	ni_lock(ni);
 	down_write(&ni->file.run_lock);
+
+	/* Repeat the code above (under write lock). */
+	if (!run_lookup_entry(run, vcn, lcn, len, NULL))
+		*len = 0;
+
+	if (*len) {
+		if (*lcn != SPARSE_LCN || !new)
+			goto out; /* normal way without allocation. */
+		if (clen > *len)
+			clen = *len;
+	}
 
 	le_b = NULL;
 	attr_b = ni_find_attr(ni, NULL, &le_b, ATTR_DATA, NULL, 0, NULL, &mi_b);
@@ -966,7 +945,12 @@ int attr_data_get_block(struct ntfs_inode *ni, CLST vcn, CLST clen, CLST *lcn,
 
 	asize = le64_to_cpu(attr_b->nres.alloc_size) >> cluster_bits;
 	if (vcn >= asize) {
-		err = -EINVAL;
+		if (new) {
+			err = -EINVAL;
+		} else {
+			*len = 1;
+			*lcn = SPARSE_LCN;
+		}
 		goto out;
 	}
 
@@ -992,6 +976,21 @@ int attr_data_get_block(struct ntfs_inode *ni, CLST vcn, CLST clen, CLST *lcn,
 	err = attr_load_runs(attr, ni, run, NULL);
 	if (err)
 		goto out;
+
+	/* Check for compressed frame. */
+	err = attr_is_frame_compressed(ni, attr_b, vcn >> NTFS_LZNT_CUNIT,
+				       &hint, run);
+	if (err)
+		goto out;
+
+	if (hint) {
+		/* if frame is compressed - don't touch it. */
+		*lcn = COMPRESSED_LCN;
+		/* length to the end of frame. */
+		*len = NTFS_LZNT_CLUSTERS - (vcn & (NTFS_LZNT_CLUSTERS - 1));
+		err = 0;
+		goto out;
+	}
 
 	if (!*len) {
 		if (run_lookup_entry(run, vcn, lcn, len, NULL)) {
@@ -1032,16 +1031,16 @@ int attr_data_get_block(struct ntfs_inode *ni, CLST vcn, CLST clen, CLST *lcn,
 
 		/* Check if 'vcn' and 'vcn0' in different attribute segments. */
 		if (vcn < svcn || evcn1 <= vcn) {
-			/* Load attribute for truncated vcn. */
-			attr = ni_find_attr(ni, attr_b, &le, ATTR_DATA, NULL, 0,
-					    &vcn, &mi);
-			if (!attr) {
+			struct ATTRIB *attr2;
+			/* Load runs for truncated vcn. */
+			attr2 = ni_find_attr(ni, attr_b, &le_b, ATTR_DATA, NULL,
+					     0, &vcn, &mi);
+			if (!attr2) {
 				err = -EINVAL;
 				goto out;
 			}
-			svcn = le64_to_cpu(attr->nres.svcn);
-			evcn1 = le64_to_cpu(attr->nres.evcn) + 1;
-			err = attr_load_runs(attr, ni, run, NULL);
+			evcn1 = le64_to_cpu(attr2->nres.evcn) + 1;
+			err = attr_load_runs(attr2, ni, run, NULL);
 			if (err)
 				goto out;
 		}
@@ -1070,10 +1069,12 @@ int attr_data_get_block(struct ntfs_inode *ni, CLST vcn, CLST clen, CLST *lcn,
 	if (err)
 		goto out;
 	*new = true;
+	step = 1;
 
 	end = vcn + alen;
-	total_size = le64_to_cpu(attr_b->nres.total_size) +
-		     ((u64)alen << cluster_bits);
+	/* Save 'total_size0' to restore if error. */
+	total_size0 = le64_to_cpu(attr_b->nres.total_size);
+	total_size = total_size0 + ((u64)alen << cluster_bits);
 
 	if (vcn != vcn0) {
 		if (!run_lookup_entry(run, vcn0, lcn, len, NULL)) {
@@ -1115,7 +1116,7 @@ repack:
 		if (!ni->attr_list.size) {
 			err = ni_create_attr_list(ni);
 			if (err)
-				goto out;
+				goto undo1;
 			/* Layout of records is changed. */
 			le_b = NULL;
 			attr_b = ni_find_attr(ni, NULL, &le_b, ATTR_DATA, NULL,
@@ -1132,67 +1133,83 @@ repack:
 		}
 	}
 
+	/*
+	 * The code below may require additional cluster (to extend attribute list)
+	 * and / or one MFT record
+	 * It is too complex to undo operations if -ENOSPC occurs deep inside
+	 * in 'ni_insert_nonresident'.
+	 * Return in advance -ENOSPC here if there are no free cluster and no free MFT.
+	 */
+	if (!ntfs_check_for_free_space(sbi, 1, 1)) {
+		/* Undo step 1. */
+		err = -ENOSPC;
+		goto undo1;
+	}
+
+	step = 2;
 	svcn = evcn1;
 
 	/* Estimate next attribute. */
 	attr = ni_find_attr(ni, attr, &le, ATTR_DATA, NULL, 0, &svcn, &mi);
 
-	if (attr) {
-		CLST alloc = bytes_to_cluster(
-			sbi, le64_to_cpu(attr_b->nres.alloc_size));
-		CLST evcn = le64_to_cpu(attr->nres.evcn);
+	if (!attr) {
+		/* Insert new attribute segment. */
+		goto ins_ext;
+	}
 
-		if (end < next_svcn)
-			end = next_svcn;
-		while (end > evcn) {
-			/* Remove segment [svcn : evcn). */
-			mi_remove_attr(NULL, mi, attr);
+	/* Try to update existed attribute segment. */
+	alloc = bytes_to_cluster(sbi, le64_to_cpu(attr_b->nres.alloc_size));
+	evcn = le64_to_cpu(attr->nres.evcn);
 
-			if (!al_remove_le(ni, le)) {
-				err = -EINVAL;
-				goto out;
-			}
+	if (end < next_svcn)
+		end = next_svcn;
+	while (end > evcn) {
+		/* Remove segment [svcn : evcn). */
+		mi_remove_attr(NULL, mi, attr);
 
-			if (evcn + 1 >= alloc) {
-				/* Last attribute segment. */
-				evcn1 = evcn + 1;
-				goto ins_ext;
-			}
-
-			if (ni_load_mi(ni, le, &mi)) {
-				attr = NULL;
-				goto out;
-			}
-
-			attr = mi_find_attr(mi, NULL, ATTR_DATA, NULL, 0,
-					    &le->id);
-			if (!attr) {
-				err = -EINVAL;
-				goto out;
-			}
-			svcn = le64_to_cpu(attr->nres.svcn);
-			evcn = le64_to_cpu(attr->nres.evcn);
+		if (!al_remove_le(ni, le)) {
+			err = -EINVAL;
+			goto out;
 		}
 
-		if (end < svcn)
-			end = svcn;
+		if (evcn + 1 >= alloc) {
+			/* Last attribute segment. */
+			evcn1 = evcn + 1;
+			goto ins_ext;
+		}
 
-		err = attr_load_runs(attr, ni, run, &end);
-		if (err)
+		if (ni_load_mi(ni, le, &mi)) {
+			attr = NULL;
 			goto out;
+		}
 
-		evcn1 = evcn + 1;
-		attr->nres.svcn = cpu_to_le64(next_svcn);
-		err = mi_pack_runs(mi, attr, run, evcn1 - next_svcn);
-		if (err)
+		attr = mi_find_attr(mi, NULL, ATTR_DATA, NULL, 0, &le->id);
+		if (!attr) {
+			err = -EINVAL;
 			goto out;
-
-		le->vcn = cpu_to_le64(next_svcn);
-		ni->attr_list.dirty = true;
-		mi->dirty = true;
-
-		next_svcn = le64_to_cpu(attr->nres.evcn) + 1;
+		}
+		svcn = le64_to_cpu(attr->nres.svcn);
+		evcn = le64_to_cpu(attr->nres.evcn);
 	}
+
+	if (end < svcn)
+		end = svcn;
+
+	err = attr_load_runs(attr, ni, run, &end);
+	if (err)
+		goto out;
+
+	evcn1 = evcn + 1;
+	attr->nres.svcn = cpu_to_le64(next_svcn);
+	err = mi_pack_runs(mi, attr, run, evcn1 - next_svcn);
+	if (err)
+		goto out;
+
+	le->vcn = cpu_to_le64(next_svcn);
+	ni->attr_list.dirty = true;
+	mi->dirty = true;
+	next_svcn = le64_to_cpu(attr->nres.evcn) + 1;
+
 ins_ext:
 	if (evcn1 > next_svcn) {
 		err = ni_insert_nonresident(ni, ATTR_DATA, NULL, 0, run,
@@ -1204,17 +1221,34 @@ ins_ext:
 ok:
 	run_truncate_around(run, vcn);
 out:
+	if (err && step > 1) {
+		/* Too complex to restore. */
+		_ntfs_bad_inode(&ni->vfs_inode);
+	}
 	up_write(&ni->file.run_lock);
 	ni_unlock(ni);
 
 	return err;
+
+undo1:
+	/* Undo step1. */
+	attr_b->nres.total_size = cpu_to_le64(total_size0);
+	inode_set_bytes(&ni->vfs_inode, total_size0);
+
+	if (run_deallocate_ex(sbi, run, vcn, alen, NULL, false) ||
+	    !run_add_entry(run, vcn, SPARSE_LCN, alen, false) ||
+	    mi_pack_runs(mi, attr, run, max(end, evcn1) - svcn)) {
+		_ntfs_bad_inode(&ni->vfs_inode);
+	}
+	goto out;
 }
 
-int attr_data_read_resident(struct ntfs_inode *ni, struct page *page)
+int attr_data_read_resident(struct ntfs_inode *ni, struct folio *folio)
 {
 	u64 vbo;
 	struct ATTRIB *attr;
 	u32 data_size;
+	size_t len;
 
 	attr = ni_find_attr(ni, NULL, NULL, ATTR_DATA, NULL, 0, NULL, NULL);
 	if (!attr)
@@ -1223,30 +1257,20 @@ int attr_data_read_resident(struct ntfs_inode *ni, struct page *page)
 	if (attr->non_res)
 		return E_NTFS_NONRESIDENT;
 
-	vbo = page->index << PAGE_SHIFT;
+	vbo = folio->index << PAGE_SHIFT;
 	data_size = le32_to_cpu(attr->res.data_size);
-	if (vbo < data_size) {
-		const char *data = resident_data(attr);
-		char *kaddr = kmap_atomic(page);
-		u32 use = data_size - vbo;
+	if (vbo > data_size)
+		len = 0;
+	else
+		len = min(data_size - vbo, folio_size(folio));
 
-		if (use > PAGE_SIZE)
-			use = PAGE_SIZE;
-
-		memcpy(kaddr, data + vbo, use);
-		memset(kaddr + use, 0, PAGE_SIZE - use);
-		kunmap_atomic(kaddr);
-		flush_dcache_page(page);
-		SetPageUptodate(page);
-	} else if (!PageUptodate(page)) {
-		zero_user_segment(page, 0, PAGE_SIZE);
-		SetPageUptodate(page);
-	}
+	folio_fill_tail(folio, 0, resident_data(attr) + vbo, len);
+	folio_mark_uptodate(folio);
 
 	return 0;
 }
 
-int attr_data_write_resident(struct ntfs_inode *ni, struct page *page)
+int attr_data_write_resident(struct ntfs_inode *ni, struct folio *folio)
 {
 	u64 vbo;
 	struct mft_inode *mi;
@@ -1262,17 +1286,13 @@ int attr_data_write_resident(struct ntfs_inode *ni, struct page *page)
 		return E_NTFS_NONRESIDENT;
 	}
 
-	vbo = page->index << PAGE_SHIFT;
+	vbo = folio->index << PAGE_SHIFT;
 	data_size = le32_to_cpu(attr->res.data_size);
 	if (vbo < data_size) {
 		char *data = resident_data(attr);
-		char *kaddr = kmap_atomic(page);
-		u32 use = data_size - vbo;
+		size_t len = min(data_size - vbo, folio_size(folio));
 
-		if (use > PAGE_SIZE)
-			use = PAGE_SIZE;
-		memcpy(data + vbo, kaddr, use);
-		kunmap_atomic(kaddr);
+		memcpy_from_folio(data + vbo, folio, 0, len);
 		mi->dirty = true;
 	}
 	ni->i_valid = data_size;
@@ -1335,19 +1355,28 @@ int attr_load_runs_range(struct ntfs_inode *ni, enum ATTR_TYPE type,
 	CLST vcn;
 	CLST vcn_last = (to - 1) >> cluster_bits;
 	CLST lcn, clen;
-	int err;
+	int err = 0;
+	int retry = 0;
 
 	for (vcn = from >> cluster_bits; vcn <= vcn_last; vcn += clen) {
 		if (!run_lookup_entry(run, vcn, &lcn, &clen, NULL)) {
+			if (retry != 0) { /* Next run_lookup_entry(vcn) also failed. */
+				err = -EINVAL;
+				break;
+			}
 			err = attr_load_runs_vcn(ni, type, name, name_len, run,
 						 vcn);
 			if (err)
-				return err;
+				break;
+
 			clen = 0; /* Next run_lookup_entry(vcn) must be success. */
+			retry++;
 		}
+		else
+			retry = 0;
 	}
 
-	return 0;
+	return err;
 }
 
 #ifdef CONFIG_NTFS3_LZX_XPRESS
@@ -1365,7 +1394,7 @@ int attr_wof_frame_info(struct ntfs_inode *ni, struct ATTRIB *attr,
 	u32 voff;
 	u8 bytes_per_off;
 	char *addr;
-	struct page *page;
+	struct folio *folio;
 	int i, err;
 	__le32 *off32;
 	__le64 *off64;
@@ -1388,7 +1417,7 @@ int attr_wof_frame_info(struct ntfs_inode *ni, struct ATTRIB *attr,
 	 */
 	if (!attr->non_res) {
 		if (vbo[1] + bytes_per_off > le32_to_cpu(attr->res.data_size)) {
-			ntfs_inode_err(&ni->vfs_inode, "is corrupted");
+			_ntfs_bad_inode(&ni->vfs_inode);
 			return -EINVAL;
 		}
 		addr = resident_data(attr);
@@ -1410,18 +1439,18 @@ int attr_wof_frame_info(struct ntfs_inode *ni, struct ATTRIB *attr,
 
 	wof_size = le64_to_cpu(attr->nres.data_size);
 	down_write(&ni->file.run_lock);
-	page = ni->file.offs_page;
-	if (!page) {
-		page = alloc_page(GFP_KERNEL);
-		if (!page) {
+	folio = ni->file.offs_folio;
+	if (!folio) {
+		folio = folio_alloc(GFP_KERNEL, 0);
+		if (!folio) {
 			err = -ENOMEM;
 			goto out;
 		}
-		page->index = -1;
-		ni->file.offs_page = page;
+		folio->index = -1;
+		ni->file.offs_folio = folio;
 	}
-	lock_page(page);
-	addr = page_address(page);
+	folio_lock(folio);
+	addr = folio_address(folio);
 
 	if (vbo[1]) {
 		voff = vbo[1] & (PAGE_SIZE - 1);
@@ -1437,7 +1466,8 @@ int attr_wof_frame_info(struct ntfs_inode *ni, struct ATTRIB *attr,
 	do {
 		pgoff_t index = vbo[i] >> PAGE_SHIFT;
 
-		if (index != page->index) {
+		if (index != folio->index) {
+			struct page *page = &folio->page;
 			u64 from = vbo[i] & ~(u64)(PAGE_SIZE - 1);
 			u64 to = min(from + PAGE_SIZE, wof_size);
 
@@ -1450,10 +1480,10 @@ int attr_wof_frame_info(struct ntfs_inode *ni, struct ATTRIB *attr,
 			err = ntfs_bio_pages(sbi, run, &page, 1, from,
 					     to - from, REQ_OP_READ);
 			if (err) {
-				page->index = -1;
+				folio->index = -1;
 				goto out1;
 			}
-			page->index = index;
+			folio->index = index;
 		}
 
 		if (i) {
@@ -1491,7 +1521,7 @@ int attr_wof_frame_info(struct ntfs_inode *ni, struct ATTRIB *attr,
 	*ondisk_size = off[1] - off[0];
 
 out1:
-	unlock_page(page);
+	folio_unlock(folio);
 out:
 	up_write(&ni->file.run_lock);
 	return err;
@@ -1500,15 +1530,18 @@ out:
 
 /*
  * attr_is_frame_compressed - Used to detect compressed frame.
+ *
+ * attr - base (primary) attribute segment.
+ * run  - run to use, usually == &ni->file.run.
+ * Only base segments contains valid 'attr->nres.c_unit'
  */
 int attr_is_frame_compressed(struct ntfs_inode *ni, struct ATTRIB *attr,
-			     CLST frame, CLST *clst_data)
+			     CLST frame, CLST *clst_data, struct runs_tree *run)
 {
 	int err;
 	u32 clst_frame;
 	CLST clen, lcn, vcn, alen, slen, vcn_next;
 	size_t idx;
-	struct runs_tree *run;
 
 	*clst_data = 0;
 
@@ -1520,7 +1553,6 @@ int attr_is_frame_compressed(struct ntfs_inode *ni, struct ATTRIB *attr,
 
 	clst_frame = 1u << attr->nres.c_unit;
 	vcn = frame * clst_frame;
-	run = &ni->file.run;
 
 	if (!run_lookup_entry(run, vcn, &lcn, &clen, &idx)) {
 		err = attr_load_runs_vcn(ni, attr->type, attr_name(attr),
@@ -1656,7 +1688,7 @@ int attr_allocate_frame(struct ntfs_inode *ni, CLST frame, size_t compr_size,
 	if (err)
 		goto out;
 
-	err = attr_is_frame_compressed(ni, attr_b, frame, &clst_data);
+	err = attr_is_frame_compressed(ni, attr_b, frame, &clst_data, run);
 	if (err)
 		goto out;
 
@@ -2072,7 +2104,7 @@ next_attr:
 
 	/* Update inode size. */
 	ni->i_valid = valid_size;
-	ni->vfs_inode.i_size = data_size;
+	i_size_write(&ni->vfs_inode, data_size);
 	inode_set_bytes(&ni->vfs_inode, total_size);
 	ni->ni_flags |= NI_FLAG_UPDATE_PARENT;
 	mark_inode_dirty(&ni->vfs_inode);
@@ -2344,8 +2376,13 @@ int attr_insert_range(struct ntfs_inode *ni, u64 vbo, u64 bytes)
 		mask = (sbi->cluster_size << attr_b->nres.c_unit) - 1;
 	}
 
-	if (vbo > data_size) {
-		/* Insert range after the file size is not allowed. */
+	if (vbo >= data_size) {
+		/*
+		 * Insert range after the file size is not allowed.
+		 * If the offset is equal to or greater than the end of
+		 * file, an error is returned.  For such operations (i.e., inserting
+		 * a hole at the end of file), ftruncate(2) should be used.
+		 */
 		return -EINVAL;
 	}
 
@@ -2383,7 +2420,8 @@ int attr_insert_range(struct ntfs_inode *ni, u64 vbo, u64 bytes)
 
 		if (!attr_b->non_res) {
 			/* Still resident. */
-			char *data = Add2Ptr(attr_b, attr_b->res.data_off);
+			char *data = Add2Ptr(attr_b,
+					     le16_to_cpu(attr_b->res.data_off));
 
 			memmove(data + bytes, data, bytes);
 			memset(data, 0, bytes);
@@ -2475,8 +2513,8 @@ int attr_insert_range(struct ntfs_inode *ni, u64 vbo, u64 bytes)
 	if (vbo <= ni->i_valid)
 		ni->i_valid += bytes;
 
-	attr_b->nres.data_size = le64_to_cpu(data_size + bytes);
-	attr_b->nres.alloc_size = le64_to_cpu(alloc_size + bytes);
+	attr_b->nres.data_size = cpu_to_le64(data_size + bytes);
+	attr_b->nres.alloc_size = cpu_to_le64(alloc_size + bytes);
 
 	/* ni->valid may be not equal valid_size (temporary). */
 	if (ni->i_valid > data_size + bytes)
@@ -2486,7 +2524,7 @@ int attr_insert_range(struct ntfs_inode *ni, u64 vbo, u64 bytes)
 	mi_b->dirty = true;
 
 done:
-	ni->vfs_inode.i_size += bytes;
+	i_size_write(&ni->vfs_inode, ni->vfs_inode.i_size + bytes);
 	ni->ni_flags |= NI_FLAG_UPDATE_PARENT;
 	mark_inode_dirty(&ni->vfs_inode);
 
@@ -2544,4 +2582,108 @@ undo_insert_range:
 	}
 
 	goto out;
+}
+
+/*
+ * attr_force_nonresident
+ *
+ * Convert default data attribute into non resident form.
+ */
+int attr_force_nonresident(struct ntfs_inode *ni)
+{
+	int err;
+	struct ATTRIB *attr;
+	struct ATTR_LIST_ENTRY *le = NULL;
+	struct mft_inode *mi;
+
+	attr = ni_find_attr(ni, NULL, &le, ATTR_DATA, NULL, 0, NULL, &mi);
+	if (!attr) {
+		_ntfs_bad_inode(&ni->vfs_inode);
+		return -ENOENT;
+	}
+
+	if (attr->non_res) {
+		/* Already non resident. */
+		return 0;
+	}
+
+	down_write(&ni->file.run_lock);
+	err = attr_make_nonresident(ni, attr, le, mi,
+				    le32_to_cpu(attr->res.data_size),
+				    &ni->file.run, &attr, NULL);
+	up_write(&ni->file.run_lock);
+
+	return err;
+}
+
+/*
+ * Change the compression of data attribute
+ */
+int attr_set_compress(struct ntfs_inode *ni, bool compr)
+{
+	struct ATTRIB *attr;
+	struct mft_inode *mi;
+
+	attr = ni_find_attr(ni, NULL, NULL, ATTR_DATA, NULL, 0, NULL, &mi);
+	if (!attr)
+		return -ENOENT;
+
+	if (is_attr_compressed(attr) == !!compr) {
+		/* Already required compressed state. */
+		return 0;
+	}
+
+	if (attr->non_res) {
+		u16 run_off;
+		u32 run_size;
+		char *run;
+
+		if (attr->nres.data_size) {
+			/*
+			 * There are rare cases when it possible to change
+			 * compress state without big changes.
+			 * TODO: Process these cases.
+			 */
+			return -EOPNOTSUPP;
+		}
+
+		run_off = le16_to_cpu(attr->nres.run_off);
+		run_size = le32_to_cpu(attr->size) - run_off;
+		run = Add2Ptr(attr, run_off);
+
+		if (!compr) {
+			/* remove field 'attr->nres.total_size'. */
+			memmove(run - 8, run, run_size);
+			run_off -= 8;
+		}
+
+		if (!mi_resize_attr(mi, attr, compr ? +8 : -8)) {
+			/*
+			 * Ignore rare case when there are no 8 bytes in record with attr.
+			 * TODO: split attribute.
+			 */
+			return -EOPNOTSUPP;
+		}
+
+		if (compr) {
+			/* Make a gap for 'attr->nres.total_size'. */
+			memmove(run + 8, run, run_size);
+			run_off += 8;
+			attr->nres.total_size = attr->nres.alloc_size;
+		}
+		attr->nres.run_off = cpu_to_le16(run_off);
+	}
+
+	/* Update attribute flags. */
+	if (compr) {
+		attr->flags &= ~ATTR_FLAG_SPARSED;
+		attr->flags |= ATTR_FLAG_COMPRESSED;
+		attr->nres.c_unit = NTFS_LZNT_CUNIT;
+	} else {
+		attr->flags &= ~ATTR_FLAG_COMPRESSED;
+		attr->nres.c_unit = 0;
+	}
+	mi->dirty = true;
+
+	return 0;
 }

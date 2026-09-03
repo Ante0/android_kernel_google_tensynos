@@ -176,14 +176,14 @@ static int s5910_probe(struct spmi_device *sdev)
 	rc = s5910_dt_init(dev, info);
 	if (!rc) {
 		for (step_ndx = 0; step_ndx < info->off_step_cnt; step_ndx++) {
-			dev_info(dev, "off: %zd %d %#03x %#02x\n", step_ndx,
+			dev_info(dev, "off: %zu %d %#03x %#02x\n", step_ndx,
 					info->off_sequence[step_ndx].delay,
 					info->off_sequence[step_ndx].reg,
 					info->off_sequence[step_ndx].val);
 		}
 
 		for (step_ndx = 0; step_ndx < info->on_step_cnt; step_ndx++) {
-			dev_info(dev, "on: %zd %d %#03x %#02x\n", step_ndx,
+			dev_info(dev, "on: %zu %d %#03x %#02x\n", step_ndx,
 					info->on_sequence[step_ndx].delay,
 					info->on_sequence[step_ndx].reg,
 					info->on_sequence[step_ndx].val);
@@ -317,7 +317,7 @@ EXPORT_SYMBOL_GPL(s5910_check_lpm_mode);
 struct device *s5910_get_device(struct device_node *node)
 {
 	struct device *dev = NULL;
-	struct bus_type *sbt = s5910_driver.driver.bus;
+	const struct bus_type *sbt = s5910_driver.driver.bus;
 
 	if (sbt)
 		dev = bus_find_device(sbt, NULL, node, of_dev_node_match);

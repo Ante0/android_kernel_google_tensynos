@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_IRM
+	tristate "Google IRM driver"
+	depends on ARCH_GOOGLE
+	depends on INTERCONNECT
+	help
+	  Enable support for Google IRM.
+	  IRM is Interconnect Resource Manager which can be used for
+	  configuring bandwidth/latency limits by each subsystem drivers.
+	  If unsure select "N".
+
+config GOOGLE_ICC_HELPER_MOCK_CLIENT
+	tristate "Google ICC Helper Mock Client driver"
+	depends on GOOGLE_IRM
+	help
+	  Enable support for Google ICC Helper Mock Client driver.
+	  ICC Helper Mock Client driver provides debugfs knobs to enable
+	  calling Google ICC helper APIs from user-space by writing the
+	  debugfs knobs.
+	  If unsure select "N".

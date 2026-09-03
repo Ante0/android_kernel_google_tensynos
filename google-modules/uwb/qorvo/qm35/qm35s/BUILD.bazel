@@ -1,25 +1,93 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
 
-kernel_module(
-    name = "uwb.qm35",
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "headers",
+    hdrs = glob([
+        "libfwupdater/include/**/*.h",
+        "libqmrom/include/**/*.h",
+    ]),
+    includes = [
+        "libfwupdater/include",
+        "libqmrom/include",
+    ],
+    visibility = [
+        ":__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "tracepoint_headers",
+    hdrs = glob([
+        "*.h",
+    ]),
+    includes = [
+        ".",
+    ],
+    visibility = [
+        ":__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "qm35",
     srcs = glob([
-        "**/*.c",
         "**/*.h",
     ]) + [
-        "Kbuild",
-        "//private/google-modules/soc/gs:gs_soc_headers",
+        "debug.c",
+        "hsspi.c",
+        "hsspi_coredump.c",
+        "hsspi_log.c",
+        "hsspi_test.c",
+        "hsspi_uci.c",
+        "libfwupdater/src/fwupdater.c",
+        "libqmrom/src/qm357xx_rom_b0.c",
+        "libqmrom/src/qm357xx_rom_c0.c",
+        "libqmrom/src/qm357xx_rom_common.c",
+        "libqmrom/src/qmrom_common.c",
+        "libqmrom/src/qmrom_log.c",
+        "qm35-spi.c",
+        "qm35-sscd.c",
+        "qm35_rb.c",
+        "qmrom_spi.c",
     ],
-    outs = [
-        "qm35.ko",
+    out = "qm35.ko",
+    conditional_srcs = {
+        "CONFIG_EVENT_TRACING": {
+            True: [
+                "qm35-trace.c",
+            ],
+        },
+        "CONFIG_QM35_SPI_DEBUG_FW": {
+            True: [
+                "debug_qmrom.c",
+            ],
+        },
+    },
+    copts = [
+        "-Werror",
     ],
+    defconfig = "defconfig",
+    kconfig = "Kconfig",
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
+    local_defines = [
+        "C0_WRITE_STATS",
+        "CONFIG_CHUNK_FLASHING_RETRIES=10",
+        "CONFIG_FLASHING_RETRIES=10",
+        "CONFIG_FWUPDATER_CHUNK_FLASHING_RETRIES=3",
+        "CONFIG_FWUPDATER_GLOBAL_CHUNK_FLASHING_RETRIES=60",
+        "CONFIG_GLOBAL_CHUNK_FLASHING_RETRIES=50",
     ],
     deps = [
-        "//private/google-modules/soc/gs:gs_soc_module",
+        ":headers",
+        ":tracepoint_headers",  # TODO(b/375571988): This should be only applied to qm35-trace.c after the bug is resolved.
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
     ],
 )

@@ -771,6 +771,9 @@ static int kbase_open(struct inode *inode, struct file *filp)
 	struct kbase_file *kfile;
 	int ret = 0;
 
+	if (WARN_ON_ONCE(!(filp->f_op->fop_flags & FOP_UNSIGNED_OFFSET)))
+		return -EINVAL;
+
 	kbdev = kbase_find_device((int)iminor(inode));
 
 	if (!kbdev)
@@ -4616,7 +4619,7 @@ void registers_unmap(struct kbase_device *kbdev)
 #if defined(CONFIG_MALI_ARBITER_SUPPORT) && defined(CONFIG_OF)
 static bool kbase_is_pm_enabled(const struct device_node *gpu_node)
 {
-	const struct device_node *power_model_node;
+	struct device_node *power_model_node;
 	const void *cooling_cells_node;
 	const void *operating_point_node;
 	bool is_pm_enable = false;
@@ -4627,6 +4630,7 @@ static bool kbase_is_pm_enabled(const struct device_node *gpu_node)
 
 	if (power_model_node)
 		is_pm_enable = true;
+	of_node_put(power_model_node);
 
 	cooling_cells_node = of_get_property(gpu_node, "#cooling-cells", NULL);
 	if (cooling_cells_node)

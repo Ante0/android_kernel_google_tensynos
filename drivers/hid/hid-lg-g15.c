@@ -7,6 +7,7 @@
 
 #include <linux/device.h>
 #include <linux/hid.h>
+#include <linux/leds.h>
 #include <linux/module.h>
 #include <linux/random.h>
 #include <linux/sched.h>
@@ -953,4 +954,5 @@ static struct hid_driver lg_g15_driver = {
 module_hid_driver(lg_g15_driver);
 
 MODULE_AUTHOR("Hans de Goede <hdegoede@redhat.com>");
+MODULE_DESCRIPTION("HID driver for gaming keys on Logitech gaming keyboards");
 MODULE_LICENSE("GPL");

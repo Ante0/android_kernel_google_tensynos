@@ -23,7 +23,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 
-#include <asm/intel_scu_ipc.h>
+#include <linux/platform_data/x86/intel_scu_ipc.h>
 
 /* IPC defines the following message types */
 #define IPCMSG_PCNTRL         0xff /* Power controller unit read/write */
@@ -83,7 +83,6 @@ static DEFINE_MUTEX(ipclock); /* lock used to prevent multiple call to SCU */
 
 static struct class intel_scu_ipc_class = {
 	.name = "intel_scu_ipc",
-	.owner = THIS_MODULE,
 };
 
 /**

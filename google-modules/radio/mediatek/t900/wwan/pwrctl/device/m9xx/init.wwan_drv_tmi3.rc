@@ -1,0 +1,6 @@
+
+# load wwan driver
+on early-boot
+    insmod /vendor/lib/modules/wwan_gpio_pwrctl.ko
+    insmod /vendor/lib/modules/mtk_common.ko brom_dl_flag=1
+    insmod /vendor/lib/modules/mtk_pcie.ko runtime_idle_delay_seconds=3

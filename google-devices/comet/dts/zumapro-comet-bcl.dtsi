@@ -78,4 +78,15 @@
 	pinctrl-1 = <&bcl_batoilo_modem>;
 	interrupt-parent = <&max77779_pmic_irq>;
 	interrupts = <6 IRQ_TYPE_LEVEL_LOW>;
+
+	ifpmic_irq_mapping {
+		sys_uvlo1_cnt = <1>;
+		sys_uvlo2_cnt = <1>;
+		bat_oilo1_cnt = <1>;
+		bat_oilo2_cnt = <1>;
+		sys_uvlo1 = <IF_VDROOP1>;
+		sys_uvlo2 = <IF_SHARED>;
+		bat_oilo1 = <IF_INTB>;
+		bat_oilo2 = <IF_VDROOP2>;
+	};
 };

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0
 
+#include <linux/array_size.h>
+#include <linux/debugfs.h>
 #include <linux/mtd/spi-nor.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/spi-mem.h>
-#include <linux/debugfs.h>
 
 #include "core.h"
 
@@ -27,6 +28,7 @@ static const char *const snor_f_names[] = {
 	SNOR_F_NAME(SWP_IS_VOLATILE),
 	SNOR_F_NAME(RWW),
 	SNOR_F_NAME(ECC),
+	SNOR_F_NAME(NO_WP),
 };
 #undef SNOR_F_NAME
 
@@ -77,13 +79,13 @@ static int spi_nor_params_show(struct seq_file *s, void *data)
 	struct spi_nor *nor = s->private;
 	struct spi_nor_flash_parameter *params = nor->params;
 	struct spi_nor_erase_map *erase_map = &params->erase_map;
-	struct spi_nor_erase_region *region;
+	struct spi_nor_erase_region *region = erase_map->regions;
 	const struct flash_info *info = nor->info;
 	char buf[16], *str;
-	int i;
+	unsigned int i;
 
 	seq_printf(s, "name\t\t%s\n", info->name);
-	seq_printf(s, "id\t\t%*ph\n", info->id_len, info->id);
+	seq_printf(s, "id\t\t%*ph\n", SPI_NOR_MAX_ID_LEN, nor->id);
 	string_get_size(params->size, 1, STRING_UNITS_2, buf, sizeof(buf));
 	seq_printf(s, "size\t\t%s\n", buf);
 	seq_printf(s, "write size\t%u\n", params->writesize);
@@ -91,7 +93,8 @@ static int spi_nor_params_show(struct seq_file *s, void *data)
 	seq_printf(s, "address nbytes\t%u\n", nor->addr_nbytes);
 
 	seq_puts(s, "flags\t\t");
-	spi_nor_print_flags(s, nor->flags, snor_f_names, sizeof(snor_f_names));
+	spi_nor_print_flags(s, nor->flags, snor_f_names,
+			    ARRAY_SIZE(snor_f_names));
 	seq_puts(s, "\n");
 
 	seq_puts(s, "\nopcodes\n");
@@ -137,26 +140,24 @@ static int spi_nor_params_show(struct seq_file *s, void *data)
 
 	if (!(nor->flags & SNOR_F_NO_OP_CHIP_ERASE)) {
 		string_get_size(params->size, 1, STRING_UNITS_2, buf, sizeof(buf));
-		seq_printf(s, " %02x (%s)\n", SPINOR_OP_CHIP_ERASE, buf);
+		seq_printf(s, " %02x (%s)\n", nor->params->die_erase_opcode, buf);
 	}
 
 	seq_puts(s, "\nsector map\n");
-	seq_puts(s, " region (in hex)   | erase mask | flags\n");
+	seq_puts(s, " region (in hex)   | erase mask | overlaid\n");
 	seq_puts(s, " ------------------+------------+----------\n");
-	for (region = erase_map->regions;
-	     region;
-	     region = spi_nor_region_next(region)) {
-		u64 start = region->offset & ~SNOR_ERASE_FLAGS_MASK;
-		u64 flags = region->offset & SNOR_ERASE_FLAGS_MASK;
-		u64 end = start + region->size - 1;
+	for (i = 0; i < erase_map->n_regions; i++) {
+		u64 start = region[i].offset;
+		u64 end = start + region[i].size - 1;
+		u8 erase_mask = region[i].erase_mask;
 
 		seq_printf(s, " %08llx-%08llx |     [%c%c%c%c] | %s\n",
 			   start, end,
-			   flags & BIT(0) ? '0' : ' ',
-			   flags & BIT(1) ? '1' : ' ',
-			   flags & BIT(2) ? '2' : ' ',
-			   flags & BIT(3) ? '3' : ' ',
-			   flags & SNOR_OVERLAID_REGION ? "overlaid" : "");
+			   erase_mask & BIT(0) ? '0' : ' ',
+			   erase_mask & BIT(1) ? '1' : ' ',
+			   erase_mask & BIT(2) ? '2' : ' ',
+			   erase_mask & BIT(3) ? '3' : ' ',
+			   region[i].overlaid ? "yes" : "no");
 	}
 
 	return 0;

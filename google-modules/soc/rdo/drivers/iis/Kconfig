@@ -1,0 +1,10 @@
+config GOOGLE_IIS
+	tristate "Google IIS Driver"
+	depends on TRUSTY && PM
+	help
+	  The IP Initiator Sandboxer (IIS) driver manages communication
+	  between the kernel and the IIS Trusty TA.
+	  It utilizes TIPC to send initialization and power management
+	  commands (suspend/resume) for IIS IP blocks, restoring
+	  configuration after resume.
+	  If unsure select "N".

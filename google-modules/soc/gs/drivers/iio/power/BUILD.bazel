@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "odpm-whi",
+    out = "odpm-whi.ko",
+    conditional_srcs = {
+        "CONFIG_ODPM": {
+            True: [
+                "odpm-whi.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/mfd:s2mpg12-mfd",
+        "//private/google-modules/soc/gs/drivers/mfd:s2mpg13-mfd",
+        "//private/google-modules/soc/gs/drivers/regulator:s2mpg12-powermeter",
+        "//private/google-modules/soc/gs/drivers/regulator:s2mpg13-powermeter",
+    ],
+)
+
+ddk_module(
+    name = "odpm",
+    out = "odpm.ko",
+    conditional_srcs = {
+        "CONFIG_ODPM": {
+            True: [
+                "odpm.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/mfd:s2mpg14-mfd",
+        "//private/google-modules/soc/gs/drivers/mfd:s2mpg15-mfd",
+        "//private/google-modules/soc/gs/drivers/regulator:s2mpg14-powermeter",
+        "//private/google-modules/soc/gs/drivers/regulator:s2mpg15-powermeter",
+        "//private/google-modules/soc/gs/drivers/thermal/google:s2mpg15_spmic_thermal",
+    ],
+)

@@ -2,7 +2,7 @@
 /*
  * Synaptics TouchCom touchscreen driver
  *
- * Copyright (C) 2017-2020 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2024 Synaptics Incorporated. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,30 +29,24 @@
  * DOLLARS.
  */
 
-/*
+/**
  * @file syna_tcm2_testing.c
  *
- * This file implements the sample code to perform chip testing.
+ * This file implements the sample code to perform the production testing.
  */
 #include "syna_tcm2_testing.h"
 #include "syna_tcm2_testing_limits.h"
 #include "synaptics_touchcom_core_dev.h"
 #include "synaptics_touchcom_func_base.h"
 
-/* g_testing_dir represents the root folder of testing sysfs
- */
-static struct kobject *g_testing_dir;
-static struct syna_tcm *g_tcm_ptr;
 
 typedef enum{
 	RAW_GAP_TEST = 1,
 	SENSOR_SPEED_TEST
 }gaptesttype_t;
 
-/*
- * syna_print_list()
- *
- * Print the frame data in log.
+/**
+ * @brief  Print the frame data in log.
  *
  * @param
  *    [ in] tcm: the driver handle
@@ -61,9 +55,9 @@ typedef enum{
  *    [ in] cols: the number of columns
  *
  * @return
- *    on success, 0; otherwise, return error code
+ *    void
  */
-static void syna_print_list(struct syna_tcm *tcm, unsigned char *data, int rows, int cols)
+static void syna_testing_print_list(struct syna_tcm *tcm, unsigned char *data, int rows, int cols)
 {
 	int i;
 	int count = 0;
@@ -90,11 +84,8 @@ static void syna_print_list(struct syna_tcm *tcm, unsigned char *data, int rows,
 	}
 	LOGI("%s\n", &print_buf[0]);
 }
-
-/*
- * syna_print_frame()
- *
- * Print the frame data in log.
+/**
+ * @brief  Print the frame data in log.
  *
  * @param
  *    [ in] tcm: the driver handle
@@ -103,9 +94,9 @@ static void syna_print_list(struct syna_tcm *tcm, unsigned char *data, int rows,
  *    [ in] cols: the number of columns
  *
  * @return
- *    on success, 0; otherwise, return error code
+ *    void
  */
-static void syna_print_frame(struct syna_tcm *tcm, unsigned char *data, int rows, int cols)
+static void syna_testing_print_frame(struct syna_tcm *tcm, unsigned char *data, int rows, int cols)
 {
 	int i, j;
 	int count = 0;
@@ -129,9 +120,30 @@ static void syna_print_frame(struct syna_tcm *tcm, unsigned char *data, int rows
 }
 
 /*
- * syna_parse_test_limit16()
+ * syna_print_serial_number()
  *
- * Parse the test limit from the device tree.
+ * Print the serial number result.
+ *
+ * @param
+ *    [ in] tcm: the driver handle
+ *    [ in] sn_data: serial number data
+ */
+static void syna_print_serial_number(struct syna_tcm *tcm, struct tcm_serial_number_info *sn_data)
+{
+	if (sn_data == NULL) {
+		LOGE("sn_data is null.");
+		return;
+	}
+
+	LOGI("wafer lot: %*ph\n", (int) sizeof(sn_data->wafer_lot), sn_data->wafer_lot);
+	LOGI("x coordinate: %*ph\n", (int) sizeof(sn_data->x_coordinate), sn_data->x_coordinate);
+	LOGI("y coordinate: %*ph\n", (int) sizeof(sn_data->y_coordinate), sn_data->y_coordinate);
+	LOGI("{date[4] + wafer id[2]&no[2]} or {wafer id[4] + date[4]}: %*ph\n",
+		(int) sizeof(sn_data->date_wafer_code), sn_data->date_wafer_code);
+}
+
+/**
+ * @brief  Parse the test limit from the device tree.
  *
  * @param
  *    [ in] np: device node
@@ -140,9 +152,9 @@ static void syna_print_frame(struct syna_tcm *tcm, unsigned char *data, int rows
  *    [ in] size: size of the array
  *
  * @return
- *    on success, 0; otherwise, return error code
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-static int syna_parse_test_limit_16(struct syna_tcm *tcm, const char *name, u16 *array, int size)
+static int syna_testing_parse_test_limit_16(struct syna_tcm *tcm, const char *name, u16 *array, int size)
 {
 	int length;
 	struct device_node *np = tcm->pdev->dev.parent->of_node;
@@ -167,11 +179,8 @@ static int syna_parse_test_limit_16(struct syna_tcm *tcm, const char *name, u16 
 
 	return 0;
 }
-
-/*
- * syna_parse_test_limit32()
- *
- * Parse the test limit from the device tree.
+/**
+ * @brief  Parse the test limit from the device tree.
  *
  * @param
  *    [ in] np: device node
@@ -180,9 +189,9 @@ static int syna_parse_test_limit_16(struct syna_tcm *tcm, const char *name, u16 
  *    [ in] size: size of the array
  *
  * @return
- *    on success, 0; otherwise, return error code
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-static int syna_parse_test_limit_32(struct syna_tcm *tcm, const char *name, u32 *array, int size)
+static int syna_testing_parse_test_limit_32(struct syna_tcm *tcm, const char *name, u32 *array, int size)
 {
 	int length;
 	struct device_node *np = tcm->pdev->dev.parent->of_node;
@@ -200,7 +209,6 @@ static int syna_parse_test_limit_32(struct syna_tcm *tcm, const char *name, u32 
 
 	if (of_property_read_u32_array(np, name, array, length)) {
 		LOGE("Error reading array %s\n", name);
-		kfree(array);
 		return -EINVAL;
 	}
 
@@ -209,11 +217,63 @@ static int syna_parse_test_limit_32(struct syna_tcm *tcm, const char *name, u32 
 	return 0;
 }
 
-/*
- * syna_testing_compare_frame()
+/**
+ * @brief  Sample code to compare the test result with limits by byte vector.
  *
- * Sample code to compare the test result with limits
- * being formatted as a frame
+ * @param
+ *    [ in] data: target test data
+ *    [ in] data_size: size of test data
+ *    [ in] limit: test limit value to be compared with
+ *    [ in] limit_size: size of test limit
+ *
+ * @return
+ *    0 or positive value in case of success, a negative value otherwise.
+ */
+static bool syna_testing_compare_byte_vector(unsigned char *data,
+	unsigned int data_size, const unsigned char *limit,
+	unsigned int limit_size)
+{
+	bool result = false;
+	unsigned char tmp;
+	unsigned char p, l;
+	int i, j;
+
+	if (!data || (data_size == 0)) {
+		LOGE("Invalid test data\n");
+		return false;
+	}
+	if (!limit || (limit_size == 0)) {
+		LOGE("Invalid limits\n");
+		return false;
+	}
+
+	if (limit_size < data_size) {
+		LOGE("Limit size mismatched, data size: %d, limits: %d\n",
+			data_size, limit_size);
+		return false;
+	}
+
+	result = true;
+	for (i = 0; i < data_size; i++) {
+		tmp = data[i];
+
+		for (j = 0; j < 8; j++) {
+			p = GET_BIT(tmp, j);
+			l = GET_BIT(limit[i], j);
+			if (p != l) {
+				LOGE("Fail on TRX-%03d (data:%X, limit:%X)\n",
+					(i*8 + j), p, l);
+				result = false;
+			}
+		}
+	}
+
+	return result;
+}
+
+/**
+ * @brief  Sample code to compare the test result with limits being
+ *         formatted as a frame.
  *
  * @param
  *    [ in] data: target test data
@@ -224,11 +284,11 @@ static int syna_parse_test_limit_32(struct syna_tcm *tcm, const char *name, u32 
  *    [ in] limits_lo: lower-bound test limit
  *
  * @return
- *    on success, true; otherwise, return false
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static bool syna_testing_compare_frame(unsigned char *data,
-		unsigned int data_size, int rows, int cols,
-		const short *limits_hi, const short *limits_lo)
+	unsigned int data_size, int rows, int cols,
+	const short *limits_hi, const short *limits_lo)
 {
 	bool result = false;
 	short *data_ptr = NULL;
@@ -300,69 +360,9 @@ end_of_upper_bound_limit:
 end_of_lower_bound_limit:
 	return result;
 }
-
-/*
- * syna_testing_compare_byte_vector()
- *
- * Sample code to compare the test result with limits
- * by byte vector
- *
- * @param
- *    [ in] data: target test data
- *    [ in] data_size: size of test data
- *    [ in] limit: test limit value to be compared with
- *    [ in] limit_size: size of test limit
- *
- * @return
- *    on success, true; otherwise, return false
- */
-bool syna_testing_compare_byte_vector(unsigned char *data,
-		unsigned int data_size, const unsigned char *limit,
-		unsigned int limit_size)
-{
-	bool result = false;
-	unsigned char tmp;
-	unsigned char p, l;
-	int i, j;
-
-	if (!data || (data_size == 0)) {
-		LOGE("Invalid test data\n");
-		return false;
-	}
-	if (!limit || (limit_size == 0)) {
-		LOGE("Invalid limits\n");
-		return false;
-	}
-
-	if (limit_size < data_size) {
-		LOGE("Limit size mismatched, data size: %d, limits: %d\n",
-			data_size, limit_size);
-		return false;
-	}
-
-	result = true;
-	for (i = 0; i < data_size; i++) {
-		tmp = data[i];
-
-		for (j = 0; j < 8; j++) {
-			p = GET_BIT(tmp, j);
-			l = GET_BIT(limit[i], j);
-			if (p != l) {
-				LOGE("Fail on TRX-%03d (data:%X, limit:%X)\n",
-					(i*8 + j), p, l);
-				result = false;
-			}
-		}
-	}
-
-	return result;
-}
-
-/*
- * syna_testing_compare_list()
- *
- * Sample code to compare the test result with limits
- * being formatted as a list
+/**
+ * @brief  Sample code to compare the test result with limits being
+ *         formatted as a list.
  *
  * @param
  *    [ in] data: target test data
@@ -373,7 +373,7 @@ bool syna_testing_compare_byte_vector(unsigned char *data,
  *    [ in] limits_lo: lower-bound test limit
  *
  * @return
- *    on success, true; otherwise, return false
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static bool syna_testing_compare_list(unsigned char *data,
 		unsigned int data_size, int rows, int cols,
@@ -464,10 +464,8 @@ end_of_lower_bound_limit:
 	return result;
 }
 
-/*
- * syna_testing_calculate_gap_frame()
- *
- * Sample code to calculate the GAP frame for the test
+/**
+ * @brief  Sample code to calculate the GAP frame for the test
  *
  * @param
  *    [ in] in: input frame
@@ -477,7 +475,7 @@ end_of_lower_bound_limit:
  *    [ in] testtype: type of the test to be performed ( 1- full raw cap, 2 - sensor speed test )
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_testing_calculate_gap_frame(short *in, short *out,
 		int rows, int cols, gaptesttype_t testtype)
@@ -512,21 +510,15 @@ static int syna_testing_calculate_gap_frame(short *in, short *out,
 				val_3 = in[(i+1) * cols + j];
 
 			if(testtype == RAW_GAP_TEST){
-				if((val_1 == 0) && (val_2 == 0)) {
+				if((val_1 == 0) && (val_2 == 0))
 					x_gap = 0;
-				} else {
-					x_gap = (val_1 > val_2) ?
-						(100 - ((val_2*100 + val_1/2)/val_1)) :
-							(100 - ((val_1*100 + val_2/2)/val_2));
-				}
+				else
+					x_gap = (val_1 > val_2)? (100 - ((val_2*100 + val_1/2)/val_1)) : (100 - ((val_1*100 + val_2/2)/val_2));
 
-				if((val_1 == 0) && (val_3 == 0)) {
+				if((val_1 == 0) && (val_3 == 0))
 					y_gap = 0;
-				} else {
-					y_gap = (val_1 > val_3) ?
-						(100 - ((val_3*100 + val_1/2)/val_1)) :
-							(100 - ((val_1*100 + val_3/2)/val_3));
-				}
+				else
+					y_gap = (val_1 > val_3)? (100 - ((val_3*100 + val_1/2)/val_1)) : (100 - ((val_1*100 + val_3/2)/val_3));
 
 				out[idx++] = (x_gap > y_gap)? x_gap : y_gap;
 			}
@@ -541,10 +533,8 @@ static int syna_testing_calculate_gap_frame(short *in, short *out,
 	return 0;
 }
 
-/*
- * syna_testing_calculate_gap_frame_b()
- *
- * Sample code to calculate the GAP frame for the test
+/**
+ * @brief  Sample code to calculate the GAP frame for the test
  *
  * @param
  *    [ in] in: input frame
@@ -553,11 +543,10 @@ static int syna_testing_calculate_gap_frame(short *in, short *out,
  *    [ in] cols: number of cols
  *    [ in] direction_x: appoint the gap direction x. Follow the panel maker
  *                       that the x direction is the longer side.
- *    [ in] percentage: true for gap percentage, false for gap value.
  *    [ in] abs_only: indicate to return the abs value
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_testing_calculate_gap_frame_b(short *in, short *out,
 		int rows, int cols, bool direction_x, bool abs_only)
@@ -608,16 +597,14 @@ static int syna_testing_calculate_gap_frame_b(short *in, short *out,
 	return 0;
 }
 
-/*
- * syna_testing_device_id()
- *
- * Sample code to ensure the device id is expected
+/**
+ * @brief  Sample code to check the device ID.
  *
  * @param
  *    [ in] tcm: the driver handle
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_testing_device_id(struct syna_tcm *tcm)
 {
@@ -626,9 +613,9 @@ static int syna_testing_device_id(struct syna_tcm *tcm)
 	struct tcm_identification_info info;
 	char *strptr = NULL;
 
-	LOGI("%s: Start testing\n", __func__);
+	LOGI("Start testing\n");
 
-	retval = syna_tcm_identify(tcm->tcm_dev, &info);
+	retval = syna_tcm_identify(tcm->tcm_dev, &info, CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to get identification\n");
 		result = false;
@@ -652,16 +639,14 @@ exit:
 	return ((result) ? 0 : -1);
 }
 
-/*
- * syna_testing_config_id()
- *
- * Sample code to ensure the config id is expected
+/**
+ * @brief  Sample code to check the config ID.
  *
  * @param
  *    [ in] tcm: the driver handle
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_testing_config_id(struct syna_tcm *tcm)
 {
@@ -670,9 +655,9 @@ static int syna_testing_config_id(struct syna_tcm *tcm)
 	struct tcm_application_info info;
 	int idx;
 
-	LOGI("%s: Start testing\n", __func__);
+	LOGI("Start testing\n");
 
-	retval = syna_tcm_get_app_info(tcm->tcm_dev, &info);
+	retval = syna_tcm_get_app_info(tcm->tcm_dev, &info, CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to get app info\n");
 		result = false;
@@ -695,26 +680,27 @@ exit:
 	return ((result) ? 0 : -1);
 }
 
-/*
- * syna_testing_check_id_show()
- *
- * Attribute to show the result of ID comparsion to the console.
+/**
+ * @brief  Example to trigger the ID comparison testing.
  *
  * @param
- *    [ in] kobj:  an instance of kobj
- *    [ in] attr:  an instance of kobj attribute structure
+ *    [ in] kobj:  handle of kernel object
+ *    [ in] attr:  handle of kernel attribute
  *    [out] buf:  string buffer shown on console
  *
  * @return
- *    on success, number of characters being output;
- *    otherwise, negative value on error.
+ *    string output in case of success, a negative value otherwise.
  */
 static ssize_t syna_testing_check_id_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
 	int retval;
 	unsigned int count = 0;
-	struct syna_tcm *tcm = g_tcm_ptr;
+	struct device *p_dev;
+	struct syna_tcm *tcm;
+
+	p_dev = container_of(kobj->parent->parent, struct device, kobj);
+	tcm = dev_get_drvdata(p_dev);
 
 	if (!tcm->is_connected) {
 		retval = scnprintf(buf, PAGE_SIZE,
@@ -750,27 +736,26 @@ exit:
 static struct kobj_attribute kobj_attr_check_id =
 	__ATTR(check_id, 0444, syna_testing_check_id_show, NULL);
 
-/*
- * syna_testing_pt01()
- *
- * Sample code to perform PT01 testing
+/**
+ * @brief  Sample code to perform PT01 (PID01) testing.
  *
  * @param
  *    [ in] tcm: the driver handle
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_testing_pt01(struct syna_tcm *tcm, struct tcm_buffer *test_data)
 {
 	int retval;
 	bool result = false;
 
-	LOGI("%s: Start testing\n", __func__);
+	LOGI("Start testing\n");
 
 	retval = syna_tcm_run_production_test(tcm->tcm_dev,
 			TEST_PID01_TRX_TRX_SHORTS,
-			test_data);
+			test_data,
+			CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to run test %d\n", TEST_PID01_TRX_TRX_SHORTS);
 		result = false;
@@ -788,27 +773,28 @@ exit:
 	return ((result) ? 0 : -1);
 }
 
-/*
- * syna_testing_pt01_show()
- *
- * Attribute to show the result of PT01 test to the console.
+/**
+ * @brief  Attribute to trigger the PT01 (PID01) testing.
  *
  * @param
- *    [ in] kobj:  an instance of kobj
- *    [ in] attr:  an instance of kobj attribute structure
+ *    [ in] kobj:  handle of kernel object
+ *    [ in] attr:  handle of kernel attribute
  *    [out] buf:  string buffer shown on console
  *
  * @return
- *    on success, number of characters being output;
- *    otherwise, negative value on error.
+ *    string output in case of success, a negative value otherwise.
  */
 static ssize_t syna_testing_pt01_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
 	int retval, i;
 	unsigned int count = 0;
-	struct syna_tcm *tcm = g_tcm_ptr;
+	struct device *p_dev;
+	struct syna_tcm *tcm;
 	struct tcm_buffer test_data;
+
+	p_dev = container_of(kobj->parent->parent, struct device, kobj);
+	tcm = dev_get_drvdata(p_dev);
 
 	if (!tcm->is_connected) {
 		count = scnprintf(buf, PAGE_SIZE,
@@ -842,7 +828,6 @@ static struct kobj_attribute kobj_attr_pt01 =
 	__ATTR(pt01, 0444, syna_testing_pt01_show, NULL);
 
 /**
- *
  * @brief  Sample code to perform PT5B (PID91) testing.
  *
  * @param
@@ -864,7 +849,8 @@ static int syna_testing_pt5b(struct syna_tcm *tcm, struct tcm_buffer *test_data)
 
 	retval = syna_tcm_run_production_test(tcm->tcm_dev,
 			TEST_PID91_TRX_TRX_SHORTS,
-			test_data);
+			test_data,
+			CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to run test %d\n", TEST_PID91_TRX_TRX_SHORTS);
 		result = false;
@@ -957,35 +943,34 @@ static struct kobj_attribute kobj_attr_pt5b =
 	__ATTR(pt5b, 0444, syna_testing_pt5b_show, NULL);
 
 /**
- * syna_testing_pt05()
- *
- * Sample code to perform PT05 testing
+ * @brief  Sample code to perform PT05 (PID05) testing.
  *
  * @param
  *    [ in] tcm: the driver handle
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_testing_pt05(struct syna_tcm *tcm, struct tcm_buffer *test_data)
 {
 	int retval;
 	bool result = false;
 
-	LOGI("%s: Start testing\n", __func__);
+	LOGI("Start testing\n");
 
 	retval = syna_tcm_run_production_test(tcm->tcm_dev,
 			TEST_PID05_FULL_RAW_CAP,
-			test_data);
+			test_data,
+			CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to run test %d\n", TEST_PID05_FULL_RAW_CAP);
 		result = false;
 		goto exit;
 	}
 
-	syna_parse_test_limit_16(tcm, tcm->hw_if->pt05_high_limit_name,
+	syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt05_high_limit_name,
 			(u16*) pt05_hi_limits, tcm->tcm_dev->rows * tcm->tcm_dev->cols);
-	syna_parse_test_limit_16(tcm, tcm->hw_if->pt05_low_limit_name,
+	syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt05_low_limit_name,
 			(u16*) pt05_lo_limits, tcm->tcm_dev->rows * tcm->tcm_dev->cols);
 
 	result = syna_testing_compare_frame(test_data->buf,
@@ -996,7 +981,7 @@ static int syna_testing_pt05(struct syna_tcm *tcm, struct tcm_buffer *test_data)
 			(const short *)&pt05_lo_limits[0]);
 
 	if (test_data->buf != NULL)
-		syna_print_frame(tcm, test_data->buf, tcm->tcm_dev->rows, tcm->tcm_dev->cols);
+		syna_testing_print_frame(tcm, test_data->buf, tcm->tcm_dev->rows, tcm->tcm_dev->cols);
 
 exit:
 	LOGI("Result = %s\n", (result)?"pass":"fail");
@@ -1004,13 +989,12 @@ exit:
 	return ((result) ? 0 : -1);
 }
 
-/*
- * syna_testing_pt05_gap()
- *
- * Sample code to implement GAP test based on PT05
+/**
+ * @brief  Sample code to perform PT05 (PID05) GAP testing.
  *
  * @param
  *    [ in] tcm: the driver handle
+ *    [ in] test_data: buffer stored the testing data
  *
  * @return
  *    on success, 0; otherwise, negative value on error.
@@ -1027,7 +1011,7 @@ static int syna_testing_pt05_gap(struct syna_tcm *tcm, struct tcm_buffer *test_d
 	short *gap_frame_y = NULL;
 	int i, j, idx;
 
-	LOGI("%s: Start testing\n", __func__);
+	LOGI("Start testing\n");
 
 	if (test_data->buf == NULL) {
 		LOGE("Test data is NULL\n");
@@ -1083,9 +1067,9 @@ static int syna_testing_pt05_gap(struct syna_tcm *tcm, struct tcm_buffer *test_d
 			goto exit;
 		}
 
-		syna_parse_test_limit_16(tcm, tcm->hw_if->pt05_gap_x_limit_name,
+		syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt05_gap_x_limit_name,
 				(u16*) pt05_gap_x_limits, rows * (cols - 1));
-		syna_parse_test_limit_16(tcm, tcm->hw_if->pt05_gap_y_limit_name,
+		syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt05_gap_y_limit_name,
 				(u16*) pt05_gap_y_limits, (rows - 1) * cols);
 
 		/* compare to the limits */
@@ -1122,7 +1106,7 @@ static int syna_testing_pt05_gap(struct syna_tcm *tcm, struct tcm_buffer *test_d
 			goto exit;
 		}
 
-		syna_parse_test_limit_16(tcm, tcm->hw_if->pt05_gap_x_limit_name,
+		syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt05_gap_x_limit_name,
 				(u16*) pt05_gap_x_limits, rows * cols);
 
 		/* compare to the limits */
@@ -1152,19 +1136,16 @@ exit:
 	return ((result) ? 0 : -1);
 }
 
-/*
- * syna_testing_pt05_show()
- *
- * Attribute to show the result of PT05 test to the console.
+/**
+ * @brief  Attribute to trigger the PT05 (PID05) testing.
  *
  * @param
- *    [ in] kobj:  an instance of kobj
- *    [ in] attr:  an instance of kobj attribute structure
+ *    [ in] kobj:  handle of kernel object
+ *    [ in] attr:  handle of kernel attribute
  *    [out] buf:  string buffer shown on console
  *
  * @return
- *    on success, number of characters being output;
- *    otherwise, negative value on error.
+ *    string output in case of success, a negative value otherwise.
  */
 static ssize_t syna_testing_pt05_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -1172,8 +1153,12 @@ static ssize_t syna_testing_pt05_show(struct kobject *kobj,
 	int retval, retval_gap, i, j;
 	short *data_ptr = NULL;
 	unsigned int count = 0;
-	struct syna_tcm *tcm = g_tcm_ptr;
+	struct device *p_dev;
+	struct syna_tcm *tcm;
 	struct tcm_buffer test_data;
+
+	p_dev = container_of(kobj->parent->parent, struct device, kobj);
+	tcm = dev_get_drvdata(p_dev);
 
 	if (!tcm->is_connected) {
 		count = scnprintf(buf, PAGE_SIZE,
@@ -1215,36 +1200,36 @@ exit:
 static struct kobj_attribute kobj_attr_pt05 =
 	__ATTR(pt05, 0444, syna_testing_pt05_show, NULL);
 
-/*
- * syna_testing_pt0a()
- *
- * Sample code to perform PT0A testing
+
+/**
+ * @brief  Sample code to perform PT0A (PID10) testing.
  *
  * @param
  *    [ in] tcm: the driver handle
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_testing_pt0a(struct syna_tcm *tcm, struct tcm_buffer *test_data)
 {
 	int retval;
 	bool result = false;
 
-	LOGI("%s: Start testing\n", __func__);
+	LOGI("Start testing\n");
 
 	retval = syna_tcm_run_production_test(tcm->tcm_dev,
 			TEST_PID10_DELTA_NOISE,
-			test_data);
+			test_data,
+			CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to run test %d\n", TEST_PID10_DELTA_NOISE);
 		result = false;
 		goto exit;
 	}
 
-	syna_parse_test_limit_16(tcm, tcm->hw_if->pt0a_high_limit_name,
+	syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt0a_high_limit_name,
 			(u16*) pt0a_hi_limits, tcm->tcm_dev->rows * tcm->tcm_dev->cols);
-	syna_parse_test_limit_16(tcm, tcm->hw_if->pt0a_low_limit_name,
+	syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt0a_low_limit_name,
 			(u16*) pt0a_lo_limits, tcm->tcm_dev->rows * tcm->tcm_dev->cols);
 
 	result = syna_testing_compare_frame(test_data->buf,
@@ -1254,8 +1239,10 @@ static int syna_testing_pt0a(struct syna_tcm *tcm, struct tcm_buffer *test_data)
 			(const short *)&pt0a_hi_limits[0],
 			(const short *)&pt0a_lo_limits[0]);
 
-	if (test_data->buf != NULL)
-		syna_print_frame(tcm, test_data->buf, tcm->tcm_dev->rows, tcm->tcm_dev->cols);
+	if (test_data->buf != NULL) {
+		syna_testing_print_frame(tcm, test_data->buf, tcm->tcm_dev->rows,
+				tcm->tcm_dev->cols);
+	}
 
 exit:
 	LOGI("Result = %s\n", (result)?"pass":"fail");
@@ -1263,19 +1250,16 @@ exit:
 	return ((result) ? 0 : -1);
 }
 
-/*
- * syna_testing_pt0a_show()
- *
- * Attribute to show the result of PT0A test to the console.
+/**
+ * @brief  Attribute to trigger the PT0A (PID10) testing.
  *
  * @param
- *    [ in] kobj:  an instance of kobj
- *    [ in] attr:  an instance of kobj attribute structure
+ *    [ in] kobj:  handle of kernel object
+ *    [ in] attr:  handle of kernel attribute
  *    [out] buf:  string buffer shown on console
  *
  * @return
- *    on success, number of characters being output;
- *    otherwise, negative value on error.
+ *    string output in case of success, a negative value otherwise.
  */
 static ssize_t syna_testing_pt0a_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -1283,8 +1267,12 @@ static ssize_t syna_testing_pt0a_show(struct kobject *kobj,
 	int retval, i, j;
 	short *data_ptr = NULL;
 	unsigned int count = 0;
-	struct syna_tcm *tcm = g_tcm_ptr;
+	struct device *p_dev;
+	struct syna_tcm *tcm;
 	struct tcm_buffer test_data;
+
+	p_dev = container_of(kobj->parent->parent, struct device, kobj);
+	tcm = dev_get_drvdata(p_dev);
 
 	if (!tcm->is_connected) {
 		count = scnprintf(buf, PAGE_SIZE,
@@ -1323,36 +1311,35 @@ exit:
 static struct kobj_attribute kobj_attr_pt0a =
 	__ATTR(pt0a, 0444, syna_testing_pt0a_show, NULL);
 
-/*
- * syna_testing_pt10()
- *
- * Sample code to perform PT10 testing
+/**
+ * @brief  Sample code to perform PT10 (PID16) testing.
  *
  * @param
  *    [ in] tcm: the driver handle
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_testing_pt10(struct syna_tcm *tcm, struct tcm_buffer *test_data)
 {
 	int retval;
 	bool result = false;
 
-	LOGI("%s: Start testing\n", __func__);
+	LOGI("Start testing\n");
 
 	retval = syna_tcm_run_production_test(tcm->tcm_dev,
 			TEST_PID16_SENSOR_SPEED,
-			test_data);
+			test_data,
+			CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to run test %d\n", TEST_PID16_SENSOR_SPEED);
 		result = false;
 		goto exit;
 	}
 
-	syna_parse_test_limit_16(tcm, tcm->hw_if->pt10_high_limit_name,
+	syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt10_high_limit_name,
 			(u16*) pt10_hi_limits, tcm->tcm_dev->rows * tcm->tcm_dev->cols);
-	syna_parse_test_limit_16(tcm, tcm->hw_if->pt10_low_limit_name,
+	syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt10_low_limit_name,
 			(u16*) pt10_lo_limits, tcm->tcm_dev->rows * tcm->tcm_dev->cols);
 
 	result = syna_testing_compare_frame(test_data->buf,
@@ -1362,8 +1349,10 @@ static int syna_testing_pt10(struct syna_tcm *tcm, struct tcm_buffer *test_data)
 			(const short *)&pt10_hi_limits[0],
 			(const short *)&pt10_lo_limits[0]);
 
-	if (test_data->buf != NULL)
-		syna_print_frame(tcm, test_data->buf, tcm->tcm_dev->rows, tcm->tcm_dev->cols);
+	if (test_data->buf != NULL) {
+		syna_testing_print_frame(tcm, test_data->buf, tcm->tcm_dev->rows,
+				tcm->tcm_dev->cols);
+	}
 
 exit:
 	LOGI("Result = %s\n", (result)?"pass":"fail");
@@ -1371,13 +1360,12 @@ exit:
 	return ((result) ? 0 : -1);
 }
 
-/*
- * syna_testing_pt10_gap()
- *
- * Sample code to implement GAP test based on PT10
+/**
+ * @brief  Sample code to perform PT10 (PID16) GAP testing.
  *
  * @param
  *    [ in] tcm: the driver handle
+ *    [ in] test_data: buffer stored the testing data
  *
  * @return
  *    on success, 0; otherwise, negative value on error.
@@ -1450,9 +1438,9 @@ static int syna_testing_pt10_gap(struct syna_tcm *tcm, struct tcm_buffer *test_d
 			goto exit;
 		}
 
-		syna_parse_test_limit_16(tcm, tcm->hw_if->pt10_gap_x_limit_name,
+		syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt10_gap_x_limit_name,
 				(u16*) pt10_gap_x_limits, rows * (cols - 1));
-		syna_parse_test_limit_16(tcm, tcm->hw_if->pt10_gap_y_limit_name,
+		syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt10_gap_y_limit_name,
 				(u16*) pt10_gap_y_limits, (rows - 1) * cols);
 
 		/* compare to the limits */
@@ -1488,7 +1476,7 @@ static int syna_testing_pt10_gap(struct syna_tcm *tcm, struct tcm_buffer *test_d
 			goto exit;
 		}
 
-		syna_parse_test_limit_16(tcm, tcm->hw_if->pt10_gap_x_limit_name,
+		syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt10_gap_x_limit_name,
 				(u16*) pt10_gap_x_limits, rows * cols);
 
 		/* compare to the limits */
@@ -1518,19 +1506,16 @@ exit:
 	return ((result) ? 0 : -1);
 }
 
-/*
- * syna_testing_pt10_show()
- *
- * Attribute to show the result of PT10 test to the console.
+/**
+ * @brief  Attribute to trigger the PT10 (PID16) testing.
  *
  * @param
- *    [ in] kobj:  an instance of kobj
- *    [ in] attr:  an instance of kobj attribute structure
+ *    [ in] kobj:  handle of kernel object
+ *    [ in] attr:  handle of kernel attribute
  *    [out] buf:  string buffer shown on console
  *
  * @return
- *    on success, number of characters being output;
- *    otherwise, negative value on error.
+ *    string output in case of success, a negative value otherwise.
  */
 static ssize_t syna_testing_pt10_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -1538,8 +1523,12 @@ static ssize_t syna_testing_pt10_show(struct kobject *kobj,
 	int retval, retval_gap, i, j;
 	short *data_ptr = NULL;
 	unsigned int count = 0;
-	struct syna_tcm *tcm = g_tcm_ptr;
+	struct device *p_dev;
+	struct syna_tcm *tcm;
 	struct tcm_buffer test_data;
+
+	p_dev = container_of(kobj->parent->parent, struct device, kobj);
+	tcm = dev_get_drvdata(p_dev);
 
 	if (!tcm->is_connected) {
 		count = scnprintf(buf, PAGE_SIZE,
@@ -1581,13 +1570,12 @@ exit:
 static struct kobj_attribute kobj_attr_pt10 =
 	__ATTR(pt10, 0444, syna_testing_pt10_show, NULL);
 
-/*
- * syna_testing_pt11()
- *
- * Sample code to perform PT11 testing
+/**
+ * @brief  Sample code to perform PT11 (PID17) testing.
  *
  * @param
  *    [ in] tcm: the driver handle
+ *    [ in] test_data: buffer stored the testing data
  *
  * @return
  *    on success, 0; otherwise, negative value on error.
@@ -1597,20 +1585,21 @@ static int syna_testing_pt11(struct syna_tcm *tcm, struct tcm_buffer *test_data)
 	int retval;
 	bool result = false;
 
-	LOGI("%s: Start testing\n", __func__);
+	LOGI("Start testing\n");
 
 	retval = syna_tcm_run_production_test(tcm->tcm_dev,
 			TEST_PID17_ADC_RANGE,
-			test_data);
+			test_data,
+			CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to run test %d\n", TEST_PID17_ADC_RANGE);
 		result = false;
 		goto exit;
 	}
 
-	syna_parse_test_limit_16(tcm, tcm->hw_if->pt11_high_limit_name,
+	syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt11_high_limit_name,
 			(u16*) pt11_hi_limits, tcm->tcm_dev->rows * tcm->tcm_dev->cols);
-	syna_parse_test_limit_16(tcm, tcm->hw_if->pt11_low_limit_name,
+	syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt11_low_limit_name,
 			(u16*) pt11_lo_limits, tcm->tcm_dev->rows * tcm->tcm_dev->cols);
 
 	result = syna_testing_compare_frame(test_data->buf,
@@ -1620,8 +1609,10 @@ static int syna_testing_pt11(struct syna_tcm *tcm, struct tcm_buffer *test_data)
 			(const short *)&pt11_hi_limits[0],
 			(const short *)&pt11_lo_limits[0]);
 
-	if (test_data->buf != NULL)
-		syna_print_frame(tcm, test_data->buf, tcm->tcm_dev->rows, tcm->tcm_dev->cols);
+	if (test_data->buf != NULL) {
+		syna_testing_print_frame(tcm, test_data->buf, tcm->tcm_dev->rows,
+				tcm->tcm_dev->cols);
+	}
 
 exit:
 	LOGI("Result = %s\n", (result)?"pass":"fail");
@@ -1629,10 +1620,8 @@ exit:
 	return ((result) ? 0 : -1);
 }
 
-/*
- * syna_testing_pt11_show()
- *
- * Attribute to show the result of PT11 test to the console.
+/**
+ * @brief  Attribute to trigger the PT11 (PID17) testing.
  *
  * @param
  *    [ in] kobj:  an instance of kobj
@@ -1640,8 +1629,7 @@ exit:
  *    [out] buf:  string buffer shown on console
  *
  * @return
- *    on success, number of characters being output;
- *    otherwise, negative value on error.
+ *    string output in case of success, a negative value otherwise.
  */
 static ssize_t syna_testing_pt11_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -1649,8 +1637,12 @@ static ssize_t syna_testing_pt11_show(struct kobject *kobj,
 	int retval, i, j;
 	short *data_ptr = NULL;
 	unsigned int count = 0;
-	struct syna_tcm *tcm = g_tcm_ptr;
+	struct device *p_dev;
+	struct syna_tcm *tcm;
 	struct tcm_buffer test_data;
+
+	p_dev = container_of(kobj->parent->parent, struct device, kobj);
+	tcm = dev_get_drvdata(p_dev);
 
 	if (!tcm->is_connected) {
 		count = scnprintf(buf, PAGE_SIZE,
@@ -1689,13 +1681,12 @@ exit:
 static struct kobj_attribute kobj_attr_pt11 =
 	__ATTR(pt11, 0444, syna_testing_pt11_show, NULL);
 
-/*
- * syna_testing_pt12()
- *
- * Sample code to perform PT12 testing
+/**
+ * @brief  Sample code to perform PT12 (PID18) testing.
  *
  * @param
  *    [ in] tcm: the driver handle
+ *    [ in] test_data: buffer stored the testing data
  *
  * @return
  *    on success, 0; otherwise, negative value on error.
@@ -1705,20 +1696,21 @@ static int syna_testing_pt12(struct syna_tcm *tcm, struct tcm_buffer *test_data)
 	int retval;
 	bool result = false;
 
-	LOGI("%s: Start testing\n", __func__);
+	LOGI("Start testing\n");
 
 	retval = syna_tcm_run_production_test(tcm->tcm_dev,
 			TEST_PID18_HYBRID_ABS_RAW,
-			test_data);
+			test_data,
+			CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to run test %d\n", TEST_PID18_HYBRID_ABS_RAW);
 		result = false;
 		goto exit;
 	}
 
-	syna_parse_test_limit_32(tcm, tcm->hw_if->pt12_high_limit_name,
+	syna_testing_parse_test_limit_32(tcm, tcm->hw_if->pt12_high_limit_name,
 			(u32*) pt12_hi_limits, tcm->tcm_dev->rows + tcm->tcm_dev->cols);
-	syna_parse_test_limit_32(tcm, tcm->hw_if->pt12_low_limit_name,
+	syna_testing_parse_test_limit_32(tcm, tcm->hw_if->pt12_low_limit_name,
 			(u32*) pt12_lo_limits, tcm->tcm_dev->rows + tcm->tcm_dev->cols);
 
 	result = syna_testing_compare_list(test_data->buf,
@@ -1728,8 +1720,10 @@ static int syna_testing_pt12(struct syna_tcm *tcm, struct tcm_buffer *test_data)
 			(const int *)&pt12_hi_limits[0],
 			(const int *)&pt12_lo_limits[0]);
 
-	if (test_data->buf != NULL)
-		syna_print_list(tcm, test_data->buf, tcm->tcm_dev->rows, tcm->tcm_dev->cols);
+	if (test_data->buf != NULL) {
+		syna_testing_print_list(tcm, test_data->buf, tcm->tcm_dev->rows,
+				tcm->tcm_dev->cols);
+	}
 
 exit:
 	LOGI("Result = %s\n", (result)?"pass":"fail");
@@ -1737,10 +1731,8 @@ exit:
 	return ((result) ? 0 : -1);
 }
 
-/*
- * syna_testing_pt12_show()
- *
- * Attribute to show the result of PT12 test to the console.
+/**
+ * @brief  Attribute to trigger the PT12 (PID18) testing.
  *
  * @param
  *    [ in] kobj:  an instance of kobj
@@ -1748,20 +1740,23 @@ exit:
  *    [out] buf:  string buffer shown on console
  *
  * @return
- *    on success, number of characters being output;
- *    otherwise, negative value on error.
+ *    string output in case of success, a negative value otherwise.
  */
 static ssize_t syna_testing_pt12_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
 	int retval, i;
 	unsigned int count = 0;
-	struct syna_tcm *tcm = g_tcm_ptr;
-	struct tcm_buffer test_data;
 	int *data_ptr = NULL;
+	struct device *p_dev;
+	struct syna_tcm *tcm;
+	struct tcm_buffer test_data;
+
+	p_dev = container_of(kobj->parent->parent, struct device, kobj);
+	tcm = dev_get_drvdata(p_dev);
 
 	if (!tcm->is_connected) {
-		count = snprintf(buf, PAGE_SIZE,
+		count = scnprintf(buf, PAGE_SIZE,
 				"Device is NOT connected\n");
 		goto exit;
 	}
@@ -1770,7 +1765,7 @@ static ssize_t syna_testing_pt12_show(struct kobject *kobj,
 
 	retval = syna_testing_pt12(tcm, &test_data);
 
-	count = snprintf(buf, PAGE_SIZE,
+	count = scnprintf(buf, PAGE_SIZE,
 			"TEST PT$12: %s\n", (retval < 0) ? "fail" : "pass");
 
 	if (test_data.buf == NULL)
@@ -1800,13 +1795,12 @@ exit:
 static struct kobj_attribute kobj_attr_pt12 =
 	__ATTR(pt12, 0444, syna_testing_pt12_show, NULL);
 
-/*
- * syna_testing_pt16()
- *
- * Sample code to perform PT16 testing
+/**
+ * @brief  Sample code to perform PT16 (PID22) testing.
  *
  * @param
  *    [ in] tcm: the driver handle
+ *    [ in] test_data: buffer stored the testing data
  *
  * @return
  *    on success, 0; otherwise, negative value on error.
@@ -1816,20 +1810,21 @@ static int syna_testing_pt16(struct syna_tcm *tcm, struct tcm_buffer *test_data)
 	int retval;
 	bool result = false;
 
-	LOGI("%s: Start testing\n", __func__);
+	LOGI("Start testing\n");
 
 	retval = syna_tcm_run_production_test(tcm->tcm_dev,
 			TEST_PID22_TRANS_CAP_RAW,
-			test_data);
+			test_data,
+			CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to run test %d\n", TEST_PID22_TRANS_CAP_RAW);
 		result = false;
 		goto exit;
 	}
 
-	syna_parse_test_limit_16(tcm, tcm->hw_if->pt16_high_limit_name,
+	syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt16_high_limit_name,
 			(u16*) pt16_hi_limits, tcm->tcm_dev->rows * tcm->tcm_dev->cols);
-	syna_parse_test_limit_16(tcm, tcm->hw_if->pt16_low_limit_name,
+	syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt16_low_limit_name,
 			(u16*) pt16_lo_limits, tcm->tcm_dev->rows * tcm->tcm_dev->cols);
 
 	result = syna_testing_compare_frame(test_data->buf,
@@ -1839,8 +1834,10 @@ static int syna_testing_pt16(struct syna_tcm *tcm, struct tcm_buffer *test_data)
 			(const short *)&pt16_hi_limits[0],
 			(const short *)&pt16_lo_limits[0]);
 
-	if (test_data->buf != NULL)
-		syna_print_frame(tcm, test_data->buf, tcm->tcm_dev->rows, tcm->tcm_dev->cols);
+	if (test_data->buf != NULL) {
+		syna_testing_print_frame(tcm, test_data->buf, tcm->tcm_dev->rows,
+				tcm->tcm_dev->cols);
+	}
 
 exit:
 	LOGI("Result = %s\n", (result)?"pass":"fail");
@@ -1848,10 +1845,8 @@ exit:
 	return ((result) ? 0 : -1);
 }
 
-/*
- * syna_testing_pt16_show()
- *
- * Attribute to show the result of PT11 test to the console.
+/**
+ * @brief  Attribute to trigger the PT16 (PID22) testing.
  *
  * @param
  *    [ in] kobj:  an instance of kobj
@@ -1859,8 +1854,7 @@ exit:
  *    [out] buf:  string buffer shown on console
  *
  * @return
- *    on success, number of characters being output;
- *    otherwise, negative value on error.
+ *    string output in case of success, a negative value otherwise.
  */
 static ssize_t syna_testing_pt16_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -1868,11 +1862,15 @@ static ssize_t syna_testing_pt16_show(struct kobject *kobj,
 	int retval, i, j;
 	short *data_ptr = NULL;
 	unsigned int count = 0;
-	struct syna_tcm *tcm = g_tcm_ptr;
+	struct device *p_dev;
+	struct syna_tcm *tcm;
 	struct tcm_buffer test_data;
 
+	p_dev = container_of(kobj->parent->parent, struct device, kobj);
+	tcm = dev_get_drvdata(p_dev);
+
 	if (!tcm->is_connected) {
-		count = snprintf(buf, PAGE_SIZE,
+		count = scnprintf(buf, PAGE_SIZE,
 				"Device is NOT connected\n");
 		goto exit;
 	}
@@ -1881,7 +1879,7 @@ static ssize_t syna_testing_pt16_show(struct kobject *kobj,
 
 	retval = syna_testing_pt16(tcm, &test_data);
 
-	count = snprintf(buf, PAGE_SIZE,
+	count = scnprintf(buf, PAGE_SIZE,
 			"TEST PT$16: %s\n", (retval < 0) ? "fail" : "pass");
 
 	if (test_data.buf == NULL)
@@ -1908,14 +1906,12 @@ exit:
 static struct kobj_attribute kobj_attr_pt16 =
 	__ATTR(pt16, 0444, syna_testing_pt16_show, NULL);
 
-
-/*
- * syna_testing_pt_tag_moisture()
- *
- * Sample code to perform Tags Moisture (RID30) testing
+/**
+ * @brief  Sample code to perform tags Moisture (RID30) testing.
  *
  * @param
  *    [ in] tcm: the driver handle
+ *    [ in] test_data: buffer stored the testing data
  *
  * @return
  *    on success, 0; otherwise, negative value on error.
@@ -1924,57 +1920,51 @@ static int syna_testing_pt_tag_moisture(struct syna_tcm *tcm, struct tcm_buffer 
 {
 	int retval;
 	bool result = false;
-	unsigned char code;
-	int attempt = 0;
 	short *data_ptr = NULL;
 	short limit;
 	int i, j, rows, cols;
+	const unsigned int REPORT_TAG_MOISTURE = 30;
 
 	rows = tcm->tcm_dev->rows;
 	cols = tcm->tcm_dev->cols;
 
-	LOGI("%s: Start testing\n", __func__);
+	LOGI("Start testing\n");
 
-	/* do test in polling; disable irq */
-	if (tcm->hw_if->ops_enable_irq)
-		tcm->hw_if->ops_enable_irq(tcm->hw_if, false);
+	syna_tcm_set_dynamic_config(tcm->tcm_dev, DC_DISABLE_DOZE, 1, CMD_RESPONSE_IN_ATTN);
 
-	syna_tcm_set_dynamic_config(tcm->tcm_dev, DC_DISABLE_DOZE, 1, RESP_IN_POLLING);
+	/* disable irq to avoid the testing data being grabbed by the interrupt context */
+	syna_tcm_enable_irq(tcm->tcm_dev, false);
 
-	retval = syna_tcm_enable_report(tcm->tcm_dev, 30, true, RESP_IN_POLLING);
+	retval = syna_tcm_enable_report(tcm->tcm_dev, REPORT_TAG_MOISTURE, true,
+			tcm->tcm_dev->msg_data.command_polling_time);
 	if (retval < 0) {
-		LOGE("Fail to enable RID30\n");
+		LOGE("Fail to enable RID%d\n", REPORT_TAG_MOISTURE);
 		result = false;
 		goto exit;
 	}
 
-	for (attempt = 0; attempt < 3; attempt++) {
-		retval = syna_tcm_get_event_data(tcm->tcm_dev, &code,
-			test_data);
-		if ((retval >= 0) && (code == 30))
-			break;
-	}
-
-	if ((retval < 0) || (code != 30)) {
-		LOGE("Fail to get a frame of RID30 to test\n");
+	retval = syna_tcm_wait_for_report(tcm->tcm_dev, REPORT_TAG_MOISTURE, test_data, 5, 500);
+	if ((retval < 0) || (test_data->data_length == 0)) {
+		LOGE("Fail to get a frame of RID%d to test\n", REPORT_TAG_MOISTURE);
 		result = false;
 		goto exit;
 	}
 
 	if (test_data->data_length % (rows * cols) != 0) {
-		LOGE("Invalid frame size of RID30, %d\n", test_data->data_length);
+		LOGE("Invalid frame size of RID%d, %d\n", REPORT_TAG_MOISTURE, test_data->data_length);
 		result = false;
 		goto exit;
 	}
 
-	retval = syna_tcm_enable_report(tcm->tcm_dev, 30, false, RESP_IN_POLLING);
+	retval = syna_tcm_enable_report(tcm->tcm_dev, REPORT_TAG_MOISTURE, false,
+			tcm->tcm_dev->msg_data.command_polling_time);
 	if (retval < 0) {
-		LOGE("Fail to disable RID30\n");
+		LOGE("Fail to disable RID%d\n", REPORT_TAG_MOISTURE);
 		result = false;
 		goto exit;
 	}
 
-	syna_parse_test_limit_16(tcm, tcm->hw_if->pt_tag_moisture_limit_name,
+	syna_testing_parse_test_limit_16(tcm, tcm->hw_if->pt_tag_moisture_limit_name,
 			(u16*) pt_moisture_limits, rows * cols);
 
 	/* compare to the limits */
@@ -1995,25 +1985,23 @@ static int syna_testing_pt_tag_moisture(struct syna_tcm *tcm, struct tcm_buffer 
 		}
 	}
 
-	if (test_data->buf != NULL)
-		syna_print_frame(tcm, test_data->buf, tcm->tcm_dev->rows, tcm->tcm_dev->cols);
+	if (test_data->buf != NULL) {
+		syna_testing_print_frame(tcm, test_data->buf, tcm->tcm_dev->rows,
+				tcm->tcm_dev->cols);
+	}
 
 exit:
-	syna_tcm_set_dynamic_config(tcm->tcm_dev, DC_DISABLE_DOZE, 0, RESP_IN_POLLING);
+	syna_tcm_enable_irq(tcm->tcm_dev, true);
+
+	syna_tcm_set_dynamic_config(tcm->tcm_dev, DC_DISABLE_DOZE, 0, CMD_RESPONSE_IN_ATTN);
 
 	LOGI("Result = %s\n", (result)?"pass":"fail");
 
-	/* recover the irq */
-	if (tcm->hw_if->ops_enable_irq)
-		tcm->hw_if->ops_enable_irq(tcm->hw_if, true);
 
 	return ((result) ? 0 : -1);
 }
-
-/*
- * syna_testing_pt_moisture_show()
- *
- * Attribute to show the result of Tags Moisture (RID30) to the console.
+/**
+ * @brief  Attribute to trigger the Tags Moisture (RID30) testing.
  *
  * @param
  *    [ in] kobj:  an instance of kobj
@@ -2021,8 +2009,7 @@ exit:
  *    [out] buf:  string buffer shown on console
  *
  * @return
- *    on success, number of characters being output;
- *    otherwise, negative value on error.
+ *    string output in case of success, a negative value otherwise.
  */
 static ssize_t syna_testing_pt_moisture_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -2030,8 +2017,12 @@ static ssize_t syna_testing_pt_moisture_show(struct kobject *kobj,
 	int retval, i, j;
 	short *data_ptr = NULL;
 	unsigned int count = 0;
-	struct syna_tcm *tcm = g_tcm_ptr;
+	struct device *p_dev;
+	struct syna_tcm *tcm;
 	struct tcm_buffer test_data;
+
+	p_dev = container_of(kobj->parent->parent, struct device, kobj);
+	tcm = dev_get_drvdata(p_dev);
 
 	if (!tcm->is_connected) {
 		count = scnprintf(buf, PAGE_SIZE,
@@ -2073,13 +2064,115 @@ exit:
 static struct kobj_attribute kobj_attr_pt_tag_moisture =
 	__ATTR(pt_moisture, 0444, syna_testing_pt_moisture_show, NULL);
 
+/*
+ * syna_testing_pt_serial_number()
+ *
+ * Sample code to perform PT Serial Number testing
+ *
+ * @param
+ *    [ in] tcm: the driver handle
+ *
+ * @return
+ *    on success, 0; otherwise, negative value on error.
+ */
+static int syna_testing_pt_serial_number(struct syna_tcm *tcm, struct tcm_buffer *test_data)
+{
+	int retval;
+	bool result = false;
+
+	LOGI("%s: Start testing\n", __func__);
+
+	retval = syna_tcm_run_production_test(tcm->tcm_dev,
+			TEST_PID92_SERIAL_NUMBER,
+			test_data,
+			CMD_RESPONSE_IN_ATTN);
+	if (retval < 0) {
+		LOGE("Fail to run test %d\n", TEST_PID92_SERIAL_NUMBER);
+		result = false;
+	}
+
+	return ((result) ? 0 : -1);
+}
+
+/*
+ * syna_testing_pt_serial_number_show()
+ *
+ * Attribute to show the result of serial number test to the console.
+ *
+ * @param
+ *    [ in] kobj:  an instance of kobj
+ *    [ in] attr:  an instance of kobj attribute structure
+ *    [out] buf:  string buffer shown on console
+ *
+ * @return
+ *    on success, number of characters being output;
+ *    otherwise, negative value on error.
+ */
+static ssize_t syna_testing_pt_serial_number_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	int retval;
+	unsigned int count = 0;
+	struct device *p_dev;
+	struct syna_tcm *tcm;
+	struct tcm_buffer test_data;
+	struct tcm_serial_number_info sn_data;
+
+	p_dev = container_of(kobj->parent->parent, struct device, kobj);
+	tcm = dev_get_drvdata(p_dev);
+
+	if (!tcm->is_connected) {
+		count = scnprintf(buf, PAGE_SIZE,
+				"Device is NOT connected\n");
+		goto exit;
+	}
+
+	syna_tcm_buf_init(&test_data);
+
+	retval = syna_testing_pt_serial_number(tcm, &test_data);
+
+	count = scnprintf(buf, PAGE_SIZE, "TEST PT Serial Number: \n");
+
+	if (test_data.buf == NULL)
+		goto free_tcm_buffer;
+
+	memcpy(&sn_data, test_data.buf, sizeof(sn_data));
+	syna_print_serial_number(tcm, &sn_data);
+
+	count += scnprintf(buf + count, PAGE_SIZE - count, "wafer lot: ");
+	count += scnprintf(buf + count, PAGE_SIZE - count, "%*ph\n",
+			(int) sizeof(sn_data.wafer_lot), sn_data.wafer_lot);
+	count += scnprintf(buf + count, PAGE_SIZE - count, "x coordinate: ");
+	count += scnprintf(buf + count, PAGE_SIZE - count, "%*ph\n",
+			(int) sizeof(sn_data.x_coordinate), sn_data.x_coordinate);
+	count += scnprintf(buf + count, PAGE_SIZE - count, "y coordinate: ");
+	count += scnprintf(buf + count, PAGE_SIZE - count, "%*ph\n",
+			(int) sizeof(sn_data.y_coordinate), sn_data.y_coordinate);
+	count += scnprintf(buf + count, PAGE_SIZE - count,
+			"{date[4] + wafer id[2]&no[2]} or {wafer id[4] + date[4]}: ");
+	count += scnprintf(buf + count, PAGE_SIZE - count, "%*ph\n",
+			(int) sizeof(sn_data.date_wafer_code), sn_data.date_wafer_code);
+
+free_tcm_buffer:
+	syna_tcm_buf_release(&test_data);
+exit:
+	return count;
+}
+
+static struct kobj_attribute kobj_attr_pt_serial_number =
+	__ATTR(pt_serial_number, 0444, syna_testing_pt_serial_number_show, NULL);
+
 static ssize_t syna_testing_test_setup_store(struct kobject *kobj,
 		struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int retval = 0;
 	unsigned char input;
-	struct syna_tcm *tcm = g_tcm_ptr;
+	struct device *p_dev;
+	struct syna_tcm *tcm;
 	bool test_setup = false;
+
+	p_dev = container_of(kobj->parent->parent, struct device, kobj);
+	tcm = dev_get_drvdata(p_dev);
 
 	if (kstrtou8(buf, 16, &input))
 		return -EINVAL;
@@ -2107,10 +2200,10 @@ static ssize_t syna_testing_test_setup_store(struct kobject *kobj,
 
 	if (test_setup) {
 		retval = syna_tcm_enable_report(tcm->tcm_dev,
-			REPORT_FW_STATUS, false, RESP_IN_POLLING);
+			REPORT_FW_STATUS, false, CMD_RESPONSE_IN_ATTN);
 	} else {
 		retval = syna_tcm_enable_report(tcm->tcm_dev,
-			REPORT_FW_STATUS, true, RESP_IN_POLLING);
+			REPORT_FW_STATUS, true, CMD_RESPONSE_IN_ATTN);
 	}
 
 	if (retval < 0) {
@@ -2128,9 +2221,7 @@ exit:
 static struct kobj_attribute kobj_attr_test_setup =
 	__ATTR(test_setup, 0220, NULL, syna_testing_test_setup_store);
 
-/*
- * declaration of sysfs attributes
- */
+ /* Definitions of sysfs attributes for testing */
 static struct attribute *attrs[] = {
 	&kobj_attr_check_id.attr,
 	&kobj_attr_pt01.attr,
@@ -2142,6 +2233,7 @@ static struct attribute *attrs[] = {
 	&kobj_attr_pt12.attr,
 	&kobj_attr_pt16.attr,
 	&kobj_attr_pt_tag_moisture.attr,
+	&kobj_attr_pt_serial_number.attr,
 	&kobj_attr_test_setup.attr,
 	NULL,
 };
@@ -2264,40 +2356,26 @@ static int syna_selftest(void *private_data, struct gti_selftest_cmd *cmd)
 }
 #endif
 
-/*
- * syna_testing_create_dir()
- *
- * Create a directory and register it with sysfs.
- * Then, create all defined sysfs files.
+/**
+ * @brief  Register sysfs attributes for testing.
  *
  * @param
  *    [ in] tcm:  the driver handle
- *    [ in] sysfs_dir: root directory of sysfs nodes
+ *    [ in] sysfs_dir: directory of sysfs attributes
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_testing_create_dir(struct syna_tcm *tcm,
-		struct kobject *sysfs_dir)
+int syna_testing_register_attributes(struct syna_tcm *tcm, struct kobject *sysfs_dir)
 {
-	int retval = 0;
+	int retval;
 
-	g_testing_dir = kobject_create_and_add("testing",
-			sysfs_dir);
-	if (!g_testing_dir) {
-		LOGE("Fail to create testing directory\n");
-		return -EINVAL;
-	}
-
-	retval = sysfs_create_group(g_testing_dir, &attr_testing_group);
+	retval = sysfs_create_group(sysfs_dir, &attr_testing_group);
 	if (retval < 0) {
-		LOGE("Fail to create sysfs group\n");
-
-		kobject_put(g_testing_dir);
+		LOGE("Fail to create sysfs group for testing\n");
 		return retval;
 	}
 
-	g_tcm_ptr = tcm;
 
 #if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
 	tcm->selftest = syna_selftest;
@@ -2305,22 +2383,18 @@ int syna_testing_create_dir(struct syna_tcm *tcm,
 
 	return 0;
 }
-/*
- *syna_testing_remove_dir()
- *
- * Remove the allocate sysfs directory
+/**
+ * @brief  Remove a directory allocated previously.
  *
  * @param
- *    none
+ *    [ in] sysfs_dir: directory of sysfs attributes
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-void syna_testing_remove_dir(void)
+int syna_testing_remove_attributes(struct kobject *sysfs_dir)
 {
-	if (g_testing_dir) {
-		sysfs_remove_group(g_testing_dir, &attr_testing_group);
+	sysfs_remove_group(sysfs_dir, &attr_testing_group);
 
-		kobject_put(g_testing_dir);
-	}
+	return 0;
 }

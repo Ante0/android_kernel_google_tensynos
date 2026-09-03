@@ -1,0 +1,320 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2024 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/pinctrl/google,pinctrl.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google Pin and GPIO Controller
+
+maintainers:
+  - Aakriti Tulika <aakrititulika@google.com>
+
+description:
+  Defines pin configurations for on-chip peripherals (SPI, I2C, UART)
+  and GPIOs. Includes properties for pull settings, drive strength,
+  and interrupt configuration.
+
+properties:
+  compatible:
+   description: google,{soc}-{sswrp-name}-pincrl"
+
+  reg:
+    description: |
+      This property is a list of cells that specify the memory-mapped register
+      region for this device which include base address, size of the region in bytes.
+
+  "gpio-controller":
+    description: |
+      Indicates that this node represents a GPIO controller. This property is
+      required for all nodes describing GPIO controllers.
+
+  gpio-ranges:
+    description: |
+      Defines the address ranges in memory where the GPIO controller's registers
+      are mapped.  Each range is specified as a tuple of (phandle, base address, address
+      cells, length).
+
+  "#gpio-cells":
+    description: |
+      The number of cells used to represent a single GPIO reference within child
+      nodes of this GPIO controller
+
+  gpio-reserved-ranges:
+    description: |
+      Specifies memory ranges within the GPIO controller containing GPIOs reserved
+      for specific purposes and not available for general use.  Each reserved range
+      is specified as a tuple of (starting GPIO number, count of reserved GPIOs).
+
+  clocks:
+    maxItems: 1
+    description: |
+      This node defines the available clock sources. Each clock source is represented
+      by a subnode with specific properties depending on the clock driver in use.
+
+  clock-names:
+    maxItems: 1
+    description: |
+      This property specifies the name of the clock source required by this device
+      for proper operation.
+
+  power-domains:
+    description: |
+      This property is a list of references to power domain entries. Each
+      reference points to a subnode within the power-controller node
+      that describes a specific power domain.
+
+  power-domain-names:
+    description: |
+      This property is a list of human-readable names that correspond to the
+      power domains listed in the power-domains property. The order of entries
+      in this list should strictly match the order of references in
+      power-domains.
+
+  interrupt-controller:
+    description: |
+      This node represents an interrupt controller. It is responsible for
+      receiving interrupt requests from various devices and delivering
+      them to the source for handling.
+
+  runtime-pm-capable:
+    description: |
+      This property signifies that the pinctrl device is capable of being
+      runtime suspended
+
+  "#interrupt-cells":
+    enum:
+      - 1
+      - 2
+    description: |
+      The #interrupt-cells property is set to 1 and the single cell defines the
+      index of the interrupt within the controller.
+      The "#interrupt-cells" property is set to 2 and the first cell defines the
+      index of the interrupt within the controller, while the second cell is used
+      to specify trigger type.
+
+  interrupts:
+    description: |
+      This property specify the interrupt configurations for child nodes.
+      It uses an array of cells to define the interrupt controller,
+      interrupt line, and optionally the interrupt type.
+
+  interrupts-extended:
+    description: |
+      Each entry within this property is a tuple containing a phandle referencing
+      a specific interrupt controller node, interrupt line and interrupt type.
+
+  irq-pad-mapping:
+    description: Map 1:1 to pad and interrupts-extended info.
+
+  gia-routed-shared-irq:
+    description: |
+      Specifies which IRQs are routed via GIA and shared with remote subsystems.
+      For these pins, disable_irq will only mask the parent GIA input to
+      maintain signal visibility for concurrent monitoring.
+
+  pinctrl-0:
+    description: |
+      List of phandles, each pointing at a pin configuration node
+
+  pinctrl-n:
+    description: |
+      List of phandles, each pointing at a pin configuration
+      node within a pin controller.
+
+  pinctrl-names:
+    description: |
+      The list of names to assign states. List entry 0 defines the name for
+      integer state ID 0, list entry 1 for state ID 1, and so on.
+      pinctrl-names = "active", "idle";
+
+  # Dt Properties to set pin_config
+  bias-disable:
+    description: |
+      Disable any bias on the pin.
+      PUPD = open
+
+  bias-pull-down:
+    description: |
+      The pin will be pulled down.
+
+  bias-pull-up:
+    description: |
+      The pin will be pulled up.
+
+  drive-open-drain:
+    description: |
+      The pin will be in open-drain mode.
+
+  drive-push-pull:
+    description: |
+      The pin will be in push-pull mode.
+
+  drive-strength:
+    description: |
+      The pin will adjust driver strength as passed in arg.
+      Can be 3 bit or 4 bit.
+
+  slew-rate:
+    description: |
+      Enable/Disable slew mode of the pin.
+
+  input-enable:
+    description: |
+      Enable the pin's input.
+
+  input-schmitt-enable:
+    description: |
+      Enable schmitt trigger mode of a pin.
+
+  input-schmitt-disable:
+    description: |
+      Disable schmitt trigger mode of a pin.
+
+  output-low:
+    description: |
+      Set a pin in output mode along with an output value low.
+
+  output-high:
+    description: |
+      Set a pin in output mode along with an output value high.
+
+  output-enable:
+    description: |
+      Enable output mode of a pin.
+
+  output-disable:
+    description: |
+      Disable output mode of a pin.
+
+required:
+  - compatible
+  - reg
+  - interrupt-controller
+  - "#interrupt-cells"
+  - interrupts
+  - irq-pad-mapping
+
+additionalProperties: false
+
+examples:
+  - |
+    lsioe_pinctrl: pinctrl@3A200000 {
+
+      compatible = "google,lga-lsioe-pinctrl";
+      reg = <0 0x3A200000 0 0x20000>;
+
+      gpio-controller;
+      gpio-ranges = <&lsioe_pinctrl 0 0 32>;
+      #gpio-cells = <2>;
+
+      clocks = <&lsioe_gpio_clk>;
+      clock-names = "gpio_clk";
+
+      power-domains = <&lsio_e_cli_gpio_pd>,<&sswrp_lsio_e_pd>;
+      power-domain-names="csr_access_pd","pad_function_pd";
+
+      interrupt-controller;
+      #interrupt-cells = <2>;
+
+      interrupts-extended = <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI7_PIN0_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI7_PIN1_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI7_PIN2_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI7_PIN3_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI8_PIN0_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI8_PIN1_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI8_PIN2_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI8_PIN3_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI13_PIN0_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI13_PIN1_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI13_PIN2_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI13_PIN3_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI9_PIN0_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI9_PIN1_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI9_PIN2_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI9_PIN3_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI10_PIN0_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI10_PIN1_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI10_PIN2_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI10_PIN3_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI11_PIN0_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI11_PIN1_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI11_PIN2_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI11_PIN3_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI12_PIN0_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI12_PIN1_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI12_PIN2_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI12_PIN3_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI14_PIN0_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI14_PIN1_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI14_PIN2_IRQ>,
+                            <&lsioe_level_aggr_0_intr SSWRP_LSIOE_LEVEL_AGGR0_U_LSIOE_IOBANK_XLSIOE_CLI14_PIN3_IRQ>;
+
+    irq-pad-mapping = <XLSIOE_CLI7_PIN0>,
+                      <XLSIOE_CLI7_PIN1>,
+                      <XLSIOE_CLI7_PIN2>,
+                      <XLSIOE_CLI7_PIN3>,
+                      <XLSIOE_CLI8_PIN0>,
+                      <XLSIOE_CLI8_PIN1>,
+                      <XLSIOE_CLI8_PIN2>,
+                      <XLSIOE_CLI8_PIN3>,
+                      <XLSIOE_CLI13_PIN0>,
+                      <XLSIOE_CLI13_PIN1>,
+                      <XLSIOE_CLI13_PIN2>,
+                      <XLSIOE_CLI13_PIN3>,
+                      <XLSIOE_CLI9_PIN0>,
+                      <XLSIOE_CLI9_PIN1>,
+                      <XLSIOE_CLI9_PIN2>,
+                      <XLSIOE_CLI9_PIN3>,
+                      <XLSIOE_CLI10_PIN0>,
+                      <XLSIOE_CLI10_PIN1>,
+                      <XLSIOE_CLI10_PIN2>,
+                      <XLSIOE_CLI10_PIN3>,
+                      <XLSIOE_CLI11_PIN0>,
+                      <XLSIOE_CLI11_PIN1>,
+                      <XLSIOE_CLI11_PIN2>,
+                      <XLSIOE_CLI11_PIN3>,
+                      <XLSIOE_CLI12_PIN0>,
+                      <XLSIOE_CLI12_PIN1>,
+                      <XLSIOE_CLI12_PIN2>,
+                      <XLSIOE_CLI12_PIN3>,
+                      <XLSIOE_CLI14_PIN0>,
+                      <XLSIOE_CLI14_PIN1>,
+                      <XLSIOE_CLI14_PIN2>,
+                      <XLSIOE_CLI14_PIN3>;
+
+    //CLI 7
+    cli7_2_wire_func: cli7_2_wire_func {
+      pins = "XLSIOE_CLI7_PIN0",
+             "XLSIOE_CLI7_PIN1";
+      function = "lsioe_cli7";
+      output-enable;
+      };
+    cli7_spi_clk_mosi_miso_func: cli7_spi_clk_mosi_miso_func {
+      pins = "XLSIOE_CLI7_PIN0",
+             "XLSIOE_CLI7_PIN1",
+             "XLSIOE_CLI7_PIN2";
+      function = "lsioe_cli7";
+      output-enable;
+      };
+    cli7_4_wire_sleep: cli7_4_wire_sleep {
+       pins = "XLSIOE_CLI7_PIN0",
+              "XLSIOE_CLI7_PIN1",
+              "XLSIOE_CLI7_PIN2";
+              "XLSIOE_CLI7_PIN3";
+      function = "lsioe_cli7";
+      drive-open-drain;
+      };
+    };
+
+    //client node
+    lsioe_cli7_spi: spi@3a301000 {
+      compatible = "google,spi";
+      ....
+
+      pinctrl-0 = <&cli7_spi_clk_mosi_miso_func>;
+      pinctrl-1 = <&cli7_4_wire_sleep>;
+
+      pinctrl-names = "default", "sleep";
+
+    };

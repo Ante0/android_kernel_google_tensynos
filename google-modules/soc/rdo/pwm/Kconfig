@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config FARADAY_PWM
+	tristate "Faraday PWM Controller Driver Support"
+	depends on ARCH_GOOGLE
+	depends on PWM
+	help
+	  Enable support for the PWM controller
+	  on Google devices.
+	  Select Y if you have such device.
+	  If unsure select "N".

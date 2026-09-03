@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * MBU platform common - AUX eUSB2 repeater devicetree config
+ *
+ * Copyright 2025 Google LLC.
+ */
+
+&lsios_i2c4 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	aux_eusb2_repeater: tiusb2e11@3E {
+		status = "okay";
+		compatible = "goog-eusb2-repeater";
+		reg = <0x3E>;
+		vdd33-supply = <&ldo_19m_reg>;
+		vdd18-supply = <&buck_12s_reg>;
+		vdd_reset-supply = <&ldo_12s_reg>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ap2eusbaux_reset_l_1v2>;
+		usb-role-switch;
+		role-switch-default-mode = "none";
+	};
+};

@@ -52,6 +52,7 @@
 
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/regulator/consumer.h>
 
 #ifdef KERNEL_ABOVE_2_6_38
@@ -60,8 +61,8 @@
 
 #include <drm/drm_panel.h>
 #include <video/display_timing.h>
-#include <samsung/exynos_drm_connector.h>
-#include <samsung/panel/panel-samsung-drv.h>
+#include <exynos_drm_connector.h>
+#include <panel/panel-samsung-drv.h>
 
 #include "fts.h"
 #include "fts_lib/ftsCompensation.h"
@@ -130,7 +131,7 @@ static void fts_offload_push_coord_frame(struct fts_ts_info *info);
   * Release all the touches in the linux input subsystem
   * @param info pointer to fts_ts_info which contains info about device/hw setup
   */
-void release_all_touches(struct fts_ts_info *info)
+static void release_all_touches(struct fts_ts_info *info)
 {
 	unsigned int type = MT_TOOL_FINGER;
 	int i;
@@ -575,7 +576,7 @@ END:
   * @return OK if is possible to enable/disable feature, ERROR_OP_NOT_ALLOW
   * in case of any other conflict
   */
-int check_feature_feasibility(struct fts_ts_info *info, unsigned int feature)
+static int check_feature_feasibility(struct fts_ts_info *info, unsigned int feature)
 {
 	int res = OK;
 
@@ -2938,7 +2939,7 @@ static struct attribute *fts_attr_group[] = {
   * and its hw setup
   * @param key_code	button value
   */
-void fts_input_report_key(struct fts_ts_info *info, int key_code)
+static void __maybe_unused fts_input_report_key(struct fts_ts_info *info, int key_code)
 {
 	mutex_lock(&info->input_report_mutex);
 	input_report_key(info->input_dev, key_code, 1);
@@ -4158,7 +4159,7 @@ static int update_motion_filter(struct fts_ts_info *info,
 	return 0;
 }
 
-int fts_enable_grip(struct fts_ts_info *info, bool enable)
+static int fts_enable_grip(struct fts_ts_info *info, bool enable)
 {
 	uint8_t enable_cmd[] = {
 		0xC0, 0x03, 0x10, 0xFF, 0x03, 0x00, 0x00, 0x00, 0x00};
@@ -4344,7 +4345,7 @@ static void fts_populate_mutual_channel(struct fts_ts_info *info,
 						x_val * max_y + y_val];
 
 				((uint16_t *)
-				 mutual_strength->data)[frame_index++] =
+				 mutual_strength->data_flex)[frame_index++] =
 				    heatmap_value;
 			}
 		}
@@ -4352,7 +4353,7 @@ static void fts_populate_mutual_channel(struct fts_ts_info *info,
 
 	if (data_type == MS_STRENGTH) {
 		fts_update_v4l2_mutual_strength(info, max_x, max_y,
-		    (int16_t *) mutual_strength->data);
+		    (int16_t *) mutual_strength->data_flex);
 	}
 
 	kfree(ms_frame.node_data);
@@ -4408,8 +4409,8 @@ static void fts_populate_self_channel(struct fts_ts_info *info,
 			rx_src = ss_frame.sense_data;
 		}
 		/* tx, rx data order is fixed in TouchOffloadData1d */
-		tx_dst = (uint16_t *)self_strength->data;
-		rx_dst = (uint16_t *)&self_strength->data[
+		tx_dst = (uint16_t *)self_strength->data_flex;
+		rx_dst = (uint16_t *)&self_strength->data_flex[
 					2 * self_strength->tx_size];
 
 		/* If the tx data is flipped, copy in left-to-right order */
@@ -5198,7 +5199,7 @@ static void fts_fw_update_auto(struct work_struct *work)
  *  Save the golden MS raw data to the touch IC if firmware has separated it
  *  from the PI process.
  */
-int save_golden_ms_raw(struct fts_ts_info *info)
+static int __maybe_unused save_golden_ms_raw(struct fts_ts_info *info)
 {
 	u8 cmd[3] = {0xC0, 0x01, 0x01};
 	int ret = 0;
@@ -5941,7 +5942,7 @@ int fts_set_bus_ref(struct fts_ts_info *info, u16 ref, bool enable)
 	return result;
 }
 
-struct drm_connector *get_bridge_connector(struct drm_bridge *bridge)
+static struct drm_connector *get_bridge_connector(struct drm_bridge *bridge)
 {
 	struct drm_connector *connector;
 	struct drm_connector_list_iter conn_iter;
@@ -6417,20 +6418,18 @@ static int parse_dt(struct device *dev, struct fts_hw_platform_data *bdata)
 	bdata->switch_gpio = of_get_named_gpio(np, "st,switch_gpio", 0);
 	dev_info(dev, "switch_gpio = %d\n", bdata->switch_gpio);
 
-	bdata->irq_gpio = of_get_named_gpio_flags(np, "st,irq-gpio", 0, NULL);
+	bdata->irq_gpio = of_get_named_gpio(np, "st,irq-gpio", 0);
 	dev_info(dev, "irq_gpio = %d\n", bdata->irq_gpio);
 
 	if (of_property_read_bool(np, "st,reset-gpio")) {
-		bdata->reset_gpio = of_get_named_gpio_flags(np,
-							    "st,reset-gpio", 0,
-							    NULL);
+		bdata->reset_gpio = of_get_named_gpio(np, "st,reset-gpio", 0);
 		dev_info(dev, "reset_gpio = %d\n", bdata->reset_gpio);
 	} else
 		bdata->reset_gpio = GPIO_NOT_DEFINED;
 
 	if (of_property_read_bool(np, "st,disp-rate-gpio")) {
 		bdata->disp_rate_gpio =
-		    of_get_named_gpio_flags(np, "st,disp-rate-gpio", 0, NULL);
+		    of_get_named_gpio(np, "st,disp-rate-gpio", 0);
 		dev_info(dev, "disp_rate_gpio = %d\n", bdata->disp_rate_gpio);
 	} else
 		bdata->disp_rate_gpio = GPIO_NOT_DEFINED;

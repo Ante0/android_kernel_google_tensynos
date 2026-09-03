@@ -144,7 +144,7 @@ static int amdgpu_gtt_mgr_new(struct ttm_resource_manager *man,
 		node->base.start = node->mm_nodes[0].start;
 	} else {
 		node->mm_nodes[0].start = 0;
-		node->mm_nodes[0].size = node->base.num_pages;
+		node->mm_nodes[0].size = PFN_UP(node->base.size);
 		node->base.start = AMDGPU_BO_INVALID_OFFSET;
 	}
 
@@ -200,8 +200,6 @@ void amdgpu_gtt_mgr_recover(struct amdgpu_gtt_mgr *mgr)
 		amdgpu_ttm_recover_gart(node->base.bo);
 	}
 	spin_unlock(&mgr->lock);
-
-	amdgpu_gart_invalidate_tlb(adev);
 }
 
 /**

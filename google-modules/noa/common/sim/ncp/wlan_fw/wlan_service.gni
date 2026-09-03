@@ -1,0 +1,89 @@
+import("//build_overrides/noa.gni")
+import("//build_overrides/pigweed.gni")
+
+import("$dir_pw_build/target_types.gni")
+import("$dir_pw_unit_test/test.gni")
+
+declare_args() {
+  dir_wlan_fw = "$dir_noa_packages/noa_common/sim/ncp/wlan_fw"
+  wlan_force_flush_tx_payload_ENABLE = false
+  wlan_pcie_support_ENABLE = false
+  wlan_tx_pktid_audit_ENABLE = true
+}
+
+template("wlan_source_set") {
+  pw_source_set(target_name) {
+    include_dirs = [ "$dir_wlan_fw" ]
+
+    if (defined(invoker.include_dirs)) {
+      include_dirs += invoker.include_dirs
+    }
+
+    defines = [
+      "CONFIG_NOA_WLAN_BRCM_SUPPORT_PW",
+      "CONFIG_NOA_WLAN_FAKE_BRCM_SUPPORT_PW",
+      "CONFIG_NOA_WLAN_PACKET_SNIFFER_SUPPORT_PW",
+      "CONFIG_NOA_WLAN_QCA_SUPPORT_PW",
+      "PW_LOG_MODULE_NAME=\"WLAN\"",
+    ]
+
+    if (defined(invoker.defines)) {
+      defines += invoker.defines
+    }
+
+    if (wlan_force_flush_tx_payload_ENABLE) {
+      defines += [ "CONFIG_NOA_WLAN_FORECE_FLUSH_TX_PAYLOAD_PW" ]
+    }
+
+    if (wlan_pcie_support_ENABLE) {
+      defines += [ "CONFIG_NOA_WLAN_PCIE_SUPPORT_PW" ]
+    }
+
+    if (wlan_tx_pktid_audit_ENABLE) {
+      defines += [
+        "CONFIG_NOA_WLAN_TX_PKTID_AUDIT_PW",
+        "CONFIG_NOA_WLAN_MAX_TX_PKTID=0xB000",
+      ]
+    }
+
+    forward_variables_from(invoker,
+                           "*",
+                           [
+                             "include_dirs",
+                             "defines",
+                           ])
+  }
+}
+
+template("wlan_test") {
+  pw_test(target_name) {
+    include_dirs = [ "$dir_wlan_fw" ]
+
+    if (defined(invoker.include_dirs)) {
+      include_dirs += invoker.include_dirs
+    }
+
+    defines = [
+      "CONFIG_NOA_WLAN_BRCM_SUPPORT_PW",
+      "CONFIG_NOA_WLAN_FAKE_BRCM_SUPPORT_PW",
+      "CONFIG_NOA_WLAN_PACKET_SNIFFER_SUPPORT_PW",
+    ]
+
+    if (defined(invoker.defines)) {
+      defines += invoker.defines
+    }
+
+    forward_variables_from(invoker,
+                           "*",
+                           [
+                             "include_dirs",
+                             "defines",
+                           ])
+  }
+}
+
+template("wlan_test_group") {
+  pw_test_group(target_name) {
+    forward_variables_from(invoker, "*")
+  }
+}

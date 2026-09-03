@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (C) 2017-2021 NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (C) 2017-2026 NVIDIA CORPORATION.  All rights reserved.
  */
 
 #include <linux/io.h>
 #include <linux/iommu.h>
 #include <linux/module.h>
 #include <linux/mod_devicetable.h>
-#include <linux/of_device.h>
+#include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 
 #include <soc/tegra/mc.h>
@@ -25,11 +26,24 @@
 static int tegra186_mc_probe(struct tegra_mc *mc)
 {
 	struct platform_device *pdev = to_platform_device(mc->dev);
+	struct resource *res;
 	unsigned int i;
 	char name[8];
 	int err;
 
-	mc->bcast_ch_regs = devm_platform_ioremap_resource_byname(pdev, "broadcast");
+	/*
+	 * From Tegra264, the SID region is not present in MC node and BROADCAST is first.
+	 * The common function 'tegra_mc_probe()' already maps first region entry from DT.
+	 * Check if the SID region is present in DT then map BROADCAST. Otherwise, consider
+	 * the first entry mapped in mc probe as the BROADCAST region. This is done to avoid
+	 * mapping the region twice when SID is not present and keep backward compatibility.
+	 */
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "sid");
+	if (res)
+		mc->bcast_ch_regs = devm_platform_ioremap_resource_byname(pdev, "broadcast");
+	else
+		mc->bcast_ch_regs = mc->regs;
+
 	if (IS_ERR(mc->bcast_ch_regs)) {
 		if (PTR_ERR(mc->bcast_ch_regs) == -EINVAL) {
 			dev_warn(&pdev->dev,
@@ -113,9 +127,12 @@ static void tegra186_mc_client_sid_override(struct tegra_mc *mc,
 static int tegra186_mc_probe_device(struct tegra_mc *mc, struct device *dev)
 {
 #if IS_ENABLED(CONFIG_IOMMU_API)
-	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(dev);
 	struct of_phandle_args args;
 	unsigned int i, index = 0;
+	u32 sid;
+
+	if (!tegra_dev_iommu_get_stream_id(dev, &sid))
+		return 0;
 
 	while (!of_parse_phandle_with_args(dev->of_node, "interconnects", "#interconnect-cells",
 					   index, &args)) {
@@ -123,11 +140,10 @@ static int tegra186_mc_probe_device(struct tegra_mc *mc, struct device *dev)
 			for (i = 0; i < mc->soc->num_clients; i++) {
 				const struct tegra_mc_client *client = &mc->soc->clients[i];
 
-				if (client->id == args.args[0]) {
-					u32 sid = fwspec->ids[0] & MC_SID_STREAMID_OVERRIDE_MASK;
-
-					tegra186_mc_client_sid_override(mc, client, sid);
-				}
+				if (client->id == args.args[0])
+					tegra186_mc_client_sid_override(
+						mc, client,
+						sid & MC_SID_STREAMID_OVERRIDE_MASK);
 			}
 		}
 
@@ -138,11 +154,26 @@ static int tegra186_mc_probe_device(struct tegra_mc *mc, struct device *dev)
 	return 0;
 }
 
+static int tegra186_mc_resume(struct tegra_mc *mc)
+{
+#if IS_ENABLED(CONFIG_IOMMU_API)
+	unsigned int i;
+
+	for (i = 0; i < mc->soc->num_clients; i++) {
+		const struct tegra_mc_client *client = &mc->soc->clients[i];
+
+		tegra186_mc_client_sid_override(mc, client, client->sid);
+	}
+#endif
+
+	return 0;
+}
+
 const struct tegra_mc_ops tegra186_mc_ops = {
 	.probe = tegra186_mc_probe,
 	.remove = tegra186_mc_remove,
+	.resume = tegra186_mc_resume,
 	.probe_device = tegra186_mc_probe_device,
-	.handle_irq = tegra30_mc_handle_irq,
 };
 
 #if defined(CONFIG_ARCH_TEGRA_186_SOC)
@@ -870,17 +901,30 @@ static const struct tegra_mc_client tegra186_mc_clients[] = {
 	},
 };
 
+static const struct tegra_mc_intmask tegra186_mc_intmasks[] = {
+	{
+		.reg = MC_INTMASK,
+		.mask = MC_INT_DECERR_GENERALIZED_CARVEOUT | MC_INT_DECERR_MTS |
+			MC_INT_SECERR_SEC | MC_INT_DECERR_VPR |
+			MC_INT_SECURITY_VIOLATION | MC_INT_DECERR_EMEM,
+	},
+};
+
 const struct tegra_mc_soc tegra186_mc_soc = {
 	.num_clients = ARRAY_SIZE(tegra186_mc_clients),
 	.clients = tegra186_mc_clients,
 	.num_address_bits = 40,
 	.num_channels = 4,
 	.client_id_mask = 0xff,
-	.intmask = MC_INT_DECERR_GENERALIZED_CARVEOUT | MC_INT_DECERR_MTS |
-		   MC_INT_SECERR_SEC | MC_INT_DECERR_VPR |
-		   MC_INT_SECURITY_VIOLATION | MC_INT_DECERR_EMEM,
+	.intmasks = tegra186_mc_intmasks,
+	.num_intmasks = ARRAY_SIZE(tegra186_mc_intmasks),
 	.ops = &tegra186_mc_ops,
 	.ch_intmask = 0x0000000f,
 	.global_intstatus_channel_shift = 0,
+	.regs = &tegra20_mc_regs,
+	.handle_irq = tegra30_mc_irq_handlers,
+	.num_interrupts = ARRAY_SIZE(tegra30_mc_irq_handlers),
+	.mc_addr_hi_mask = 0x3,
+	.mc_err_status_type_mask = (0x7 << 28),
 };
 #endif

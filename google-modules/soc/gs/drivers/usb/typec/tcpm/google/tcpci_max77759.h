@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright 2019 Google LLC
- *
+ * API common between SPMI & I2C MAX77759 Type-C Drivers.
  */
 
 #ifndef __TCPCI_MAX77759_H
@@ -14,6 +14,7 @@
 #include <linux/usb/tcpm.h>
 #include <linux/gpio.h>
 #include <linux/gpio/driver.h>
+#include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 #include <linux/usb/role.h>
 #include <linux/usb/typec_mux.h>
@@ -22,6 +23,15 @@
 #include "google_tcpci_shim.h"
 #include "usb_psy.h"
 
+#define TCPC_RECEIVE_BUFFER_METADATA_SIZE               2
+#define TCPC_RECEIVE_BUFFER_COUNT_OFFSET                0
+#define TCPC_RECEIVE_BUFFER_FRAME_TYPE_OFFSET           1
+#define TCPC_RECEIVE_BUFFER_RX_BYTE_BUF_OFFSET          2
+
+#define COMBINED_ROLE_VOTABLE				"COMB_ROLE_VOTABLE"
+#define TCPCI_VOTER					"TCPCI_VOTER"
+#define POGO_VOTER					"POGO_VOTER"
+
 struct gvotable_election;
 struct logbuffer;
 struct max777x9_contaminant;
@@ -29,12 +39,16 @@ struct max77759_compliance_warnings;
 struct google_shim_tcpci_data;
 struct max77759_io_error;
 
+typedef int (*enable_otg_direct)(struct max77759_plat *chip, bool en);
+
 struct max77759_plat {
 	struct google_shim_tcpci_data data;
 	struct google_shim_tcpci *tcpci;
 	struct device *dev;
 	struct bc12_status *bc12;
-	struct i2c_client *client;
+	void *client;
+	/* Client callback to enable OTG */
+	enable_otg_direct client_otg_cb;
 	struct power_supply *usb_psy;
 	struct power_supply *tcpm_psy;
 	struct max777x9_contaminant *contaminant;
@@ -42,6 +56,8 @@ struct max77759_plat {
 	struct gvotable_election *usb_icl_el;
 	struct gvotable_election *charger_mode_votable;
 	struct gvotable_election *bcl_usb_votable;
+	struct gvotable_election *usb_data_role_votable;
+	struct gvotable_election *comb_role_votable;
 	bool vbus_enabled;
 	/* Data role notified to the data stack */
 	enum typec_data_role active_data_role;
@@ -79,15 +95,17 @@ struct max77759_plat {
 	unsigned int vbus_mv;
 	/* USB Data notification */
 	struct extcon_dev *extcon;
+	struct typec_switch *orientation_sw;
 	bool no_bc_12;
 	/* Platform does not support external boost */
 	bool no_external_boost;
 	struct tcpm_port *port;
 	struct usb_psy_ops psy_ops;
 	/* toggle in_switch to kick debug accessory statemachine when already connected */
-	int in_switch_gpio;
-	int sbu_mux_en_gpio;
-	int sbu_mux_sel_gpio;
+	struct gpio_desc *in_switch_gpio;
+	struct gpio_desc *sbu_mux_en_gpio;
+	struct gpio_desc *sbu_mux_sel_gpio;
+	struct gpio_desc *vbus_dis_gpio;
 	/* 0:active_low 1:active_high */
 	bool in_switch_gpio_active_high;
 	bool first_toggle;
@@ -171,6 +189,7 @@ struct max77759_plat {
 	struct kthread_delayed_work reset_ovp_work;
 	struct kthread_delayed_work check_missing_rp_work;
 	struct kthread_delayed_work bcl_usb_votable_work;
+	struct kthread_delayed_work vbus_dis_work;
 	u8 bcl_usb_vote;
 
 	/* Notifier for data role */
@@ -179,6 +198,9 @@ struct max77759_plat {
 	struct typec_switch_dev *typec_sw;
 	/* mode mux */
 	struct typec_mux_dev *mode_mux;
+	unsigned long mode_mux_value;
+	/* mode mux for combo phy driver */
+	struct typec_mux *phy_mux;
 	/* Cache orientation for dp */
 	enum typec_orientation orientation;
 	/* Cache the number of lanes */
@@ -236,18 +258,44 @@ struct max77759_plat {
 	ktime_t first_toggle_time_since_boot;
 
 	/* EXT_BST_EN exposed as GPIO */
-#ifdef CONFIG_GPIOLIB
 	struct gpio_chip gpio;
-#endif
 
 	struct logbuffer *log;
 
 	u8 force_device_mode_on:1;
+
+	/*
+	 * Directly vote for vbus out when GBMS_MODE_VOTABLE is not found.
+	 * Meant to be used during bring-up.
+	 * Add enable-otg-direct dts property.
+	 */
+	bool enable_otg_direct;
+
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *dentry;
 #endif
 
 	struct wakeup_source *cc_toggle_ws;
+};
+
+/**
+ * struct max777x9_desc: Description of a MAX777x9 chip required for populating driver data.
+ * @dev: Required; pointer to struct device.
+ * @rmap: Required; pointer to regmap handler.
+ * @client: Required; pointer to client device.
+ * @plat: Optional; pointer to max77759 driver structure. This field is
+ *	  populated by the callee.
+ * @rx: required; RX handler for receiving PD message.
+ * @tx: optional; TX handler for sending PD message.
+ */
+struct max777x9_desc {
+	struct device *dev;
+	struct regmap *rmap;
+	void *client;
+	struct max77759_plat *plat;
+	int (*rx)(struct google_shim_tcpci *tcpci, u8 *buf, size_t size);
+	int (*tx)(struct google_shim_tcpci *tcpci, enum tcpm_transmit_type type,
+		  const struct pd_message *msg, unsigned int negotiated_rev);
 };
 
 /*
@@ -263,11 +311,20 @@ void register_tcpc(struct max77759_usb *usb, struct max77759_plat *chip);
 #define VBUS_HI_HEADROOM_MV		500
 #define VBUS_LO_MV			4500
 
+#define MAX77759_DEVICE_ID_A1 0x2
+#define MAX77759_PRODUCT_ID 0x59
+#define MAX77779_PRODUCT_ID 0x79
+
 enum tcpm_psy_online_states {
 	TCPM_PSY_OFFLINE = 0,
 	TCPM_PSY_FIXED_ONLINE,
 	TCPM_PSY_PROG_ONLINE,
 };
+
+int max77759_register(struct max777x9_desc *desc, enable_otg_direct client_otg_cb);
+void max77759_unregister(struct max77759_plat *plat);
+int max77759_register_irq(int irq, u32 irqflags, struct max77759_plat *chip);
+void max77759_shutdown(struct max77759_plat *plat);
 
 void enable_data_path_locked(struct max77759_plat *chip);
 void data_alt_path_active(struct max77759_plat *chip, bool active);
@@ -294,5 +351,10 @@ struct max77759_compliance_warnings {
 ssize_t compliance_warnings_to_buffer(struct max77759_compliance_warnings *compliance_warnings,
 				      char *buf);
 void update_compliance_warnings(struct max77759_plat *chip, int warning, bool value);
+
+static inline struct max77759_plat *tdata_to_max77759(struct google_shim_tcpci_data *tdata)
+{
+	return container_of(tdata, struct max77759_plat, data);
+}
 
 #endif /* __TCPCI_MAX77759_H */

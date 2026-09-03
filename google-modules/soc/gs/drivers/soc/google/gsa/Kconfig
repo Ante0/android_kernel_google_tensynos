@@ -4,10 +4,44 @@ config GSA
 	tristate "GSA driver"
 	default n
 
-config GSA_PKVM
-	tristate "Support pKVM"
+config GSA_LINUX_MAILBOX
+	bool "Use the linux mailbox framework (not the legacy driver)."
+
+config GSA_LEGACY_MAILBOX
+	bool "Use legacy mailbox"
+	depends on !GSA_LINUX_MAILBOX
+	default y
+
+config GSA_LOG_REGION_SIZE
+	hex "The size of the GSA log region in bytes."
 	depends on GSA
-	depends on PKVM_S2MPU_V9 || PKVM_S2MPU
+	default 0x1000
+
+config GSA_PATCH_VERSION
+	bool "Enable reading the GSA ROM patch version."
+	default y
+	help
+	  Enabling this option will query the GSA ROM patch version on boot.
+	  After the module is initialized, the ROM patch version can be accessed via
+	  a sysfs file.
+	  This option should be enabled in hardware, and disabled for emulation.
+	  When this option is disabled, the ROM patch version will read as -ENODATA.
+
+config GSA_DEBUGFS
+	bool "Enable debugfs interface on the GSA driver"
+	depends on GSA
+	default y
+	help
+	  Enabling this option will enable a debugfs interface.
+	  These interfaces can be used to test the mailbox driver and facilitate
+	  functional tests.
+	  Currently, `version`, `stay_awake`, and `trace` interfaces are exposed
+	  as well as `pm_state` power-state statistics.
+
+config GSA_PKVM
+	bool "Support pKVM"
+	depends on GSA
+	depends on PKVM_S2MPU_V9 || PKVM_S2MPU || S2MPU_BYPASS
 	default n
 
 config GSA_GSC
@@ -19,3 +53,21 @@ config TZ_PROT
 	tristate "TZ Prot"
 	depends on GSA
 	default n
+
+config GSA_IPC
+	tristate "GSA IPC support"
+	depends on GSA
+	help
+	  Enabling this option will enable "gsa_ipc" kernel module.
+	  This module implements GSA IPC infrastructure that allows the user space apps
+	  to communicate with GSA core using Trusty IPC compatible IPC protocol. Both
+	  simple message exchange and memory sharing is supported.
+
+config GSA_WAKELOCK
+	bool "Hold wakelock during mailbox transactions"
+	depends on GSA
+	default n
+	help
+	  Enabling this option will hold a wakelock during GSA mailbox
+	  transactions to prevent the system from suspending while a
+	  transaction is in progress.

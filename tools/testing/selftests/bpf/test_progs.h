@@ -1,4 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
+#ifndef __TEST_PROGS_H
+#define __TEST_PROGS_H
+
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
@@ -71,8 +74,9 @@ struct subtest_state {
 	int error_cnt;
 	bool skipped;
 	bool filtered;
+	bool should_tmon;
 
-	FILE *stdout;
+	FILE *stdout_saved;
 };
 
 struct test_state {
@@ -89,12 +93,15 @@ struct test_state {
 	size_t log_cnt;
 	char *log_buf;
 
-	FILE *stdout;
+	FILE *stdout_saved;
 };
+
+extern int env_verbosity;
 
 struct test_env {
 	struct test_selector test_selector;
 	struct test_selector subtest_selector;
+	struct test_selector tmon_selector;
 	bool verifier_stats;
 	bool debug;
 	enum verbosity verbosity;
@@ -108,9 +115,10 @@ struct test_env {
 	struct test_state *test_state; /* current running test state */
 	struct subtest_state *subtest_state; /* current running subtest state */
 
-	FILE *stdout;
-	FILE *stderr;
+	FILE *stdout_saved;
+	FILE *stderr_saved;
 	int nr_cpus;
+	FILE *json;
 
 	int succ_cnt; /* successful tests */
 	int sub_succ_cnt; /* successful sub-tests */
@@ -209,6 +217,12 @@ int test__join_cgroup(const char *path);
 	_CHECK(condition, tag, duration, format)
 #define CHECK_ATTR(condition, tag, format...) \
 	_CHECK(condition, tag, tattr.duration, format)
+
+#define ASSERT_FAIL(fmt, args...) ({					\
+	static int duration = 0;					\
+	CHECK(false, "", fmt"\n", ##args);				\
+	false;								\
+})
 
 #define ASSERT_TRUE(actual, name) ({					\
 	static int duration = 0;					\
@@ -376,6 +390,29 @@ int test__join_cgroup(const char *path);
 	___ok;								\
 })
 
+#define SYS(goto_label, fmt, ...)					\
+	({								\
+		char cmd[1024];						\
+		snprintf(cmd, sizeof(cmd), fmt, ##__VA_ARGS__);		\
+		if (!ASSERT_OK(system(cmd), cmd))			\
+			goto goto_label;				\
+	})
+
+#define ALL_TO_DEV_NULL " >/dev/null 2>&1"
+
+#define SYS_NOFAIL(fmt, ...)						\
+	({								\
+		char cmd[1024];						\
+		int n;							\
+		n = snprintf(cmd, sizeof(cmd), fmt, ##__VA_ARGS__);	\
+		if (n < sizeof(cmd) && sizeof(cmd) - n >= sizeof(ALL_TO_DEV_NULL)) \
+			strcat(cmd, ALL_TO_DEV_NULL);			\
+		system(cmd);						\
+	})
+
+int start_libbpf_log_capture(void);
+char *stop_libbpf_log_capture(void);
+
 static inline __u64 ptr_to_u64(const void *ptr)
 {
 	return (__u64) (unsigned long) ptr;
@@ -392,6 +429,12 @@ int compare_stack_ips(int smap_fd, int amap_fd, int stack_trace_len);
 int trigger_module_test_read(int read_sz);
 int trigger_module_test_write(int write_sz);
 int write_sysctl(const char *sysctl, const char *value);
+int get_bpf_max_tramp_links_from(struct btf *btf);
+int get_bpf_max_tramp_links(void);
+
+struct netns_obj;
+struct netns_obj *netns_new(const char *name, bool open);
+void netns_free(struct netns_obj *netns);
 
 #ifdef __x86_64__
 #define SYS_NANOSLEEP_KPROBE_NAME "__x64_sys_nanosleep"
@@ -399,8 +442,43 @@ int write_sysctl(const char *sysctl, const char *value);
 #define SYS_NANOSLEEP_KPROBE_NAME "__s390x_sys_nanosleep"
 #elif defined(__aarch64__)
 #define SYS_NANOSLEEP_KPROBE_NAME "__arm64_sys_nanosleep"
+#elif defined(__riscv)
+#define SYS_NANOSLEEP_KPROBE_NAME "__riscv_sys_nanosleep"
 #else
 #define SYS_NANOSLEEP_KPROBE_NAME "sys_nanosleep"
 #endif
 
 #define BPF_TESTMOD_TEST_FILE "/sys/kernel/bpf_testmod"
+
+typedef int (*pre_execution_cb)(struct bpf_object *obj);
+
+struct test_loader {
+	char *log_buf;
+	size_t log_buf_sz;
+	pre_execution_cb pre_execution_cb;
+
+	struct bpf_object *obj;
+};
+
+static inline void test_loader__set_pre_execution_cb(struct test_loader *tester,
+						     pre_execution_cb cb)
+{
+	tester->pre_execution_cb = cb;
+}
+
+typedef const void *(*skel_elf_bytes_fn)(size_t *sz);
+
+extern void test_loader__run_subtests(struct test_loader *tester,
+				      const char *skel_name,
+				      skel_elf_bytes_fn elf_bytes_factory);
+
+extern void test_loader_fini(struct test_loader *tester);
+
+#define RUN_TESTS(skel) ({						       \
+	struct test_loader tester = {};					       \
+									       \
+	test_loader__run_subtests(&tester, #skel, skel##__elf_bytes);	       \
+	test_loader_fini(&tester);					       \
+})
+
+#endif /* __TEST_PROGS_H */

@@ -184,12 +184,13 @@ static void vgic_v4_disable_vsgis(struct kvm_vcpu *vcpu)
 	}
 }
 
-/* Must be called with the kvm lock held */
 void vgic_v4_configure_vsgis(struct kvm *kvm)
 {
 	struct vgic_dist *dist = &kvm->arch.vgic;
 	struct kvm_vcpu *vcpu;
 	unsigned long i;
+
+	lockdep_assert_held(&kvm->arch.config_lock);
 
 	kvm_arm_halt_guest(kvm);
 
@@ -433,6 +434,10 @@ int kvm_vgic_v4_set_forwarding(struct kvm *kvm, int virq,
 	ret = vgic_its_resolve_lpi(kvm, its, irq_entry->msi.devid,
 				   irq_entry->msi.data, &irq);
 	if (ret)
+		goto out;
+
+	/* Silently exit if the vLPI is already mapped */
+	if (irq->hw)
 		goto out;
 
 	/*

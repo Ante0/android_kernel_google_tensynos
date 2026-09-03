@@ -11,6 +11,7 @@
 #include <linux/device.h>
 #include <linux/dma-buf.h>
 #include <linux/dma-direction.h>
+#include <linux/iosys-map.h>
 #include <linux/mutex.h>
 #include <linux/scatterlist.h>
 #include <linux/seq_file.h>
@@ -227,6 +228,26 @@ struct gcip_mapping *gcip_mapping_dmabuf_map_to_iova(struct gcip_iommu_domain *d
  */
 struct gcip_mapping *gcip_mapping_dmabuf_map(struct gcip_iommu_domain *domain,
 					     struct dma_buf *dmabuf, u64 gcip_map_flags);
+
+/**
+ * gcip_mapping_vmap() - Sets up a virtual mapping for a mapping backend.
+ * @mapping: The mapping to map virtually.
+ * @map: Pointer to an iosys_map structure to populate. The function will safely
+ *       clear and manage the state of this object, including on error paths.
+ *
+ * Supports both DMA buffer mappings and standard user buffers.
+ *
+ * Return: 0 on success, or a negative error code.
+ */
+int gcip_mapping_vmap(struct gcip_mapping *mapping, struct iosys_map *map);
+
+/**
+ * gcip_mapping_vunmap() - Tears down a virtual mapping for a mapping backend.
+ * @mapping: The mapping to unmap virtually.
+ * @map: Pointer to the populated iosys_map structure. The function will safely
+ *       clear the state of this object after the unmap completes.
+ */
+void gcip_mapping_vunmap(struct gcip_mapping *mapping, struct iosys_map *map);
 
 /**
  * gcip_mapping_unmap() - Unmaps the mapping depends on its type.

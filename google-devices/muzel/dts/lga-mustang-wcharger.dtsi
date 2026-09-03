@@ -1,0 +1,56 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Wireless charger device tree for Mustang
+ *
+ * Copyright 2024 Google LLC
+ *
+ */
+
+#include "lga-muzel-wcharger.dtsi"
+
+&google_cpm {
+	google,no-init-wlc-ta-vol;
+};
+
+&google_wlc {
+	google,project_id = /bits/ 8 <0x05>;
+	google,has-mpp25-wlc-dc = <1>;
+	google,dploss_steps = <9000 12000 14750>;
+	google,dploss_points = <25>;
+	google,charger-switch-skip-cloak;
+	qi22_en-gpio = <&max77779_sgpio 2 GPIO_ACTIVE_HIGH>; /* OD3 QI22_EN */
+	google,wlc-bootloader = "CPS4041_BL.bin";
+	google,wlc-firmware = "CPS4041_A0_05.bin";
+	google,wlc_qispec = <0x2203>;
+	wlc_dc_mdis_fcc = <4958000 4775680 4593360 4411040 4228720 4046400 3864080 3681760 3499440
+			   3317120 3134800 2952480 2770160 2587840 2405520 2223200 2040880 1858560
+			   1676240 1493920 1311600 1129280  946960  764640  582320  400000>;
+
+	google,wlc-chg-configs = <&wlc_config_max77779 &wlc_config_ln8411>;
+
+	wlc_config_max77779: wlc_cap_max77779 {
+		target-power-mode = <3>; /* MPP_POWERMODE_NOMINAL */
+		charger-type = <0>; /* CHARGER_TYPE_BUCK */
+		mod-mode = <1>; /* ASK_MOD_MODE_LOAD_MOD */
+		mod-change-timing = <0>; /* ASK_MOD_TIMING_EARLY */
+		initial-current-ua = <100000>; /* 100mA */
+		icl-step-size-ua = <25000>; /* 25mA */
+		icl-rounding = <0>; /* ICL_TARGET_ROUND_UP_WITH_COMP */
+		use-auto-vout; /* MPP_AUTO_VOUT_ON */
+		initial-voltage-uv = <12000000>; /* 12V */
+		max-voltage-uv = <15000000>; /* 12V */
+	};
+
+	wlc_config_ln8411: wlc_cap_ln8411 {
+		target-power-mode = <3>; /* MPP_POWERMODE_NOMINAL */
+		charger-type = <1>; /* CHARGER_TYPE_SWC */
+		mod-mode = <0>; /* ASK_MOD_MODE_NEG_CAP_MOD */
+		mod-change-timing = <2>; /* ASK_MOD_TIMING_GPIO */
+		initial-current-ua = <100000>; /* 100mA */
+		icl-step-size-ua = <25000>; /* 25mA */
+		icl-rounding = <0>; /* ICL_TARGET_ROUND_UP_WITH_COMP */
+		initial-voltage-uv = <12000000>; /* 12V */
+		max-voltage-uv = <19000000>; /* 15V */
+		mpp25-only;
+	};
+};

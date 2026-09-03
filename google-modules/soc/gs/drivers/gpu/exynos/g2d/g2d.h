@@ -19,7 +19,7 @@
 #include <media/exynos_repeater.h>
 #endif
 
-#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS)
 #include <soc/google/exynos_pm_qos.h>
 #endif
 
@@ -145,7 +145,7 @@ struct g2d_device {
 	struct list_head		qos_contexts;
 
 	struct g2d_qos			qos;
-#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS)
 	struct exynos_pm_qos_request	req;
 #endif
 

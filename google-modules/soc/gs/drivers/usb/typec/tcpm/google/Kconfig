@@ -33,11 +33,20 @@ config TYPEC_FUSB307
 	  Type-C functionalities.
 
 config TYPEC_MAX77759
-	tristate "Maxim MAX77759 Type-C driver"
+	tristate "Maxim MAX77759 Type-C module"
 	select USB_PSY
 	select GOOGLE_TCPCI_SHIM
+	select GPIOLIB
 	help
-	  MAX77759 TCPCI driver to interface with TCPM.
+	  MAX77759 TCPCI module to interface with TCPM. Needs to be used
+	  with a bus driver like TYPEC_MAX777X9_I2C driver.
+
+config TCPCI_VENDOR_HOOKS
+	bool "Enable TCPCI vendor hooks"
+	depends on TYPEC_MAX77759
+	default n
+	help
+	  This config is used to enable/disable the TCPCI vendor hooks.
 
 config TYPEC_MAX77759_CONTAMINANT
 	tristate "Maxim MAX77759 specific contaminant detection routines"
@@ -51,6 +60,20 @@ config TYPEC_MAX77779_CONTAMINANT
         help
           Maxim MAX77779 specific contaminant detection routiness.
 
+config TYPEC_MAX777X9_I2C
+	tristate "Maxim MAX77759 Type-C driver using I2C bus"
+	select TYPEC_MAX77759
+	select REGMAP_I2C
+	help
+	   MAX77759 TCPCI driver using I2C Bus to communicate with IF-PMIC.
+
+config TYPEC_MAX777X9_SPMI
+	tristate "Maxim MAX77759 Type-C driver using SPMI bus"
+	select TYPEC_MAX77759
+	select REGMAP_SPMI
+	help
+	   MAX77759 TCPCI driver using SPMI Bus to communicate with IF-PMIC.
+
 endif # TYPEC_TCPM
 
 config POGO_TRANSPORT
@@ -59,3 +82,4 @@ config POGO_TRANSPORT
 	select GOOGLE_LOGBUFFER
 	help
 	  Pogo transport management driver
+

@@ -11,6 +11,21 @@ maintainers:
 
 allOf:
   - $ref: serial.yaml#
+  - $ref: rs485.yaml#
+
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: starfive,jh7110-uart
+    then:
+      properties:
+        resets:
+          minItems: 2
+    else:
+      properties:
+        resets:
+          maxItems: 1
 
 properties:
   compatible:
@@ -47,6 +62,7 @@ properties:
           - enum:
               - starfive,jh7100-hsuart
               - starfive,jh7100-uart
+              - starfive,jh7110-uart
           - const: snps,dw-apb-uart
       - const: snps,dw-apb-uart
 
@@ -67,13 +83,22 @@ properties:
       - const: baudclk
       - const: apb_pclk
 
+  dmas:
+    maxItems: 2
+
+  dma-names:
+    items:
+      - const: tx
+      - const: rx
+
   snps,uart-16550-compatible:
     description: reflects the value of UART_16550_COMPATIBLE configuration
       parameter. Define this if your UART does not implement the busy functionality.
     type: boolean
 
   resets:
-    maxItems: 1
+    minItems: 1
+    maxItems: 2
 
   reg-shift: true
 
@@ -109,7 +134,6 @@ properties:
 required:
   - compatible
   - reg
-  - interrupts
 
 unevaluatedProperties: false
 

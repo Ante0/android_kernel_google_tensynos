@@ -1,0 +1,564 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# regulator drivers.
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "max77826-gs-regulator",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "max77826-gs-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_MAX77826_GS": {
+            True: [
+                "max77826-gs-regulator.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "pmic_class",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "pmic_class.ko",
+    conditional_srcs = {
+        "CONFIG_DRV_SAMSUNG_PMIC": {
+            True: [
+                "pmic_class.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg10-regulator",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "s2mpg10-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_S2MPG10": {
+            True: [
+                "s2mpg10-regulator.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg10-powermeter",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "s2mpg10-powermeter.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_S2MPG10": {
+            True: [
+                "s2mpg10-powermeter.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg11-regulator",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "s2mpg11-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_S2MPG11": {
+            True: [
+                "s2mpg11-regulator.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg11-powermeter",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "s2mpg11-powermeter.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_S2MPG11": {
+            True: [
+                "s2mpg11-powermeter.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg12-regulator",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "s2mpg12-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_S2MPG12": {
+            True: [
+                "s2mpg12-regulator.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":pmic_class",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/mfd:s2mpg12-mfd",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg12-powermeter",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "s2mpg12-powermeter.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_S2MPG12": {
+            True: [
+                "s2mpg12-powermeter.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":pmic_class",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/mfd:s2mpg12-mfd",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg13-regulator",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "s2mpg13-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_S2MPG13": {
+            True: [
+                "s2mpg13-regulator.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":pmic_class",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/mfd:s2mpg13-mfd",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg13-powermeter",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "s2mpg13-powermeter.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_S2MPG13": {
+            True: [
+                "s2mpg13-powermeter.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":pmic_class",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/mfd:s2mpg13-mfd",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg14-regulator",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "s2mpg14-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_S2MPG14": {
+            True: [
+                "s2mpg14-regulator.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":pmic_class",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/mfd:s2mpg14-mfd",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg14-powermeter",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "s2mpg14-powermeter.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_S2MPG14": {
+            True: [
+                "s2mpg14-powermeter.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":pmic_class",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/mfd:s2mpg14-mfd",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg15-regulator",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "s2mpg15-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_S2MPG15": {
+            True: [
+                "s2mpg15-regulator.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":pmic_class",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/mfd:s2mpg15-mfd",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg15-powermeter",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "s2mpg15-powermeter.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_S2MPG15": {
+            True: [
+                "s2mpg15-powermeter.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":pmic_class",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/mfd:s2mpg15-mfd",
+    ],
+)
+
+ddk_module(
+    name = "slg51000-regulator",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "slg51000-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_SLG51000_GS": {
+            True: [
+                "slg51000-regulator.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "slg51002-regulator",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "slg51002-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_SLG51002": {
+            True: [
+                "slg51002-regulator.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "sgm38122-regulator",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "sgm38122-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_SGM38122": {
+            True: [
+                "sgm38122-regulator.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "sgm38125-regulator",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "sgm38125-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_SGM38125": {
+            True: [
+                "sgm38125-regulator.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "rt6160-regulator",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "rt6160-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_RT6160_GS": {
+            True: [
+                "rt6160-regulator.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "sy70206-regulator",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "sy70206-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_SY70206": {
+            True: [
+                "sy70206-regulator.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "s2dos07x02-regulator",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "s2dos07x02-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_S2DOS07X02_GS": {
+            True: [
+                "s2dos07x02-regulator.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "tps628600-regulator",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "tps628600-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_REGULATOR_TPS628600_GS": {
+            True: [
+                "tps628600-regulator.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location regulator_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

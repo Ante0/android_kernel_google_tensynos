@@ -4,6 +4,7 @@
  *
  */
 
+#include <linux/cleanup.h>
 #include <linux/io.h>
 #include <linux/platform_device.h>
 #include <linux/module.h>
@@ -35,7 +36,7 @@ static struct cp_reserved_mem _cp_rmem[MAX_CP_RMEM];
 #if defined(MODULE)
 static int cp_rmem_setup_latecall(struct platform_device *pdev)
 {
-	struct device_node *np;
+	struct device_node *np __free(device_node) = NULL;
 	struct reserved_mem *rmem;
 	u32 rmem_index = 0;
 	int i;
@@ -48,6 +49,8 @@ static int cp_rmem_setup_latecall(struct platform_device *pdev)
 		mif_dt_read_u32(np, "rmem_index", rmem_index);
 
 		rmem = of_reserved_mem_lookup(np);
+		of_node_put(np);
+		np = NULL;
 		if (!rmem) {
 			mif_err("of_reserved_mem_lookup() failed\n");
 			break;
@@ -57,6 +60,7 @@ static int cp_rmem_setup_latecall(struct platform_device *pdev)
 		_cp_rmem[i].name = (char *)rmem->name;
 		_cp_rmem[i].p_base = rmem->base;
 		_cp_rmem[i].size = rmem->size;
+		_rmem_count++;
 
 		mif_info("rmem %d %s 0x%08lx 0x%08x\n",
 				_cp_rmem[i].index, _cp_rmem[i].name,
@@ -115,8 +119,7 @@ static struct cp_shared_mem _cp_shmem[MAX_CP_NUM][MAX_CP_SHMEM];
 
 static int cp_shmem_setup(struct device *dev)
 {
-	struct device_node *regions = NULL;
-	struct device_node *child = NULL;
+	struct device_node *regions __free(device_node) = NULL;
 	u32 cp_num;
 	u32 shmem_index, rmem_index;
 	u32 offset;
@@ -130,7 +133,7 @@ static int cp_shmem_setup(struct device *dev)
 		return -EINVAL;
 	}
 
-	for_each_child_of_node(regions, child) {
+	for_each_child_of_node_scoped(regions, child) {
 		if (count >= MAX_CP_SHMEM) {
 			mif_err("_cp_shmem is full for %d\n", count);
 			return -ENOMEM;
@@ -435,6 +438,24 @@ u32 cp_shmem_get_size(u32 cp, u32 idx)
 }
 EXPORT_SYMBOL(cp_shmem_get_size);
 
+unsigned long cp_rmem_get_base(u32 idx)
+{
+	return _cp_rmem[idx].p_base;
+}
+EXPORT_SYMBOL(cp_rmem_get_base);
+
+u32 cp_rmem_get_size(u32 idx)
+{
+	return _cp_rmem[idx].size;
+}
+EXPORT_SYMBOL(cp_rmem_get_size);
+
+int cp_rmem_get_count(void)
+{
+	return _rmem_count;
+}
+EXPORT_SYMBOL(cp_rmem_get_count);
+
 /*
  * Platform driver
  */
@@ -496,9 +517,8 @@ fail:
 	return ret;
 }
 
-static int cp_shmem_remove(struct platform_device *pdev)
+static void cp_shmem_remove(struct platform_device *pdev)
 {
-	return 0;
 }
 
 static const struct of_device_id cp_shmem_dt_match[] = {

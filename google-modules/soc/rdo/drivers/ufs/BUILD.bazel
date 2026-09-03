@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "ufs.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules/soc/rdo:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "ufs",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "ufs.ko",
+    conditional_srcs = {
+        "CONFIG_SOC_LGA": {
+            True: [
+                "lga/ufs-platform.c",
+            ],
+        },
+        "CONFIG_SOC_MBU": {
+            True: [
+                "mbu/ufs-platform.c",
+            ],
+        },
+        "CONFIG_UFS_DW_GOOGLE": {
+            True: [
+                "ufs-google-dbg.c",
+                "ufs-google.c",
+            ],
+        },
+        "CONFIG_UFS_PIXEL_CRYPTO": {
+            True: [
+                "ufs-pixel-crypto.c",
+            ],
+        },
+        "CONFIG_UFS_PIXEL_FEATURES": {
+            True: [
+                "ufs-pixel.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/core/google_pm_qos:headers",
+        "//private/google-modules/perf/core/gs_perf_domain:perf_domain",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/misc/sbb-mux",
+        "//private/google-modules/soc/gs/drivers/soc/google/gsa:gsa_ko",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/ap-pmic:da9188-core",
+        "//private/google-modules/soc/rdo/drivers/clk/google:clk-cpm",
+    ] + select({
+        "//private/devices/google/common:soc_is_laguna": [
+            "//private/google-modules/soc/rdo/ip-idle-notifier:google_ip_idle_notifier",
+        ],
+        "//conditions:default": [],
+    }),
+)

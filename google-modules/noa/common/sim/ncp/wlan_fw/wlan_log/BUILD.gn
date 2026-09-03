@@ -1,0 +1,31 @@
+import("//build_overrides/noa.gni")
+import("$dir_noa_packages/noa_common/sim/ncp/wlan_fw/wlan_service.gni")
+
+wlan_source_set("wlan_log") {
+  deps = [
+    "$dir_noa_common:headers",
+    "$dir_wlan_fw:wlan_cast",
+    "$dir_wlan_fw/wlan_debug_controller:wlan_debug_common",
+  ]
+  sources = [
+    "$dir_wlan_fw/wlan_log/wlan_log.cc",
+    "$dir_wlan_fw/wlan_log/wlan_log.h",
+  ]
+  public_deps = [
+    "$dir_wlan_fw/sys_if:common",
+    "$dir_wlan_fw/sys_if:log",
+    "$dir_wlan_fw/sys_if:types",
+  ]
+}
+
+wlan_test("wlan_log_test") {
+  # These tests are currently unsupported in the device unit test
+  # environment due to limited memory resources.
+  enable_if = current_os == "linux"
+  sources = [ "$dir_wlan_fw/wlan_log/wlan_log_test.cc" ]
+  deps = [ ":wlan_log" ]
+}
+
+wlan_test_group("tests") {
+  tests = [ ":wlan_log_test" ]
+}

@@ -1,0 +1,146 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "headers",
+    hdrs = glob([
+        "**/*.h",
+    ]),
+    includes = [
+        ".",
+    ],
+)
+
+ddk_module(
+    name = "mcps802154",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "ca.c",
+        "default_region.c",
+        "endless_scheduler.c",
+        "fproc.c",
+        "fproc_broken.c",
+        "fproc_idle.c",
+        "fproc_multi.c",
+        "fproc_nothing.c",
+        "fproc_rx.c",
+        "fproc_stopped.c",
+        "fproc_tx.c",
+        "fproc_vendor.c",
+        "frame.c",
+        "idle_region.c",
+        "ie.c",
+        "mcps_main.c",
+        "mcps_skb_frag.c",
+        "nl.c",
+        "on_demand_scheduler.c",
+        "ops.c",
+        "regions.c",
+        "schedule.c",
+        "schedulers.c",
+        "trace.c",
+    ],
+    out = "mcps802154.ko",
+    copts = [
+        "-Wall",
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel:ddk_headers",
+    ],
+)
+
+ddk_module(
+    name = "mcps802154_region_fira",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "fira_access.c",
+        "fira_crypto.c",
+        "fira_frame.c",
+        "fira_region.c",
+        "fira_region_call.c",
+        "fira_round_hopping_crypto.c",
+        "fira_round_hopping_sequence.c",
+        "fira_session.c",
+        "fira_session_fsm.c",
+        "fira_session_fsm_active.c",
+        "fira_session_fsm_idle.c",
+        "fira_session_fsm_init.c",
+        "fira_sts.c",
+        "fira_trace.c",
+        "mcps_crypto.c",
+    ],
+    out = "mcps802154_region_fira.ko",
+    copts = [
+        "-Wall",
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        ":mcps802154",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel:ddk_headers",
+    ],
+)
+
+ddk_module(
+    name = "mcps802154_region_nfcc_coex",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "nfcc_coex_access.c",
+        "nfcc_coex_region.c",
+        "nfcc_coex_region_call.c",
+        "nfcc_coex_session.c",
+        "nfcc_coex_trace.c",
+    ],
+    out = "mcps802154_region_nfcc_coex.ko",
+    copts = [
+        "-Wall",
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        ":mcps802154",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel:ddk_headers",
+    ],
+)
+
+ddk_module(
+    name = "mcps802154_region_pctt",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "pctt_access.c",
+        "pctt_region.c",
+        "pctt_region_call.c",
+        "pctt_session.c",
+        "pctt_trace.c",
+    ],
+    out = "mcps802154_region_pctt.ko",
+    copts = [
+        "-Wall",
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        ":mcps802154",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel:ddk_headers",
+    ],
+)

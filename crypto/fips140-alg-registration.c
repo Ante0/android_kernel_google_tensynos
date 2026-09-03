@@ -52,6 +52,14 @@
 #undef shash_register_instance
 #undef skcipher_register_instance
 
+/*
+ * Due to the above #undefs, the fips140_* algorithm registration functions lack
+ * prototypes in this file.  Duplicating the prototypes wouldn't be useful, as
+ * it wouldn't achieve the usual compile-time enforcement that the types match
+ * in caller and callee.  Just disable -Wmissing-prototypes in this file.
+ */
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
+
 #include <crypto/algapi.h>
 #include <crypto/internal/aead.h>
 #include <crypto/internal/hash.h>

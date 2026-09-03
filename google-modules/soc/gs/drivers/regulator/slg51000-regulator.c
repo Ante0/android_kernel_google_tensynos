@@ -8,13 +8,13 @@
 
 #include <linux/delay.h>
 #include <linux/err.h>
+#include <linux/gpio/consumer.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/mfd/slg51000.h>
 #include <linux/module.h>
 #include <linux/of.h>
-#include <linux/of_gpio.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
@@ -372,14 +372,12 @@ static int slg51000_regulator_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int slg51000_regulator_remove(struct platform_device *pdev)
+static void slg51000_regulator_remove(struct platform_device *pdev)
 {
 	struct slg51000_dev *chip = dev_get_drvdata(pdev->dev.parent);
 
 	flush_workqueue(chip->slg51000_wq);
 	destroy_workqueue(chip->slg51000_wq);
-
-	return 0;
 }
 
 static const struct platform_device_id slg51000_regulator_id[] = {

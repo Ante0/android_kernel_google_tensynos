@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * USB device tree source code for Mustang
+ *
+ * Copyright 2024 Google LLC.
+ */
+
+&usb_phy {
+	tune_params_g1 {
+		tune_param0 {
+			tune_name = "tx_eq_main_g1";
+			tune_value = <0x34 0x004d2480>;
+		};
+		tune_param1 {
+			tune_name = "tx_eq_post_g1";
+			tune_value = <0x38 0x000630C3>;
+		};
+		tune_param2 {
+			tune_name = "tx_eq_pre_g1";
+			tune_value = <0x3c 0x00040000>;
+		};
+	};
+};

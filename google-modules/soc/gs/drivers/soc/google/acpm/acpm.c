@@ -351,9 +351,8 @@ static int acpm_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int acpm_remove(struct platform_device *pdev)
+static void acpm_remove(struct platform_device *pdev)
 {
-	return 0;
 }
 
 static const struct of_device_id acpm_ipc_match[] = {

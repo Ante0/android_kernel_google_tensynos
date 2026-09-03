@@ -5,7 +5,7 @@
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/module.h>
-#include <linux/of_device.h>
+#include <linux/of.h>
 #include <linux/slab.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -1377,11 +1377,9 @@ static int cygnus_ssp_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int cygnus_ssp_remove(struct platform_device *pdev)
+static void cygnus_ssp_remove(struct platform_device *pdev)
 {
 	cygnus_soc_platform_unregister(&pdev->dev);
-
-	return 0;
 }
 
 static const struct of_device_id cygnus_ssp_of_match[] = {

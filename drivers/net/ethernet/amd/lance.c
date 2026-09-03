@@ -59,6 +59,7 @@ static const char version[] = "lance.c:v1.16 2006/11/09 dplatt@3do.com, becker@c
 #include <linux/skbuff.h>
 #include <linux/mm.h>
 #include <linux/bitops.h>
+#include <net/Space.h>
 
 #include <asm/io.h>
 #include <asm/dma.h>
@@ -384,6 +385,7 @@ static void __exit lance_cleanup_module(void)
 }
 module_exit(lance_cleanup_module);
 #endif /* MODULE */
+MODULE_DESCRIPTION("AMD LANCE/PCnet Ethernet driver");
 MODULE_LICENSE("GPL");
 
 

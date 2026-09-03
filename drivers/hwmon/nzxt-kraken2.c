@@ -9,7 +9,7 @@
  * Copyright 2019-2021  Jonas Malaco <jonas@protocubo.io>
  */
 
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 #include <linux/hid.h>
 #include <linux/hwmon.h>
 #include <linux/jiffies.h>
@@ -86,7 +86,7 @@ static const struct hwmon_ops kraken2_hwmon_ops = {
 	.read_string = kraken2_read_string,
 };
 
-static const struct hwmon_channel_info *kraken2_info[] = {
+static const struct hwmon_channel_info * const kraken2_info[] = {
 	HWMON_CHANNEL_INFO(temp,
 			   HWMON_T_INPUT | HWMON_T_LABEL),
 	HWMON_CHANNEL_INFO(fan,

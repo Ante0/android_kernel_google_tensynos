@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * LGA platform common - eUSB2 repeater devicetree config
+ *
+ * Copyright 2024 Google LLC.
+ *
+ */
+
+&lsion_pinctrl {
+	eusb2_resetb_1v2: eusb2_resetb_1v2 {
+		pins = "XLSION_CLI16_PIN3";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		function = "lsion_gpio";
+	};
+};
+
+&lsioe_cli10_i2c {
+	eusb2_repeater: tiusb2e11@3E {
+		status = "okay";
+		compatible = "goog-eusb2-repeater";
+		reg = <0x3E>;
+		vdd33-supply = <&ldo_19m_reg>;
+		vdd18-supply = <&buck_12s_reg>;
+		vdd_reset-supply = <&ldo_11m_reg>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&eusb2_resetb_1v2>;
+		usb-role-switch;
+	};
+};

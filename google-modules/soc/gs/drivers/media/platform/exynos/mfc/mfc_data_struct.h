@@ -13,7 +13,7 @@
 #ifndef __MFC_DATA_STRUCT_H
 #define __MFC_DATA_STRUCT_H __FILE__
 
-#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS)
 #define CONFIG_MFC_USE_BUS_DEVFREQ
 #endif
 
@@ -53,7 +53,6 @@
 #define CONFIG_MFC_USE_COREDUMP
 #endif
 
-#include <linux/platform_device.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
 #include <media/videobuf2-v4l2.h>

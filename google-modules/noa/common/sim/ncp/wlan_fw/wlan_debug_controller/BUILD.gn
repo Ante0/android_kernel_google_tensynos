@@ -1,0 +1,76 @@
+import("//build_overrides/noa.gni")
+import("$dir_noa_packages/noa_common/sim/ncp/wlan_fw/wlan_service.gni")
+
+wlan_source_set("wlan_debug_common") {
+  public = [ "$dir_wlan_fw/wlan_debug_controller/wlan_debug_common.h" ]
+  public_deps = [
+    "$dir_wlan_fw/sys_if:common",
+    "$dir_wlan_fw/sys_if:types",
+  ]
+}
+
+wlan_source_set("wlan_debug_log_sys_controller") {
+  public = [ "$dir_wlan_fw/wlan_debug_controller/wlan_log_sys/wlan_debug_log_sys_controller.h" ]
+  sources = [ "$dir_wlan_fw/wlan_debug_controller/wlan_log_sys/wlan_debug_log_sys_controller.cc" ]
+  public_deps = [
+    ":wlan_debug_common",
+    "$dir_wlan_fw:wlan_cast",
+    "$dir_wlan_fw/wlan_log:wlan_log",
+  ]
+}
+
+wlan_test("wlan_debug_log_sys_controller_test") {
+  sources = [ "$dir_wlan_fw/wlan_debug_controller/wlan_log_sys/wlan_debug_log_sys_controller_test.cc" ]
+  deps = [ ":wlan_debug_log_sys_controller" ]
+}
+
+wlan_source_set("wlan_debug_packet_sniffer") {
+  public = [ "$dir_wlan_fw/wlan_debug_controller/wlan_packet_sniffer/wlan_debug_packet_sniffer.h" ]
+  sources = [ "$dir_wlan_fw/wlan_debug_controller/wlan_packet_sniffer/wlan_debug_packet_sniffer.cc" ]
+  deps = [
+    ":wlan_debug_common",
+    "$dir_noa_common:headers",
+    "$dir_noa_modules/linux_port:spinlock",
+    "$dir_wlan_fw:wlan_cast",
+    "$dir_wlan_fw/ext_svc:ext_svc",
+    "$dir_wlan_fw/sys_if:common",
+    "$dir_wlan_fw/sys_if:log",
+    "$dir_wlan_fw/sys_if:mailbox",
+    "$dir_wlan_fw/sys_if:memory",
+    "$dir_wlan_fw/sys_if:types",
+    "$dir_wlan_fw/wlan_log:wlan_log",
+  ]
+  public_deps = [
+    ":wlan_debug_common",
+    "$dir_wlan_fw/sys_if:types",
+  ]
+}
+
+wlan_source_set("wlan_debug_packet_sniffer_controller") {
+  public = [ "$dir_wlan_fw/wlan_debug_controller/wlan_packet_sniffer/wlan_debug_packet_sniffer_controller.h" ]
+  sources = [ "$dir_wlan_fw/wlan_debug_controller/wlan_packet_sniffer/wlan_debug_packet_sniffer_controller.cc" ]
+  public_deps = [ ":wlan_debug_packet_sniffer" ]
+  deps = [
+    ":wlan_debug_common",
+    "$dir_wlan_fw/sys_if:memory",
+  ]
+}
+
+wlan_test("wlan_debug_packet_sniffer_test") {
+  enable_if = current_os == "linux"
+  sources = [ "$dir_wlan_fw/wlan_debug_controller/wlan_packet_sniffer/wlan_debug_packet_sniffer_test.cc" ]
+  deps = [
+    ":wlan_debug_common",
+    ":wlan_debug_packet_sniffer",
+    "$dir_pw_hex_dump:pw_hex_dump",
+    "$dir_wlan_fw/sys_if:log_test_lib",
+    "$dir_wlan_fw/wlan_log:wlan_log",
+  ]
+}
+
+wlan_test_group("tests") {
+  tests = [
+    ":wlan_debug_log_sys_controller_test",
+    ":wlan_debug_packet_sniffer_test",
+  ]
+}

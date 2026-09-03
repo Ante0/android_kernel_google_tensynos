@@ -1,0 +1,72 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Wireless charger device tree for Muzel devices
+ *
+ * Copyright 2024 Google LLC
+ *
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+&google_charger {
+	google,wlc-power-supply = "wireless";
+	google,therm-wlc-overrides-fcc;
+};
+
+&google_cpm {
+	google,wlc_dc-power-supply = "wireless";	// in=1
+	google,set-mdis-to-wlc;
+};
+
+&max77779_chg {
+	max77779,wlc-en-gpio = <&google_wlc_gpio 1 GPIO_ACTIVE_HIGH>;
+	max77779,wlc-spoof-gpio = <&google_wlc_gpio 5 GPIO_ACTIVE_HIGH>;
+	max77779,wcin-inlim-headroom = <25000>;
+};
+
+&max77779_pinctrl {
+
+	wc_irq: wc_irq {
+		pins = "gpio4";
+		function = "gpio";
+		bias-pull-up;
+	};
+
+	mode_gpio: mode_gpio {
+		pins = "gpio3";
+		function = "gpio";
+		output-low;
+		bias-disable;
+	};
+};
+
+&max77779_i2cm {
+#ifdef MUZEL_PROTO_WLC
+	#include "google-base/platform/lga-wcharger-ra9582.dtsi"
+#else
+	#include "google-base/platform/lga-wcharger-cps4041.dtsi"
+#endif
+};
+
+&google_wlc {
+	pinctrl-0 = <&wc_irq &mode_gpio>;
+	irq-gpio = <&max77779_sgpio 4 GPIO_ACTIVE_LOW>; /* OD2 INT */
+	ap5v-gpio = <&lsioe_pinctrl XLSIOE_CLI7_PIN3 GPIO_ACTIVE_HIGH>; /* SOC_GPIO AP_5V */
+	mode-gpio = <&max77779_sgpio 3 GPIO_ACTIVE_HIGH>; /* OD5 BPP_FORCE */
+	inhibit-gpio = <&max77779_sgpio 1 GPIO_ACTIVE_HIGH>; /* OD4 RX_COMM_EN */
+
+	pinctrl-names = "default";
+
+	bpp_mdis_pwr = <5500000 5500000 5500000 5500000 5500000 5500000 5500000 5500000 5500000
+			5500000 5500000 5500000 5250000 5000000 4750000 4500000 4250000 4000000
+			3750000 3500000 3250000 3000000 2750000 2500000 2250000 2000000>;
+	mpp_mdis_pwr = <15000000 15000000 15000000 15000000 15000000 15000000 15000000 15000000
+			15000000 15000000 15000000 15000000 14700000 14000000 13300000 12600000
+			11900000 11200000 10500000  9800000  9100000  8400000  7700000  7000000
+			6300000  5600000>;
+	mpp_eds_soc = <80 95>;
+	mpp_eds_icl = <300000 100000>;
+	google,wlc_mod_depth_max = /bits/ 8 <0x0A>;
+	google,wlc_qispec = <0x2003>;
+	google,cloak_ping_delay_ms = <1000>;
+};

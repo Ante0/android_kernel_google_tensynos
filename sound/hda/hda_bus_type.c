@@ -21,7 +21,7 @@ MODULE_LICENSE("GPL");
  * driver id_table and returns the matching device id entry.
  */
 const struct hda_device_id *
-hdac_get_device_id(struct hdac_device *hdev, struct hdac_driver *drv)
+hdac_get_device_id(struct hdac_device *hdev, const struct hdac_driver *drv)
 {
 	if (drv->id_table) {
 		const struct hda_device_id *id  = drv->id_table;
@@ -38,7 +38,7 @@ hdac_get_device_id(struct hdac_device *hdev, struct hdac_driver *drv)
 }
 EXPORT_SYMBOL_GPL(hdac_get_device_id);
 
-static int hdac_codec_match(struct hdac_device *dev, struct hdac_driver *drv)
+static int hdac_codec_match(struct hdac_device *dev, const struct hdac_driver *drv)
 {
 	if (hdac_get_device_id(dev, drv))
 		return 1;
@@ -46,10 +46,10 @@ static int hdac_codec_match(struct hdac_device *dev, struct hdac_driver *drv)
 		return 0;
 }
 
-static int hda_bus_match(struct device *dev, struct device_driver *drv)
+static int hda_bus_match(struct device *dev, const struct device_driver *drv)
 {
 	struct hdac_device *hdev = dev_to_hdac_dev(dev);
-	struct hdac_driver *hdrv = drv_to_hdac_driver(drv);
+	const struct hdac_driver *hdrv = drv_to_hdac_driver(drv);
 
 	if (hdev->type != hdrv->type)
 		return 0;
@@ -65,7 +65,7 @@ static int hda_bus_match(struct device *dev, struct device_driver *drv)
 	return 1;
 }
 
-static int hda_uevent(struct device *dev, struct kobj_uevent_env *env)
+static int hda_uevent(const struct device *dev, struct kobj_uevent_env *env)
 {
 	char modalias[32];
 
@@ -76,7 +76,7 @@ static int hda_uevent(struct device *dev, struct kobj_uevent_env *env)
 	return 0;
 }
 
-struct bus_type snd_hda_bus_type = {
+const struct bus_type snd_hda_bus_type = {
 	.name = "hdaudio",
 	.match = hda_bus_match,
 	.uevent = hda_uevent,

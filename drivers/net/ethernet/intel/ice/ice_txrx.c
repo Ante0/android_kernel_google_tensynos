@@ -85,7 +85,7 @@ ice_prgm_fdir_fltr(struct ice_vsi *vsi, struct ice_fltr_desc *fdir_desc,
 	td_cmd = ICE_TXD_LAST_DESC_CMD | ICE_TX_DESC_CMD_DUMMY |
 		 ICE_TX_DESC_CMD_RE;
 
-	tx_buf->tx_flags = ICE_TX_FLAGS_DUMMY_PKT;
+	tx_buf->type = ICE_TX_BUF_DUMMY;
 	tx_buf->raw_buf = raw_packet;
 
 	tx_desc->cmd_type_offset_bsz =
@@ -112,27 +112,29 @@ ice_prgm_fdir_fltr(struct ice_vsi *vsi, struct ice_fltr_desc *fdir_desc,
 static void
 ice_unmap_and_free_tx_buf(struct ice_tx_ring *ring, struct ice_tx_buf *tx_buf)
 {
-	if (tx_buf->skb) {
-		if (tx_buf->tx_flags & ICE_TX_FLAGS_DUMMY_PKT)
-			devm_kfree(ring->dev, tx_buf->raw_buf);
-		else if (ice_ring_is_xdp(ring))
-			page_frag_free(tx_buf->raw_buf);
-		else
-			dev_kfree_skb_any(tx_buf->skb);
-		if (dma_unmap_len(tx_buf, len))
-			dma_unmap_single(ring->dev,
-					 dma_unmap_addr(tx_buf, dma),
-					 dma_unmap_len(tx_buf, len),
-					 DMA_TO_DEVICE);
-	} else if (dma_unmap_len(tx_buf, len)) {
+	if (dma_unmap_len(tx_buf, len))
 		dma_unmap_page(ring->dev,
 			       dma_unmap_addr(tx_buf, dma),
 			       dma_unmap_len(tx_buf, len),
 			       DMA_TO_DEVICE);
+
+	switch (tx_buf->type) {
+	case ICE_TX_BUF_DUMMY:
+		devm_kfree(ring->dev, tx_buf->raw_buf);
+		break;
+	case ICE_TX_BUF_SKB:
+		dev_kfree_skb_any(tx_buf->skb);
+		break;
+	case ICE_TX_BUF_XDP_TX:
+		page_frag_free(tx_buf->raw_buf);
+		break;
+	case ICE_TX_BUF_XDP_XMIT:
+		xdp_return_frame(tx_buf->xdpf);
+		break;
 	}
 
 	tx_buf->next_to_watch = NULL;
-	tx_buf->skb = NULL;
+	tx_buf->type = ICE_TX_BUF_EMPTY;
 	dma_unmap_len_set(tx_buf, len, 0);
 	/* tx_buf must be completely set up in the transmit path */
 }
@@ -174,8 +176,6 @@ tx_skip_free:
 
 	tx_ring->next_to_use = 0;
 	tx_ring->next_to_clean = 0;
-	tx_ring->next_dd = ICE_RING_QUARTER(tx_ring) - 1;
-	tx_ring->next_rs = ICE_RING_QUARTER(tx_ring) - 1;
 
 	if (!tx_ring->netdev)
 		return;
@@ -267,7 +267,7 @@ static bool ice_clean_tx_irq(struct ice_tx_ring *tx_ring, int napi_budget)
 				 DMA_TO_DEVICE);
 
 		/* clear tx_buf data */
-		tx_buf->skb = NULL;
+		tx_buf->type = ICE_TX_BUF_EMPTY;
 		dma_unmap_len_set(tx_buf, len, 0);
 
 		/* unmap remaining buffers */
@@ -325,7 +325,7 @@ static bool ice_clean_tx_irq(struct ice_tx_ring *tx_ring, int napi_budget)
 		if (netif_tx_queue_stopped(txring_txq(tx_ring)) &&
 		    !test_bit(ICE_VSI_DOWN, vsi->state)) {
 			netif_tx_wake_queue(txring_txq(tx_ring));
-			++tx_ring->tx_stats.restart_q;
+			++tx_ring->ring_stats->tx_stats.restart_q;
 		}
 	}
 
@@ -367,7 +367,7 @@ int ice_setup_tx_ring(struct ice_tx_ring *tx_ring)
 
 	tx_ring->next_to_use = 0;
 	tx_ring->next_to_clean = 0;
-	tx_ring->tx_stats.prev_pkt = -1;
+	tx_ring->ring_stats->tx_stats.prev_pkt = -1;
 	return 0;
 
 err:
@@ -382,6 +382,7 @@ err:
  */
 void ice_clean_rx_ring(struct ice_rx_ring *rx_ring)
 {
+	struct xdp_buff *xdp = &rx_ring->xdp;
 	struct device *dev = rx_ring->dev;
 	u32 size;
 	u16 i;
@@ -390,14 +391,14 @@ void ice_clean_rx_ring(struct ice_rx_ring *rx_ring)
 	if (!rx_ring->rx_buf)
 		return;
 
-	if (rx_ring->skb) {
-		dev_kfree_skb(rx_ring->skb);
-		rx_ring->skb = NULL;
-	}
-
 	if (rx_ring->xsk_pool) {
 		ice_xsk_clean_rx_ring(rx_ring);
 		goto rx_skip_free;
+	}
+
+	if (xdp->data) {
+		xdp_return_buff(xdp);
+		xdp->data = NULL;
 	}
 
 	/* Free all the Rx ring sk_buffs */
@@ -437,6 +438,7 @@ rx_skip_free:
 
 	rx_ring->next_to_alloc = 0;
 	rx_ring->next_to_clean = 0;
+	rx_ring->first_desc = 0;
 	rx_ring->next_to_use = 0;
 }
 
@@ -506,15 +508,11 @@ int ice_setup_rx_ring(struct ice_rx_ring *rx_ring)
 
 	rx_ring->next_to_use = 0;
 	rx_ring->next_to_clean = 0;
+	rx_ring->first_desc = 0;
 
 	if (ice_is_xdp_ena_vsi(rx_ring->vsi))
 		WRITE_ONCE(rx_ring->xdp_prog, rx_ring->vsi->xdp_prog);
 
-	if (rx_ring->vsi->type == ICE_VSI_PF &&
-	    !xdp_rxq_info_is_reg(&rx_ring->xdp_rxq))
-		if (xdp_rxq_info_reg(&rx_ring->xdp_rxq, rx_ring->netdev,
-				     rx_ring->q_index, rx_ring->q_vector->napi.napi_id))
-			goto err;
 	return 0;
 
 err:
@@ -524,63 +522,46 @@ err:
 }
 
 /**
- * ice_rx_frame_truesize
- * @rx_ring: ptr to Rx ring
- * @size: size
- *
- * calculate the truesize with taking into the account PAGE_SIZE of
- * underlying arch
- */
-static unsigned int
-ice_rx_frame_truesize(struct ice_rx_ring *rx_ring, const unsigned int size)
-{
-	unsigned int truesize;
-
-#if (PAGE_SIZE < 8192)
-	truesize = ice_rx_pg_size(rx_ring) / 2; /* Must be power-of-2 */
-#else
-	truesize = rx_ring->rx_offset ?
-		SKB_DATA_ALIGN(rx_ring->rx_offset + size) +
-		SKB_DATA_ALIGN(sizeof(struct skb_shared_info)) :
-		SKB_DATA_ALIGN(size);
-#endif
-	return truesize;
-}
-
-/**
  * ice_run_xdp - Executes an XDP program on initialized xdp_buff
  * @rx_ring: Rx ring
  * @xdp: xdp_buff used as input to the XDP program
  * @xdp_prog: XDP program to run
  * @xdp_ring: ring to be used for XDP_TX action
+ * @eop_desc: Last descriptor in packet to read metadata from
  *
  * Returns any of ICE_XDP_{PASS, CONSUMED, TX, REDIR}
  */
-static int
+static u32
 ice_run_xdp(struct ice_rx_ring *rx_ring, struct xdp_buff *xdp,
-	    struct bpf_prog *xdp_prog, struct ice_tx_ring *xdp_ring)
+	    struct bpf_prog *xdp_prog, struct ice_tx_ring *xdp_ring,
+	    union ice_32b_rx_flex_desc *eop_desc)
 {
-	int err;
+	unsigned int ret = ICE_XDP_PASS;
 	u32 act;
+
+	if (!xdp_prog)
+		goto exit;
+
+	ice_xdp_meta_set_desc(xdp, eop_desc);
 
 	act = bpf_prog_run_xdp(xdp_prog, xdp);
 	switch (act) {
 	case XDP_PASS:
-		return ICE_XDP_PASS;
+		break;
 	case XDP_TX:
 		if (static_branch_unlikely(&ice_xdp_locking_key))
 			spin_lock(&xdp_ring->tx_lock);
-		err = ice_xmit_xdp_ring(xdp->data, xdp->data_end - xdp->data, xdp_ring);
+		ret = __ice_xmit_xdp_ring(xdp, xdp_ring, false);
 		if (static_branch_unlikely(&ice_xdp_locking_key))
 			spin_unlock(&xdp_ring->tx_lock);
-		if (err == ICE_XDP_CONSUMED)
+		if (ret == ICE_XDP_CONSUMED)
 			goto out_failure;
-		return err;
+		break;
 	case XDP_REDIRECT:
-		err = xdp_do_redirect(rx_ring->netdev, xdp, xdp_prog);
-		if (err)
+		if (xdp_do_redirect(rx_ring->netdev, xdp, xdp_prog))
 			goto out_failure;
-		return ICE_XDP_REDIR;
+		ret = ICE_XDP_REDIR;
+		break;
 	default:
 		bpf_warn_invalid_xdp_action(rx_ring->netdev, xdp_prog, act);
 		fallthrough;
@@ -589,8 +570,29 @@ out_failure:
 		trace_xdp_exception(rx_ring->netdev, xdp_prog, act);
 		fallthrough;
 	case XDP_DROP:
-		return ICE_XDP_CONSUMED;
+		ret = ICE_XDP_CONSUMED;
 	}
+exit:
+	return ret;
+}
+
+/**
+ * ice_xmit_xdp_ring - submit frame to XDP ring for transmission
+ * @xdpf: XDP frame that will be converted to XDP buff
+ * @xdp_ring: XDP ring for transmission
+ */
+static int ice_xmit_xdp_ring(const struct xdp_frame *xdpf,
+			     struct ice_tx_ring *xdp_ring)
+{
+	struct xdp_buff xdp;
+
+	xdp.data_hard_start = (void *)xdpf;
+	xdp.data = xdpf->data;
+	xdp.data_end = xdp.data + xdpf->len;
+	xdp.frame_sz = xdpf->frame_sz;
+	xdp.flags = xdpf->flags;
+
+	return __ice_xmit_xdp_ring(&xdp, xdp_ring, true);
 }
 
 /**
@@ -613,6 +615,7 @@ ice_xdp_xmit(struct net_device *dev, int n, struct xdp_frame **frames,
 	unsigned int queue_index = smp_processor_id();
 	struct ice_vsi *vsi = np->vsi;
 	struct ice_tx_ring *xdp_ring;
+	struct ice_tx_buf *tx_buf;
 	int nxmit = 0, i;
 
 	if (test_bit(ICE_VSI_DOWN, vsi->state))
@@ -635,16 +638,18 @@ ice_xdp_xmit(struct net_device *dev, int n, struct xdp_frame **frames,
 		xdp_ring = vsi->xdp_rings[queue_index];
 	}
 
+	tx_buf = &xdp_ring->tx_buf[xdp_ring->next_to_use];
 	for (i = 0; i < n; i++) {
-		struct xdp_frame *xdpf = frames[i];
+		const struct xdp_frame *xdpf = frames[i];
 		int err;
 
-		err = ice_xmit_xdp_ring(xdpf->data, xdpf->len, xdp_ring);
+		err = ice_xmit_xdp_ring(xdpf, xdp_ring);
 		if (err != ICE_XDP_TX)
 			break;
 		nxmit++;
 	}
 
+	tx_buf->rs_idx = ice_set_rs_bit(xdp_ring);
 	if (unlikely(flags & XDP_XMIT_FLUSH))
 		ice_xdp_ring_update_tail(xdp_ring);
 
@@ -675,7 +680,7 @@ ice_alloc_mapped_page(struct ice_rx_ring *rx_ring, struct ice_rx_buf *bi)
 	/* alloc new page for storage */
 	page = dev_alloc_pages(ice_rx_pg_order(rx_ring));
 	if (unlikely(!page)) {
-		rx_ring->rx_stats.alloc_page_failed++;
+		rx_ring->ring_stats->rx_stats.alloc_page_failed++;
 		return false;
 	}
 
@@ -688,7 +693,7 @@ ice_alloc_mapped_page(struct ice_rx_ring *rx_ring, struct ice_rx_buf *bi)
 	 */
 	if (dma_mapping_error(rx_ring->dev, dma)) {
 		__free_pages(page, ice_rx_pg_order(rx_ring));
-		rx_ring->rx_stats.alloc_page_failed++;
+		rx_ring->ring_stats->rx_stats.alloc_page_failed++;
 		return false;
 	}
 
@@ -714,7 +719,7 @@ ice_alloc_mapped_page(struct ice_rx_ring *rx_ring, struct ice_rx_buf *bi)
  * buffers. Then bump tail at most one time. Grouping like this lets us avoid
  * multiple tail writes per call.
  */
-bool ice_alloc_rx_bufs(struct ice_rx_ring *rx_ring, u16 cleaned_count)
+bool ice_alloc_rx_bufs(struct ice_rx_ring *rx_ring, unsigned int cleaned_count)
 {
 	union ice_32b_rx_flex_desc *rx_desc;
 	u16 ntu = rx_ring->next_to_use;
@@ -830,33 +835,41 @@ ice_can_reuse_rx_page(struct ice_rx_buf *rx_buf)
 }
 
 /**
- * ice_add_rx_frag - Add contents of Rx buffer to sk_buff as a frag
+ * ice_add_xdp_frag - Add contents of Rx buffer to xdp buf as a frag
  * @rx_ring: Rx descriptor ring to transact packets on
+ * @xdp: xdp buff to place the data into
  * @rx_buf: buffer containing page to add
- * @skb: sk_buff to place the data into
  * @size: packet length from rx_desc
  *
- * This function will add the data contained in rx_buf->page to the skb.
- * It will just attach the page as a frag to the skb.
- * The function will then update the page offset.
+ * This function will add the data contained in rx_buf->page to the xdp buf.
+ * It will just attach the page as a frag.
  */
-static void
-ice_add_rx_frag(struct ice_rx_ring *rx_ring, struct ice_rx_buf *rx_buf,
-		struct sk_buff *skb, unsigned int size)
+static int
+ice_add_xdp_frag(struct ice_rx_ring *rx_ring, struct xdp_buff *xdp,
+		 struct ice_rx_buf *rx_buf, const unsigned int size)
 {
-#if (PAGE_SIZE >= 8192)
-	unsigned int truesize = SKB_DATA_ALIGN(size + rx_ring->rx_offset);
-#else
-	unsigned int truesize = ice_rx_pg_size(rx_ring) / 2;
-#endif
+	struct skb_shared_info *sinfo = xdp_get_shared_info_from_buff(xdp);
 
 	if (!size)
-		return;
-	skb_add_rx_frag(skb, skb_shinfo(skb)->nr_frags, rx_buf->page,
-			rx_buf->page_offset, size, truesize);
+		return 0;
 
-	/* page is being used so we must update the page offset */
-	ice_rx_buf_adjust_pg_offset(rx_buf, truesize);
+	if (!xdp_buff_has_frags(xdp)) {
+		sinfo->nr_frags = 0;
+		sinfo->xdp_frags_size = 0;
+		xdp_buff_set_frags_flag(xdp);
+	}
+
+	if (unlikely(sinfo->nr_frags == MAX_SKB_FRAGS))
+		return -ENOMEM;
+
+	__skb_fill_page_desc_noacc(sinfo, sinfo->nr_frags++, rx_buf->page,
+				   rx_buf->page_offset, size);
+	sinfo->xdp_frags_size += size;
+
+	if (page_is_pfmemalloc(rx_buf->page))
+		xdp_buff_set_frag_pfmemalloc(xdp);
+
+	return 0;
 }
 
 /**
@@ -904,7 +917,6 @@ ice_get_rx_buf(struct ice_rx_ring *rx_ring, const unsigned int size,
 	struct ice_rx_buf *rx_buf;
 
 	rx_buf = &rx_ring->rx_buf[ntc];
-	rx_buf->pgcnt = page_count(rx_buf->page);
 	prefetchw(rx_buf->page);
 
 	if (!size)
@@ -921,27 +933,51 @@ ice_get_rx_buf(struct ice_rx_ring *rx_ring, const unsigned int size,
 }
 
 /**
+ * ice_get_pgcnts - grab page_count() for gathered fragments
+ * @rx_ring: Rx descriptor ring to store the page counts on
+ * @ntc: the next to clean element (not included in this frame!)
+ *
+ * This function is intended to be called right before running XDP
+ * program so that the page recycling mechanism will be able to take
+ * a correct decision regarding underlying pages; this is done in such
+ * way as XDP program can change the refcount of page
+ */
+static void ice_get_pgcnts(struct ice_rx_ring *rx_ring, unsigned int ntc)
+{
+	u32 idx = rx_ring->first_desc;
+	struct ice_rx_buf *rx_buf;
+	u32 cnt = rx_ring->count;
+
+	while (idx != ntc) {
+		rx_buf = &rx_ring->rx_buf[idx];
+		rx_buf->pgcnt = page_count(rx_buf->page);
+
+		if (++idx == cnt)
+			idx = 0;
+	}
+}
+
+/**
  * ice_build_skb - Build skb around an existing buffer
  * @rx_ring: Rx descriptor ring to transact packets on
- * @rx_buf: Rx buffer to pull data from
  * @xdp: xdp_buff pointing to the data
  *
- * This function builds an skb around an existing Rx buffer, taking care
- * to set up the skb correctly and avoid any memcpy overhead.
+ * This function builds an skb around an existing XDP buffer, taking care
+ * to set up the skb correctly and avoid any memcpy overhead. Driver has
+ * already combined frags (if any) to skb_shared_info.
  */
 static struct sk_buff *
-ice_build_skb(struct ice_rx_ring *rx_ring, struct ice_rx_buf *rx_buf,
-	      struct xdp_buff *xdp)
+ice_build_skb(struct ice_rx_ring *rx_ring, struct xdp_buff *xdp)
 {
 	u8 metasize = xdp->data - xdp->data_meta;
-#if (PAGE_SIZE < 8192)
-	unsigned int truesize = ice_rx_pg_size(rx_ring) / 2;
-#else
-	unsigned int truesize = SKB_DATA_ALIGN(sizeof(struct skb_shared_info)) +
-				SKB_DATA_ALIGN(xdp->data_end -
-					       xdp->data_hard_start);
-#endif
+	struct skb_shared_info *sinfo = NULL;
+	unsigned int nr_frags;
 	struct sk_buff *skb;
+
+	if (unlikely(xdp_buff_has_frags(xdp))) {
+		sinfo = xdp_get_shared_info_from_buff(xdp);
+		nr_frags = sinfo->nr_frags;
+	}
 
 	/* Prefetch first cache line of first page. If xdp->data_meta
 	 * is unused, this points exactly as xdp->data, otherwise we
@@ -950,7 +986,7 @@ ice_build_skb(struct ice_rx_ring *rx_ring, struct ice_rx_buf *rx_buf,
 	 */
 	net_prefetch(xdp->data_meta);
 	/* build an skb around the page buffer */
-	skb = napi_build_skb(xdp->data_hard_start, truesize);
+	skb = napi_build_skb(xdp->data_hard_start, xdp->frame_sz);
 	if (unlikely(!skb))
 		return NULL;
 
@@ -965,8 +1001,11 @@ ice_build_skb(struct ice_rx_ring *rx_ring, struct ice_rx_buf *rx_buf,
 	if (metasize)
 		skb_metadata_set(skb, metasize);
 
-	/* buffer is used by skb, update page_offset */
-	ice_rx_buf_adjust_pg_offset(rx_buf, truesize);
+	if (unlikely(xdp_buff_has_frags(xdp)))
+		xdp_update_skb_shared_info(skb, nr_frags,
+					   sinfo->xdp_frags_size,
+					   nr_frags * xdp->frame_sz,
+					   xdp_buff_is_frag_pfmemalloc(xdp));
 
 	return skb;
 }
@@ -981,22 +1020,29 @@ ice_build_skb(struct ice_rx_ring *rx_ring, struct ice_rx_buf *rx_buf,
  * skb correctly.
  */
 static struct sk_buff *
-ice_construct_skb(struct ice_rx_ring *rx_ring, struct ice_rx_buf *rx_buf,
-		  struct xdp_buff *xdp)
+ice_construct_skb(struct ice_rx_ring *rx_ring, struct xdp_buff *xdp)
 {
 	unsigned int size = xdp->data_end - xdp->data;
+	struct skb_shared_info *sinfo = NULL;
+	struct ice_rx_buf *rx_buf;
+	unsigned int nr_frags = 0;
 	unsigned int headlen;
 	struct sk_buff *skb;
 
 	/* prefetch first cache line of first page */
 	net_prefetch(xdp->data);
 
+	if (unlikely(xdp_buff_has_frags(xdp))) {
+		sinfo = xdp_get_shared_info_from_buff(xdp);
+		nr_frags = sinfo->nr_frags;
+	}
+
 	/* allocate a skb to store the frags */
-	skb = __napi_alloc_skb(&rx_ring->q_vector->napi, ICE_RX_HDR_SIZE,
-			       GFP_ATOMIC | __GFP_NOWARN);
+	skb = napi_alloc_skb(&rx_ring->q_vector->napi, ICE_RX_HDR_SIZE);
 	if (unlikely(!skb))
 		return NULL;
 
+	rx_buf = &rx_ring->rx_buf[rx_ring->first_desc];
 	skb_record_rx_queue(skb, rx_ring->q_index);
 	/* Determine available headroom for copy */
 	headlen = size;
@@ -1010,21 +1056,36 @@ ice_construct_skb(struct ice_rx_ring *rx_ring, struct ice_rx_buf *rx_buf,
 	/* if we exhaust the linear part then add what is left as a frag */
 	size -= headlen;
 	if (size) {
-#if (PAGE_SIZE >= 8192)
-		unsigned int truesize = SKB_DATA_ALIGN(size);
-#else
-		unsigned int truesize = ice_rx_pg_size(rx_ring) / 2;
-#endif
+		/* besides adding here a partial frag, we are going to add
+		 * frags from xdp_buff, make sure there is enough space for
+		 * them
+		 */
+		if (unlikely(nr_frags >= MAX_SKB_FRAGS - 1)) {
+			dev_kfree_skb(skb);
+			return NULL;
+		}
 		skb_add_rx_frag(skb, 0, rx_buf->page,
-				rx_buf->page_offset + headlen, size, truesize);
-		/* buffer is used by skb, update page_offset */
-		ice_rx_buf_adjust_pg_offset(rx_buf, truesize);
+				rx_buf->page_offset + headlen, size,
+				xdp->frame_sz);
 	} else {
-		/* buffer is unused, reset bias back to rx_buf; data was copied
-		 * onto skb's linear part so there's no need for adjusting
-		 * page offset and we can reuse this buffer as-is
+		/* buffer is unused, restore biased page count in Rx buffer;
+		 * data was copied onto skb's linear part so there's no
+		 * need for adjusting page offset and we can reuse this buffer
+		 * as-is
 		 */
 		rx_buf->pagecnt_bias++;
+	}
+
+	if (unlikely(xdp_buff_has_frags(xdp))) {
+		struct skb_shared_info *skinfo = skb_shinfo(skb);
+
+		memcpy(&skinfo->frags[skinfo->nr_frags], &sinfo->frags[0],
+		       sizeof(skb_frag_t) * nr_frags);
+
+		xdp_update_skb_shared_info(skb, skinfo->nr_frags + nr_frags,
+					   sinfo->xdp_frags_size,
+					   nr_frags * xdp->frame_sz,
+					   xdp_buff_is_frag_pfmemalloc(xdp));
 	}
 
 	return skb;
@@ -1060,24 +1121,51 @@ ice_put_rx_buf(struct ice_rx_ring *rx_ring, struct ice_rx_buf *rx_buf)
 }
 
 /**
- * ice_is_non_eop - process handling of non-EOP buffers
- * @rx_ring: Rx ring being processed
- * @rx_desc: Rx descriptor for current buffer
+ * ice_put_rx_mbuf - ice_put_rx_buf() caller, for all buffers in frame
+ * @rx_ring: Rx ring with all the auxiliary data
+ * @xdp: XDP buffer carrying linear + frags part
+ * @ntc: the next to clean element (not included in this frame!)
+ * @verdict: return code from XDP program execution
  *
- * If the buffer is an EOP buffer, this function exits returning false,
- * otherwise return true indicating that this is in fact a non-EOP buffer.
+ * Called after XDP program is completed, or on error with verdict set to
+ * ICE_XDP_CONSUMED.
+ *
+ * Walk through buffers from first_desc to the end of the frame, releasing
+ * buffers and satisfying internal page recycle mechanism. The action depends
+ * on verdict from XDP program.
  */
-static bool
-ice_is_non_eop(struct ice_rx_ring *rx_ring, union ice_32b_rx_flex_desc *rx_desc)
+static void ice_put_rx_mbuf(struct ice_rx_ring *rx_ring, struct xdp_buff *xdp,
+			    u32 ntc, u32 verdict)
 {
-	/* if we are the last buffer then there is nothing else to do */
-#define ICE_RXD_EOF BIT(ICE_RX_FLEX_DESC_STATUS0_EOF_S)
-	if (likely(ice_test_staterr(rx_desc->wb.status_error0, ICE_RXD_EOF)))
-		return false;
+	u32 idx = rx_ring->first_desc;
+	u32 cnt = rx_ring->count;
+	struct ice_rx_buf *buf;
+	u32 xdp_frags = 0;
+	int i = 0;
 
-	rx_ring->rx_stats.non_eop_descs++;
+	if (unlikely(xdp_buff_has_frags(xdp)))
+		xdp_frags = xdp_get_shared_info_from_buff(xdp)->nr_frags;
 
-	return true;
+	while (idx != ntc) {
+		buf = &rx_ring->rx_buf[idx];
+		if (++idx == cnt)
+			idx = 0;
+
+		/* An XDP program could release fragments from the end of the
+		 * buffer. For these, we need to keep the pagecnt_bias as-is.
+		 * To do this, only adjust pagecnt_bias for fragments up to
+		 * the total remaining after the XDP program has run.
+		 */
+		if (verdict != ICE_XDP_CONSUMED)
+			ice_rx_buf_adjust_pg_offset(buf, xdp->frame_sz);
+		else if (i++ <= xdp_frags)
+			buf->pagecnt_bias++;
+
+		ice_put_rx_buf(rx_ring, buf);
+	}
+
+	xdp->data = NULL;
+	rx_ring->first_desc = ntc;
 }
 
 /**
@@ -1095,35 +1183,30 @@ ice_is_non_eop(struct ice_rx_ring *rx_ring, union ice_32b_rx_flex_desc *rx_desc)
 int ice_clean_rx_irq(struct ice_rx_ring *rx_ring, int budget)
 {
 	unsigned int total_rx_bytes = 0, total_rx_pkts = 0;
-	u16 cleaned_count = ICE_DESC_UNUSED(rx_ring);
 	unsigned int offset = rx_ring->rx_offset;
 	struct xdp_buff *xdp = &rx_ring->xdp;
 	struct ice_tx_ring *xdp_ring = NULL;
-	unsigned int xdp_res, xdp_xmit = 0;
-	struct sk_buff *skb = rx_ring->skb;
 	struct bpf_prog *xdp_prog = NULL;
 	u32 ntc = rx_ring->next_to_clean;
+	u32 cached_ntu, xdp_verdict;
 	u32 cnt = rx_ring->count;
+	u32 xdp_xmit = 0;
 	bool failure;
 
-	/* Frame size depend on rx_ring setup when PAGE_SIZE=4K */
-#if (PAGE_SIZE < 8192)
-	xdp->frame_sz = ice_rx_frame_truesize(rx_ring, 0);
-#endif
-
 	xdp_prog = READ_ONCE(rx_ring->xdp_prog);
-	if (xdp_prog)
+	if (xdp_prog) {
 		xdp_ring = rx_ring->xdp_ring;
+		cached_ntu = xdp_ring->next_to_use;
+	}
 
 	/* start the loop to process Rx packets bounded by 'budget' */
 	while (likely(total_rx_pkts < (unsigned int)budget)) {
 		union ice_32b_rx_flex_desc *rx_desc;
 		struct ice_rx_buf *rx_buf;
-		unsigned char *hard_start;
+		struct sk_buff *skb;
 		unsigned int size;
 		u16 stat_err_bits;
-		u16 vlan_tag = 0;
-		u16 rx_ptype;
+		u16 vlan_tci;
 
 		/* get the Rx desc from Rx ring based on 'next_to_clean' */
 		rx_desc = ICE_RX_DESC(rx_ring, ntc);
@@ -1152,8 +1235,7 @@ int ice_clean_rx_irq(struct ice_rx_ring *rx_ring, int budget)
 				ice_vc_fdir_irq_handler(ctrl_vsi, rx_desc);
 			if (++ntc == cnt)
 				ntc = 0;
-			ice_put_rx_buf(rx_ring, NULL);
-			cleaned_count++;
+			rx_ring->first_desc = ntc;
 			continue;
 		}
 
@@ -1163,67 +1245,51 @@ int ice_clean_rx_irq(struct ice_rx_ring *rx_ring, int budget)
 		/* retrieve a buffer from the ring */
 		rx_buf = ice_get_rx_buf(rx_ring, size, ntc);
 
-		if (!size) {
-			xdp->data = NULL;
-			xdp->data_end = NULL;
-			xdp->data_hard_start = NULL;
-			xdp->data_meta = NULL;
-			goto construct_skb;
-		}
-
-		hard_start = page_address(rx_buf->page) + rx_buf->page_offset -
-			     offset;
-		xdp_prepare_buff(xdp, hard_start, offset, size, !!offset);
-#if (PAGE_SIZE > 4096)
-		/* At larger PAGE_SIZE, frame_sz depend on len size */
-		xdp->frame_sz = ice_rx_frame_truesize(rx_ring, size);
-#endif
-
-		if (!xdp_prog)
-			goto construct_skb;
-
-		xdp_res = ice_run_xdp(rx_ring, xdp, xdp_prog, xdp_ring);
-		if (!xdp_res)
-			goto construct_skb;
-		if (xdp_res & (ICE_XDP_TX | ICE_XDP_REDIR)) {
-			xdp_xmit |= xdp_res;
-			ice_rx_buf_adjust_pg_offset(rx_buf, xdp->frame_sz);
-		} else {
-			rx_buf->pagecnt_bias++;
-		}
-		total_rx_bytes += size;
-		total_rx_pkts++;
-
-		cleaned_count++;
+		/* Increment ntc before calls to ice_put_rx_mbuf() */
 		if (++ntc == cnt)
 			ntc = 0;
-		ice_put_rx_buf(rx_ring, rx_buf);
-		continue;
-construct_skb:
-		if (skb) {
-			ice_add_rx_frag(rx_ring, rx_buf, skb, size);
-		} else if (likely(xdp->data)) {
-			if (ice_ring_uses_build_skb(rx_ring))
-				skb = ice_build_skb(rx_ring, rx_buf, xdp);
-			else
-				skb = ice_construct_skb(rx_ring, rx_buf, xdp);
-		}
-		/* exit if we failed to retrieve a buffer */
-		if (!skb) {
-			rx_ring->rx_stats.alloc_buf_failed++;
-			if (rx_buf)
-				rx_buf->pagecnt_bias++;
+
+		if (!xdp->data) {
+			void *hard_start;
+
+			hard_start = page_address(rx_buf->page) + rx_buf->page_offset -
+				     offset;
+			xdp_prepare_buff(xdp, hard_start, offset, size, !!offset);
+			xdp_buff_clear_frags_flag(xdp);
+		} else if (ice_add_xdp_frag(rx_ring, xdp, rx_buf, size)) {
+			ice_put_rx_mbuf(rx_ring, xdp, ntc, ICE_XDP_CONSUMED);
 			break;
 		}
-
-		if (++ntc == cnt)
-			ntc = 0;
-		ice_put_rx_buf(rx_ring, rx_buf);
-		cleaned_count++;
 
 		/* skip if it is NOP desc */
 		if (ice_is_non_eop(rx_ring, rx_desc))
 			continue;
+
+		ice_get_pgcnts(rx_ring, ntc);
+		xdp_verdict = ice_run_xdp(rx_ring, xdp, xdp_prog, xdp_ring, rx_desc);
+		if (xdp_verdict == ICE_XDP_PASS)
+			goto construct_skb;
+		total_rx_bytes += xdp_get_buff_len(xdp);
+		total_rx_pkts++;
+
+		ice_put_rx_mbuf(rx_ring, xdp, ntc, xdp_verdict);
+		xdp_xmit |= xdp_verdict & (ICE_XDP_TX | ICE_XDP_REDIR);
+
+		continue;
+construct_skb:
+		if (likely(ice_ring_uses_build_skb(rx_ring)))
+			skb = ice_build_skb(rx_ring, xdp);
+		else
+			skb = ice_construct_skb(rx_ring, xdp);
+		/* exit if we failed to retrieve a buffer */
+		if (!skb) {
+			rx_ring->ring_stats->rx_stats.alloc_buf_failed++;
+			xdp_verdict = ICE_XDP_CONSUMED;
+		}
+		ice_put_rx_mbuf(rx_ring, xdp, ntc, xdp_verdict);
+
+		if (!skb)
+			break;
 
 		stat_err_bits = BIT(ICE_RX_FLEX_DESC_STATUS0_RXE_S);
 		if (unlikely(ice_test_staterr(rx_desc->wb.status_error0,
@@ -1232,27 +1298,21 @@ construct_skb:
 			continue;
 		}
 
-		vlan_tag = ice_get_vlan_tag_from_rx_desc(rx_desc);
+		vlan_tci = ice_get_vlan_tci(rx_desc);
 
 		/* pad the skb if needed, to make a valid ethernet frame */
-		if (eth_skb_pad(skb)) {
-			skb = NULL;
+		if (eth_skb_pad(skb))
 			continue;
-		}
 
 		/* probably a little skewed due to removing CRC */
 		total_rx_bytes += skb->len;
 
 		/* populate checksum, VLAN, and protocol */
-		rx_ptype = le16_to_cpu(rx_desc->wb.ptype_flex_flags0) &
-			ICE_RX_FLEX_DESC_PTYPE_M;
-
-		ice_process_skb_fields(rx_ring, rx_desc, skb, rx_ptype);
+		ice_process_skb_fields(rx_ring, rx_desc, skb);
 
 		ice_trace(clean_rx_irq_indicate, rx_ring, rx_desc, skb);
 		/* send completed skb up the stack */
-		ice_receive_skb(rx_ring, skb, vlan_tag);
-		skb = NULL;
+		ice_receive_skb(rx_ring, skb, vlan_tci);
 
 		/* update budget accounting */
 		total_rx_pkts++;
@@ -1260,13 +1320,14 @@ construct_skb:
 
 	rx_ring->next_to_clean = ntc;
 	/* return up to cleaned_count buffers to hardware */
-	failure = ice_alloc_rx_bufs(rx_ring, cleaned_count);
+	failure = ice_alloc_rx_bufs(rx_ring, ICE_RX_DESC_UNUSED(rx_ring));
 
-	if (xdp_prog)
-		ice_finalize_xdp_rx(xdp_ring, xdp_xmit);
-	rx_ring->skb = skb;
+	if (xdp_xmit)
+		ice_finalize_xdp_rx(xdp_ring, xdp_xmit, cached_ntu);
 
-	ice_update_rx_ring_stats(rx_ring, total_rx_pkts, total_rx_bytes);
+	if (rx_ring->ring_stats)
+		ice_update_rx_ring_stats(rx_ring, total_rx_pkts,
+					 total_rx_bytes);
 
 	/* guarantee a trip back through this routine if there was a failure */
 	return failure ? budget : (int)total_rx_pkts;
@@ -1283,15 +1344,25 @@ static void __ice_update_sample(struct ice_q_vector *q_vector,
 		struct ice_tx_ring *tx_ring;
 
 		ice_for_each_tx_ring(tx_ring, *rc) {
-			packets += tx_ring->stats.pkts;
-			bytes += tx_ring->stats.bytes;
+			struct ice_ring_stats *ring_stats;
+
+			ring_stats = tx_ring->ring_stats;
+			if (!ring_stats)
+				continue;
+			packets += ring_stats->stats.pkts;
+			bytes += ring_stats->stats.bytes;
 		}
 	} else {
 		struct ice_rx_ring *rx_ring;
 
 		ice_for_each_rx_ring(rx_ring, *rc) {
-			packets += rx_ring->stats.pkts;
-			bytes += rx_ring->stats.bytes;
+			struct ice_ring_stats *ring_stats;
+
+			ring_stats = rx_ring->ring_stats;
+			if (!ring_stats)
+				continue;
+			packets += ring_stats->stats.pkts;
+			bytes += ring_stats->stats.bytes;
 		}
 	}
 
@@ -1425,9 +1496,9 @@ static void ice_set_wb_on_itr(struct ice_q_vector *q_vector)
 	 * be static in non-adaptive mode (user configured)
 	 */
 	wr32(&vsi->back->hw, GLINT_DYN_CTL(q_vector->reg_idx),
-	     ((ICE_ITR_NONE << GLINT_DYN_CTL_ITR_INDX_S) &
-	      GLINT_DYN_CTL_ITR_INDX_M) | GLINT_DYN_CTL_INTENA_MSK_M |
-	     GLINT_DYN_CTL_WB_ON_ITR_M);
+	     FIELD_PREP(GLINT_DYN_CTL_ITR_INDX_M, ICE_ITR_NONE) |
+	     FIELD_PREP(GLINT_DYN_CTL_INTENA_MSK_M, 1) |
+	     FIELD_PREP(GLINT_DYN_CTL_WB_ON_ITR_M, 1));
 
 	q_vector->wb_on_itr = true;
 }
@@ -1455,10 +1526,11 @@ int ice_napi_poll(struct napi_struct *napi, int budget)
 	 * budget and be more aggressive about cleaning up the Tx descriptors.
 	 */
 	ice_for_each_tx_ring(tx_ring, q_vector->tx) {
+		struct xsk_buff_pool *xsk_pool = READ_ONCE(tx_ring->xsk_pool);
 		bool wd;
 
-		if (tx_ring->xsk_pool)
-			wd = ice_xmit_zc(tx_ring);
+		if (xsk_pool)
+			wd = ice_xmit_zc(tx_ring, xsk_pool);
 		else if (ice_ring_is_xdp(tx_ring))
 			wd = true;
 		else
@@ -1484,6 +1556,7 @@ int ice_napi_poll(struct napi_struct *napi, int budget)
 		budget_per_ring = budget;
 
 	ice_for_each_rx_ring(rx_ring, q_vector->rx) {
+		struct xsk_buff_pool *xsk_pool = READ_ONCE(rx_ring->xsk_pool);
 		int cleaned;
 
 		/* A dedicated path for zero-copy allows making a single
@@ -1491,7 +1564,7 @@ int ice_napi_poll(struct napi_struct *napi, int budget)
 		 * ice_clean_rx_irq function and makes the codebase cleaner.
 		 */
 		cleaned = rx_ring->xsk_pool ?
-			  ice_clean_rx_irq_zc(rx_ring, budget_per_ring) :
+			  ice_clean_rx_irq_zc(rx_ring, xsk_pool, budget_per_ring) :
 			  ice_clean_rx_irq(rx_ring, budget_per_ring);
 		work_done += cleaned;
 		/* if we clean as many as budgeted, we must not be done */
@@ -1540,7 +1613,7 @@ static int __ice_maybe_stop_tx(struct ice_tx_ring *tx_ring, unsigned int size)
 
 	/* A reprieve! - use start_queue because it doesn't call schedule */
 	netif_tx_start_queue(txring_txq(tx_ring));
-	++tx_ring->tx_stats.restart_q;
+	++tx_ring->ring_stats->tx_stats.restart_q;
 	return 0;
 }
 
@@ -1595,8 +1668,7 @@ ice_tx_map(struct ice_tx_ring *tx_ring, struct ice_tx_buf *first,
 
 	if (first->tx_flags & ICE_TX_FLAGS_HW_VLAN) {
 		td_cmd |= (u64)ICE_TX_DESC_CMD_IL2TAG1;
-		td_tag = (first->tx_flags & ICE_TX_FLAGS_VLAN_M) >>
-			  ICE_TX_FLAGS_VLAN_S;
+		td_tag = first->vid;
 	}
 
 	dma = dma_map_single(tx_ring->dev, skb->data, size, DMA_TO_DEVICE);
@@ -1661,6 +1733,7 @@ ice_tx_map(struct ice_tx_ring *tx_ring, struct ice_tx_buf *first,
 				       DMA_TO_DEVICE);
 
 		tx_buf = &tx_ring->tx_buf[i];
+		tx_buf->type = ICE_TX_BUF_FRAG;
 	}
 
 	/* record SW timestamp if HW timestamp is not available */
@@ -1928,7 +2001,7 @@ ice_tx_prepare_vlan_flags(struct ice_tx_ring *tx_ring, struct ice_tx_buf *first)
 	 * VLAN offloads exclusively so we only care about the VLAN ID here
 	 */
 	if (skb_vlan_tag_present(skb)) {
-		first->tx_flags |= skb_vlan_tag_get(skb) << ICE_TX_FLAGS_VLAN_S;
+		first->vid = skb_vlan_tag_get(skb);
 		if (tx_ring->flags & ICE_TX_FLAGS_RING_VLAN_L2TAG2)
 			first->tx_flags |= ICE_TX_FLAGS_HW_OUTER_SINGLE_VLAN;
 		else
@@ -1975,7 +2048,6 @@ int ice_tso(struct ice_tx_buf *first, struct ice_tx_offload_params *off)
 	if (err < 0)
 		return err;
 
-	/* cppcheck-suppress unreadVariable */
 	protocol = vlan_get_protocol(skb);
 
 	if (eth_p_mpls(protocol))
@@ -2012,8 +2084,6 @@ int ice_tso(struct ice_tx_buf *first, struct ice_tx_offload_params *off)
 		}
 
 		/* reset pointers to inner headers */
-
-		/* cppcheck-suppress unreadVariable */
 		ip.hdr = skb_inner_network_header(skb);
 		l4.hdr = skb_inner_transport_header(skb);
 
@@ -2240,9 +2310,6 @@ ice_tstamp(struct ice_tx_ring *tx_ring, struct sk_buff *skb,
 	if (likely(!(skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP)))
 		return;
 
-	if (!tx_ring->ptp_tx)
-		return;
-
 	/* Tx timestamps cannot be sampled when doing TSO */
 	if (first->tx_flags & ICE_TX_FLAGS_TSO)
 		return;
@@ -2279,12 +2346,15 @@ ice_xmit_frame_ring(struct sk_buff *skb, struct ice_tx_ring *tx_ring)
 
 	ice_trace(xmit_frame_ring, tx_ring, skb);
 
+	if (unlikely(ipv6_hopopt_jumbo_remove(skb)))
+		goto out_drop;
+
 	count = ice_xmit_desc_count(skb);
 	if (ice_chk_linearize(skb, count)) {
 		if (__skb_linearize(skb))
 			goto out_drop;
 		count = ice_txd_use_count(skb->len);
-		tx_ring->tx_stats.tx_linearize++;
+		tx_ring->ring_stats->tx_stats.tx_linearize++;
 	}
 
 	/* need: 1 descriptor per page * PAGE_SIZE/ICE_MAX_DATA_PER_TXD,
@@ -2295,7 +2365,7 @@ ice_xmit_frame_ring(struct sk_buff *skb, struct ice_tx_ring *tx_ring)
 	 */
 	if (ice_maybe_stop_tx(tx_ring, count + ICE_DESCS_PER_CACHE_LINE +
 			      ICE_DESCS_FOR_CTX_DESC)) {
-		tx_ring->tx_stats.tx_busy++;
+		tx_ring->ring_stats->tx_stats.tx_busy++;
 		return NETDEV_TX_BUSY;
 	}
 
@@ -2307,6 +2377,7 @@ ice_xmit_frame_ring(struct sk_buff *skb, struct ice_tx_ring *tx_ring)
 	/* record the location of the first descriptor for this packet */
 	first = &tx_ring->tx_buf[tx_ring->next_to_use];
 	first->skb = skb;
+	first->type = ICE_TX_BUF_SKB;
 	first->bytecount = max_t(unsigned int, skb->len, ETH_ZLEN);
 	first->gso_segs = 1;
 	first->tx_flags = 0;
@@ -2317,8 +2388,7 @@ ice_xmit_frame_ring(struct sk_buff *skb, struct ice_tx_ring *tx_ring)
 		offload.cd_qw1 |= (u64)(ICE_TX_DESC_DTYPE_CTX |
 					(ICE_TX_CTX_DESC_IL2TAG2 <<
 					ICE_TXD_CTX_QW1_CMD_S));
-		offload.cd_l2tag2 = (first->tx_flags & ICE_TX_FLAGS_VLAN_M) >>
-			ICE_TX_FLAGS_VLAN_S;
+		offload.cd_l2tag2 = first->vid;
 	}
 
 	/* set up TSO offload */
@@ -2342,7 +2412,9 @@ ice_xmit_frame_ring(struct sk_buff *skb, struct ice_tx_ring *tx_ring)
 					ICE_TXD_CTX_QW1_CMD_S);
 
 	ice_tstamp(tx_ring, skb, first, &offload);
-	if (ice_is_switchdev_running(vsi->back))
+	if ((ice_is_switchdev_running(vsi->back) ||
+	     ice_lag_is_switchdev_running(vsi->back)) &&
+	    vsi->type != ICE_VSI_SF)
 		ice_eswitch_set_target_vsi(skb, &offload);
 
 	if (offload.cd_qw1 & ICE_TX_DESC_DTYPE_CTX) {
@@ -2479,11 +2551,11 @@ void ice_clean_ctrl_tx_irq(struct ice_tx_ring *tx_ring)
 					 dma_unmap_addr(tx_buf, dma),
 					 dma_unmap_len(tx_buf, len),
 					 DMA_TO_DEVICE);
-		if (tx_buf->tx_flags & ICE_TX_FLAGS_DUMMY_PKT)
+		if (tx_buf->type == ICE_TX_BUF_DUMMY)
 			devm_kfree(tx_ring->dev, tx_buf->raw_buf);
 
 		/* clear next_to_watch to prevent false hangs */
-		tx_buf->raw_buf = NULL;
+		tx_buf->type = ICE_TX_BUF_EMPTY;
 		tx_buf->tx_flags = 0;
 		tx_buf->next_to_watch = NULL;
 		dma_unmap_len_set(tx_buf, len, 0);

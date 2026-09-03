@@ -119,11 +119,11 @@ int dbg_snapshot_qd_add_region(void *v_entry, u32 attr)
 }
 EXPORT_SYMBOL_GPL(dbg_snapshot_qd_add_region);
 
-bool dbg_snapshot_qd_enable(void)
+bool dbg_snapshot_qd_enabled(void)
 {
 	return dss_dpm.dump_mode == QUICK_DUMP;
 }
-EXPORT_SYMBOL_GPL(dbg_snapshot_qd_enable);
+EXPORT_SYMBOL_GPL(dbg_snapshot_qd_enabled);
 
 void dbg_snapshot_qd_dump_stack(u64 sp)
 {
@@ -152,7 +152,7 @@ void dbg_snapshot_qd_dump_stack(u64 sp)
 		dev_err(qdump_dev, "failed to add stack of cpu %d\n", cpu);
 
 	scnprintf(ktsk_entry.name, sizeof(ktsk_entry.name), "KTASK%d", cpu);
-	strlcpy(ktsk_entry.struct_name, "task_struct",
+	strscpy(ktsk_entry.struct_name, "task_struct",
 			sizeof(ktsk_entry.struct_name));
 	ktsk_entry.virt_addr = (u64)current;
 	ktsk_entry.phys_addr = virt_to_phys((uintptr_t *)current);
@@ -172,9 +172,9 @@ static void register_dss_log_item(void)
 	for (i = 0; i < item_num; i++) {
 		item = dbg_snapshot_log_get_item_by_index(i);
 		if (item->entry.enabled) {
-			strlcpy(qd_entry.name, item->name,
+			strscpy(qd_entry.name, item->name,
 					sizeof(qd_entry.name));
-			strlcpy(qd_entry.struct_name, item->name,
+			strscpy(qd_entry.struct_name, item->name,
 					sizeof(qd_entry.struct_name));
 			qd_entry.virt_addr = item->entry.vaddr;
 			qd_entry.phys_addr = item->entry.paddr;
@@ -200,7 +200,7 @@ static void register_dss_item(void)
 
 		item = dbg_snapshot_get_item_by_index(i);
 		if (item->entry.enabled) {
-			strlcpy(qd_entry.name, item->name,
+			strscpy(qd_entry.name, item->name,
 					sizeof(qd_entry.name));
 			qd_entry.struct_name[0] = '\0';
 			qd_entry.virt_addr = item->entry.vaddr;

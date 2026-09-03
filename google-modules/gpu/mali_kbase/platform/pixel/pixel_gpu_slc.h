@@ -37,7 +37,7 @@ static void __maybe_unused gpu_slc_kctx_idle(struct kbase_context *kctx) { (void
 static void __maybe_unused gpu_slc_tick_tock(struct kbase_device *kbdev) { (void)kbdev; }
 #endif /* CONFIG_MALI_PIXEL_GPU_SLC */
 
-#if defined(CONFIG_MALI_PIXEL_GPU_SLC) && !defined(PIXEL_GPU_SLC_ACPM_SIGNAL)
+#if defined(CONFIG_MALI_PIXEL_GPU_SLC) && !defined(CONFIG_PIXEL_GPU_SLC_ACPM_SIGNAL)
 int
 gpu_pixel_handle_buffer_liveness_update_ioctl(struct kbase_context* kctx,
                                               struct kbase_ioctl_buffer_liveness_update* update);

@@ -7,8 +7,6 @@
 
 #include <linux/clk-provider.h>
 #include <linux/of.h>
-#include <linux/of_address.h>
-#include <linux/of_device.h>
 #include <linux/platform_device.h>
 
 #include "clk-mtk.h"
@@ -130,6 +128,7 @@ static const struct of_device_id of_match_clk_mt7629_eth[] = {
 		/* sentinel */
 	}
 };
+MODULE_DEVICE_TABLE(of, of_match_clk_mt7629_eth);
 
 static int clk_mt7629_eth_probe(struct platform_device *pdev)
 {
@@ -158,4 +157,6 @@ static struct platform_driver clk_mt7629_eth_drv = {
 };
 
 builtin_platform_driver(clk_mt7629_eth_drv);
+
+MODULE_DESCRIPTION("MediaTek MT7629 Ethernet clocks driver");
 MODULE_LICENSE("GPL");

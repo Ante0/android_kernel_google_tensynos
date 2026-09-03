@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Mustang h2omg definition
+ *
+ * Copyright 2024 Google LLC
+ *
+ */
+
+&max77779_i2cm {
+	h2omg@70 {
+		reg = <0x70>;
+		compatible = "google,h2omg";
+
+		control = /bits/ 8 <0x47>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&drip2ap_int_od_l_1v2_sleep>;
+		h2omg_irq-gpios = <DRIP2AP_INT_OD_L_1V2(GPIO_ACTIVE_LOW)>;
+
+		/* require both sensors to trigger fuse */
+		dual-trigger;
+	};
+
+	h2omg@71 {
+		reg = <0x71>;
+		compatible = "google,h2omg";
+
+		control = /bits/ 8 <0x47>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&drip2ap_int_od_l_1v2_sleep>;
+		h2omg_irq-gpios = <DRIP2AP_INT_OD_L_1V2(GPIO_ACTIVE_LOW)>;
+
+		/* require both sensors to trigger fuse */
+		dual-trigger;
+	};
+};

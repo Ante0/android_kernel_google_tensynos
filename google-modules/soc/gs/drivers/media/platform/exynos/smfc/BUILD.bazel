@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "smfc",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "smfc-dev.c",
+        "smfc-regs.c",
+        "smfc-stream-parser.c",
+        "smfc-v4l2-ioctls.c",
+    ],
+    out = "smfc.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/bts",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos_pm_qos",
+    ],
+)

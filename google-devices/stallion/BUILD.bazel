@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch")
+load("//private/devices/google/common/kleaf:device_build.bzl", "device_build")
+load("//private/devices/google/zumapro:constants.bzl", "ZUMAPRO_DPM_DTBOS", "ZUMAPRO_DTBS", "ZUMAPRO_MODULE_OUTS")
+load(":constants.bzl", "STALLION_DTBOS")
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+device_build(
+    name = "stallion",
+    base_device = "//private/devices/google/zumapro:zumapro_base",
+    build_configs = ["build.config.stallion"],
+    build_dtb = True,
+    build_dtbo = True,
+    build_system_dlkm = True,
+    build_vendor_dlkm = True,
+    build_vendor_kernel_boot = True,
+    defconfig_fragments = ["stallion_defconfig"],
+    dtb_outs = ZUMAPRO_DTBS,
+    dtbo_additional_outs = ZUMAPRO_DPM_DTBOS,
+    dtbo_outs = STALLION_DTBOS,
+    dts_makefile = "dts/Makefile",
+    dts_srcs = glob(["dts/**"]) + [
+        "//private/google-modules/soc/gs:gs.dt-bindings",
+    ],
+    insmod_cfgs = glob(["insmod_cfg/*.cfg"]),
+    kconfig_exts = ["Kconfig.ext.stallion"],
+    kconfigs = [
+        # keep sorted
+        "//private/google-modules/display/common:common.kconfig",
+        "//private/google-modules/radio/samsung/s5400:cpif.kconfig",
+    ],
+    module_outs = ZUMAPRO_MODULE_OUTS,
+    vendor_dlkm_modules = [
+        # keep sorted
+        "//private/google-modules/amplifiers/cs40l26:cl_dsp-core",
+        "//private/google-modules/amplifiers/cs40l26:cs40l26-core",
+        "//private/google-modules/amplifiers/cs40l26:snd-soc-cs40l26",
+        "//private/google-modules/amplifiers/tas25xx:snd-soc-tas25xx",
+        "//private/google-modules/bluetooth/broadcom:nitrous",
+        "//private/google-modules/gps/broadcom/bcm47765:bbd_pps_gpio",
+        "//private/google-modules/nfc/ese:st33spi",
+        "//private/google-modules/radio/samsung/s5400:cp_thermal_zone",
+        "//private/google-modules/wlan/wlan_ptracker",
+    ],
+    vendor_dlkm_modules_blocklisted = [
+        # keep sorted
+        "//private/google-modules/amplifiers/cs40l26:cs40l26-i2c",
+        "//private/google-modules/display/common/panel_tests:gs-panel-common-test",
+        "//private/google-modules/soc/gs/drivers/pwm:pwm-exynos",
+        "//private/google-modules/soc/gs/drivers/video/backlight:rt4539_bl",
+        "//private/google-modules/touch/focaltech/ft3683u:focal_touch",
+        "//private/google-modules/wlan/bcmdhd/bcm4383:bcmdhd4383",
+    ],
+    vendor_ramdisk_modules = [
+        # keep sorted
+        "//private/google-modules/bms:google-wlc",
+        "//private/google-modules/bms:hl7132",
+        "//private/google-modules/display/common/panels:panel-gs-simple",
+        "//private/google-modules/display/panels/stallion:panel-gs-staea",
+        "//private/google-modules/gps/broadcom/bcm47765:bcm47765_ko",
+        "//private/google-modules/nfc:st21nfc",
+        "//private/google-modules/nfc/ese:st54spi",
+        "//private/google-modules/radio/samsung/s5400:cp_pmic",
+        "//private/google-modules/radio/samsung/s5400:cpif_ko",
+        "//private/google-modules/radio/samsung/s5400:cpif_page",
+        "//private/google-modules/radio/samsung/s5400:shm_ipc",
+    ],
+)
+
+# For compatibility
+alias(
+    name = "zumapro_stallion_dist",
+    actual = ":stallion/dist",
+)
+
+alias(
+    name = "zumapro_stallion_abi_update_symbol_list",
+    actual = ":stallion/kernel_abi_update_symbol_list",
+)
+
+alias(
+    name = "kernel",
+    actual = ":stallion/kernel",
+)
+
+alias(
+    name = "kernel_abi_update_symbol_list",
+    actual = ":stallion/kernel_abi_update_symbol_list",
+)
+
+alias(
+    name = "kernel_compile_commands",
+    actual = ":stallion/kernel_compile_commands",
+)

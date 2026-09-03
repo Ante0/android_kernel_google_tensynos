@@ -31,6 +31,7 @@
  */
 
 #include "en.h"
+#include "lib/crypto.h"
 
 /* mlx5e global resources should be placed in this file.
  * Global resources are common to all the netdevices created on the same nic.
@@ -38,12 +39,13 @@
 
 void mlx5e_mkey_set_relaxed_ordering(struct mlx5_core_dev *mdev, void *mkc)
 {
-	bool ro_pci_enable = pcie_relaxed_ordering_enabled(mdev->pdev);
 	bool ro_write = MLX5_CAP_GEN(mdev, relaxed_ordering_write);
-	bool ro_read = MLX5_CAP_GEN(mdev, relaxed_ordering_read);
+	bool ro_read = MLX5_CAP_GEN(mdev, relaxed_ordering_read) ||
+		       (pcie_relaxed_ordering_enabled(mdev->pdev) &&
+			MLX5_CAP_GEN(mdev, relaxed_ordering_read_pci_enabled));
 
-	MLX5_SET(mkc, mkc, relaxed_ordering_read, ro_pci_enable && ro_read);
-	MLX5_SET(mkc, mkc, relaxed_ordering_write, ro_pci_enable && ro_write);
+	MLX5_SET(mkc, mkc, relaxed_ordering_read, ro_read);
+	MLX5_SET(mkc, mkc, relaxed_ordering_write, ro_write);
 }
 
 int mlx5e_create_mkey(struct mlx5_core_dev *mdev, u32 pdn, u32 *mkey)
@@ -72,7 +74,73 @@ int mlx5e_create_mkey(struct mlx5_core_dev *mdev, u32 pdn, u32 *mkey)
 	return err;
 }
 
-int mlx5e_create_mdev_resources(struct mlx5_core_dev *mdev)
+int mlx5e_create_tis(struct mlx5_core_dev *mdev, void *in, u32 *tisn)
+{
+	void *tisc = MLX5_ADDR_OF(create_tis_in, in, ctx);
+
+	MLX5_SET(tisc, tisc, transport_domain, mdev->mlx5e_res.hw_objs.td.tdn);
+
+	if (mlx5_lag_is_lacp_owner(mdev))
+		MLX5_SET(tisc, tisc, strict_lag_tx_port_affinity, 1);
+
+	return mlx5_core_create_tis(mdev, in, tisn);
+}
+
+void mlx5e_destroy_tis(struct mlx5_core_dev *mdev, u32 tisn)
+{
+	mlx5_core_destroy_tis(mdev, tisn);
+}
+
+static void mlx5e_destroy_tises(struct mlx5_core_dev *mdev, u32 tisn[MLX5_MAX_PORTS][MLX5_MAX_NUM_TC])
+{
+	int tc, i;
+
+	for (i = 0; i < mlx5e_get_num_lag_ports(mdev); i++)
+		for (tc = 0; tc < MLX5_MAX_NUM_TC; tc++)
+			mlx5e_destroy_tis(mdev, tisn[i][tc]);
+}
+
+static bool mlx5_lag_should_assign_affinity(struct mlx5_core_dev *mdev)
+{
+	return MLX5_CAP_GEN(mdev, lag_tx_port_affinity) && mlx5e_get_num_lag_ports(mdev) > 1;
+}
+
+static int mlx5e_create_tises(struct mlx5_core_dev *mdev, u32 tisn[MLX5_MAX_PORTS][MLX5_MAX_NUM_TC])
+{
+	int tc, i;
+	int err;
+
+	for (i = 0; i < mlx5e_get_num_lag_ports(mdev); i++) {
+		for (tc = 0; tc < MLX5_MAX_NUM_TC; tc++) {
+			u32 in[MLX5_ST_SZ_DW(create_tis_in)] = {};
+			void *tisc;
+
+			tisc = MLX5_ADDR_OF(create_tis_in, in, ctx);
+
+			MLX5_SET(tisc, tisc, prio, tc << 1);
+
+			if (mlx5_lag_should_assign_affinity(mdev))
+				MLX5_SET(tisc, tisc, lag_tx_port_affinity, i + 1);
+
+			err = mlx5e_create_tis(mdev, in, &tisn[i][tc]);
+			if (err)
+				goto err_close_tises;
+		}
+	}
+
+	return 0;
+
+err_close_tises:
+	for (; i >= 0; i--) {
+		for (tc--; tc >= 0; tc--)
+			mlx5e_destroy_tis(mdev, tisn[i][tc]);
+		tc = MLX5_MAX_NUM_TC;
+	}
+
+	return err;
+}
+
+int mlx5e_create_mdev_resources(struct mlx5_core_dev *mdev, bool create_tises)
 {
 	struct mlx5e_hw_objs *res = &mdev->mlx5e_res.hw_objs;
 	int err;
@@ -101,11 +169,29 @@ int mlx5e_create_mdev_resources(struct mlx5_core_dev *mdev)
 		goto err_destroy_mkey;
 	}
 
+	if (create_tises) {
+		err = mlx5e_create_tises(mdev, res->tisn);
+		if (err) {
+			mlx5_core_err(mdev, "alloc tises failed, %d\n", err);
+			goto err_destroy_bfreg;
+		}
+		res->tisn_valid = true;
+	}
+
 	INIT_LIST_HEAD(&res->td.tirs_list);
 	mutex_init(&res->td.list_lock);
 
+	mdev->mlx5e_res.dek_priv = mlx5_crypto_dek_init(mdev);
+	if (IS_ERR(mdev->mlx5e_res.dek_priv)) {
+		mlx5_core_err(mdev, "crypto dek init failed, %ld\n",
+			      PTR_ERR(mdev->mlx5e_res.dek_priv));
+		mdev->mlx5e_res.dek_priv = NULL;
+	}
+
 	return 0;
 
+err_destroy_bfreg:
+	mlx5_free_bfreg(mdev, &res->bfreg);
 err_destroy_mkey:
 	mlx5_core_destroy_mkey(mdev, res->mkey);
 err_dealloc_transport_domain:
@@ -119,6 +205,10 @@ void mlx5e_destroy_mdev_resources(struct mlx5_core_dev *mdev)
 {
 	struct mlx5e_hw_objs *res = &mdev->mlx5e_res.hw_objs;
 
+	mlx5_crypto_dek_cleanup(mdev->mlx5e_res.dek_priv);
+	mdev->mlx5e_res.dek_priv = NULL;
+	if (res->tisn_valid)
+		mlx5e_destroy_tises(mdev, res->tisn);
 	mlx5_free_bfreg(mdev, &res->bfreg);
 	mlx5_core_destroy_mkey(mdev, res->mkey);
 	mlx5_core_dealloc_transport_domain(mdev, res->td.tdn);

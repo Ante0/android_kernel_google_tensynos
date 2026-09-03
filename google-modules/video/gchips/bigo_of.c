@@ -9,6 +9,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/cleanup.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -41,7 +42,7 @@ static int bigo_of_get_resource(struct bigo_core *core)
 	core->regs_size = res->end - res->start + 1;
 	core->paddr = (phys_addr_t)res->start;
 
-#if IS_ENABLED(ENABLE_SLC)
+#if IS_ENABLED(CONFIG_BIGWAVE_ENABLE_SLC)
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "ssmt_pid");
 	if (IS_ERR_OR_NULL(res)) {
 		rc = PTR_ERR(res);
@@ -96,16 +97,15 @@ static void bigo_of_remove_bw_table(struct bigo_core *core)
 static int bigo_of_parse_opp_table(struct bigo_core *core)
 {
 	int rc = 0;
-	struct device_node *np;
 	struct bigo_opp *opp;
 
-	struct device_node *opp_np =
+	struct device_node *opp_np __free(device_node) =
 		of_parse_phandle(core->dev->of_node, "vpu-opp-table", 0);
 	if (!opp_np) {
 		return -ENOENT;
 		goto err_add_table;
 	}
-	for_each_available_child_of_node(opp_np, np) {
+	for_each_available_child_of_node_scoped(opp_np, np) {
 		opp = kmalloc(sizeof(*opp), GFP_KERNEL);
 		if (!opp) {
 			rc = -ENOMEM;
@@ -135,16 +135,15 @@ err_add_table:
 static int bigo_of_parse_bw_table(struct bigo_core *core)
 {
 	int rc = 0;
-	struct device_node *np;
 	struct bigo_bw *bw;
 
-	struct device_node *bw_np =
+	struct device_node *bw_np __free(device_node) =
 		of_parse_phandle(core->dev->of_node, "vpu-bw-table", 0);
 	if (!bw_np) {
 		return -ENOENT;
 		goto err_add_table;
 	}
-	for_each_available_child_of_node(bw_np, np) {
+	for_each_available_child_of_node_scoped(bw_np, np) {
 		bw = kmalloc(sizeof(*bw), GFP_KERNEL);
 		if (!bw) {
 			rc = -ENOMEM;

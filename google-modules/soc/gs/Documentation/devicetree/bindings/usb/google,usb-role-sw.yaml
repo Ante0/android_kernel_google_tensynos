@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: (GPL-2.0 OR BSD-2-Clause)
+%YAML 1.2
+---
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: google role switch driver device tree bindings
+
+maintainers:
+  - Guan-Yu Lin <guanyulin@google.com>
+
+description: |
+  The driver collects USB data role switch requests from other drivers,
+  determines appropriate data role, and pass the data role request to
+  downstream dwc3 glue driver.
+
+properties:
+  disable-aoc-voter:
+    description: disable AOC_VOTER on systems without such voter present.
+    type: boolean
+
+  host-mode-aoc-optional:
+    description: aoc is not required for host mode functionality except
+    for audio offloading feature.
+    type: boolean
+
+  eusb-role-sw-dev:
+    description: Downstream eusb repeater phandle with usb-role-switch
+    capability. If set, the driver will issue data role switch request to
+    eusb repeater phandle via USB Role Switch framework.
+    $ref: /schemas/types.yaml#/definitions/phandle
+
+  role-sw-dev:
+    description: Downstream dwc3 phandle with usb-role-switch capability.
+    If set, the driver will use USB Role Switch framework to handle role
+    switch request. Otherwise, the driver will use extcon (External
+    connector class) instead.
+    $ref: /schemas/types.yaml#/definitions/phandle

@@ -23,7 +23,7 @@
 
 #include "acpm_dvfs_gs101.h"
 
-#include "asv_gs101.h"
+#include "asv_gs101.c"
 
 #include "../ra.h"
 
@@ -61,7 +61,7 @@ struct cmu_pmu cmu_pmu_map[] = {
 	{0x1CC00000, "pd-tpu"},
 };
 
-void gs101_cal_data_init(void)
+static void gs101_cal_data_init(void)
 {
 	pr_info("%s: cal data init\n", __func__);
 
@@ -91,7 +91,7 @@ void (*cal_data_init)(void) = gs101_cal_data_init;
 int (*wa_set_cmuewf)(unsigned int index, unsigned int en, void *cmu_cmu, int *ewf_refcnt) = NULL;
 void (*cal_set_cmu_smpl_warn)(void) = NULL;
 
-char *gs101_get_pd_name_by_cmu(unsigned int addr)
+static char *gs101_get_pd_name_by_cmu(unsigned int addr)
 {
 	int i, map_size;
 

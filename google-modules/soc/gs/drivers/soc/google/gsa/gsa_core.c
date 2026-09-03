@@ -4,55 +4,39 @@
  *
  * Copyright (C) 2020 Google LLC
  */
+#include <kunit/visibility.h>
 #include <linux/cdev.h>
 #include <linux/dma-mapping.h>
-#include <linux/kobject.h>
-#include <linux/module.h>
-#include <linux/idr.h>
-#include <linux/mod_devicetable.h>
-#include <linux/of.h>
-#include <linux/of_address.h>
-#include <linux/of_platform.h>
-#include <linux/platform_device.h>
-#include <linux/slab.h>
 #include <linux/gsa.h>
 #include <linux/gsa/gsa_aoc.h>
 #include <linux/gsa/gsa_dsp.h>
 #include <linux/gsa/gsa_kdn.h>
 #include <linux/gsa/gsa_sjtag.h>
 #include <linux/gsa/gsa_tpu.h>
+#include <linux/idr.h>
+#include <linux/io.h>
+#include <linux/kobject.h>
+#include <linux/mod_devicetable.h>
+#include <linux/module.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
+#include <linux/of_platform.h>
+#include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
+#include <linux/slab.h>
+#include <linux/types.h>
+#include "gsa_debugfs.h"
 #include "gsa_log.h"
 #include "gsa_mbox.h"
 #include "gsa_priv.h"
 #include "gsa_tz.h"
 #include "hwmgr-ipc.h"
-#include <linux/types.h>
 
-#define MAX_DEVICES 1
+#define MAX_DEVICES 2
 
 static struct class *gsa_cdev_class;
 static dev_t gsa_cdev_base_num;
 static DEFINE_IDR(gsa_cdev_devices);
-
-struct gsa_cdev {
-	dev_t device_num;
-	struct cdev cdev;
-	struct device *device;
-};
-
-struct gsa_dev_state {
-	struct device *dev;
-	struct gsa_mbox *mb;
-	dma_addr_t bb_da;
-	void *bb_va;
-	size_t bb_sz;
-	struct mutex bb_lock; /* protects access to bounce buffer */
-	struct gsa_tz_chan_ctx aoc_srv;
-	struct gsa_tz_chan_ctx tpu_srv;
-	struct gsa_tz_chan_ctx dsp_srv;
-	struct gsa_log *log;
-	struct gsa_cdev cdev_node;
-};
 
 /*
  *  Internal command interface
@@ -94,7 +78,25 @@ static int gsa_send_load_img_cmd(struct device *dev, uint32_t cmd,
 	return gsa_send_mbox_cmd(s->mb, cmd, req, 4, NULL, 0);
 }
 
-static int gsa_tz_send_hwmgr_state_cmd(struct gsa_tz_chan_ctx *ctx, u32 cmd)
+static int gsa_send_pq_load_img_cmd(struct device *dev,
+				 dma_addr_t hdr_da, phys_addr_t body_pa, size_t body_len)
+{
+	u32 req[PQ_IMG_LOADER_ARGC];
+	struct platform_device *pdev = to_platform_device(dev);
+	struct gsa_dev_state *s = platform_get_drvdata(pdev);
+
+	req[PQ_IMG_LOADER_HEADER_ADDR_LO_IDX] = (u32)hdr_da;
+	req[PQ_IMG_LOADER_HEADER_ADDR_HI_IDX] = (u32)(hdr_da >> 32);
+	req[PQ_IMG_LOADER_BODY_ADDR_LO_IDX] = (u32)body_pa;
+	req[PQ_IMG_LOADER_BODY_ADDR_HI_IDX] = (u32)(body_pa >> 32);
+	req[PQ_IMG_LOADER_BODY_SIZE_IDX] = (u32)body_len;
+	req[PQ_IMG_LOADER_HEADER_SIZE_IDX] = (u32)GSA_PQ_IMAGE_HEADER_SIZE;
+
+	return gsa_send_mbox_cmd(s->mb, GSA_MB_CMD_PQ_AUTH_IMG, req, PQ_IMG_LOADER_ARGC, NULL, 0);
+}
+
+static int gsa_tz_send_hwmgr_state_cmd(struct gsa_dev_state *s,
+				struct gsa_tz_chan_ctx *ctx, u32 cmd)
 {
 	int rc;
 	struct {
@@ -115,15 +117,27 @@ static int gsa_tz_send_hwmgr_state_cmd(struct gsa_tz_chan_ctx *ctx, u32 cmd)
 				  &req_msg, sizeof(req_msg),
 				  &rsp_msg, sizeof(rsp_msg));
 
-	if (rc != sizeof(rsp_msg)) {
+	/*
+	 * TZ sends a header-only message in case of error.
+	 * Therefore check we received at least a header before accessing those fields.
+	 */
+	if (rc < sizeof(rsp_msg.hdr)) {
+		dev_err(s->dev, "short response (%d).\n", rc);
 		return -EIO;
 	}
 
 	if (rsp_msg.hdr.cmd != (req_msg.hdr.cmd | HWMGR_CMD_RESP)) {
+		dev_err(s->dev, "bad response hdr.cmd (%d).\n", rsp_msg.hdr.cmd);
 		return -EIO;
 	}
 
 	if (rsp_msg.hdr.err) {
+		dev_err(s->dev, "bad response hdr.err (%d).\n", rsp_msg.hdr.err);
+		return -EIO;
+	}
+
+	if (rc != sizeof(rsp_msg)) {
+		dev_err(s->dev, "bad response len (%d).\n", rc);
 		return -EIO;
 	}
 
@@ -175,6 +189,15 @@ int gsa_load_aoc_fw_image(struct device *gsa,
 }
 EXPORT_SYMBOL_GPL(gsa_load_aoc_fw_image);
 
+int gsa_load_aoc_fw_image_pq(struct device *gsa,
+			  dma_addr_t img_meta,
+			  phys_addr_t img_body,
+			  size_t body_len)
+{
+	return gsa_send_pq_load_img_cmd(gsa, img_meta, img_body, body_len);
+}
+EXPORT_SYMBOL_GPL(gsa_load_aoc_fw_image_pq);
+
 int gsa_unload_aoc_fw_image(struct device *gsa)
 {
 	struct platform_device *pdev = to_platform_device(gsa);
@@ -189,7 +212,7 @@ int gsa_send_aoc_cmd(struct device *gsa, enum gsa_aoc_cmd arg)
 	struct platform_device *pdev = to_platform_device(gsa);
 	struct gsa_dev_state *s = platform_get_drvdata(pdev);
 
-	return gsa_tz_send_hwmgr_state_cmd(&s->aoc_srv, arg);
+	return gsa_tz_send_hwmgr_state_cmd(s, &s->aoc_srv, arg);
 }
 EXPORT_SYMBOL_GPL(gsa_send_aoc_cmd);
 
@@ -205,6 +228,15 @@ int gsa_load_tpu_fw_image(struct device *gsa,
 }
 EXPORT_SYMBOL_GPL(gsa_load_tpu_fw_image);
 
+int gsa_load_tpu_fw_image_pq(struct device *gsa,
+			  dma_addr_t img_meta,
+			  phys_addr_t img_body,
+			  size_t body_len)
+{
+	return gsa_send_pq_load_img_cmd(gsa, img_meta, img_body, body_len);
+}
+EXPORT_SYMBOL_GPL(gsa_load_tpu_fw_image_pq);
+
 int gsa_unload_tpu_fw_image(struct device *gsa)
 {
 	struct platform_device *pdev = to_platform_device(gsa);
@@ -219,7 +251,7 @@ int gsa_send_tpu_cmd(struct device *gsa, enum gsa_tpu_cmd arg)
 	struct platform_device *pdev = to_platform_device(gsa);
 	struct gsa_dev_state *s = platform_get_drvdata(pdev);
 
-	return gsa_tz_send_hwmgr_state_cmd(&s->tpu_srv, arg);
+	return gsa_tz_send_hwmgr_state_cmd(s, &s->tpu_srv, arg);
 }
 EXPORT_SYMBOL_GPL(gsa_send_tpu_cmd);
 
@@ -235,6 +267,15 @@ int gsa_load_dsp_fw_image(struct device *gsa,
 }
 EXPORT_SYMBOL_GPL(gsa_load_dsp_fw_image);
 
+int gsa_load_dsp_fw_image_pq(struct device *gsa,
+			  dma_addr_t img_meta,
+			  phys_addr_t img_body,
+			  size_t body_len)
+{
+	return gsa_send_pq_load_img_cmd(gsa, img_meta, img_body, body_len);
+}
+EXPORT_SYMBOL_GPL(gsa_load_dsp_fw_image_pq);
+
 int gsa_unload_dsp_fw_image(struct device *gsa)
 {
 	struct platform_device *pdev = to_platform_device(gsa);
@@ -249,7 +290,7 @@ int gsa_send_dsp_cmd(struct device *gsa, enum gsa_dsp_cmd arg)
 	struct platform_device *pdev = to_platform_device(gsa);
 	struct gsa_dev_state *s = platform_get_drvdata(pdev);
 
-	return gsa_tz_send_hwmgr_state_cmd(&s->dsp_srv, arg);
+	return gsa_tz_send_hwmgr_state_cmd(s, &s->dsp_srv, arg);
 }
 EXPORT_SYMBOL_GPL(gsa_send_dsp_cmd);
 
@@ -326,6 +367,36 @@ static int send_kdn_cmd(struct gsa_dev_state *s, u32 cmd,
 
 	return cb;
 }
+
+int gsa_kdn_generate_key(struct device *gsa, void *buf, size_t buf_sz)
+{
+	int ret;
+	struct platform_device *pdev = to_platform_device(gsa);
+	struct gsa_dev_state *s = platform_get_drvdata(pdev);
+
+	mutex_lock(&s->bb_lock);
+	ret = send_kdn_cmd(s, GSA_MB_CMD_KDN_GENERATE_KEY, buf, buf_sz, 0, NULL, 0);
+	mutex_unlock(&s->bb_lock);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(gsa_kdn_generate_key);
+
+int gsa_kdn_prepare_key(struct device *gsa, void *buf, size_t buf_sz,
+		const void *key_blob, size_t key_blob_len)
+{
+	int ret;
+	struct platform_device *pdev = to_platform_device(gsa);
+	struct gsa_dev_state *s = platform_get_drvdata(pdev);
+
+	mutex_lock(&s->bb_lock);
+	ret = send_kdn_cmd(s, GSA_MB_CMD_KDN_EPHEMERAL_WRAP_KEY, buf, buf_sz,
+				0, key_blob, key_blob_len);
+	mutex_unlock(&s->bb_lock);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(gsa_kdn_prepare_key);
 
 int gsa_kdn_derive_raw_secret(struct device *gsa, void *buf, size_t buf_sz,
 			      const void *key_blob, size_t key_blob_len)
@@ -472,16 +543,9 @@ static int send_sjtag_data_cmd(struct gsa_dev_state *s, u32 cmd,
 int gsa_sjtag_get_status(struct device *gsa, u32 *debug_allowed, u32 *hw_state,
 			 u32 *debug_time)
 {
-	int ret;
 	u32 rsp[SJTAG_STATUS_RSP_ARGC];
-	struct gsa_dev_state *s;
-	struct platform_device *pdev;
-
-	pdev = to_platform_device(gsa);
-	s = platform_get_drvdata(pdev);
-
-	ret = gsa_send_cmd(gsa, GSA_MB_CMD_SJTAG_GET_STATUS, NULL, 0,
-			   rsp, ARRAY_SIZE(rsp));
+	int ret = gsa_send_cmd(gsa, GSA_MB_CMD_SJTAG_GET_STATUS, NULL, 0,
+			       rsp, ARRAY_SIZE(rsp));
 	if (ret < 0)
 		return ret;
 
@@ -504,9 +568,7 @@ EXPORT_SYMBOL_GPL(gsa_sjtag_get_status);
 
 int gsa_sjtag_get_chip_id(struct device *gsa, u32 id[2])
 {
-	int ret;
-
-	ret = gsa_send_cmd(gsa, GSA_MB_CMD_SJTAG_GET_CHIP_ID, NULL, 0, id, 2);
+	int ret = gsa_send_cmd(gsa, GSA_MB_CMD_SJTAG_GET_CHIP_ID, NULL, 0, id, 2);
 	if (ret < 0)
 		return ret;
 
@@ -597,14 +659,7 @@ EXPORT_SYMBOL_GPL(gsa_sjtag_send_srv_response);
 
 int gsa_sjtag_end_session(struct device *gsa, u32 *status)
 {
-	int rc;
-	struct gsa_dev_state *s;
-	struct platform_device *pdev;
-
-	pdev = to_platform_device(gsa);
-	s = platform_get_drvdata(pdev);
-
-	rc = gsa_send_cmd(gsa, GSA_MB_CMD_SJTAG_FINISH, NULL, 0, status, 1);
+	int rc = gsa_send_cmd(gsa, GSA_MB_CMD_SJTAG_FINISH, NULL, 0, status, 1);
 	if (rc < 0)
 		return rc;
 
@@ -617,90 +672,164 @@ int gsa_sjtag_end_session(struct device *gsa, u32 *status)
 EXPORT_SYMBOL_GPL(gsa_sjtag_end_session);
 
 /*
- *	GSA Character Device
+ *   GSA Character Device
  */
 
-static int gsa_cdev_open(struct inode *inode, struct file *filp)
+const struct file_operations gsa_cdev_fops = {};
+
+/*
+ *   GSA pm_stats Character Device
+ */
+
+struct gsa_pm_stat_file {
+	struct device *gsa;
+	int text_len;
+	char text[SZ_1K];
+};
+
+static uint64_t to_usec(uint64_t ticks, uint32_t freq)
 {
-	struct gsa_cdev *gsa_cdev = container_of(inode->i_cdev, struct gsa_cdev, cdev);
-
-	/*
-	 *  Setting private_data to the main gsa_dev_state allows the cdev
-	 *  to access the state (e.g. the mbox) when handling ioctls.
-	 */
-	filp->private_data = container_of(gsa_cdev, struct gsa_dev_state, cdev_node);
-
-	return nonseekable_open(inode, filp);
+	return (ticks * 1000000) / freq;
 }
 
-static long gsa_cdev_handle_load_app(struct gsa_dev_state *s, unsigned long arg)
+static int format_gsa_pm_stats(char *buf, size_t size, const struct gsa_pm_stats *st)
 {
-	struct gsa_ioc_load_app_req req;
-	u32 gsa_mbox_req[APP_PKG_LOAD_REQ_ARGC];
-	dma_addr_t outbuf_dma;
-	void *outbuf_va = NULL;
-	int rc = 0;
+	int i;
+	int at = 0;
 
-	if (copy_from_user(&req, (const void __user *)arg, sizeof(req))) {
-		dev_err(s->dev, "load_app failed to copy request from user space.\n");
-		return -EFAULT;
+	if (!(st->ver == GSA_PM_STATS_V1 || st->ver == GSA_PM_STATS_V2) ||
+		!st->tick_freq || !st->uptime_ticks) {
+		/* Invalid data */
+		return -EINVAL;
 	}
 
-	/* Allocate physically contiguous memory needed by GSA app loader. */
-	outbuf_va = memdup_user((const void __user *)req.buf, req.len);
-	if (IS_ERR(outbuf_va)) {
-		dev_err(s->dev, "load_app handler failed to copy app from userspace.\n");
-		return PTR_ERR(outbuf_va);
+	at += scnprintf(buf + at, size - at, "Uptime (usec): %llu\n",
+			to_usec(st->uptime_ticks, st->tick_freq));
+
+	at += scnprintf(buf + at, size - at, "Idle: %3llu%%\n",
+			(st->idle_ticks * 100) / st->uptime_ticks);
+	at += scnprintf(buf + at, size - at, "    total residency (usec):   %12llu\n",
+			to_usec(st->idle_ticks, st->tick_freq));
+	at += scnprintf(buf + at, size - at, "    event count:  %10llu\n", st->idle_cnt);
+
+	at += scnprintf(buf + at, size - at, "PG:   %3llu%%\n",
+			(st->pg_ticks * 100) / st->uptime_ticks);
+	at += scnprintf(buf + at, size - at, "    total residency (usec):   %12llu\n",
+			to_usec(st->pg_ticks, st->tick_freq));
+	at += scnprintf(buf + at, size - at, "    average residency (usec): %12llu\n",
+			st->pg_cnt ? to_usec(st->pg_ticks, st->tick_freq) / st->pg_cnt : 0);
+
+	at += scnprintf(buf + at, size - at, "    event count:  %10llu\n", st->pg_cnt);
+	at += scnprintf(buf + at, size - at, "    wakeup count: %10llu\n", st->pg_wakeup_cnt);
+	at += scnprintf(buf + at, size - at, "    abort count:  %10llu\n", st->pg_abort_cnt);
+
+	if (st->ver == GSA_PM_STATS_V2) {
+		at += scnprintf(buf + at, size - at, "RG:   %3llu%%\n",
+			(st->rg_ticks * 100) / st->uptime_ticks);
+		at += scnprintf(buf + at, size - at, "    total residency (usec):   %12llu\n",
+			to_usec(st->rg_ticks, st->tick_freq));
+		at += scnprintf(buf + at, size - at, "    average residency (usec): %12llu\n",
+			st->rg_cnt ? to_usec(st->rg_ticks, st->tick_freq) / st->rg_cnt : 0);
+
+		at += scnprintf(buf + at, size - at, "    event count:  %10llu\n",
+			st->rg_cnt);
+		at += scnprintf(buf + at, size - at, "    wakeup count: %10llu\n",
+			st->rg_wakeup_cnt);
+		at += scnprintf(buf + at, size - at, "    abort count:  %10llu\n",
+			st->rg_abort_cnt);
 	}
 
-	outbuf_dma = dma_map_single(s->dev, outbuf_va, req.len, DMA_TO_DEVICE);
-	if (dma_mapping_error(s->dev, outbuf_dma)) {
-		dev_err(s->dev, "load_app handler failed to allocate dma.\n");
-		rc = -ENOMEM;
-		goto out;
+	at += scnprintf(buf + at, size - at, "Longest sleep (usec): %12llu\n",
+			to_usec(st->longest_sleep, st->tick_freq));
+	at += scnprintf(buf + at, size - at, "Longest awake (usec): %12llu\n",
+			to_usec(st->longest_awake, st->tick_freq));
+
+	at += scnprintf(buf + at, size - at, "Suspend hint count:   %12u\n", st->ap_suspend_cnt);
+	at += scnprintf(buf + at, size - at, "Resume hint count:    %12u\n", st->ap_resume_cnt);
+
+	at += scnprintf(buf + at, size - at, "Wakelock state: %#x\n", st->wakelock_state);
+	at += scnprintf(buf + at, size - at, "Wakelock acquire/release count:\n");
+
+	for (i = 0; i < MAX_WAKELOCK_NUM; i++) {
+		at += scnprintf(buf + at, size - at, "    mb[%u]: %8u %8u\n", i,
+				st->wakelock_acquire_cnt[i], st->wakelock_release_cnt[i]);
 	}
 
-	gsa_mbox_req[APP_PKG_ADDR_LO_IDX] = (u32)outbuf_dma;
-	gsa_mbox_req[APP_PKG_ADDR_HI_IDX] = (u32)(outbuf_dma >> 32);
-	gsa_mbox_req[APP_PKG_SIZE_IDX] = req.len;
-	rc = gsa_send_mbox_cmd(s->mb, GSA_MB_CMD_LOAD_APP_PKG, gsa_mbox_req, 3, NULL, 0);
-
-	if (rc < 0) {
-		dev_err(s->dev, "load_app handler received error response from GSA mbox (%d).\n",
-			rc);
-		goto out;
-	}
-
-out:
-	if (outbuf_dma)
-		dma_unmap_single(s->dev, outbuf_dma, req.len, DMA_TO_DEVICE);
-	kfree(outbuf_va);
-	return rc;
+	return at;
 }
 
-static long gsa_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+int gsa_pm_stat_open(struct device *dev, struct gsa_dev_state *s, struct file *filp)
 {
-	struct gsa_dev_state *s = filp->private_data;
+	int ret;
+	u32 req[GET_PM_STATS_REQ_ARGC];
+	u32 rsp[GET_PM_STATS_RSP_ARGC];
+	struct gsa_pm_stat_file *stat_file = kzalloc(sizeof(struct gsa_pm_stat_file), GFP_KERNEL);
 
-	if (_IOC_TYPE(cmd) != GSA_IOC_MAGIC) {
-		dev_err(s->dev, "GSA cdev received ioctl with incorrect magic number\n");
-		return -EIO;
+	if (!stat_file)
+		return -ENOMEM;
+
+	stat_file->gsa = dev;
+	filp->private_data = stat_file;
+
+	req[GET_PM_STATS_REQ_DATA_BUF_ADDR_LO_IDX] = (u32)s->bb_da;
+	req[GET_PM_STATS_REQ_DATA_BUF_ADDR_HI_IDX] = (u32)(s->bb_da >> 32);
+	req[GET_PM_STATS_REQ_DATA_BUF_SIZE] = s->bb_sz;
+
+	mutex_lock(&s->bb_lock);
+	ret = gsa_send_cmd(dev, GSA_MB_CMD_GET_PM_STATS, req, ARRAY_SIZE(req), rsp,
+			   ARRAY_SIZE(rsp));
+	if (ret < 0)
+		goto err;
+
+	/* Check for unexpected reply */
+	if (rsp[GET_PM_STATS_RSP_DATA_LEN_IDX] != sizeof(struct gsa_pm_stats) ||
+	    ret != GET_PM_STATS_RSP_ARGC) {
+		ret = -EINVAL;
+		goto err;
 	}
 
-	switch (cmd) {
-	case GSA_IOC_LOAD_APP:
-		return gsa_cdev_handle_load_app(s, arg);
+	ret = format_gsa_pm_stats(stat_file->text, sizeof(stat_file->text), s->bb_va);
+	if (ret < 0)
+		goto err;
+	stat_file->text_len = ret;
 
-	default:
-		dev_err(s->dev, "GSA cdev received unhandled ioctl cmd: %#x\n", cmd);
-		return -ENOTTY;
-	}
+	mutex_unlock(&s->bb_lock);
+
+	return 0;
+
+err:
+	mutex_unlock(&s->bb_lock);
+	kfree(stat_file);
+	return ret;
 }
 
-static const struct file_operations gsa_cdev_fops = {
-	.open = gsa_cdev_open,
-	.unlocked_ioctl = gsa_cdev_ioctl,
-	.owner = THIS_MODULE,
+static int gsa_cdev_pm_stat_open(struct inode *inode, struct file *filp)
+{
+	struct gsa_cdev *cdev = container_of(inode->i_cdev, struct gsa_cdev, cdev);
+	struct gsa_dev_state *s = container_of(cdev, struct gsa_dev_state, cdev_pm_stats_node);
+	struct device *dev = s->dev;
+
+	return gsa_pm_stat_open(dev, s, filp);
+}
+
+ssize_t gsa_pm_stat_read(struct file *filp, char __user *buf,
+				      size_t count, loff_t *ppos)
+{
+	struct gsa_pm_stat_file *stat_file = filp->private_data;
+
+	return simple_read_from_buffer(buf, count, ppos, stat_file->text, stat_file->text_len);
+}
+
+int gsa_pm_state_release(struct inode *inode, struct file *filp)
+{
+	kfree(filp->private_data);
+	return 0;
+}
+
+const struct file_operations gsa_cdev_pm_stats_fops = {
+	.open = gsa_cdev_pm_stat_open,
+	.read = gsa_pm_stat_read,
+	.release = gsa_pm_state_release,
 };
 
 int gsa_cdev_init(void)
@@ -712,7 +841,7 @@ int gsa_cdev_init(void)
 		return ret;
 	}
 
-	gsa_cdev_class = class_create(THIS_MODULE, KBUILD_MODNAME);
+	gsa_cdev_class = class_create(KBUILD_MODNAME);
 	if (IS_ERR(gsa_cdev_class)) {
 		ret = PTR_ERR(gsa_cdev_class);
 		unregister_chrdev_region(gsa_cdev_base_num, MAX_DEVICES);
@@ -722,13 +851,14 @@ int gsa_cdev_init(void)
 	return 0;
 }
 
-int gsa_cdev_create(struct device *parent, struct gsa_cdev *cdev_node)
+int gsa_cdev_create(struct device *parent, struct gsa_cdev *cdev_node,
+		    const char *name, const struct file_operations *fops)
 {
 	int ret;
 	int minor;
 
 	/* allocate minor */
-	minor = idr_alloc(&gsa_cdev_devices, cdev_node, 0, MAX_DEVICES - 1, GFP_KERNEL);
+	minor = idr_alloc(&gsa_cdev_devices, cdev_node, 0, MAX_DEVICES, GFP_KERNEL);
 	if (minor < 0) {
 		dev_err(parent, "%s: failed (%d) to get id\n", __func__, minor);
 		return minor;
@@ -736,8 +866,9 @@ int gsa_cdev_create(struct device *parent, struct gsa_cdev *cdev_node)
 	cdev_node->device_num = MKDEV(MAJOR(gsa_cdev_base_num), minor);
 
 	/* Create device node */
-	cdev_node->device = device_create(gsa_cdev_class, parent, cdev_node->device_num, NULL,
-					  "%s%d", "gsa", MINOR(cdev_node->device_num));
+	cdev_node->device = device_create(gsa_cdev_class, parent,
+					  cdev_node->device_num,
+					  NULL, "%s%d", name, 0);
 	if (IS_ERR(cdev_node->device)) {
 		ret = PTR_ERR(cdev_node->device);
 		dev_err(parent, "%s: device_create failed: %d\n", __func__, ret);
@@ -746,7 +877,7 @@ int gsa_cdev_create(struct device *parent, struct gsa_cdev *cdev_node)
 
 	/* Add character device */
 	cdev_node->cdev.owner = THIS_MODULE;
-	cdev_init(&cdev_node->cdev, &gsa_cdev_fops);
+	cdev_init(&cdev_node->cdev, fops);
 	ret = cdev_add(&cdev_node->cdev, cdev_node->device_num, 1);
 	if (ret) {
 		dev_err(parent, "%s: cdev_add failed (%d)\n", __func__, ret);
@@ -784,41 +915,140 @@ int gsa_authenticate_image(struct device *gsa, dma_addr_t img_meta, phys_addr_t 
 }
 EXPORT_SYMBOL_GPL(gsa_authenticate_image);
 
-/********************************************************************/
+int gsa_authenticate_image_pq(struct device *gsa, dma_addr_t img_meta, phys_addr_t img_body,
+				size_t body_len)
+{
+	return gsa_send_pq_load_img_cmd(gsa, img_meta, img_body, body_len);
+}
+EXPORT_SYMBOL_GPL(gsa_authenticate_image_pq);
 
-static ssize_t gsa_log_show(struct device *gsa, struct device_attribute *attr, char *buf);
-
-static DEVICE_ATTR(log_main, 0440, gsa_log_show, NULL);
-static DEVICE_ATTR(log_intermediate, 0440, gsa_log_show, NULL);
-
-static ssize_t gsa_log_show(struct device *gsa, struct device_attribute *attr, char *buf) {
+/*
+ *   GSA Device Attributes
+ */
+static ssize_t version_show(struct device *gsa, struct device_attribute *attr, char *buf)
+{
+	u32 req[GSA_VERSION_ARG_COUNT];
 	struct platform_device *pdev = to_platform_device(gsa);
 	struct gsa_dev_state *s = platform_get_drvdata(pdev);
 
-	bool is_intermediate = (attr == &dev_attr_log_intermediate);
-	return gsa_log_read(s->log, is_intermediate, buf);
+	req[GSA_VERSION_ARG_ADDR_LO_IDX] = (u32)s->bb_da;
+	req[GSA_VERSION_ARG_ADDR_HI_IDX] = (u32)(s->bb_da >> 32);
+	req[GSA_VERSION_ARG_BUFF_SIZE] = 256;
+
+	mutex_lock(&s->bb_lock);
+	int ret = gsa_send_cmd(gsa, GSA_MB_CMD_GET_GSA_VERSION, req,
+			       ARRAY_SIZE(req), NULL, 0);
+	if (ret < 0) {
+		mutex_unlock(&s->bb_lock);
+		return ret;
+	}
+
+	strscpy(buf, s->bb_va, PAGE_SIZE);
+	mutex_unlock(&s->bb_lock);
+
+	return strlcat(buf, "\n", PAGE_SIZE);
 }
+
+ssize_t gsa_get_gsa_version(struct device *gsa, char *buf)
+{
+	return version_show(gsa, NULL, buf);
+}
+EXPORT_SYMBOL_GPL(gsa_get_gsa_version);
+
+#if IS_ENABLED(CONFIG_GSA_IPC)
+int gsa_set_ipc_irq_handler(struct device *gsa,
+			    void (*handler)(void *),
+			    void *handler_args)
+{
+	struct platform_device *pdev = to_platform_device(gsa);
+	struct gsa_dev_state *s = platform_get_drvdata(pdev);
+
+	mbox_set_ipc_irq_handler(s->mb, handler, handler_args);
+
+	return 0;
+}
+#else
+int gsa_set_ipc_irq_handler(struct device *gsa,
+			    void (*handler)(void *),
+			    void *handler_args)
+{
+	/* Not supported */
+	return -EINVAL;
+}
+#endif
+EXPORT_SYMBOL_GPL(gsa_set_ipc_irq_handler);
+
+static DEVICE_ATTR_RO(version);
+
+static ssize_t rom_patch_show(struct device *gsa, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = to_platform_device(gsa);
+	struct gsa_dev_state *s = platform_get_drvdata(pdev);
+
+	if (s->rom_patch < 0)
+		return s->rom_patch;
+	return sysfs_emit(buf, "%u\n", s->rom_patch);
+}
+static DEVICE_ATTR_RO(rom_patch);
+
+VISIBLE_IF_KUNIT ssize_t log_main_show(struct device *gsa,
+				       struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = to_platform_device(gsa);
+	struct gsa_dev_state *s = platform_get_drvdata(pdev);
+
+	return gsa_log_read(s->log, false, buf, PAGE_SIZE);
+}
+EXPORT_SYMBOL_IF_KUNIT(log_main_show);
+static DEVICE_ATTR_RO(log_main);
+
+VISIBLE_IF_KUNIT ssize_t log_intermediate_show(struct device *gsa,
+					       struct device_attribute *attr,
+					       char *buf)
+{
+	struct platform_device *pdev = to_platform_device(gsa);
+	struct gsa_dev_state *s = platform_get_drvdata(pdev);
+
+	return gsa_log_read(s->log, true, buf, PAGE_SIZE);
+}
+EXPORT_SYMBOL_IF_KUNIT(log_intermediate_show);
+static DEVICE_ATTR_RO(log_intermediate);
 
 static struct attribute *gsa_attrs[] = {
 	&dev_attr_log_main.attr,
 	&dev_attr_log_intermediate.attr,
+	&dev_attr_version.attr,
+	&dev_attr_rom_patch.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(gsa);
 
+static int32_t get_rom_version(struct device *gsa, struct gsa_dev_state *s)
+{
+	if (IS_ENABLED(CONFIG_GSA_PATCH_VERSION)) {
+		uint32_t rsp[READ_GSA_ROM_PATCH_VERSION_ARGC] = { -1 };
+		int ret = gsa_send_cmd(gsa, GSA_MB_CMD_GET_GSA_ROM_PATCH_VERSION, NULL, 0, rsp,
+				       ARRAY_SIZE(rsp));
+		if (ret < 0)
+			return ret;
+		return rsp[READ_GSA_ROM_PATCH_VERSION_IDX];
+	}
+	return -ENODATA;
+}
+
 static int gsa_probe(struct platform_device *pdev)
 {
-	int err;
-	struct gsa_dev_state *s;
+	int err = 0;
+	struct gsa_dev_state *state = NULL;
 	struct device *dev = &pdev->dev;
 
-	s = devm_kzalloc(dev, sizeof(*s), GFP_KERNEL);
-	if (!s)
+	state = devm_kzalloc(dev, sizeof(*state), GFP_KERNEL);
+	if (!state)
 		return -ENOMEM;
 
-	s->dev = dev;
-	mutex_init(&s->bb_lock);
-	platform_set_drvdata(pdev, s);
+	state->dev = dev;
+	mutex_init(&state->bb_lock);
+	platform_set_drvdata(pdev, state);
 
 	/*
 	 * Set DMA mask and coherent to 36-bit as it is what GSA supports.
@@ -830,50 +1060,111 @@ static int gsa_probe(struct platform_device *pdev)
 	}
 
 	/* initialize mailbox */
-	s->mb = gsa_mbox_init(pdev);
-	if (IS_ERR(s->mb))
-		return (int)PTR_ERR(s->mb);
+	state->mb = gsa_mbox_init(pdev);
+	if (IS_ERR(state->mb))
+		return (int)PTR_ERR(state->mb);
 
 	/* add children */
 	err = devm_of_platform_populate(dev);
 	if (err < 0) {
 		dev_err(dev, "populate children failed (%d)\n", err);
-		return err;
+		goto err_destroy_mbox;
 	}
 
 	/* alloc bounce buffer */
-	s->bb_va = dmam_alloc_coherent(dev, PAGE_SIZE, &s->bb_da, GFP_KERNEL);
-	if (!s->bb_va)
-		return -ENOMEM;
-	s->bb_sz = PAGE_SIZE;
+	state->bb_va = dmam_alloc_coherent(dev, GSA_PAGE_SIZE, &state->bb_da, GFP_KERNEL);
+	if (!state->bb_va) {
+		err = -ENOMEM;
+		goto err_destroy_mbox;
+	}
+	state->bb_sz = GSA_PAGE_SIZE;
 
 	/* Initialize TZ serice link to HWMGR */
-	gsa_tz_chan_ctx_init(&s->aoc_srv, HWMGR_AOC_PORT, dev);
-	gsa_tz_chan_ctx_init(&s->tpu_srv, HWMGR_TPU_PORT, dev);
-	gsa_tz_chan_ctx_init(&s->dsp_srv, HWMGR_DSP_PORT, dev);
+	gsa_tz_chan_ctx_init(&state->aoc_srv, HWMGR_AOC_PORT, dev);
+	gsa_tz_chan_ctx_init(&state->tpu_srv, HWMGR_TPU_PORT, dev);
+	gsa_tz_chan_ctx_init(&state->dsp_srv, HWMGR_DSP_PORT, dev);
+
+	state->rom_patch = get_rom_version(dev, state);
+	if (state->rom_patch < 0)
+		dev_err(dev, "Failed to read rom patch: %d\n", state->rom_patch);
+
+	/* Unknown until first attempt to use mbox command */
+	state->suspend_hint = GSA_SUSPEND_HINT_UNKNOWN;
 
 	/* Initialize log if configured */
-	s->log = gsa_log_init(pdev);
-	if (IS_ERR(s->log))
-		return PTR_ERR(s->log);
+	state->log = gsa_log_init(pdev);
+	if (IS_ERR(state->log)) {
+		dev_err(dev, "Log init failed (%ld).  Continuing anyways\n",
+			PTR_ERR(state->log));
+	}
 
-	/* Initialize character device */
-	return gsa_cdev_create(dev, &s->cdev_node);
+	/* Initialize character devices */
+	err = gsa_cdev_create(dev, &state->cdev_node, "gsa", &gsa_cdev_fops);
+	if (err != 0)
+		dev_err(dev, "Failed to initialize gsa device (%d)\n", err);
+	err = gsa_cdev_create(dev, &state->cdev_pm_stats_node, "gsa_pm_stat",
+			       &gsa_cdev_pm_stats_fops);
+	if (err != 0)
+		dev_err(dev, "Failed to initialize pm_stats device (%d)\n", err);
+
+	gsa_debugfs_init(dev);
+
+#if !IS_ENABLED(CONFIG_GSA_PKVM)
+	devm_pm_runtime_enable(&pdev->dev);
+#endif
+	return 0;
+
+err_destroy_mbox:
+	gsa_mbox_destroy(state->mb);
+	return err;
 }
 
-static int gsa_remove(struct platform_device *pdev)
+static void gsa_remove(struct platform_device *pdev)
 {
 	struct gsa_dev_state *s = platform_get_drvdata(pdev);
 
-	gsa_cdev_remove(&s->cdev_node);
+	gsa_cdev_remove(&s->cdev_pm_stats_node);
+	gsa_debugfs_exit(&pdev->dev);
 
 	/* close connection to tz services */
 	gsa_tz_chan_close(&s->aoc_srv);
 	gsa_tz_chan_close(&s->tpu_srv);
 	gsa_tz_chan_close(&s->dsp_srv);
 
+	/* Destroy mailbox allocations */
+	gsa_mbox_destroy(s->mb);
+}
+
+static int __maybe_unused gsa_pm_suspend(struct device *dev)
+{
+	int ret;
+	struct platform_device *pdev = to_platform_device(dev);
+	struct gsa_dev_state *s = platform_get_drvdata(pdev);
+
+	if (s->suspend_hint == GSA_SUSPEND_HINT_NOT_SUPPORTED)
+		return 0;
+
+	ret = gsa_send_simple_cmd(dev, GSA_MB_CMD_AP_SUSPEND_HINT);
+	if (s->suspend_hint == GSA_SUSPEND_HINT_UNKNOWN) {
+		if (ret < 0) {
+			dev_err(dev, "Suspend hint is not supported (%d). Disabling\n", ret);
+			s->suspend_hint = GSA_SUSPEND_HINT_NOT_SUPPORTED;
+		} else
+			s->suspend_hint = GSA_SUSPEND_HINT_SUPPORTED;
+	}
+
 	return 0;
 }
+
+static int __maybe_unused gsa_pm_resume(struct device *dev)
+{
+	/* Do not send a resume hint as it is only marginally useful */
+	return 0;
+}
+
+const struct dev_pm_ops gsa_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(gsa_pm_suspend, gsa_pm_resume)
+};
 
 static const struct of_device_id gsa_of_match[] = {
 	{ .compatible = "google,gs101-gsa-v1", },
@@ -888,6 +1179,7 @@ static struct platform_driver gsa_driver = {
 		.name = "gsa",
 		.of_match_table = gsa_of_match,
 		.dev_groups = gsa_groups,
+		.pm = &gsa_pm_ops,
 	},
 };
 
@@ -903,6 +1195,8 @@ static int __init gsa_driver_init(void)
 
 static void __exit gsa_driver_exit(void)
 {
+	pr_debug("gsa driver exit\n");
+
 	platform_driver_unregister(&gsa_driver);
 	gsa_cdev_exit();
 }

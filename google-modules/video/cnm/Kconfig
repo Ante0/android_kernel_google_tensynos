@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Codec3P configuration
+#
+comment "Codec3P video codec"
+
+config CODEC3P
+	tristate "Codec3P video codec"
+	default n
+	help
+	Driver for Codec3P video codec
+
+config CODEC3P_SLC
+	bool "Codec3P SLC support"
+	default y
+	depends on GOOGLE_RA
+	depends on SLC_PARTITION_MANAGER
+	help
+	  Enable SLC for Codec3P. This config
+	  require GOOGLE_RA and SLC_PARTITION_MANAGER.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config CODEC3P_VCORE_APG
+	bool "Codec3P VCORE power gating support"
+	default n
+	help
+	  Enable VCORE auto power gating handling
+	  for Codec3P. Select "y" if your device
+	  supports VCORE APG and "n" if not.
+
+config CODEC3P_VPU_RESET
+	bool "Codec3P VPU reset line support"
+	default n
+	help
+	  Enable VPU reset line usage for CODEC3P.
+	  Select "y" if your device supports VPU
+	  reset and "n" if not.
+
+config VPU_ANY_HEAP_ALLOC
+	bool "VPU enable allocation from any heap"
+	default y
+	help
+	  Allow userspace to select any heap (system,
+	  system-uncached, vframe-secure) for VPU
+	  buffer alloc. Select "n" to force allocation
+	  from system-uncached during bringup.
+
+config VPU_DEVFREQ
+	bool "VPU devfreq enablement"
+	default y
+	help
+	  Enable frequency voting for VPU. Select "n" if
+	  devfreq dependency not met during bringup.
+
+config VPU_ICC
+	bool "VPU icc enablement"
+	default y
+	help
+	  Enable bandwidth voting for VPU. Select "n" if
+	  icc dependency not met during bringup.
+
+config VPU_POWER_DOMAIN
+	bool "VPU power domain enablement"
+	default y
+	help
+	  Enable power domain for VPU. Select "n" if
+	  power domain dependency not met during bringup.
+
+config VPU_SECURITY
+	bool "VPU security enablement"
+	default y
+	help
+	  Enable secure FW for VPU. Select "n" if
+	  trusty dependency not met during bringup.

@@ -46,7 +46,7 @@ struct temp_residency_stats_callbacks {
 					       struct tr_sample *max, struct tr_sample *min);
 	int (*reset_stats)(tr_handle instance);
 };
-
+#if IS_ENABLED(CONFIG_PIXEL_METRICS)
 int temp_residency_stats_update(tr_handle instance, int temp);
 tr_handle register_temp_residency_stats(const char *name, char *group_name);
 int register_temp_residency_stats_callbacks(tr_handle instance,
@@ -54,3 +54,32 @@ int register_temp_residency_stats_callbacks(tr_handle instance,
 int unregister_temp_residency_stats(tr_handle instance);
 int temp_residency_stats_set_thresholds(tr_handle instance,
 		const int *thresholds, int num_thresholds);
+#else
+static inline int temp_residency_stats_update(tr_handle instance, int temp)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline tr_handle register_temp_residency_stats(const char *name, char *group_name)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int register_temp_residency_stats_callbacks(tr_handle instance,
+		struct temp_residency_stats_callbacks *ops)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int unregister_temp_residency_stats(tr_handle instance)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int temp_residency_stats_set_thresholds(tr_handle instance,
+		const int *thresholds, int num_thresholds)
+{
+	return -EOPNOTSUPP;
+}
+
+#endif // CONFIG_PIXEL_METRICS

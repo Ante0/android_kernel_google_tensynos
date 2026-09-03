@@ -17,11 +17,15 @@
 #ifndef _LINUX_KEYDEBUG_H
 #define _LINUX_KEYDEBUG_H
 
+#include <linux/types.h>
+#include <linux/workqueue.h>
+
 #define KEYDEBUG_NAME "keydebug"
 
 struct keydebug_platform_data {
 	uint32_t key_down_delay;
 	uint32_t dbg_fn_delay;
+	uint32_t bind_s2x_version;
 	uint32_t *keys_down; /* 0 terminated */
 	struct platform_device *pdev_child;
 	struct delayed_work delayed_work;
@@ -31,5 +35,6 @@ struct keydebug_platform_data {
 };
 
 void keydebug_register_s2d_ops(void *get, void *set);
+void keydebug_register_skip_s2m_vote_op(int (*voter)(bool));
 
 #endif /* _LINUX_KEYDEBUG_H */

@@ -1,0 +1,348 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+
+/{
+	power_controller: power_controller {
+		compatible = "google,mbu-power-controller";
+		mboxes = <&goog_mba_cpm_iface>;
+		#address-cells = <0x00000002>;
+		#size-cells = <0x00000002>;
+		ranges;
+
+		/* AURDSP */
+		sswrp_aurdsp_pd: sswrp_aurdsp_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_LPB_AURDSP>;
+			mbfs-node-name = "aurdsp.v";
+			no-auto-resume;
+		};
+
+		/* AOSS_PG */
+		sswrp_aoss_pg_pd: sswrp_aoss_pg_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_LPB_AOSS_PG>;
+			rpm-always-on;
+			mbfs-node-name = "aoss_pg.v";
+		};
+
+		/* CODEC_3P */
+		sswrp_codec_3p_pd: sswrp_codec_3p_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_LPB_CODEC_3P>;
+			mbfs-node-name = "codec_3p.v";
+		};
+
+		/* CPUACC */
+		cpuacc_gpdma_pd: cpuacc_gpdma_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_CPUACC_GPDMA>;
+			mbfs-node-name = "CpuaccGpdma.v";
+		};
+
+		/* DPU */
+		sswrp_dpu_pd: sswrp_dpu_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_LPB_DPU>;
+			mbfs-node-name = "dpu.v";
+		};
+
+		dpu_be_pd: dpu_be_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_DPU_BE>;
+			mbfs-node-name = "DpuBe.v";
+			power-domains = <&sswrp_dpu_pd>;
+		};
+
+		dpu_fe0_pd: dpu_fe0_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_DPU_FE0>;
+			mbfs-node-name = "DpuFe0.v";
+			power-domains = <&dpu_be_pd>;
+		};
+
+		dpu_fe1_pd: dpu_fe1_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_DPU_FE1>;
+			mbfs-node-name = "DpuFe1.v";
+			power-domains = <&dpu_fe0_pd>;
+		};
+
+		dpu_dsi0_pd: dpu_dsi0_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_DPU_DSI0>;
+			mbfs-node-name = "DpuDsi0.v";
+			power-domains = <&dpu_be_pd>;
+		};
+
+		dpu_dsi1_pd: dpu_dsi1_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_DPU_DSI1>;
+			mbfs-node-name = "DpuDsi1.v";
+			power-domains = <&dpu_be_pd>;
+		};
+
+		dpu_dp0_pd: dpu_dp0_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_DPU_DP0>;
+			mbfs-node-name = "DpuDp0.v";
+			power-domains = <&dpu_be_pd>;
+		};
+
+		/* G2D */
+		sswrp_g2d_pd: sswrp_g2d_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_LPB_G2D>;
+			mbfs-node-name = "g2d.v";
+		};
+
+		g2d_core_pd: g2d_core_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_G2D_CORE>;
+			mbfs-node-name = "G2dCore.v";
+			power-domains = <&sswrp_g2d_pd>;
+		};
+
+		/* GCV */
+		sswrp_gcv_pd: sswrp_gcv_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_LPB_GCV>;
+			mbfs-node-name = "gcv.v";
+			no-auto-resume;
+		};
+
+		/* GPU */
+		sswrp_gpu_pd: sswrp_gpu_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_LPB_GPU>;
+			mbfs-node-name = "gpu.v";
+		};
+
+		gpu_core_logic_pd: gpu_core_logic_pd@3480a004 {
+			reg = <0 0x3480a004 0 0x4>;
+			reg-names = "gpu_control";
+			#power-domain-cells = <0>;
+			sswrp-id = <GENPD_MBU_SSWRP_GPU_ID>;
+			power-domains = <&sswrp_gpu_pd>;
+			subdomain-id = <GENPD_MBU_GPU_CORE_LOGIC_ID>;
+		};
+
+		/* HSIO_N */
+		sswrp_hsio_n_pd: sswrp_hsio_n_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_LPB_HSIO_N>;
+			mbfs-node-name = "hsio_n.v";
+		};
+
+		hsio_n_usb_pd: hsio_n_usb_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_HSIO_N_USB>;
+			power-domains = <&sswrp_hsio_n_pd>;
+			mbfs-node-name = "HsioNUsb.v";
+			active-wakeup;
+		};
+
+		hsio_n_usb_psw_pd: hsio_n_usb_psw_pd{
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_HSIO_N_USB_PSW>;
+			power-domains = <&hsio_n_usb_pd>;
+			mbfs-node-name = "HsioNUsbPsw.v";
+			active-wakeup;
+		};
+
+		hsio_n_ebu_pd: hsio_n_ebu_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_HSIO_N_EBU>;
+			power-domains = <&hsio_n_usb_pd>;
+			mbfs-node-name = "HsioNEbu.v";
+		};
+
+		hsio_n_dp_pd: hsio_n_dp_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_HSIO_N_DP>;
+			power-domains = <&hsio_n_usb_pd>;
+			mbfs-node-name = "HsioNDp.v";
+		};
+
+		hsio_n_usb2aux_pd: hsio_n_usb2aux_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_HSIO_N_USB2AUX>;
+			power-domains = <&hsio_n_usb_pd>;
+			mbfs-node-name = "HsioNU2Aux.v";
+		};
+
+		hsio_n_usb2aux_psw_pd: hsio_n_usb2aux_psw_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_HSIO_N_USB2AUX_PSW>;
+			power-domains = <&hsio_n_usb2aux_pd>;
+			mbfs-node-name = "HsioNU2AuxPsw.v";
+		};
+
+		/* HSIO_S */
+		sswrp_hsio_s_pd: sswrp_hsio_s_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_LPB_HSIO_S>;
+			mbfs-node-name = "hsio_s.v";
+			force-on;
+		};
+
+		hsio_s_ufs_prep_pd: hsio_s_ufs_prep_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_HSIO_S_UFS_PREP>;
+			mbfs-node-name = "HsioSUfsPrep.v";
+			power-domains = <&sswrp_hsio_s_pd>;
+			force-on;
+		};
+
+		hsio_s_ufs_pd: hsio_s_ufs_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_HSIO_S_UFS>;
+			mbfs-node-name = "HsioSUfs.v";
+			power-domains = <&hsio_s_ufs_prep_pd>;
+			force-on;
+		};
+
+		hsio_s_sd_pd: hsio_s_sd_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_HSIO_S_SD>;
+			mbfs-node-name = "HsioSSd.v";
+			power-domains = <&hsio_s_ufs_pd>;
+		};
+
+		/* ISPFE */
+		sswrp_ispfe_pd: sswrp_ispfe_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_LPB_ISPFE>;
+			mbfs-node-name = "ispfe.v";
+			no-auto-resume;
+		};
+
+		ispfe_core0_pd: ispfe_core0_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_ISPFE_CORE0>;
+			mbfs-node-name = "IspfeCore0.v";
+			power-domains = <&sswrp_ispfe_pd>;
+			no-auto-resume;
+		};
+
+		ispfe_core1_pd: ispfe_core1_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_ISPFE_CORE1>;
+			mbfs-node-name = "IspfeCore1.v";
+			power-domains = <&sswrp_ispfe_pd>;
+			no-auto-resume;
+		};
+
+		ispfe_core2_pd: ispfe_core2_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_ISPFE_CORE2>;
+			mbfs-node-name = "IspfeCore2.v";
+			power-domains = <&sswrp_ispfe_pd>;
+			no-auto-resume;
+		};
+
+		ispfe_csis_pd: ispfe_csis_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_ISPFE_CSIS>;
+			mbfs-node-name = "IspfeCsis.v";
+			power-domains = <&sswrp_ispfe_pd>;
+			no-auto-resume;
+		};
+
+
+		/* ISPBE */
+		sswrp_ispbe_pd: sswrp_ispbe_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_LPB_ISPBE>;
+			mbfs-node-name = "ispbe.v";
+			no-auto-resume;
+		};
+
+		/* LSIO_E */
+		sswrp_lsio_e_pd: sswrp_lsio_e_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_LPB_LSIO_E>;
+			mbfs-node-name = "lsio_e.v";
+		};
+
+		lsio_e_cli_gpio_pd: lsio_e_cli_gpio_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_LSIO_E_CLI_GPIO>;
+			mbfs-node-name = "LsioECli.v";
+			power-domains = <&sswrp_lsio_e_pd>;
+		};
+
+		/* LSIO_S */
+		sswrp_lsio_s_pd: sswrp_lsio_s_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_LPB_LSIO_S>;
+			mbfs-node-name = "lsio_s.v";
+			force-on;
+		};
+
+		lsio_s_cli_gpio_pd: lsio_s_cli_gpio_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_LSIO_S_CLI_GPIO>;
+			mbfs-node-name = "LsioSCli.v";
+			power-domains = <&sswrp_lsio_s_pd>;
+			force-on;
+		};
+
+		/* PCIE */
+		sswrp_pcie_pd: sswrp_pcie_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_LPB_PCIE>;
+			mbfs-node-name = "pcie.v";
+		};
+
+		pcie_top_pd: pcie_top_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_PCIE_TOP>;
+			power-domains = <&sswrp_pcie_pd>;
+			mbfs-node-name = "PcieTop.v";
+		};
+
+		pcie_ctrl0_pd: pcie_ctrl0_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_PCIE_CTRL0>;
+			power-domains = <&pcie_top_pd>;
+			mbfs-node-name = "PcieCtrl0.v";
+			active-wakeup;
+		};
+
+		pcie_ctrl1_pd: pcie_ctrl1_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_PCIE_CTRL1>;
+			power-domains = <&pcie_top_pd>;
+			mbfs-node-name = "PcieCtrl1.v";
+		};
+
+		/* TPU */
+		sswrp_tpu_pd: sswrp_tpu_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_LPB_TPU>;
+			mbfs-node-name = "tpu.v";
+			no-auto-resume;
+		};
+
+		/* MEMSS DTA */
+		memss_dta_pd: memss_dta_pd {
+			#power-domain-cells = <0>;
+			pm-resource-id = <SYSPM_RESOURCE_SID_SD_MEMSS_DTA>;
+			mbfs-node-name = "MemssDta.v";
+		};
+	};
+
+	pcie_lpm_pm_domains@4809000 {
+		compatible = "google,mbu-pcie-lpm-pm-domains";
+		reg = <0x0 0x04809000 0x0 0x14000>;
+		reg-names = "lpcm_pcie";
+		power-domains = <&sswrp_pcie_pd>;
+		pcie-regs = <&pcie0_syscon>, <&pcie1_syscon>;
+
+		pcie_dpa_pd: pcie_dpa_pd {
+			#power-domain-cells = <0>;
+			subdomain-id = <GENPD_MBU_PCIE_DPA_ID>;
+			power-domains = <&sswrp_pcie_pd>;
+			no-auto-resume;
+		};
+	};
+};

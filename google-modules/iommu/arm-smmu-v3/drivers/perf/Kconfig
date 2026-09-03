@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Performance Monitor Drivers
+#
+
+config ARM_SMMU_V3_PMU_PIXEL
+	 tristate "ARM SMMUv3 Performance Monitors Extension"
+	 depends on ARM64 || (COMPILE_TEST && 64BIT)
+	 depends on GENERIC_MSI_IRQ
+	   help
+	   Provides support for the ARM SMMUv3 Performance Monitor Counter
+	   Groups (PMCG), which provide monitoring of transactions passing
+	   through the SMMU and allow the resulting information to be filtered
+	   based on the Stream ID of the corresponding master.

@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * grizzly audio device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+&aoc {
+	aoc-board-cfg = "CGY4";
+	aoc-board-id = <0x80502>;
+	aoc-board-rev = <0x10000>;
+};

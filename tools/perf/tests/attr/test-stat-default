@@ -40,7 +40,6 @@ fd=6
 type=0
 config=7
 optional=1
-
 # PERF_TYPE_HARDWARE / PERF_COUNT_HW_STALLED_CYCLES_BACKEND
 [event7:base-stat]
 fd=7
@@ -164,4 +163,67 @@ config=34560
 disabled=0
 enable_on_exec=0
 read_format=15
+optional=1
+
+# PERF_TYPE_RAW / INT_MISC.UOP_DROPPING
+[event20:base-stat]
+fd=20
+type=4
+config=4109
+optional=1
+
+# PERF_TYPE_RAW / cpu/INT_MISC.RECOVERY_CYCLES,cmask=1,edge/
+[event21:base-stat]
+fd=21
+type=4
+config=17039629
+optional=1
+
+# PERF_TYPE_RAW / CPU_CLK_UNHALTED.THREAD
+[event22:base-stat]
+fd=22
+type=4
+config=60
+optional=1
+
+# PERF_TYPE_RAW / INT_MISC.RECOVERY_CYCLES_ANY
+[event23:base-stat]
+fd=23
+type=4
+config=2097421
+optional=1
+
+# PERF_TYPE_RAW / CPU_CLK_UNHALTED.REF_XCLK
+[event24:base-stat]
+fd=24
+type=4
+config=316
+optional=1
+
+# PERF_TYPE_RAW / IDQ_UOPS_NOT_DELIVERED.CORE
+[event25:base-stat]
+fd=25
+type=4
+config=412
+optional=1
+
+# PERF_TYPE_RAW / CPU_CLK_UNHALTED.ONE_THREAD_ACTIVE
+[event26:base-stat]
+fd=26
+type=4
+config=572
+optional=1
+
+# PERF_TYPE_RAW / UOPS_RETIRED.RETIRE_SLOTS
+[event27:base-stat]
+fd=27
+type=4
+config=706
+optional=1
+
+# PERF_TYPE_RAW / UOPS_ISSUED.ANY
+[event28:base-stat]
+fd=28
+type=4
+config=270
 optional=1

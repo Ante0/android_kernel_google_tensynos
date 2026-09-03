@@ -121,13 +121,12 @@ static int bbd_pps_gpio_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int bbd_pps_gpio_remove(struct platform_device *pdev)
+static void bbd_pps_gpio_remove(struct platform_device *pdev)
 {
 	struct bbd_pps_gpio_device_data *data = platform_get_drvdata(pdev);
 	disable_irq_nosync(data->irq);
 	dev_dbg(&pdev->dev, "removed IRQ %d as PPS source\n", data->irq);
 	device_remove_file(&pdev->dev, &dev_attr_pps_assert);
-	return 0;
 }
 
 static int bbd_pps_gpio_suspend(struct device *dev)

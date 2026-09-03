@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * yogi device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+/dts-v1/;
+/plugin/;
+
+/* define board-specific  GPIO macros before other devicetrees */
+#include "malibu-yogi-proto1-pinctrl.dtsi"
+#include "malibu-dabears-common.dtsi"
+#include "malibu-yogi-proto-lsio.dtsi"
+#include "malibu-yogi-common.dtsi"
+#include "malibu-yogi-camera-pmic-proto.dtsi"
+#include "malibu-yogi-proto1-camera.dtsi"
+
+
+/ {
+	board_id = <0x80702>;
+	board_rev = <0x010000>;
+	fragment@boardbase {
+		target-path = "/";
+		__overlay__ {
+			model = "YOGI Proto 1.0 based on MALIBU";
+			compatible = "google,malibu-yogi", "google,malibu";
+		};
+	};
+};
+

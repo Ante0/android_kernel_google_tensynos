@@ -425,7 +425,7 @@ static int laptop_backlight_register(void)
 
 	props.max_brightness = status;
 	props.brightness = ec_get_brightness();
-	props.power = FB_BLANK_UNBLANK;
+	props.power = BACKLIGHT_POWER_ON;
 	props.type = BACKLIGHT_PLATFORM;
 
 	backlight_device_register("loongson_laptop",

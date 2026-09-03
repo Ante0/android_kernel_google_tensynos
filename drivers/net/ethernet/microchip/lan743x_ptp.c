@@ -339,59 +339,18 @@ static int lan743x_ptpci_adjfine(struct ptp_clock_info *ptpci, long scaled_ppm)
 	struct lan743x_adapter *adapter =
 		container_of(ptp, struct lan743x_adapter, ptp);
 	u32 lan743x_rate_adj = 0;
-	bool positive = true;
-	u64 u64_delta = 0;
+	u64 u64_delta;
 
 	if ((scaled_ppm < (-LAN743X_PTP_MAX_FINE_ADJ_IN_SCALED_PPM)) ||
 	    scaled_ppm > LAN743X_PTP_MAX_FINE_ADJ_IN_SCALED_PPM) {
 		return -EINVAL;
 	}
-	if (scaled_ppm > 0) {
-		u64_delta = (u64)scaled_ppm;
-		positive = true;
-	} else {
-		u64_delta = (u64)(-scaled_ppm);
-		positive = false;
-	}
-	u64_delta = (u64_delta << 19);
-	lan743x_rate_adj = div_u64(u64_delta, 1000000);
 
-	if (positive)
-		lan743x_rate_adj |= PTP_CLOCK_RATE_ADJ_DIR_;
-
-	lan743x_csr_write(adapter, PTP_CLOCK_RATE_ADJ,
-			  lan743x_rate_adj);
-
-	return 0;
-}
-
-static int lan743x_ptpci_adjfreq(struct ptp_clock_info *ptpci, s32 delta_ppb)
-{
-	struct lan743x_ptp *ptp =
-		container_of(ptpci, struct lan743x_ptp, ptp_clock_info);
-	struct lan743x_adapter *adapter =
-		container_of(ptp, struct lan743x_adapter, ptp);
-	u32 lan743x_rate_adj = 0;
-	bool positive = true;
-	u32 u32_delta = 0;
-	u64 u64_delta = 0;
-
-	if ((delta_ppb < (-LAN743X_PTP_MAX_FREQ_ADJ_IN_PPB)) ||
-	    delta_ppb > LAN743X_PTP_MAX_FREQ_ADJ_IN_PPB) {
-		return -EINVAL;
-	}
-	if (delta_ppb > 0) {
-		u32_delta = (u32)delta_ppb;
-		positive = true;
-	} else {
-		u32_delta = (u32)(-delta_ppb);
-		positive = false;
-	}
-	u64_delta = (((u64)u32_delta) << 35);
-	lan743x_rate_adj = div_u64(u64_delta, 1000000000);
-
-	if (positive)
-		lan743x_rate_adj |= PTP_CLOCK_RATE_ADJ_DIR_;
+	/* diff_by_scaled_ppm returns true if the difference is negative */
+	if (diff_by_scaled_ppm(1ULL << 35, scaled_ppm, &u64_delta))
+		lan743x_rate_adj = (u32)u64_delta;
+	else
+		lan743x_rate_adj = (u32)u64_delta | PTP_CLOCK_RATE_ADJ_DIR_;
 
 	lan743x_csr_write(adapter, PTP_CLOCK_RATE_ADJ,
 			  lan743x_rate_adj);
@@ -442,28 +401,21 @@ static int lan743x_ptpci_settime64(struct ptp_clock_info *ptpci,
 	u32 nano_seconds = 0;
 	u32 seconds = 0;
 
-	if (ts) {
-		if (ts->tv_sec > 0xFFFFFFFFLL ||
-		    ts->tv_sec < 0) {
-			netif_warn(adapter, drv, adapter->netdev,
-				   "ts->tv_sec out of range, %lld\n",
-				   ts->tv_sec);
-			return -ERANGE;
-		}
-		if (ts->tv_nsec >= 1000000000L ||
-		    ts->tv_nsec < 0) {
-			netif_warn(adapter, drv, adapter->netdev,
-				   "ts->tv_nsec out of range, %ld\n",
-				   ts->tv_nsec);
-			return -ERANGE;
-		}
-		seconds = ts->tv_sec;
-		nano_seconds = ts->tv_nsec;
-		lan743x_ptp_clock_set(adapter, seconds, nano_seconds, 0);
-	} else {
-		netif_warn(adapter, drv, adapter->netdev, "ts == NULL\n");
-		return -EINVAL;
+	if (ts->tv_sec > 0xFFFFFFFFLL) {
+		netif_warn(adapter, drv, adapter->netdev,
+			   "ts->tv_sec out of range, %lld\n",
+			   ts->tv_sec);
+		return -ERANGE;
 	}
+	if (ts->tv_nsec < 0) {
+		netif_warn(adapter, drv, adapter->netdev,
+			   "ts->tv_nsec out of range, %ld\n",
+			   ts->tv_nsec);
+		return -ERANGE;
+	}
+	seconds = ts->tv_sec;
+	nano_seconds = ts->tv_nsec;
+	lan743x_ptp_clock_set(adapter, seconds, nano_seconds, 0);
 
 	return 0;
 }
@@ -596,7 +548,7 @@ static int lan743x_ptp_perout(struct lan743x_adapter *adapter, int on,
 			if (half == wf_high) {
 				/* It's 50% match. Use the toggle option */
 				pulse_width = PTP_GENERAL_CONFIG_CLOCK_EVENT_TOGGLE_;
-				/* In this case, devide period value by 2 */
+				/* In this case, divide period value by 2 */
 				ts_period = ns_to_timespec64(div_s64(period64, 2));
 				period_sec = ts_period.tv_sec;
 				period_nsec = ts_period.tv_nsec;
@@ -1534,6 +1486,10 @@ int lan743x_ptp_open(struct lan743x_adapter *adapter)
 	temp = lan743x_csr_read(adapter, PTP_TX_MOD2);
 	temp |= PTP_TX_MOD2_TX_PTP_CLR_UDPV4_CHKSUM_;
 	lan743x_csr_write(adapter, PTP_TX_MOD2, temp);
+
+	/* Default Timestamping */
+	lan743x_rx_set_tstamp_mode(adapter, HWTSTAMP_FILTER_NONE);
+
 	lan743x_ptp_enable(adapter);
 	lan743x_csr_write(adapter, INT_EN_SET, INT_BIT_1588_);
 	lan743x_csr_write(adapter, PTP_INT_EN_SET,
@@ -1583,7 +1539,6 @@ int lan743x_ptp_open(struct lan743x_adapter *adapter)
 	ptp->ptp_clock_info.pps = LAN743X_PTP_N_PPS;
 	ptp->ptp_clock_info.pin_config = ptp->pin_config;
 	ptp->ptp_clock_info.adjfine = lan743x_ptpci_adjfine;
-	ptp->ptp_clock_info.adjfreq = lan743x_ptpci_adjfreq;
 	ptp->ptp_clock_info.adjtime = lan743x_ptpci_adjtime;
 	ptp->ptp_clock_info.gettime64 = lan743x_ptpci_gettime64;
 	ptp->ptp_clock_info.getcrosststamp = NULL;
@@ -1695,6 +1650,9 @@ static void lan743x_ptp_disable(struct lan743x_adapter *adapter)
 {
 	struct lan743x_ptp *ptp = &adapter->ptp;
 
+	/* Disable Timestamping */
+	lan743x_rx_set_tstamp_mode(adapter, HWTSTAMP_FILTER_NONE);
+
 	mutex_lock(&ptp->command_lock);
 	if (!lan743x_ptp_is_enabled(adapter)) {
 		netif_warn(adapter, drv, adapter->netdev,
@@ -1747,13 +1705,13 @@ bool lan743x_ptp_request_tx_timestamp(struct lan743x_adapter *adapter)
 	struct lan743x_ptp *ptp = &adapter->ptp;
 	bool result = false;
 
-	spin_lock_bh(&ptp->tx_ts_lock);
+	spin_lock(&ptp->tx_ts_lock);
 	if (ptp->pending_tx_timestamps < LAN743X_PTP_NUMBER_OF_TX_TIMESTAMPS) {
 		/* request granted */
 		ptp->pending_tx_timestamps++;
 		result = true;
 	}
-	spin_unlock_bh(&ptp->tx_ts_lock);
+	spin_unlock(&ptp->tx_ts_lock);
 	return result;
 }
 
@@ -1826,6 +1784,8 @@ int lan743x_ptp_ioctl(struct net_device *netdev, struct ifreq *ifr, int cmd)
 		ret = -EINVAL;
 		break;
 	}
+
+	ret = lan743x_rx_set_tstamp_mode(adapter, config.rx_filter);
 
 	if (!ret)
 		return copy_to_user(ifr->ifr_data, &config,

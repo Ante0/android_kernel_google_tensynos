@@ -12,6 +12,7 @@
  */
 
 #include <asm/traps.h>
+#include <asm/vm_fault.h>
 #include <linux/uaccess.h>
 #include <linux/mm.h>
 #include <linux/sched/signal.h>
@@ -33,7 +34,7 @@
 /*
  * Canonical page fault handler
  */
-void do_page_fault(unsigned long address, long cause, struct pt_regs *regs)
+static void do_page_fault(unsigned long address, long cause, struct pt_regs *regs)
 {
 	struct vm_area_struct *vma;
 	struct mm_struct *mm = current->mm;
@@ -82,8 +83,11 @@ retry:
 
 	fault = handle_mm_fault(vma, address, flags, regs);
 
-	if (fault_signal_pending(fault, regs))
+	if (fault_signal_pending(fault, regs)) {
+		if (!user_mode(regs))
+			goto no_context;
 		return;
+	}
 
 	/* The fault is fully completed (including releasing mmap lock) */
 	if (fault & VM_FAULT_COMPLETED)

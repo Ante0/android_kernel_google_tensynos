@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# thermal test configuration
+config DEVFREQ_TJ_CDEV_HELPER_KUNIT_TEST
+	tristate "Google LLC devfreq tj cdev heper tests" if !KUNIT_ALL_TESTS
+	depends on KUNIT
+	default KUNIT_ALL_TESTS
+	help
+		This enables the test suite that will test all the helper functions
+		used by devfreq tj cooling device(cdev) driver. This tests the probe
+		function, cooling device registration, driver exit cleanup and the
+		callback to place the frequency QOS requests.
+
+config GOOGLE_THERMAL_HELPER_KUNIT_TEST
+	tristate "Google LLC thermal helper tests" if !KUNIT_ALL_TESTS
+	depends on KUNIT
+	default KUNIT_ALL_TESTS
+	help
+		This enables the test suite that will test all the
+		helper functions used by thermal. All the different thermal helper
+		test suites are enabled by this config.
+
+config GOOGLE_THERMAL_CPM_MBOX_KUNIT_TEST
+	tristate "Google LLC thermal cpm mbox tests" if !KUNIT_ALL_TESTS
+	depends on KUNIT
+	default KUNIT_ALL_TESTS
+	help
+		This enables the test suite that will test thermal
+		cpm mbox used by thermal. All the thermal cpm mbox related
+		test are enable by this config, including test the interface
+		for sending message/request to CPM, and the rx callback flow
+		when CPM send a request to Linux.
+
+config GOOGLE_THERMAL_STATS_KUNIT_TEST
+	tristate "Google LLC thermal stats tests" if !KUNIT_ALL_TESTS
+	depends on KUNIT
+	default KUNIT_ALL_TESTS
+	help
+		This enables the test suite that will test all the helper functions
+		used by thermal sensor stats driver. This tests the device tree parse
+		function, shared memory access, cpm mbox IPCs, as well as thermal
+		metrics registration and callback functions.
+
+config CDEV_HELPER_KUNIT_TEST
+	tristate "Google LLC cdev helper tests" if !KUNIT_ALL_TESTS
+	depends on KUNIT
+	default KUNIT_ALL_TESTS
+	help
+		This enables the test suite for the devfreq and cpufreq helper modules.
+		This tests all the functions that will be used by the powercap, devfreq
+		Tj cdev and cpu thermal pressure drivers.
+
+config GOOGLE_POWERCAP_KUNIT_TEST
+	tristate "Google LLC google powercap helper tests" if !KUNIT_ALL_TESTS
+	depends on KUNIT
+	default KUNIT_ALL_TESTS
+	help
+		This enables the test suite for testing the powercap framework helper,
+		CPU client helper, devfreq client helper and powercap tree builder modules.
+
+config GOOGLE_UCLAMP_CDEV_HELPER_KUNIT_TEST
+	tristate "Google LLC uclamp cdev helper tests" if !KUNIT_ALL_TESTS
+	depends on KUNIT
+	default KUNIT_ALL_TESTS
+	help
+		This enables the test suite that will test all the helper functions
+		used by uclamp cooling device(cdev) driver. This tests the probe
+		function, cooling device registration, driver exit cleanup.

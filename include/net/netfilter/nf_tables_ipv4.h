@@ -37,6 +37,8 @@ static inline int __nft_set_pktinfo_ipv4_validate(struct nft_pktinfo *pkt)
 		return -1;
 	else if (len < thoff)
 		return -1;
+	else if (thoff < sizeof(*iph))
+		return -1;
 
 	pkt->flags = NFT_PKTINFO_L4PROTO;
 	pkt->tprot = iph->protocol;
@@ -71,6 +73,8 @@ static inline int nft_set_pktinfo_ipv4_ingress(struct nft_pktinfo *pkt)
 		return -1;
 	} else if (len < thoff) {
 		goto inhdr_error;
+	} else if (thoff < sizeof(*iph)) {
+		return -1;
 	}
 
 	pkt->flags = NFT_PKTINFO_L4PROTO;

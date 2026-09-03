@@ -54,6 +54,9 @@ enum sbbm_signal_id {
 	SBB_SIG_UFS_IO_OUTSTANDING, /* UFS I/O in progress tracking. */
 	SBB_SIG_MODEM_CP2AP_WAKE_ISR, /* Modem needs attention from AP */
 	SBB_SIG_PCIE_LINK_STATE, /* Track PCIe link state L2/out of L2 */
+	SBB_SIG_GPU_POWERING_ON, /* GPU driver triggered power on */
+	SBB_SIG_GPU_POWERING_OFF, /* GPU driver triggered power off */
+	SBB_SIG_GPU_SETTING_CLK, /* GPU driver setting clock rate */
 	SBB_SIG_NUM_SIGNALS /* The total number of signals. Has to be last. */
 };
 

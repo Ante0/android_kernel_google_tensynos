@@ -1,0 +1,153 @@
+# SPDX-License-Identifier: MIT
+load(
+    "@kleaf//build/kernel/kleaf:kernel.bzl",
+    "ddk_config",
+    "ddk_headers",
+    "ddk_module",
+)
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "zram_headers",
+    hdrs = [
+        "zcomp.h",
+        "zcomp_cpu.h",
+        "zcomp_eh.h",
+        "zram_drv.h",
+        "zram_ioctl.h",
+        "zram_vh.h",
+    ],
+)
+
+ddk_headers(
+    name = "zcomp_cpu_headers",
+    hdrs = [
+        "backend_842.h",
+        "backend_deflate.h",
+        "backend_lz4.h",
+        "backend_lz4hc.h",
+        "backend_lzo.h",
+        "backend_lzorle.h",
+        "backend_zstd.h",
+    ],
+)
+
+ddk_config(
+    name = "common_config",
+    defconfig = "defconfig",
+    kconfigs = ["Kconfig"],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//private/google-modules/soc/gs/drivers/soc/google/pixel_stat/mm:pixel_stat_mm",
+    ],
+)
+
+ddk_config(
+    name = "eh_config",
+    defconfig = "defconfig",
+    kconfigs = ["Kconfig"],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//private/google-modules/soc/gs/drivers/soc/google/eh",
+        "//private/google-modules/soc/gs/drivers/soc/google/pixel_stat/mm:pixel_stat_mm",
+    ],
+)
+
+ddk_module(
+    name = "zram_gs",
+    srcs = [
+        "zcomp.c",
+        "zram_drv.c",
+    ],
+    out = "zram_gs.ko",
+    conditional_srcs = {
+        "CONFIG_ZRAM_GS_VENDOR_HOOK": {
+            True: [
+                "zram_vh.c",
+            ],
+        },
+        "CONFIG_ZRAM_GS_ANDROID_IOCTL": {
+            True: [
+                "zram_ioctl.c",
+            ],
+        },
+    },
+    config = ":common_config",
+    includes = ["include"],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":zram_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/pixel_stat/mm:pixel_stat_mm",
+    ],
+)
+
+ddk_module(
+    name = "zcomp_cpu",
+    srcs = [
+        "zcomp_cpu.c",
+    ],
+    out = "zcomp_gs_cpu.ko",
+    conditional_srcs = {
+        "CONFIG_ZRAM_GS_BACKEND_LZO": {
+            True: [
+                "backend_lzo.c",
+                "backend_lzorle.c",
+            ],
+        },
+        "CONFIG_ZRAM_GS_BACKEND_LZ4": {
+            True: [
+                "backend_lz4.c",
+            ],
+        },
+        "CONFIG_ZRAM_GS_BACKEND_LZ4HC": {
+            True: [
+                "backend_lz4hc.c",
+            ],
+        },
+        "CONFIG_ZRAM_GS_BACKEND_ZSTD": {
+            True: [
+                "backend_zstd.c",
+            ],
+        },
+        "CONFIG_ZRAM_GS_BACKEND_DEFLATE": {
+            True: [
+                "backend_deflate.c",
+            ],
+        },
+        "CONFIG_ZRAM_GS_BACKEND_842": {
+            True: [
+                "backend_842.c",
+            ],
+        },
+    },
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":zcomp_cpu_headers",
+        ":zram_gs",
+        ":zram_headers",
+        "//common:all_headers_aarch64",
+    ],
+)
+
+ddk_module(
+    name = "zcomp_eh",
+    srcs = [
+        "zcomp_eh.c",
+    ],
+    out = "zcomp_gs_eh.ko",
+    config = ":eh_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":zram_gs",
+        ":zram_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs/drivers/soc/google/eh",
+    ],
+)

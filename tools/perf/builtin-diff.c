@@ -6,7 +6,6 @@
  * DSOs and symbol information, sort them and produce a diff.
  */
 #include "builtin.h"
-#include "perf.h"
 
 #include "util/debug.h"
 #include "util/event.h"
@@ -26,6 +25,7 @@
 #include "util/spark.h"
 #include "util/block-info.h"
 #include "util/stream.h"
+#include "util/util.h"
 #include <linux/err.h>
 #include <linux/zalloc.h>
 #include <subcmd/pager.h>
@@ -388,7 +388,7 @@ struct hist_entry_ops block_hist_ops = {
 	.free   = block_hist_free,
 };
 
-static int diff__process_sample_event(struct perf_tool *tool,
+static int diff__process_sample_event(const struct perf_tool *tool,
 				      union perf_event *event,
 				      struct perf_sample *sample,
 				      struct evsel *evsel,
@@ -409,44 +409,46 @@ static int diff__process_sample_event(struct perf_tool *tool,
 		return 0;
 	}
 
+	addr_location__init(&al);
 	if (machine__resolve(machine, &al, sample) < 0) {
 		pr_warning("problem processing %d event, skipping it.\n",
 			   event->header.type);
-		return -1;
+		ret = -1;
+		goto out;
 	}
 
 	if (cpu_list && !test_bit(sample->cpu, cpu_bitmap)) {
 		ret = 0;
-		goto out_put;
+		goto out;
 	}
 
 	switch (compute) {
 	case COMPUTE_CYCLES:
 		if (!hists__add_entry_ops(hists, &block_hist_ops, &al, NULL,
-					  NULL, NULL, sample, true)) {
+					  NULL, NULL, NULL, sample, true)) {
 			pr_warning("problem incrementing symbol period, "
 				   "skipping event\n");
-			goto out_put;
+			goto out;
 		}
 
-		hist__account_cycles(sample->branch_stack, &al, sample, false,
-				     NULL);
+		hist__account_cycles(sample->branch_stack, &al, sample,
+				     false, NULL, evsel);
 		break;
 
 	case COMPUTE_STREAM:
 		if (hist_entry_iter__add(&iter, &al, PERF_MAX_STACK_DEPTH,
 					 NULL)) {
 			pr_debug("problem adding hist entry, skipping event\n");
-			goto out_put;
+			goto out;
 		}
 		break;
 
 	default:
-		if (!hists__add_entry(hists, &al, NULL, NULL, NULL, sample,
+		if (!hists__add_entry(hists, &al, NULL, NULL, NULL, NULL, sample,
 				      true)) {
 			pr_warning("problem incrementing symbol period, "
 				   "skipping event\n");
-			goto out_put;
+			goto out;
 		}
 	}
 
@@ -460,26 +462,12 @@ static int diff__process_sample_event(struct perf_tool *tool,
 	if (!al.filtered)
 		hists->stats.total_non_filtered_period += sample->period;
 	ret = 0;
-out_put:
-	addr_location__put(&al);
+out:
+	addr_location__exit(&al);
 	return ret;
 }
 
-static struct perf_diff pdiff = {
-	.tool = {
-		.sample	= diff__process_sample_event,
-		.mmap	= perf_event__process_mmap,
-		.mmap2	= perf_event__process_mmap2,
-		.comm	= perf_event__process_comm,
-		.exit	= perf_event__process_exit,
-		.fork	= perf_event__process_fork,
-		.lost	= perf_event__process_lost,
-		.namespaces = perf_event__process_namespaces,
-		.cgroup = perf_event__process_cgroup,
-		.ordered_events = true,
-		.ordering_requires_timestamps = true,
-	},
-};
+static struct perf_diff pdiff;
 
 static struct evsel *evsel_match(struct evsel *evsel,
 				      struct evlist *evlist)
@@ -703,7 +691,7 @@ static void hists__precompute(struct hists *hists)
 		if (compute == COMPUTE_CYCLES) {
 			bh = container_of(he, struct block_hist, he);
 			init_block_hist(bh);
-			block_info__process_sym(he, bh, NULL, 0);
+			block_info__process_sym(he, bh, NULL, 0, 0);
 		}
 
 		data__for_each_file_new(i, d) {
@@ -726,7 +714,7 @@ static void hists__precompute(struct hists *hists)
 				pair_bh = container_of(pair, struct block_hist,
 						       he);
 				init_block_hist(pair_bh);
-				block_info__process_sym(pair, pair_bh, NULL, 0);
+				block_info__process_sym(pair, pair_bh, NULL, 0, 0);
 
 				bh = container_of(he, struct block_hist, he);
 
@@ -1376,8 +1364,8 @@ static int cycles_printf(struct hist_entry *he, struct hist_entry *pair,
 	end_line = map__srcline(he->ms.map, bi->sym->start + bi->end,
 				he->ms.sym);
 
-	if ((strncmp(start_line, SRCLINE_UNKNOWN, strlen(SRCLINE_UNKNOWN)) != 0) &&
-	    (strncmp(end_line, SRCLINE_UNKNOWN, strlen(SRCLINE_UNKNOWN)) != 0)) {
+	if (start_line != SRCLINE_UNKNOWN &&
+	    end_line != SRCLINE_UNKNOWN) {
 		scnprintf(buf, sizeof(buf), "[%s -> %s] %4ld",
 			  start_line, end_line, block_he->diff.cycles);
 	} else {
@@ -1385,8 +1373,8 @@ static int cycles_printf(struct hist_entry *he, struct hist_entry *pair,
 			  bi->start, bi->end, block_he->diff.cycles);
 	}
 
-	free_srcline(start_line);
-	free_srcline(end_line);
+	zfree_srcline(&start_line);
+	zfree_srcline(&end_line);
 
 	return scnprintf(hpp->buf, hpp->size, "%*s", width, buf);
 }
@@ -1913,8 +1901,8 @@ static int data_init(int argc, const char **argv)
 		struct perf_data *data = &d->data;
 
 		data->path  = use_default ? defaults[i] : argv[i];
-		data->mode  = PERF_DATA_MODE_READ,
-		data->force = force,
+		data->mode  = PERF_DATA_MODE_READ;
+		data->force = force;
 
 		d->idx  = i;
 	}
@@ -1956,6 +1944,18 @@ int cmd_diff(int argc, const char **argv)
 
 	if (ret < 0)
 		return ret;
+
+	perf_tool__init(&pdiff.tool, /*ordered_events=*/true);
+	pdiff.tool.sample	= diff__process_sample_event;
+	pdiff.tool.mmap	= perf_event__process_mmap;
+	pdiff.tool.mmap2	= perf_event__process_mmap2;
+	pdiff.tool.comm	= perf_event__process_comm;
+	pdiff.tool.exit	= perf_event__process_exit;
+	pdiff.tool.fork	= perf_event__process_fork;
+	pdiff.tool.lost	= perf_event__process_lost;
+	pdiff.tool.namespaces = perf_event__process_namespaces;
+	pdiff.tool.cgroup = perf_event__process_cgroup;
+	pdiff.tool.ordering_requires_timestamps = true;
 
 	perf_config(diff__config, NULL);
 

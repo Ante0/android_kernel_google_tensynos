@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Muzel common device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+#include "google-base/platform/lga-platform-common.dtsi"
+#include "google-base/lga-16kb.dtsi"
+#include "lga-muzel-touch.dtsi"
+#include "lga-muzel-audio.dtsi"
+#include "lga-muzel-camera-pmic.dtsi"
+#include "lga-muzel-lsio.dtsi"
+#include "lga-muzel-usb.dtsi"
+#include "lga-muzel-ntc-thermal.dtsi"
+#include "lga-muzel-odpm.dtsi"
+#include "lga-muzel-sbbm.dtsi"
+#include "lga-ultrasonic-udfps-common.dtsi"
+#include "google-base/platform/lga-cp-s5400-thermal-zone.dtsi"

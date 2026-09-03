@@ -3,7 +3,7 @@
  * Kernel Control Interface, implements the protocol between AP kernel and TPU
  * firmware.
  *
- * Copyright (C) 2019 Google, Inc.
+ * Copyright (C) 2019-2026 Google LLC
  */
 
 #include <linux/bits.h>
@@ -95,22 +95,24 @@ static void
 edgetpu_reverse_kci_consume_response(struct edgetpu_dev *etdev,
 				     struct edgetpu_kci_response_element *resp)
 {
-	if (resp->code <= RKCI_CHIP_CODE_LAST) {
-		edgetpu_chip_handle_reverse_kci(etdev, resp);
+	int ret;
+
+	ret = edgetpu_chip_handle_reverse_kci(etdev, resp);
+	if (ret != -EOPNOTSUPP)
 		return;
-	}
 
 	switch (resp->code) {
 	case RKCI_FIRMWARE_CRASH:
+	case RKCI_FIRMWARE_CRASH_LEGACY:
 		edgetpu_handle_firmware_crash(
 		      etdev, (enum edgetpu_fw_crash_type)resp->retval);
 		break;
 	case RKCI_JOB_LOCKUP:
+	case RKCI_JOB_LOCKUP_LEGACY:
 		edgetpu_handle_job_lockup(etdev, resp->retval);
 		break;
 	default:
-		etdev_warn(etdev, "%s: Unrecognized KCI request: %#x\n",
-			   __func__, resp->code);
+		etdev_warn(etdev, "%s: Unrecognized RKCI request: %#x\n", __func__, resp->code);
 	}
 }
 

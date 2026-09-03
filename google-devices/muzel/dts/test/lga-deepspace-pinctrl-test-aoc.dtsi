@@ -1,0 +1,52 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,lga.h>
+
+&aoc_pinctrl {
+	aoc_ts_input_gpios: aoc_ts_input_gpios {
+		pins = "XAOC_GPIO12",
+		       "XAOC_GPIO13";
+		function = "aoc_cpm_eint";
+		bias-pull-up;
+		input-enable;
+	};
+	aoc_uwb_input_gpios: aoc_uwb_input_gpios {
+		pins = "XAOC_GPIO3",
+		       "XAOC_GPIO4";
+		function = "aoc_cpm_eint";
+		bias-pull-up;
+		input-enable;
+	};
+	aoc_uwb_output_gpios: aoc_uwb_output_gpios {
+		pins = "XAOC_GPIO5";
+		function = "aoc_cpm_eint";
+		bias-pull-up;
+		output-high;
+	};
+	aoc_gnss_input_gpios: aoc_gnss_input_gpios {
+		pins = "XAOC_GPIO9",
+		       "XAOC_GPIO11";
+		function = "aoc_cpm_eint";
+		bias-pull-up;
+		input-enable;
+	};
+	aoc_audio_input_gpios: aoc_audio_input_gpios {
+		pins = "XAOC_SPI4_SSB";
+		function = "aoc_int_gpio";
+		bias-pull-up;
+		input-enable;
+	};
+	aoc_bt_input_gpios: aoc_bt_input_gpios {
+		pins = "XAOC_GPIO2";
+		function = "aoc_cpm_eint";
+		bias-pull-down;
+		input-enable;
+	};
+	aoc_bt_output_gpios: aoc_bt_output_gpios {
+		pins = "XAOC_GPIO1";
+		function = "aoc_cpm_eint";
+		bias-pull-up;
+		output-high;
+	};
+};

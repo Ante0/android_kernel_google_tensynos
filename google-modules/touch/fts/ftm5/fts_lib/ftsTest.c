@@ -60,7 +60,7 @@ int initTestToDo(struct fts_ts_info *info)
 	/*** Initialize Limit File ***/
 	info->limit_file.size = 0;
 	info->limit_file.data = NULL;
-	strlcpy(info->limit_file.name, " ", MAX_LIMIT_FILE_NAME);
+	strscpy(info->limit_file.name, " ", sizeof(info->limit_file.name));
 
 #ifndef COMPUTE_INIT_METHOD
 	tests.MutualRawAdjITO = 1;
@@ -7559,7 +7559,7 @@ int getLimitsFile(struct fts_ts_info *info, const char *path, LimitFile *file)
 		file->size = 0;
 	}
 
-	strlcpy(file->name, path, MAX_LIMIT_FILE_NAME);
+	strscpy(file->name, path, sizeof(file->name));
 	if (strncmp(path, "NULL", 4) == 0) {
 #ifdef LIMITS_H_FILE
 		dev_info(info->dev, "Loading Limits File from .h!\n");
@@ -7634,7 +7634,7 @@ int freeLimitsFile(LimitFile *file)
 		} else
 			pr_err("Limit File was already freed!\n");
 		file->size = 0;
-		strlcpy(file->name, " ", MAX_LIMIT_FILE_NAME);
+		strscpy(file->name, " ", sizeof(file->name));
 		return OK;
 	} else {
 		pr_err("Passed a NULL argument! ERROR %08X\n",

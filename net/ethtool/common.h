@@ -20,6 +20,8 @@ struct link_mode_info {
 	u8				duplex;
 };
 
+struct genl_info;
+
 extern const char
 netdev_features_strings[NETDEV_FEATURE_COUNT][ETH_GSTRING_LEN];
 extern const char
@@ -42,8 +44,10 @@ int __ethtool_get_link(struct net_device *dev);
 bool convert_legacy_settings_to_link_ksettings(
 	struct ethtool_link_ksettings *link_ksettings,
 	const struct ethtool_cmd *legacy_settings);
-int ethtool_get_max_rxfh_channel(struct net_device *dev, u32 *max);
-int __ethtool_get_ts_info(struct net_device *dev, struct ethtool_ts_info *info);
+int ethtool_check_max_channel(struct net_device *dev,
+			      struct ethtool_channels channels,
+			      struct genl_info *info);
+int __ethtool_get_ts_info(struct net_device *dev, struct kernel_ethtool_ts_info *info);
 
 extern const struct ethtool_phy_ops *ethtool_phy_ops;
 extern const struct ethtool_pse_ops *ethtool_pse_ops;
@@ -52,5 +56,7 @@ int ethtool_get_module_info_call(struct net_device *dev,
 				 struct ethtool_modinfo *modinfo);
 int ethtool_get_module_eeprom_call(struct net_device *dev,
 				   struct ethtool_eeprom *ee, u8 *data);
+
+bool __ethtool_dev_mm_supported(struct net_device *dev);
 
 #endif /* _ETHTOOL_COMMON_H */

@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Device tree source for Laguna IIF.
+ *
+ * Copyright 2024 Google LLC
+ */
+
+/ {
+	iif: iif {
+		compatible = "google,iif";
+		iif-fence-wait-table-region = <&iif_wait_table_reserved>;
+		iif-fence-signal-table-region = <&iif_signal_table_reserved>;
+	};
+};

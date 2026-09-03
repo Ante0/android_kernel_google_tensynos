@@ -22,6 +22,10 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 
+#if IS_ENABLED(CONFIG_I2C_DEBUG_BUS)
+#define DEBUG
+#endif
+
 struct acpm_mfd_bus {
 	struct i2c_adapter	adap;
 
@@ -62,12 +66,12 @@ static int acpm_mfd_bus_probe(struct platform_device *pdev)
 	if (!acpm_mfd_bus)
 		return -ENOMEM;
 
-	strlcpy(acpm_mfd_bus->adap.name, "i2c-acpm",
+	strscpy(acpm_mfd_bus->adap.name, "i2c-acpm",
 		sizeof(acpm_mfd_bus->adap.name));
 	acpm_mfd_bus->adap.owner   = THIS_MODULE;
 	acpm_mfd_bus->adap.algo    = &acpm_mfd_bus_algorithm;
 	acpm_mfd_bus->adap.retries = 2;
-	acpm_mfd_bus->adap.class   = I2C_CLASS_HWMON | I2C_CLASS_SPD;
+	acpm_mfd_bus->adap.class   = I2C_CLASS_HWMON;
 
 	acpm_mfd_bus->dev = &pdev->dev;
 

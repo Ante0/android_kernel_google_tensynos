@@ -12,7 +12,6 @@
 #include <linux/bitops.h>
 #include <linux/sched/clock.h>
 #include <linux/sched/debug.h>
-#include <linux/sched/task_stack.h>
 #include <linux/nmi.h>
 #include <linux/init_task.h>
 #include <linux/reboot.h>
@@ -249,7 +248,7 @@ int dbg_snapshot_kick_watchdog(void)
 }
 EXPORT_SYMBOL_GPL(dbg_snapshot_kick_watchdog);
 
-static void dbg_snapshot_dump_one_task_info(struct task_struct *tsk, bool is_main)
+static void dbg_snapshot_dump_one_task_info(struct task_struct *tsk)
 {
 	static const char state_array[] = {'R', 'S', 'D', 'T', 't', 'X',
 			'Z', 'P', 'x', 'K', 'W', 'I', 'N', '?'};
@@ -278,20 +277,15 @@ static void dbg_snapshot_dump_one_task_info(struct task_struct *tsk, bool is_mai
 	pr_info("%8d %16llu %16llu %16llu %c(%u) %3d %16pK %16pK %c %16s\n",
 		tsk->pid, tsk->utime, tsk->stime,
 		tsk->se.exec_start, state_array[idx], (tsk->__state),
-		task_cpu(tsk), (void *)pc, tsk, is_main ? '*' : ' ', tsk->comm);
+		task_cpu(tsk), (void *)pc, tsk,
+		thread_group_leader(tsk) ? '*' : ' ', tsk->comm);
 
 	sched_show_task(tsk);
 }
 
-static inline struct task_struct *get_next_thread(struct task_struct *tsk)
-{
-	return container_of(tsk->thread_group.next, struct task_struct, thread_group);
-}
-
 static void dbg_snapshot_dump_task_info(void)
 {
-	struct task_struct *frst_tsk, *curr_tsk;
-	struct task_struct *frst_thr, *curr_thr;
+	struct task_struct *p, *t;
 
 	pr_info("\n");
 	pr_info(" current proc : %d %s\n",
@@ -302,29 +296,10 @@ static void dbg_snapshot_dump_task_info(void)
 			"user_pc", "task_struct", "comm");
 	pr_info("------------------------------------------------------------------------------\n");
 
-	/* processes */
-	frst_tsk = &init_task;
-	curr_tsk = frst_tsk;
-	while (curr_tsk) {
-		dbg_snapshot_dump_one_task_info(curr_tsk,  true);
-		/* threads */
-		if (curr_tsk->thread_group.next != NULL) {
-			frst_thr = get_next_thread(curr_tsk);
-			curr_thr = frst_thr;
-			if (frst_thr != curr_tsk) {
-				while (curr_thr != NULL) {
-					dbg_snapshot_dump_one_task_info(curr_thr, false);
-					curr_thr = get_next_thread(curr_thr);
-					if (curr_thr == curr_tsk)
-						break;
-				}
-			}
-		}
-		curr_tsk = container_of(curr_tsk->tasks.next,
-					struct task_struct, tasks);
-		if (curr_tsk == frst_tsk)
-			break;
-	}
+	rcu_read_lock();
+	for_each_process_thread(p, t)
+		dbg_snapshot_dump_one_task_info(t);
+	rcu_read_unlock();
 	pr_info("------------------------------------------------------------------------------\n");
 }
 
@@ -721,10 +696,10 @@ static int dbg_snapshot_restart_handler(struct notifier_block *nb,
 	int cpu;
 
 	if (!dbg_snapshot_get_enable())
-		return NOTIFY_DONE;
+		goto exit;
 
 	if (dss_desc.in_panic)
-		return NOTIFY_DONE;
+		goto exit;
 
 	if (dss_desc.in_warm) {
 		dev_emerg(dss_desc.dev, "warm reset\n");
@@ -734,6 +709,11 @@ static int dbg_snapshot_restart_handler(struct notifier_block *nb,
 	} else if (dss_desc.in_reboot) {
 		dev_emerg(dss_desc.dev, "normal reboot starting\n");
 		dbg_snapshot_report_reason(DSS_SIGN_NORMAL_REBOOT);
+	} else if (dss_desc.long_press_power) {
+		dev_emerg(dss_desc.dev, "Power key been hold for 18s : Do restart\n");
+		dbg_snapshot_report_reason(DSS_SIGN_REBOOT_LONGKEY_POWER_WARM);
+		dbg_snapshot_set_reboot_mode(REBOOT_WARM);
+		dbg_snapshot_dump_task_info();
 	} else {
 		dev_emerg(dss_desc.dev, "emergency restart\n");
 		dbg_snapshot_report_reason(DSS_SIGN_EMERGENCY_REBOOT);
@@ -750,6 +730,9 @@ static int dbg_snapshot_restart_handler(struct notifier_block *nb,
 
 	cache_flush_all();
 
+exit:
+	dev_info(dss_desc.dev, "ready to do restart.\n");
+
 	return NOTIFY_DONE;
 }
 
@@ -758,9 +741,13 @@ static struct notifier_block nb_reboot_block = {
 	.priority = INT_MAX,
 };
 
+/*
+ * We must set priority 131 to be higher than pixel_restart_hander(130) and lower than other
+ * handlers.
+ */
 static struct notifier_block nb_restart_block = {
 	.notifier_call = dbg_snapshot_restart_handler,
-	.priority = INT_MAX,
+	.priority = 131,
 };
 
 static struct notifier_block nb_panic_block = {

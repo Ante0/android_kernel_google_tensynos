@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Mediatek modem features for NOA driver
+#
+
+menuconfig NOA_MD_MTK_FEATURES
+	bool "NOA Mediatek modem features support"
+	depends on NOA_MD_MEDIATEK_COMMON_SUPPORT
+	default y
+	help
+	  Enables the submenu for all platform-specific features related to
+	  MediaTek modems. This includes options for specific chipsets
+	  (like T900), data path optimizations, and related debugging
+	  interfaces.
+
+if NOA_MD_MTK_FEATURES
+
+config NOA_MD_MEDIATEK_T900_SUPPORT
+	bool "NOA Mediatek T900 Modem Driver"
+	depends on NOA_MD_MEDIATEK_SUPPORT
+	default n
+	help
+	  NOA Modem driver support for Mediatek T900 platform.
+
+config NOA_MD_MEDIATEK_T900_UNIFIED_DESC
+	bool "NOA Mediatek T900 unified descriptor"
+	depends on NOA_MD_MEDIATEK_T900_SUPPORT
+	default y
+	help
+	  Unified descriptor for Mediatek T900 platform.
+
+config DATA_CPU_LOADING_OPTIMIZE
+	bool "Data CPU loading optimize"
+	depends on MTK_DATA_CPU_LOADING_OPTIMIZE
+	default y
+	help
+	  Data CPU loading optimize for Mediatek fullsoc support
+
+config NOA_MD_MEDIATEK_T900_TCP_SLOW_START
+	bool "NOA Mediatek T900 TCP slow start"
+	depends on NOA_MD_MEDIATEK_T900_SUPPORT
+	default y
+	help
+	  TCP slow start for Mediatek T900 platform.
+
+config NOA_MD_MEDIATEK_DEBUG_FS
+	bool "NOA Mediatek debug fs"
+	depends on NOA_MD_MEDIATEK_SUPPORT || NOA_MD_MEDIATEK_FULLSOC_SUPPORT
+	depends on DEBUG_FS
+	default y
+	help
+	  Debug FS for Mediatek platform.
+
+config NOA_MD_MEDIATEK_T900_DEBUG_FS
+	bool "NOA Mediatek T900 Debug fs"
+	depends on NOA_MD_MEDIATEK_SUPPORT || NOA_MD_MEDIATEK_FULLSOC_SUPPORT
+	depends on NOA_MD_MEDIATEK_T900_SUPPORT
+	depends on DEBUG_FS
+	default y
+	help
+	  Debug FS for Mediatek T900 platform.
+
+endif

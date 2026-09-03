@@ -37,6 +37,8 @@
  * through TouchComm command-response protocol.
  */
 
+#include <linux/pinctrl/consumer.h>
+
 #include "syna_tcm2.h"
 #include "syna_tcm2_platform.h"
 #include "synaptics_touchcom_core_dev.h"
@@ -49,8 +51,8 @@
 #include "synaptics_touchcom_func_romboot.h"
 #endif
 #if defined(USE_DRM_BRIDGE)
-#include <samsung/exynos_drm_connector.h>
-#include <samsung/panel/panel-samsung-drv.h>
+#include <exynos_drm_connector.h>
+#include <panel/panel-samsung-drv.h>
 #endif
 
 /* Init the kfifo for health check. */
@@ -1515,14 +1517,14 @@ static void syna_populate_mutual_channel(struct syna_tcm *tcm,
 
 		for (i = 0; i < tcm->tcm_dev->cols; i++) {
 			for (j = 0; j < tcm->tcm_dev->rows; j++) {
-				((u16 *) mutual_strength->data)[tcm->tcm_dev->rows * i + j] =
+				((u16 *) mutual_strength->data_flex)[tcm->tcm_dev->rows * i + j] =
 					tcm->heatmap_buff[tcm->tcm_dev->cols * j + i];
 			}
 		}
-		memcpy(tcm->heatmap_buff, (u16 *) mutual_strength->data,
+		memcpy(tcm->heatmap_buff, (u16 *) mutual_strength->data_flex,
 			tcm->tcm_dev->cols * tcm->tcm_dev->rows * sizeof(u16));
 	} else {
-		memset(mutual_strength->data, 0,
+		memset(mutual_strength->data_flex, 0,
 			tcm->tcm_dev->cols * tcm->tcm_dev->rows * sizeof(u16));
 	}
 
@@ -1547,16 +1549,16 @@ static void syna_populate_self_channel(struct syna_tcm *tcm,
 					    self_strength->tx_size);
 	if (has_heatmap) {
 		for (i = 0; i < tcm->tcm_dev->rows; i++) {
-			((u16 *) self_strength->data)[i] =
+			((u16 *) self_strength->data_flex)[i] =
 				((u16 *) tcm->event_data.buf)[tcm->tcm_dev->cols + i];
 		}
 
 		for (i = 0; i < tcm->tcm_dev->cols; i++) {
-			((u16 *) self_strength->data)[tcm->tcm_dev->rows + i] =
+			((u16 *) self_strength->data_flex)[tcm->tcm_dev->rows + i] =
 				((u16 *) tcm->event_data.buf)[i];
 		}
 	} else {
-		memset(self_strength->data, 0,
+		memset(self_strength->data_flex, 0,
 			(tcm->tcm_dev->cols + tcm->tcm_dev->rows) * sizeof(u16));
 	}
 }
@@ -2116,7 +2118,6 @@ static void syna_dev_reflash_startup_work(struct work_struct *work)
 exit:
 	syna_set_bus_ref(tcm, SYNA_BUS_REF_FW_UPDATE, false);
 	pm_relax(&tcm->pdev->dev);
-	release_firmware(fw_entry);
 }
 #endif
 #if defined(POWER_ALIVE_AT_SUSPEND) && !defined(RESET_ON_RESUME)
@@ -3119,8 +3120,6 @@ static int syna_dev_probe(struct platform_device *pdev)
 	init_completion(&tcm->bus_resumed);
 	complete_all(&tcm->bus_resumed);
 
-	tcm->pm_qos_req.type = PM_QOS_REQ_AFFINE_IRQ;
-	tcm->pm_qos_req.irq = gpio_to_irq(hw_if->bdata_attn.irq_gpio);
 	cpu_latency_qos_add_request(&tcm->pm_qos_req, PM_QOS_DEFAULT_VALUE);
 
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_TBN)
@@ -3345,13 +3344,13 @@ err_allocate_cdev:
  * @return
  *    on success, 0; otherwise, negative value on error.
  */
-static int syna_dev_remove(struct platform_device *pdev)
+static void syna_dev_remove(struct platform_device *pdev)
 {
 	struct syna_tcm *tcm = platform_get_drvdata(pdev);
 
 	if (!tcm) {
 		LOGW("Invalid handle to remove\n");
-		return 0;
+		return;
 	}
 #if defined(ENABLE_HELPER)
 	cancel_work_sync(&tcm->helper.work);
@@ -3424,8 +3423,6 @@ static int syna_dev_remove(struct platform_device *pdev)
 
 	/* release the device context */
 	syna_pal_mem_free((void *)tcm);
-
-	return 0;
 }
 
 /**

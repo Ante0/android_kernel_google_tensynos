@@ -8,6 +8,7 @@
  * compile this file to assembler, and then extract the
  * #defines from the assembly-language output.
  */
+#define COMPILE_OFFSETS
 
 #include <linux/compat.h>
 #include <linux/signal.h>
@@ -54,7 +55,7 @@
 #endif
 
 #ifdef CONFIG_PPC32
-#ifdef CONFIG_BOOKE_OR_40x
+#ifdef CONFIG_BOOKE
 #include "head_booke.h"
 #endif
 #endif
@@ -72,7 +73,7 @@
 #endif
 
 #define STACK_PT_REGS_OFFSET(sym, val)	\
-	DEFINE(sym, STACK_FRAME_OVERHEAD + offsetof(struct pt_regs, val))
+	DEFINE(sym, STACK_INT_FRAME_REGS + offsetof(struct pt_regs, val))
 
 int main(void)
 {
@@ -167,9 +168,8 @@ int main(void)
 	OFFSET(THREAD_CKVRSTATE, thread_struct, ckvr_state.vr);
 	OFFSET(THREAD_CKVRSAVE, thread_struct, ckvrsave);
 	OFFSET(THREAD_CKFPSTATE, thread_struct, ckfp_state.fpr);
-	/* Local pt_regs on stack for Transactional Memory funcs. */
-	DEFINE(TM_FRAME_SIZE, STACK_FRAME_OVERHEAD +
-	       sizeof(struct pt_regs) + 16);
+	/* Local pt_regs on stack in int frame form, plus 16 bytes for TM */
+	DEFINE(TM_FRAME_SIZE, STACK_INT_FRAME_SIZE + 16);
 #endif /* CONFIG_PPC_TRANSACTIONAL_MEM */
 
 	OFFSET(TI_LOCAL_FLAGS, thread_info, local_flags);
@@ -186,7 +186,9 @@ int main(void)
 				 offsetof(struct task_struct, thread_info));
 	OFFSET(PACASAVEDMSR, paca_struct, saved_msr);
 	OFFSET(PACAR1, paca_struct, saved_r1);
+#ifndef CONFIG_PPC_KERNEL_PCREL
 	OFFSET(PACATOC, paca_struct, kernel_toc);
+#endif
 	OFFSET(PACAKBASE, paca_struct, kernelbase);
 	OFFSET(PACAKMSR, paca_struct, kernel_msr);
 #ifdef CONFIG_PPC_BOOK3S_64
@@ -245,9 +247,7 @@ int main(void)
 	OFFSET(PACAHWCPUID, paca_struct, hw_cpu_id);
 	OFFSET(PACAKEXECSTATE, paca_struct, kexec_state);
 	OFFSET(PACA_DSCR_DEFAULT, paca_struct, dscr_default);
-#ifdef CONFIG_PPC64
 	OFFSET(PACA_EXIT_SAVE_R1, paca_struct, exit_save_r1);
-#endif
 #ifdef CONFIG_PPC_BOOK3E_64
 	OFFSET(PACA_TRAP_SAVE, paca_struct, trap_save);
 #endif
@@ -261,7 +261,7 @@ int main(void)
 
 	/* Interrupt register frame */
 	DEFINE(INT_FRAME_SIZE, STACK_INT_FRAME_SIZE);
-	DEFINE(SWITCH_FRAME_SIZE, STACK_FRAME_WITH_PT_REGS);
+	DEFINE(SWITCH_FRAME_SIZE, STACK_SWITCH_FRAME_SIZE);
 	STACK_PT_REGS_OFFSET(GPR0, gpr[0]);
 	STACK_PT_REGS_OFFSET(GPR1, gpr[1]);
 	STACK_PT_REGS_OFFSET(GPR2, gpr[2]);
@@ -336,6 +336,7 @@ int main(void)
 
 	/* datapage offsets for use by vdso */
 	OFFSET(VDSO_DATA_OFFSET, vdso_arch_data, data);
+	OFFSET(VDSO_RNG_DATA_OFFSET, vdso_arch_data, rng_data);
 	OFFSET(CFG_TB_TICKS_PER_SEC, vdso_arch_data, tb_ticks_per_sec);
 #ifdef CONFIG_PPC64
 	OFFSET(CFG_ICACHE_BLOCKSZ, vdso_arch_data, icache_block_size);
@@ -420,21 +421,18 @@ int main(void)
 
 	/* book3s */
 #ifdef CONFIG_KVM_BOOK3S_HV_POSSIBLE
-	OFFSET(KVM_TLB_SETS, kvm, arch.tlb_sets);
 	OFFSET(KVM_SDR1, kvm, arch.sdr1);
 	OFFSET(KVM_HOST_LPID, kvm, arch.host_lpid);
 	OFFSET(KVM_HOST_LPCR, kvm, arch.host_lpcr);
 	OFFSET(KVM_HOST_SDR1, kvm, arch.host_sdr1);
 	OFFSET(KVM_ENABLED_HCALLS, kvm, arch.enabled_hcalls);
 	OFFSET(KVM_VRMA_SLB_V, kvm, arch.vrma_slb_v);
-	OFFSET(KVM_RADIX, kvm, arch.radix);
 	OFFSET(KVM_SECURE_GUEST, kvm, arch.secure_guest);
 	OFFSET(VCPU_DSISR, kvm_vcpu, arch.shregs.dsisr);
 	OFFSET(VCPU_DAR, kvm_vcpu, arch.shregs.dar);
 	OFFSET(VCPU_VPA, kvm_vcpu, arch.vpa.pinned_addr);
 	OFFSET(VCPU_VPA_DIRTY, kvm_vcpu, arch.vpa.dirty);
 	OFFSET(VCPU_HEIR, kvm_vcpu, arch.emul_inst);
-	OFFSET(VCPU_NESTED, kvm_vcpu, arch.nested);
 	OFFSET(VCPU_CPU, kvm_vcpu, cpu);
 	OFFSET(VCPU_THREAD_CPU, kvm_vcpu, arch.thread_cpu);
 #endif
@@ -451,16 +449,12 @@ int main(void)
 	OFFSET(VCPU_DABRX, kvm_vcpu, arch.dabrx);
 	OFFSET(VCPU_DAWR0, kvm_vcpu, arch.dawr0);
 	OFFSET(VCPU_DAWRX0, kvm_vcpu, arch.dawrx0);
-	OFFSET(VCPU_DAWR1, kvm_vcpu, arch.dawr1);
-	OFFSET(VCPU_DAWRX1, kvm_vcpu, arch.dawrx1);
 	OFFSET(VCPU_CIABR, kvm_vcpu, arch.ciabr);
 	OFFSET(VCPU_HFLAGS, kvm_vcpu, arch.hflags);
 	OFFSET(VCPU_DEC_EXPIRES, kvm_vcpu, arch.dec_expires);
 	OFFSET(VCPU_PENDING_EXC, kvm_vcpu, arch.pending_exceptions);
 	OFFSET(VCPU_CEDED, kvm_vcpu, arch.ceded);
 	OFFSET(VCPU_PRODDED, kvm_vcpu, arch.prodded);
-	OFFSET(VCPU_IRQ_PENDING, kvm_vcpu, arch.irq_pending);
-	OFFSET(VCPU_DBELL_REQ, kvm_vcpu, arch.doorbell_request);
 	OFFSET(VCPU_MMCR, kvm_vcpu, arch.mmcr);
 	OFFSET(VCPU_MMCRA, kvm_vcpu, arch.mmcra);
 	OFFSET(VCPU_MMCRS, kvm_vcpu, arch.mmcrs);
@@ -488,8 +482,6 @@ int main(void)
 	OFFSET(VCPU_TCSCR, kvm_vcpu, arch.tcscr);
 	OFFSET(VCPU_ACOP, kvm_vcpu, arch.acop);
 	OFFSET(VCPU_WORT, kvm_vcpu, arch.wort);
-	OFFSET(VCPU_TID, kvm_vcpu, arch.tid);
-	OFFSET(VCPU_PSSCR, kvm_vcpu, arch.psscr);
 	OFFSET(VCPU_HFSCR, kvm_vcpu, arch.hfscr);
 	OFFSET(VCORE_ENTRY_EXIT, kvmppc_vcore, entry_exit_map);
 	OFFSET(VCORE_IN_GUEST, kvmppc_vcore, in_guest);
@@ -584,8 +576,6 @@ int main(void)
 	HSTATE_FIELD(HSTATE_HWTHREAD_STATE, hwthread_state);
 	HSTATE_FIELD(HSTATE_KVM_VCPU, kvm_vcpu);
 	HSTATE_FIELD(HSTATE_KVM_VCORE, kvm_vcore);
-	HSTATE_FIELD(HSTATE_XIVE_TIMA_PHYS, xive_tima_phys);
-	HSTATE_FIELD(HSTATE_XIVE_TIMA_VIRT, xive_tima_virt);
 	HSTATE_FIELD(HSTATE_HOST_IPI, host_ipi);
 	HSTATE_FIELD(HSTATE_PTID, ptid);
 	HSTATE_FIELD(HSTATE_FAKE_SUSPEND, fake_suspend);
@@ -596,9 +586,6 @@ int main(void)
 	HSTATE_FIELD(HSTATE_SDAR, host_mmcr[4]);
 	HSTATE_FIELD(HSTATE_MMCR2, host_mmcr[5]);
 	HSTATE_FIELD(HSTATE_SIER, host_mmcr[6]);
-	HSTATE_FIELD(HSTATE_MMCR3, host_mmcr[7]);
-	HSTATE_FIELD(HSTATE_SIER2, host_mmcr[8]);
-	HSTATE_FIELD(HSTATE_SIER3, host_mmcr[9]);
 	HSTATE_FIELD(HSTATE_PMC1, host_pmc[0]);
 	HSTATE_FIELD(HSTATE_PMC2, host_pmc[1]);
 	HSTATE_FIELD(HSTATE_PMC3, host_pmc[2]);
@@ -672,17 +659,6 @@ int main(void)
 #ifdef CONFIG_KVM_BOOKE_HV
 	OFFSET(VCPU_HOST_MAS4, kvm_vcpu, arch.host_mas4);
 	OFFSET(VCPU_HOST_MAS6, kvm_vcpu, arch.host_mas6);
-#endif
-
-#ifdef CONFIG_KVM_XICS
-	DEFINE(VCPU_XIVE_SAVED_STATE, offsetof(struct kvm_vcpu,
-					       arch.xive_saved_state));
-	DEFINE(VCPU_XIVE_CAM_WORD, offsetof(struct kvm_vcpu,
-					    arch.xive_cam_word));
-	DEFINE(VCPU_XIVE_PUSHED, offsetof(struct kvm_vcpu, arch.xive_pushed));
-	DEFINE(VCPU_XIVE_ESC_ON, offsetof(struct kvm_vcpu, arch.xive_esc_on));
-	DEFINE(VCPU_XIVE_ESC_RADDR, offsetof(struct kvm_vcpu, arch.xive_esc_raddr));
-	DEFINE(VCPU_XIVE_ESC_VADDR, offsetof(struct kvm_vcpu, arch.xive_esc_vaddr));
 #endif
 
 #ifdef CONFIG_KVM_EXIT_TIMING

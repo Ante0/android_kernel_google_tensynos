@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "google_8250_dw",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "google_8250_dw.ko",
+    conditional_srcs = {
+        "CONFIG_SERIAL_8250_DW_GOOGLE_QUIRKS": {
+            True: [
+                "google_8250_dw.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":google_8250",
+        ":google_8250_base",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/aoss-ssr-notifier:aoss_ssr_notifier",
+    ],
+)
+
+ddk_module(
+    name = "google_8250",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "google_8250.ko",
+    conditional_srcs = {
+        "CONFIG_SERIAL_8250_DW_GOOGLE_QUIRKS": {
+            True: [
+                "google_8250_core.c",
+                "google_8250_platform.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":google_8250_base",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "google_8250_base",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "google_8250_base.ko",
+    conditional_srcs = {
+        "CONFIG_SERIAL_8250_DW_GOOGLE_QUIRKS": {
+            True: [
+                "google_8250_dma.c",
+                "google_8250_dwlib.c",
+                "google_8250_port.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)

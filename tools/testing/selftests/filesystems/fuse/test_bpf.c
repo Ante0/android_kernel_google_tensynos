@@ -742,3 +742,61 @@ int mkdirremovebpf_test(struct fuse_bpf_args *fa)
 		return FUSE_BPF_BACKING;
 	}
 }
+
+SEC("copy_file_range_test")
+int copy_file_range_test_filter(struct fuse_bpf_args *fa)
+{
+	switch (fa->opcode) {
+	case FUSE_LOOKUP | FUSE_PREFILTER:
+		return FUSE_BPF_BACKING | FUSE_BPF_POST_FILTER;
+
+	case FUSE_LOOKUP | FUSE_POSTFILTER: {
+		struct fuse_entry_bpf_out *febo = fa->out_args[1].value;
+		const char *name = fa->in_args[0].value;
+
+		bpf_printk("lookup postfilter %s %d", name, fa->error_in);
+		if (strcmp(name, "user") == 0) {
+			bpf_printk("lookup postfilter user");
+			febo->bpf_action = FUSE_ACTION_REMOVE;
+			febo->backing_action = FUSE_ACTION_REMOVE;
+		}
+
+		return 0;
+	}
+
+	default:
+		return FUSE_BPF_BACKING;
+	}
+}
+
+SEC("test_mount_gate")
+int mount_gate_test(struct fuse_bpf_args *fa)
+{
+	switch (fa->opcode) {
+	case FUSE_LOOKUP | FUSE_PREFILTER: {
+		const char *name = fa->in_args[0].value;
+
+		/* Pass lookup of "test", "folder1" and "folder2" to usermode daemon */
+		if (strcmp(name, "test") == 0 || strcmp(name, "folder1") == 0 ||
+		    strcmp(name, "folder2") == 0)
+			return 0;
+
+		return FUSE_BPF_BACKING;
+	}
+
+	case FUSE_GETATTR | FUSE_PREFILTER:
+		/* Pass getattr on root inode (1) to usermode so daemon receives FUSE_GETATTR */
+		if (fa->nodeid == 1)
+			return 0;
+		return FUSE_BPF_BACKING;
+
+	case FUSE_OPENDIR | FUSE_PREFILTER:
+	case FUSE_READDIR | FUSE_PREFILTER:
+	case FUSE_READDIRPLUS | FUSE_PREFILTER:
+		/* Pass directory operations to usermode so daemon handles them */
+		return 0;
+
+	default:
+		return FUSE_BPF_BACKING;
+	}
+}

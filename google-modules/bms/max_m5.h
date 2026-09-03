@@ -171,7 +171,7 @@ int max_m5_recal_cycle(const struct max_m5_data *m5_data);
 int max_m5_recalibration(struct max_m5_data *m5_data, int algo, u16 cap);
 int max_m5_check_recal_state(struct max_m5_data *m5_data, int algo, u16 eeprom_cycle);
 int m5_init_custom_parameters(struct device *dev, struct max_m5_data *m5_data,
-			      struct device_node *node);
+			      const struct device_node *node);
 u16 max_m5_get_designcap(const struct max_m5_data *m5_data);
 int max_m5_model_lock(struct regmap *regmap, bool enabled);
 
@@ -216,7 +216,7 @@ static inline int max_m5_fg_model_check_version(const struct max_m5_data *m5_dat
 int max_m5_regmap_init(struct maxfg_regmap *regmap,
 		       struct i2c_client *primary);
 
-void *max_m5_init_data(struct device *dev, struct device_node *batt_node,
+void *max_m5_init_data(struct device *dev, const struct device_node *batt_node,
 		       struct maxfg_regmap *regmap);
 void max_m5_free_data(struct max_m5_data *m5_data);
 
@@ -245,7 +245,7 @@ int max_m5_get_rc_switch_param(struct max_m5_data *m5_data, u16 *rc2_tempco, u16
 /* read saved value */
 ssize_t max_m5_gmsr_state_cstr(char *buf, int max);
 
-void max_m5_model_apply_aaf_fullsoc(struct max_m5_data *m5_data, const struct aafv_fg_config *cfg);
+void max_m5_model_apply_aafv_fullsoc(struct max_m5_data *m5_data, const struct aafv_fg_config *cfg);
 
 bool max_m5_check_lock(struct max_m5_data *m5_data);
 

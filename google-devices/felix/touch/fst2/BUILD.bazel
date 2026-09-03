@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google/felix:__subpackages__",
+])
+
+filegroup(
+    name = "fst2.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+)
+
+ddk_module(
+    name = "fst2",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "fts.c",
+        "fts_lib/fts_flash.c",
+        "fts_lib/fts_io.c",
+        "fts_lib/fts_test.c",
+        "fts_proc.c",
+    ],
+    out = "fst2.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/samsung:headers",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/touch/common:ddk_headers",
+        "//private/google-modules/touch/common:goog_touch_interface",
+    ],
+)

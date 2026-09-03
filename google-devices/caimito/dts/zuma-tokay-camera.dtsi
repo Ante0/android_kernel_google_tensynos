@@ -881,14 +881,18 @@
 				reg-addr-bitwidth = <8>;
 				reg-value-bitwidth = <8>;
 
-				/* Power Management hibernation (deep sleep) */
-				/* 1 : enable, 0 : disable */
-				pm-hibernation = <0>;
-
 				/* GPIOs */
 				/* FLASH_EN GPP24[1] */
 				enable-gpios =
 					<&gpp24 1 GPIO_ACTIVE_HIGH>;
+
+				power-up-seqs = "enable";
+				power-up-seq-types = "gpio";
+				power-up-seq-delays-us = <0>;
+
+				power-down-seqs = "enable";
+				power-down-seq-types = "gpio";
+				power-down-seq-delays-us = <0>;
 			};
 		};
 	};

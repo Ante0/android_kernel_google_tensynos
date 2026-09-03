@@ -69,14 +69,15 @@
 	status = "okay";
 	pinctrl-0 = <&wc_irq &det_int &wc_en &ldo_en>;
 
-	idt,gpio_wlc_en = <&max77779_sgpio 1 GPIO_ACTIVE_LOW>;
-	idt,gpio_qien = <&max77779_sgpio 1 GPIO_ACTIVE_LOW>;
-	idt,irq_gpio = <&max77779_sgpio 4 GPIO_ACTIVE_LOW>;
-	idt,irq_det_gpio = <&max77779_sgpio 2 GPIO_ACTIVE_LOW>;
-	idt,gpio_ldo_en = <&max77779_sgpio 3 GPIO_ACTIVE_LOW>;
+	idt,wlc_en-gpios = <&max77779_sgpio 1 GPIO_ACTIVE_LOW>;
+	idt,qien-gpios = <&max77779_sgpio 1 GPIO_ACTIVE_LOW>;
+	idt,irq-gpios = <&max77779_sgpio 4 GPIO_ACTIVE_LOW>;
+	idt,irq_det-gpios = <&max77779_sgpio 2 GPIO_ACTIVE_LOW>;
+	idt,ldo_en-gpios = <&max77779_sgpio 3 GPIO_ACTIVE_LOW>;
 
 	idt,ramp-disable;
 	google,enable_15w;
+	google,support-usecase-cb;
 
 	/* TXID: Phone type */
 	idt,tx_id_phone_type = /bits/ 8 <5>;

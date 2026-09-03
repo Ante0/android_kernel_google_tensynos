@@ -158,11 +158,10 @@ static int exynos_hdcp_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int exynos_hdcp_remove(struct platform_device *pdev)
+static void exynos_hdcp_remove(struct platform_device *pdev)
 {
 	struct hdcp_device *hdcp_dev = platform_get_drvdata(pdev);
 	hdcp_auth_worker_deinit(hdcp_dev);
-	return 0;
 }
 
 static const struct of_device_id exynos_hdcp_of_match_table[] = {

@@ -22,3 +22,4 @@
 #include "zuma-shusky-bcl.dtsi"
 #include "zuma-shiba-wcharger.dtsi"
 #include "zuma-shusky-cp-features.dtsi"
+#include "zuma-shiba-wonder.dtsi"

@@ -1,0 +1,9 @@
+
+#
+# Pixel integration configuration values
+#
+
+CONFIG_MALI_PLATFORM_NAME="pixel"
+CONFIG_MALI_SYSTEM_TRACE=y
+# LARGE_PAGE_SUPPORT was implicitly disabled before ddk_module conversion since Kconfig was not used
+CONFIG_LARGE_PAGE_SUPPORT=n

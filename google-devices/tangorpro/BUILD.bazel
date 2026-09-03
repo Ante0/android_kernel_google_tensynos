@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch")
+load("//private/devices/google/common/kleaf:device_build.bzl", "device_build", "intree_module")
+load("//private/devices/google/gs201:constants.bzl", "GS201_DTBS", "GS201_MODULE_OUTS")
+load(":constants.bzl", "TANGORPRO_DTBOS", "TANGORPRO_MODULE_OUTS")
+
+package(
+    default_visibility = [
+        "//private/devices/google/gs201:__subpackages__",
+    ],
+)
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+device_build(
+    name = "tangorpro",
+    base_device = "//private/devices/google/gs201:gs201_base",
+    build_dtb = True,
+    build_dtbo = True,
+    build_system_dlkm = True,
+    build_vendor_dlkm = True,
+    build_vendor_kernel_boot = True,
+    defconfig_fragments = ["tangorpro_defconfig"],
+    dtb_outs = GS201_DTBS,
+    dtbo_outs = TANGORPRO_DTBOS,
+    dts_makefile = "dts/Makefile",
+    dts_srcs = glob(["dts/**"]) + [
+        "//private/google-modules/soc/gs:gs.dt-bindings",
+    ],
+    insmod_cfgs = glob(["insmod_cfg/*.cfg"]),
+    kconfig_exts = ["Kconfig.ext.tangorpro"],
+    # keep sorted
+    kconfigs = [
+        "//private/google-modules/touch/common/usi:kconfig",
+    ],
+    module_outs = GS201_MODULE_OUTS + TANGORPRO_MODULE_OUTS,
+    # keep sorted
+    vendor_dlkm_modules = [
+        "//private/google-modules/amplifiers/cs35l41:snd-soc-cs35l41-i2c",
+        "//private/google-modules/bluetooth/broadcom:nitrous",
+        "//private/google-modules/fingerprint/fpc:fpc1020_platform_tee",
+        "//private/google-modules/gps/broadcom/bcm47765:bbd_pps_gpio",
+        "//private/google-modules/touch/common/usi:goog_usi_stylus",
+        "//private/google-modules/touch/novatek/nt36xxx:nvt_touch",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel/drivers/net/ieee802154:dw3000",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel/drivers/net/ieee802154:dw3000-core-tests",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel/net/mcps802154",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel/net/mcps802154:mcps802154_region_fira",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel/net/mcps802154:mcps802154_region_nfcc_coex",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel/net/mcps802154:mcps802154_region_pctt",
+        "//private/google-modules/wlan/syna/dhd43752p:synadhd",
+    ],
+    # keep sorted
+    vendor_ramdisk_modules = [
+        intree_module("drivers/leds/leds-pwm.ko"),
+        intree_module("drivers/regulator/rt4801-regulator.ko"),
+        intree_module("drivers/regulator/tps65132-regulator.ko"),
+        intree_module("drivers/video/backlight/lp855x_bl.ko"),
+        "//private/devices/google/tangorpro/display:panel-boe-ts110f5mlg0",
+        "//private/devices/google/tangorpro/display:panel-csot-ppa957db2d",
+        "//private/devices/google/tangorpro/pogo:pogo_transport",
+        "//private/google-modules/amplifiers/cs35l41:snd-soc-cs35l41",
+        "//private/google-modules/amplifiers/cs35l41:snd-soc-cs35l41-spi",
+        "//private/google-modules/amplifiers/snd_soc_wm_adsp:snd-soc-wm-adsp",
+        "//private/google-modules/bms:google_dock",
+        "//private/google-modules/gps/broadcom/bcm47765:bcm47765_ko",
+        "//private/google-modules/soc/gs/drivers/video/backlight:rt4539_bl",
+    ],
+)
+
+# For compatibility
+alias(
+    name = "gs201_tangorpro_dist",
+    actual = ":tangorpro/dist",
+)
+
+alias(
+    name = "gs201_tangorpro_abi_update_symbol_list",
+    actual = ":tangorpro/kernel_abi_update_symbol_list",
+)
+
+alias(
+    name = "kernel",
+    actual = ":tangorpro/kernel",
+)
+
+alias(
+    name = "kernel_abi_update_symbol_list",
+    actual = ":tangorpro/kernel_abi_update_symbol_list",
+)
+
+alias(
+    name = "kernel_compile_commands",
+    actual = ":tangorpro/kernel_compile_commands",
+)

@@ -50,10 +50,10 @@ enum acpi_backlight_type {
 	acpi_backlight_native,
 	acpi_backlight_nvidia_wmi_ec,
 	acpi_backlight_apple_gmux,
+	acpi_backlight_dell_uart,
 };
 
 #if IS_ENABLED(CONFIG_ACPI_VIDEO)
-extern void acpi_video_report_nolcd(void);
 extern int acpi_video_register(void);
 extern void acpi_video_unregister(void);
 extern void acpi_video_register_backlight(void);
@@ -76,12 +76,20 @@ static inline enum acpi_backlight_type acpi_video_get_backlight_type(void)
 	return __acpi_video_get_backlight_type(false, NULL);
 }
 
+/*
+ * This function MUST only be called by GPU drivers to check if the driver
+ * should register a backlight class device. This function not only checks
+ * if a GPU native backlight device should be registered it *also* tells
+ * the ACPI video-detect code that native GPU backlight control is available.
+ * Therefor calling this from any place other then the GPU driver is wrong!
+ * To check if GPU native backlight control is used in other places instead use:
+ *   if (acpi_video_get_backlight_type() == acpi_backlight_native) { ... }
+ */
 static inline bool acpi_video_backlight_use_native(void)
 {
 	return __acpi_video_get_backlight_type(true, NULL) == acpi_backlight_native;
 }
 #else
-static inline void acpi_video_report_nolcd(void) { return; };
 static inline int acpi_video_register(void) { return -ENODEV; }
 static inline void acpi_video_unregister(void) { return; }
 static inline void acpi_video_register_backlight(void) { return; }

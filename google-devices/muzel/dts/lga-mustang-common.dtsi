@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Mustang common device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+#include "lga-mustang-pmic.dtsi"
+#include "lga-mustang-display.dtsi"
+#include "lga-mustang-touch.dtsi"
+#include "google-base/platform/lga-platform-charging-ultra.dtsi"
+#include "lga-mustang-audio.dtsi"
+#include "lga-mustang-lsio.dtsi"
+#include "lga-mustang-wcharger.dtsi"
+#include "google-base/platform/lga-platform-battery.dtsi"
+#include "google-base/platform/lga-platform-uwb.dtsi"
+#include "lga-muzel-h2omg.dtsi"
+#include "lga-mustang-usecases.dtsi"
+#include "lga-deepspace-bcl.dtsi"
+#include "lga-mustang-battery.dtsi"
+#include "lga-mustang-typec.dtsi"
+#include "lga-mustang-usbdp-phy.dtsi"
+#include "lga-mustang-usb.dtsi"

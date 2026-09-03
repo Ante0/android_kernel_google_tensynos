@@ -1,0 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
+#ifndef _INTERCONNECT_GOOGLE_H
+#define _INTERCONNECT_GOOGLE_H
+
+#define GOOGLE_ICC_ERR_INVALID_UPDATE_TYPE		1000
+
+#endif /* _INTERCONNECT_GOOGLE_H */

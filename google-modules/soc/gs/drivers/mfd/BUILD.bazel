@@ -1,0 +1,211 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# multifunction miscellaneous devices
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg10-mfd",
+    out = "s2mpg10-mfd.ko",
+    conditional_srcs = {
+        "CONFIG_MFD_S2MPG10": {
+            True: [
+                "s2mpg10-core.c",
+                "s2mpg10-irq.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg11-mfd",
+    out = "s2mpg11-mfd.ko",
+    conditional_srcs = {
+        "CONFIG_MFD_S2MPG11": {
+            True: [
+                "s2mpg11-core.c",
+                "s2mpg11-irq.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg14-mfd",
+    out = "s2mpg14-mfd.ko",
+    conditional_srcs = {
+        "CONFIG_MFD_S2MPG14": {
+            True: [
+                "s2mpg14-core.c",
+                "s2mpg14-irq.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":s2mpg15-mfd",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/acpm:gs_acpm",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg15-mfd",
+    out = "s2mpg15-mfd.ko",
+    conditional_srcs = {
+        "CONFIG_MFD_S2MPG15": {
+            True: [
+                "s2mpg15-core.c",
+                "s2mpg15-notifier.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/acpm:gs_acpm",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg1415-gpio",
+    out = "s2mpg1415-gpio.ko",
+    conditional_srcs = {
+        "CONFIG_MFD_S2MPG1415_GPIO": {
+            True: [
+                "s2mpg1415-gpio.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":s2mpg14-mfd",
+        ":s2mpg15-mfd",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg1x-gpio",
+    out = "s2mpg1x-gpio.ko",
+    conditional_srcs = {
+        "CONFIG_SOC_GS101": {
+            True: [
+                "s2mpg1x-gpio-gs101.c",
+            ],
+        },
+        "CONFIG_SOC_GS201": {
+            True: [
+                "s2mpg1x-gpio-gs201.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":s2mpg12-mfd",
+        ":s2mpg13-mfd",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg12-mfd",
+    out = "s2mpg12-mfd.ko",
+    conditional_srcs = {
+        "CONFIG_MFD_S2MPG12": {
+            True: [
+                "s2mpg12-core.c",
+                "s2mpg12-irq.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":s2mpg13-mfd",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/acpm:gs_acpm",
+    ],
+)
+
+ddk_module(
+    name = "s2mpg13-mfd",
+    out = "s2mpg13-mfd.ko",
+    conditional_srcs = {
+        "CONFIG_MFD_S2MPG13": {
+            True: [
+                "s2mpg13-core.c",
+                "s2mpg13-notifier.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/acpm:gs_acpm",
+    ],
+)
+
+ddk_module(
+    name = "slg51000-core",
+    out = "slg51000-core.ko",
+    conditional_srcs = {
+        "CONFIG_MFD_SLG51000": {
+            True: [
+                "slg51000-core.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "slg51002-core",
+    out = "slg51002-core.ko",
+    conditional_srcs = {
+        "CONFIG_MFD_SLG51002": {
+            True: [
+                "slg51002-core.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

@@ -14,6 +14,7 @@
 int gs_panel_disable(struct drm_panel *panel);
 int gs_panel_unprepare(struct drm_panel *panel);
 int gs_panel_prepare(struct drm_panel *panel);
+int gs_panel_prepare_with_reset(struct drm_panel *panel);
 int gs_panel_get_modes(struct drm_panel *panel, struct drm_connector *connector);
 
 #endif // _DRM_PANEL_FUNCS_DEFAULTS_H_

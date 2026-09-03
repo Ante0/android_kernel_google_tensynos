@@ -26,7 +26,7 @@
 #define GS_DSI_MSG_FLAG_MASK (GS_DSI_MSG_QUEUE | GS_DSI_MSG_IGNORE_VBLANK)
 
 void gs_dsi_send_cmdset(struct mipi_dsi_device *dsi, const struct gs_dsi_cmdset *cmdset,
-			u32 panel_rev)
+			u32 panel_rev_bitmask)
 {
 	const struct gs_dsi_cmd *c;
 	const struct gs_dsi_cmd *last_cmd = NULL;
@@ -35,11 +35,11 @@ void gs_dsi_send_cmdset(struct mipi_dsi_device *dsi, const struct gs_dsi_cmdset 
 		return;
 
 	c = &cmdset->cmds[cmdset->num_cmd - 1];
-	if (!c->panel_rev) {
+	if (!c->panel_rev_bitmask) {
 		last_cmd = c;
 	} else {
 		for (; c >= cmdset->cmds; c--) {
-			if (c->panel_rev & panel_rev) {
+			if (c->panel_rev_bitmask & panel_rev_bitmask) {
 				last_cmd = c;
 				break;
 			}
@@ -58,7 +58,7 @@ void gs_dsi_send_cmdset(struct mipi_dsi_device *dsi, const struct gs_dsi_cmdset 
 		u32 delay_ms = c->delay_ms;
 
 		/* skip if not correct panel rev */
-		if (panel_rev && !(c->panel_rev & panel_rev))
+		if (panel_rev_bitmask && !(c->panel_rev_bitmask & panel_rev_bitmask))
 			continue;
 
 		/* explicitly transfer flags */
@@ -115,6 +115,8 @@ ssize_t gs_dsi_dcs_transfer(struct mipi_dsi_device *dsi, u8 type, const void *da
 			    u16 flags)
 {
 	const struct mipi_dsi_host_ops *ops = dsi->host->ops;
+	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
+	int panel_index = ctx->gs_connector->panel_index;
 	bool is_last;
 	struct mipi_dsi_msg msg = {
 		.channel = dsi->channel,
@@ -130,7 +132,7 @@ ssize_t gs_dsi_dcs_transfer(struct mipi_dsi_device *dsi, u8 type, const void *da
 	if (dsi->mode_flags & MIPI_DSI_MODE_LPM)
 		msg.flags |= MIPI_DSI_MSG_USE_LPM;
 	is_last = ((flags & GS_DSI_MSG_QUEUE) == 0) || ((flags & GS_DSI_MSG_FORCE_FLUSH) != 0);
-	trace_dsi_tx(msg.type, msg.tx_buf, msg.tx_len, is_last, 0);
+	trace_dsi_tx(panel_index, msg.type, msg.tx_buf, msg.tx_len, is_last, 0);
 	if (trace_panel_write_generic_enabled()) {
 		if (len)
 			write_dcs_transfer_trace(len, (const u8 *)data);
@@ -145,6 +147,7 @@ static void gs_dcs_write_print_err(struct device *dev, const void *cmd, size_t l
 {
 	dev_err(dev, "failed to write cmd (%ld)\n", ret);
 	print_hex_dump(KERN_ERR, "command: ", DUMP_PREFIX_NONE, 16, 1, cmd, len, false);
+	PANEL_ATRACE_INSTANT("dsi_dcs_transfer failed (%ld)", ret);
 }
 
 ssize_t gs_dsi_dcs_write_buffer(struct mipi_dsi_device *dsi, const void *data, size_t len,
@@ -179,15 +182,18 @@ ssize_t gs_dsi_dcs_write_buffer(struct mipi_dsi_device *dsi, const void *data, s
 }
 EXPORT_SYMBOL_GPL(gs_dsi_dcs_write_buffer);
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)) || IS_ENABLED(CONFIG_DRM_DISPLAY_DP_HELPER)
+#if IS_ENABLED(CONFIG_DRM_DISPLAY_DP_HELPER)
 int gs_dcs_write_dsc_config(struct device *dev, const struct drm_dsc_config *dsc_cfg)
 {
 	struct drm_dsc_picture_parameter_set pps;
 	struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	struct gs_panel *ctx = mipi_dsi_get_drvdata(dsi);
+	int panel_index = ctx->gs_connector->panel_index;
 	int ret;
 
 	drm_dsc_pps_payload_pack(&pps, dsc_cfg);
-	trace_dsi_tx(MIPI_DSI_PICTURE_PARAMETER_SET, (const u8 *)&pps, sizeof(pps), true, 0);
+	trace_dsi_tx(panel_index, MIPI_DSI_PICTURE_PARAMETER_SET, (const u8 *)&pps, sizeof(pps),
+		     true, 0);
 	PANEL_ATRACE_INSTANT("dsi_dcs_transfer len:%zu msg:pps_config", sizeof(pps));
 	ret = mipi_dsi_picture_parameter_set(dsi, &pps);
 	if (ret < 0) {

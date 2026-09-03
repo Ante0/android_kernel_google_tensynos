@@ -25,6 +25,7 @@
 #include <linux/input/mt.h>
 #include <linux/of_gpio.h>
 #include <linux/of_irq.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/power_supply.h>
 
 #define NVT_VENDOR_ID		0x0603
@@ -53,7 +54,7 @@
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
 
 #if defined(NVT_TS_PANEL_BRIDGE)
-#include <samsung/exynos_drm_connector.h>
+#include <exynos_drm_connector.h>
 static void nvt_ts_suspend_work(struct work_struct *work);
 static void nvt_ts_resume_work(struct work_struct *work);
 #endif
@@ -67,21 +68,10 @@ uint8_t esd_check;
 uint8_t esd_retry;
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
 
-#if NVT_TOUCH_EXT_PROC
-extern int32_t nvt_extra_proc_init(void);
-extern void nvt_extra_proc_deinit(void);
-#endif
-
-#if NVT_TOUCH_MP
-extern int32_t nvt_mp_proc_init(void);
-extern void nvt_mp_proc_deinit(void);
-#endif
-
 struct nvt_ts_data *ts;
 
 #if BOOT_UPDATE_FIRMWARE
 struct workqueue_struct *nvt_fwu_wq;
-extern void Boot_Update_Firmware(struct work_struct *work);
 #endif
 
 #if defined(CONFIG_FB)
@@ -100,9 +90,9 @@ static void nvt_ts_early_suspend(struct early_suspend *h);
 static void nvt_ts_late_resume(struct early_suspend *h);
 #endif
 
-#if !SPI_FLASH
+#if !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 uint32_t ENG_RST_ADDR  = 0x7FFF80;
-#endif // !SPI_FLASH
+#endif // !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 uint32_t SWRST_N8_ADDR; //read from dtsi
 uint32_t SPI_RD_FAST_ADDR;	//read from dtsi
 
@@ -460,7 +450,7 @@ int32_t nvt_write_addr(uint32_t addr, uint8_t data)
 	return ret;
 }
 
-#if !SPI_FLASH
+#if !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 /*******************************************************
 Description:
 	Novatek touchscreen enable hw bld crc function.
@@ -631,7 +621,7 @@ void nvt_sw_reset(void)
 
 	msleep(10);
 }
-#endif // !SPI_FLASH
+#endif // !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 /*******************************************************
 Description:
 	Novatek touchscreen reset MCU then into idle mode
@@ -648,7 +638,7 @@ void nvt_sw_reset_idle(void)
 	msleep(15);
 }
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 /*******************************************************
 Description:
 	Novatek touchscreen reset MCU then into idle mode
@@ -717,7 +707,7 @@ int32_t nvt_write_reg(nvt_ts_reg_t reg, uint8_t val)
 nvt_write_register_exit:
 	return ret;
 }
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 
 /*******************************************************
 Description:
@@ -731,11 +721,11 @@ void nvt_bootloader_reset(void)
 	//---reset cmds to SWRST_N8_ADDR---
 	nvt_write_addr(SWRST_N8_ADDR, 0x69);
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	mdelay(35);	//wait tBRST2FR after Bootload RST
 #else
 	mdelay(5);	//wait tBRST2FR after Bootload RST
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	if (SPI_RD_FAST_ADDR) {
 		/* disable SPI_RD_FAST */
 		nvt_write_addr(SPI_RD_FAST_ADDR, 0x00);
@@ -835,7 +825,7 @@ int32_t nvt_check_fw_reset_state(RST_COMPLETE_STATE check_reset_state)
 	uint8_t buf[8] = {0};
 	int32_t ret = 0;
 	int32_t retry = 0;
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	int32_t retry_max = 100;
 #else
 	int32_t retry_max = (check_reset_state == RESET_STATE_INIT) ? 10 : 50;
@@ -866,7 +856,7 @@ int32_t nvt_check_fw_reset_state(RST_COMPLETE_STATE check_reset_state)
 		usleep_range(10000, 10000);
 	}
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 #if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
 	if (ts && ts->gti && ts->selftest_in_process == false) {
 		struct gti_fw_status_data fw_status = {0};
@@ -880,7 +870,7 @@ int32_t nvt_check_fw_reset_state(RST_COMPLETE_STATE check_reset_state)
 	return ret;
 }
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 /*******************************************************
 Description:
 	Novatek touchscreen clear reset state function.
@@ -900,7 +890,7 @@ void nvt_clear_fw_reset_state(void)
 	buf[1] = 0x00;
 	CTP_SPI_WRITE(ts->client, buf, 2);
 }
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 /*******************************************************
 Description:
 	Novatek touchscreen get firmware related information
@@ -1025,7 +1015,7 @@ Description:
 return:
 	n.a.
 *******************************************************/
-void nvt_ts_wakeup_gesture_report(uint8_t gesture_id, uint8_t *data)
+static void nvt_ts_wakeup_gesture_report(uint8_t gesture_id, uint8_t *data)
 {
 	unsigned int keycode = 0;
 	uint8_t func_type = data[2];
@@ -1069,12 +1059,10 @@ static int32_t nvt_parse_dt(struct device *dev)
 	u16 values[2];
 
 #if NVT_TOUCH_SUPPORT_HW_RST
-	ts->reset_gpio = of_get_named_gpio_flags(np, "novatek,reset-gpio", 0,
-			 &ts->reset_flags);
+	ts->reset_gpio = of_get_named_gpio(np, "novatek,reset-gpio", 0);
 	NVT_LOG("novatek,reset-gpio=%d\n", ts->reset_gpio);
 #endif
-	ts->irq_gpio = of_get_named_gpio_flags(np, "novatek,irq-gpio", 0,
-					       &ts->irq_flags);
+	ts->irq_gpio = of_get_named_gpio(np, "novatek,irq-gpio", 0);
 	NVT_LOG("novatek,irq-gpio=%d\n", ts->irq_gpio);
 
 	ts->pen_support = of_property_read_bool(np, "novatek,pen-support");
@@ -1254,13 +1242,13 @@ static void nvt_esd_check_func(struct work_struct *work)
 	if ((timer > NVT_TOUCH_ESD_CHECK_PERIOD) && esd_check) {
 		mutex_lock(&ts->lock);
 		NVT_ERR("do ESD recovery, timer = %d, retry = %d\n", timer, esd_retry);
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 		/* do esd recovery, bootloader reset */
 		nvt_bootloader_reset();
 #else
 		/* do esd recovery, reload fw */
 		nvt_update_firmware(get_fw_name(), 1);
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 		mutex_unlock(&ts->lock);
 		/* update interrupt timer */
 		irq_timer = jiffies;
@@ -1889,7 +1877,7 @@ XFER_ERROR:
 	return IRQ_HANDLED;
 }
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 /*******************************************************
 Description:
 	Novatek touchscreen check and stop crc reboot loop.
@@ -1947,7 +1935,7 @@ void nvt_stop_crc_reboot(void)
 
 	return;
 }
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 
 /*******************************************************
 Description:
@@ -1965,18 +1953,18 @@ static int8_t nvt_ts_check_chip_ver_trim(uint32_t chip_ver_trim_addr)
 	int32_t found_nvt_chip = 0;
 	int32_t ret = -1;
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	nvt_bootloader_reset(); // NOT in retry loop
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 
 	//---Check for 5 times---
 	for (retry = 5; retry > 0; retry--) {
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 		nvt_sw_reset_idle();
 #else
 		nvt_bootloader_reset();
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 		nvt_set_page(chip_ver_trim_addr);
 
 		buf[0] = chip_ver_trim_addr & 0x7F;
@@ -1990,14 +1978,14 @@ static int8_t nvt_ts_check_chip_ver_trim(uint32_t chip_ver_trim_addr)
 		NVT_LOG("buf[1]=0x%02X, buf[2]=0x%02X, buf[3]=0x%02X, buf[4]=0x%02X, buf[5]=0x%02X, buf[6]=0x%02X\n",
 			buf[1], buf[2], buf[3], buf[4], buf[5], buf[6]);
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 		//---Stop CRC check to prevent IC auto reboot---
 		if ((buf[1] == 0xFC) ||
 				((buf[1] == 0xFF) && (buf[2] == 0xFF) && (buf[3] == 0xFF))) {
 			nvt_stop_crc_reboot();
 			continue;
 		}
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 
 		// compare read chip id on supported list
 		for (list = 0;
@@ -2082,7 +2070,7 @@ static int nvt_ts_check_dt(struct nvt_ts_data *ts)
 		NVT_LOG("fw_name: %s.\n", ts->fw_name);
 
 		name = NULL;
-#if !SPI_FLASH
+#if !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 		of_property_read_string_index(np, "novatek,mp_firmware_names",
 				ts->initial_panel_index, &name);
 		if (name)
@@ -2090,7 +2078,7 @@ static int nvt_ts_check_dt(struct nvt_ts_data *ts)
 		else
 			ts->mp_fw_name = MP_UPDATE_FIRMWARE_NAME;
 		NVT_LOG("mp_fw_name: %s.\n", ts->mp_fw_name);
-#endif // !SPI_FLASH
+#endif // !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	}
 
 	return 0;
@@ -2197,8 +2185,8 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	}
 
 	//---prepare for spi parameter---
-	if (ts->client->master->flags & SPI_MASTER_HALF_DUPLEX) {
-		NVT_ERR("Full duplex not supported by master\n");
+	if (ts->client->controller->flags & SPI_CONTROLLER_HALF_DUPLEX) {
+		NVT_ERR("Full duplex not supported by controller\n");
 		ret = -EIO;
 		goto err_ckeck_full_duplex;
 	}
@@ -2262,10 +2250,10 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	mutex_init(&ts->xbuf_lock);
 	mutex_init(&ts->bus_mutex);
 
-#if !SPI_FLASH
+#if !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	//---eng reset before TP_RESX high
 	nvt_eng_reset();
-#endif // !SPI_FLASH
+#endif // !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 
 #if NVT_TOUCH_SUPPORT_HW_RST
 	if (gpio_is_valid(ts->reset_gpio))
@@ -2296,14 +2284,14 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	}
 	INIT_DELAYED_WORK(&ts->nvt_fwu_work, Boot_Update_Firmware);
 	// please make sure boot update start after display reset(RESX) sequence
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	init_completion(&ts->fwu_done);
 #endif
 	queue_delayed_work(nvt_fwu_wq, &ts->nvt_fwu_work,
 			msecs_to_jiffies(BOOT_UPDATE_FIRMWARE_MS_DELAY));
 #endif
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	if (wait_for_completion_timeout(&ts->fwu_done,
 		msecs_to_jiffies(UPDATE_FIRMWARE_TIMEOUT)) == 0) {
 		complete_all(&ts->fwu_done);
@@ -2337,7 +2325,7 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	 */
 	ts->touch_width = TOUCH_DEFAULT_MAX_WIDTH;
 	ts->touch_height = TOUCH_DEFAULT_MAX_HEIGHT;
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 
 	ts->abs_x_max = ts->touch_width - 1;
 	ts->abs_y_max = ts->touch_height - 1;
@@ -2986,7 +2974,7 @@ int nvt_ts_resume(struct device *dev)
 		gpio_set_value(ts->reset_gpio, 1);
 #endif
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	/*
 	 * clear before check, please call the nvt_ts_resume function 10ms right
 	 * after the RESX to prevent bootload reset delaying the first touch.
@@ -3000,7 +2988,7 @@ int nvt_ts_resume(struct device *dev)
 	if (nvt_update_firmware(get_fw_name(), 0)) {
 		NVT_ERR("download firmware failed, ignore check fw state\n");
 	} else {
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 		nvt_check_fw_reset_state(RESET_STATE_REK);
 	}
 
@@ -3186,11 +3174,11 @@ static int nvt_fb_notifier_callback(struct notifier_block *self,
 	struct nvt_ts_data *ts =
 		container_of(self, struct nvt_ts_data, fb_notif);
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	if (evdata && evdata->data && event == FB_EARLY_EVENT_BLANK) {
 #else
 	if (evdata && evdata->data && event == FB_EVENT_BLANK) {
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 		blank = evdata->data;
 		if (*blank == FB_BLANK_POWERDOWN) {
 			NVT_LOG("event=%lu, *blank=%d\n", event, *blank);

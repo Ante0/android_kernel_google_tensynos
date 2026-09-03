@@ -1,26 +1,70 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
 
-kernel_module(
-    name = "cs35l41",
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "headers",
+    hdrs = [
+        "include/sound/cs35l41-private.h",
+    ],
+    includes = [
+        "include",
+    ],
+)
+
+ddk_module(
+    name = "snd-soc-cs35l41",
     srcs = glob([
-        "**/*.c",
         "**/*.h",
     ]) + [
+        "cs35l41.c",
+        "cs35l41-tables.c",
+    ],
+    out = "snd-soc-cs35l41.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/amplifiers/snd_soc_wm_adsp:headers",
+        "//private/google-modules/amplifiers/snd_soc_wm_adsp:snd-soc-wm-adsp",
+    ],
+)
+
+ddk_module(
+    name = "snd-soc-cs35l41-spi",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "cs35l41-spi.c",
+    ],
+    out = "snd-soc-cs35l41-spi.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        ":snd-soc-cs35l41",
+        "//common:all_headers_aarch64",
         "//private/google-modules/amplifiers/snd_soc_wm_adsp:headers",
     ],
-    outs = [
-        "snd-soc-cs35l41.ko",
-        "snd-soc-cs35l41-i2c.ko",
-        "snd-soc-cs35l41-spi.ko",
+)
+
+ddk_module(
+    name = "snd-soc-cs35l41-i2c",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "cs35l41-i2c.c",
     ],
+    out = "snd-soc-cs35l41-i2c.ko",
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
-    ],
     deps = [
-        "//private/google-modules/amplifiers/snd_soc_wm_adsp:snd-soc-wm-adsp",
+        ":headers",
+        ":snd-soc-cs35l41",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/amplifiers/snd_soc_wm_adsp:headers",
     ],
 )

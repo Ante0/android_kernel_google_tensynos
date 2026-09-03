@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# Google Performance Monitor
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "gs_perf_mon",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "gs_perf_mon.ko",
+    conditional_srcs = {
+        "CONFIG_GS_PERF_MON": {
+            True: [
+                "gs_perf_mon.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

@@ -8,13 +8,11 @@
 enum cc_vendor {
 	CC_VENDOR_NONE,
 	CC_VENDOR_AMD,
-	CC_VENDOR_HYPERV,
 	CC_VENDOR_INTEL,
 };
 
-extern enum cc_vendor cc_vendor;
-
 #ifdef CONFIG_ARCH_HAS_CC_PLATFORM
+extern enum cc_vendor cc_vendor;
 extern u64 cc_mask;
 
 static inline void cc_set_mask(u64 mask)
@@ -26,6 +24,7 @@ u64 cc_mkenc(u64 val);
 u64 cc_mkdec(u64 val);
 void cc_random_init(void);
 #else
+#define cc_vendor (CC_VENDOR_NONE)
 static const u64 cc_mask = 0;
 
 static inline u64 cc_mkenc(u64 val)

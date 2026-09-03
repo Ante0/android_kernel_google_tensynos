@@ -24,6 +24,7 @@
 #include "modem_prj.h"
 #include "modem_utils.h"
 #include "modem_dump.h"
+#include "modem_io_device_trace.h"
 
 static int ipc_open(struct inode *inode, struct file *filp)
 {
@@ -476,6 +477,13 @@ static ssize_t ipc_read(struct file *filp, char *buf, size_t count,
 		skb_queue_head(rxq, skb);
 	} else {
 		dev_consume_skb_any(skb);
+	}
+
+	WRITE_ONCE(iod->rx_q_access_time, jiffies);
+
+	if (READ_ONCE(iod->q_high_watermark) != 0 && skb_queue_empty(rxq)) {
+		WRITE_ONCE(iod->q_high_watermark, 0);
+		trace_s5400_log_watermark(iod->name, 0);
 	}
 
 	return copied;

@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Spacecraft - USB auxiliary controller devicetree config
+ *
+ * Copyright 2025 Google LLC.
+ */
+
+&usb2_aux {
+	status = "okay";
+};

@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "st33spi",
+    srcs = [
+        "st33spi.c",
+    ],
+    out = "st33spi.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//private/google-modules/nfc:headers",
+    ],
+)
+
+ddk_module(
+    name = "st54spi",
+    srcs = [
+        "st54spi.c",
+    ],
+    out = "st54spi.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//private/google-modules/nfc:headers",
+    ],
+)

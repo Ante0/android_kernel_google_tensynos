@@ -32,7 +32,7 @@
 #include <linux/ioctl.h>
 #include <linux/gpio.h>
 #include <linux/module.h>
-#include <linux/of_platform.h>
+#include <linux/of.h>
 #include <linux/spi/spi.h>
 #include <linux/spinlock.h>
 #include <linux/miscdevice.h>

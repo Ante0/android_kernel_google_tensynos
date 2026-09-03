@@ -1,0 +1,163 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+&sswrp_gdmc {
+	gdmc_etr: etr@301000 {
+		compatible = "arm,coresight-tmc", "arm,primecell";
+		reg = <0x301000 0x1000>;
+
+		clocks = <&osc>;
+		clock-names = "apb_pclk";
+		// Setting AXICTL write burst to 0. driver defaul value 0xFFFF cause MEMERR
+		arm,max-burst-size=<0>;
+
+		in-ports {
+			port {
+				etr_in_port: endpoint {
+					remote-endpoint = <&replicator_out_port0>;
+				};
+			};
+		};
+
+		out-ports {
+			port {
+				etr_out_port: endpoint {
+					remote-endpoint = <&catu_in_port>;
+				};
+			};
+		};
+	};
+
+	gdmc_ets: ets@302000 {
+		compatible = "arm,coresight-tmc", "arm,primecell";
+		reg = <0x302000 0x1000>;
+
+		clocks = <&osc>;
+		clock-names = "apb_pclk";
+
+		in-ports {
+			port {
+				ets_in_port: endpoint {
+					remote-endpoint = <&replicator_out_port1>;
+				};
+			};
+		};
+	};
+
+	gdmc_catu: catu@303000 {
+		compatible = "arm,coresight-catu", "arm,primecell";
+		reg = <0x303000 0x1000>;
+
+		clocks = <&osc>;
+		clock-names = "apb_pclk";
+
+		in-ports {
+			port {
+				catu_in_port: endpoint {
+					remote-endpoint = <&etr_out_port>;
+				};
+			};
+		};
+	};
+
+	gdmc_replicator: replicator@304000 {
+		compatible = "arm,coresight-dynamic-replicator", "arm,primecell";
+		reg = <0x304000 0x1000>;
+
+		clocks = <&osc>;
+		clock-names = "apb_pclk";
+
+		in-ports {
+			port {
+				replicator_in_port: endpoint {
+					remote-endpoint = <&l0_etf_out_port>;
+				};
+			};
+		};
+
+		out-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				replicator_out_port0: endpoint {
+					remote-endpoint = <&etr_in_port>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				replicator_out_port1: endpoint {
+					remote-endpoint = <&ets_in_port>;
+				};
+			};
+		};
+	};
+
+	stm_funnel: funnel@46a000 {
+		compatible = "arm,coresight-dynamic-funnel", "arm,primecell";
+		reg = <0x46a000 0x1000>;
+
+		clocks = <&osc>;
+		clock-names = "apb_pclk";
+
+		in-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@1 {
+				reg = <1>;
+				stm_funnel_in_port1: endpoint {
+					remote-endpoint = <&gdmc_etm_out_port>;
+				};
+			};
+
+			port@2 {
+				reg = <2>;
+				stm_funnel_in_port2: endpoint {
+					remote-endpoint = <&stm_out_port>;
+				};
+			};
+		};
+
+		out-ports {
+			port {
+				stm_funnel_out_port: endpoint {
+					remote-endpoint = <&l0_funnel_in_port0>;
+				};
+			};
+		};
+	};
+
+	stm: stm@46b000 {
+		compatible = "arm,coresight-stm", "arm,primecell";
+		reg = <0x46b000 0x1000>,
+		      <0x1000000 0x1000000>;
+		reg-names = "stm-base", "stm-stimulus-base";
+
+		clocks = <&osc>;
+		clock-names = "apb_pclk";
+
+		out-ports {
+			port {
+				stm_out_port: endpoint {
+					remote-endpoint = <&stm_funnel_in_port2>;
+				};
+			};
+		};
+	};
+
+	gdmc-etm {
+		compatible="google,soc-trace-source";
+
+		trace-name = "gdmc_etm";
+		trace-id = <0x30>; // random value for now
+		out-ports {
+			port {
+				gdmc_etm_out_port: endpoint {
+					remote-endpoint = <&stm_funnel_in_port1>;
+				};
+			};
+		};
+	};
+};

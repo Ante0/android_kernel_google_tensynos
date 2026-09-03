@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# vendor hook for fs
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "vh_fs",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "vh_fs.ko",
+    conditional_srcs = {
+        "CONFIG_VH_FS": {
+            True: [
+                "eventpoll.c",
+                "init.c",
+                "timerfd.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

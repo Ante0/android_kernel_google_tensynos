@@ -1,0 +1,58 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * LGA platform common touch device tree source
+ *
+ * Copyright 2024 Google, LLC.
+ */
+
+/*
+ * Touch is connected to XAOC_SPI3, pins:
+ * CLK=AOC_INT_GPIO63, MOSI=AOC_INT_GPIO64, MISO=AOC_INT_GPIO65
+ * CS=XAOC_SPI3_SSB
+ * TS0_RESET = ANACAPA SUB GPIO_17
+ * TS0_INT = XAOC_GPIO12
+ *
+ * DVDD = PP1800_L25M_TS1_DVDD = VLDO24M
+ * AVDD = PP3300_L4M_TS1_AVDD  = VLDO26M
+ */
+
+/ {
+	fragment@touch_bus_negotiator {
+		target-path = "/";
+		__overlay__ {
+			tbn: tbn {
+				compatible = "touch_bus_negotiator";
+				tbn,mode = <2>;
+			};
+		};
+	};
+};
+
+&aoc_pinctrl {
+	ts_irq: ts-irq {
+		pins = "XAOC_GPIO12";
+		function = "aoc_cpm_eint";
+		bias-pull-up;
+		input-enable;
+	};
+};
+
+/*
+ * TODO: pinctrl for ts_spi_bus_active, ts_spi_cs_active,
+ * ts_spi_bus_sleep, ts_spi_miso_sleep, ts_spi_cs_sleep
+ */
+
+&lsion_cli20_int3_spi {
+	polling-busy-wait-mode;
+
+	spitouch: touchscreen@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		status = "disabled";
+		reg = <0>;
+		pinctrl-names = "ts_active", "ts_suspend";
+		pinctrl-0 = <&ts_irq &pmics2ts0_reset_l_1v2>; /* TODO: pinctrl */
+		pinctrl-1 = <>;
+	};
+};

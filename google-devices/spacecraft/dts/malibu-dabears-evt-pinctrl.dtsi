@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Dabears GPIO and pinctrl mappings
+ *
+ * Copyright 2026 Google LLC
+ *
+ * Intended to be used for versions starting from EVT.
+ */
+
+// Bug: 485623729 - Specify output low
+&ap2cam_i2c_sel {
+	output-low;
+};
+
+// Bug: 485623729 - Specify output low
+&ap2cam_i2c_sel_sleep {
+	output-low;
+};

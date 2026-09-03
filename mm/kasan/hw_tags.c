@@ -16,6 +16,7 @@
 #include <linux/static_key.h>
 #include <linux/string.h>
 #include <linux/types.h>
+#include <linux/vmalloc.h>
 
 #include "kasan.h"
 
@@ -57,7 +58,12 @@ enum kasan_mode kasan_mode __ro_after_init;
 EXPORT_SYMBOL_GPL(kasan_mode);
 
 /* Whether to enable vmalloc tagging. */
+#ifdef CONFIG_KASAN_VMALLOC
 DEFINE_STATIC_KEY_TRUE(kasan_flag_vmalloc);
+#else
+DEFINE_STATIC_KEY_FALSE(kasan_flag_vmalloc);
+#endif
+EXPORT_SYMBOL_GPL(kasan_flag_vmalloc);
 
 #define PAGE_ALLOC_SAMPLE_DEFAULT	1
 #define PAGE_ALLOC_SAMPLE_ORDER_DEFAULT	3
@@ -76,6 +82,12 @@ unsigned long kasan_page_alloc_sample = PAGE_ALLOC_SAMPLE_DEFAULT;
 unsigned int kasan_page_alloc_sample_order = PAGE_ALLOC_SAMPLE_ORDER_DEFAULT;
 
 DEFINE_PER_CPU(long, kasan_page_alloc_skip);
+
+/*
+ * Flush dcache after writing the tag for certain H/W to maintain cache coherence.
+ * The default value is chosen not to flush the cache.
+ */
+DEFINE_STATIC_KEY_FALSE(kasan_inval_dcache);
 
 /* kasan=off/on */
 static int __init early_kasan_flag(char *arg)
@@ -118,6 +130,9 @@ static int __init early_kasan_flag_vmalloc(char *arg)
 {
 	if (!arg)
 		return -EINVAL;
+
+	if (!IS_ENABLED(CONFIG_KASAN_VMALLOC))
+		return 0;
 
 	if (!strcmp(arg, "off"))
 		kasan_arg_vmalloc = KASAN_ARG_VMALLOC_OFF;
@@ -181,6 +196,14 @@ static int __init early_kasan_flag_page_alloc_sample_order(char *arg)
 	return 0;
 }
 early_param("kasan.page_alloc.sample.order", early_kasan_flag_page_alloc_sample_order);
+
+static int __init kasan_set_inval_dcache(char *arg)
+{
+	static_branch_enable(&kasan_inval_dcache);
+
+	return 0;
+}
+early_param("kasan_inval_dcache", kasan_set_inval_dcache);
 
 /*
  * kasan_init_hw_tags_cpu() is called for each CPU.
@@ -318,7 +341,7 @@ void *__kasan_unpoison_vmalloc(const void *start, unsigned long size,
 	 * Thus, for VM_ALLOC mappings, hardware tag-based KASAN only tags
 	 * the first virtual mapping, which is created by vmalloc().
 	 * Tagging the page_alloc memory backing that vmalloc() allocation is
-	 * skipped, see ___GFP_SKIP_KASAN_UNPOISON.
+	 * skipped, see ___GFP_SKIP_KASAN.
 	 *
 	 * For non-VM_ALLOC allocations, page_alloc memory is tagged as usual.
 	 */
@@ -336,7 +359,7 @@ void *__kasan_unpoison_vmalloc(const void *start, unsigned long size,
 		return (void *)start;
 	}
 
-	tag = kasan_random_tag();
+	tag = (flags & KASAN_VMALLOC_KEEP_TAG) ? get_tag(start) : kasan_random_tag();
 	start = set_tag(start, tag);
 
 	/* Unpoison and initialize memory up to size. */

@@ -30,7 +30,6 @@
 
 #include "audio_types.h"
 #include "hw_shared.h"
-#include "dc_link.h"
 
 struct dc_bios;
 struct dc_context;
@@ -72,6 +71,12 @@ enum dynamic_metadata_mode {
 	dmdata_dolby_vision
 };
 
+struct enc_sdp_line_num {
+	/* Adaptive Sync SDP */
+	bool adaptive_sync_line_num_valid;
+	uint32_t adaptive_sync_line_num;
+};
+
 struct encoder_info_frame {
 	/* auxiliary video information */
 	struct dc_info_packet avi;
@@ -85,12 +90,16 @@ struct encoder_info_frame {
 	struct dc_info_packet vsc;
 	/* HDR Static MetaData */
 	struct dc_info_packet hdrsmd;
+	/* Adaptive Sync SDP*/
+	struct dc_info_packet adaptive_sync;
+	struct enc_sdp_line_num sdp_line_num;
 };
 
 struct encoder_unblank_param {
 	struct dc_link_settings link_settings;
 	struct dc_crtc_timing timing;
 	int opp_cnt;
+	uint32_t pix_per_cycle;
 };
 
 struct encoder_set_dp_phy_pattern_param {
@@ -154,6 +163,10 @@ struct stream_encoder_funcs {
 	void (*stop_hdmi_info_packets)(
 		struct stream_encoder *enc);
 
+	void (*update_dp_info_packets_sdp_line_num)(
+		struct stream_encoder *enc,
+		struct encoder_info_frame *info_frame);
+
 	void (*update_dp_info_packets)(
 		struct stream_encoder *enc,
 		const struct encoder_info_frame *info_frame);
@@ -165,10 +178,6 @@ struct stream_encoder_funcs {
 
 	void (*stop_dp_info_packets)(
 		struct stream_encoder *enc);
-
-	void (*reset_fifo)(
-		struct stream_encoder *enc
-	);
 
 	void (*dp_blank)(
 		struct dc_link *link,
@@ -214,6 +223,11 @@ struct stream_encoder_funcs {
 		struct stream_encoder *enc,
 		int tg_inst);
 
+	void (*enable_stream)(
+		struct stream_encoder *enc,
+		enum signal_type signal,
+		bool enable);
+
 	void (*hdmi_reset_stream_attribute)(
 		struct stream_encoder *enc);
 
@@ -243,6 +257,9 @@ struct stream_encoder_funcs {
 			uint32_t hubp_requestor_id,
 			enum dynamic_metadata_mode dmdata_mode);
 
+	/**
+	 * @dp_set_odm_combine: Sets up DP stream encoder for ODM.
+	 */
 	void (*dp_set_odm_combine)(
 		struct stream_encoder *enc,
 		bool odm_combine);
@@ -254,6 +271,9 @@ struct stream_encoder_funcs {
 		struct stream_encoder *enc, unsigned int pix_per_container);
 	void (*enable_fifo)(struct stream_encoder *enc);
 	void (*disable_fifo)(struct stream_encoder *enc);
+	bool (*is_fifo_enabled)(struct stream_encoder *enc);
+	void (*map_stream_to_link)(struct stream_encoder *enc, uint32_t stream_enc_inst, uint32_t link_enc_inst);
+	uint32_t (*get_pixels_per_cycle)(struct stream_encoder *enc);
 };
 
 struct hpo_dp_stream_encoder_state {
@@ -299,6 +319,10 @@ struct hpo_dp_stream_encoder_funcs {
 		bool compressed_format,
 		bool double_buffer_en);
 
+	void (*update_dp_info_packets_sdp_line_num)(
+		struct hpo_dp_stream_encoder *enc,
+		struct encoder_info_frame *info_frame);
+
 	void (*update_dp_info_packets)(
 		struct hpo_dp_stream_encoder *enc,
 		const struct encoder_info_frame *info_frame);
@@ -316,9 +340,6 @@ struct hpo_dp_stream_encoder_funcs {
 			struct hpo_dp_stream_encoder *enc,
 			uint32_t stream_enc_inst,
 			uint32_t link_enc_inst);
-
-	void (*audio_mute_control)(
-			struct hpo_dp_stream_encoder *enc, bool mute);
 
 	void (*dp_audio_setup)(
 			struct hpo_dp_stream_encoder *enc,

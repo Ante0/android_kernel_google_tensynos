@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0
+
+load("//private/devices/google/common/kleaf:checkpatch.bzl", "checkpatch_strict")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch_strict(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)

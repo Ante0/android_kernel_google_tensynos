@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+
+&pcie1 {
+	max-link-speed = <3>;
+	iommu-idmapped;
+	iommu-force-cacheable;
+	dma-coherent;
+};
+
+&wifi {
+	/*
+	 * BCM4383 and BCM4390 share compatible power, GPIOs.
+	 * android,bcmdhd_wlan kept for legacy.
+	 */
+	compatible = "pci14e4,4390", "pci14e4,4383", "pciclass,0280", "android,bcmdhd_wlan";
+	pinctrl-0 = <&ap2wlan_reg_on_1v2>, <&wlan2aoss_host_wake_1v2>, <&ap2wlan_dev_wake_1v2>;
+	pinctrl-names = "default";
+
+	fake-supply; /* to fool pwrctrl parsing code */
+
+	wl_reg_on = <AP2WLAN_REG_ON_1V2(GPIO_ACTIVE_HIGH)>;
+	wl_host_wake = <WLAN2AOSS_HOST_WAKE_1V2(GPIO_ACTIVE_LOW)>;
+	wl_dev_wake = <AP2WLAN_DEV_WAKE_1V2(GPIO_ACTIVE_LOW)>;
+	ch-num = <1>;
+};

@@ -1,0 +1,8 @@
+#ifndef _PINCTRL_DEFINES_H
+#define _PINCTRL_DEFINES_H
+
+#if IS_ENABLED(CONFIG_DEBUG_PINCTRL)
+#define DEBUG
+#endif
+
+#endif  // _PINCTRL_DEFINES_H

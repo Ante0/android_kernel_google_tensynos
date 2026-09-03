@@ -1,0 +1,130 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Spacecraft device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include "malibu-spacecraft-soc-hybrid-common.dtsi"
+
+/ {
+	board_id = <0x88000>;
+	board_rev = <0x010004>;
+	fragment@boardbase {
+		target-path = "/";
+		__overlay__ {
+			model = "SoC Hybrid DPUGPU emulator board based on MALIBU";
+			compatible = "google,malibu-soc-hybrid", "google,malibu-soc-hybrid-emulator";
+		};
+	};
+};
+
+&gpu {
+	pre-silicon;
+	emulator;
+};
+
+&lwis_top {
+	status = "disabled";
+};
+
+&lwis_test {
+	status = "disabled";
+};
+
+&sswrp_ispfe {
+	status = "disabled";
+};
+
+&sswrp_ispbe {
+	status = "disabled";
+};
+
+&sswrp_gcv {
+	status = "disabled";
+};
+
+&ispfe_lite_core_0_level_aggr_0 {
+	status = "disabled";
+};
+
+&ispfe_lite_core_1_level_aggr_0 {
+	status = "disabled";
+};
+
+&ispfe_core_0_level_aggr_0 {
+	status = "disabled";
+};
+
+&ispfe_core_1_level_aggr_0 {
+	status = "disabled";
+};
+
+&ispfe_core_2_level_aggr_0 {
+	status = "disabled";
+};
+
+&ispbe_msa_hdr_pipe_level_aggr_0 {
+	status = "disabled";
+};
+
+&ispbe_msa_hdr_qchwrap_level_aggr_0 {
+	status = "disabled";
+};
+
+&ispbe_msa_tnr_pipe_level_aggr_0 {
+	status = "disabled";
+};
+
+&ispbe_msa_tnr_qchwrap_level_aggr_0 {
+	status = "disabled";
+};
+
+&ispbe_pipe_level_aggr_0 {
+	status = "disabled";
+};
+
+&ispbe_btr0_level_aggr_0 {
+	status = "disabled";
+};
+
+&ispbe_btr1_level_aggr_0 {
+	status = "disabled";
+};
+
+&ispbe_btr2_level_aggr_0 {
+	status = "disabled";
+};
+
+&ispbe_yuv_level_aggr_0 {
+	status = "disabled";
+};
+
+&gcv_gsw_level_aggr_0 {
+	status = "disabled";
+};
+
+&gcv_gse_level_aggr_0 {
+	status = "disabled";
+};
+
+&gcv_gwe_level_aggr_0 {
+	status = "disabled";
+};
+
+&gcv_gwe_core_level_aggr_0 {
+	status = "disabled";
+};
+
+&gcv_cre_pipe_level_aggr_0 {
+	status = "disabled";
+};
+
+&gcv_cre_qchwrap_level_aggr_0 {
+	status = "disabled";
+};
+

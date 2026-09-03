@@ -1,0 +1,210 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+/*
+ * This file provides internal interrupt aggregator nodes for ISP SSWRPs
+ *
+ * Copyright 2024 Google LLC
+ */
+
+#include <dt-bindings/interrupt-controller/mbu-gic.h>
+#include <dt-bindings/interrupt-controller/irq-gia-google-mbu-isp.h>
+
+&{/} {
+	ispfe_multicast_aggr_3: ispfe_multicast_aggr_3@3e062000{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3e062000 0x0 0x20>;
+		interrupts = <GIC_SPI SSWRP_ISPFE_ISPFE_GIA_OUT_AP_NS_CSISFE IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&sswrp_ispfe_pd>;
+	};
+
+	ispfe_lite_core_0_level_aggr_0: ispfe_lite_core_0_level_aggr_0@3e80c000{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3e80c000 0x0 0x20>;
+		interrupts = <GIC_SPI SSWRP_ISPFE_ISPFE_AP_INTR_NS_LITECORE0 IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&sswrp_ispfe_pd>;
+	};
+
+	ispfe_lite_core_1_level_aggr_0: ispfe_lite_core_1_level_aggr_0@3e90c000{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3e90c000 0x0 0x20>;
+		interrupts = <GIC_SPI SSWRP_ISPFE_ISPFE_AP_INTR_NS_LITECORE1 IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&sswrp_ispfe_pd>;
+	};
+
+	ispfe_core_0_level_aggr_0: ispfe_core_0_level_aggr_0@3ea0c000{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3ea0c000 0x0 0x20>;
+		interrupts = <GIC_SPI SSWRP_ISPFE_ISPFE_AP_INTR_NS_CORE0 IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&ispfe_core0_pd>;
+	};
+
+	ispfe_core_1_level_aggr_0: ispfe_core_1_level_aggr_0@3eb0c000{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3eb0c000 0x0 0x20>;
+		interrupts = <GIC_SPI SSWRP_ISPFE_ISPFE_AP_INTR_NS_CORE1 IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&ispfe_core1_pd>;
+	};
+
+	ispfe_core_2_level_aggr_0: ispfe_core_2_level_aggr_0@3ec0c000{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3ec0c000 0x0 0x20>;
+		interrupts = <GIC_SPI SSWRP_ISPFE_ISPFE_AP_INTR_NS_CORE2 IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&ispfe_core2_pd>;
+	};
+
+	ispbe_msa_hdr_pipe_level_aggr_0: ispbe_msa_hdr_pipe_level_aggr_0@3d772800{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3d772800 0x0 0x20>;
+		interrupts = <GIC_SPI SSWRP_ISPBE_ISPBE_AP_INTR_NS_MSA_HDR IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&sswrp_ispbe_pd>;
+	};
+
+	ispbe_msa_hdr_qchwrap_level_aggr_0: ispbe_msa_hdr_qchwrap_level_aggr_0@3d79c800{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		interrupt-parent = <&ispbe_msa_hdr_pipe_level_aggr_0>;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3d79c800 0x0 0x20>;
+		interrupts = <ISPBE_GIA_MSA_HDR_PIPE_LEVEL_AGGR_0_MSA_HDR_QCHWRAP_LEVEL_AGGR_0>;
+		power-domains = <&sswrp_ispbe_pd>;
+	};
+
+	ispbe_msa_tnr_pipe_level_aggr_0: ispbe_msa_tnr_pipe_level_aggr_0@3d732800{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3d732800 0x0 0x20>;
+		interrupts = <GIC_SPI SSWRP_ISPBE_ISPBE_AP_INTR_NS_MSA_TNR IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&sswrp_ispbe_pd>;
+	};
+
+	ispbe_msa_tnr_qchwrap_level_aggr_0: ispbe_msa_tnr_qchwrap_level_aggr_0@3d75c800{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		interrupt-parent = <&ispbe_msa_tnr_pipe_level_aggr_0>;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3d75c800 0x0 0x20>;
+		interrupts = <ISPBE_GIA_MSA_TNR_PIPE_LEVEL_AGGR_0_MSA_TNR_QCHWRAP_LEVEL_AGGR_0>;
+		power-domains = <&sswrp_ispbe_pd>;
+	};
+
+	ispbe_pipe_level_aggr_0: ispbe_pipe_level_aggr_0@3d692800{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3d692800 0x0 0x20>;
+		interrupts = <GIC_SPI SSWRP_ISPBE_ISPBE_AP_INTR_NS_ISPBE IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&sswrp_ispbe_pd>;
+	};
+
+	ispbe_btr0_level_aggr_0: ispbe_btr0_level_aggr_0@3d6bc800{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		interrupt-parent = <&ispbe_pipe_level_aggr_0>;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3d6bc800 0x0 0x20>;
+		interrupts = <ISPBE_GIA_PIPE_LEVEL_AGGR_0_BTR0_LEVEL_AGGR_0>;
+		power-domains = <&sswrp_ispbe_pd>;
+	};
+
+	ispbe_btr1_level_aggr_0: ispbe_btr1_level_aggr_0@3d6dc800{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		interrupt-parent = <&ispbe_pipe_level_aggr_0>;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3d6dc800 0x0 0x20>;
+		interrupts = <ISPBE_GIA_PIPE_LEVEL_AGGR_0_BTR1_LEVEL_AGGR_0>;
+		power-domains = <&sswrp_ispbe_pd>;
+	};
+
+	ispbe_btr2_level_aggr_0: ispbe_btr2_level_aggr_0@3d6fc800{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		interrupt-parent = <&ispbe_pipe_level_aggr_0>;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3d6fc800 0x0 0x20>;
+		interrupts = <ISPBE_GIA_PIPE_LEVEL_AGGR_0_BTR2_LEVEL_AGGR_0>;
+		power-domains = <&sswrp_ispbe_pd>;
+	};
+
+	ispbe_yuv_level_aggr_0: ispbe_yuv_level_aggr_0@3d71c800{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		interrupt-parent = <&ispbe_pipe_level_aggr_0>;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3d71c800 0x0 0x20>;
+		interrupts = <ISPBE_GIA_PIPE_LEVEL_AGGR_0_YUV_LEVEL_AGGR_0>;
+		power-domains = <&sswrp_ispbe_pd>;
+	};
+
+	gcv_gsw_level_aggr_0: gcv_gsw_level_aggr_0@3d902800{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3d902800 0x0 0x20>;
+		interrupts = <GIC_SPI SSWRP_GCV_GCV_AP_INTR_NS_GSW IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&sswrp_gcv_pd>;
+	};
+
+	gcv_gse_level_aggr_0: gcv_gse_level_aggr_0@3d93c800{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		interrupt-parent = <&gcv_gsw_level_aggr_0>;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3d93c800 0x0 0x20>;
+		interrupts = <GCV_GIA_GSW_LEVEL_AGGR_0_GSE_LEVEL_AGGR_0>;
+		power-domains = <&sswrp_gcv_pd>;
+	};
+
+	gcv_gwe_level_aggr_0: gcv_gwe_level_aggr_0@3d95c800{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		interrupt-parent = <&gcv_gsw_level_aggr_0>;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3d95c800 0x0 0x20>;
+		interrupts = <GCV_GIA_GSW_LEVEL_AGGR_0_GWE_LEVEL_AGGR_0>;
+		power-domains = <&sswrp_gcv_pd>;
+	};
+
+	gcv_gwe_core_level_aggr_0: gcv_gwe_core_level_aggr_0@3d94b800{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		interrupt-parent = <&gcv_gwe_level_aggr_0>;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3d94b800 0x0 0x20>;
+		interrupts = <GCV_GIA_GWE_LEVEL_AGGR_0_GWE_CORE_LEVEL_AGGR_0>;
+		power-domains = <&sswrp_gcv_pd>;
+	};
+
+	gcv_cre_pipe_level_aggr_0: gcv_cre_pipe_level_aggr_0@3d972800{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3d972800 0x0 0x20>;
+		interrupts = <GIC_SPI SSWRP_GCV_GCV_AP_INTR_NS_CRE IRQ_TYPE_LEVEL_HIGH 0>;
+		power-domains = <&sswrp_gcv_pd>;
+	};
+
+	gcv_cre_qchwrap_level_aggr_0: gcv_cre_qchwrap_level_aggr_0@3d99c800{
+		compatible = "google,level-sgia";
+		interrupt-controller;
+		interrupt-parent = <&gcv_cre_pipe_level_aggr_0>;
+		#interrupt-cells = <1>;
+		reg = <0x0 0x3d99c800 0x0 0x20>;
+		interrupts = <GCV_GIA_CRE_PIPE_LEVEL_AGGR_0_CRE_LEVEL_AGGR_0>;
+		power-domains = <&sswrp_gcv_pd>;
+	};
+};

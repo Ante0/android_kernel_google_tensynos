@@ -12,6 +12,7 @@
  * <arach.mohammed.brahim@st.com>
  */
 
+#include <linux/cleanup.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/ioctl.h>
@@ -172,11 +173,12 @@ static ssize_t st33spi_state_show(struct device *dev,
 
 	st33spi = spi_get_drvdata(spi);
 	if (st33spi == NULL || st33spi->spi == NULL ||
-	    st33spi->spi->cs_gpiod == NULL)
+	    spi_get_csgpiod(st33spi->spi, 0) == NULL)
 		return -ENODEV;
 
 	return scnprintf(buf, PAGE_SIZE, "state:%d, st33spi_cs:%d\n",
-			st33spi->spi_state, gpiod_get_raw_value_cansleep(st33spi->spi->cs_gpiod));
+			 st33spi->spi_state,
+			 gpiod_get_raw_value_cansleep(spi_get_csgpiod(st33spi->spi, 0)));
 }
 
 static ssize_t st33spi_state_store(struct device *dev,
@@ -945,7 +947,6 @@ static const struct file_operations st33spi_fops = {
 	.compat_ioctl = st33spi_compat_ioctl,
 	.open = st33spi_open,
 	.release = st33spi_release,
-	.llseek = no_llseek,
 };
 
 /*-------------------------------------------------------------------------*/
@@ -1004,14 +1005,16 @@ static inline void st33spi_probe_acpi(struct spi_device *spi)
 
 static int st33spi_parse_dt(struct device *dev, struct st33spi_data *pdata)
 {
-	struct device_node *np = dev->of_node;
 	struct device_node *data_np;
 	const char *power_mode;
 	int st33spi_state;
 	int esereset_state;
 
 #ifndef GKI_MODULE
+	struct device_node *np __free(device_node);
 	np = of_find_compatible_node(NULL, NULL, "st,st33spi");
+#else
+	struct device_node *np = dev->of_node;
 #endif
 
 	if (!np) {
@@ -1067,6 +1070,7 @@ static int st33spi_parse_dt(struct device *dev, struct st33spi_data *pdata)
 		pdata->spi_state = 0;
 	}
 	dev_info(dev, "Default st33spi state: %d\n", pdata->spi_state);
+	of_node_put(data_np);
 
 	pdata->pinctrl = devm_pinctrl_get(dev);
 	if (IS_ERR(pdata->pinctrl)) {
@@ -1097,7 +1101,7 @@ static int st33spi_probe(struct spi_device *spi)
 		__register_chrdev(0, 0, N_SPI_MINORS, "spi", &st33spi_fops);
 	dev_info(&spi->dev, "Loading st33spi driver, major: %d\n", st33spi_major);
 
-	st33spi_class = class_create(THIS_MODULE, "st33spi");
+	st33spi_class = class_create("st33spi");
 	if (IS_ERR(st33spi_class)) {
 		unregister_chrdev(st33spi_major, "st33spi");
 		return PTR_ERR(st33spi_class);
@@ -1255,7 +1259,7 @@ static int __init st33spi_init(void)
 		__register_chrdev(0, 0, N_SPI_MINORS, "spi", &st33spi_fops);
 	pr_info("Loading st33spi driver, major: %d\n", st33spi_major);
 
-	st33spi_class = class_create(THIS_MODULE, "st33spi");
+	st33spi_class = class_create("st33spi");
 	if (IS_ERR(st33spi_class)) {
 		unregister_chrdev(st33spi_major,
 				  st33spi_spi_driver.driver.name);

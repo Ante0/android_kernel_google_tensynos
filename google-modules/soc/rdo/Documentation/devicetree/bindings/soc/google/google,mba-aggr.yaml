@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2022 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/mailbox/google,mba-aggr.yaml#
+$schema: http://devicetree.org/meta-schemas/base.yaml#
+
+title: Google MBA (MailBox Array) Aggregator
+
+maintainers:
+  - Lucas Wei <lucaswei@google.com>
+  - Subhash Jadavani <sjadavani@google.com>
+
+description:
+  goog-mba-aggr module is used to aggregate the request and response mailbox
+  channels of certain logical groups and expose interface APIs to upper layers
+  which abstracts the details of mailbox channels.
+
+  Clients bind a group of channel in device tree and later call to get `struct
+  goog_mba_aggr_service` for further transaction through APIs provided by
+  goog-mba-aggr module.
+
+properties:
+  compatible:
+    enum:
+      - google,mba-aggr
+
+  "service-name":
+    type: string
+    description: Custom name for the aggregator instance.
+
+  "mboxes":
+    type: object
+    description: Mailbox Channels provided by Google MBA controller driver(compatible
+      with "google,mba-ctrl").
+
+  "req-mboxes-idx":
+    type: array
+    description: a bunch of index in `mboxes` property which are used for request
+      purpose(client initiated transaction).
+
+  "resp-mboxes-idx":
+    type: array
+    description: a bunch of index in `mboxes` property which are used for response
+      purpose(remote host initiated transaction).
+
+  "payload-size":
+    type: integer
+    description: the size of mailbox payload buffer in words (one word is 4-bytes).
+
+required:
+  - compatible
+  - "service-name"
+  - "mboxes"
+  - "req-mboxes-idx"
+  - "resp-mboxes-idx"
+  - "payload-size"
+
+additionalProperties: false
+
+examples:
+  - |
+    goog_mba_aggr_gdmc: goog_mba_aggr_gdmc {
+        compatible = "google,mba-aggr";
+        service-name = "gdmc-normal";
+        mboxes = <&mba_sswrp_gdmc_client_0 0 &mba_sswrp_gdmc_client_1 0>;
+        req-mboxes-idx = <0>;
+        resp-mboxes-idx = <1>;
+        payload-size = <4>;
+    };

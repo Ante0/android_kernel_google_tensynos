@@ -1,3 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0
+config DMABUF_HEAPS_DEFERRED_FREE
+	tristate "DMA-BUF heaps deferred-free library"
+
+config DMABUF_HEAPS_PAGE_POOL
+	tristate "DMA-BUF heaps page-pool library"
 
 source "$(KCONFIG_SOC_GS_PREFIX)drivers/dma-buf/heaps/samsung/Kconfig"

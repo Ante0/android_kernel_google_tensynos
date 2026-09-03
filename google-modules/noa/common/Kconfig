@@ -1,0 +1,187 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Driver for NOA WiFi Driver
+#
+
+config NOA_SUPPORT
+	tristate "Network offload accelerator driver"
+	default n
+	help
+	  Enable NOA driver.
+
+config NOA_WLAN_SUPPORT
+	tristate "NOA WiFi Driver"
+	depends on NOA_SUPPORT
+	default m
+	help
+	  NOA WiFi driver support.
+
+config NOA_WLAN_BRCM_SUPPORT
+	tristate "NOA BRCM WiFi Driver"
+	depends on NOA_WLAN_SUPPORT
+	default m
+	help
+	  NOA WiFi driver for BRCM chip support.
+
+config NOA_WLAN_QCA_SUPPORT
+	tristate "NOA QCA WiFi Driver"
+	depends on NOA_WLAN_SUPPORT
+	default m
+	help
+	  NOA WiFi driver for QCA chip support.
+
+config NOA_MD_SUPPORT
+	bool "NOA Modem Driver"
+	depends on NOA_SUPPORT
+	default y
+	help
+	  NOA MD driver support.
+
+config NOA_MD_SAMSUNG_SUPPORT
+	bool "NOA Samsung Modem Driver"
+	depends on NOA_MD_SUPPORT
+	default y
+	help
+	  NOA Samsung Modem driver support.
+
+config NOA_MD_SAMSUNG_UL_SUPPORT
+	bool "NOA Samsung Modem Uplink Driver"
+	depends on NOA_MD_SUPPORT
+	default y
+	help
+	  NOA Samsung Modem Uplink driver support.
+
+config NOA_MD_SAMSUNG_DATA_PATH
+	bool "NOA Samsung Data path"
+	depends on NOA_MD_SAMSUNG_SUPPORT
+	depends on !NOA_MD_MEDIATEK_T900_SUPPORT
+	default y
+	help
+	  Data path implementation for Samsung platform.
+
+config NOA_MD_MEDIATEK_SUPPORT
+	bool "NOA Mediatek Modem Driver"
+	depends on NOA_MD_SUPPORT
+	depends on MTK_HOST_DRV_WWAN_SUPPORT
+	default y
+	help
+	  NOA Mediatek Modem driver support.
+
+config NOA_MD_MEDIATEK_DATA_PATH
+	bool "NOA Mediatek data path"
+	depends on NOA_MD_MEDIATEK_T900_SUPPORT
+	default y
+	help
+	  Data path implementation for Mediatek T900 platform.
+
+config NOA_MD_MEDIATEK_FULLSOC_SUPPORT
+	bool "Support NOA Mediatek MD Full SoC mode"
+	depends on NOA_MD_SUPPORT
+	default n
+	help
+	  Enable Full SoC mode for Mediatek NOA modem driver.
+
+config NOA_MD_MEDIATEK_COMMON_SUPPORT
+	bool "NOA Mediatek Common Support"
+	depends on NOA_MD_MEDIATEK_SUPPORT || NOA_MD_MEDIATEK_FULLSOC_SUPPORT
+	default y
+	help
+	  Common codes for Mediatek platform.
+
+config NOA_SIM_SUPPORT
+	tristate "NOA Driver Mode Simulator Support"
+	depends on NOA_SUPPORT
+	default m
+	help
+	  NOA Driver Mode simulator support.
+
+config NOA_FULLSOC_SUPPORT
+	tristate "NOA FullSoC Mode Support"
+	depends on NOA_SUPPORT
+	default n
+	help
+	  NOA FullSoC mode support.
+
+config NOA_WIFI_FW_V1
+	tristate "NOA WiFi Firmware version 1"
+	depends on NOA_SIM_SUPPORT
+	default n
+	help
+	  NOA Driver Mode WiFi Firmware version 1.
+
+config NOA_TETHERING_OFFLOAD_SUPPORT
+	tristate "NOA Tethering Offload Driver"
+	depends on NOA_SUPPORT
+	default m
+	help
+	  NOA Tethering Offload driver support.
+
+config NOA_VPN_OFFLOAD_SUPPORT
+	tristate "NOA VPN Offload support"
+	depends on NOA_TETHERING_OFFLOAD_SUPPORT && XFRM_OFFLOAD
+	default n
+	help
+	  NOA VPN Offload support.
+
+config NOA_SIM_VPN_OFFLOAD_SUPPORT
+	tristate "NOA VPN Offload support in NOA Driver Mode Simulator"
+	depends on NOA_SIM_SUPPORT && NOA_TETHERING_OFFLOAD_SUPPORT && XFRM_OFFLOAD
+	default n
+	help
+	  NOA VPN Offload support in NOA driver mode simulator.
+
+config NOA_WLAN_PACKET_SNIFFER_SUPPORT
+	tristate "NOA WLAN Packet Sniffer support"
+	depends on NOA_WLAN_SUPPORT
+	default m
+	help
+	  NOA WLAN Packet Sniffer support.
+
+config NOA_NETWORK_PIPELINE_SERVICE
+	tristate "NOA Network Pipeline Service"
+	depends on NOA_SIM_SUPPORT
+	default m
+	help
+	  Enable the Network Pipeline Service Architecture on NOA system.
+
+config NOA_NETWORK_PIPELINE_SERVICE_WITH_NESTED_RING
+	tristate "NOA Network Pipeline Service with Nested Ring"
+	depends on NOA_SIM_SUPPORT
+	default m
+	help
+	  Enable the Nested Ring based pipeline service on NOA system.
+
+config NOA_PPF_SUPPORT
+	tristate "NOA Pixel Packet Filter support"
+	depends on NOA_SUPPORT
+	default m
+	help
+	  NOA Pixel Packet Filter support.
+
+config NOA_RING_MANAGER_SUPPORT
+	tristate "NOA Ring Manager"
+	depends on NOA_SUPPORT
+	default m
+	help
+	  Enable the Ring Manager on NOA system.
+
+config NOA_PCIE_SUPPORT
+	tristate "NOA PCIe Interface"
+	default n
+	help
+	  Enable the PCIe interface on NOA system.
+
+config NOA_POWER_SAVING
+    bool "Enable Noa Power Saving feature"
+    default y
+    help
+      Enable the NOA Power Saving.
+
+config NOA_TEST_HARNESS
+	tristate "NOA Test Harness"
+	depends on NOA_FULLSOC_SUPPORT
+	default n
+	help
+	  Enable this option to build the test harness, a simple
+	  virtual network driver for NOA performance testing.
+

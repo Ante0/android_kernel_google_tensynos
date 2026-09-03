@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Configurations for Tick Driven Memory
+# Latency Governors.
+#
+
+config GS_MEMLAT_GOVERNOR
+        tristate "Google DSU Latency Governor"
+        depends on GS_PERF_MON
+        depends on GOOGLE_PM_QOS
+        default n
+        help
+          The Google memlat governors provides DVFS frequency votes for the
+          Memory bus. The governors only compute target frequencies for the Memory bus,
+          then submits the votes via the Google PM QOS system for vote processing.

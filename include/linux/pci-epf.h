@@ -15,12 +15,8 @@
 #include <linux/pci.h>
 
 struct pci_epf;
+struct pci_epc_features;
 enum pci_epc_interface_type;
-
-enum pci_notify_event {
-	CORE_INIT,
-	LINK_UP,
-};
 
 enum pci_barno {
 	NO_BAR = -1,
@@ -42,7 +38,7 @@ enum pci_barno {
  * @baseclass_code: broadly classifies the type of function the device performs
  * @cache_line_size: specifies the system cacheline size in units of DWORDs
  * @subsys_vendor_id: vendor of the add-in card or subsystem
- * @subsys_id: id specific to vendor
+ * @subsys_id: ID specific to vendor
  * @interrupt_pin: interrupt pin the device (or device function) uses
  */
 struct pci_epf_header {
@@ -63,13 +59,29 @@ struct pci_epf_header {
  * @bind: ops to perform when a EPC device has been bound to EPF device
  * @unbind: ops to perform when a binding has been lost between a EPC device
  *	    and EPF device
- * @add_cfs: ops to initialize function specific configfs attributes
+ * @add_cfs: ops to initialize function-specific configfs attributes
  */
 struct pci_epf_ops {
 	int	(*bind)(struct pci_epf *epf);
 	void	(*unbind)(struct pci_epf *epf);
 	struct config_group *(*add_cfs)(struct pci_epf *epf,
 					struct config_group *group);
+};
+
+/**
+ * struct pci_epc_event_ops - Callbacks for capturing the EPC events
+ * @epc_init: Callback for the EPC initialization complete event
+ * @epc_deinit: Callback for the EPC deinitialization event
+ * @link_up: Callback for the EPC link up event
+ * @link_down: Callback for the EPC link down event
+ * @bus_master_enable: Callback for the EPC Bus Master Enable event
+ */
+struct pci_epc_event_ops {
+	int (*epc_init)(struct pci_epf *epf);
+	void (*epc_deinit)(struct pci_epf *epf);
+	int (*link_up)(struct pci_epf *epf);
+	int (*link_down)(struct pci_epf *epf);
+	int (*bus_master_enable)(struct pci_epf *epf);
 };
 
 /**
@@ -84,24 +96,26 @@ struct pci_epf_ops {
  * @id_table: identifies EPF devices for probing
  */
 struct pci_epf_driver {
-	int	(*probe)(struct pci_epf *epf);
+	int	(*probe)(struct pci_epf *epf,
+			 const struct pci_epf_device_id *id);
 	void	(*remove)(struct pci_epf *epf);
 
 	struct device_driver	driver;
-	struct pci_epf_ops	*ops;
+	const struct pci_epf_ops *ops;
 	struct module		*owner;
 	struct list_head	epf_group;
 	const struct pci_epf_device_id	*id_table;
 };
 
-#define to_pci_epf_driver(drv) (container_of((drv), struct pci_epf_driver, \
-				driver))
+#define to_pci_epf_driver(drv) container_of_const((drv), struct pci_epf_driver, driver)
 
 /**
  * struct pci_epf_bar - represents the BAR of EPF device
  * @phys_addr: physical address that should be mapped to the BAR
  * @addr: virtual address corresponding to the @phys_addr
  * @size: the size of the address space present in BAR
+ * @aligned_size: the size actually allocated to accommodate the iATU alignment
+ *                requirement
  * @barno: BAR number
  * @flags: flags that are set for the BAR
  */
@@ -109,6 +123,7 @@ struct pci_epf_bar {
 	dma_addr_t	phys_addr;
 	void		*addr;
 	size_t		size;
+	size_t		aligned_size;
 	enum pci_barno	barno;
 	int		flags;
 };
@@ -126,8 +141,8 @@ struct pci_epf_bar {
  * @epc: the EPC device to which this EPF device is bound
  * @epf_pf: the physical EPF device to which this virtual EPF device is bound
  * @driver: the EPF driver to which this EPF device is bound
+ * @id: pointer to the EPF device ID
  * @list: to add pci_epf as a list of PCI endpoint functions to pci_epc
- * @nb: notifier block to notify EPF of any EPC events (like linkup)
  * @lock: mutex to protect pci_epf_ops
  * @sec_epc: the secondary EPC device to which this EPF device is bound
  * @sec_epc_list: to add pci_epf as list of PCI endpoint functions to secondary
@@ -139,6 +154,7 @@ struct pci_epf_bar {
  * @is_vf: true - virtual function, false - physical function
  * @vfunction_num_map: bitmap to manage virtual function number
  * @pci_vepf: list of virtual endpoint functions associated with this function
+ * @event_ops: callbacks for capturing the EPC events
  */
 struct pci_epf {
 	struct device		dev;
@@ -153,8 +169,8 @@ struct pci_epf {
 	struct pci_epc		*epc;
 	struct pci_epf		*epf_pf;
 	struct pci_epf_driver	*driver;
+	const struct pci_epf_device_id *id;
 	struct list_head	list;
-	struct notifier_block   nb;
 	/* mutex to protect against concurrent access of pci_epf_ops */
 	struct mutex		lock;
 
@@ -168,14 +184,16 @@ struct pci_epf {
 	unsigned int		is_vf;
 	unsigned long		vfunction_num_map;
 	struct list_head	pci_vepf;
+	const struct pci_epc_event_ops *event_ops;
 };
 
 /**
- * struct pci_epf_msix_tbl - represents the MSIX table entry structure
- * @msg_addr: Writes to this address will trigger MSIX interrupt in host
- * @msg_data: Data that should be written to @msg_addr to trigger MSIX interrupt
+ * struct pci_epf_msix_tbl - represents the MSI-X table entry structure
+ * @msg_addr: Writes to this address will trigger MSI-X interrupt in host
+ * @msg_data: Data that should be written to @msg_addr to trigger MSI-X
+ *   interrupt
  * @vector_ctrl: Identifies if the function is prohibited from sending a message
- * using this MSIX table entry
+ *   using this MSI-X table entry
  */
 struct pci_epf_msix_tbl {
 	u64 msg_addr;
@@ -204,13 +222,12 @@ int __pci_epf_register_driver(struct pci_epf_driver *driver,
 			      struct module *owner);
 void pci_epf_unregister_driver(struct pci_epf_driver *driver);
 void *pci_epf_alloc_space(struct pci_epf *epf, size_t size, enum pci_barno bar,
-			  size_t align, enum pci_epc_interface_type type);
+			  const struct pci_epc_features *epc_features,
+			  enum pci_epc_interface_type type);
 void pci_epf_free_space(struct pci_epf *epf, void *addr, enum pci_barno bar,
 			enum pci_epc_interface_type type);
 int pci_epf_bind(struct pci_epf *epf);
 void pci_epf_unbind(struct pci_epf *epf);
-struct config_group *pci_epf_type_add_cfs(struct pci_epf *epf,
-					  struct config_group *group);
 int pci_epf_add_vepf(struct pci_epf *epf_pf, struct pci_epf *epf_vf);
 void pci_epf_remove_vepf(struct pci_epf *epf_pf, struct pci_epf *epf_vf);
 #endif /* __LINUX_PCI_EPF_H */

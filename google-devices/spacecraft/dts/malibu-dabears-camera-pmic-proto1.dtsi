@@ -1,0 +1,47 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * camera PMIC device tree for MBU device
+ *
+ * Copyright 2025 Google LLC.
+ *
+ */
+
+#include "malibu-dabears-camera-pmic-proto1_1.dtsi"
+
+&lsios_i2c3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	sgm38122_csif_i2c: sgm38122@29 {
+		compatible = "sgm,sgm38122";
+		reg = <0x29>;
+		enable-supply = <&camera_buck_boost>;
+		status = "ok";
+
+		regulators {
+			sgm38122_dvdd_csif_i2c: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+				/*in1-supply = <&cam_pp1350_mvbuck>;*/
+			};
+			sgm38122_avdd1_csif_i2c: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+			sgm38122_avdd2_csif_i2c: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+			sgm38122_avdd3_csif_i2c: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in3-supply = <&buck_boost_reg>;
+			};
+		};
+	};
+};

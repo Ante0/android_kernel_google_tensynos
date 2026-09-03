@@ -8,7 +8,8 @@
 
 /* system use cases */
 &max77779_chg {
-	max77779,rtx-ready = <&p9xxx_gpio 6 GPIO_ACTIVE_HIGH>;
-	max77779,rtx-available = <&p9xxx_gpio 7 GPIO_ACTIVE_HIGH>;
+	max77779,chrg-byp-en;
+	max77779,rtx-ready-gpios = <&p9xxx_gpio 6 GPIO_ACTIVE_HIGH>;
+	max77779,rtx-available-gpios = <&p9xxx_gpio 7 GPIO_ACTIVE_HIGH>;
 	max77779,wlc_notify_charge_disable;
 };

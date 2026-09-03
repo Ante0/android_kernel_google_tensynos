@@ -3,7 +3,7 @@
 // This file is provided under a dual BSD/GPLv2 license.  When using or
 // redistributing this file, you may do so under either license.
 //
-// Copyright(c) 2018 Intel Corporation. All rights reserved.
+// Copyright(c) 2018 Intel Corporation
 //
 // Authors: Liam Girdwood <liam.r.girdwood@linux.intel.com>
 //	    Ranjani Sridharan <ranjani.sridharan@linux.intel.com>
@@ -37,10 +37,12 @@ irqreturn_t cnl_ipc4_irq_thread(int irq, void *context)
 {
 	struct sof_ipc4_msg notification_data = {{ 0 }};
 	struct snd_sof_dev *sdev = context;
+	bool ack_received = false;
 	bool ipc_irq = false;
 	u32 hipcida, hipctdr;
 
 	hipcida = snd_sof_dsp_read(sdev, HDA_DSP_BAR, CNL_DSP_REG_HIPCIDA);
+	hipctdr = snd_sof_dsp_read(sdev, HDA_DSP_BAR, CNL_DSP_REG_HIPCTDR);
 	if (hipcida & CNL_DSP_REG_HIPCIDA_DONE) {
 		/* DSP received the message */
 		snd_sof_dsp_update_bits(sdev, HDA_DSP_BAR,
@@ -49,9 +51,9 @@ irqreturn_t cnl_ipc4_irq_thread(int irq, void *context)
 		cnl_ipc_dsp_done(sdev);
 
 		ipc_irq = true;
+		ack_received = true;
 	}
 
-	hipctdr = snd_sof_dsp_read(sdev, HDA_DSP_BAR, CNL_DSP_REG_HIPCTDR);
 	if (hipctdr & CNL_DSP_REG_HIPCTDR_BUSY) {
 		/* Message from DSP (reply or notification) */
 		u32 hipctdd = snd_sof_dsp_read(sdev, HDA_DSP_BAR,
@@ -70,6 +72,7 @@ irqreturn_t cnl_ipc4_irq_thread(int irq, void *context)
 				spin_lock_irq(&sdev->ipc_lock);
 
 				snd_sof_ipc_get_reply(sdev);
+				cnl_ipc_host_done(sdev);
 				snd_sof_ipc_reply(sdev, data->primary);
 
 				spin_unlock_irq(&sdev->ipc_lock);
@@ -86,10 +89,10 @@ irqreturn_t cnl_ipc4_irq_thread(int irq, void *context)
 			sdev->ipc->msg.rx_data = &notification_data;
 			snd_sof_ipc_msgs_rx(sdev);
 			sdev->ipc->msg.rx_data = NULL;
-		}
 
-		/* Let DSP know that we have finished processing the message */
-		cnl_ipc_host_done(sdev);
+			/* Let DSP know that we have finished processing the message */
+			cnl_ipc_host_done(sdev);
+		}
 
 		ipc_irq = true;
 	}
@@ -98,8 +101,16 @@ irqreturn_t cnl_ipc4_irq_thread(int irq, void *context)
 		/* This interrupt is not shared so no need to return IRQ_NONE. */
 		dev_dbg_ratelimited(sdev->dev, "nothing to do in IPC IRQ thread\n");
 
+	if (ack_received) {
+		struct sof_intel_hda_dev *hdev = sdev->pdata->hw_pdata;
+
+		if (hdev->delayed_ipc_tx_msg)
+			cnl_ipc4_send_msg(sdev, hdev->delayed_ipc_tx_msg);
+	}
+
 	return IRQ_HANDLED;
 }
+EXPORT_SYMBOL_NS(cnl_ipc4_irq_thread, SND_SOC_SOF_INTEL_CNL);
 
 irqreturn_t cnl_ipc_irq_thread(int irq, void *context)
 {
@@ -192,6 +203,7 @@ irqreturn_t cnl_ipc_irq_thread(int irq, void *context)
 
 	return IRQ_HANDLED;
 }
+EXPORT_SYMBOL_NS(cnl_ipc_irq_thread, SND_SOC_SOF_INTEL_CNL);
 
 static void cnl_ipc_host_done(struct snd_sof_dev *sdev)
 {
@@ -251,7 +263,15 @@ static bool cnl_compact_ipc_compress(struct snd_sof_ipc_msg *msg,
 
 int cnl_ipc4_send_msg(struct snd_sof_dev *sdev, struct snd_sof_ipc_msg *msg)
 {
+	struct sof_intel_hda_dev *hdev = sdev->pdata->hw_pdata;
 	struct sof_ipc4_msg *msg_data = msg->msg_data;
+
+	if (hda_ipc4_tx_is_busy(sdev)) {
+		hdev->delayed_ipc_tx_msg = msg;
+		return 0;
+	}
+
+	hdev->delayed_ipc_tx_msg = NULL;
 
 	/* send the message via mailbox */
 	if (msg_data->data_size)
@@ -262,8 +282,11 @@ int cnl_ipc4_send_msg(struct snd_sof_dev *sdev, struct snd_sof_ipc_msg *msg)
 	snd_sof_dsp_write(sdev, HDA_DSP_BAR, CNL_DSP_REG_HIPCIDR,
 			  msg_data->primary | CNL_DSP_REG_HIPCIDR_BUSY);
 
+	hda_dsp_ipc4_schedule_d0i3_work(hdev, msg);
+
 	return 0;
 }
+EXPORT_SYMBOL_NS(cnl_ipc4_send_msg, SND_SOC_SOF_INTEL_CNL);
 
 int cnl_ipc_send_msg(struct snd_sof_dev *sdev, struct snd_sof_ipc_msg *msg)
 {
@@ -311,6 +334,7 @@ int cnl_ipc_send_msg(struct snd_sof_dev *sdev, struct snd_sof_ipc_msg *msg)
 
 	return 0;
 }
+EXPORT_SYMBOL_NS(cnl_ipc_send_msg, SND_SOC_SOF_INTEL_CNL);
 
 void cnl_ipc_dump(struct snd_sof_dev *sdev)
 {
@@ -331,6 +355,7 @@ void cnl_ipc_dump(struct snd_sof_dev *sdev)
 		"error: host status 0x%8.8x dsp status 0x%8.8x mask 0x%8.8x\n",
 		hipcida, hipctdr, hipcctl);
 }
+EXPORT_SYMBOL_NS(cnl_ipc_dump, SND_SOC_SOF_INTEL_CNL);
 
 void cnl_ipc4_dump(struct snd_sof_dev *sdev)
 {
@@ -352,10 +377,11 @@ void cnl_ipc4_dump(struct snd_sof_dev *sdev)
 		"Host IPC initiator: %#x|%#x|%#x, target: %#x|%#x|%#x, ctl: %#x\n",
 		hipcidr, hipcidd, hipcida, hipctdr, hipctdd, hipctda, hipcctl);
 }
+EXPORT_SYMBOL_NS(cnl_ipc4_dump, SND_SOC_SOF_INTEL_CNL);
 
 /* cannonlake ops */
 struct snd_sof_dsp_ops sof_cnl_ops;
-EXPORT_SYMBOL_NS(sof_cnl_ops, SND_SOC_SOF_INTEL_HDA_COMMON);
+EXPORT_SYMBOL_NS(sof_cnl_ops, SND_SOC_SOF_INTEL_CNL);
 
 int sof_cnl_ops_init(struct snd_sof_dev *sdev)
 {
@@ -366,7 +392,7 @@ int sof_cnl_ops_init(struct snd_sof_dev *sdev)
 	sof_cnl_ops.shutdown	= hda_dsp_shutdown;
 
 	/* ipc */
-	if (sdev->pdata->ipc_type == SOF_IPC) {
+	if (sdev->pdata->ipc_type == SOF_IPC_TYPE_3) {
 		/* doorbell */
 		sof_cnl_ops.irq_thread	= cnl_ipc_irq_thread;
 
@@ -375,12 +401,14 @@ int sof_cnl_ops_init(struct snd_sof_dev *sdev)
 
 		/* debug */
 		sof_cnl_ops.ipc_dump	= cnl_ipc_dump;
+
+		sof_cnl_ops.set_power_state = hda_dsp_set_power_state_ipc3;
 	}
 
-	if (sdev->pdata->ipc_type == SOF_INTEL_IPC4) {
+	if (sdev->pdata->ipc_type == SOF_IPC_TYPE_4) {
 		struct sof_ipc4_fw_data *ipc4_data;
 
-		sdev->private = devm_kzalloc(sdev->dev, sizeof(*ipc4_data), GFP_KERNEL);
+		sdev->private = kzalloc(sizeof(*ipc4_data), GFP_KERNEL);
 		if (!sdev->private)
 			return -ENOMEM;
 
@@ -388,6 +416,9 @@ int sof_cnl_ops_init(struct snd_sof_dev *sdev)
 		ipc4_data->manifest_fw_hdr_offset = SOF_MAN4_FW_HDR_OFFSET;
 
 		ipc4_data->mtrace_type = SOF_IPC4_MTRACE_INTEL_CAVS_1_8;
+
+		/* External library loading support */
+		ipc4_data->load_library = hda_dsp_ipc4_load_library;
 
 		/* doorbell */
 		sof_cnl_ops.irq_thread	= cnl_ipc4_irq_thread;
@@ -397,6 +428,8 @@ int sof_cnl_ops_init(struct snd_sof_dev *sdev)
 
 		/* debug */
 		sof_cnl_ops.ipc_dump	= cnl_ipc4_dump;
+
+		sof_cnl_ops.set_power_state = hda_dsp_set_power_state_ipc4;
 	}
 
 	/* set DAI driver ops */
@@ -417,7 +450,7 @@ int sof_cnl_ops_init(struct snd_sof_dev *sdev)
 
 	return 0;
 };
-EXPORT_SYMBOL_NS(sof_cnl_ops_init, SND_SOC_SOF_INTEL_HDA_COMMON);
+EXPORT_SYMBOL_NS(sof_cnl_ops_init, SND_SOC_SOF_INTEL_CNL);
 
 const struct sof_intel_dsp_desc cnl_chip_info = {
 	/* Cannonlake */
@@ -435,14 +468,18 @@ const struct sof_intel_dsp_desc cnl_chip_info = {
 	.ssp_base_offset = CNL_SSP_BASE_OFFSET,
 	.sdw_shim_base = SDW_SHIM_BASE,
 	.sdw_alh_base = SDW_ALH_BASE,
+	.d0i3_offset = SOF_HDA_VS_D0I3C,
+	.read_sdw_lcount =  hda_sdw_check_lcount_common,
+	.enable_sdw_irq	= hda_common_enable_sdw_irq,
 	.check_sdw_irq	= hda_common_check_sdw_irq,
+	.check_sdw_wakeen_irq = hda_sdw_check_wakeen_irq_common,
+	.sdw_process_wakeen = hda_sdw_process_wakeen_common,
 	.check_ipc_irq	= hda_dsp_check_ipc_irq,
 	.cl_init = cl_dsp_init,
 	.power_down_dsp = hda_power_down_dsp,
 	.disable_interrupts = hda_dsp_disable_interrupts,
 	.hw_ip_version = SOF_INTEL_CAVS_1_8,
 };
-EXPORT_SYMBOL_NS(cnl_chip_info, SND_SOC_SOF_INTEL_HDA_COMMON);
 
 /*
  * JasperLake is technically derived from IceLake, and should be in
@@ -467,11 +504,16 @@ const struct sof_intel_dsp_desc jsl_chip_info = {
 	.ssp_base_offset = CNL_SSP_BASE_OFFSET,
 	.sdw_shim_base = SDW_SHIM_BASE,
 	.sdw_alh_base = SDW_ALH_BASE,
+	.d0i3_offset = SOF_HDA_VS_D0I3C,
+	.read_sdw_lcount =  hda_sdw_check_lcount_common,
+	.enable_sdw_irq	= hda_common_enable_sdw_irq,
 	.check_sdw_irq	= hda_common_check_sdw_irq,
+	.check_sdw_wakeen_irq = hda_sdw_check_wakeen_irq_common,
+	.sdw_process_wakeen = hda_sdw_process_wakeen_common,
 	.check_ipc_irq	= hda_dsp_check_ipc_irq,
 	.cl_init = cl_dsp_init,
 	.power_down_dsp = hda_power_down_dsp,
 	.disable_interrupts = hda_dsp_disable_interrupts,
 	.hw_ip_version = SOF_INTEL_CAVS_2_0,
 };
-EXPORT_SYMBOL_NS(jsl_chip_info, SND_SOC_SOF_INTEL_HDA_COMMON);
+EXPORT_SYMBOL_NS(jsl_chip_info, SND_SOC_SOF_INTEL_CNL);

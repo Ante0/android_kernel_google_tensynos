@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "ddk_headers",
+    hdrs = [
+        "common/ap-awake.h",
+        "common/feature-control.h",
+        "common/fsm-listener.h",
+        "common/pwrctrl_google.h",
+        "common/radio-google.h",
+        "common/radio-utils.h",
+        "common/ramdump-stat.h",
+        "common/wwan_defines.h",
+        "config/aspm-config.h",
+        "config/pcie-config.h",
+        "metrics/modem_metrics.h",
+        "pcie/link-exception.h",
+        "pcie/md2ap-wakemon.h",
+        "pcie/mtk-pcie.h",
+        "pcie/mtk-pcie-pm-user.h",
+        "pcie/mtk-pcie-pm-user-internal.h",
+        "pcie/remote-wakeup.h",
+        "perf/dpmaif-google.h",
+        "perf/soc-qos-ext.h",
+    ],
+    includes = [
+        ".",
+        "common",
+        "config",
+        "metrics",
+        "pcie",
+        "perf",
+    ],
+    visibility = [
+        "//private/google-modules/radio/mediatek:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "radio_google",
+    srcs = [
+        "common/ap-awake.c",
+        "common/feature-control.c",
+        "common/fsm-listener.c",
+        "common/pwrctrl_google.c",
+        "common/radio-google.c",
+        "common/ramdump-stat.c",
+        "pcie/link-exception.c",
+        "pcie/md2ap-wakemon.c",
+        "pcie/mtk-pcie.c",
+        "pcie/mtk-pcie-pm-user.c",
+        "pcie/remote-wakeup.c",
+        "perf/dpmaif-google.c",
+        "perf/soc-qos-ext.c",
+    ],
+    out = "radio_google.ko",
+    conditional_srcs = {
+        "CONFIG_METRICS_COLLECTION_FRAMEWORK": {
+            True: [
+                "metrics/modem_metrics.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "wwan_defines.h",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":ddk_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/radio/common/metrics_collection:headers",
+        "//private/google-modules/radio/common/metrics_collection:metrics_collection_enabled",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3:tmi3_headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google/cdd:gcdd",
+        "//private/google-modules/soc/rdo/interconnect:google_icc",
+        "//private/google-modules/soc/rdo/pci:google-pcie-v2",
+    ],
+)
+
+filegroup(
+    name = "radio_google.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)

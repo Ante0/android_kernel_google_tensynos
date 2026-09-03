@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch")
+load("//private/devices/google/common/kleaf:device_build.bzl", "device_build")
+load("//private/devices/google/malibu:constants.bzl", "MALIBU_DTBS", "MALIBU_MODULE_OUTS")
+load(":constants.bzl", "YOGI_DTBOS")
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+device_build(
+    name = "yogi",
+    base_device = "//private/devices/google/malibu:malibu_base",
+    build_dtb = True,
+    build_dtbo = True,
+    build_system_dlkm = True,
+    build_vendor_dlkm = True,
+    build_vendor_kernel_boot = True,
+    defconfig_fragments = ["yogi_defconfig"],
+    dtb_outs = MALIBU_DTBS,
+    dtbo_outs = YOGI_DTBOS,
+    dts_makefile = "dts/Makefile",
+    dts_srcs = glob(["dts/**"]) + [
+        "//private/google-modules/soc/gs:gs.dt-bindings",
+        "//private/google-modules/soc/rdo:rdo.dt-bindings",
+    ],
+    fs_type = "erofs",
+    insmod_cfgs = glob(["insmod_cfg/*.cfg"]),
+    kconfig_exts = ["Kconfig.ext.yogi"],
+    kconfigs = [
+        # keep sorted
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3:tmi3.kconfig",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/google:radio_google.kconfig",
+        "//private/google-modules/touch/fts/fst2_p26:fst2.kconfig",
+        "//private/google-modules/touch/sec/p26:sec.kconfig",
+    ],
+    module_outs = MALIBU_MODULE_OUTS,
+    vendor_dlkm_modules = [
+        # keep sorted
+        "//private/google-modules/amplifiers/cs40l26:cl_dsp-core",
+        "//private/google-modules/amplifiers/cs40l26:cs40l26-core",
+        "//private/google-modules/amplifiers/cs40l26:snd-soc-cs40l26",
+        "//private/google-modules/bluetooth/broadcom:nitrous",
+        "//private/google-modules/fingerprint/goodix/gf3626:goodixfp",
+        "//private/google-modules/nfc:st21nfc",
+        "//private/google-modules/nfc/ese:st33spi",
+        "//private/google-modules/radio/mediatek/t900/wwan/pwrctl:wwan_gpio_pwrctl",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/adsp:mtk_pcimsg_google",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/google:radio_google",
+        "//private/google-modules/uwb/slsi/u100",
+        "//private/google-modules/wlan/linux:cfg80211",
+        "//private/google-modules/wlan/linux:mac80211",
+        "//private/google-modules/wlan/wonder",
+    ],
+    vendor_dlkm_modules_blocklisted = [
+        # keep sorted
+        "//private/google-modules/amplifiers/cs40l26:cs40l26-i2c",
+        "//private/google-modules/touch/fts/fst2_p26:fst2",
+        "//private/google-modules/touch/sec/p26:sec_touch",
+        "//private/google-modules/wlan/bcmdhd/bcm4390v2:bcmdhd4390",
+    ],
+    vendor_ramdisk_modules = [
+        # keep sorted
+        "//private/google-modules/amplifiers/aw882xx:snd-soc-aw882xx",
+        "//private/google-modules/amplifiers/tas25xx:snd-soc-tas25xx",
+        "//private/google-modules/bms:google_dual_batt_gauge",
+        "//private/google-modules/bms:max1720x-battery",
+        "//private/google-modules/display/panels/yogi:panel-gs-iyida",
+        "//private/google-modules/display/panels/yogi:panel-gs-iyidb",
+        "//private/google-modules/nfc/ese:st54spi",
+        "//private/google-modules/sensors/hall_sensor",
+    ],
+)
+
+# For compatibility
+alias(
+    name = "malibu_yogi_dist",
+    actual = ":yogi/dist",
+)
+
+alias(
+    name = "kernel_compile_commands",
+    actual = ":yogi/kernel_compile_commands",
+)

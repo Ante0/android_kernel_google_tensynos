@@ -3,6 +3,8 @@
 #include <linux/init.h>
 #include <linux/ctype.h>
 #include <linux/pgtable.h>
+#include <asm/abs_lowcore.h>
+#include <asm/page-states.h>
 #include <asm/ebcdic.h>
 #include <asm/sclp.h>
 #include <asm/sections.h>
@@ -19,16 +21,16 @@ struct parmarea parmarea __section(".parmarea") = {
 };
 
 char __bootdata(early_command_line)[COMMAND_LINE_SIZE];
-int __bootdata(noexec_disabled);
 
 unsigned int __bootdata_preserved(zlib_dfltcc_support) = ZLIB_DFLTCC_FULL;
 struct ipl_parameter_block __bootdata_preserved(ipl_block);
 int __bootdata_preserved(ipl_block_valid);
+int __bootdata_preserved(__kaslr_enabled);
+int __bootdata_preserved(cmma_flag) = 1;
 
 unsigned long vmalloc_size = VMALLOC_DEFAULT_SIZE;
 unsigned long memory_limit;
 int vmalloc_size_set;
-int kaslr_enabled;
 
 static inline int __diag308(unsigned long subcode, void *addr)
 {
@@ -50,11 +52,11 @@ static inline int __diag308(unsigned long subcode, void *addr)
 		: [r1] "+&d" (r1.pair),
 		  [reg1] "=&d" (reg1),
 		  [reg2] "=&a" (reg2),
-		  "+Q" (S390_lowcore.program_new_psw),
+		  "+Q" (get_lowcore()->program_new_psw),
 		  "=Q" (old)
 		: [subcode] "d" (subcode),
 		  [psw_old] "a" (&old),
-		  [psw_pgm] "a" (&S390_lowcore.program_new_psw)
+		  [psw_pgm] "a" (&get_lowcore()->program_new_psw)
 		: "cc", "memory");
 	return r1.odd;
 }
@@ -76,6 +78,9 @@ bool is_ipl_block_dump(void)
 		return true;
 	if (ipl_block.pb0_hdr.pbt == IPL_PBT_NVME &&
 	    ipl_block.nvme.opt == IPL_PB0_NVME_OPT_DUMP)
+		return true;
+	if (ipl_block.pb0_hdr.pbt == IPL_PBT_ECKD &&
+	    ipl_block.eckd.opt == IPL_PB0_ECKD_OPT_DUMP)
 		return true;
 	return false;
 }
@@ -108,6 +113,11 @@ static size_t ipl_block_get_ascii_scpdata(char *dest, size_t size,
 		scp_data_len = ipb->nvme.scp_data_len;
 		scp_data = ipb->nvme.scp_data;
 		break;
+	case IPL_PBT_ECKD:
+		scp_data_len = ipb->eckd.scp_data_len;
+		scp_data = ipb->eckd.scp_data;
+		break;
+
 	default:
 		goto out;
 	}
@@ -153,6 +163,7 @@ static void append_ipl_block_parm(void)
 		break;
 	case IPL_PBT_FCP:
 	case IPL_PBT_NVME:
+	case IPL_PBT_ECKD:
 		rc = ipl_block_get_ascii_scpdata(
 			parm, COMMAND_LINE_SIZE - len - 1, &ipl_block);
 		break;
@@ -204,7 +215,7 @@ static void check_cleared_facilities(void)
 
 	for (i = 0; i < ARRAY_SIZE(als); i++) {
 		if ((stfle_fac_list[i] & als[i]) != als[i]) {
-			sclp_early_printk("Warning: The Linux kernel requires facilities cleared via command line option\n");
+			boot_printk("Warning: The Linux kernel requires facilities cleared via command line option\n");
 			print_missing_facilities();
 			break;
 		}
@@ -255,7 +266,7 @@ void parse_boot_command_line(void)
 	char *args;
 	int rc;
 
-	kaslr_enabled = IS_ENABLED(CONFIG_RANDOMIZE_BASE);
+	__kaslr_enabled = IS_ENABLED(CONFIG_RANDOMIZE_BASE);
 	args = strcpy(command_line_buf, early_command_line);
 	while (*args) {
 		args = next_arg(args, &param, &val);
@@ -264,7 +275,7 @@ void parse_boot_command_line(void)
 			memory_limit = round_down(memparse(val, NULL), PAGE_SIZE);
 
 		if (!strcmp(param, "vmalloc") && val) {
-			vmalloc_size = round_up(memparse(val, NULL), PAGE_SIZE);
+			vmalloc_size = round_up(memparse(val, NULL), _SEGMENT_SIZE);
 			vmalloc_size_set = 1;
 		}
 
@@ -281,17 +292,17 @@ void parse_boot_command_line(void)
 				zlib_dfltcc_support = ZLIB_DFLTCC_FULL_DEBUG;
 		}
 
-		if (!strcmp(param, "noexec")) {
-			rc = kstrtobool(val, &enabled);
-			if (!rc && !enabled)
-				noexec_disabled = 1;
-		}
-
 		if (!strcmp(param, "facilities") && val)
 			modify_fac_list(val);
 
 		if (!strcmp(param, "nokaslr"))
-			kaslr_enabled = 0;
+			__kaslr_enabled = 0;
+
+		if (!strcmp(param, "cmma")) {
+			rc = kstrtobool(val, &enabled);
+			if (!rc && !enabled)
+				cmma_flag = 0;
+		}
 
 #if IS_ENABLED(CONFIG_KVM)
 		if (!strcmp(param, "prot_virt")) {
@@ -300,5 +311,7 @@ void parse_boot_command_line(void)
 				prot_virt_host = 1;
 		}
 #endif
+		if (!strcmp(param, "relocate_lowcore") && test_facility(193))
+			relocate_lowcore = 1;
 	}
 }

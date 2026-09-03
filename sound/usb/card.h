@@ -216,19 +216,17 @@ struct snd_usb_stream {
 	struct list_head list;
 };
 
-int snd_vendor_set_ops(struct snd_usb_audio_vendor_ops *vendor_ops);
-struct snd_usb_audio_vendor_ops *snd_vendor_get_ops(void);
-int snd_vendor_set_interface(struct usb_device *udev,
-			     struct usb_host_interface *alts,
-			     int iface, int alt);
-int snd_vendor_set_rate(int iface, int rate, int alt);
-int snd_vendor_set_pcm_intf(struct usb_interface *intf, int iface, int alt,
-			    int direction, struct snd_usb_substream *subs);
-int snd_vendor_set_pcm_connection(struct usb_device *udev,
-				  enum snd_vendor_pcm_open_close onoff,
-				  int direction);
-int snd_vendor_set_pcm_binterval(const struct audioformat *fp,
-				 const struct audioformat *found,
-				 int *cur_attr, int *attr);
+struct snd_usb_platform_ops {
+	void (*connect_cb)(struct snd_usb_audio *chip);
+	void (*disconnect_cb)(struct snd_usb_audio *chip);
+	void (*suspend_cb)(struct usb_interface *intf, pm_message_t message);
+	void (*resume_cb)(struct usb_interface *intf);
+};
 
+struct snd_usb_stream *
+snd_usb_find_suppported_substream(int card_idx, struct snd_pcm_hw_params *params,
+				  int direction);
+
+int snd_usb_register_platform_ops(struct snd_usb_platform_ops *ops);
+int snd_usb_unregister_platform_ops(void);
 #endif /* __USBAUDIO_CARD_H */

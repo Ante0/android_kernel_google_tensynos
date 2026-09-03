@@ -1854,7 +1854,7 @@ static void gs_hk3_get_panel_rev(struct gs_panel *ctx, u32 id)
 	gs_hk3_get_panel_material(ctx, id);
 }
 
-static void gs_hk3_normal_mode_work(struct gs_panel *ctx)
+static void gs_hk3_common_work(struct gs_panel *ctx)
 {
 	if (ctx->idle_data.self_refresh_active)
 		gs_hk3_update_disp_therm(ctx);
@@ -2244,7 +2244,7 @@ static const struct gs_panel_funcs hk3_gs_funcs = {
 	.mode_set = gs_hk3_mode_set,
 	.get_panel_rev = gs_hk3_get_panel_rev,
 	.set_acl_mode = gs_hk3_set_acl_mode,
-	.run_normal_mode_work = gs_hk3_normal_mode_work,
+	.run_common_work = gs_hk3_common_work,
 };
 
 static const struct brightness_capability hk3_brightness_capability = {

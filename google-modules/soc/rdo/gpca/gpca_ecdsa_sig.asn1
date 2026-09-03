@@ -1,0 +1,4 @@
+ECDSASignature ::= SEQUENCE {
+	r	INTEGER ({ gpca_ecc_get_signature_r }),
+	s	INTEGER ({ gpca_ecc_get_signature_s })
+}

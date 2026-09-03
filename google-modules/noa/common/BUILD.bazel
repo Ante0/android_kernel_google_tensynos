@@ -1,0 +1,611 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module", "ddk_submodule")
+load(":copy_files.bzl", "copy_files")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "noa.kconfig",
+    srcs = glob([
+        "**/Kconfig",
+    ]),
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules/soc/gs:__pkg__",
+    ],
+)
+
+ddk_headers(
+    name = "ddk-sim_headers",
+    hdrs = glob([
+        "sim/**/*.h",
+    ]),
+    includes = [
+        "sim",
+    ],
+)
+
+ddk_headers(
+    name = "ddk-sim_ncp_headers",
+    hdrs = glob([
+        "sim/ncp/**/*.h",
+    ]),
+    includes = [
+        "sim/ncp",
+        "sim/ncp/md",
+        "sim/ncp/md/modules",
+        "sim/ncp/wlan_build",
+    ],
+)
+
+ddk_headers(
+    name = "ddk-sim_nep_headers",
+    hdrs = glob([
+        "sim/nep/**/*.h",
+    ]),
+    includes = [
+        "sim/nep",
+        "sim/nep/ring_service",
+    ],
+)
+
+ddk_headers(
+    name = "ddk-sim_common_headers",
+    hdrs = glob([
+        "sim/common/*.h",
+    ]),
+    includes = ["sim/common"],
+)
+
+ddk_headers(
+    name = "ddk-tether_headers",
+    hdrs = glob([
+        "tether/**/*.h",
+    ]),
+    includes = [
+        "tether",
+        "tether/vpn/public",
+    ],
+)
+
+ddk_headers(
+    name = "ddk-ring_service_headers",
+    hdrs = glob([
+        "ring_service/**/*.h",
+    ]),
+    includes = [
+        "ring_service",
+        "ring_service/ring_mgmt",
+        "ring_service/ring_pipeline_service/public",
+    ],
+)
+
+ddk_headers(
+    name = "ddk-md_mediatek_headers",
+    hdrs = glob([
+        "md/mediatek/**/*.h",
+    ]),
+    includes = [
+        "md/mediatek",
+    ],
+    visibility = [
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3:__pkg__",
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/google:__pkg__",
+    ],
+)
+
+ddk_headers(
+    name = "ddk-common_headers",
+    hdrs = glob([
+        "common/**/*.h",
+    ]),
+    includes = ["common"],
+)
+
+ddk_headers(
+    name = "ddk-noa_headers",
+    hdrs = glob([
+        "**/*.h",
+    ]),
+    includes = ["."],
+    visibility = [
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3:__pkg__",
+        "//private/google-modules/soc/rdo/pci:__pkg__",
+        "//private/google-modules/wlan/bcmdhd/bcm4390v2:__pkg__",
+        "//private/google-modules/wlan/qcom/wcn7760/cnss2:__subpackages__",
+        "//private/google-modules/wlan/qcom/wcn7760/wlan/qcacld-3.0:__subpackages__",
+    ],
+)
+
+config_setting(
+    name = "noa_pcie_enabled",
+    values = {"define": "CONFIG_NOA_PCIE_SUPPORT=y"},
+)
+
+_NOA_COMMON_SRCS = [
+    "common/core.c",
+    "common/noatrace.c",
+    "common/ring.c",
+]
+
+ddk_submodule(
+    name = "ddk-ncp_sim",
+    out = "ncp_sim.ko",
+    conditional_srcs = {
+        "CONFIG_NOA_SIM_SUPPORT": {
+            True: _NOA_COMMON_SRCS + [
+                "sim/ncp/ncp.c",
+                "sim/ncp/ncp_wlan_middle_layer.c",
+                "sim/ncp/wlan/trace.c",
+                "sim/ncp/wlan_build/modules/wlan_ring/wlan_ring.c",
+                "sim/ncp/wlan_build/modules/noa_ring_svc/noa_ring_svc.c",
+                "sim/ncp/wlan_build/modules/wlan_buffer_management/wlan_buffer_manager.c",
+                "sim/ncp/wlan_build/modules/wlan_nep_buffer_pool/wlan_nep_buffer_pool.c",
+                "sim/ncp/wlan_build/modules/wlan_nep_buffer_pool/wlan_nep_tx_buffer_pool.c",
+                "sim/ncp/wlan_build/modules/sta_table/sta_table.c",
+                "sim/ncp/wlan_build/modules/flow_id_table/flow_id_table.c",
+                "sim/ncp/wlan_build/modules/wlan_ring_manager/wlan_ring_manager.c",
+                "sim/ncp/wlan_build/core/dp/wlan_dp.c",
+                "sim/ncp/wlan_build/core/wlan_pm/wlan_pm.c",
+                "sim/ncp/wlan_build/core/wlan_svc/wlan_service.c",
+                "sim/ncp/wlan_build/core/wlan_svc/wlan_service_fsm.c",
+                "sim/ncp/wlan_build/core/wlan_shared_mem/memory_map_helper.c",
+                "sim/ncp/wlan_build/sys_if/interrupt/sys_if_interrupt_driver_mode.c",
+                "sim/ncp/wlan_build/sys_if/mailbox/sys_if_mailbox_driver_mode.c",
+                "sim/ncp/wlan_build/sys_if/io/sys_if_io_driver_mode.c",
+                "sim/ncp/wlan_build/sys_if/memory/sys_if_memory_driver_mode.c",
+                "sim/ncp/wlan_build/sys_if/noa_net/noa_net_linux.c",
+                "sim/ncp/wlan_build/sys_if/workqueue/sys_if_workqueue_driver_mode.c",
+                "sim/ncp/wlan_build/wdev_if/wdev_if.c",
+                "sim/ncp/wlan_build/wdev_if/hw_arch/brcm/wdev_if_hw_arch_brcm.c",
+                "sim/ncp/wlan_build/wdev_if/chip/brcm4390/wdev_if_chip_brcm_4390.c",
+                "sim/ncp/wlan_build/wdev_if/hw_arch/wcn7760/wdev_if_hw_arch_wcn7760.c",
+                "sim/ncp/wlan_build/wdev_if/chip/wcn7760/wdev_if_chip_wcn_7760.c",
+                "sim/ncp/wlan_build/wlan_debug_controller/wlan_packet_sniffer/wlan_debug_packet_sniffer_controller.c",
+                "sim/ncp/wlan_build/wlan_debug_controller/wlan_packet_sniffer/wlan_debug_packet_sniffer.c",
+                "sim/ncp/wlan_build/wlan_debug_controller/wlan_log_sys/wlan_debug_log_sys_controller.c",
+                "sim/ncp/wlan_build/ext_svc/ext_svc.c",
+                "sim/ncp/wlan_build/wlan_log/wlan_log.c",
+            ],
+        },
+        "CONFIG_NOA_MD_SAMSUNG_SUPPORT": {
+            True: [
+                "sim/ncp/md/samsung/ncp_md_fw.c",
+            ],
+        },
+        "CONFIG_NOA_MD_MEDIATEK_SUPPORT": {
+            True: [
+                "sim/ncp/md/mediatek/ncp_md.c",
+                "sim/ncp/md/mediatek/ncp_md_tx_data.c",
+                "sim/ncp/md/mediatek/ncp_md_rx_data.c",
+                "sim/ncp/md/modules/modem_fw_ring.c",
+                "sim/ncp/md/modules/modem_interface.c",
+                "sim/ncp/md/modules/ncp_md_irq.c",
+                "sim/ncp/md/modules/noa_md_apc2ncp_ring.c",
+            ],
+        },
+    },
+    copts = [
+        "-g",
+        "-includedpa_nanopb_config.h",
+    ],
+    deps = [
+        ":ddk-common_headers",
+        ":ddk-noa_headers",
+        ":ddk-ring_service_headers",
+        ":ddk-sim_headers",
+        ":ddk-sim_ncp_headers",
+        ":ddk-sim_nep_headers",
+        "//private/google-modules/dpa:google-dpa.pixel",
+        "//private/google-modules/dpa:nanopb_ddk_headers",
+        "//private/google-modules/noa/noah_lib:noah_lib_headers",
+    ] + select({
+        "//conditions:default": ["//private/google-modules/radio/mediatek/t900/wwan/tmi3:tmi3_headers"],
+    }),
+)
+
+ddk_submodule(
+    name = "ddk-nep_sim",
+    out = "nep_sim.ko",
+    conditional_srcs = {
+        "CONFIG_NOA_SIM_SUPPORT": {
+            True: _NOA_COMMON_SRCS + [
+                "sim/nep/dma_processor.c",
+                "sim/nep/dma_simulator.c",
+                "sim/nep/nep.c",
+                "sim/nep/netengine.c",
+                "sim/nep/port_init.c",
+                "sim/nep/ring_manager_instance.c",
+                "sim/nep/ring_manager_instance_singleton.c",
+                "sim/nep/wlan_ring_manager_instance.c",
+                "sim/nep/modem_ring_manager_instance.c",
+                "sim/nep/ring_controller.c",
+                "sim/nep/ring_descriptor.c",
+                "sim/nep/ring_service/ring_buffer_pool.c",
+                "sim/nep/network_pipeline_framework/nested_ring_task.c",
+                "sim/nep/network_pipeline_framework/nested_ring_stage.c",
+                "sim/nep/network_pipeline_framework/stage.c",
+                "sim/nep/network_pipeline_framework/packet_table.c",
+                "sim/nep/network_pipeline_framework/packet_initiator.c",
+                "sim/nep/network_pipeline_framework/task_scheduler.c",
+                "sim/nep/network_pipeline_framework/task_scheduler_bitmap.c",
+                "sim/nep/network_pipeline_framework/engine.c",
+                "sim/nep/network_pipeline_module/buffer_pool_engine.c",
+                "sim/nep/network_pipeline_module/dma_engine.c",
+                "sim/nep/network_pipeline_service/service.c",
+                "sim/nep/network_pipeline_service/task_manager.c",
+                "sim/nep/network_pipeline_service/nested_ring_service.c",
+                "sim/nep/network_pipeline_service/wlan_data_path.c",
+                "sim/nep/network_pipeline_service/ring_utils.c",
+                "sim/nep/network_pipeline_service/release_option.c",
+                "sim/nep/ring_pipeline_service/cached_buffer_pool.c",
+                "sim/nep/ring_pipeline_service/ring_data_cache.c",
+                "sim/nep/ring_pipeline_service/ring_data_route.c",
+                "sim/nep/ring_pipeline_service/ring_isr_handler.c",
+                "sim/nep/ring_pipeline_service/ring_doorbell_notifier.c",
+                "sim/nep/ring_pipeline_service/packet_header_fetch.c",
+                "sim/nep/ring_pipeline_service/receiver.c",
+                "sim/nep/ring_pipeline_service/sender.c",
+                "sim/nep/ring_pipeline_service/feedthrough.c",
+                "sim/nep/ring_pipeline_service/obsolete_packet_handler.c",
+                # Tethering
+                "sim/nep/nep_map_table.c",
+                "sim/nep/nep_tables.c",
+                "sim/nep/offload.c",
+                "sim/nep/netengine_utils.c",
+                "sim/nep/tethering_pipeline_service.c",
+                "sim/nep/vpn_pipeline_service.c",
+                "sim/nep/checksum.c",
+                "sim/nep/util/ring_util.c",
+                "sim/nep/util/memory_pool.c",
+                "sim/nep/util/utilization_monitor.c",
+            ],
+        },
+        "CONFIG_NOA_MD_MEDIATEK_DATA_PATH": {
+            True: ["sim/nep/network_pipeline_service/alcedo_modem_data_path.c"],
+        },
+        "CONFIG_NOA_MD_SAMSUNG_DATA_PATH": {
+            True: ["sim/nep/network_pipeline_service/lassen_modem_data_path.c"],
+        },
+        "CONFIG_NOA_PPF_SUPPORT": {
+            True: [
+                "sim/nep/apf_interpreter.c",
+                "sim/nep/nep_apf.c",
+                "sim/nep/ppf_pipeline_service.c",
+                "sim/nep/ra_packet.c",
+                "sim/nep/ra_timers.c",
+                "sim/nep/ra_proxy.c",
+            ],
+        },
+        "NOA_SIM_VPN_OFFLOAD_SUPPORT": {
+            True: [
+                "sim/nep/noa_ipsec.c",
+                "sim/nep/noa_ipsec_crypto.c",
+            ],
+        },
+    },
+    copts = ["-g"],
+    deps = [
+        ":ddk-common_headers",
+        ":ddk-noa_headers",
+        ":ddk-ring_service_headers",
+        ":ddk-sim_common_headers",
+        ":ddk-sim_headers",
+        ":ddk-sim_nep_headers",
+        ":ddk-tether_headers",
+        "//private/google-modules/dpa:google-dpa.pixel",
+    ],
+)
+
+copy_files(
+    name = "wlan_service_srcs",
+    srcs = [
+        "//private/google-modules/noa/noah_lib:gen/pw_rpc_services/wlan_rpc_service.pb.c",
+    ],
+)
+
+copy_files(
+    name = "pcie_service_srcs",
+    srcs = [
+        "//private/google-modules/noa/noah_lib:gen/pw_rpc_services/pcie_service/pcie_service.pb.c",
+    ],
+)
+
+copy_files(
+    name = "nep_cmd_service_srcs.noa",
+    srcs = [
+        "//private/google-modules/noa/noah_lib:gen/pw_rpc_services/nep_cmd_service.pb.c",
+    ],
+    prefix = "noa",
+)
+
+ddk_submodule(
+    name = "ddk-noa",
+    srcs = _NOA_COMMON_SRCS + [
+        "debugfs.c",
+        "main.c",
+    ],
+    out = "noa.ko",
+    conditional_srcs = {
+        "CONFIG_NOA_MD_MEDIATEK_COMMON_SUPPORT": {
+            True: [
+                "md/mediatek/noa_md.c",
+                "md/mediatek/noa_md_cldma.c",
+                "md/mediatek/noa_md_data_path_ctrl.c",
+                "md/mediatek/noa_md_dma_mapper.c",
+                "md/mediatek/noa_md_dpa.c",
+                "md/mediatek/noa_md_dpmaif.c",
+                "md/mediatek/noa_md_pcie.c",
+                "md/mediatek/noa_md_rpc.c",
+                "md/mediatek/noa_md_rx_data.c",
+                "md/mediatek/noa_md_shmem_sync.c",
+                "md/mediatek/noa_md_trace.c",
+                "md/mediatek/noa_md_tx_data.c",
+                "md/mediatek/noa_md_utility.c",
+                "md/mediatek/noa_md_vpn_tx_data.c",
+                "md/mediatek/noa_md_wrapper.c",
+                "md/mediatek/noa_md_wrapper_dpmaif.c",
+                "md/mediatek/noa_md_wwan_notifier.c",
+                "md/mediatek/noa_md_wrapper_t900.c",
+            ],
+        },
+        "CONFIG_NOA_WLAN_SUPPORT": {
+            True: [
+                "wlan/noa_wlan.c",
+                "wlan/debugfs.c",
+                "wlan/wlan_trace.c",
+                "wlan/wlan_debug_controller/debugfs.c",
+                "wlan/wlan_debug_controller/wlan_debug_packet_sniffer_debugfs.c",
+                "wlan/wlan_debug_controller/wlan_debug_log_system_debugfs.c",
+                "wlan/wlan_debug_controller/wlan_debug_shared_info_fetcher_debugfs.c",
+                "wlan/wlan_debug_controller/wlan_debug_trace.c",
+                "wlan/wlan_rpc_service/noa_wlan_rpc.c",
+                "wlan/wlan_rpc_service/noa_wlan_cmd_dispatch.c",
+                "wlan/noa_wlan_cfg_space.c",
+                "wlan/noa_wlan_mapper.c",
+                "wlan/noa_wlan_nep_helper.c",
+                "wlan/noa_wlan_dynamic_switch.c",
+                "wlan/noa_wlan_buffer_management.c",
+            ],
+        },
+        "CONFIG_NOA_FULLSOC_SUPPORT": {
+            True: [
+                "wlan/noa_wlan_hw.c",
+                "wlan/wlan_rpc_service/wlan_cmd_rpc_client.c",
+                "wlan/wlan_rpc_service/wlan_event_rpc_client.c",
+                "wlan/wlan_rpc_service/wlan_rpc_call_entry.c",
+                "net/nep_cmd_rpc_service/nep_cmd_rpc_client.c",
+                "net/nep_cmd_rpc_service/nep_event_rpc_client.c",
+                ":wlan_service_srcs",
+                ":nep_cmd_service_srcs.noa",
+                ":pcie_service_srcs",
+                "pcie_service/pcie_rpc_client.c",
+                "pcie_service/noa_pcie_rpc.c",
+            ],
+            False: [
+                "wlan/noa_wlan_hw_sim.c",
+            ],
+        },
+        "CONFIG_NOA_MD_SAMSUNG_SUPPORT": {
+            True: [
+                "md/samsung/noa_md_custom.c",
+                "md/samsung/debugfs.c",
+            ],
+        },
+        "CONFIG_NOA_MD_MEDIATEK_DEBUG_FS": {
+            True: [
+                "md/mediatek/debugfs/noa_md_debug.c",
+                "md/mediatek/debugfs/noa_md_debug_ctl.c",
+                "md/mediatek/debugfs/noa_md_debug_dpath.c",
+                "md/mediatek/debugfs/noa_md_debug_shmem.c",
+                "md/mediatek/debugfs/noa_md_debug_skb_pool.c",
+                "md/mediatek/debugfs/noa_md_debug_vpn_tx.c",
+            ],
+        },
+        "CONFIG_NOA_MD_MEDIATEK_T900_DEBUG_FS": {
+            True: [
+                "md/mediatek/debugfs/t900/noa_md_debug_t900_cmd.c",
+            ],
+        },
+    },
+    copts = [
+        "-g",
+        "-includedpa_nanopb_config.h",
+    ],
+    local_defines = [
+        "CONFIG_ENABLE_T900_NOA_SUPPORT",
+    ],
+    deps = [
+        ":ddk-common_headers",
+        ":ddk-md_mediatek_headers",
+        ":ddk-noa_headers",
+        ":ddk-ring_service_headers",
+        ":ddk-sim_headers",
+        ":ddk-sim_ncp_headers",
+        "//private/google-modules/dpa:google-dpa.pixel",
+        "//private/google-modules/dpa:nanopb_ddk_headers",
+        "//private/google-modules/noa/noah_lib:noah_lib_headers",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ] + select({
+        "//conditions:default": ["//private/google-modules/radio/mediatek/t900/wwan/tmi3:tmi3_headers"],
+        ":noa_pcie_enabled": [
+            "//private/google-modules/soc/rdo/pci:google-pcie",
+        ],
+    }),
+)
+
+copy_files(
+    name = "nep_cmd_service_srcs.noa_cont",
+    srcs = [
+        "//private/google-modules/noa/noah_lib:gen/pw_rpc_services/nep_cmd_service.pb.c",
+    ],
+    prefix = "noa_cont",
+)
+
+ddk_submodule(
+    name = "ddk-noa_cont",
+    out = "noa_cont.ko",
+    conditional_srcs = {
+        "CONFIG_NOA_TETHERING_OFFLOAD_SUPPORT": {
+            True: [
+                "tether/noa_netengine_manager.c",
+                "tether/noa_tethering_manager.c",
+            ],
+        },
+        "CONFIG_NOA_VPN_OFFLOAD_SUPPORT": {
+            True: [
+                "tether/noa_vpn_manager.c",
+                "tether/vpn/packed_xfrm.c",
+            ],
+        },
+        "CONFIG_NOA_PPF_SUPPORT": {
+            True: [
+                "tether/noa_ppf_manager.c",
+            ],
+        },
+        "CONFIG_NOA_FULLSOC_SUPPORT": {
+            True: [
+                ":nep_cmd_service_srcs.noa_cont",
+                "net/nep_cmd_rpc_service/noa_nep_cmd_rpc.c",
+                "net/nep_cmd_rpc_service/nep_cmd_rpc_client.c",
+                "net/nep_cmd_rpc_service/nep_event_rpc_client.c",
+                "tether/net/nep_table_manager.c",
+            ],
+        },
+    },
+    copts = [
+        "-g",
+        "-includedpa_nanopb_config.h",
+    ],
+    deps = [
+        ":ddk-noa_headers",
+        ":ddk-sim_headers",
+        ":ddk-sim_nep_headers",
+        ":ddk-tether_headers",
+        "//private/google-modules/dpa:google-dpa.pixel",
+        "//private/google-modules/dpa:nanopb_ddk_headers",
+        "//private/google-modules/noa/noah_lib:noah_lib_headers",
+    ],
+)
+
+copy_files(
+    name = "ring_event_service_srcs",
+    srcs = [
+        "//private/google-modules/noa/noah_lib:gen/pw_rpc_services/ring_event_service.pb.c",
+    ],
+)
+
+ddk_submodule(
+    name = "ddk-noa_ring_manager",
+    srcs = _NOA_COMMON_SRCS + [
+        "ring_service/ring_manager_main.c",
+        "sim/nep/ring_manager.c",
+        "sim/nep/ring_shared_info_instance.c",
+    ],
+    out = "noa_ring_manager.ko",
+    conditional_srcs = {
+        "CONFIG_NOA_FULLSOC_SUPPORT": {
+            True: [
+                ":ring_event_service_srcs",
+            ],
+        },
+    },
+    copts = [
+        "-g",
+        "-includedpa_nanopb_config.h",
+    ],
+    deps = [
+        ":ddk-common_headers",
+        ":ddk-noa_headers",
+        ":ddk-ring_service_headers",
+        ":ddk-sim_headers",
+        ":ddk-sim_nep_headers",
+        "//private/google-modules/dpa:ddk_headers",
+        "//private/google-modules/dpa:google-dpa.pixel",
+        "//private/google-modules/dpa:nanopb_ddk_headers",
+        "//private/google-modules/noa/noah_lib:noah_lib_headers",
+    ],
+)
+
+ddk_headers(
+    name = "ddk-noa_test_harness_headers",
+    hdrs = glob([
+        "test_harness/**/*.h",
+    ]),
+    includes = [
+        "test_harness",
+    ],
+)
+
+ddk_submodule(
+    name = "ddk-noa_test_harness",
+    out = "noa_test_harness.ko",
+    conditional_srcs = {
+        "CONFIG_NOA_FULLSOC_SUPPORT": {
+            True: _NOA_COMMON_SRCS + [
+                "test_harness/noa_test_harness.c",
+                "test_harness/harness_buffer_management.c",
+                "test_harness/harness_doorbell.c",
+                "test_harness/harness_memory_mapper.c",
+                "test_harness/harness_ring.c",
+                "test_harness/harness_wlan_device.c",
+                "test_harness/harness_modem_device.c",
+            ],
+        },
+    },
+    copts = [
+        "-g",
+        "-includedpa_nanopb_config.h",
+    ],
+    deps = [
+        ":ddk-common_headers",
+        ":ddk-noa_headers",
+        ":ddk-noa_test_harness_headers",
+        ":ddk-sim_nep_headers",
+        "//private/google-modules/dpa:ddk_headers",
+        "//private/google-modules/dpa:nanopb_ddk_headers",
+        "//private/google-modules/noa/noah_lib:noah_lib_headers",
+    ],
+)
+
+ddk_module(
+    name = "malibu.pixel",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":ddk-ncp_sim",
+        ":ddk-nep_sim",
+        ":ddk-noa",
+        ":ddk-noa_cont",
+        ":ddk-noa_ring_manager",
+        ":ddk-noa_test_harness",
+        "//common:all_headers_aarch64",
+    ],
+)
+
+ddk_headers(
+    name = "noa_md_pcie_headers",
+    hdrs = [
+        "md/mediatek/noa_md_pcie.h",
+    ],
+    includes = [
+        "md/mediatek",
+    ],
+    visibility = [
+        "//private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/google:__subpackages__",
+    ],
+)
+
+exports_files(
+    [
+        "wlan/dhd_custom_google_noa_4390.c",
+        "wlan/dhd_custom_google_noa_trace.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/bcmdhd/bcm4390v2:__pkg__",
+    ],
+)

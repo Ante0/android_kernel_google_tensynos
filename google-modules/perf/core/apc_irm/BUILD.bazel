@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "apc_irm_debug_headers",
+    hdrs = ["apc_irm_debug.h"],
+    includes = ["."],
+    visibility = ["//visibility:private"],
+)
+
+ddk_headers(
+    name = "apc_irm_trace_header_self",
+    hdrs = [
+        "apc_irm_trace.h",
+    ],
+    includes = ["."],
+    visibility = ["//visibility:private"],
+)
+
+ddk_module(
+    name = "apc_irm_drv",
+    srcs = [
+        "apc_irm_drv.c",
+        "apc_irm_plat.h",
+        "apc_irm_util.c",
+        "apc_irm_util.h",
+    ],
+    out = "apc_irm.ko",
+    hdrs = [
+        "include/perf/core/apc_irm.h",
+    ],
+    conditional_srcs = {
+        "CONFIG_SOC_LGA": {
+            True: [
+                "apc_irm_lga.c",
+                "google_irm_reg_lga.h",
+            ],
+        },
+        "CONFIG_SOC_MBU": {
+            True: [
+                "apc_irm_mbu.c",
+                "google_irm_reg_mbu.h",
+            ],
+        },
+    },
+    includes = [
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":apc_irm_debug_headers",
+        ":apc_irm_trace_header_self",
+        "//private/google-modules/perf/infra/mbfs",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-cpm-iface",
+    ],
+)
+
+ddk_module(
+    name = "apc_irm_test",
+    srcs = [
+        "test/apc_irm_test.c",
+    ],
+    out = "apc_irm_test.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":apc_irm_debug_headers",
+        ":apc_irm_drv",
+    ],
+)

@@ -202,12 +202,11 @@ void free_all_swap_pages(int swap)
 
 	while ((node = swsusp_extents.rb_node)) {
 		struct swsusp_extent *ext;
-		unsigned long offset;
 
 		ext = rb_entry(node, struct swsusp_extent, node);
 		rb_erase(node, &swsusp_extents);
-		for (offset = ext->start; offset <= ext->end; offset++)
-			swap_free(swp_entry(swap, offset));
+		swap_free_nr(swp_entry(swap, ext->start),
+			     ext->end - ext->start + 1);
 
 		kfree(ext);
 	}
@@ -223,7 +222,7 @@ int swsusp_swap_in_use(void)
  */
 
 static unsigned short root_swap = 0xffff;
-static struct block_device *hib_resume_bdev;
+static struct file *hib_resume_bdev_file;
 
 struct hib_bio_batch {
 	atomic_t		count;
@@ -277,7 +276,8 @@ static int hib_submit_io(blk_opf_t opf, pgoff_t page_off, void *addr,
 	struct bio *bio;
 	int error = 0;
 
-	bio = bio_alloc(hib_resume_bdev, 1, opf, GFP_NOIO | __GFP_HIGH);
+	bio = bio_alloc(file_bdev(hib_resume_bdev_file), 1, opf,
+			GFP_NOIO | __GFP_HIGH);
 	bio->bi_iter.bi_sector = page_off * (PAGE_SIZE >> 9);
 
 	if (bio_add_page(bio, page, PAGE_SIZE, 0) < PAGE_SIZE) {
@@ -364,16 +364,12 @@ static int swsusp_swap_check(void)
 		return res;
 	root_swap = res;
 
-	hib_resume_bdev = blkdev_get_by_dev(swsusp_resume_device, FMODE_WRITE,
-			NULL);
-	if (IS_ERR(hib_resume_bdev))
-		return PTR_ERR(hib_resume_bdev);
+	hib_resume_bdev_file = bdev_file_open_by_dev(swsusp_resume_device,
+			BLK_OPEN_WRITE, NULL, NULL);
+	if (IS_ERR(hib_resume_bdev_file))
+		return PTR_ERR(hib_resume_bdev_file);
 
-	res = set_blocksize(hib_resume_bdev, PAGE_SIZE);
-	if (res < 0)
-		blkdev_put(hib_resume_bdev, FMODE_WRITE);
-
-	return res;
+	return 0;
 }
 
 /**
@@ -451,14 +447,14 @@ static int get_swap_writer(struct swap_map_handle *handle)
 err_rel:
 	release_swap_writer(handle);
 err_close:
-	swsusp_close(FMODE_WRITE);
+	swsusp_close();
 	return ret;
 }
 
 static int swap_write_page(struct swap_map_handle *handle, void *buf,
 		struct hib_bio_batch *hb)
 {
-	int error = 0;
+	int error;
 	sector_t offset;
 	bool skip = false;
 
@@ -520,7 +516,7 @@ static int swap_writer_finish(struct swap_map_handle *handle,
 	if (error)
 		free_all_swap_pages(root_swap);
 	release_swap_writer(handle);
-	swsusp_close(FMODE_WRITE);
+	swsusp_close();
 
 	return error;
 }
@@ -599,7 +595,7 @@ static int save_image(struct swap_map_handle *handle,
 	return ret;
 }
 
-/**
+/*
  * Structure used for CRC32.
  */
 struct crc_data {
@@ -614,7 +610,7 @@ struct crc_data {
 	unsigned char *unc[CMP_THREADS];          /* uncompressed data */
 };
 
-/**
+/*
  * CRC32 update function that runs in its own thread.
  */
 static int crc32_threadfn(void *data)
@@ -641,7 +637,7 @@ static int crc32_threadfn(void *data)
 	}
 	return 0;
 }
-/**
+/*
  * Structure used for data compression.
  */
 struct cmp_data {
@@ -659,9 +655,9 @@ struct cmp_data {
 };
 
 /* Indicates the image size after compression */
-static atomic_t compressed_size = ATOMIC_INIT(0);
+static atomic64_t compressed_size = ATOMIC_INIT(0);
 
-/**
+/*
  * Compression function that runs in its own thread.
  */
 static int compress_threadfn(void *data)
@@ -687,7 +683,7 @@ static int compress_threadfn(void *data)
 					      &cmp_len);
 		d->cmp_len = cmp_len;
 
-		atomic_set(&compressed_size, atomic_read(&compressed_size) + d->cmp_len);
+		atomic64_add(d->cmp_len, &compressed_size);
 		atomic_set_release(&d->stop, 1);
 		wake_up(&d->done);
 	}
@@ -719,7 +715,7 @@ static int save_compressed_image(struct swap_map_handle *handle,
 
 	hib_init_batch(&hb);
 
-	atomic_set(&compressed_size, 0);
+	atomic64_set(&compressed_size, 0);
 
 	/*
 	 * We'll limit the number of threads for compression to limit memory
@@ -895,11 +891,14 @@ out_finish:
 	stop = ktime_get();
 	if (!ret)
 		ret = err2;
-	if (!ret)
+	if (!ret) {
+		swsusp_show_speed(start, stop, nr_to_write, "Wrote");
+		pr_info("Image size after compression: %lld kbytes\n",
+			(atomic64_read(&compressed_size) / 1024));
 		pr_info("Image saving done\n");
-	swsusp_show_speed(start, stop, nr_to_write, "Wrote");
-	pr_info("Image size after compression: %d kbytes\n",
-		(atomic_read(&compressed_size) / 1024));
+	} else {
+		pr_err("Image saving failed: %d\n", ret);
+	}
 
 out_clean:
 	hib_finish_batch(&hb);
@@ -997,7 +996,6 @@ int swsusp_write(unsigned int flags)
 		error = (flags & SF_NOCOMPRESS_MODE) ?
 			save_image(&handle, &snapshot, pages - 1) :
 			save_compressed_image(&handle, &snapshot, pages - 1);
-
 		if (!error)
 			trace_android_vh_post_image_save(root_swap);
 	}
@@ -1006,9 +1004,9 @@ out_finish:
 	return error;
 }
 
-/**
+/*
  *	The following functions allow us to read data using a swap map
- *	in a file-alike way
+ *	in a file-like way.
  */
 
 static void release_swap_reader(struct swap_map_handle *handle)
@@ -1157,15 +1155,15 @@ static int load_image(struct swap_map_handle *handle,
 		ret = err2;
 	if (!ret) {
 		pr_info("Image loading done\n");
-		snapshot_write_finalize(snapshot);
-		if (!snapshot_image_loaded(snapshot))
+		ret = snapshot_write_finalize(snapshot);
+		if (!ret && !snapshot_image_loaded(snapshot))
 			ret = -ENODATA;
 	}
 	swsusp_show_speed(start, stop, nr_to_read, "Read");
 	return ret;
 }
 
-/**
+/*
  * Structure used for data decompression.
  */
 struct dec_data {
@@ -1182,7 +1180,7 @@ struct dec_data {
 	unsigned char cmp[CMP_SIZE];              /* compressed buffer */
 };
 
-/**
+/*
  * Decompression function that runs in its own thread.
  */
 static int decompress_threadfn(void *data)
@@ -1509,8 +1507,8 @@ out_finish:
 	stop = ktime_get();
 	if (!ret) {
 		pr_info("Image loading done\n");
-		snapshot_write_finalize(snapshot);
-		if (!snapshot_image_loaded(snapshot))
+		ret = snapshot_write_finalize(snapshot);
+		if (!ret && !snapshot_image_loaded(snapshot))
 			ret = -ENODATA;
 		if (!ret) {
 			if (swsusp_header->flags & SF_CRC32_MODE) {
@@ -1582,24 +1580,22 @@ end:
 	return error;
 }
 
+static void *swsusp_holder;
+
 /**
- *      swsusp_check - Check for swsusp signature in the resume device
+ * swsusp_check - Open the resume device and check for the swsusp signature.
+ * @exclusive: Open the resume device exclusively.
  */
 
-int swsusp_check(void)
+int swsusp_check(bool exclusive)
 {
+	void *holder = exclusive ? &swsusp_holder : NULL;
 	int error;
-	void *holder;
-	fmode_t mode = FMODE_READ;
 
-	if (snapshot_test)
-		mode |= FMODE_EXCL;
-
-	hib_resume_bdev = blkdev_get_by_dev(swsusp_resume_device,
-					    mode, &holder);
-	if (!IS_ERR(hib_resume_bdev)) {
-		set_blocksize(hib_resume_bdev, PAGE_SIZE);
-		trace_android_vh_save_hib_resume_bdev(hib_resume_bdev);
+	hib_resume_bdev_file = bdev_file_open_by_dev(swsusp_resume_device,
+				BLK_OPEN_READ, holder, NULL);
+	if (!IS_ERR(hib_resume_bdev_file)) {
+		trace_android_vh_save_hib_resume_bdev(hib_resume_bdev_file);
 		clear_page(swsusp_header);
 		error = hib_submit_io(REQ_OP_READ, swsusp_resume_block,
 					swsusp_header, NULL);
@@ -1625,11 +1621,11 @@ int swsusp_check(void)
 
 put:
 		if (error)
-			blkdev_put(hib_resume_bdev, mode);
+			bdev_fput(hib_resume_bdev_file);
 		else
 			pr_debug("Image signature found, resuming\n");
 	} else {
-		error = PTR_ERR(hib_resume_bdev);
+		error = PTR_ERR(hib_resume_bdev_file);
 	}
 
 	if (error)
@@ -1639,17 +1635,17 @@ put:
 }
 
 /**
- *	swsusp_close - close swap device.
+ * swsusp_close - close resume device.
  */
 
-void swsusp_close(fmode_t mode)
+void swsusp_close(void)
 {
-	if (IS_ERR(hib_resume_bdev)) {
+	if (IS_ERR(hib_resume_bdev_file)) {
 		pr_debug("Image device not initialised\n");
 		return;
 	}
 
-	blkdev_put(hib_resume_bdev, mode);
+	fput(hib_resume_bdev_file);
 }
 
 /**

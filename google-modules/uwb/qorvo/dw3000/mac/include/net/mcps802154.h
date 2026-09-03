@@ -1285,7 +1285,7 @@ struct mcps802154_ops {
 	 */
 	int (*get_power_stats)(struct mcps802154_llhw *llhw,
 			       struct mcps802154_power_stats *pwr_stats);
-#ifdef CONFIG_MCPS802154_TESTMODE
+#if IS_ENABLED(CONFIG_MCPS802154_TESTMODE)
 	/**
 	 * @testmode_cmd: Run a testmode command.
 	 *
@@ -1295,7 +1295,7 @@ struct mcps802154_ops {
 #endif
 };
 
-#ifdef CONFIG_MCPS802154_TESTMODE
+#if IS_ENABLED(CONFIG_MCPS802154_TESTMODE)
 #define MCPS802154_TESTMODE_CMD(cmd) .testmode_cmd = (cmd),
 #else
 #define MCPS802154_TESTMODE_CMD(cmd)
@@ -1438,7 +1438,7 @@ static inline bool is_before_dtu(u32 a_dtu, u32 b_dtu)
 	return (s32)(a_dtu - b_dtu) < 0;
 }
 
-#ifdef CONFIG_MCPS802154_TESTMODE
+#if IS_ENABLED(CONFIG_MCPS802154_TESTMODE)
 /**
  * mcps802154_testmode_alloc_reply_skb() - Allocate testmode reply.
  * @llhw: Low-level device pointer.

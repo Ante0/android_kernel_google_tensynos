@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config UFS_DW_GOOGLE
+	tristate "Google UFS Driver"
+	depends on ARCH_GOOGLE
+	depends on SCSI_UFSHCD_PLATFORM
+	help
+	  This adds Google UFS variant driver based on DWC
+	  required for UFS in RDO
+	  Select "Y" if you have such device.
+	  If unsure select "N".
+
+config UFS_PIXEL_FEATURES
+	bool "Enable Pixel specific features"
+	help
+	  This option enables Pixel specific features in addition to the
+	  platform driver.
+
+config UFS_PIXEL_CRYPTO
+	bool "Enable Pixel UFS encryption"
+	depends on SCSI_UFS_CRYPTO
+	help
+	  This option enables Pixel support for Android encryption services.
+
+config UFS_PIXEL_UIC_ERR_DEBUG
+	bool "Enable UIC error debug"
+	help
+	  This option enables UIC error debug feature for the early phase
+	  of the new platform bringup. Once any UIC error occurs, the UFS
+	  driver will trigger a kernel panic.
+	  Select "Y" only if you are working on the new platform bringup,
+	  otherwise it should be disabled.
+
+config UFS_PIXEL_READ_BOOST
+	bool "Enable the Read Boost feature"
+	depends on UFS_PIXEL_FEATURES
+	help
+	  This option enables support for the Read Boost feature.

@@ -1,0 +1,217 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config GOOGLE_DVFS_HELPER
+	tristate "Google DVFS helper"
+	depends on ARCH_GOOGLE
+	help
+	  This driver talks to the CPM during boot to read all the
+	  DVFS information i.e. DVFS domain names and operating points.
+	  It provides APIs for other drivers like cpufreq to query this
+	  information.
+
+config GOOGLE_DVFS_TARGET_FRONTEND
+	tristate "Google DVFS target frontend"
+	help
+	  This driver talks to the hardware components for direct frequency
+	  setting, and exposes atomic-safe APIs to drivers for frequency
+	  setting and query.
+
+config GOOGLE_GDMC_DHUB
+	tristate "Google Debug and UART Hub driver"
+	depends on GOOGLE_MBA_GDMC_INTERFACE
+	help
+	  Enable support for Google Debug and UART Hub (DHUB) driver.
+	  DHUB multiplexes UART data for multiple subsystems into a
+	  single packetized data stream between device and host.
+	  The driver allows configuring this UART channels through its sysfs.
+	  The host configures DHUB behaviour over the GDMC mailbox channel.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config GOOGLE_GDMC_DHUB_TEST
+	tristate "KUnit test for Google DHUB driver" if !KUNIT_ALL_TESTS
+	default KUNIT_ALL_TESTS
+	depends on ARCH_GOOGLE
+	depends on KUNIT
+	help
+	  This option enables the KUnit test module for the Google DHUB Driver.
+	  The tests verify buisness logic of sysfs interfaces provided to user.
+
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config GOOGLE_MBA_GDMC_INTERFACE_TEST
+	tristate "Google GDMC mailbox interface test module"
+	depends on GOOGLE_MBA_GDMC_INTERFACE
+	help
+	  Enable this module to test GDMC mailbox interface APIs.
+	  GDMC interface provide a bunch of wrapped GDMC IPC calls to communicate
+	  with GDMC remote host and notification interrupts initiated by GDMC
+	  remote host. Enabling this driver helps to test all functions of this
+	  interface.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config GOOGLE_LPM_PM_DOMAINS
+	tristate "Google lpm-based genpd provider"
+	depends on ARCH_GOOGLE
+	help
+	  This driver talks to the LPM registers directly, without
+	  going through CPM. It can turn on/off subdomains, but it
+	  cannot turn on/off the SSWRP-level top domains. This driver
+	  is expected to be used on platforms where CPM is missing.
+
+config GOOGLE_MBA_DOORBELL_INTERFACE
+	depends on GOOGLE_MBA_CTRL
+	tristate "Google MBA doorbell interface"
+	help
+	  Enable this module to provide mailbox doorbell libarary. This library
+	  provides APIs to manage mailbox channels which execute in doorbell mode.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config GOOGLE_MBA_AGGREGATOR
+	tristate "Google MBA service aggregator"
+	help
+	  Enable this module to help aggregating group same purpose of mbox_chan.
+	  Google MBA aggregator module aggregates the request and response mailbox
+	  channels of certain logical groups and expose interface APIs to upper
+	  layers (abstracting the details of mailbox channels).
+	  Examples of logical grouping are:
+	    GDMC normal request and response mailbox channels
+	    GDMC critical request and response mailbox channels
+	  A logical grouping can have multiple request and multiple response channels.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config GOOGLE_MBA_GDMC_INTERFACE
+	tristate "Google GDMC mailbox interface"
+	depends on GOOGLE_MBA_AGGREGATOR
+	help
+	  Enable this module to enable GDMC mailbox interface APIs.
+	  “GDMC interface” service module provides GDMC services APIs.
+	  On the backend, it would use GDMC normal request and response mailbox channels
+	  for normal GDMC requests; GDMC critical request and response mailbox channels
+	  for critical GDMC requests.
+	  This module provides GDMC mailbox services APIs to the client and route the
+	  mailbox requests to available GDMC mailbox channels.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config GOOGLE_MBA_CPM_INTERFACE
+       tristate "Google CPM mailbox interface"
+       depends on MAILBOX
+       help
+         Enable this module to enable CPM mailbox interface APIs.
+         “CPM interface” provides dual direction message transactions for request and respond.
+         CPM interface would request to "request/response" mailbox channels for CPM message
+         transactions.
+         Client modules can register their callback to receive CPM initiated requests
+         and respond through CPM interface with given token.
+         Select Y if you have such device.
+         If unsure select "N".
+
+config GOOGLE_MBA_CPM_INTERFACE_TEST
+       tristate "Google CPM mailbox interface test client"
+       depends on GOOGLE_MBA_CPM_INTERFACE
+       help
+         Enable this module to create a client to export CPM mailbox interface APIs.
+         CPM interface provides mailbox channels to communicate with CPM host without exported
+	 APIs. This module will create debugfs to export some CPM functions to be trigger by
+	 userspace to help integrating with testing framework.
+         If unsure select "N".
+
+config GOOGLE_MBA_EBU_INTERFACE
+	tristate "Google EBU mailbox interface"
+	depends on GOOGLE_MBA_AGGREGATOR
+	help
+	  Enable this module to enable EBU mailbox interface APIs.
+	  "EBU interface" service module provides EBU services APIs.
+	  This module provides EBU mailbox services APIs to the client and route the
+	  mailbox requests to available EBU mailbox channels.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config GOOGLE_CHIP_INFO
+       tristate "Google chip info driver"
+       help
+	 Enable Google chip info driver to show OTP values.
+	 This driver will read OTP values from SoC register to process and extract corresponding
+	 field for post-si process and debugging.
+         Select Y if you have such device.
+         If unsure select "N".
+
+config GOOGLE_RA
+	tristate "Google RA PID driver"
+	depends on ARCH_GOOGLE
+	help
+	  This enables client devices to set up the SID-to-PID mapping in the
+	  Realm Allocator (RA).
+	  The Partition ID (PID) can be used to control cache allocation in
+	  the Google System Level Cache (GSLC).
+
+config GOOGLE_RA_TEST_CLIENT
+	tristate "Google RA mock client driver"
+	depends on GOOGLE_RA
+	help
+	  A mock client driver to test the RA driver.
+	  If unsure select "N"
+
+config GOOGLE_GTC
+	tristate "Google global time counter driver"
+	depends on ARCH_GOOGLE
+	help
+	  Enable global time counter driver to support gtc-related functionalities.
+	  It offers functions that utilize the GTC tick value to generate timestamps.
+	  These timestamps can be used for various purposes like performance
+	  measurement, event logging, and synchronization.
+
+config GOOGLE_TIMESTAMP_SYNC
+	tristate "Google timestamp synchronization driver"
+	depends on ARCH_GOOGLE
+	help
+	  Enable support for the timestamp synchronization functionalities.
+	  This driver captures timestamp snapshots, which include different
+	  kinds of time format, to facilitate the timestamp correlation
+	  infrastructure in other drivers or tools.
+
+config PIXEL_DEBUG_KINFO
+	tristate "Debug Kernel Information Support"
+	default n
+	help
+	  Say m or y here to backup debugging kernel information.
+
+config GS_DEBUG_TEST
+	tristate "GS Debug Feature Test"
+	depends on PIXEL_DEBUG_TEST
+	default GOOGLE_CRASH_DEBUG_DUMP && PIXEL_DEBUG_TEST
+	help
+	  This can be tested for platform dependent errors. If you say y
+	  you can confirm that the debug feature works and registers to
+	  pixel_debug_test.
+
+config POWER_STATE_BLOCKERS_SECTION
+	tristate "SOC Power state blockers section"
+	default n
+	help
+	  Enable Powerdashboard support for power state blockers section read.
+	  It will enable additional sysfs nodes related to state blockers.
+	  If unsure select "N".
+
+config GOOGLE_DPA
+	tristate "Google DPA driver"
+	depends on ARCH_GOOGLE
+	default n
+	help
+	  Support for DPA (NOA) device.
+	  DPA (Data Path Accelerator) device provides network offloading
+	  features. This driver provides features like booting DPA firmware,
+	  and managing DPA device states.
+
+config GOOGLE_AOSS_WDT_HANDLER
+    tristate "Google AOSS Watchdog Handler"
+    help
+	  This driver marks IRQ sent from CPM as a wakeup source.
+	  When AONSS or AMBSS Watchdog is fired in Ambient modes,
+	  this driver is supposed to mark the resume reason as expected
+	  and caused by AOSS (Always-on Subsystem) Watchdog handling process.

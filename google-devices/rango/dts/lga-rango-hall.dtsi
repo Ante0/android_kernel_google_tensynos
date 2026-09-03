@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Google Rango-specific hall sensor device tree source.
+ *
+ * Copyright 2024 Google, LLC.
+ */
+
+/ {
+	fragment@hall {
+		target-path = "/";
+		__overlay__ {
+			hall_sensor:hall_sensor {
+				staus = "ok";
+				compatible = "hall,drv5032";
+				interrupt-parent = <&cpm_pinctrl>;
+				interrupts = <XCPM_EINT_16 GPIO_ACTIVE_LOW>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&hall1_2_aoc_ap_l>;
+				hall,gpio = <HALL1_2_AOC_AP_L(GPIO_ACTIVE_LOW)>;
+			};
+		};
+	};
+};

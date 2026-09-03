@@ -9,10 +9,6 @@
 	extcon = <&max77759tcpc>;
 };
 
-&usbdrd_phy0 {
-	extcon = <&max77759tcpc>;
-};
-
 &pinctrl_12 {
 	eusb_init_state: eusb_init_state {
 		samsung,pins = "gpp21-3";

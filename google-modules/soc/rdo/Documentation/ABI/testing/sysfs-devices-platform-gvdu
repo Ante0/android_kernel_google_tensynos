@@ -1,0 +1,52 @@
+What:		/sys/devices/platform/gvdu/info/chip_id
+Date:		October 2024
+Contact:	Kanstantsin Yarmash <kyarmash@google.com>
+Description:
+		(RO) Returns the 20-byte (40 char hex string) BMSM chip-id.
+
+What:		/sys/devices/platform/gvdu/info/default_debug_vector
+Date:		March 2025
+Contact:	Kanstantsin Yarmash <kyarmash@google.com>
+Description:
+		(RO) Returns the 32-byte (64 char hex string) default PD debug vector.
+
+What:		/sys/devices/platform/gvdu/info/default_policy_type
+Date:		March 2025
+Contact:	Kanstantsin Yarmash <kyarmash@google.com>
+Description:
+		(RO) Returns the string containing comma separated default policy types for the PD.
+
+What:		/sys/devices/platform/gvdu/interface/nonce
+Date:		October 2024
+Contact:	Kanstantsin Yarmash <kyarmash@google.com>
+Description:
+		(RO) Returns the nonce that needs to be provided to the
+		signing service. The nonce is a 32-char hex string (16 bytes).
+
+What:		/sys/devices/platform/gvdu/status/consent
+Date:		October 2024
+Contact:	Kanstantsin Yarmash <kyarmash@google.com>
+Description:
+		(RO) Returns the status of user consent as a single-digit literal.
+
+What:		/sys/devices/platform/gvdu/status/vector
+Date:		October 2024
+Contact:	Kanstantsin Yarmash <kyarmash@google.com>
+Description:
+		(RO) Returns the status of the VDU enablement vector. There are
+		a total of 126 VDU enablement flags. The length of the vector is
+		16 bytes, so the output is a 32-char hex dump.
+
+What:		/sys/devices/platform/gvdu/status/remaining_mins
+Date:		October 2024
+Contact:	Kanstantsin Yarmash <kyarmash@google.com>
+Description:
+		(RO) Returns the time left till the VDU session times out. The output
+		is a 4-char hex dump of an integer that specifies the time to VDU
+		expiration in minutes.
+
+What:		/sys/devices/platform/gvdu/status/enabled
+Date:		October 2024
+Contact:	Kanstantsin Yarmash <kyarmash@google.com>
+Description:
+		(RO) Returns the enablement status of VDU as a single-digit literal.

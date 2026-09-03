@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * dabears common device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+#include "google-base/platform/malibu-platform-common.dtsi"
+#include "google-base/platform/malibu-platform-wlan-brcm.dtsi"
+#include "google-base/platform/malibu-platform-audio.dtsi"
+#include "google-base/malibu-wcharger.dtsi"
+#include "malibu-dabears-charging.dtsi"
+#include "malibu-dabears-lsio.dtsi"
+#include "malibu-dabears-bcl.dtsi"
+#include "malibu-dabears-usb.dtsi"
+#include "malibu-sensors.dtsi"

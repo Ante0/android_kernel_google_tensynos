@@ -23,7 +23,9 @@
  */
 #include "priv.h"
 #include "chan.h"
+#include "conn.h"
 #include "head.h"
+#include "dp.h"
 #include "ior.h"
 #include "outp.h"
 
@@ -156,6 +158,37 @@ nv50_pior_cnt(struct nvkm_disp *disp, unsigned long *pmask)
 	return 3;
 }
 
+static int
+nv50_sor_bl_set(struct nvkm_ior *ior, int lvl)
+{
+	struct nvkm_device *device = ior->disp->engine.subdev.device;
+	const u32 soff = nv50_ior_base(ior);
+	u32 div = 1025;
+	u32 val = (lvl * div) / 100;
+
+	nvkm_wr32(device, 0x61c084 + soff, 0x80000000 | val);
+	return 0;
+}
+
+static int
+nv50_sor_bl_get(struct nvkm_ior *ior)
+{
+	struct nvkm_device *device = ior->disp->engine.subdev.device;
+	const u32 soff = nv50_ior_base(ior);
+	u32 div = 1025;
+	u32 val;
+
+	val  = nvkm_rd32(device, 0x61c084 + soff);
+	val &= 0x000007ff;
+	return ((val * 100) + (div / 2)) / div;
+}
+
+const struct nvkm_ior_func_bl
+nv50_sor_bl = {
+	.get = nv50_sor_bl_get,
+	.set = nv50_sor_bl_set,
+};
+
 void
 nv50_sor_clock(struct nvkm_ior *sor)
 {
@@ -220,6 +253,7 @@ nv50_sor = {
 	.state = nv50_sor_state,
 	.power = nv50_sor_power,
 	.clock = nv50_sor_clock,
+	.bl = &nv50_sor_bl,
 };
 
 static int
@@ -503,7 +537,7 @@ nv50_disp_chan_uevent_init(struct nvkm_event *event, int types, int index)
 void
 nv50_disp_chan_uevent_send(struct nvkm_disp *disp, int chid)
 {
-	nvkm_event_send(&disp->uevent, NVKM_DISP_EVENT_CHAN_AWAKEN, chid, NULL, 0);
+	nvkm_event_ntfy(&disp->uevent, chid, NVKM_DISP_EVENT_CHAN_AWAKEN);
 }
 
 const struct nvkm_event_func
@@ -1238,6 +1272,8 @@ nv50_disp_super_2_2(struct nvkm_disp *disp, struct nvkm_head *head)
 	if (!ior)
 		return;
 
+	outp = ior->asy.outp;
+
 	/* For some reason, NVIDIA decided not to:
 	 *
 	 * A) Give dual-link LVDS a separate EVO protocol, like for TMDS.
@@ -1247,14 +1283,10 @@ nv50_disp_super_2_2(struct nvkm_disp *disp, struct nvkm_head *head)
 	 * Override the values we usually read from HW with the same
 	 * data we pass though an ioctl instead.
 	 */
-	if (ior->type == SOR && ior->asy.proto == LVDS) {
-		head->asy.or.depth = (disp->sor.lvdsconf & 0x0200) ? 24 : 18;
-		ior->asy.link      = (disp->sor.lvdsconf & 0x0100) ? 3  : 1;
+	if (outp && ior->type == SOR && ior->asy.proto == LVDS) {
+		head->asy.or.depth = outp->lvds.bpc8 ? 24 : 18;
+		ior->asy.link      = outp->lvds.dual ? 3 : 1;
 	}
-
-	/* Handle any link training, etc. */
-	if ((outp = ior->asy.outp) && outp->func->acquire)
-		outp->func->acquire(outp);
 
 	/* Execute OnInt2 IED script. */
 	nv50_disp_super_ied_on(head, ior, 0, khz);
@@ -1285,7 +1317,6 @@ nv50_disp_super_2_1(struct nvkm_disp *disp, struct nvkm_head *head)
 void
 nv50_disp_super_2_0(struct nvkm_disp *disp, struct nvkm_head *head)
 {
-	struct nvkm_outp *outp;
 	struct nvkm_ior *ior;
 
 	/* Determine which OR, if any, we're detaching from the head. */
@@ -1296,14 +1327,6 @@ nv50_disp_super_2_0(struct nvkm_disp *disp, struct nvkm_head *head)
 
 	/* Execute OffInt2 IED script. */
 	nv50_disp_super_ied_off(head, ior, 2);
-
-	/* If we're shutting down the OR's only active head, execute
-	 * the output path's disable function.
-	 */
-	if (ior->arm.head == (1 << head->id)) {
-		if ((outp = ior->arm.outp) && outp->func->disable)
-			outp->func->disable(outp, ior);
-	}
 }
 
 void
@@ -1369,7 +1392,6 @@ nv50_disp_super(struct work_struct *work)
 				continue;
 			nv50_disp_super_2_0(disp, head);
 		}
-		nvkm_outp_route(disp);
 		list_for_each_entry(head, &disp->heads, head) {
 			if (!(super & (0x00000200 << head->id)))
 				continue;
@@ -1482,7 +1504,7 @@ nv50_disp_intr(struct nvkm_disp *disp)
 }
 
 void
-nv50_disp_fini(struct nvkm_disp *disp)
+nv50_disp_fini(struct nvkm_disp *disp, bool suspend)
 {
 	struct nvkm_device *device = disp->engine.subdev.device;
 	/* disable all interrupts */
@@ -1561,7 +1583,15 @@ nv50_disp_oneinit(struct nvkm_disp *disp)
 	const struct nvkm_disp_func *func = disp->func;
 	struct nvkm_subdev *subdev = &disp->engine.subdev;
 	struct nvkm_device *device = subdev->device;
+	struct nvkm_bios *bios = device->bios;
+	struct nvkm_outp *outp, *outt, *pair;
+	struct nvkm_conn *conn;
+	struct nvkm_ior *ior;
 	int ret, i;
+	u8  ver, hdr;
+	u32 data;
+	struct dcb_output dcbE;
+	struct nvbios_connE connE;
 
 	if (func->wndw.cnt) {
 		disp->wndw.nr = func->wndw.cnt(disp, &disp->wndw.mask);
@@ -1608,8 +1638,130 @@ nv50_disp_oneinit(struct nvkm_disp *disp)
 	if (ret)
 		return ret;
 
-	return nvkm_ramht_new(device, func->ramht_size ? func->ramht_size :
-			      0x1000, 0, disp->inst, &disp->ramht);
+	ret = nvkm_ramht_new(device, func->ramht_size ? func->ramht_size : 0x1000, 0, disp->inst,
+			     &disp->ramht);
+	if (ret)
+		return ret;
+
+	/* Create output path objects for each VBIOS display path. */
+	i = -1;
+	while ((data = dcb_outp_parse(bios, ++i, &ver, &hdr, &dcbE))) {
+		if (WARN_ON((ver & 0xf0) != 0x40))
+			return -EINVAL;
+		if (dcbE.type == DCB_OUTPUT_UNUSED)
+			continue;
+		if (dcbE.type == DCB_OUTPUT_EOL)
+			break;
+		outp = NULL;
+
+		switch (dcbE.type) {
+		case DCB_OUTPUT_ANALOG:
+		case DCB_OUTPUT_TMDS:
+		case DCB_OUTPUT_LVDS:
+			ret = nvkm_outp_new(disp, i, &dcbE, &outp);
+			break;
+		case DCB_OUTPUT_DP:
+			ret = nvkm_dp_new(disp, i, &dcbE, &outp);
+			break;
+		case DCB_OUTPUT_TV:
+		case DCB_OUTPUT_WFD:
+			/* No support for WFD yet. */
+			ret = -ENODEV;
+			continue;
+		default:
+			nvkm_warn(subdev, "dcb %d type %d unknown\n",
+				  i, dcbE.type);
+			continue;
+		}
+
+		if (ret) {
+			if (outp) {
+				if (ret != -ENODEV)
+					OUTP_ERR(outp, "ctor failed: %d", ret);
+				else
+					OUTP_DBG(outp, "not supported");
+				nvkm_outp_del(&outp);
+				continue;
+			}
+			nvkm_error(subdev, "failed to create outp %d\n", i);
+			continue;
+		}
+
+		list_add_tail(&outp->head, &disp->outps);
+	}
+
+	/* Create connector objects based on available output paths. */
+	list_for_each_entry_safe(outp, outt, &disp->outps, head) {
+		/* VBIOS data *should* give us the most useful information. */
+		data = nvbios_connEp(bios, outp->info.connector, &ver, &hdr,
+				     &connE);
+
+		/* No bios connector data... */
+		if (!data) {
+			/* Heuristic: anything with the same ccb index is
+			 * considered to be on the same connector, any
+			 * output path without an associated ccb entry will
+			 * be put on its own connector.
+			 */
+			int ccb_index = outp->info.i2c_index;
+			if (ccb_index != 0xf) {
+				list_for_each_entry(pair, &disp->outps, head) {
+					if (pair->info.i2c_index == ccb_index) {
+						outp->conn = pair->conn;
+						break;
+					}
+				}
+			}
+
+			/* Connector shared with another output path. */
+			if (outp->conn)
+				continue;
+
+			memset(&connE, 0x00, sizeof(connE));
+			connE.type = DCB_CONNECTOR_NONE;
+			i = -1;
+		} else {
+			i = outp->info.connector;
+		}
+
+		/* Check that we haven't already created this connector. */
+		list_for_each_entry(conn, &disp->conns, head) {
+			if (conn->index == outp->info.connector) {
+				outp->conn = conn;
+				break;
+			}
+		}
+
+		if (outp->conn)
+			continue;
+
+		/* Apparently we need to create a new one! */
+		ret = nvkm_conn_new(disp, i, &connE, &outp->conn);
+		if (ret) {
+			nvkm_error(subdev, "failed to create outp %d conn: %d\n", outp->index, ret);
+			nvkm_conn_del(&outp->conn);
+			list_del(&outp->head);
+			nvkm_outp_del(&outp);
+			continue;
+		}
+
+		list_add_tail(&outp->conn->head, &disp->conns);
+	}
+
+	/* Enforce identity-mapped SOR assignment for panels, which have
+	 * certain bits (ie. backlight controls) wired to a specific SOR.
+	 */
+	list_for_each_entry(outp, &disp->outps, head) {
+		if (outp->conn->info.type == DCB_CONNECTOR_LVDS ||
+		    outp->conn->info.type == DCB_CONNECTOR_eDP) {
+			ior = nvkm_ior_find(disp, SOR, ffs(outp->info.or) - 1);
+			if (!WARN_ON(!ior))
+				ior->identity = true;
+			outp->identity = true;
+		}
+	}
+
+	return 0;
 }
 
 static const struct nvkm_disp_func

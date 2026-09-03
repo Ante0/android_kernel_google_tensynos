@@ -87,7 +87,7 @@
 		b3_soft_ocp_warn_en = <0>; 		/* 1 : enable, 0 : disable */
 		b3_soft_ocp_warn_cnt = <0>; 	/* 0 : 2 clock, 1 : 32 clock */
 		b3_soft_ocp_warn_dvs_mask = <0>;/* 0 : not masked, 1 : masked */
-		b3_soft_ocp_warn_lvl = <0>; 		/* 8.0A */
+		b3_soft_ocp_warn_lvl = <0>;		/* 8.0A */
 
 		b10_soft_ocp_warn_en = <0>;			/* 1 : enable, 0 : disable */
 		b10_soft_ocp_warn_cnt = <0>; 		/* 0 : 2 clock, 1 : 32 clock */

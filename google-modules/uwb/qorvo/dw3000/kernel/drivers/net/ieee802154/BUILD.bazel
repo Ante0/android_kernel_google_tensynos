@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "headers",
+    hdrs = glob([
+        "**/*.h",
+    ]),
+    includes = [
+        ".",
+    ],
+)
+
+ddk_module(
+    name = "mcps802154_fake",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "mcps802154_fake.c",
+    ],
+    out = "mcps802154_fake.ko",
+    copts = [
+        "-Wall",
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel:ddk_headers",
+    ],
+)
+
+ddk_module(
+    name = "dw3000",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "dw3000_calib.c",
+        "dw3000_chip_c0.c",
+        "dw3000_chip_d0.c",
+        "dw3000_chip_e0.c",
+        "dw3000_core.c",
+        "dw3000_debugfs.c",
+        "dw3000_mcps.c",
+        "dw3000_nfcc_coex_buffer.c",
+        "dw3000_nfcc_coex_core.c",
+        "dw3000_nfcc_coex_mcps.c",
+        "dw3000_nfcc_coex_msg.c",
+        "dw3000_pctt_mcps.c",
+        "dw3000_spi.c",
+        "dw3000_stm.c",
+        "dw3000_trc.c",
+        "dw3000_txpower_adjustment.c",
+    ],
+    out = "dw3000.ko",
+    conditional_srcs = {
+        "CONFIG_MCPS802154_TESTMODE": {
+            True: [
+                "dw3000_testmode.c",
+            ],
+        },
+    },
+    copts = [
+        "-Wall",
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel:ddk_headers",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel/net/mcps802154",
+    ],
+)
+
+ddk_module(
+    name = "dw3000-core-tests",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "dw3000_core_tests.c",
+    ],
+    out = "dw3000-core-tests.ko",
+    copts = [
+        "-Wall",
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel:ddk_headers",
+    ],
+)

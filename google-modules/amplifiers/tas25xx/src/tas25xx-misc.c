@@ -284,6 +284,16 @@ static int32_t handle_read_write(struct tas25xx_priv *p_tas25xx,
 	else
 		s_tasdevop.read_pending = 0;
 
+	if (s_tasdevop.channel < 0 || s_tasdevop.channel >= p_tas25xx->ch_count) {
+		pr_err("TAS25XX channel %d is invalid\n", s_tasdevop.channel);
+		return -EINVAL;
+	}
+
+	if (p_tas25xx->devs[s_tasdevop.channel]->is_probed == 0) {
+		pr_err("TAS25XX channel %d is not present\n", s_tasdevop.channel);
+		return -EINVAL;
+	}
+
 	if (read_write_op == 1) {
 		if (i == 3) {
 			pr_info("tas25xx: page read\n");
@@ -387,6 +397,19 @@ static ssize_t tas25xx_file_write(struct file *file,
 
 	if ((p_kbuf[1] >= 0) && ((p_kbuf[1] <= 1)))
 		channel = p_kbuf[1]+1;
+
+	if (channel < 0 || channel >= p_tas25xx->ch_count) {
+		pr_err("TAS25XX channel %d is invalid\n", channel);
+		ret = -EINVAL;
+		goto done_write;
+	}
+
+	if (p_tas25xx->devs[channel]->is_probed == 0) {
+		pr_err("TAS25XX channel %d is not present\n", channel);
+		ret = -EINVAL;
+		goto done_write;
+	}
+
 	switch (p_kbuf[0]) {
 	case TIAUDIO_CMD_REG_WITE:
 		if (count > 5) {

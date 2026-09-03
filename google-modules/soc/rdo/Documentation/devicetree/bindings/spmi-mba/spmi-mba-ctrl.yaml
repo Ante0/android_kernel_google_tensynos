@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright 2023 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/spmi-mba/spmi-mba.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: SPMI Mailbox Controller
+
+maintainers:
+  - Jim Wylder <jwylder@google.com>
+
+description:
+  Provides SPMI Controller communicating to CPM SPMI
+  Driver is a child of the mailbox controller
+
+
+allOf:
+  - $ref: pwm.yaml#
+
+properties:
+  compatible:
+    const: google,spmi-mba-ctrl
+
+  mba-dest-channel:
+    Configured CPM mailbox channel to send commands
+    maxItems: 1
+
+  mboxes:
+    Configured channel to receive commands
+    maxItems: 1
+
+required:
+  - compatible
+  - mba-dest-channel
+  - mboxes:
+
+additionalProperties: false
+
+examples:
+  - |
+    spmi_mba {
+      compatible = "google,spmi-mba-ctrl";
+
+      mba-dest-channel = <0x66>;
+      mboxes = <&mbactrl_ap_cpm 20>;
+   };

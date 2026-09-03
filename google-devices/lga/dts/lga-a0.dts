@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/*
+ * Copyright 2024 Google LLC.
+ */
+
+/dts-v1/;
+
+#include "lga-base.dtsi"
+#include "lga-irm-a0.dtsi"
+#include "lga-a0-cpu.dtsi"
+#include "lga-tpu-a0.dtsi"
+#include "lga-gpu-a0.dtsi"
+#include "lga-ehld-a0.dtsi"
+#include "lga-chosen.dtsi"
+
+/ {
+	/* soc revision info */
+	soc_compatible {
+		A0 {
+			description = "LGA A0";
+			product_id = <0x5>;
+			major = <0x0>;
+			minor = <0x0>;
+			pkg_mode = <0x0>;
+		};
+	};
+};

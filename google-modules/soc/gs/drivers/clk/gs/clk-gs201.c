@@ -9,16 +9,17 @@
 #include <linux/clkdev.h>
 #include <linux/clk-provider.h>
 #include <linux/module.h>
-#include <linux/of_platform.h>
+#include <linux/mod_devicetable.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/platform_device.h>
 #include <soc/google/cal-if.h>
 #include <dt-bindings/clock/gs201.h>
 
-#include "../../soc/google/cal-if/gs201/cmucal-vclk.h"
-#include "../../soc/google/cal-if/gs201/cmucal-node.h"
-#include "../../soc/google/cal-if/gs201/cmucal-qch.h"
-#include "../../soc/google/cal-if/gs201/clkout_gs201.h"
+#include "gs201/cmucal-vclk.h"
+#include "gs201/cmucal-node.h"
+#include "gs201/cmucal-qch.h"
+#include "gs201/clkout_gs201.h"
 #include "composite.h"
 
 #ifdef CONFIG_DEBUG_FS

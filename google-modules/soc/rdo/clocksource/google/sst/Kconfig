@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_SST_PLATFORM
+	tristate "Google SST PLATFORM driver"
+	depends on ARCH_GOOGLE
+	help
+	  Enable support the sst platform
+	  in RDO.
+	  Select Y if you have such device.
+	  If unsure select "N".

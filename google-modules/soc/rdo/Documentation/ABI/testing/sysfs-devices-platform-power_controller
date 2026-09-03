@@ -1,0 +1,35 @@
+What:		/sys/devices/platform/power_controller/latency_stats/collect_latency_data
+Date:		September 2024
+Contact:	"Jakub Glowacki" <jglow@google.com>
+Description:
+		Control node for latency statistics gathering. Echo 1 to turn on, 0 to turn
+		off.
+
+		On read returns whether collection is currently on or off.
+
+		Default value: off.
+
+What:		/sys/devices/platform/power_controller/latency_stats/reset_latencies
+Date:		September 2024
+Contact:	"Jakub Glowacki" <jglow@google.com>
+Description:
+		Control node to reset statistics. Echo anything to perform reset.
+
+What:		/sys/devices/platform/power_controller/latency_stats/<power_domain>/*
+Date:		September 2024
+Contact:	"Jakub Glowacki" <jglow@google.com>
+Description:
+		Consists of folders conatining statistics for powering each of
+		the domains on and off. Data is presented on read as a single unformatted
+		number.
+
+		Currently available statistics are:
+		 - min 			- minimal recorded switch time (us)
+		 - max  		- maximal recorded switch time (us)
+		 - average  - average switch time (us)
+		 - count		- number of recorded switches
+
+		Example usage:
+		 cd /sys/devices/platform/power_controller/latency_stats
+		 cat sswrp_gpu_pd/on/min
+		 cat sswrp_gpu_pd/off/average

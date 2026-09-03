@@ -7,6 +7,7 @@
  * Author: bsschwar@google.com
  */
 
+#include <linux/cleanup.h>
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
@@ -541,7 +542,7 @@ static int init_stat_node(struct platform_device *pdev, const char *buffer_name,
 
 static int init_pd_stat_node(struct power_stats_device *ps_dev)
 {
-	struct device_node *np;
+	struct device_node *np __free(device_node);
 	struct platform_device *pdev;
 	struct exynos_pm_domain *pd;
 	struct pd_entry *new_pd_entry;
@@ -635,18 +636,12 @@ static int power_stats_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, ps_dev);
 
-	ret = devm_device_add_groups(&pdev->dev, power_stats_groups);
-	if (ret)
-		dev_err(&pdev->dev, "Failed to add device groups\n");
-
 	return 0;
 }
 
-static int power_stats_remove(struct platform_device *pdev)
+static void power_stats_remove(struct platform_device *pdev)
 {
 	platform_set_drvdata(pdev, NULL);
-
-	return 0;
 }
 
 static const struct of_device_id power_stats_match[] = {
@@ -664,6 +659,7 @@ static struct platform_driver power_stats_dev = {
 		.name	= "power_stats",
 		.owner	= THIS_MODULE,
 		.of_match_table = power_stats_match,
+		.dev_groups = power_stats_groups,
 	},
 };
 

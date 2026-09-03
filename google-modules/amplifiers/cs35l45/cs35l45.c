@@ -2010,6 +2010,10 @@ static const struct snd_soc_dai_ops cs35l45_dai_ops = {
 	.set_sysclk = cs35l45_dai_set_sysclk,
 };
 
+static const struct snd_soc_dai_ops cs35l45_compress_ops = {
+	.compress_new = &snd_soc_new_compress,
+};
+
 #define CS35L45_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | \
 			 SNDRV_PCM_FMTBIT_S24_3LE| \
 			 SNDRV_PCM_FMTBIT_S24_LE | \
@@ -2050,7 +2054,7 @@ static struct snd_soc_dai_driver cs35l45_dai[] = {
 			.rates = CS35L45_RATES,
 			.formats = CS35L45_FORMATS,
 		},
-		.compress_new = &snd_soc_new_compress,
+		.ops = &cs35l45_compress_ops,
 	},
 	{
 		.name = "cs35l45-dsp-dsplog",
@@ -2210,10 +2214,12 @@ out:
 static int cs35l45_compr_free(struct snd_soc_component *component,
 					struct snd_compr_stream *stream)
 {
+	struct cs35l45_private *cs35l45 = snd_soc_component_get_drvdata(component);
 	struct cs35l45_compr *compr = stream->runtime->private_data;
 	struct wm_adsp *dsp = compr->dsp;
 
-	flush_scheduled_work();
+	flush_work(&cs35l45->dsp_pmu_work);
+	flush_work(&cs35l45->dsp_pmd_work);
 
 	cancel_work_sync(&compr->start_work);
 	cancel_work_sync(&compr->stop_work);

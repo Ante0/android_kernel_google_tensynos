@@ -44,7 +44,6 @@ const struct blk_crypto_mode blk_crypto_modes[] = {
 		.name = "SM4-XTS",
 		.cipher_str = "xts(sm4)",
 		.keysize = 32,
-		.security_strength = 16,
 		.ivsize = 16,
 	},
 };
@@ -293,7 +292,7 @@ bool __blk_crypto_bio_prep(struct bio **bio_ptr)
 	}
 
 	if (!bio_crypt_check_alignment(bio)) {
-		bio->bi_status = BLK_STS_IOERR;
+		bio->bi_status = BLK_STS_INVAL;
 		goto fail;
 	}
 

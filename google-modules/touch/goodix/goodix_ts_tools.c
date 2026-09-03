@@ -346,7 +346,7 @@ err_out:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#if IS_ENABLED(CONFIG_COMPAT)
 static long goodix_tools_compat_ioctl(
 	struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -409,7 +409,7 @@ static const struct file_operations goodix_tools_fops = {
 	.open = goodix_tools_open,
 	.release = goodix_tools_release,
 	.unlocked_ioctl = goodix_tools_ioctl,
-#ifdef CONFIG_COMPAT
+#if IS_ENABLED(CONFIG_COMPAT)
 	.compat_ioctl = goodix_tools_compat_ioctl,
 #endif
 };

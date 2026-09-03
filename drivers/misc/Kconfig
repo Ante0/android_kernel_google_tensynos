@@ -104,6 +104,16 @@ config PHANTOM
 	  If you choose to build module, its name will be phantom. If unsure,
 	  say N here.
 
+config RPMB
+	tristate "RPMB partition interface"
+	depends on MMC
+	help
+	  Unified RPMB unit interface for RPMB capable devices such as eMMC and
+	  UFS. Provides interface for in-kernel security controllers to access
+	  RPMB unit.
+
+	  If unsure, select N.
+
 config TIFM_CORE
 	tristate "TI Flash Media interface support"
 	depends on PCI
@@ -166,7 +176,7 @@ config ENCLOSURE_SERVICES
 config SGI_XP
 	tristate "Support communication between SGI SSIs"
 	depends on NET
-	depends on (IA64_SGI_UV || X86_UV) && SMP
+	depends on X86_UV && SMP
 	depends on X86_64 || BROKEN
 	select SGI_GRU if X86_64 && SMP
 	help
@@ -175,6 +185,28 @@ config SGI_XP
 	  hardware based memory protection from the others.  Enabling
 	  this feature will allow for direct communication between SSIs
 	  based on a network adapter and DMA messaging.
+
+config SMPRO_ERRMON
+	tristate "Ampere Computing SMPro error monitor driver"
+	depends on MFD_SMPRO || COMPILE_TEST
+	help
+	  Say Y here to get support for the SMpro error monitor function
+	  provided by Ampere Computing's Altra and Altra Max SoCs. Upon
+	  loading, the driver creates sysfs files which can be use to gather
+	  multiple HW error data reported via read and write system calls.
+
+	  To compile this driver as a module, say M here. The driver will be
+	  called smpro-errmon.
+
+config SMPRO_MISC
+	tristate "Ampere Computing SMPro miscellaneous driver"
+	depends on MFD_SMPRO || COMPILE_TEST
+	help
+	  Say Y here to get support for the SMpro error miscellalenous function
+	  provided by Ampere Computing's Altra and Altra Max SoCs.
+
+	  To compile this driver as a module, say M here. The driver will be
+	  called smpro-misc.
 
 config CS5535_MFGPT
 	tristate "CS5535/CS5536 Geode Multi-Function General Purpose Timer (MFGPT) support"
@@ -271,21 +303,21 @@ config SGI_GRU
 	depends on X86_UV && SMP
 	select MMU_NOTIFIER
 	help
-	The GRU is a hardware resource located in the system chipset. The GRU
-	contains memory that can be mmapped into the user address space. This memory is
-	used to communicate with the GRU to perform functions such as load/store,
-	scatter/gather, bcopy, AMOs, etc.  The GRU is directly accessed by user
-	instructions using user virtual addresses. GRU instructions (ex., bcopy) use
-	user virtual addresses for operands.
+	  The GRU is a hardware resource located in the system chipset. The GRU
+	  contains memory that can be mmapped into the user address space.
+	  This memory is used to communicate with the GRU to perform functions
+	  such as load/store, scatter/gather, bcopy, AMOs, etc.  The GRU is
+	  directly accessed by user instructions using user virtual addresses.
+	  GRU instructions (ex., bcopy) use user virtual addresses for operands.
 
-	If you are not running on a SGI UV system, say N.
+	  If you are not running on a SGI UV system, say N.
 
 config SGI_GRU_DEBUG
 	bool  "SGI GRU driver debug"
 	depends on SGI_GRU
 	help
-	This option enables additional debugging code for the SGI GRU driver.
-	If you are unsure, say N.
+	  This option enables additional debugging code for the SGI GRU driver.
+	  If you are unsure, say N.
 
 config APDS9802ALS
 	tristate "Medfield Avago APDS9802 ALS Sensor module"
@@ -406,7 +438,6 @@ config LATTICE_ECP3_CONFIG
 	tristate "Lattice ECP3 FPGA bitstream configuration via SPI"
 	depends on SPI && SYSFS
 	select FW_LOADER
-	default	n
 	help
 	  This option enables support for bitstream configuration (programming
 	  or loading) of the Lattice ECP3 FPGA family via SPI.
@@ -463,7 +494,7 @@ config MISC_RTSX
 
 config UID_SYS_STATS
 	bool "Per-UID statistics"
-	depends on TASK_XACCT && TASK_IO_ACCOUNTING
+	depends on PROFILING && TASK_XACCT && TASK_IO_ACCOUNTING
 	help
 	  Per UID based cpu time statistics exported to /proc/uid_cputime
 	  Per UID based io statistics exported to /proc/uid_io
@@ -492,6 +523,18 @@ config OPEN_DICE
 
 	  If unsure, say N.
 
+config NTSYNC
+	tristate "NT synchronization primitive emulation"
+	depends on BROKEN
+	help
+	  This module provides kernel support for emulation of Windows NT
+	  synchronization primitives. It is not a hardware driver.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ntsync.
+
+	  If unsure, say N.
+
 config VCPU_STALL_DETECTOR
 	tristate "Guest vCPU stall detector"
 	depends on OF && HAS_IOMEM
@@ -504,6 +547,85 @@ config VCPU_STALL_DETECTOR
 	  will be called vcpu_stall_detector.
 
 	  If you do not intend to run this kernel as a guest, say N.
+
+config TMR_MANAGER
+	tristate "Select TMR Manager"
+	depends on MICROBLAZE && MB_MANAGER
+	help
+	  This option enables the driver developed for TMR Manager.
+	  The Triple Modular Redundancy(TMR) manager provides support for
+	  fault detection.
+
+	  Say N here unless you know what you are doing.
+
+config TMR_INJECT
+	tristate "Select TMR Inject"
+	depends on TMR_MANAGER && FAULT_INJECTION_DEBUG_FS
+	help
+	  This option enables the driver developed for TMR Inject.
+	  The Triple Modular Redundancy(TMR) Inject provides
+	  fault injection.
+
+	  Say N here unless you know what you are doing.
+
+config TPS6594_ESM
+	tristate "TI TPS6594 Error Signal Monitor support"
+	depends on MFD_TPS6594
+	default MFD_TPS6594
+	help
+	  Support ESM (Error Signal Monitor) on TPS6594 PMIC devices.
+	  ESM is used typically to reboot the board in error condition.
+
+	  This driver can also be built as a module.  If so, the module
+	  will be called tps6594-esm.
+
+config TPS6594_PFSM
+	tristate "TI TPS6594 Pre-configurable Finite State Machine support"
+	depends on MFD_TPS6594
+	default MFD_TPS6594
+	help
+	  Support PFSM (Pre-configurable Finite State Machine) on TPS6594 PMIC devices.
+	  These devices integrate a finite state machine engine, which manages the state
+	  of the device during operating state transition.
+
+	  This driver can also be built as a module.  If so, the module
+	  will be called tps6594-pfsm.
+
+config NSM
+	tristate "Nitro (Enclaves) Security Module support"
+	depends on VIRTIO
+	select HW_RANDOM
+	help
+	  This driver provides support for the Nitro Security Module
+	  in AWS EC2 Nitro based Enclaves. The driver exposes a /dev/nsm
+	  device user space can use to communicate with the hypervisor.
+
+	  To compile this driver as a module, choose M here.
+	  The module will be called nsm.
+
+config MARVELL_CN10K_DPI
+	tristate "Octeon CN10K DPI driver"
+	depends on PCI && PCI_IOV
+	depends on ARCH_THUNDER || (COMPILE_TEST && 64BIT)
+	help
+	  Enables Octeon CN10K DMA packet interface (DPI) driver which
+	  intializes DPI hardware's physical function (PF) device's
+	  global configuration and its virtual function (VFs) resource
+	  configuration to enable DMA transfers. DPI PF device does not
+	  have any data movement functionality, it only serves VF's
+	  resource configuration requests.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called mrvl_cn10k_dpi.
+
+config PKVM_SMC_FILTER
+	tristate "pKVM SMC Filter"
+	depends on KVM && ARM64 && m
+	help
+	  Support SMC filtering from hypervisor, through a hardcoded configuration in the
+	  driver, this is intended to be a template and not shipped as is.
+
+	  Say N here unless you know what you are doing.
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
@@ -519,8 +641,8 @@ source "drivers/misc/cxl/Kconfig"
 source "drivers/misc/ocxl/Kconfig"
 source "drivers/misc/bcm-vk/Kconfig"
 source "drivers/misc/cardreader/Kconfig"
-source "drivers/misc/habanalabs/Kconfig"
 source "drivers/misc/uacce/Kconfig"
 source "drivers/misc/pvpanic/Kconfig"
 source "drivers/misc/mchp_pci1xxxx/Kconfig"
+source "drivers/misc/keba/Kconfig"
 endmenu

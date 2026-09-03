@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -28,6 +28,7 @@
 #include "tl/mali_kbase_tl_serialize.h"
 #include "tl/mali_kbase_tracepoints.h"
 
+#include "mali_kbase_mipe_proto.h"
 #include "mali_kbase_pm.h"
 #include "mali_kbase_hwaccess_time.h"
 
@@ -56,6 +57,9 @@ struct kbase_csffw_tl_message {
 	u64 timestamp;
 	u64 cycle_counter;
 } __packed __aligned(4);
+
+#define KBASE_CSFFW_TL_MAX_EVENT_SIZE \
+	(PACKET_SIZE - PACKET_HEADER_SIZE - PACKET_NUMBER_SIZE)
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 static int kbase_csf_tl_debugfs_poll_interval_read(void *data, u64 *val)
@@ -234,6 +238,14 @@ int kbase_csf_tl_reader_flush_buffer(struct kbase_csf_tl_reader *self)
 			break;
 		}
 
+		if (event_size < sizeof(struct kbase_csffw_tl_message) ||
+		    event_size > KBASE_CSFFW_TL_MAX_EVENT_SIZE) {
+			dev_warn(kbdev->dev, "event_id: %u, invalid event_size: %u.",
+				 event_id, event_size);
+			ret = -EINVAL;
+			break;
+		}
+
 		/* Convert GPU timestamp to CPU timestamp. */
 		{
 			struct kbase_csffw_tl_message *msg =
@@ -348,7 +360,11 @@ void kbase_csf_tl_reader_init(struct kbase_csf_tl_reader *self, struct kbase_tls
 
 void kbase_csf_tl_reader_term(struct kbase_csf_tl_reader *self)
 {
+#if KERNEL_VERSION(6, 15, 0) <= LINUX_VERSION_CODE
+	timer_delete_sync(&self->read_timer);
+#else
 	del_timer_sync(&self->read_timer);
+#endif
 }
 
 int kbase_csf_tl_reader_start(struct kbase_csf_tl_reader *self, struct kbase_device *kbdev)
@@ -406,7 +422,11 @@ void kbase_csf_tl_reader_stop(struct kbase_csf_tl_reader *self)
 	/* Disable the tracebuffer on the CSFFW side. */
 	tl_reader_update_enable_bit(self, false);
 
+#if KERNEL_VERSION(6, 15, 0) <= LINUX_VERSION_CODE
+	timer_delete_sync(&self->read_timer);
+#else
 	del_timer_sync(&self->read_timer);
+#endif
 
 	spin_lock_irqsave(&self->read_lock, flags);
 

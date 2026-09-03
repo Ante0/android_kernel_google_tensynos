@@ -62,7 +62,7 @@ struct ct3a_panel {
 
 #define to_spanel(ctx) container_of(ctx, struct ct3a_panel, base)
 
-static const struct drm_dsc_config pps_config = {
+static struct drm_dsc_config pps_config = {
 		.line_buf_depth = 9,
 		.bits_per_component = 8,
 		.convert_rgb = true,
@@ -308,7 +308,7 @@ static void ct3a_set_panel_feat(struct gs_panel *ctx,
 		if (bitmap_empty(changed_feat, FEAT_MAX) &&
 			vrefresh == ctx->hw_status.vrefresh &&
 			idle_vrefresh == ctx->hw_status.idle_vrefresh &&
-			te_freq == ctx->hw_status.te.rate_hz) {
+			te_freq == ctx->hw_status.te.freq_hz) {
 			dev_dbg(ctx->dev, "%s: no changes, skip update\n", __func__);
 			return;
 		}
@@ -322,9 +322,9 @@ static void ct3a_set_panel_feat(struct gs_panel *ctx,
 
 	GS_DCS_BUF_ADD_CMDLIST(dev, unlock_cmd_f0);
 	/* TE setting */
-	ctx->sw_status.te.rate_hz = te_freq;
+	ctx->sw_status.te.freq_hz = te_freq;
 	if (test_bit(FEAT_EARLY_EXIT, changed_feat) ||
-		test_bit(FEAT_OP_NS, changed_feat) || ctx->hw_status.te.rate_hz != te_freq) {
+		test_bit(FEAT_OP_NS, changed_feat) || ctx->hw_status.te.freq_hz != te_freq) {
 		if (test_bit(FEAT_EARLY_EXIT, feat) && !spanel->force_changeable_te) {
 			if (is_vrr && te_freq == 240) {
 				/* 240Hz multi TE */
@@ -337,7 +337,7 @@ static void ct3a_set_panel_feat(struct gs_panel *ctx,
 							0xE0, 0x00, 0x01);
 				GS_DCS_BUF_ADD_CMD(dev, 0xB9, 0x61);
 			} else {
-				if (ctx->panel_rev < PANEL_REV_EVT1)
+				if (ctx->panel_rev_id.id < PANEL_REVID_EVT1)
 					GS_DCS_BUF_ADD_CMD(dev, 0xB9, 0x51, 0x51, 0x00, 0x00);
 				else
 					GS_DCS_BUF_ADD_CMD(dev, 0xB9, 0x51);
@@ -353,10 +353,10 @@ static void ct3a_set_panel_feat(struct gs_panel *ctx,
 			ctx->hw_status.te.option = TEX_OPT_FIXED;
 		} else {
 			/* Changeable TE */
-			if (ctx->panel_rev == PANEL_REV_PROTO1)
+			if (ctx->panel_rev_id.id == PANEL_REVID_PROTO1)
 				GS_DCS_BUF_ADD_CMD(dev, 0xB9, 0x00, 0x51, 0x00, 0x00);
-			else if (ctx->panel_rev == PANEL_REV_PROTO1_1 ||
-					    ctx->panel_rev == PANEL_REV_PROTO1_2)
+			else if (ctx->panel_rev_id.id == PANEL_REVID_PROTO1_1 ||
+					    ctx->panel_rev_id.id == PANEL_REVID_PROTO1_2)
 				GS_DCS_BUF_ADD_CMD(dev, 0xB9, 0x04, 0x51, 0x00, 0x00);
 			else
 				GS_DCS_BUF_ADD_CMD(dev, 0xB9, 0x04);
@@ -433,14 +433,14 @@ static void ct3a_set_panel_feat(struct gs_panel *ctx,
 		else
 			GS_DCS_BUF_ADD_CMD(dev, 0xBD, 0x00, 0x00, 0x02, 0x00);
 
-		if (ctx->panel_rev >= PANEL_REV_PROTO1_2) {
+		if (ctx->panel_rev_id.id >= PANEL_REVID_PROTO1_2) {
 			if (test_bit(FEAT_OP_NS, feat)) {
-				if (ctx->panel_rev == PANEL_REV_PROTO1_2)
+				if (ctx->panel_rev_id.id == PANEL_REVID_PROTO1_2)
 					GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x00, 0x85);
 				else
 					GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x00, 0x85, 0xBD);
 			} else {
-				if (ctx->panel_rev == PANEL_REV_PROTO1_2)
+				if (ctx->panel_rev_id.id == PANEL_REVID_PROTO1_2)
 					GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x00, 0x83);
 				else
 					GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x00, 0x83, 0xBD);
@@ -461,7 +461,7 @@ static void ct3a_set_panel_feat(struct gs_panel *ctx,
 			GS_DCS_BUF_ADD_CMD(dev, 0xF2, 0x01);
 
 			if (vrefresh == 1) {
-				if (ctx->panel_rev >= PANEL_REV_PROTO1_2)
+				if (ctx->panel_rev_id.id >= PANEL_REVID_PROTO1_2)
 					val = 0x1E;
 				else
 					val = 0x1D;
@@ -485,12 +485,12 @@ static void ct3a_set_panel_feat(struct gs_panel *ctx,
 			} else if (vrefresh == 10) {
 				val = 0x05;
 			} else if (vrefresh == 30) {
-				if (ctx->panel_rev < PANEL_REV_EVT1)
+				if (ctx->panel_rev_id.id < PANEL_REVID_EVT1)
 					val = 0x02;
 				else
 					val = 0x03;
 			} else if (vrefresh == 60) {
-				if (ctx->panel_rev < PANEL_REV_EVT1)
+				if (ctx->panel_rev_id.id < PANEL_REVID_EVT1)
 					val = 0x01;
 				else
 					val = 0x02;
@@ -518,7 +518,7 @@ static void ct3a_set_panel_feat(struct gs_panel *ctx,
 
 	ctx->hw_status.vrefresh = vrefresh;
 	ctx->hw_status.idle_vrefresh = idle_vrefresh;
-	ctx->hw_status.te.rate_hz = te_freq;
+	ctx->hw_status.te.freq_hz = te_freq;
 	bitmap_copy(ctx->hw_status.feat, feat, FEAT_MAX);
 }
 
@@ -582,7 +582,7 @@ static void ct3a_change_frequency(struct gs_panel *ctx,
 		idle_vrefresh = ct3a_get_min_idle_vrefresh(ctx, pmode);
 
 	ct3a_update_refresh_mode(ctx, pmode, idle_vrefresh);
-	ctx->sw_status.te.rate_hz = gs_drm_mode_te_freq(&pmode->mode);
+	ctx->sw_status.te.freq_hz = gs_drm_mode_te_freq(&pmode->mode);
 
 	dev_dbg(ctx->dev, "%s: change to %uHz\n", __func__, vrefresh);
 }
@@ -756,7 +756,7 @@ static void ct3a_set_lp_mode(struct gs_panel *ctx, const struct gs_panel_mode *p
 
 	GS_DCS_BUF_ADD_CMDLIST(dev, unlock_cmd_f0);
 
-	if (ctx->panel_rev == PANEL_REV_PROTO1_1) {
+	if (ctx->panel_rev_id.id == PANEL_REVID_PROTO1_1) {
 		GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x02, 0xAE, 0xCB);
 		GS_DCS_BUF_ADD_CMD(dev, 0xCB, 0x11, 0x70);
 		GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x00, 0x05, 0xBD);
@@ -771,7 +771,7 @@ static void ct3a_set_lp_mode(struct gs_panel *ctx, const struct gs_panel_mode *p
 	GS_DCS_BUF_ADD_CMD(dev, 0x60, 0x00, 0x00);
 
 	/* Fixed TE */
-	if (ctx->panel_rev < PANEL_REV_EVT1)
+	if (ctx->panel_rev_id.id < PANEL_REVID_EVT1)
 		GS_DCS_BUF_ADD_CMD(dev, 0xB9, 0x51, 0x51, 0x00, 0x00);
 	else
 		GS_DCS_BUF_ADD_CMD(dev, 0xB9, 0x51);
@@ -794,8 +794,8 @@ static void ct3a_set_lp_mode(struct gs_panel *ctx, const struct gs_panel_mode *p
 	GS_DCS_BUF_ADD_CMDLIST_AND_FLUSH(dev, lock_cmd_f0);
 
 	ctx->hw_status.vrefresh = 30;
-	ctx->sw_status.te.rate_hz = 30;
-	ctx->hw_status.te.rate_hz = 30;
+	ctx->sw_status.te.freq_hz = 30;
+	ctx->hw_status.te.freq_hz = 30;
 
 	PANEL_ATRACE_END(__func__);
 
@@ -823,15 +823,16 @@ static void ct3a_set_nolp_mode(struct gs_panel *ctx,
 	GS_DCS_BUF_ADD_CMD(dev, 0xBD, 0x81);
 
 	/* changeable TE*/
-	if (ctx->panel_rev == PANEL_REV_PROTO1)
+	if (ctx->panel_rev_id.id == PANEL_REVID_PROTO1)
 		GS_DCS_BUF_ADD_CMD(dev, 0xB9, 0x00, 0x51, 0x00, 0x00);
-	else if (ctx->panel_rev == PANEL_REV_PROTO1_1 || ctx->panel_rev == PANEL_REV_PROTO1_2)
+	else if (ctx->panel_rev_id.id == PANEL_REVID_PROTO1_1 ||
+		 ctx->panel_rev_id.id == PANEL_REVID_PROTO1_2)
 		GS_DCS_BUF_ADD_CMD(dev, 0xB9, 0x04, 0x51, 0x00, 0x00);
 	else
 		GS_DCS_BUF_ADD_CMD(dev, 0xB9, 0x04);
 
 	/* AoD off */
-	if (ctx->panel_rev == PANEL_REV_PROTO1_1) {
+	if (ctx->panel_rev_id.id == PANEL_REVID_PROTO1_1) {
 		GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x00, 0x52, 0x64);
 		GS_DCS_BUF_ADD_CMD(dev, 0x64, 0x00);
 	}
@@ -936,7 +937,7 @@ static void ct3a_set_default_voltage(struct gs_panel *ctx, bool enable)
 	struct device *dev = ctx->dev;
 	const u8 *vlin_default = spanel->panel_voltage.vlin_default;
 
-	if(ctx->panel_rev < PANEL_REV_EVT1)
+	if(ctx->panel_rev_id.id < PANEL_REVID_EVT1)
 		return;
 	dev_dbg(dev, "%s enable = %d\n", __func__, enable);
 
@@ -948,7 +949,7 @@ static void ct3a_set_default_voltage(struct gs_panel *ctx, bool enable)
 		GS_DCS_BUF_ADD_CMD(dev, 0x48, 0x08);
 		GS_DCS_BUF_ADD_CMD(dev, 0x48, 0xF1);
 		GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x00, 0x01, 0x46);
-		if(ctx->panel_rev < PANEL_REV_EVT1_1)
+		if(ctx->panel_rev_id.id < PANEL_REVID_EVT1_1)
 			GS_DCS_BUF_ADD_CMDLIST(dev, vlin_7v7);
 		else
 			GS_DCS_BUF_ADD_CMD(dev, 0x46, 0x23, vlin_default[2]);
@@ -997,8 +998,8 @@ static int ct3a_disable(struct drm_panel *panel)
 	/* panel register state gets reset after disabling hardware */
 	bitmap_clear(ctx->hw_status.feat, 0, FEAT_MAX);
 	ctx->hw_status.vrefresh = 60;
-	ctx->sw_status.te.rate_hz = 60;
-	ctx->hw_status.te.rate_hz = 60;
+	ctx->sw_status.te.freq_hz = 60;
+	ctx->hw_status.te.freq_hz = 60;
 	ctx->hw_status.idle_vrefresh = 0;
 
 	return 0;
@@ -1073,7 +1074,7 @@ static void ct3a_set_hbm_mode(struct gs_panel *ctx, enum gs_hbm_mode mode)
 
 	ctx->hbm_mode = mode;
 
-	if ((ctx->panel_rev >= PANEL_REV_PROTO1_2) && irc_update) {
+	if ((ctx->panel_rev_id.id >= PANEL_REVID_PROTO1_2) && irc_update) {
 		GS_DCS_BUF_ADD_CMDLIST(dev, unlock_cmd_f0);
 		GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x00, 0xAF, 0x93);
 		GS_DCS_BUF_ADD_CMD(dev, 0x93, GS_IS_HBM_ON_IRC_OFF(mode) ? 0x0B : 0x2B);
@@ -1146,41 +1147,41 @@ static void ct3a_get_panel_rev(struct gs_panel *ctx, u32 id)
 
 	switch (rev) {
 	case 0x00:
-		ctx->panel_rev = PANEL_REV_PROTO1;
+		ctx->panel_rev_id.id = PANEL_REVID_PROTO1;
 		break;
 	case 0x01:
-		ctx->panel_rev = PANEL_REV_PROTO1_1;
+		ctx->panel_rev_id.id = PANEL_REVID_PROTO1_1;
 		break;
 	case 0x02:
-		ctx->panel_rev = PANEL_REV_PROTO1_2;
+		ctx->panel_rev_id.id = PANEL_REVID_PROTO1_2;
 		break;
 	case 0x0C:
-		ctx->panel_rev = PANEL_REV_EVT1;
+		ctx->panel_rev_id.id = PANEL_REVID_EVT1;
 		break;
 	case 0x0E:
-		ctx->panel_rev = PANEL_REV_EVT1_1;
+		ctx->panel_rev_id.id = PANEL_REVID_EVT1_1;
 		break;
 	case 0x0F:
-		ctx->panel_rev = PANEL_REV_EVT1_2;
+		ctx->panel_rev_id.id = PANEL_REVID_EVT1_2;
 		break;
 	case 0x11:
-		ctx->panel_rev = PANEL_REV_DVT1;
+		ctx->panel_rev_id.id = PANEL_REVID_DVT1;
 		break;
 	case 0x12:
-		ctx->panel_rev = PANEL_REV_DVT1_1;
+		ctx->panel_rev_id.id = PANEL_REVID_DVT1_1;
 		break;
 	case 0x14:
-		ctx->panel_rev = PANEL_REV_PVT;
+		ctx->panel_rev_id.id = PANEL_REVID_PVT;
 		break;
 	default:
 		dev_warn(ctx->dev,
 			 "unknown rev from panel (0x%x), default to latest\n",
 			 rev);
-		ctx->panel_rev = PANEL_REV_LATEST;
+		ctx->panel_rev_id.id = PANEL_REVID_LATEST;
 		return;
 	}
 
-	dev_info(ctx->dev, "panel_rev: 0x%x\n", ctx->panel_rev);
+	dev_info(ctx->dev, "panel_rev: 0x%x\n", ctx->panel_rev_id.id);
 }
 
 static int ct3a_read_default_voltage(struct gs_panel *ctx)
@@ -1207,14 +1208,14 @@ static int ct3a_read_default_voltage(struct gs_panel *ctx)
 	return 0;
 }
 
-static int ct3a_read_id(struct gs_panel *ctx)
+static int ct3a_read_serial(struct gs_panel *ctx)
 {
 	int ret = gs_panel_read_slsi_ddic_id(ctx);
 	if(ret)
 		return ret;
 
-	dev_dbg(ctx->dev, "%s: 0x%x\n", __func__, ctx->panel_rev);
-	if(ctx->panel_rev < PANEL_REV_EVT1_1)
+	dev_dbg(ctx->dev, "%s: 0x%x\n", __func__, ctx->panel_rev_id.id);
+	if(ctx->panel_rev_id.id < PANEL_REVID_EVT1_1)
 		return 0;
 
 	ct3a_read_default_voltage(ctx);
@@ -1243,7 +1244,7 @@ static int ct3a_enable(struct drm_panel *panel)
 	gs_dcs_write_dsc_config(dev, &pps_config);
 	GS_DCS_WRITE_CMD(dev, 0x9D, 0x01); /* DSC Enable */
 
-	if(ctx->panel_rev < PANEL_REV_EVT1) {
+	if(ctx->panel_rev_id.id < PANEL_REVID_EVT1) {
 		GS_DCS_WRITE_DELAY_CMD(dev, 120, MIPI_DCS_EXIT_SLEEP_MODE);
 	}
 	else {
@@ -1282,7 +1283,7 @@ static int spanel_get_brightness(struct thermal_zone_device *tzd, int *temp)
 	if (tzd == NULL)
 		return -EINVAL;
 
-	spanel = tzd->devdata;
+	spanel = thermal_zone_device_priv(tzd);
 
 	if (spanel && spanel->base.bl) {
 		mutex_lock(&spanel->base.bl_state_lock);
@@ -1334,15 +1335,15 @@ static int ct3a_panel_probe(struct mipi_dsi_device *dsi)
 	spanel->base.op_hz = 120;
 	spanel->is_pixel_off = false;
 	ctx->hw_status.vrefresh = 60;
-	ctx->hw_status.te.rate_hz = 60;
+	ctx->hw_status.te.freq_hz = 60;
 	clear_bit(FEAT_ZA, ctx->hw_status.feat);
 
 	ret = gs_dsi_panel_common_init(dsi, ctx);
 	if (ret)
 		return ret;
 
-	ctx->thermal->tz = thermal_zone_device_register("inner_brightness",
-				0, 0, spanel, &spanel_tzd_ops, NULL, 0, 0);
+	ctx->thermal->tz = thermal_tripless_zone_device_register("inner_brightness",
+								 spanel, &spanel_tzd_ops, NULL);
 	if (IS_ERR(ctx->thermal->tz)) {
 		dev_warn(ctx->dev, "failed to register inner"
 			" display thermal zone: %ld", PTR_ERR(ctx->thermal->tz));
@@ -1651,7 +1652,8 @@ static int ct3a_panel_config(struct gs_panel *ctx)
 	/* gs_panel_model_init(ctx, PROJECT, 0); */
 
 	return gs_panel_update_brightness_desc(&ct3a_brightness_desc, ct3a_btr_configs,
-						ARRAY_SIZE(ct3a_btr_configs), ctx->panel_rev);
+					       ARRAY_SIZE(ct3a_btr_configs),
+					       ctx->panel_rev_bitmask);
 }
 
 
@@ -1670,7 +1672,7 @@ static const struct gs_panel_funcs ct3a_gs_funcs = {
 	.is_mode_seamless = ct3a_is_mode_seamless,
 	.mode_set = ct3a_mode_set,
 	.get_panel_rev = ct3a_get_panel_rev,
-	.read_id = ct3a_read_id,
+	.read_serial = ct3a_read_serial,
 	.panel_init = ct3a_panel_init,
 	.panel_config = ct3a_panel_config,
 };

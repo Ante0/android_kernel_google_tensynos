@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Wireless charger device tree for Spacecraft
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+
+&google_wlc {
+	google,project_id = /bits/ 8 <0x0A>;
+	vdden-gpio = <AP2QI_ENVDD(GPIO_ACTIVE_HIGH)>; /* ENVDD, AP2QI_ENVDD */
+	google,wlc-bootloader = "CPS4041_BL.bin";
+	google,wlc-firmware = "CPS4041_A0_0A.bin";
+	google,wlc-dc-xce-thresh = <2>;
+	google,wlc-dc-max-vout-delta = <90>;
+};

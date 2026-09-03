@@ -8,7 +8,6 @@
  *
  */
 
-#include <asm/unaligned.h>
 #include <crypto/aes.h>
 #include <crypto/algapi.h>
 #include <linux/delay.h>
@@ -16,6 +15,7 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/unaligned.h>
 #include <scsi/scsi_proto.h>
 #include "ufs-exynos-gs.h"
 #include "ufs-pixel-fips.h"
@@ -57,11 +57,11 @@ MODULE_PARM_DESC(
 #define UFS_PIXEL_BUFFER_SIZE		(4096)
 #define UFS_PIXEL_CRYPTO_DATA_UNIT_SIZE (4096)
 #define UFS_PIXEL_MASTER_KEY_INDEX	(15)
-#define UTRD_CMD_TYPE_UFS_STORAGE	(1 << 28)
-#define UTRD_DD_SYSTEM_TO_DEVICE	(1 << 25) /* Write */
-#define UTRD_DD_DEVICE_TO_SYSTEM	(1 << 26) /* Read */
+#define UTRD_CMD_TYPE_UFS_STORAGE	(1)
+#define UTRD_DD_SYSTEM_TO_DEVICE	(1) /* Write */
+#define UTRD_DD_DEVICE_TO_SYSTEM	(2) /* Read */
 #define UTRD_CRYPTO_DISABLE		(0)
-#define UTRD_CRYPTO_ENABLE		(1 << 23)
+#define UTRD_CRYPTO_ENABLE		(1)
 #define PRDT_FAS_XTS			(2 << 28) /* File Algorithm Selector */
 #define PRDT_FKL_256			(1 << 26) /* File Key Length */
 #define SENSE_DATA_ALLOC_LEN		(18)
@@ -304,11 +304,12 @@ static void ufs_pixel_fips_build_utrd(struct ufs_hba *hba,
 
 	memset(utrd, 0, sizeof(struct utp_transfer_req_desc));
 
-	utrd->header.dword_0 = cpu_to_le32(UTRD_CMD_TYPE_UFS_STORAGE |
-					   data_direction | crypto);
-	utrd->header.dword_1 = 0;
-	utrd->header.dword_2 = cpu_to_le32(OCS_INVALID_COMMAND_STATUS);
-	utrd->header.dword_3 = 0;
+	utrd->header.command_type = UTRD_CMD_TYPE_UFS_STORAGE;
+	utrd->header.enable_crypto = crypto;
+	utrd->header.data_direction = data_direction;
+	utrd->header.dunl = 0;
+	utrd->header.ocs = OCS_INVALID_COMMAND_STATUS;
+	utrd->header.dunu = 0;
 
 	utrd->command_desc_base_addr = cpu_to_le64(ucd_dma_addr);
 
@@ -386,10 +387,13 @@ static void ufs_pixel_fips_build_upiu(struct ufs_hba *hba,
 	struct utp_upiu_req *ucd_req_ptr =
 		(struct utp_upiu_req *)ucd_addr->command_upiu;
 
-	ucd_req_ptr->header.dword_0 = UPIU_HEADER_DWORD(
-		UPIU_TRANSACTION_COMMAND, flags, lun, task_tag);
-	ucd_req_ptr->header.dword_1 = 0;
-	ucd_req_ptr->header.dword_2 = 0;
+	ucd_req_ptr->header = (struct utp_upiu_header){
+		.transaction_code = UPIU_TRANSACTION_COMMAND,
+		.flags = flags,
+		.lun = lun,
+		.task_tag = task_tag,
+	};
+
 	ucd_req_ptr->sc.exp_data_transfer_len = cpu_to_be32(buffer_len);
 	memcpy(ucd_req_ptr->sc.cdb, cdb, sizeof(struct scsi_cdb));
 }
@@ -443,8 +447,8 @@ static int ufs_pixel_fips_send_utrd(struct ufs_hba *hba,
 
 static int ufs_pixel_fips_check_response(struct utp_upiu_rsp *resp, u8 ocs)
 {
-	u8 status = be32_to_cpu(resp->header.dword_1);
-	u8 response = be32_to_cpu(resp->header.dword_1) >> 8;
+	u8 status = resp->header.status;
+	u8 response = resp->header.response;
 	if (ocs || status || response) {
 		uint8_t response_code = resp->sr.sense_data[0] & 0x7F;
 		if (response_code == 0x70) {
@@ -465,9 +469,9 @@ static int ufs_pixel_fips_check_response(struct utp_upiu_rsp *resp, u8 ocs)
 	return 0;
 }
 
-int ufs_pixel_fips_send_request(struct ufs_hba *hba, struct scsi_cdb *cdb,
-				struct fips_buffer_info *bi, u32 buffer_len,
-				u32 lu)
+static int ufs_pixel_fips_send_request(struct ufs_hba *hba, struct scsi_cdb *cdb,
+				       struct fips_buffer_info *bi, u32 buffer_len,
+				       u32 lu)
 {
 	struct utp_transfer_req_desc utrd;
 	struct utp_upiu_rsp *resp_upiu =
@@ -517,7 +521,7 @@ int ufs_pixel_fips_send_request(struct ufs_hba *hba, struct scsi_cdb *cdb,
 	if (ret)
 		return ret;
 
-	ocs = le32_to_cpu(utrd.header.dword_2) & 0xFF;
+	ocs = utrd.header.ocs;
 
 	return ufs_pixel_fips_check_response(resp_upiu, ocs);
 }
@@ -683,7 +687,7 @@ int ufs_pixel_fips_verify(struct ufs_hba *hba)
 	 * Enable clocks, exit hibern8, set link as active
 	 * Will release on function exit
 	 */
-	ufshcd_hold(hba, false);
+	ufshcd_hold(hba);
 
 	/*
 	 * Disable all interrupts except UTP Transfer Request Completion

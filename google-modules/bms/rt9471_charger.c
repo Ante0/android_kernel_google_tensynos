@@ -14,6 +14,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/cleanup.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/version.h>
@@ -176,8 +177,8 @@ struct rt9471_chip {
 	u8 dev_rev;
 	u8 chip_rev;
 	struct rt9471_desc *desc;
-	u32 intr_gpio;
-	u32 ceb_gpio;
+	struct gpio_desc *intr_gpio;
+	struct gpio_desc *ceb_gpio;
 	int irq;
 	u8 irq_mask[RT9471_IRQIDX_MAX];
 	struct work_struct init_work;
@@ -1314,18 +1315,7 @@ static int rt9471_register_irq(struct rt9471_chip *chip)
 
 	dev_info(chip->dev, "%s\n", __func__);
 
-	len = strlen(chip->desc->chg_name);
-	name = devm_kzalloc(chip->dev, len + 10, GFP_KERNEL);
-	if (!name)
-		return -ENOMEM;
-	snprintf(name,  len + 10, "%s-irq-gpio", chip->desc->chg_name);
-	ret = devm_gpio_request_one(chip->dev, chip->intr_gpio, GPIOF_IN, name);
-	if (ret < 0) {
-		dev_notice(chip->dev, "%s gpio request fail(%d)\n",
-				      __func__, ret);
-		return ret;
-	}
-	chip->irq = gpio_to_irq(chip->intr_gpio);
+	chip->irq = gpiod_to_irq(chip->intr_gpio);
 	if (chip->irq < 0) {
 		dev_notice(chip->dev, "%s gpio2irq fail(%d)\n", __func__,
 				      chip->irq);
@@ -1403,12 +1393,13 @@ static inline void rt9471_irq_unmask(struct rt9471_chip *chip, int irqnum)
 
 static int rt9471_parse_dt(struct rt9471_chip *chip)
 {
-	int ret, len, irqcnt = 0, irqnum;
-	struct device_node *parent_np = chip->dev->of_node, *np = NULL;
+	int ret, irqnum;
+	int irqcnt = 0;
+	struct device_node *parent_np = chip->dev->of_node;
+	struct device_node *np __free(device_node) = NULL;
 	struct rt9471_desc *desc = NULL;
 	const char *name = NULL;
-	char *ceb_name = NULL;
-	unsigned long init_flags = GPIOF_DIR_OUT;
+	enum gpiod_flags init_flags = GPIOD_OUT_LOW;
 
 	dev_info(chip->dev, "%s\n", __func__);
 
@@ -1433,33 +1424,22 @@ static int rt9471_parse_dt(struct rt9471_chip *chip)
 		dev_notice(chip->dev, "%s no charger name\n", __func__);
 	dev_info(chip->dev, "%s name %s\n", __func__, desc->chg_name);
 
-	ret = of_get_named_gpio(parent_np, "rt,intr_gpio", 0);
-	if (ret < 0)
-		return ret;
-	chip->intr_gpio = ret;
-	ret = of_get_named_gpio(parent_np, "rt,ceb_gpio", 0);
-	if (ret < 0)
-		return ret;
-	chip->ceb_gpio = ret;
-	dev_info(chip->dev, "%s intr_gpio %u\n", __func__, chip->intr_gpio);
+	chip->intr_gpio = devm_gpiod_get(chip->dev, "rt,intr", GPIOD_IN);
+	if (IS_ERR(chip->intr_gpio))
+		return PTR_ERR(chip->intr_gpio);
 
-	/* ceb gpio */
-	len = strlen(desc->chg_name);
-	ceb_name = devm_kzalloc(chip->dev, len + 10, GFP_KERNEL);
-	if (!ceb_name)
-		return -ENOMEM;
-	snprintf(ceb_name,  len + 10, "%s-ceb-gpio", desc->chg_name);
 	of_property_read_u32(parent_np, "google,rt-en-value",
 			     &chip->rten_gpio_default);
 	if (chip->rten_gpio_default)
-		init_flags = GPIOF_OUT_INIT_HIGH;
-	ret = devm_gpio_request_one(chip->dev, chip->ceb_gpio, init_flags,
-				    ceb_name);
-	if (ret < 0) {
-		dev_notice(chip->dev, "%s gpio request fail(%d)\n",
-				      __func__, ret);
-		return ret;
-	}
+		init_flags = GPIOD_OUT_HIGH;
+
+	/* ceb gpio */
+	chip->ceb_gpio = devm_gpiod_get(chip->dev, "rt,ceb",
+					init_flags | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
+	if (IS_ERR(chip->ceb_gpio))
+		return PTR_ERR(chip->ceb_gpio);
+
+	dev_info(chip->dev, "%s intr_gpio %u\n", __func__, desc_to_gpio(chip->intr_gpio));
 
 	/* Charger parameter */
 	if (of_property_read_u32(np, "ichg", &desc->ichg) < 0)
@@ -1752,7 +1732,7 @@ static void rt9471_init_work_handler(struct work_struct *work)
 #if IS_ENABLED(CONFIG_GPIOLIB)
 static int rt9471_gpio_get_direction(struct gpio_chip *chip, unsigned int offset)
 {
-	return GPIOF_DIR_OUT;
+	return GPIO_LINE_DIRECTION_OUT;
 }
 
 static int rt9471_gpio_get(struct gpio_chip *chip, unsigned int offset)
@@ -2018,11 +1998,13 @@ static int rt9471_register_psy(struct rt9471_chip *chip)
 	return 0;
 }
 
-static int rt9471_probe(struct i2c_client *client,
-			const struct i2c_device_id *id)
+static int rt9471_probe(struct i2c_client *client)
 {
 	int ret = 0;
 	struct rt9471_chip *chip = NULL;
+#if IS_ENABLED(CONFIG_GPIOLIB)
+	struct device_node *dp;
+#endif
 
 	dev_info(&client->dev, "%s (%s)\n", __func__, RT9471_DRV_VERSION);
 
@@ -2031,6 +2013,7 @@ static int rt9471_probe(struct i2c_client *client,
 		return -ENOMEM;
 	chip->client = client;
 	chip->dev = &client->dev;
+	chip->dev->init_name = "rt9471-chrg";
 	mutex_init(&chip->io_lock);
 	mutex_init(&chip->bc12_lock);
 	mutex_init(&chip->hidden_mode_lock);
@@ -2096,11 +2079,14 @@ static int rt9471_probe(struct i2c_client *client,
 	if (chip->dev_id == RT9470_DEVID) {
 		rt9471_gpio_init(chip);
 		chip->gpio.parent = chip->dev;
-		chip->gpio.of_node = of_find_node_by_name(client->dev.of_node,
-							  chip->gpio.label);
-		if (!chip->gpio.of_node)
+		/* balance of_node_put() in of_find_node_by_name() */
+		of_node_get(client->dev.of_node);
+		dp = of_find_node_by_name(client->dev.of_node,
+							chip->gpio.label);
+		if (!dp)
 			dev_warn(chip->dev, "Failed to find %s DT node\n",
 				chip->gpio.label);
+		chip->gpio.fwnode = of_node_to_fwnode(dp);
 
 		ret = devm_gpiochip_add_data(chip->dev, &chip->gpio, chip);
 		dev_info(chip->dev, "%d GPIOs registered ret:%d\n",

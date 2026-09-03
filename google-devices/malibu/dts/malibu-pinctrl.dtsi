@@ -1,0 +1,1728 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+
+/{
+	lsios_pinctrl: pinctrl@3BCE0000 {
+		compatible = "google,mbu-lsios-pinctrl";
+		reg = <0 0x3BCE0000 0 0x44000>;
+
+		gpio-controller;
+		gpio-ranges = <&lsios_pinctrl 0 0 68>;
+		#gpio-cells = <2>;
+		gpio-reserved-ranges = <51 1>;
+
+		power-domains = <&lsio_s_cli_gpio_pd>;
+		power-domain-names="csr_access_pd";
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+
+		interrupts-extended =
+			<&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_AUX_AON_IOBANK_XLSIOS_MCLK1_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_MCLK2_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_MCLK3_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_MCLK4_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_MCLK5_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_MCLK6_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_MCLK7_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_I23C0_SCL_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_I23C0_SDA_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_I23C1_SCL_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_I23C1_SDA_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_I23C2_SCL_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_I23C2_SDA_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_GPIO0_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_GPIO1_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_SPIU0_SCLK_RTSN_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_SPIU0_MOSI_TXD_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_SPIU0_MISO_RXD_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_SPIU0_CSN_CTSN_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_I23C3_SCL_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_I23C3_SDA_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_GPIO2_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_GPIO3_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_PWM_0_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_PWM_1_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_VSYNC1_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_VSYNC2_IRQ>,
+			<&lsios_multicast_aggr_2 LSIOS_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOS_VSYNC3_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_VSYNC5_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_VSYNC6_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_VSYNC7_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_PWM_2_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_GPIO4_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_GPIO5_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_GPIO6_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_GPIO7_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_GPIO8_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_GPIO9_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_GPIO10_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_GPIO11_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_MCLK0_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_GPIO12_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_GPIO13_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_GPIO14_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_GPIO15_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_VSYNC0_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_VSYNC4_IRQ>,
+			<&lsios_multicast_aggr_4 LSIOS_GIA_MULTICAST_AGGR_4_AUX_AON_IOBANK_XLSIOS_GPIO17_IRQ>,
+			<&lsios_multicast_aggr_4 LSIOS_GIA_MULTICAST_AGGR_4_AUX_AON_IOBANK_XLSIOS_GPIO18_IRQ>,
+			<&lsios_multicast_aggr_1 LSIOS_GIA_MULTICAST_AGGR_1_AUX_AON_IOBANK_XLSIOS_SOFT_PRE_OCP_GPU_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_I23C4_SCL_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_I23C4_SDA_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_SPIU1_SCLK_RTSN_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_SPIU1_MOSI_TXD_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_SPIU1_MISO_RXD_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_SPIU1_CSN_CTSN_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_SPIU2_SCLK_RTSN_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_SPIU2_MOSI_TXD_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_SPIU2_MISO_RXD_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_SPIU2_CSN_CTSN_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_SPIU3_SCLK_RTSN_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_SPIU3_MOSI_TXD_IRQ>,
+			<&lsios_multicast_aggr_3 LSIOS_GIA_MULTICAST_AGGR_3_AUX_AON_IOBANK_XLSIOS_SPIU3_MISO_RXD_IRQ>,
+			<&lsios_multicast_aggr_4 LSIOS_GIA_MULTICAST_AGGR_4_AUX_AON_IOBANK_XLSIOS_SPIU3_CSN_CTSN_IRQ>;
+		irq-pad-mapping =
+			<XLSIOS_MCLK1>,
+			<XLSIOS_MCLK2>,
+			<XLSIOS_MCLK3>,
+			<XLSIOS_MCLK4>,
+			<XLSIOS_MCLK5>,
+			<XLSIOS_MCLK6>,
+			<XLSIOS_MCLK7>,
+			<XLSIOS_I23C0_SCL>,
+			<XLSIOS_I23C0_SDA>,
+			<XLSIOS_I23C1_SCL>,
+			<XLSIOS_I23C1_SDA>,
+			<XLSIOS_I23C2_SCL>,
+			<XLSIOS_I23C2_SDA>,
+			<XLSIOS_GPIO0>,
+			<XLSIOS_GPIO1>,
+			<XLSIOS_SPIU0_SCLK_RTSn>,
+			<XLSIOS_SPIU0_MOSI_TXD>,
+			<XLSIOS_SPIU0_MISO_RXD>,
+			<XLSIOS_SPIU0_CSn_CTSn>,
+			<XLSIOS_I23C3_SCL>,
+			<XLSIOS_I23C3_SDA>,
+			<XLSIOS_GPIO2>,
+			<XLSIOS_GPIO3>,
+			<XLSIOS_PWM_0>,
+			<XLSIOS_PWM_1>,
+			<XLSIOS_VSYNC1>,
+			<XLSIOS_VSYNC2>,
+			<XLSIOS_VSYNC3>,
+			<XLSIOS_VSYNC5>,
+			<XLSIOS_VSYNC6>,
+			<XLSIOS_VSYNC7>,
+			<XLSIOS_PWM_2>,
+			<XLSIOS_GPIO4>,
+			<XLSIOS_GPIO5>,
+			<XLSIOS_GPIO6>,
+			<XLSIOS_GPIO7>,
+			<XLSIOS_GPIO8>,
+			<XLSIOS_GPIO9>,
+			<XLSIOS_GPIO10>,
+			<XLSIOS_GPIO11>,
+			<XLSIOS_MCLK0>,
+			<XLSIOS_GPIO12>,
+			<XLSIOS_GPIO13>,
+			<XLSIOS_GPIO14>,
+			<XLSIOS_GPIO15>,
+			<XLSIOS_VSYNC0>,
+			<XLSIOS_VSYNC4>,
+			<XLSIOS_GPIO17>,
+			<XLSIOS_GPIO18>,
+			<XLSIOS_SOFT_PRE_OCP_GPU>,
+			<XLSIOS_I23C4_SCL>,
+			<XLSIOS_I23C4_SDA>,
+			<XLSIOS_SPIU1_SCLK_RTSn>,
+			<XLSIOS_SPIU1_MOSI_TXD>,
+			<XLSIOS_SPIU1_MISO_RXD>,
+			<XLSIOS_SPIU1_CSn_CTSn>,
+			<XLSIOS_SPIU2_SCLK_RTSn>,
+			<XLSIOS_SPIU2_MOSI_TXD>,
+			<XLSIOS_SPIU2_MISO_RXD>,
+			<XLSIOS_SPIU2_CSn_CTSn>,
+			<XLSIOS_SPIU3_SCLK_RTSn>,
+			<XLSIOS_SPIU3_MOSI_TXD>,
+			<XLSIOS_SPIU3_MISO_RXD>,
+			<XLSIOS_SPIU3_CSn_CTSn>;
+
+		lsios_i2c0_2_wire_func: lsios_i2c0_2_wire_func {
+			pins =  "XLSIOS_I23C0_SCL",
+				"XLSIOS_I23C0_SDA";
+			function = "lsios_i2c0";
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i2c0_2_wire_sleep: lsios_i2c0_2_wire_sleep {
+			pins =  "XLSIOS_I23C0_SCL",
+				"XLSIOS_I23C0_SDA";
+			function = "lsios_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i2c1_2_wire_func: lsios_i2c1_2_wire_func {
+			pins =  "XLSIOS_I23C1_SCL",
+				"XLSIOS_I23C1_SDA";
+			function = "lsios_i2c1";
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i2c1_2_wire_sleep: lsios_i2c1_2_wire_sleep {
+			pins =  "XLSIOS_I23C1_SCL",
+				"XLSIOS_I23C1_SDA";
+			function = "lsios_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i2c2_2_wire_func: lsios_i2c2_2_wire_func {
+			pins =  "XLSIOS_I23C2_SCL",
+				"XLSIOS_I23C2_SDA";
+			function = "lsios_i2c2";
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i2c2_2_wire_sleep: lsios_i2c2_2_wire_sleep {
+			pins =  "XLSIOS_I23C2_SCL",
+				"XLSIOS_I23C2_SDA";
+			function = "lsios_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i2c3_2_wire_func: lsios_i2c3_2_wire_func {
+			pins =  "XLSIOS_I23C3_SCL",
+				"XLSIOS_I23C3_SDA";
+			function = "lsios_i2c3";
+			output-disable;
+			input-enable;
+			drive-strength = <2>;
+		};
+
+		lsios_i2c3_2_wire_sleep: lsios_i2c3_2_wire_sleep {
+			pins =  "XLSIOS_I23C3_SCL",
+				"XLSIOS_I23C3_SDA";
+			function = "lsios_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i2c4_2_wire_func: lsios_i2c4_2_wire_func {
+			pins =  "XLSIOS_I23C4_SCL",
+				"XLSIOS_I23C4_SDA";
+			function = "lsios_i2c1";
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i2c4_2_wire_sleep: lsios_i2c4_2_wire_sleep {
+			pins =  "XLSIOS_I23C4_SCL",
+				"XLSIOS_I23C4_SDA";
+			function = "lsios_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i3c0_2_wire_func: lsios_i3c0_2_wire_func {
+			pins =  "XLSIOS_I23C0_SCL",
+				"XLSIOS_I23C0_SDA";
+			function = "lsios_i3c0";
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i3c0_2_wire_sleep: lsios_i3c0_2_wire_sleep {
+			pins =  "XLSIOS_I23C0_SCL",
+				"XLSIOS_I23C0_SDA";
+			function = "lsios_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i3c1_2_wire_func: lsios_i3c1_2_wire_func {
+			pins =  "XLSIOS_I23C1_SCL",
+				"XLSIOS_I23C1_SDA";
+			function = "lsios_i3c1";
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i3c1_2_wire_sleep: lsios_i3c1_2_wire_sleep {
+			pins =  "XLSIOS_I23C1_SCL",
+				"XLSIOS_I23C1_SDA";
+			function = "lsios_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i3c2_2_wire_func: lsios_i3c2_2_wire_func {
+			pins =  "XLSIOS_I23C2_SCL",
+				"XLSIOS_I23C2_SDA";
+			function = "lsios_i3c2";
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i3c2_2_wire_sleep: lsios_i3c2_2_wire_sleep {
+			pins =  "XLSIOS_I23C2_SCL",
+				"XLSIOS_I23C2_SDA";
+			function = "lsios_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i3c3_2_wire_func: lsios_i3c3_2_wire_func {
+			pins =  "XLSIOS_I23C3_SCL",
+				"XLSIOS_I23C3_SDA";
+			function = "lsios_i3c3";
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i3c3_2_wire_sleep: lsios_i3c3_2_wire_sleep {
+			pins =  "XLSIOS_I23C3_SCL",
+				"XLSIOS_I23C3_SDA";
+			function = "lsios_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i3c4_2_wire_func: lsios_i3c4_2_wire_func {
+			pins =  "XLSIOS_I23C4_SCL",
+				"XLSIOS_I23C4_SDA";
+			function = "lsios_i3c1";
+			output-disable;
+			input-enable;
+		};
+
+		lsios_i3c4_2_wire_sleep: lsios_i3c4_2_wire_sleep {
+			pins =  "XLSIOS_I23C4_SCL",
+				"XLSIOS_I23C4_SDA";
+			function = "lsios_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_uart0_func: lsios_uart0_func {
+			pins =  "XLSIOS_SPIU0_MISO_RXD",
+				"XLSIOS_SPIU0_MOSI_TXD";
+			function = "lsios_uart0";
+			output-disable;
+			input-enable;
+		};
+
+		lsios_uart0_sleep: lsios_uart0_sleep {
+			pins =  "XLSIOS_SPIU0_MISO_RXD",
+				"XLSIOS_SPIU0_MOSI_TXD";
+			function = "lsios_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_uart1_func: lsios_uart1_func {
+			pins =  "XLSIOS_SPIU1_MISO_RXD",
+				"XLSIOS_SPIU1_MOSI_TXD";
+			function = "lsios_uart1";
+			output-disable;
+			input-enable;
+		};
+
+		lsios_uart1_sleep: lsios_uart1_sleep {
+			pins =  "XLSIOS_SPIU1_MISO_RXD",
+				"XLSIOS_SPIU1_MOSI_TXD";
+			function = "lsios_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_uart2_func: lsios_uart2_func {
+			pins =  "XLSIOS_SPIU2_MISO_RXD",
+				"XLSIOS_SPIU2_MOSI_TXD";
+			function = "lsios_uart2";
+			output-disable;
+			input-enable;
+		};
+
+		lsios_uart2_sleep: lsios_uart2_sleep {
+			pins =  "XLSIOS_SPIU2_MISO_RXD",
+				"XLSIOS_SPIU2_MOSI_TXD";
+			function = "lsios_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_uart3_func: lsios_uart3_func {
+			pins =  "XLSIOS_SPIU3_MISO_RXD",
+				"XLSIOS_SPIU3_MOSI_TXD";
+			function = "lsios_uart3";
+			output-disable;
+			input-enable;
+		};
+
+		lsios_uart3_sleep: lsios_uart3_sleep {
+			pins =  "XLSIOS_SPIU3_MISO_RXD",
+				"XLSIOS_SPIU3_MOSI_TXD";
+			function = "lsios_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_spi0_clk_mosi_miso_func: lsios_spi0_clk_mosi_miso_func {
+			pins =  "XLSIOS_SPIU0_SCLK_RTSn",
+				"XLSIOS_SPIU0_MOSI_TXD",
+				"XLSIOS_SPIU0_MISO_RXD";
+			function = "lsios_spi0";
+			bias-pull-down;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_spi0_cs_gpio_func: lsios_spi0_cs_gpio_func {
+			pins =  "XLSIOS_SPIU0_CSn_CTSn";
+			function = "lsios_gpio";
+			output-enable;
+			input-enable;
+		};
+
+		lsios_spi0_sleep: lsios_spi0_sleep {
+			pins =  "XLSIOS_SPIU0_SCLK_RTSn",
+				"XLSIOS_SPIU0_MOSI_TXD",
+				"XLSIOS_SPIU0_MISO_RXD",
+				"XLSIOS_SPIU0_CSn_CTSn";
+			function = "lsios_gpio";
+			drive-open-drain;
+		};
+
+		lsios_spi1_clk_mosi_miso_func: lsios_spi1_clk_mosi_miso_func {
+			pins =  "XLSIOS_SPIU1_SCLK_RTSn",
+				"XLSIOS_SPIU1_MOSI_TXD",
+				"XLSIOS_SPIU1_MISO_RXD";
+			function = "lsios_spi1";
+			bias-pull-down;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_spi1_cs_gpio_func: lsios_spi1_cs_gpio_func {
+			pins =  "XLSIOS_SPIU1_CSn_CTSn";
+			function = "lsios_gpio";
+			output-enable;
+			input-enable;
+		};
+
+		lsios_spi1_sleep: lsios_spi1_sleep {
+			pins =  "XLSIOS_SPIU1_SCLK_RTSn",
+				"XLSIOS_SPIU1_MOSI_TXD",
+				"XLSIOS_SPIU1_MISO_RXD",
+				"XLSIOS_SPIU1_CSn_CTSn";
+			function = "lsios_gpio";
+			drive-open-drain;
+		};
+
+		lsios_spi2_clk_mosi_miso_func: lsios_spi2_clk_mosi_miso_func {
+			pins =  "XLSIOS_SPIU2_SCLK_RTSn",
+				"XLSIOS_SPIU2_MOSI_TXD",
+				"XLSIOS_SPIU2_MISO_RXD";
+			function = "lsios_spi2";
+			bias-pull-down;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_spi2_cs_gpio_func: lsios_spi2_cs_gpio_func {
+			pins =  "XLSIOS_SPIU2_CSn_CTSn";
+			function = "lsios_gpio";
+			output-enable;
+			input-enable;
+		};
+
+		lsios_spi2_sleep: lsios_spi2_sleep {
+			pins =  "XLSIOS_SPIU2_SCLK_RTSn",
+				"XLSIOS_SPIU2_MOSI_TXD",
+				"XLSIOS_SPIU2_MISO_RXD",
+				"XLSIOS_SPIU2_CSn_CTSn";
+			function = "lsios_gpio";
+			drive-open-drain;
+		};
+
+		lsios_spi3_clk_mosi_miso_func: lsios_spi3_clk_mosi_miso_func {
+			pins =  "XLSIOS_SPIU3_SCLK_RTSn",
+				"XLSIOS_SPIU3_MOSI_TXD",
+				"XLSIOS_SPIU3_MISO_RXD";
+			function = "lsios_spi3";
+			bias-pull-down;
+			output-disable;
+			input-enable;
+		};
+
+		lsios_spi3_cs_gpio_func: lsios_spi3_cs_gpio_func {
+			pins =  "XLSIOS_SPIU3_CSn_CTSn";
+			function = "lsios_gpio";
+			output-enable;
+			input-enable;
+		};
+
+		lsios_spi3_sleep: lsios_spi3_sleep {
+			pins =  "XLSIOS_SPIU3_SCLK_RTSn",
+				"XLSIOS_SPIU3_MOSI_TXD",
+				"XLSIOS_SPIU3_MISO_RXD",
+				"XLSIOS_SPIU3_CSn_CTSn";
+			function = "lsios_gpio";
+			drive-open-drain;
+		};
+
+		pwm0_func: pwm0_func {
+			pins = "XLSIOS_PWM_0";
+			function = "lsios_pwm";
+			output-disable;
+			input-disable;
+		};
+
+		pwm1_func: pwm1_func {
+			pins = "XLSIOS_PWM_1";
+			function = "lsios_pwm";
+			output-disable;
+			input-disable;
+		};
+
+		pwm2_func: pwm2_func {
+			pins = "XLSIOS_PWM_2";
+			function = "lsios_pwm";
+			output-disable;
+			input-disable;
+		};
+
+		pwm3_func: pwm3_func {
+			pins = "XLSIOS_GPIO0";
+			function = "lsios_pwm";
+			output-disable;
+			input-disable;
+		};
+
+		pwm0_sleep: pwm0_sleep {
+			pins = "XLSIOS_PWM_0";
+			function = "lsios_gpio";
+			drive-open-drain;
+		};
+
+		pwm1_sleep: pwm1_sleep {
+			pins = "XLSIOS_PWM_1";
+			function = "lsios_gpio";
+			drive-open-drain;
+		};
+
+		pwm2_sleep: pwm2_sleep {
+			pins = "XLSIOS_PWM_2";
+			function = "lsios_gpio";
+			drive-open-drain;
+		};
+
+		pwm3_sleep: pwm3_sleep {
+			pins = "XLSIOS_GPIO0";
+			function = "lsios_gpio";
+			drive-open-drain;
+		};
+	};
+
+	lsioe_pinctrl: pinctrl@3A0E0000 {
+		compatible = "google,mbu-lsioe-pinctrl";
+		reg = <0 0x3A0E0000 0 0x25000>;
+
+		gpio-controller;
+		gpio-ranges = <&lsioe_pinctrl 0 0 37>;
+		#gpio-cells = <2>;
+
+		power-domains = <&lsio_e_cli_gpio_pd>;
+		power-domain-names="csr_access_pd";
+		runtime-pm-capable;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		interrupts-extended =
+			<&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_AUX_AON_IOBANK_XLSIOE_I23C5_SCL_IRQ>,
+			<&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_AUX_AON_IOBANK_XLSIOE_I23C5_SDA_IRQ>,
+			<&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_AUX_AON_IOBANK_XLSIOE_I23C6_SCL_IRQ>,
+			<&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_AUX_AON_IOBANK_XLSIOE_I23C6_SDA_IRQ>,
+			<&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_AUX_AON_IOBANK_XLSIOE_SPIU4_SCLK_RTSN_IRQ>,
+			<&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_AUX_AON_IOBANK_XLSIOE_SPIU4_MOSI_TXD_IRQ>,
+			<&lsioe_multicast_aggr_1 LSIOE_GIA_MULTICAST_AGGR_1_AUX_AON_IOBANK_XLSIOE_SPIU4_MISO_RXD_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_SPIU4_CSN_CTSN_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_I23C7_SCL_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_I23C7_SDA_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO19_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO20_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO21_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO22_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO23_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO24_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO25_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO26_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO27_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO28_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO29_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO30_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO31_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO32_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO33_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_I23C8_SCL_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_I23C8_SDA_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO34_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_I23C9_SCL_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_I23C9_SDA_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_SPIU5_SCLK_RTSN_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_SPIU5_MOSI_TXD_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_SPIU5_MISO_RXD_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_SPIU5_CSN_CTSN_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO35_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO36_IRQ>,
+			<&lsioe_multicast_aggr_2 LSIOE_GIA_MULTICAST_AGGR_2_AUX_AON_IOBANK_XLSIOE_GPIO37_IRQ>;
+		irq-pad-mapping =
+			<XLSIOE_I23C5_SCL>,
+			<XLSIOE_I23C5_SDA>,
+			<XLSIOE_I23C6_SCL>,
+			<XLSIOE_I23C6_SDA>,
+			<XLSIOE_SPIU4_SCLK_RTSn>,
+			<XLSIOE_SPIU4_MOSI_TXD>,
+			<XLSIOE_SPIU4_MISO_RXD>,
+			<XLSIOE_SPIU4_CSn_CTSn>,
+			<XLSIOE_I23C7_SCL>,
+			<XLSIOE_I23C7_SDA>,
+			<XLSIOE_GPIO19>,
+			<XLSIOE_GPIO20>,
+			<XLSIOE_GPIO21>,
+			<XLSIOE_GPIO22>,
+			<XLSIOE_GPIO23>,
+			<XLSIOE_GPIO24>,
+			<XLSIOE_GPIO25>,
+			<XLSIOE_GPIO26>,
+			<XLSIOE_GPIO27>,
+			<XLSIOE_GPIO28>,
+			<XLSIOE_GPIO29>,
+			<XLSIOE_GPIO30>,
+			<XLSIOE_GPIO31>,
+			<XLSIOE_GPIO32>,
+			<XLSIOE_GPIO33>,
+			<XLSIOE_I23C8_SCL>,
+			<XLSIOE_I23C8_SDA>,
+			<XLSIOE_GPIO34>,
+			<XLSIOE_I23C9_SCL>,
+			<XLSIOE_I23C9_SDA>,
+			<XLSIOE_SPIU5_SCLK_RTSn>,
+			<XLSIOE_SPIU5_MOSI_TXD>,
+			<XLSIOE_SPIU5_MISO_RXD>,
+			<XLSIOE_SPIU5_CSn_CTSn>,
+			<XLSIOE_GPIO35>,
+			<XLSIOE_GPIO36>,
+			<XLSIOE_GPIO37>;
+
+		lsioe_i2c0_2_wire_func: lsioe_i2c0_2_wire_func {
+			pins =  "XLSIOE_I23C5_SCL",
+				"XLSIOE_I23C5_SDA";
+			function = "lsioe_i2c";
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i2c0_2_wire_sleep: lsioe_i2c0_2_wire_sleep {
+			pins =  "XLSIOE_I23C5_SCL",
+				"XLSIOE_I23C5_SDA";
+			function = "lsioe_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i2c1_2_wire_func: lsioe_i2c1_2_wire_func {
+			pins =  "XLSIOE_I23C6_SCL",
+				"XLSIOE_I23C6_SDA";
+			function = "lsioe_i2c";
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i2c1_2_wire_sleep: lsioe_i2c1_2_wire_sleep {
+			pins =  "XLSIOE_I23C6_SCL",
+				"XLSIOE_I23C6_SDA";
+			function = "lsioe_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i2c2_2_wire_func: lsioe_i2c2_2_wire_func {
+			pins =  "XLSIOE_I23C7_SCL",
+				"XLSIOE_I23C7_SDA";
+			function = "lsioe_i2c";
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i2c2_2_wire_sleep: lsioe_i2c2_2_wire_sleep {
+			pins =  "XLSIOE_I23C7_SCL",
+				"XLSIOE_I23C7_SDA";
+			function = "lsioe_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i2c3_2_wire_func: lsioe_i2c3_2_wire_func {
+			pins =  "XLSIOE_I23C8_SCL",
+				"XLSIOE_I23C8_SDA";
+			function = "lsioe_i2c";
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i2c3_2_wire_sleep: lsioe_i2c3_2_wire_sleep {
+			pins =  "XLSIOE_I23C8_SCL",
+				"XLSIOE_I23C8_SDA";
+			function = "lsioe_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i2c4_2_wire_func: lsioe_i2c4_2_wire_func {
+			pins =  "XLSIOE_I23C9_SCL",
+				"XLSIOE_I23C9_SDA";
+			function = "lsioe_i2c";
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i2c4_2_wire_sleep: lsioe_i2c4_2_wire_sleep {
+			pins =  "XLSIOE_I23C9_SCL",
+				"XLSIOE_I23C9_SDA";
+			function = "lsioe_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i3c0_2_wire_func: lsioe_i3c0_2_wire_func {
+			pins =  "XLSIOE_I23C5_SCL",
+				"XLSIOE_I23C5_SDA";
+			function = "lsioe_i3c";
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i3c0_2_wire_sleep: lsioe_i3c0_2_wire_sleep {
+			pins =  "XLSIOE_I23C5_SCL",
+				"XLSIOE_I23C5_SDA";
+			function = "lsioe_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i3c1_2_wire_func: lsioe_i3c1_2_wire_func {
+			pins =  "XLSIOE_I23C6_SCL",
+				"XLSIOE_I23C6_SDA";
+			function = "lsioe_i3c";
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i3c1_2_wire_sleep: lsioe_i3c1_2_wire_sleep {
+			pins =  "XLSIOE_I23C6_SCL",
+				"XLSIOE_I23C6_SDA";
+			function = "lsioe_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i3c2_2_wire_func: lsioe_i3c2_2_wire_func {
+			pins =  "XLSIOE_I23C7_SCL",
+				"XLSIOE_I23C7_SDA";
+			function = "lsioe_i3c";
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i3c2_2_wire_sleep: lsioe_i3c2_2_wire_sleep {
+			pins =  "XLSIOE_I23C7_SCL",
+				"XLSIOE_I23C7_SDA";
+			function = "lsioe_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i3c3_2_wire_func: lsioe_i3c3_2_wire_func {
+			pins =  "XLSIOE_I23C8_SCL",
+				"XLSIOE_I23C8_SDA";
+			function = "lsioe_i3c";
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i3c3_2_wire_sleep: lsioe_i3c3_2_wire_sleep {
+			pins =  "XLSIOE_I23C8_SCL",
+				"XLSIOE_I23C8_SDA";
+			function = "lsioe_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i3c4_2_wire_func: lsioe_i3c4_2_wire_func {
+			pins =  "XLSIOE_I23C9_SCL",
+				"XLSIOE_I23C9_SDA";
+			function = "lsioe_i3c";
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_i3c4_2_wire_sleep: lsioe_i3c4_2_wire_sleep {
+			pins =  "XLSIOE_I23C9_SCL",
+				"XLSIOE_I23C9_SDA";
+			function = "lsioe_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_uart0_func: lsioe_uart0_func {
+			pins =  "XLSIOE_SPIU4_MISO_RXD",
+				"XLSIOE_SPIU4_MOSI_TXD";
+			function = "lsioe_uart4";
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_uart0_sleep: lsioe_uart0_sleep {
+			pins =  "XLSIOE_SPIU4_MISO_RXD",
+				"XLSIOE_SPIU4_MOSI_TXD";
+			function = "lsioe_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_uart1_func: lsioe_uart1_func {
+			pins =  "XLSIOE_SPIU5_MISO_RXD",
+				"XLSIOE_SPIU5_MOSI_TXD";
+			function = "lsioe_uart5";
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_uart1_sleep: lsioe_uart1_sleep {
+			pins =  "XLSIOE_SPIU5_MISO_RXD",
+				"XLSIOE_SPIU5_MOSI_TXD";
+			function = "lsioe_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_spi0_clk_mosi_miso_func: lsioe_spi0_clk_mosi_miso_func {
+			pins =  "XLSIOE_SPIU4_SCLK_RTSn",
+				"XLSIOE_SPIU4_MOSI_TXD",
+				"XLSIOE_SPIU4_MISO_RXD";
+			function = "lsioe_spi4";
+			bias-pull-down;
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_spi0_cs_gpio_func: lsioe_spi0_cs_gpio_func {
+			pins =  "XLSIOE_SPIU4_CSn_CTSn";
+			function = "lsioe_gpio";
+			output-enable;
+			input-enable;
+		};
+
+		lsioe_spi0_sleep: lsioe_spi0_sleep {
+			pins =  "XLSIOE_SPIU4_SCLK_RTSn",
+				"XLSIOE_SPIU4_MOSI_TXD",
+				"XLSIOE_SPIU4_MISO_RXD",
+				"XLSIOE_SPIU4_CSn_CTSn";
+			function = "lsioe_gpio";
+			drive-open-drain;
+		};
+
+		lsioe_spi1_clk_mosi_miso_func: lsioe_spi1_clk_mosi_miso_func {
+			pins =  "XLSIOE_SPIU5_SCLK_RTSn",
+				"XLSIOE_SPIU5_MOSI_TXD",
+				"XLSIOE_SPIU5_MISO_RXD";
+			function = "lsioe_spi5";
+			bias-pull-down;
+			output-disable;
+			input-enable;
+		};
+
+		lsioe_spi1_cs_gpio_func: lsioe_spi1_cs_gpio_func {
+			pins =  "XLSIOE_SPIU5_CSn_CTSn";
+			function = "lsioe_gpio";
+			output-enable;
+			input-enable;
+		};
+
+		lsioe_spi1_sleep: lsioe_spi1_sleep {
+			pins =  "XLSIOE_SPIU5_SCLK_RTSn",
+				"XLSIOE_SPIU5_MOSI_TXD",
+				"XLSIOE_SPIU5_MISO_RXD",
+				"XLSIOE_SPIU5_CSn_CTSn";
+			function = "lsioe_gpio";
+			drive-open-drain;
+		};
+	};
+
+	hsios_stby_pinctrl: pinctrl@3C2A0000 {
+		compatible = "google,mbu-hsios-stby-pinctrl";
+		reg = <0 0x3C2A0000 0 0x2000>;
+
+		gpio-controller;
+		gpio-ranges = <&hsios_stby_pinctrl 0 0 2>;
+		#gpio-cells = <2>;
+		gpio-reserved-ranges = <1 1>;
+
+		hsios_stby_ufs_refclk: hsios_stby_ufs_refclk {
+			pins = "XHSIOS_UFS_REFCLK";
+			function = "hsios_stby_ufs";
+			drive-strength = <0x1>;
+			bias-disable;
+		};
+
+		hsios_stby_ufs_refclk_sleep: hsios_stby_ufs_refclk_sleep {
+			pins = "XHSIOS_UFS_REFCLK";
+			function = "hsios_stby_ufs";
+			drive-strength = <0x0>;
+			bias-pull-down;
+		};
+	};
+
+	hsios_pinctrl: pinctrl@3C280000 {
+		compatible = "google,mbu-hsios-pinctrl";
+		reg = <0 0x3C280000 0 0xD000>;
+
+		gpio-controller;
+		gpio-ranges = <&hsios_pinctrl 0 0 13>;
+		#gpio-cells = <2>;
+		gpio-reserved-ranges = <12 1>;
+
+		power-domains = <&sswrp_hsio_s_pd>;
+		power-domain-names = "csr_access_pd";
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		interrupts-extended =
+			<&hsios_multicast_aggr_2 HSIOS_GIA_MULTICAST_AGGR_2_HSIO_S_AUX_HSIO_S_GPIO_BK_XHSIOS_UFS_RESETB_IRQ>,
+			<&hsios_multicast_aggr_3 HSIOS_GIA_MULTICAST_AGGR_3_HSIO_S_AUX_HSIO_S_GPIO_BK_XHSIOS_GPIO7_IRQ>,
+			<&hsios_multicast_aggr_3 HSIOS_GIA_MULTICAST_AGGR_3_HSIO_S_AUX_HSIO_S_GPIO_BK_XHSIOS_GPIO8_IRQ>,
+			<&hsios_multicast_aggr_3 HSIOS_GIA_MULTICAST_AGGR_3_HSIO_S_AUX_HSIO_S_GPIO_BK_XHSIOS_GPIO0_IRQ>,
+			<&hsios_multicast_aggr_3 HSIOS_GIA_MULTICAST_AGGR_3_HSIO_S_AUX_HSIO_S_GPIO_BK_XHSIOS_GPIO1_IRQ>,
+			<&hsios_multicast_aggr_3 HSIOS_GIA_MULTICAST_AGGR_3_HSIO_S_AUX_HSIO_S_GPIO_BK_XHSIOS_GPIO2_IRQ>,
+			<&hsios_multicast_aggr_3 HSIOS_GIA_MULTICAST_AGGR_3_HSIO_S_AUX_HSIO_S_GPIO_BK_XHSIOS_GPIO3_IRQ>,
+			<&hsios_multicast_aggr_3 HSIOS_GIA_MULTICAST_AGGR_3_HSIO_S_AUX_HSIO_S_GPIO_BK_XHSIOS_GPIO4_IRQ>,
+			<&hsios_multicast_aggr_3 HSIOS_GIA_MULTICAST_AGGR_3_HSIO_S_AUX_HSIO_S_GPIO_BK_XHSIOS_UFS_PWR_EN_IRQ>,
+			<&hsios_multicast_aggr_3 HSIOS_GIA_MULTICAST_AGGR_3_HSIO_S_AUX_HSIO_S_GPIO_BK_XHSIOS_GPIO5_IRQ>,
+			<&hsios_multicast_aggr_3 HSIOS_GIA_MULTICAST_AGGR_3_HSIO_S_AUX_HSIO_S_GPIO_BK_XHSIOS_GPIO6_IRQ>,
+			<&hsios_multicast_aggr_3 HSIOS_GIA_MULTICAST_AGGR_3_HSIO_S_AUX_HSIO_S_GPIO_BK_XHSIOS_UFS_LSS_IRQ>;
+		irq-pad-mapping =
+			<XHSIOS_UFS_RESETB>,
+			<XHSIOS_GPIO7>,
+			<XHSIOS_GPIO8>,
+			<XHSIOS_GPIO0>,
+			<XHSIOS_GPIO1>,
+			<XHSIOS_GPIO2>,
+			<XHSIOS_GPIO3>,
+			<XHSIOS_GPIO4>,
+			<XHSIOS_UFS_PWR_EN>,
+			<XHSIOS_GPIO5>,
+			<XHSIOS_GPIO6>,
+			<XHSIOS_UFS_LSS>;
+
+		hsios_ufs_resetb: hsios_ufs_resetb {
+			pins = "XHSIOS_UFS_RESETB";
+			function = "hsios_gpio";
+			output-enable;
+			bias-disable;
+		};
+
+		hsios_ufs_pwr_en: hsios_ufs_pwr_en {
+			pins = "XHSIOS_UFS_PWR_EN";
+			function = "hsios_gpio";
+			output-enable;
+			bias-disable;
+		};
+
+		hsios_ufs_lss: hsios_ufs_lss {
+			pins = "XHSIOS_UFS_LSS";
+			function = "hsios_gpio";
+			output-enable;
+			bias-disable;
+		};
+	};
+
+	aoss_pinctrl: pinctrl@E500000 {
+		compatible = "google,mbu-aoss-pinctrl";
+		reg = <0 0xE500000 0 0x7B000>;
+
+		gpio-controller;
+		gpio-ranges = <&aoss_pinctrl 0 0 123>;
+		#gpio-cells = <2>;
+		gpio-reserved-ranges = <66 4>;
+
+		sswrp-wakeup-capable;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+
+		interrupts-extended =
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_UART0_RTSN_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_UART0_CTSN_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_UART3_RXD_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_UART3_TXD_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_UART3_RTSN_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_SPI0_MISO_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_SPI0_CSN_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_SPI1_MISO_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_SPI1_CSN_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_SPI4_SCLK_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_SPI4_MOSI_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_SPI4_MISO_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_SPI4_CSN_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_SPI3_MISO_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_SPI3_CSN_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_SPI2_MISO_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_SPI2_CSN_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_UART4_RXD_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_UART4_RTSN_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_UART4_CTSN_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_SPI5_MISO_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_SPI5_CSN_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_GPIO0_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_GPIO1_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_GPIO2_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_GPIO3_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_GPIO4_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_GPIO5_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_GPIO6_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_GPIO7_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_GPIO8_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_GPIO10_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_I2C0_SCL_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_I2C0_SDA_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_GPIO12_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_GPIO13_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_I3C1_SCL_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_I3C1_SDA_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_SPI6_MISO_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_SPI6_CSN_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_I2C3_SCL_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_I2C3_SDA_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO0_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO1_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_SOFT_PRE_OCP_TPU_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_SOFT_PRE_OCP_CPU1_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO2_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO3_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_CLKOUT0_EN_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_CLKOUT1_EN_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO4_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO5_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO6_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_M0_BOOT_SEL_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_OTP_EMU_MODE_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO7_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO8_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO9_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO10_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO11_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO17_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_SRC_OPT0_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_SRC_OPT1_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_SRC_OPT2_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_I2C2_SCL_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_I2C2_SDA_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_I2C4_SCL_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_SC_I2C4_SDA_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_SPI7_MISO_IRQ>,
+			<&aoss_aon_multicast_aggr_5 AOSS_GIA_MULTICAST_AGGR_5_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_AMB_SPI7_CSN_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_SPI0_SCLK_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_SPI0_MOSI_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_SPI0_MISO_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_SPI0_CSN_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPI0_IRQ>,
+			<&aoss_aon_multicast_aggr_6 AOSS_GIA_MULTICAST_AGGR_6_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_XOM_0_IRQ>,
+			<&aoss_aon_multicast_aggr_7 AOSS_GIA_MULTICAST_AGGR_7_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPI1_IRQ>,
+			<&aoss_aon_multicast_aggr_7 AOSS_GIA_MULTICAST_AGGR_7_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO12_IRQ>,
+			<&aoss_aon_multicast_aggr_7 AOSS_GIA_MULTICAST_AGGR_7_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO13_IRQ>,
+			<&aoss_aon_multicast_aggr_7 AOSS_GIA_MULTICAST_AGGR_7_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO14_IRQ>,
+			<&aoss_aon_multicast_aggr_7 AOSS_GIA_MULTICAST_AGGR_7_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO15_IRQ>,
+			<&aoss_aon_multicast_aggr_7 AOSS_GIA_MULTICAST_AGGR_7_AUX_AON_AON_PARTITION_IO_BANK_BK_XAOSS_CPM_GPIO16_IRQ>;
+		irq-pad-mapping =
+			<XAOSS_AMB_UART0_RTSn>,
+			<XAOSS_AMB_UART0_CTSn>,
+			<XAOSS_AMB_UART3_RXD>,
+			<XAOSS_AMB_UART3_TXD>,
+			<XAOSS_AMB_UART3_RTSn>,
+			<XAOSS_AMB_SPI0_MISO>,
+			<XAOSS_AMB_SPI0_CSn>,
+			<XAOSS_AMB_SPI1_MISO>,
+			<XAOSS_AMB_SPI1_CSn>,
+			<XAOSS_AMB_SPI4_SCLK>,
+			<XAOSS_AMB_SPI4_MOSI>,
+			<XAOSS_AMB_SPI4_MISO>,
+			<XAOSS_AMB_SPI4_CSn>,
+			<XAOSS_AMB_SPI3_MISO>,
+			<XAOSS_AMB_SPI3_CSn>,
+			<XAOSS_AMB_SPI2_MISO>,
+			<XAOSS_AMB_SPI2_CSn>,
+			<XAOSS_AMB_UART4_RXD>,
+			<XAOSS_AMB_UART4_RTSn>,
+			<XAOSS_AMB_UART4_CTSn>,
+			<XAOSS_AMB_SPI5_MISO>,
+			<XAOSS_AMB_SPI5_CSn>,
+			<XAOSS_SC_GPIO0>,
+			<XAOSS_SC_GPIO1>,
+			<XAOSS_SC_GPIO2>,
+			<XAOSS_SC_GPIO3>,
+			<XAOSS_SC_GPIO4>,
+			<XAOSS_SC_GPIO5>,
+			<XAOSS_SC_GPIO6>,
+			<XAOSS_SC_GPIO7>,
+			<XAOSS_SC_GPIO8>,
+			<XAOSS_SC_GPIO10>,
+			<XAOSS_SC_I2C0_SCL>,
+			<XAOSS_SC_I2C0_SDA>,
+			<XAOSS_SC_GPIO12>,
+			<XAOSS_SC_GPIO13>,
+			<XAOSS_SC_I3C1_SCL>,
+			<XAOSS_SC_I3C1_SDA>,
+			<XAOSS_SC_SPI6_MISO>,
+			<XAOSS_SC_SPI6_CSn>,
+			<XAOSS_SC_I2C3_SCL>,
+			<XAOSS_SC_I2C3_SDA>,
+			<XAOSS_CPM_GPIO0>,
+			<XAOSS_CPM_GPIO1>,
+			<XAOSS_CPM_SOFT_PRE_OCP_TPU>,
+			<XAOSS_CPM_SOFT_PRE_OCP_CPU1>,
+			<XAOSS_CPM_GPIO2>,
+			<XAOSS_CPM_GPIO3>,
+			<XAOSS_CPM_CLKOUT0_EN>,
+			<XAOSS_CPM_CLKOUT1_EN>,
+			<XAOSS_CPM_GPIO4>,
+			<XAOSS_CPM_GPIO5>,
+			<XAOSS_CPM_GPIO6>,
+			<XAOSS_CPM_M0_BOOT_SEL>,
+			<XAOSS_CPM_OTP_EMU_MODE>,
+			<XAOSS_CPM_GPIO7>,
+			<XAOSS_CPM_GPIO8>,
+			<XAOSS_CPM_GPIO9>,
+			<XAOSS_CPM_GPIO10>,
+			<XAOSS_CPM_GPIO11>,
+			<XAOSS_CPM_GPIO17>,
+			<XAOSS_CPM_SRC_OPT0>,
+			<XAOSS_CPM_SRC_OPT1>,
+			<XAOSS_CPM_SRC_OPT2>,
+			<XAOSS_SC_I2C2_SCL>,
+			<XAOSS_SC_I2C2_SDA>,
+			<XAOSS_SC_I2C4_SCL>,
+			<XAOSS_SC_I2C4_SDA>,
+			<XAOSS_AMB_SPI7_MISO>,
+			<XAOSS_AMB_SPI7_CSn>,
+			<XAOSS_CPM_SPI0_SCLK>,
+			<XAOSS_CPM_SPI0_MOSI>,
+			<XAOSS_CPM_SPI0_MISO>,
+			<XAOSS_CPM_SPI0_CSn>,
+			<XAOSS_CPM_GPI0>,
+			<XAOSS_CPM_XOM_0>,
+			<XAOSS_CPM_GPI1>,
+			<XAOSS_CPM_GPIO12>,
+			<XAOSS_CPM_GPIO13>,
+			<XAOSS_CPM_GPIO14>,
+			<XAOSS_CPM_GPIO15>,
+			<XAOSS_CPM_GPIO16>;
+
+		gia-routed-shared-irq =
+			<0>, /* XAOSS_AMB_UART0_RTSn */
+			<0>, /* XAOSS_AMB_UART0_CTSn */
+			<0>, /* XAOSS_AMB_UART3_RXD */
+			<0>, /* XAOSS_AMB_UART3_TXD */
+			<0>, /* XAOSS_AMB_UART3_RTSn */
+			<0>, /* XAOSS_AMB_SPI0_MISO */
+			<0>, /* XAOSS_AMB_SPI0_CSn */
+			<0>, /* XAOSS_AMB_SPI1_MISO */
+			<0>, /* XAOSS_AMB_SPI1_CSn */
+			<0>, /* XAOSS_AMB_SPI4_SCLK */
+			<0>, /* XAOSS_AMB_SPI4_MOSI */
+			<0>, /* XAOSS_AMB_SPI4_MISO */
+			<0>, /* XAOSS_AMB_SPI4_CSn */
+			<0>, /* XAOSS_AMB_SPI3_MISO */
+			<0>, /* XAOSS_AMB_SPI3_CSn */
+			<0>, /* XAOSS_AMB_SPI2_MISO */
+			<0>, /* XAOSS_AMB_SPI2_CSn */
+			<0>, /* XAOSS_AMB_UART4_RXD */
+			<0>, /* XAOSS_AMB_UART4_RTSn */
+			<0>, /* XAOSS_AMB_UART4_CTSn */
+			<0>, /* XAOSS_AMB_SPI5_MISO */
+			<0>, /* XAOSS_AMB_SPI5_CSn */
+			<0>, /* XAOSS_SC_GPIO0 */
+			<0>, /* XAOSS_SC_GPIO1 */
+			<0>, /* XAOSS_SC_GPIO2 */
+			<0>, /* XAOSS_SC_GPIO3 */
+			<0>, /* XAOSS_SC_GPIO4 */
+			<0>, /* XAOSS_SC_GPIO5 */
+			<0>, /* XAOSS_SC_GPIO6 */
+			<0>, /* XAOSS_SC_GPIO7 */
+			<0>, /* XAOSS_SC_GPIO8 */
+			<0>, /* XAOSS_SC_GPIO10 */
+			<0>, /* XAOSS_SC_I2C0_SCL */
+			<0>, /* XAOSS_SC_I2C0_SDA */
+			<1>, /* XAOSS_SC_GPIO12 */
+			<1>, /* XAOSS_SC_GPIO13 */
+			<0>, /* XAOSS_SC_I3C1_SCL */
+			<0>, /* XAOSS_SC_I3C1_SDA */
+			<0>, /* XAOSS_SC_SPI6_MISO */
+			<0>, /* XAOSS_SC_SPI6_CSn */
+			<0>, /* XAOSS_SC_I2C3_SCL */
+			<0>, /* XAOSS_SC_I2C3_SDA */
+			<0>, /* XAOSS_CPM_GPIO0 */
+			<0>, /* XAOSS_CPM_GPIO1 */
+			<0>, /* XAOSS_CPM_SOFT_PRE_OCP_TPU */
+			<0>, /* XAOSS_CPM_SOFT_PRE_OCP_CPU1 */
+			<0>, /* XAOSS_CPM_GPIO2 */
+			<0>, /* XAOSS_CPM_GPIO3 */
+			<0>, /* XAOSS_CPM_CLKOUT0_EN */
+			<0>, /* XAOSS_CPM_CLKOUT1_EN */
+			<0>, /* XAOSS_CPM_GPIO4 */
+			<0>, /* XAOSS_CPM_GPIO5 */
+			<0>, /* XAOSS_CPM_GPIO6 */
+			<0>, /* XAOSS_CPM_M0_BOOT_SEL */
+			<0>, /* XAOSS_CPM_OTP_EMU_MODE */
+			<0>, /* XAOSS_CPM_GPIO7 */
+			<0>, /* XAOSS_CPM_GPIO8 */
+			<0>, /* XAOSS_CPM_GPIO9 */
+			<0>, /* XAOSS_CPM_GPIO10 */
+			<0>, /* XAOSS_CPM_GPIO11 */
+			<0>, /* XAOSS_CPM_GPIO17 */
+			<0>, /* XAOSS_CPM_SRC_OPT0 */
+			<0>, /* XAOSS_CPM_SRC_OPT1 */
+			<0>, /* XAOSS_CPM_SRC_OPT2 */
+			<0>, /* XAOSS_SC_I2C2_SCL */
+			<0>, /* XAOSS_SC_I2C2_SDA */
+			<0>, /* XAOSS_SC_I2C4_SCL */
+			<0>, /* XAOSS_SC_I2C4_SDA */
+			<0>, /* XAOSS_AMB_SPI7_MISO */
+			<0>, /* XAOSS_AMB_SPI7_CSn */
+			<0>, /* XAOSS_CPM_SPI0_SCLK */
+			<0>, /* XAOSS_CPM_SPI0_MOSI */
+			<0>, /* XAOSS_CPM_SPI0_MISO */
+			<0>, /* XAOSS_CPM_SPI0_CSn */
+			<0>, /* XAOSS_CPM_GPI0 */
+			<0>, /* XAOSS_CPM_XOM_0 */
+			<0>, /* XAOSS_CPM_GPI1 */
+			<0>, /* XAOSS_CPM_GPIO12 */
+			<0>, /* XAOSS_CPM_GPIO13 */
+			<0>, /* XAOSS_CPM_GPIO14 */
+			<0>, /* XAOSS_CPM_GPIO15 */
+			<0>; /* XAOSS_CPM_GPIO16 */
+
+		aoss_pg_i2c0_2_wire_func: aoss_pg_i2c0_2_wire_func {
+			pins =  "XAOSS_AMB_SPI7_MISO",
+				"XAOSS_AMB_SPI7_CSn";
+			function = "aoss_i2c5";
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_i2c0_2_wire_sleep: aoss_pg_i2c0_2_wire_sleep {
+			pins =  "XAOSS_AMB_SPI7_MISO",
+				"XAOSS_AMB_SPI7_CSn";
+			function = "aoss_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_i3c0_2_wire_func: aoss_pg_i3c0_2_wire_func {
+			pins =  "XAOSS_AMB_SPI2_SCLK",
+				"XAOSS_AMB_SPI2_MOSI";
+			function = "aoss_i3c2";
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_i3c0_2_wire_sleep: aoss_pg_i3c0_2_wire_sleep {
+			pins =  "XAOSS_AMB_SPI2_SCLK",
+				"XAOSS_AMB_SPI2_MOSI";
+			function = "aoss_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_i3c1_2_wire_func: aoss_pg_i3c1_2_wire_func {
+			pins =  "XAOSS_AMB_SPI3_SCLK",
+				"XAOSS_AMB_SPI3_MOSI";
+			function = "aoss_i3c3";
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_i3c1_2_wire_sleep: aoss_pg_i3c1_2_wire_sleep {
+			pins =  "XAOSS_AMB_SPI3_SCLK",
+				"XAOSS_AMB_SPI3_MOSI";
+			function = "aoss_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_i3c2_2_wire_func: aoss_pg_i3c2_2_wire_func {
+			pins =  "XAOSS_AMB_SPI7_SCLK",
+				"XAOSS_AMB_SPI7_MOSI";
+			function = "aoss_i3c7";
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_i3c2_2_wire_sleep: aoss_pg_i3c2_2_wire_sleep {
+			pins =  "XAOSS_AMB_SPI7_SCLK",
+				"XAOSS_AMB_SPI7_MOSI";
+			function = "aoss_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_uart0_func: aoss_pg_uart0_func {
+			pins =  "XAOSS_AMB_UART0_RXD",
+				"XAOSS_AMB_UART0_TXD",
+				"XAOSS_AMB_UART0_RTSn",
+				"XAOSS_AMB_UART0_CTSn";
+			function = "aoss_uart0";
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_uart0_sleep: aoss_pg_uart0_sleep {
+			pins =  "XAOSS_AMB_UART0_RXD",
+				"XAOSS_AMB_UART0_TXD",
+				"XAOSS_AMB_UART0_RTSn",
+				"XAOSS_AMB_UART0_CTSn";
+			function = "aoss_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_uart1_func: aoss_pg_uart1_func {
+			pins =  "XAOSS_AMB_UART1_RXD",
+				"XAOSS_AMB_UART1_TXD";
+			function = "aoss_uart1";
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_uart1_sleep: aoss_pg_uart1_sleep {
+			pins =  "XAOSS_AMB_UART1_RXD",
+				"XAOSS_AMB_UART1_TXD";
+			function = "aoss_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_uart2_func: aoss_pg_uart2_func {
+			pins =  "XAOSS_AMB_UART3_RXD",
+				"XAOSS_AMB_UART3_TXD";
+			function = "aoss_uart3";
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_uart2_sleep: aoss_pg_uart2_sleep {
+			pins =  "XAOSS_AMB_UART3_RXD",
+				"XAOSS_AMB_UART3_TXD";
+			function = "aoss_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_uart3_func: aoss_pg_uart3_func {
+			pins =  "XAOSS_AMB_UART4_RXD",
+				"XAOSS_AMB_UART4_TXD";
+			function = "aoss_uart4";
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_uart3_sleep: aoss_pg_uart3_sleep {
+			pins =  "XAOSS_AMB_UART4_RXD",
+				"XAOSS_AMB_UART4_TXD";
+			function = "aoss_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_uart4_func: aoss_pg_uart4_func {
+			pins =  "XAOSS_AMB_SPI5_MISO",
+				"XAOSS_AMB_SPI5_MOSI";
+			function = "aoss_uart5";
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_uart4_sleep: aoss_pg_uart4_sleep {
+			pins =  "XAOSS_AMB_SPI5_MISO",
+				"XAOSS_AMB_SPI5_MOSI";
+			function = "aoss_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_uart5_func: aoss_pg_uart5_func {
+			pins =  "XAOSS_SC_I2C0_SCL",
+				"XAOSS_SC_I2C0_SDA";
+			function = "aoss_uart7";
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_uart5_sleep: aoss_pg_uart5_sleep {
+			pins =  "XAOSS_SC_I2C0_SCL",
+				"XAOSS_SC_I2C0_SDA";
+			function = "aoss_gpio";
+			bias-pull-up;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_spi0_clk_mosi_miso_func: aoss_pg_spi0_clk_mosi_miso_func {
+			pins =  "XAOSS_AMB_SPI0_SCLK",
+				"XAOSS_AMB_SPI0_MOSI",
+				"XAOSS_AMB_SPI0_MISO";
+			function = "aoss_spi0";
+			bias-pull-down;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_spi0_cs_gpio_func: aoss_pg_spi0_cs_gpio_func {
+			pins =  "XAOSS_AMB_SPI0_CSn";
+			function = "aoss_gpio";
+			output-enable;
+			input-enable;
+		};
+
+		aoss_pg_spi0_sleep: aoss_pg_spi0_sleep {
+			pins =  "XAOSS_AMB_SPI0_SCLK",
+				"XAOSS_AMB_SPI0_MOSI",
+				"XAOSS_AMB_SPI0_MISO",
+				"XAOSS_AMB_SPI0_CSn";
+			function = "aoss_gpio";
+			drive-open-drain;
+		};
+
+		aoss_pg_spi1_clk_mosi_miso_func: aoss_pg_spi1_clk_mosi_miso_func {
+			pins =  "XAOSS_AMB_SPI1_SCLK",
+				"XAOSS_AMB_SPI1_MOSI",
+				"XAOSS_AMB_SPI1_MISO";
+			function = "aoss_spi1";
+			bias-pull-down;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_spi1_cs_gpio_func: aoss_pg_spi1_cs_gpio_func {
+			pins =  "XAOSS_AMB_SPI1_CSn";
+			function = "aoss_gpio";
+			output-enable;
+			input-enable;
+		};
+
+		aoss_pg_spi1_sleep: aoss_pg_spi1_sleep {
+			pins =  "XAOSS_AMB_SPI1_SCLK",
+				"XAOSS_AMB_SPI1_MOSI",
+				"XAOSS_AMB_SPI1_MISO",
+				"XAOSS_AMB_SPI1_CSn";
+			function = "aoss_gpio";
+			drive-open-drain;
+		};
+
+		aoss_pg_spi2_clk_mosi_miso_func: aoss_pg_spi2_clk_mosi_miso_func {
+			pins =  "XAOSS_AMB_SPI2_SCLK",
+				"XAOSS_AMB_SPI2_MOSI",
+				"XAOSS_AMB_SPI2_MISO";
+			function = "aoss_spi2";
+			bias-pull-down;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_spi2_cs_gpio_func: aoss_pg_spi2_cs_gpio_func {
+			pins =  "XAOSS_AMB_SPI2_CSn";
+			function = "aoss_gpio";
+			output-enable;
+			input-enable;
+		};
+
+		aoss_pg_spi2_sleep: aoss_pg_spi2_sleep {
+			pins =  "XAOSS_AMB_SPI2_SCLK",
+				"XAOSS_AMB_SPI2_MOSI",
+				"XAOSS_AMB_SPI2_MISO",
+				"XAOSS_AMB_SPI2_CSn";
+			function = "aoss_gpio";
+			drive-open-drain;
+		};
+
+		aoss_pg_spi3_clk_mosi_miso_func: aoss_pg_spi3_clk_mosi_miso_func {
+			pins =  "XAOSS_AMB_SPI3_SCLK",
+				"XAOSS_AMB_SPI3_MOSI",
+				"XAOSS_AMB_SPI3_MISO";
+			function = "aoss_spi3";
+			bias-pull-down;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_spi3_cs_gpio_func: aoss_pg_spi3_cs_gpio_func {
+			pins =  "XAOSS_AMB_SPI3_CSn";
+			function = "aoss_gpio";
+			output-enable;
+			input-enable;
+		};
+
+		aoss_pg_spi3_sleep: aoss_pg_spi3_sleep {
+			pins =  "XAOSS_AMB_SPI3_SCLK",
+				"XAOSS_AMB_SPI3_MOSI",
+				"XAOSS_AMB_SPI3_MISO",
+				"XAOSS_AMB_SPI3_CSn";
+			function = "aoss_gpio";
+			drive-open-drain;
+		};
+
+		aoss_pg_spi4_clk_mosi_miso_func: aoss_pg_spi4_clk_mosi_miso_func {
+			pins =  "XAOSS_AMB_SPI4_SCLK",
+				"XAOSS_AMB_SPI4_MOSI",
+				"XAOSS_AMB_SPI4_MISO";
+			function = "aoss_spi4";
+			bias-pull-down;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_spi4_cs_gpio_func: aoss_pg_spi4_cs_gpio_func {
+			pins =  "XAOSS_AMB_SPI4_CSn";
+			function = "aoss_gpio";
+			output-enable;
+			input-enable;
+		};
+
+		aoss_pg_spi4_sleep: aoss_pg_spi4_sleep {
+			pins =  "XAOSS_AMB_SPI4_SCLK",
+				"XAOSS_AMB_SPI4_MOSI",
+				"XAOSS_AMB_SPI4_MISO",
+				"XAOSS_AMB_SPI4_CSn";
+			function = "aoss_gpio";
+			drive-open-drain;
+		};
+
+		aoss_pg_spi5_clk_mosi_miso_func: aoss_pg_spi5_clk_mosi_miso_func {
+			pins =  "XAOSS_AMB_SPI5_SCLK",
+				"XAOSS_AMB_SPI5_MOSI",
+				"XAOSS_AMB_SPI5_MISO";
+			function = "aoss_spi5";
+			bias-pull-down;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_spi5_cs_gpio_func: aoss_pg_spi5_cs_gpio_func {
+			pins =  "XAOSS_AMB_SPI5_CSn";
+			function = "aoss_gpio";
+			output-enable;
+			input-enable;
+		};
+
+		aoss_pg_spi5_sleep: aoss_pg_spi5_sleep {
+			pins =  "XAOSS_AMB_SPI5_SCLK",
+				"XAOSS_AMB_SPI5_MOSI",
+				"XAOSS_AMB_SPI5_MISO",
+				"XAOSS_AMB_SPI5_CSn";
+			function = "aoss_gpio";
+			drive-open-drain;
+		};
+
+		aoss_pg_spi6_clk_mosi_miso_func: aoss_pg_spi6_clk_mosi_miso_func {
+			pins =  "XAOSS_AMB_SPI7_SCLK",
+				"XAOSS_AMB_SPI7_MOSI",
+				"XAOSS_AMB_SPI7_MISO";
+			function = "aoss_spi7";
+			bias-pull-down;
+			output-disable;
+			input-enable;
+		};
+
+		aoss_pg_spi6_cs_gpio_func: aoss_pg_spi6_cs_gpio_func {
+			pins =  "XAOSS_AMB_SPI7_CSn";
+			function = "aoss_gpio";
+			output-enable;
+			input-enable;
+		};
+
+		aoss_pg_spi6_sleep: aoss_pg_spi6_sleep {
+			pins =  "XAOSS_AMB_SPI7_SCLK",
+				"XAOSS_AMB_SPI7_MOSI",
+				"XAOSS_AMB_SPI7_MISO",
+				"XAOSS_AMB_SPI7_CSn";
+			function = "aoss_gpio";
+			drive-open-drain;
+		};
+	};
+
+	gdmc_pinctrl: pinctrl@6480000 {
+		compatible = "google,mbu-gdmc-pinctrl";
+		reg = <0 0x6480000 0 0x15000>;
+
+		gpio-controller;
+		gpio-ranges = <&gdmc_pinctrl 0 0 21>;
+		#gpio-cells = <2>;
+		gpio-reserved-ranges = <7 8>;
+
+		sswrp-wakeup-capable;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+
+		interrupts-extended =
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4__GDMC_AOSS_INTR_XGDMC_UART0_RXD_IRQ_0>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4__GDMC_AOSS_INTR_XGDMC_UART0_TXD_IRQ_0>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4__GDMC_AOSS_INTR_XGDMC_IN_DEBUG_1_IRQ_0>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4__GDMC_AOSS_INTR_XGDMC_IN_DEBUG_0_IRQ_0>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4__GDMC_AOSS_INTR_XGDMC_DEBUG_DEFAULT_0_IRQ_0>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4__GDMC_AOSS_INTR_XGDMC_CTI_0_IRQ_0>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4__GDMC_AOSS_INTR_XGDMC_CTI_1_IRQ_0>;
+		irq-pad-mapping =
+			<XGDMC_UART0_RXD>,
+			<XGDMC_UART0_TXD>,
+			<XGDMC_IN_DEBUG_1>,
+			<XGDMC_IN_DEBUG_0>,
+			<XGDMC_DEBUG_DEFAULT_0>,
+			<XGDMC_CTI_0>,
+			<XGDMC_CTI_1>;
+
+	};
+
+	pcie_pinctrl: pinctrl@49BE000 {
+		compatible = "google,mbu-pcie-pinctrl";
+		reg = <0 0x49BE000 0 0x5000>;
+
+		gpio-controller;
+		gpio-ranges = <&pcie_pinctrl 0 0 5>;
+		#gpio-cells = <2>;
+		gpio-reserved-ranges = <4 1>;
+
+		power-domains = <&sswrp_pcie_pd>;
+		power-domain-names = "csr_access_pd";
+
+		runtime-pm-capable;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		interrupts-extended =
+			<&pcie_multicast_aggr_5 PCIE_GIA_MULTICAST_AGGR_5_AUX_BK_XPCIE_PCIE0_CLKREQN0_IRQ>,
+			<&pcie_multicast_aggr_5 PCIE_GIA_MULTICAST_AGGR_5_AUX_BK_XPCIE_PCIE0_PERSTN0_IRQ>,
+			<&pcie_multicast_aggr_5 PCIE_GIA_MULTICAST_AGGR_5_AUX_BK_XPCIE_PCIE0_CLKREQN1_IRQ>,
+			<&pcie_multicast_aggr_5 PCIE_GIA_MULTICAST_AGGR_5_AUX_BK_XPCIE_PCIE0_PERSTN1_IRQ>;
+		irq-pad-mapping =
+				<XPCIE_PCIE0_CLKREQN0>,
+				<XPCIE_PCIE0_PERSTN0>,
+				<XPCIE_PCIE0_CLKREQN1>,
+				<XPCIE_PCIE0_PERSTN1>;
+
+		pcie_pcie0_clkreq0_func: pcie-pcie0-clkreq0-func {
+			pins = "XPCIE_PCIE0_CLKREQN0";
+			function = "pcie_pcie0";
+			bias-pull-up;
+		};
+
+		pcie_pcie0_clkreq0_idle: pcie-pcie0-clkreq0-idle {
+			pins = "XPCIE_PCIE0_CLKREQN0";
+			function = "pcie_gpio";
+			bias-disable;
+		};
+
+		pcie_pcie0_perstn0: pcie-pcie0-perstn0 {
+			pins = "XPCIE_PCIE0_PERSTN0";
+			function = "pcie_gpio";
+			output-enable;
+		};
+
+		pcie_pcie0_clkreq1_func: pcie-pcie0-clkreq1-func {
+			pins = "XPCIE_PCIE0_CLKREQN1";
+			function = "pcie_pcie0";
+			bias-pull-up;
+		};
+
+		pcie_pcie0_clkreq1_idle: pcie-pcie0-clkreq1-idle {
+			pins = "XPCIE_PCIE0_CLKREQN1";
+			function = "pcie_gpio";
+		};
+
+		pcie_pcie0_perstn1: pcie-pcie0-perstn1 {
+			pins = "XPCIE_PCIE0_PERSTN1";
+			function = "pcie_gpio";
+			output-enable;
+		};
+
+		pcie_atb0: pcie-atb0 {
+			pins = "XPCIE_ATB0";
+			function = "pcie_atb0";
+			output-enable;
+		};
+	};
+
+	aoss_audio_pinctrl: pinctrl@E680000 {
+		compatible = "google,mbu-aoss-audio-pinctrl";
+		reg = <0 0xE680000 0 0x20000>;
+
+		gpio-controller;
+		gpio-ranges = <&aoss_audio_pinctrl 0 0 30>;
+		#gpio-cells = <2>;
+		gpio-reserved-ranges = <1 1>, <3 1>, <5 1>, <7 1>, <10 1>,
+				       <14 1>, <18 1>, <27 1>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		interrupts-extended =
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_AON_STBY_AUDIO_IO_BANK_AUDIO_BK_XAOSS_SC_PDM3_MIC_IN_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_AON_STBY_AUDIO_IO_BANK_AUDIO_BK_XAOSS_SC_TDM0_WS_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_AON_STBY_AUDIO_IO_BANK_AUDIO_BK_XAOSS_SC_I2S1_BCLK_IRQ>,
+			<&aoss_aon_multicast_aggr_4 AOSS_GIA_MULTICAST_AGGR_4_AUX_AON_AON_PARTITION_AON_STBY_AUDIO_IO_BANK_AUDIO_BK_XAOSS_SC_I2S1_WS_IRQ>;
+		irq-pad-mapping =
+			<XAOSS_SC_PDM3_MIC_IN>,
+			<XAOSS_SC_TDM0_WS>,
+			<XAOSS_SC_I2S1_BCLK>,
+			<XAOSS_SC_I2S1_WS>;
+	};
+};

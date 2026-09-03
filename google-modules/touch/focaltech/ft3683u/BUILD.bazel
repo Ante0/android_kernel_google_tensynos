@@ -1,27 +1,48 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+# the focaltech touchscreen drivers.
 
-kernel_module(
-    name = "ft3683u",
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "focal_touch",
     srcs = glob([
-        "**/*.c",
         "**/*.h",
     ]) + [
-        "Kbuild",
-        "//private/google-modules/soc/gs:gs_soc_headers",
-        "//private/google-modules/touch/common:headers",
+        "focaltech_core.c",
+        "focaltech_esdcheck.c",
+        "focaltech_ex_fun.c",
+        "focaltech_ex_mode.c",
+        "focaltech_flash.c",
+        "focaltech_flash/focaltech_upgrade_ft3683u.c",
+        "focaltech_gesture.c",
+        "focaltech_point_report_check.c",
+        "focaltech_spi.c",
+        "focaltech_test/focaltech_test.c",
+        "focaltech_test/focaltech_test_ini.c",
+        "focaltech_test/supported_ic/focaltech_test_ft3683u.c",
     ],
-    outs = [
-        "focal_touch.ko",
-    ],
+    out = "focal_touch.ko",
+    conditional_srcs = {
+        "CONFIG_GOOG_TOUCH_INTERFACE": {
+            True: [
+                "focaltech_goog.c",
+            ],
+        },
+    },
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
     ],
     deps = [
-        "//private/google-modules/soc/gs:gs_soc_module",
-        "//private/google-modules/touch/common:touch.common",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/touch/common:ddk_headers",
+        "//private/google-modules/touch/common:goog_touch_interface",
     ],
 )

@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+/*
+ * cubs proto1 touch device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+#include "google-base/malibu-focaltech-touch.dtsi"
+
+&spitouch {
+	status = "okay";
+
+	compatible = "focaltech,ts", "synaptics,tcm-spi";
+
+	goog,panel_map = <&google_gs_dcsda 0>, <&google_gs_dcsdb 1>,
+		<&google_gs_flea 2>, <&google_gs_fleb 3>;
+	goog,firmware_names = "focaltech_4cs4_fw.bin", "focaltech_4cs4_fw_b.bin",
+		"focaltech_fl_fw.bin", "focaltech_fl_fw_b.bin";
+	goog,test_limits_names = "focaltech_testconf_4cs4.ini", "focaltech_testconf_4cs4_b.ini",
+		"focaltech_testconf_fl.ini", "focaltech_testconf_fl_b.ini";
+
+	/delete-property/ goog,tbn-enabled;
+	/delete-property/ goog,offload-enabled;
+};
+

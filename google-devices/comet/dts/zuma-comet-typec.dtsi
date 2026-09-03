@@ -16,6 +16,8 @@
 #include "zuma/max777x9-tcpc.dtsi"
 };
 
+#include "zumapro/zumapro-typec.dtsi"
+
 &max77759tcpc {
 	bcl-usb-voting;
 	pinctrl-0 = <&usb_pd_irq>;
@@ -28,6 +30,7 @@
 				       PDO_FIXED_DUAL_ROLE)
 			     PDO_FIXED(9000, 2200, 0)
 			     PDO_PPS_APDO(5000, 21000, 3000)>;
+		charging-adapter-pdp-milliwatt = <45000>;
 	};
 };
 

@@ -172,6 +172,7 @@ struct exynos_dqe {
 	struct decon_device *decon;
 	struct class *dqe_class;
 	struct device *dev;
+	struct histogram_bins *hist_aligned_bins;
 
 	struct dither_debug_override cgc_dither_override;
 	struct dither_debug_override disp_dither_override;
@@ -211,6 +212,7 @@ void exynos_dqe_update(struct exynos_dqe *dqe, struct exynos_dqe_state *state,
 void exynos_dqe_reset(struct exynos_dqe *dqe);
 void exynos_dqe_hibernation_enter(struct exynos_dqe *dqe);
 struct exynos_dqe *exynos_dqe_register(struct decon_device *decon);
+void exynos_dqe_unregister(struct exynos_dqe *dqe);
 void exynos_dqe_save_lpd_data(struct exynos_dqe *dqe);
 void exynos_dqe_restore_lpd_data(struct exynos_dqe *dqe);
 void exynos_atc_update(struct exynos_dqe *dqe, struct exynos_dqe_state *state);

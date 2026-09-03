@@ -449,7 +449,7 @@ static int rt4539_parse_dt(struct rt4539 *rt)
 }
 #endif
 
-static int rt4539_probe(struct i2c_client *cl, const struct i2c_device_id *id)
+static int rt4539_probe(struct i2c_client *cl)
 {
 	struct rt4539 *rt;
 	int ret;

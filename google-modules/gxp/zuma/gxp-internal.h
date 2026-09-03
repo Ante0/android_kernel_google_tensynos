@@ -24,6 +24,7 @@
 #include <linux/spinlock.h>
 #include <linux/types.h>
 
+#include <gcip/gcip-coresight-remote.h>
 #include <gcip/gcip-memory.h>
 #include <gcip/gcip-resource-accessor.h>
 #include <gcip/gcip-thermal.h>
@@ -155,9 +156,6 @@ struct gxp_dev {
 	/* Next virtual device ID. */
 	atomic_t next_vdid;
 
-	/* To manage DMA fences. */
-	struct gcip_dma_fence_manager *gfence_mgr;
-
 	/* To save device properties */
 	struct gxp_dev_prop device_prop;
 
@@ -279,6 +277,14 @@ struct gxp_dev {
 	 * This callback is optional.
 	 */
 	void (*lpm_init)(struct gxp_dev *gxp);
+	/*
+	 * To support CoreSight remote functionality.
+	 *
+	 * These callbacks are optional.
+	 */
+	void (*coresight_remote_init)(struct gxp_dev *gxp);
+	void (*coresight_remote_exit)(struct gxp_dev *gxp);
+	void (*coresight_remote_restore)(struct gxp_dev *gxp);
 };
 
 /* GXP device IO functions */

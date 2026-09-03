@@ -15,7 +15,7 @@
 #include <generated/utsrelease.h>
 #include <soc/google/debug-snapshot.h>
 #include <soc/google/pixel-suspend-diag.h>
-#include "../../../../drivers/android/debug_kinfo.h"
+#include "drivers/android/debug_kinfo.h"
 
 #define UPDATE_VENDOR_KERNEL_INFO_PERIOD_MS		10
 
@@ -41,6 +41,9 @@ struct vendor_kernel_info {
 	/* For debug snapshot */
 	char dss_freq_name[DSS_FREQ_MAX_SIZE][DSS_FREQ_MAX_NAME_SIZE];
 	u32 dss_freq_size;
+	/* For kernel virt_to_phys */
+	u32 pgtable_levels;
+	u32 page_shift;
 } __packed;
 
 struct vendor_kernel_all_info {
@@ -93,6 +96,11 @@ static void update_vendor_kernel_all_info(void)
 	str_idx = strstr(UTS_RELEASE, "-ab");
 	if (str_idx)
 		strlcat(info->uts_release, str_idx, total_len);
+
+	/* dirty build w/o -g and -ab */
+	str_idx = strstr(UTS_RELEASE, "-maybe-dirty");
+	if (str_idx)
+		strscpy(info->uts_release, UTS_RELEASE, total_len);
 #else
 	strscpy(info->uts_release, UTS_RELEASE, total_len);
 #endif
@@ -106,6 +114,8 @@ static void update_vendor_kernel_all_info(void)
 	info->page_end = PAGE_END;
 	info->phys_offset = PHYS_OFFSET;
 	info->kimage_voffset = kimage_voffset;
+	info->pgtable_levels = CONFIG_PGTABLE_LEVELS;
+	info->page_shift = PAGE_SHIFT;
 
 	dbg_snapshot_get_freq_name(info->dss_freq_name);
 	info->dss_freq_size = dbg_snapshot_get_freq_size();
@@ -152,6 +162,7 @@ static int debug_snapshot_debug_kinfo_probe(struct platform_device *pdev)
 	}
 
 	rmem = of_reserved_mem_lookup(mem_region);
+	of_node_put(mem_region);
 	if (!rmem) {
 		dev_err(&pdev->dev, "no such reserved mem of node %pOF\n",
 				dev_of_node(&pdev->dev));

@@ -23,12 +23,17 @@
 #define gbms_err(p, fmt, ...)	\
 	pr_err("%s: " fmt, gbms_owner(p), ##__VA_ARGS__)
 
+#pragma clang diagnostic ignored "-Wenum-conversion"
+
+#include <linux/cleanup.h>
 #include <linux/kernel.h>
 #include <linux/printk.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/of.h>
 #include <linux/regmap.h>
+
+#include <misc/logbuffer.h>
 
 #include "google_psy.h"
 #include "google_bms.h"
@@ -48,30 +53,22 @@
 #define GBMS_STORAGE_READ_DELAY_MS	1000
 #define GBMS_STORAGE_READ_RETRIES	20
 
-/* the number should be the same as GBMS_AACT_NB_LIMITS_MAX */
-static aact_limits_profiles_t aact_all_limits = {
-    .temp_limits = {
-        "google,aact-temp-limits",
-        "google,aact-temp-limits-1",
-        "google,aact-temp-limits-2",
-        "google,aact-temp-limits-3",
-        "google,aact-temp-limits-4"
-    },
-    .cv_limits = {
-        "google,aact-cv-limits",
-        "google,aact-cv-limits-1",
-        "google,aact-cv-limits-2",
-        "google,aact-cv-limits-3",
-        "google,aact-cv-limits-4"
-    },
-    .cc_limits = {
-        "google,aact-cc-limits",
-        "google,aact-cc-limits-1",
-        "google,aact-cc-limits-2",
-        "google,aact-cc-limits-3",
-        "google,aact-cc-limits-4"
-    }
+/*************************
+ * WCIN PSY REGISTRATION   *
+ *************************/
+
+const enum power_supply_property google_wcin_props[GOOGLE_WLCIN_PROP_SIZE] = {
+	POWER_SUPPLY_PROP_PRESENT,
+	POWER_SUPPLY_PROP_ONLINE,
+	POWER_SUPPLY_PROP_VOLTAGE_NOW,
+	POWER_SUPPLY_PROP_CURRENT_MAX,
+	POWER_SUPPLY_PROP_CURRENT_NOW,
+	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
+	POWER_SUPPLY_PROP_VOLTAGE_MAX,
+	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
+	/* Increment GOOGLE_WLCIN_PROP_SIZE if adding new value */
 };
+EXPORT_SYMBOL(google_wcin_props);
 
 /* same as POWER_SUPPLY_CHARGE_TYPE_TEXT */
 static const char *psy_chgt_str[] = {
@@ -148,7 +145,7 @@ struct device_node *gbms_batt_id_node(struct device_node *config_node)
 
 	if (ret < 0) {
 		pr_warn("Failed to get batt_id (%d)\n", ret);
-		return config_node;
+		return of_node_get(config_node);
 	}
 
 	for_each_child_of_node(config_node, child_node) {
@@ -161,7 +158,7 @@ struct device_node *gbms_batt_id_node(struct device_node *config_node)
 			return child_node;
 	}
 
-	return config_node;
+	return of_node_get(config_node);
 }
 EXPORT_SYMBOL_GPL(gbms_batt_id_node);
 
@@ -179,6 +176,7 @@ void gbms_init_chg_table(struct gbms_chg_profile *profile,
 	int temp_nb_count = profile->temp_nb_limits - 1;
 	u32 cccm_array_size = (profile->temp_nb_limits - 1)
 			       * profile->volt_nb_limits;
+	struct device_node *batt_id_node __free(device_node) = NULL;
 
 	profile->capacity_ma = capacity_ma;
 
@@ -190,6 +188,8 @@ void gbms_init_chg_table(struct gbms_chg_profile *profile,
 		       sizeof(s32) * cccm_array_size);
 		goto chg_table;
 	}
+
+	batt_id_node = gbms_batt_id_node(node);
 
 	/* load default profile */
 	if (!profile->aact_init_profile) {
@@ -204,7 +204,7 @@ void gbms_init_chg_table(struct gbms_chg_profile *profile,
 
 		aact_cc_limits = aact_all_limits.cc_limits[GBMS_AACT_IDX(profile)];
 
-		ret = of_property_read_u32_array(gbms_batt_id_node(node), aact_cc_limits,
+		ret = of_property_read_u32_array(batt_id_node, aact_cc_limits,
 						 profile->cccm_limits,
 						 cccm_array_size);
 		if (ret < 0)
@@ -239,6 +239,7 @@ static int gbms_read_cccm_limits(struct gbms_chg_profile *profile,
 				 struct device_node *node)
 {
 	int ret;
+	struct device_node *batt_id_node __free(device_node) = NULL;
 
 	profile->temp_nb_limits =
 	    of_property_count_elems_of_size(node, "google,chg-temp-limits",
@@ -262,8 +263,10 @@ static int gbms_read_cccm_limits(struct gbms_chg_profile *profile,
 		return ret;
 	}
 
+	batt_id_node = gbms_batt_id_node(node);
+
 	profile->volt_nb_limits =
-	    of_property_count_elems_of_size(gbms_batt_id_node(node), "google,chg-cv-limits",
+	    of_property_count_elems_of_size(batt_id_node, "google,chg-cv-limits",
 					    sizeof(u32));
 	/* google,chg-cv-limits does not exist in the child_node */
 	if (profile->volt_nb_limits <= 0)
@@ -280,7 +283,7 @@ static int gbms_read_cccm_limits(struct gbms_chg_profile *profile,
 		       GBMS_CHG_VOLT_NB_LIMITS_MAX);
 		return -EINVAL;
 	}
-	ret = of_property_read_u32_array(gbms_batt_id_node(node), "google,chg-cv-limits",
+	ret = of_property_read_u32_array(batt_id_node, "google,chg-cv-limits",
 					 (u32 *)profile->volt_limits,
 					 profile->volt_nb_limits);
 	/* google,chg-cv-limits does not exist in the child_node */
@@ -319,7 +322,7 @@ static int gbms_read_cccm_limits(struct gbms_chg_profile *profile,
 }
 
 int gbms_read_aacr_limits(struct gbms_chg_profile *profile,
-			  struct device_node *node)
+			  const struct device_node *node)
 {
 	int ret = 0, cycle_nb_limits = 0, fade10_nb_limits = 0;
 
@@ -443,18 +446,33 @@ no_data:
 }
 EXPORT_SYMBOL_GPL(gbms_read_aafv_limits);
 
+/*
+ * for example:
+ *     google,aafv-ref-cycles = <200 400 600 800 1000>;
+ *     google,aafv-ref-offset = < 20  40  60  80  100>;
+ *
+ *   0 ~ 199 cycles: return 0 (mV)
+ * 200 ~ 399 cycles: return 20 (mV)
+ * 400 ~ 599 cycles: return 40 (mV)
+ * 600 ~ 799 cycles: return 60 (mV)
+ * 800 ~ 999 cycles: return 80 (mV)
+ * 1000+     cycles: return 100 (mV)
+ */
 int gbms_aafv_get_offset(const struct gbms_chg_profile *profile, const int cycles)
 {
-	int idx;
+	int idx, offset = 0;
 
 	if (profile->aafv_nb_limits == 0 || cycles < 0)
 		return 0;
 
-	for (idx = 0; idx < profile->aafv_nb_limits - 1; idx++)
-		if (cycles < profile->aafv_cycles[idx])
+	for (idx = 0; idx < profile->aafv_nb_limits; ++idx) {
+		if (cycles >= profile->aafv_cycles[idx])
+			offset = profile->aafv_offsets[idx];
+		else
 			break;
+	}
 
-	return profile->aafv_offsets[idx];
+	return offset;
 }
 EXPORT_SYMBOL_GPL(gbms_aafv_get_offset);
 
@@ -479,115 +497,98 @@ int gbms_aafv_get_last_entry(const struct gbms_chg_profile *profile)
 }
 EXPORT_SYMBOL_GPL(gbms_aafv_get_last_entry);
 
-int gbms_read_aacc_chg_weights(struct gbms_chg_profile *profile,
-			       struct device_node *node)
+int gbms_read_aacc_weights(struct gbms_chg_profile *profile, struct device_node *node,
+			   bool is_charge, enum aacc_mode mode)
 {
+	const int dir_idx = is_charge ? 0 : 1;
+	const int mode_idx = (mode == AACC_MODE_TD) ? 1 : 0;
+	struct aacc_weight_profile * const aacc_p_map[2][2] = {
+		{&profile->aacc_cycles.chg, &profile->aacc_cycles.dsg},
+		{&profile->aacc_cycles.td_chg, &profile->aacc_cycles.td_dsg},
+	};
+	const char * const prop_temp_map[2][2] = {
+		{"google,aacc-chg-temp", "google,aacc-dsg-temp"},
+		{"google,aacc-td-chg-temp", "google,aacc-td-dsg-temp"},
+	};
+	const char * const prop_weight_map[2][2] = {
+		{"google,aacc-chg-weights", "google,aacc-dsg-weights"},
+		{"google,aacc-td-chg-weights", "google,aacc-td-dsg-weights"},
+	};
+	const char * const err_tag_map[2][2] = {
+		{"aacc-chg", "aacc-dsg"},
+		{"aacc-td-chg", "aacc-td-dsg"},
+	};
+	struct aacc_weight_profile *aacc_p;
+	const char *prop_temp, *prop_weight, *err_tag;
 	u32 weight_size, mem_size;
-	int ret = 0;
+	int ret;
 
 	if (!profile || !node)
 		return -ENODEV;
 
-	profile->aacc_cycles.chg.temp_nb_limits =
-	    of_property_count_elems_of_size(node, "google,aacc-chg-temp", sizeof(u32));
-	if (profile->aacc_cycles.chg.temp_nb_limits <= 0) {
-		ret = profile->aacc_cycles.chg.temp_nb_limits;
-		gbms_err(profile, "cannot read aacc-chg-temp, ret=%d\n", ret);
+	/*
+	 * select target fields and property names based on mode and direction
+	 * dir_idx : 0 for charge, 1 for discharge
+	 * mode_idx: 0 for AACC_MODE_DEFAULT, 1 for AACC_MODE_TD
+	 */
+	aacc_p = aacc_p_map[mode_idx][dir_idx];
+	prop_temp = prop_temp_map[mode_idx][dir_idx];
+	prop_weight = prop_weight_map[mode_idx][dir_idx];
+	err_tag = err_tag_map[mode_idx][dir_idx];
+
+	aacc_p->temp_nb_limits =
+	    of_property_count_elems_of_size(node, prop_temp, sizeof(u32));
+	if (aacc_p->temp_nb_limits <= 0) {
+		ret = aacc_p->temp_nb_limits;
+		gbms_err(profile, "cannot read %s-temp, ret=%d\n", err_tag, ret);
 		return -EINVAL;
 	}
-	if (profile->aacc_cycles.chg.temp_nb_limits > GBMS_AACC_TEMP_NB_MAX) {
-		gbms_err(profile, "chg-temp-nb-limits exceeds driver max: %d\n",
-			 GBMS_AACC_TEMP_NB_MAX);
+	if (aacc_p->temp_nb_limits > GBMS_AACC_TEMP_NB_MAX) {
+		gbms_err(profile, "%s-temp-nb-limits exceeds driver max: %d\n",
+			 err_tag, GBMS_AACC_TEMP_NB_MAX);
 		return -EINVAL;
 	}
-	ret = of_property_read_u32_array(node, "google,aacc-chg-temp",
-					 (u32 *)profile->aacc_cycles.chg.temp_limits,
-					 profile->aacc_cycles.chg.temp_nb_limits);
+	ret = of_property_read_u32_array(node, prop_temp,
+					 (u32 *)aacc_p->temp_limits,
+					 aacc_p->temp_nb_limits);
 	if (ret < 0) {
-		gbms_err(profile, "cannot read aacc-chg-temp limits, ret=%d\n", ret);
+		gbms_err(profile, "cannot read %s-temp limits, ret=%d\n", err_tag, ret);
 		return -EINVAL;
 	}
 
-	weight_size = (profile->aacc_cycles.chg.temp_nb_limits - 1) * GBMS_AACC_SOC_SIZE;
+	weight_size = (aacc_p->temp_nb_limits - 1) * GBMS_AACC_SOC_SIZE;
 	mem_size = sizeof(s32) * weight_size;
 
-	profile->aacc_cycles.chg.weight_limits = kzalloc(mem_size, GFP_KERNEL);
-	if (!profile->aacc_cycles.chg.weight_limits)
+	aacc_p->weight_limits = kzalloc(mem_size, GFP_KERNEL);
+	if (!aacc_p->weight_limits)
 		return -ENOMEM;
 
-	ret = of_property_read_u32_array(node, "google,aacc-chg-weights",
-					 profile->aacc_cycles.chg.weight_limits,
+	ret = of_property_read_u32_array(node, prop_weight,
+					 aacc_p->weight_limits,
 					 weight_size);
 	if (ret < 0) {
-		gbms_err(profile, "cannot read chg-cc-limits table, ret=%d\n", ret);
-		kfree(profile->aacc_cycles.chg.weight_limits);
-		profile->aacc_cycles.chg.weight_limits = 0;
+		gbms_err(profile, "cannot read %s-cc-limits table, ret=%d\n", err_tag, ret);
+		kfree(aacc_p->weight_limits);
+		aacc_p->weight_limits = 0;
 		return -EINVAL;
 	}
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(gbms_read_aacc_chg_weights);
+EXPORT_SYMBOL_GPL(gbms_read_aacc_weights);
 
-int gbms_read_aacc_dsg_weights(struct gbms_chg_profile *profile,
-			       struct device_node *node)
-{
-	u32 weight_size, mem_size;
-	int ret = 0;
-
-	if (!profile || !node)
-		return -ENODEV;
-
-	profile->aacc_cycles.dsg.temp_nb_limits =
-	    of_property_count_elems_of_size(node, "google,aacc-dsg-temp", sizeof(u32));
-	if (profile->aacc_cycles.dsg.temp_nb_limits <= 0) {
-		ret = profile->aacc_cycles.dsg.temp_nb_limits;
-		gbms_err(profile, "cannot read aacc-dsg-temp, ret=%d\n", ret);
-		return -EINVAL;
-	}
-	if (profile->aacc_cycles.dsg.temp_nb_limits > GBMS_AACC_TEMP_NB_MAX) {
-		gbms_err(profile, "dsg-temp-nb-limits exceeds driver max: %d\n",
-			 GBMS_AACC_TEMP_NB_MAX);
-		return -EINVAL;
-	}
-	ret = of_property_read_u32_array(node, "google,aacc-dsg-temp",
-					 (u32 *)profile->aacc_cycles.dsg.temp_limits,
-					 profile->aacc_cycles.dsg.temp_nb_limits);
-	if (ret < 0) {
-		gbms_err(profile, "cannot read aacc-dsg-temp limits, ret=%d\n", ret);
-		return -EINVAL;
-	}
-
-	weight_size = (profile->aacc_cycles.dsg.temp_nb_limits - 1) * GBMS_AACC_SOC_SIZE;
-	mem_size = sizeof(s32) * weight_size;
-
-	profile->aacc_cycles.dsg.weight_limits = kzalloc(mem_size, GFP_KERNEL);
-	if (!profile->aacc_cycles.dsg.weight_limits)
-		return -ENOMEM;
-
-	ret = of_property_read_u32_array(node, "google,aacc-dsg-weights",
-					 profile->aacc_cycles.dsg.weight_limits,
-					 weight_size);
-	if (ret < 0) {
-		gbms_err(profile, "cannot read dsg-cc-limits table, ret=%d\n", ret);
-		kfree(profile->aacc_cycles.dsg.weight_limits);
-		profile->aacc_cycles.dsg.weight_limits = 0;
-		return -EINVAL;
-	}
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(gbms_read_aacc_dsg_weights);
-
-int gbms_aacc_temp_idx(const struct gbms_chg_profile *profile, int temp, bool is_charge)
+int gbms_aacc_temp_idx(const struct gbms_chg_profile *profile, int temp, bool is_charge,
+		       enum aacc_mode mode)
 {
 	const struct aacc_weight_profile *temp_data;
 	int temp_idx = 0;
 
 	if (is_charge)
-		temp_data = &profile->aacc_cycles.chg;
+		temp_data = (mode == AACC_MODE_TD) ?
+			&profile->aacc_cycles.td_chg : &profile->aacc_cycles.chg;
 	else
-		temp_data = &profile->aacc_cycles.dsg;
+		temp_data = (mode == AACC_MODE_TD) ?
+			&profile->aacc_cycles.td_dsg : &profile->aacc_cycles.dsg;
 
 	/*
 	 * needs to limit under table size after the last ++
@@ -791,17 +792,20 @@ EXPORT_SYMBOL_GPL(gbms_free_chg_profile);
 
 int gbms_read_chg_aact_ecc(struct gbms_chg_profile *profile, struct device_node *node)
 {
+	struct device_node *batt_id_node __free(device_node) = NULL;
 	int ret;
 
+	batt_id_node = gbms_batt_id_node(node);
+
 	profile->aact_support_multiple_profiles =
-		of_property_read_bool(gbms_batt_id_node(node),
+		of_property_read_bool(batt_id_node,
 				      "google,aact-support-multiple-profiles");
 	if (!profile->aact_support_multiple_profiles)
 		profile->aact_support_multiple_profiles =
 			of_property_read_bool(node, "google,aact-support-multiple-profiles");
 
 	profile->aact_nb_limits =
-	    of_property_count_elems_of_size(gbms_batt_id_node(node), "google,chg-aact-ecc",
+	    of_property_count_elems_of_size(batt_id_node, "google,chg-aact-ecc",
 					    sizeof(u32));
 	if (profile->aact_nb_limits <= 0)
 		profile->aact_nb_limits =
@@ -817,7 +821,7 @@ int gbms_read_chg_aact_ecc(struct gbms_chg_profile *profile, struct device_node 
 			 GBMS_AACT_NB_LIMITS_MAX);
 		return -EINVAL;
 	}
-	ret = of_property_read_u32_array(gbms_batt_id_node(node), "google,chg-aact-ecc",
+	ret = of_property_read_u32_array(batt_id_node, "google,chg-aact-ecc",
 					 (u32 *)profile->aact_limits,
 					 profile->aact_nb_limits);
 	if (ret < 0)
@@ -837,6 +841,7 @@ EXPORT_SYMBOL_GPL(gbms_read_chg_aact_ecc);
 static int gbms_read_aact_cccm_limits(struct gbms_chg_profile *profile,
 				      struct device_node *node)
 {
+	struct device_node *batt_id_node __free(device_node) = NULL;
 	char *aact_temp_limits, *aact_cv_limits;
 	int ret;
 
@@ -846,11 +851,13 @@ static int gbms_read_aact_cccm_limits(struct gbms_chg_profile *profile,
 			return ret;
 	}
 
+	batt_id_node = gbms_batt_id_node(node);
+
 	aact_temp_limits = aact_all_limits.temp_limits[GBMS_AACT_IDX(profile)];
 	aact_cv_limits = aact_all_limits.cv_limits[GBMS_AACT_IDX(profile)];
 
 	profile->aact_temp_nb_limits =
-	    of_property_count_elems_of_size(gbms_batt_id_node(node), aact_temp_limits,
+	    of_property_count_elems_of_size(batt_id_node, aact_temp_limits,
 					    sizeof(u32));
 	if (profile->aact_temp_nb_limits <= 0)
 		profile->aact_temp_nb_limits =
@@ -866,7 +873,7 @@ static int gbms_read_aact_cccm_limits(struct gbms_chg_profile *profile,
 			 GBMS_CHG_TEMP_NB_LIMITS_MAX);
 		return -EINVAL;
 	}
-	ret = of_property_read_u32_array(gbms_batt_id_node(node), aact_temp_limits,
+	ret = of_property_read_u32_array(batt_id_node, aact_temp_limits,
 					 (u32 *)profile->aact_temp_limits,
 					 profile->aact_temp_nb_limits);
 	if (ret < 0)
@@ -879,7 +886,7 @@ static int gbms_read_aact_cccm_limits(struct gbms_chg_profile *profile,
 	}
 
 	profile->aact_volt_nb_limits =
-	    of_property_count_elems_of_size(gbms_batt_id_node(node), aact_cv_limits,
+	    of_property_count_elems_of_size(batt_id_node, aact_cv_limits,
 					    sizeof(u32));
 	if (profile->aact_volt_nb_limits <= 0)
 		profile->aact_volt_nb_limits =
@@ -895,7 +902,7 @@ static int gbms_read_aact_cccm_limits(struct gbms_chg_profile *profile,
 			 GBMS_CHG_VOLT_NB_LIMITS_MAX);
 		return -EINVAL;
 	}
-	ret = of_property_read_u32_array(gbms_batt_id_node(node), aact_cv_limits,
+	ret = of_property_read_u32_array(batt_id_node, aact_cv_limits,
 					 (u32 *)profile->aact_volt_limits,
 					 profile->aact_volt_nb_limits);
 	if (ret < 0)
@@ -917,6 +924,7 @@ int gbms_init_aact_profile_internal(struct gbms_chg_profile *profile,
 	int ret;
 	u32 cccm_array_size, mem_size;
 	char *aact_cc_limits;
+	struct device_node *batt_id_node __free(device_node) = NULL;
 
 	profile->owner_name = owner_name;
 
@@ -937,9 +945,11 @@ int gbms_init_aact_profile_internal(struct gbms_chg_profile *profile,
 	if (!profile->aact_cccm_limits)
 		return -ENOMEM;
 
+	batt_id_node = gbms_batt_id_node(node);
+
 	/* load C rates into profile->aact_cccm_limits */
 	aact_cc_limits = aact_all_limits.cc_limits[GBMS_AACT_IDX(profile)];
-	ret = of_property_read_u32_array(gbms_batt_id_node(node), aact_cc_limits,
+	ret = of_property_read_u32_array(batt_id_node, aact_cc_limits,
 					 profile->aact_cccm_limits,
 					 cccm_array_size);
 	if (ret < 0)
@@ -1080,25 +1090,12 @@ EXPORT_SYMBOL_GPL(gbms_msc_get_last_voltage_idx);
 
 /* skip tiers that have same c-rate */
 int gbms_msc_voltage_idx_merge_tiers(const struct gbms_chg_profile *profile,
-			  int vbatt, int temp_idx)
+			  int vbatt_idx, int temp_idx)
 {
 	int cc_max;
-	int vbatt_idx = 0;
 
 	if (!profile)
 		return 0;
-
-	while (vbatt_idx < profile->volt_nb_limits - 1 &&
-	       vbatt > profile->volt_limits[vbatt_idx])
-		vbatt_idx++;
-
-	if (vbatt_idx != profile->volt_nb_limits - 1) {
-		const int vt = profile->volt_limits[vbatt_idx];
-		const int headr = profile->fv_uv_resolution * 3;
-
-		if ((vt - vbatt) < headr)
-			vbatt_idx += 1;
-	}
 
 	if (temp_idx < 0 || temp_idx >= profile->temp_nb_limits)
 		return vbatt_idx;
@@ -1306,8 +1303,8 @@ int gbms_set_property(struct power_supply *psy, enum gbms_property psp,
 				      false;
 		if (writable) {
 			ret = dsc->set_property(psy, psp, val);
-			if (ret == 0)
-				return 0;
+			if (ret != -ENODATA)
+				return ret;
 		} else {
 			pr_debug("psp=%d for '%s' is not writeable\n",
 				 psp, psy->desc->name);
@@ -1342,8 +1339,12 @@ int gbms_get_property(struct power_supply *psy, enum gbms_property psp,
 	dsc = gbms_desc_from_psy(psy);
 	if (dsc->get_property) {
 		ret = dsc->get_property(psy, psp, val);
-		if (ret == 0)
-			return 0;
+		/*
+		 * -EAGAIN is a valid error (e.g. driver not ready yet) and
+		 * must not be overwritten by the generic fallback below.
+		 */
+		if (ret == 0 || ret == -EAGAIN)
+			return ret;
 	}
 
 	if (!dsc->forward)
@@ -1410,6 +1411,11 @@ void gbms_tier_stats_init(struct gbms_ce_tier_stats *stats, int8_t idx)
 	stats->vtier_idx = idx;
 	stats->temp_idx = -1;
 	stats->soc_in = -1;
+	stats->temp_min = GBMS_TIER_TEMP_MIN_DEFAULT;
+	stats->temp_max = GBMS_TIER_TEMP_MAX_DEFAULT;
+	stats->last_update_sec = -1;
+	stats->reentry_count = 0;
+	memset(stats->soc_in_repeated, 0, sizeof(stats->soc_in_repeated));
 }
 EXPORT_SYMBOL_GPL(gbms_tier_stats_init);
 
@@ -1426,9 +1432,10 @@ void gbms_chg_stats_tier(struct gbms_ce_tier_stats *tier,
 }
 EXPORT_SYMBOL_GPL(gbms_chg_stats_tier);
 
- void gbms_stats_update_tier(int temp_idx, int ibatt_ma, int temp, ktime_t elap,
+void gbms_stats_update_tier(u32 now, int temp_idx, int ibatt_ma, int temp, ktime_t elap,
 			     int cc, union gbms_charger_state *chg_state,
 			     enum gbms_msc_states_t msc_state, int soc_in,
+			     int vin_mv, int iin_ma, int vbatt_mv,
 			     struct gbms_ce_tier_stats *tier)
 {
 	const uint16_t icl_settled = chg_state->f.icl;
@@ -1454,11 +1461,30 @@ EXPORT_SYMBOL_GPL(gbms_chg_stats_tier);
 		tier->icl_min = icl_settled;
 		tier->icl_max = icl_settled;
 
+		tier->vin_min = vin_mv;
+		tier->vin_max = vin_mv;
+
+		tier->iin_min = iin_ma;
+		tier->iin_max = iin_ma;
+
+		tier->vbatt_min = vbatt_mv;
+		tier->vbatt_max = vbatt_mv;
+
 		tier->soc_in = soc_in;
 		tier->cc_in = cc;
 		tier->cc_total = 0;
+		tier->last_update_sec = now;
 		return;
 	}
+
+	/* Detect Re-entry */
+	if (tier->last_update_sec < now - elap) {
+		if (tier->reentry_count < MAX_VTIER_REENTRIES) {
+			tier->soc_in_repeated[tier->reentry_count] = soc_in;
+			tier->reentry_count++;
+		}
+	}
+	tier->last_update_sec = now;
 
 	/* crossed temperature tier */
 	if (temp_idx != tier->temp_idx)
@@ -1496,6 +1522,24 @@ EXPORT_SYMBOL_GPL(gbms_chg_stats_tier);
 		tier->ibatt_max = ibatt_ma;
 	tier->ibatt_sum += ibatt_ma * elap;
 
+	if (vin_mv < tier->vin_min)
+		tier->vin_min = vin_mv;
+	if (vin_mv > tier->vin_max)
+		tier->vin_max = vin_mv;
+	tier->vin_sum += vin_mv * elap;
+
+	if (iin_ma < tier->iin_min)
+		tier->iin_min = iin_ma;
+	if (iin_ma > tier->iin_max)
+		tier->iin_max = iin_ma;
+	tier->iin_sum += iin_ma * elap;
+
+	if (vbatt_mv < tier->vbatt_min)
+		tier->vbatt_min = vbatt_mv;
+	if (vbatt_mv > tier->vbatt_max)
+		tier->vbatt_max = vbatt_mv;
+	tier->vbatt_sum += vbatt_mv * elap;
+
 	tier->cc_total = cc - tier->cc_in;
 }
 EXPORT_SYMBOL_GPL(gbms_stats_update_tier);
@@ -1505,31 +1549,51 @@ int gbms_tier_stats_cstr(char *buff, int size,
 			 const struct gbms_ce_tier_stats *tier_stat,
 			 bool verbose)
 {
-	const int soc_in = tier_stat->soc_in >> 8;
+	const qnum_t q_soc = qnum_from_q8_8(tier_stat->soc_in);
 	const long elap = tier_stat->time_fast + tier_stat->time_taper +
 			  tier_stat->time_other;
 
 	long temp_avg, ibatt_avg, icl_avg;
+	long vin_avg, iin_avg, vbatt_avg;
 	int j, len = 0;
 
 	if (elap) {
 		temp_avg = div_s64(tier_stat->temp_sum, elap);
 		ibatt_avg = div_s64(tier_stat->ibatt_sum, elap);
 		icl_avg = div_s64(tier_stat->icl_sum, elap);
+		vin_avg = div_s64(tier_stat->vin_sum, elap);
+		iin_avg = div_s64(tier_stat->iin_sum, elap);
+		vbatt_avg = div_s64(tier_stat->vbatt_sum, elap);
 	} else {
 		temp_avg = 0;
 		ibatt_avg = 0;
 		icl_avg = 0;
+		vin_avg = 0;
+		iin_avg = 0;
+		vbatt_avg = 0;
 	}
 
 	len += scnprintf(&buff[len], size - len, "\n%d%c ",
 		tier_stat->vtier_idx,
 		(verbose) ? ':' : ',');
 
+	char re_str[128] = "";
+	int re_len = 0;
+
+	re_len += scnprintf(re_str + re_len, sizeof(re_str) - re_len,
+			    "%d.%02d", qnum_toint(q_soc), qnum_fracdgt(q_soc));
+
+	for (j = 0; j < tier_stat->reentry_count; j++) {
+		const qnum_t q_re_soc = qnum_from_q8_8(tier_stat->soc_in_repeated[j]);
+
+		re_len += scnprintf(re_str + re_len, sizeof(re_str) - re_len,
+				    ",%d.%02d", qnum_toint(q_re_soc), qnum_fracdgt(q_re_soc));
+	}
+
 	len += scnprintf(&buff[len], size - len,
-		"%d.%d,%d,%d, %d,%d,%d, %d,%ld,%d, %d,%ld,%d, %d,%ld,%d",
-		soc_in,
-		tier_stat->soc_in & 0xff,
+		"%d.%02d,%d,%d, %d,%d,%d, %d,%ld,%d, %d,%ld,%d, %d,%ld,%d, %d,%ld,%d, %d,%ld,%d, %d,%ld,%d, %s ",
+		qnum_toint(q_soc),
+		qnum_fracdgt(q_soc),
 		tier_stat->cc_in,
 		tier_stat->temp_in,
 		tier_stat->time_fast,
@@ -1543,7 +1607,17 @@ int gbms_tier_stats_cstr(char *buff, int size,
 		tier_stat->ibatt_max,
 		tier_stat->icl_min,
 		icl_avg,
-		tier_stat->icl_max);
+		tier_stat->icl_max,
+		tier_stat->vin_min,
+		vin_avg,
+		tier_stat->vin_max,
+		tier_stat->iin_min,
+		iin_avg,
+		tier_stat->iin_max,
+		tier_stat->vbatt_min,
+		vbatt_avg,
+		tier_stat->vbatt_max,
+		re_str);
 
 	if (!verbose || !elap)
 		return len;
@@ -1606,7 +1680,7 @@ int gbms_decode_eeprom_sn(char *decode_sn, const size_t max_len)
 		return ret;
 
 	/* Pack barcode area data in ASCII format */
-	strncpy(decode_sn, sn, pack_barcode_len);
+	memcpy(decode_sn, sn, pack_barcode_len);
 
 	/*
 	 * decode address
@@ -1620,9 +1694,42 @@ int gbms_decode_eeprom_sn(char *decode_sn, const size_t max_len)
 	pcb_sn = (sn[27] << 8) | sn[28];
 	tmp = (sn[25] << 8) | sn[26];
 	date = ((((tmp >> 9) & 0x3f) + 1980) * 10000) + ((tmp >> 5) & 0xf) * 100 + (tmp & 0x1F);
-	count += scnprintf(decode_sn + count, max_len, "%02d%02d%d%04X%c", sn[23], sn[24], date, pcb_sn, sn[29]);
+	count += scnprintf(decode_sn + count, max_len, "%02d%02d%d%04X%c",
+			   sn[23], sn[24], date, pcb_sn, sn[29]);
 	decode_sn[count] = '\0';
 
 	return 0;
 }
 EXPORT_SYMBOL_GPL(gbms_decode_eeprom_sn);
+
+int gbms_wcin_mains_prop_is_writeable(struct power_supply *psy, enum gbms_property psp)
+{
+	switch (psp) {
+	case GBMS_PROP_CHARGING_ENABLED:
+	case GBMS_PROP_CHARGE_DISABLE:
+	case GBMS_PROP_ENABLE_SWITCH_CAP:
+	case GBMS_PROP_WLC_LOAD_DECREASE:
+	case GBMS_PROP_TA_MAX_VOLTAGE:
+	case GBMS_PROP_MPP_DPLOSS_CALIBRATION_LIMIT:
+		return 1;
+	default:
+		break;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(gbms_wcin_mains_prop_is_writeable);
+
+int google_wcin_mains_prop_is_writeable(struct power_supply *psy, enum power_supply_property psp)
+{
+	switch (psp) {
+	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
+	case POWER_SUPPLY_PROP_CURRENT_MAX:
+		return 1;
+	default:
+		break;
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(google_wcin_mains_prop_is_writeable);

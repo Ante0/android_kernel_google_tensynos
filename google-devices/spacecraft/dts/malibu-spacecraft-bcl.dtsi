@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Spacecraft specific bcl  definition
+ *
+ * Copyright 2025 Google LLC
+ */
+
+#include "google-base/platform/malibu-platform-bcl.dtsi"
+
+&max77759tcpcspmi {
+	bcl-usb-voting;
+};
+
+&google_mitigation {
+	pinctrl-0 = <&ifpmic2sys_vdroop1_1v2_ac3 &ifpmic2sys_vdroop2_1v2_ab3
+					&appmic2aoss_pre_uvlo_1v2 &appmic2aoss_pre_ocp_cpu1_1v2
+					&appmic2aoss_pre_ocp_cpu2_1v2
+					&spare_aoss_cpm_soft_pre_ocp_cpu1_1v2>;
+};

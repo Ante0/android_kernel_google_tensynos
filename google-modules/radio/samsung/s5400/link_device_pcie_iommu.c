@@ -6,14 +6,8 @@
 
 #include "link_device_pcie_iommu.h"
 
-#define PCIE_CH2HSI(ch)	((ch) + 1)
-
-extern void pcie_iommu_tlb_invalidate_all(int hsi_block_num);
-extern int pcie_iommu_map(unsigned long iova, phys_addr_t paddr, size_t size,
-			  int prot, int hsi_block_num);
-extern size_t pcie_iommu_unmap(unsigned long iova, size_t size, int hsi_block_num);
-
-void cpif_pcie_iommu_enable_regions(struct mem_link_device *mld)
+#ifdef EXYNOS_IOMMU
+void exynos_pcie_iommu_enable_regions(struct mem_link_device *mld)
 {
 	static bool enabled_region;
 
@@ -39,9 +33,9 @@ void cpif_pcie_iommu_enable_regions(struct mem_link_device *mld)
 			size = cp_shmem_get_size(cp_num, shmem_idx);
 
 		if (cp_shmem_get_base(cp_num, shmem_idx)) {
-			ret = pcie_iommu_map(cp_shmem_get_base(cp_num, shmem_idx),
+			ret = cpif_iommu_map(cp_shmem_get_base(cp_num, shmem_idx),
 					     cp_shmem_get_base(cp_num, shmem_idx),
-					     size, 0, PCIE_CH2HSI(mc->pcie_ch_num));
+					     size, 0, mc);
 			mif_info("pcie iommu idx:%d addr:0x%08lx size:0x%08x ret:%d\n",
 				 shmem_idx, cp_shmem_get_base(cp_num, shmem_idx), size, ret);
 		}
@@ -49,6 +43,7 @@ void cpif_pcie_iommu_enable_regions(struct mem_link_device *mld)
 
 	enabled_region = true;
 }
+#endif
 
 int cpif_pcie_iommu_init(struct pktproc_queue *q)
 {
@@ -74,7 +69,6 @@ void cpif_pcie_iommu_reset(struct pktproc_queue *q)
 	struct pktproc_desc_sktbuf *desc = q->desc_sktbuf;
 	struct cpif_pcie_iommu_ctrl *ioc = &q->ioc;
 	unsigned int usage, idx;
-	bool do_unmap = true;
 
 	if (!ioc->pf_buf)
 		return;
@@ -86,24 +80,30 @@ void cpif_pcie_iommu_reset(struct pktproc_queue *q)
 		 q->done_ptr, ioc->curr_fore, usage, *q->fore_ptr);
 
 	while (usage--) {
-		if (do_unmap) {
-			unsigned long src_pa;
+		unsigned long src_pa;
 
-			src_pa = desc[idx].cp_data_paddr - q->cp_buff_pbase +
-				 q->q_buff_pbase - q->ppa->skb_padding_size;
-			cpif_pcie_iommu_try_ummap_va(q, src_pa, ioc->pf_buf[idx], idx);
+		src_pa = desc[idx].cp_data_paddr - q->cp_buff_pbase +
+			 q->q_buff_pbase - q->ppa->skb_padding_size;
+		cpif_pcie_iommu_try_ummap_va(q, src_pa, ioc->pf_buf[idx], idx);
 
-			/* Just free the frags if not mapped yet */
-			if (idx == *q->fore_ptr)
-				do_unmap = false;
-		}
+		/* Just free the frags if not mapped yet */
+		if (idx == *q->fore_ptr)
+			break;
 
+		idx = circ_new_ptr(q->num_desc, idx, 1);
+	}
+
+	cpif_iommu_tlb_invalidate_all(mc);
+
+	usage = circ_get_usage(q->num_desc, ioc->curr_fore, q->done_ptr);
+	idx = q->done_ptr;
+
+	while (usage--) {
 		page_frag_free(ioc->pf_buf[idx]);
 		idx = circ_new_ptr(q->num_desc, idx, 1);
 	}
 
 	/* Initialize */
-	pcie_iommu_tlb_invalidate_all(PCIE_CH2HSI(mc->pcie_ch_num));
 	if (ioc->pf_cache.va) {
 		__page_frag_cache_drain(virt_to_page(ioc->pf_cache.va),
 					ioc->pf_cache.pagecnt_bias);
@@ -147,9 +147,8 @@ void *cpif_pcie_iommu_map_va(struct pktproc_queue *q, unsigned long src_pa,
 		mif_debug("map idx:%u src_pa:0x%lX va:0x%p size:0x%lX\n",
 			  ioc->map_idx, ioc->map_src_pa, ioc->map_page_va, map_size);
 #endif
-
-		ret = pcie_iommu_map(ioc->map_src_pa, virt_to_phys(ioc->map_page_va),
-				     map_size, 0, PCIE_CH2HSI(mc->pcie_ch_num));
+		ret = cpif_iommu_map(ioc->map_src_pa, virt_to_phys(ioc->map_page_va),
+				     map_size, 0, mc);
 		if (ret) {
 			mif_err("map failure idx:%u src_pa:0x%lX va:0x%p size:0x%lX\n",
 				ioc->map_idx, ioc->map_src_pa, ioc->map_page_va, map_size);
@@ -211,7 +210,7 @@ void cpif_pcie_iommu_try_ummap_va(struct pktproc_queue *q, unsigned long src_pa,
 	mif_debug("unmap src_pa:0x%lX size:0x%X\n", ioc->unmap_src_pa, unmap_size);
 #endif
 
-	ret = pcie_iommu_unmap(ioc->unmap_src_pa, unmap_size, PCIE_CH2HSI(mc->pcie_ch_num));
+	ret = cpif_iommu_unmap(ioc->unmap_src_pa, unmap_size, mc);
 	if (ret != unmap_size) {
 		mif_err("invalid unmap size:0x%zX expected:0x%X src_pa:0x%lX\n",
 			ret, unmap_size, ioc->unmap_src_pa);

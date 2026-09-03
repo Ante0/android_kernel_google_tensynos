@@ -117,8 +117,8 @@ static const struct i2c_adapter_quirks osif_quirks = {
 };
 
 static const struct i2c_algorithm osif_algorithm = {
-	.master_xfer	= osif_xfer,
-	.functionality	= osif_func,
+	.xfer = osif_xfer,
+	.functionality = osif_func,
 };
 
 #define USB_OSIF_VENDOR_ID	0x1964

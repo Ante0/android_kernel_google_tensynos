@@ -1,0 +1,28 @@
+import("//build_overrides/noa.gni")
+import("$dir_noa_packages/noa_common/sim/ncp/wlan_fw/wlan_service.gni")
+
+wlan_source_set("wlan_buffer_management") {
+  cflags = [
+    # To enhance array initialization clarity and readability, the
+    # -Wno-c99-designator flag is used to enable C99-style designated
+    # initializers.
+    "-Wno-c99-designator",
+  ]
+  public =
+      [ "$dir_wlan_fw/modules/wlan_buffer_management/wlan_buffer_manager.h" ]
+  public_deps = [
+    "$dir_wlan_fw/sys_if:common",
+    "$dir_wlan_fw/sys_if:types",
+  ]
+  deps = [
+    "$dir_wlan_fw:wlan_cast",
+    "$dir_wlan_fw/sys_if:memory",
+    "$dir_wlan_fw/wlan_log",
+  ]
+  sources =
+      [ "$dir_wlan_fw/modules/wlan_buffer_management/wlan_buffer_manager.cc" ]
+}
+
+wlan_test_group("tests") {
+  tests = []
+}

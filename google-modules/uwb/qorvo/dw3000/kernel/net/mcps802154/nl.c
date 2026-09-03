@@ -72,7 +72,7 @@ static const struct nla_policy mcps802154_nl_policy[MCPS802154_ATTR_MAX + 1] = {
 	[MCPS802154_ATTR_CALIBRATIONS] = { .type = NLA_NESTED },
 	[MCPS802154_ATTR_PWR_STATS] = { .type = NLA_NESTED },
 
-#ifdef CONFIG_MCPS802154_TESTMODE
+#if IS_ENABLED(CONFIG_MCPS802154_TESTMODE)
 	[MCPS802154_ATTR_TESTDATA] = { .type = NLA_NESTED },
 #endif
 };
@@ -551,7 +551,7 @@ int mcps802154_region_event(struct mcps802154_llhw *llhw, struct sk_buff *skb)
 }
 EXPORT_SYMBOL(mcps802154_region_event);
 
-#ifdef CONFIG_MCPS802154_TESTMODE
+#if IS_ENABLED(CONFIG_MCPS802154_TESTMODE)
 /**
  * mcps802154_nl_testmode_do() - Run a testmode command.
  * @skb: Request message.
@@ -1104,7 +1104,7 @@ static struct mcps802154_local *mcps802154_get_from_info(struct genl_info *info)
  *
  * Return: 0 or error.
  */
-static int mcps802154_nl_pre_doit(const struct genl_ops *ops,
+static int mcps802154_nl_pre_doit(const struct genl_split_ops *ops,
 				  struct sk_buff *skb, struct genl_info *info)
 {
 	struct mcps802154_local *local;
@@ -1130,7 +1130,7 @@ static int mcps802154_nl_pre_doit(const struct genl_ops *ops,
  *
  * Release RTNL if needed.
  */
-static void mcps802154_nl_post_doit(const struct genl_ops *ops,
+static void mcps802154_nl_post_doit(const struct genl_split_ops *ops,
 				    struct sk_buff *skb, struct genl_info *info)
 {
 	if (ops->internal_flags & MCPS802154_NL_NEED_HW)
@@ -1186,7 +1186,7 @@ static const struct genl_ops mcps802154_nl_ops[] = {
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = MCPS802154_NL_NEED_HW,
 	},
-#ifdef CONFIG_MCPS802154_TESTMODE
+#if IS_ENABLED(CONFIG_MCPS802154_TESTMODE)
 	{
 		.cmd = MCPS802154_CMD_TESTMODE,
 		.doit = mcps802154_nl_testmode_do,

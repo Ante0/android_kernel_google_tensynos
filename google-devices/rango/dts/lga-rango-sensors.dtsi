@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Sensors device tree for Rango EVT and after.
+ *
+ * Copyright 2024 Google,LLC.
+ */
+
+&aoc {
+	sensor_mag-supply = <&ldo_10s_reg>;
+	sensor_power_list = "sensor_1v8", "sensor_3v3", "sensor_mag";
+};

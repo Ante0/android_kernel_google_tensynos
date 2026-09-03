@@ -446,9 +446,9 @@ static const char *mma9551_match_acpi_device(struct device *dev)
 	return dev_name(dev);
 }
 
-static int mma9551_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id)
+static int mma9551_probe(struct i2c_client *client)
 {
+	const struct i2c_device_id *id = i2c_client_get_device_id(client);
 	struct mma9551_data *data;
 	struct iio_dev *indio_dev;
 	const char *name = NULL;
@@ -595,7 +595,7 @@ static const struct acpi_device_id mma9551_acpi_match[] = {
 MODULE_DEVICE_TABLE(acpi, mma9551_acpi_match);
 
 static const struct i2c_device_id mma9551_id[] = {
-	{"mma9551", 0},
+	{ "mma9551" },
 	{}
 };
 
@@ -604,9 +604,9 @@ MODULE_DEVICE_TABLE(i2c, mma9551_id);
 static struct i2c_driver mma9551_driver = {
 	.driver = {
 		   .name = MMA9551_DRV_NAME,
-		   .acpi_match_table = ACPI_PTR(mma9551_acpi_match),
+		   .acpi_match_table = mma9551_acpi_match,
 		   .pm = pm_ptr(&mma9551_pm_ops),
-		   },
+	},
 	.probe = mma9551_probe,
 	.remove = mma9551_remove,
 	.id_table = mma9551_id,

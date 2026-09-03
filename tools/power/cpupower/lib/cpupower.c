@@ -14,6 +14,13 @@
 #include "cpupower.h"
 #include "cpupower_intern.h"
 
+int is_valid_path(const char *path)
+{
+	if (access(path, F_OK) == -1)
+		return 0;
+	return 1;
+}
+
 unsigned int cpupower_read_sysfs(const char *path, char *buf, size_t buflen)
 {
 	ssize_t numread;
@@ -48,7 +55,7 @@ unsigned int cpupower_write_sysfs(const char *path, char *buf, size_t buflen)
 	if (numwritten < 1) {
 		perror(path);
 		close(fd);
-		return -1;
+		return 0;
 	}
 
 	close(fd);

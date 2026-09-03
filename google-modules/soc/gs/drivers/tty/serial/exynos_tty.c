@@ -24,6 +24,7 @@
 #include <linux/dmaengine.h>
 #include <linux/dma-mapping.h>
 #include <linux/slab.h>
+#include <linux/math.h>
 #include <linux/module.h>
 #include <linux/ioport.h>
 #include <linux/io.h>
@@ -368,14 +369,14 @@ static void disable_auto_flow_control(struct exynos_uart_port *ourport)
 	unsigned long flags;
 	unsigned int umcon;
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
 	/* disable auto flow control & set nRTS for High */
 	umcon = rd_regl(port, S3C2410_UMCON);
 	umcon &= ~(S3C2410_UMCOM_AFC | S3C2410_UMCOM_RTS_LOW);
 	wr_regl(port, S3C2410_UMCON, umcon);
 
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 }
 
 static void enable_auto_flow_control(struct exynos_uart_port *ourport)
@@ -384,14 +385,14 @@ static void enable_auto_flow_control(struct exynos_uart_port *ourport)
 	unsigned long flags;
 	unsigned int umcon;
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
 	/* enable auto flow control */
 	umcon = rd_regl(port, S3C2410_UMCON);
 	umcon |= S3C2410_UMCOM_AFC;
 	wr_regl(port, S3C2410_UMCON, umcon);
 
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 }
 
 static void change_uart_gpio(int value, struct exynos_uart_port *ourport)
@@ -403,7 +404,7 @@ static void change_uart_gpio(int value, struct exynos_uart_port *ourport)
 	if (IS_ERR(ourport->pinctrl))
 		return;
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
 	if (value) {
 		/* Disabled or default pin states	*/
@@ -440,7 +441,7 @@ static void change_uart_gpio(int value, struct exynos_uart_port *ourport)
 		}
 	}
 
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 }
 
 static void change_flow_control_state(int en, struct exynos_uart_port *ourport)
@@ -680,7 +681,7 @@ static void exynos_serial_rx_enable(struct uart_port *port)
 	unsigned int ucon, ufcon;
 	int count = 10000;
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
 	while (--count && !exynos_serial_txempty_nofifo(port))
 		udelay(100);
@@ -694,7 +695,7 @@ static void exynos_serial_rx_enable(struct uart_port *port)
 	wr_regl(port, S3C2410_UCON, ucon);
 
 	ourport->rx_enabled = 1;
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 }
 
 static void exynos_serial_rx_disable(struct uart_port *port)
@@ -703,21 +704,20 @@ static void exynos_serial_rx_disable(struct uart_port *port)
 	unsigned long flags;
 	unsigned int ucon;
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
 	ucon = rd_regl(port, S3C2410_UCON);
 	ucon &= ~S3C2410_UCON_RXIRQMODE;
 	wr_regl(port, S3C2410_UCON, ucon);
 
 	ourport->rx_enabled = 0;
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 }
 
 static void exynos_serial_stop_tx(struct uart_port *port)
 {
 	struct exynos_uart_port *ourport = to_ourport(port);
 	struct exynos_uart_dma *dma = ourport->dma;
-	struct circ_buf *xmit = &port->state->xmit;
 	struct dma_tx_state state;
 	int count;
 
@@ -738,8 +738,7 @@ static void exynos_serial_stop_tx(struct uart_port *port)
 					DMA_TO_DEVICE);
 		async_tx_ack(dma->tx_desc);
 		count = dma->tx_bytes_requested - state.residue;
-		xmit->tail = (xmit->tail + count) & (UART_XMIT_SIZE - 1);
-		port->icount.tx += count;
+		uart_xmit_advance(port, count);
 	}
 
 	ourport->tx_enabled = 0;
@@ -757,7 +756,7 @@ static void exynos_serial_tx_dma_complete(void *args)
 {
 	struct exynos_uart_port *ourport = args;
 	struct uart_port *port = &ourport->port;
-	struct circ_buf *xmit = &port->state->xmit;
+	struct tty_port *tport = &port->state->port;
 	struct exynos_uart_dma *dma = ourport->dma;
 	struct dma_tx_state state;
 	unsigned long flags;
@@ -770,17 +769,16 @@ static void exynos_serial_tx_dma_complete(void *args)
 	dma_sync_single_for_cpu(ourport->port.dev, dma->tx_transfer_addr,
 				dma->tx_size, DMA_TO_DEVICE);
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
-	xmit->tail = (xmit->tail + count) & (UART_XMIT_SIZE - 1);
-	port->icount.tx += count;
+	uart_xmit_advance(port, count);
 	ourport->tx_in_progress = 0;
 
-	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
+	if (kfifo_len(&tport->xmit_fifo) < WAKEUP_CHARS)
 		uart_write_wakeup(port);
 
 	exynos_serial_start_next_tx(ourport);
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 }
 
 static void enable_tx_dma(struct exynos_uart_port *ourport)
@@ -841,22 +839,20 @@ static void exynos_serial_start_tx_pio(struct exynos_uart_port *ourport)
 }
 
 static int exynos_serial_start_tx_dma(struct exynos_uart_port *ourport,
-				      unsigned int count)
+				      unsigned int count, unsigned int tail)
 {
-	struct uart_port *port = &ourport->port;
-	struct circ_buf *xmit = &port->state->xmit;
 	struct exynos_uart_dma *dma = ourport->dma;
 
 	if (ourport->tx_mode != EXYNOS_TX_DMA)
 		enable_tx_dma(ourport);
 
 	dma->tx_size = count & ~(dma_get_cache_alignment() - 1);
-	dma->tx_transfer_addr = dma->tx_addr + xmit->tail;
+	dma->tx_transfer_addr = dma->tx_addr + tail;
 
 	if (ourport->uart_logging && dma->tx_size)
 		uart_copy_to_local_buf(0, &ourport->uart_local_buf,
-				       ourport->port.state->xmit.buf +
-				       xmit->tail, dma->tx_size);
+				       ourport->port.state->port.xmit_buf + tail,
+				       dma->tx_size);
 
 	dma_sync_single_for_device(ourport->port.dev, dma->tx_transfer_addr,
 				   dma->tx_size, DMA_TO_DEVICE);
@@ -884,11 +880,11 @@ static int exynos_serial_start_tx_dma(struct exynos_uart_port *ourport,
 static void exynos_serial_start_next_tx(struct exynos_uart_port *ourport)
 {
 	struct uart_port *port = &ourport->port;
-	struct circ_buf *xmit = &port->state->xmit;
-	unsigned long count;
+	struct tty_port *tport = &port->state->port;
+	unsigned int count, tail;
 
 	/* Get data size up to the end of buffer */
-	count = CIRC_CNT_TO_END(xmit->head, xmit->tail, UART_XMIT_SIZE);
+	count = kfifo_out_linear(&tport->xmit_fifo, &tail, UART_XMIT_SIZE);
 
 	if (!count) {
 		exynos_serial_stop_tx(port);
@@ -897,16 +893,16 @@ static void exynos_serial_start_next_tx(struct exynos_uart_port *ourport)
 
 	if (!ourport->dma || !ourport->dma->tx_chan ||
 	    count < ourport->min_dma_size ||
-	    xmit->tail & (dma_get_cache_alignment() - 1))
+	    tail & (dma_get_cache_alignment() - 1))
 		exynos_serial_start_tx_pio(ourport);
 	else
-		exynos_serial_start_tx_dma(ourport, count);
+		exynos_serial_start_tx_dma(ourport, count, tail);
 }
 
 static void exynos_serial_start_tx(struct uart_port *port)
 {
 	struct exynos_uart_port *ourport = to_ourport(port);
-	struct circ_buf *xmit = &port->state->xmit;
+	struct tty_port *tport = &port->state->port;
 
 	if (!ourport->tx_enabled) {
 		if (port->flags & UPF_CONS_FLOW)
@@ -918,7 +914,8 @@ static void exynos_serial_start_tx(struct uart_port *port)
 	}
 
 	if (ourport->dma && ourport->dma->tx_chan) {
-		if (!uart_circ_empty(xmit) && !ourport->tx_in_progress)
+		if (!kfifo_is_empty(&tport->xmit_fifo) &&
+				!ourport->tx_in_progress)
 			exynos_serial_start_next_tx(ourport);
 	}
 }
@@ -928,12 +925,12 @@ static void exynos_serial_throttle(struct uart_port *port)
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
 	__set_bit(S3C64XX_UINTM_RXD, portaddrl(port, S3C64XX_UINTM));
 	wr_regl(port, S3C64XX_UINTP, S3C64XX_UINTM_RXD_MSK);
 
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 }
 
 /* Unthrottle is called in n_tty_read */
@@ -941,11 +938,11 @@ static void exynos_serial_unthrottle(struct uart_port *port)
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
 	__clear_bit(S3C64XX_UINTM_RXD, portaddrl(port, S3C64XX_UINTM));
 
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 }
 
 static void exynos_uart_copy_rx_to_tty(struct exynos_uart_port *ourport, struct
@@ -1055,7 +1052,7 @@ static void exynos_serial_rx_dma_complete(void *args)
 	received  = dma->rx_bytes_requested - state.residue;
 	async_tx_ack(dma->rx_desc);
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
 	if (received)
 		exynos_uart_copy_rx_to_tty(ourport, t, received);
@@ -1067,7 +1064,7 @@ static void exynos_serial_rx_dma_complete(void *args)
 
 	s3c64xx_start_rx_dma(ourport);
 
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 }
 
 static void s3c64xx_start_rx_dma(struct exynos_uart_port *ourport)
@@ -1153,10 +1150,9 @@ static void enable_rx_pio(struct exynos_uart_port *ourport)
 
 static void exynos_serial_rx_drain_fifo(struct exynos_uart_port *ourport);
 
-static irqreturn_t exynos_serial_rx_chars_dma(void *dev_id)
+static irqreturn_t exynos_serial_rx_chars_dma(struct exynos_uart_port *ourport)
 {
 	unsigned int utrstat, ufstat, received;
-	struct exynos_uart_port *ourport = dev_id;
 	struct uart_port *port = &ourport->port;
 	struct exynos_uart_dma *dma = ourport->dma;
 	struct tty_port *t = &port->state->port;
@@ -1166,7 +1162,7 @@ static irqreturn_t exynos_serial_rx_chars_dma(void *dev_id)
 	utrstat = rd_regl(port, S3C2410_UTRSTAT);
 	ufstat = rd_regl(port, S3C2410_UFSTAT);
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
 	if (!(utrstat & S3C2410_UTRSTAT_TIMEOUT) &&
 	    ourport->rx_mode == EXYNOS_RX_PIO) {
@@ -1191,7 +1187,7 @@ static irqreturn_t exynos_serial_rx_chars_dma(void *dev_id)
 finish:
 	wr_regl(port, S3C2410_UTRSTAT, S3C2410_UTRSTAT_TIMEOUT);
 
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 
 	return IRQ_HANDLED;
 }
@@ -1199,14 +1195,15 @@ finish:
 static void exynos_serial_rx_drain_fifo(struct exynos_uart_port *ourport)
 {
 	struct uart_port *port = &ourport->port;
-	unsigned int ufcon, ch, flag, ufstat, uerstat;
+	unsigned int ufcon, ufstat, uerstat;
 	unsigned int fifocnt = 0;
 	int max_count = port->fifosize;
-	unsigned char insert_buf[256] = {0, };
+	u8 insert_buf[256] = {0, };
 	unsigned int insert_cnt = 0;
 	unsigned char trace_buf[256] = {0, };
 	int trace_cnt = 0;
 	char buf[DATA_BYTES_PER_LINE * 3 + 1];
+	u8 ch, flag;
 
 	exynos_set_bit(port, S3C64XX_UINTM_RXD, S3C64XX_UINTM);
 	wr_regl(port, S3C64XX_UINTP, S3C64XX_UINTM_RXD_MSK);
@@ -1322,53 +1319,50 @@ static void exynos_serial_rx_drain_fifo(struct exynos_uart_port *ourport)
 }
 
 static irqreturn_t
-exynos_serial_rx_chars_pio(void *dev_id)
+exynos_serial_rx_chars_pio(struct exynos_uart_port *ourport)
 {
-	struct exynos_uart_port *ourport = dev_id;
 	struct uart_port *port = &ourport->port;
 	unsigned long flags;
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 	exynos_serial_rx_drain_fifo(ourport);
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t exynos_serial_rx_chars(int irq, void *dev_id)
+static irqreturn_t exynos_serial_rx_chars(struct exynos_uart_port *ourport)
 {
-	struct exynos_uart_port *ourport = dev_id;
-
 	if (ourport->dma && ourport->dma->rx_chan)
-		return exynos_serial_rx_chars_dma(dev_id);
-	return exynos_serial_rx_chars_pio(dev_id);
+		return exynos_serial_rx_chars_dma(ourport);
+	return exynos_serial_rx_chars_pio(ourport);
 }
 
-static irqreturn_t exynos_serial_tx_chars(int irq, void *id)
+static irqreturn_t exynos_serial_tx_chars(struct exynos_uart_port *ourport)
 {
-	struct exynos_uart_port *ourport = id;
 	struct uart_port *port = &ourport->port;
-	struct circ_buf *xmit = &port->state->xmit;
+	struct tty_port *tport = &port->state->port;
 	unsigned long flags;
-	int count = port->fifosize, dma_count = 0;
+	unsigned int count, dma_count = 0, tail;
 	unsigned char trace_buf[256] = {0, };
 	int trace_cnt = 0;
 	char buf[DATA_BYTES_PER_LINE * 3 + 1];
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
 	exynos_set_bit(port, S3C64XX_UINTM_TXD, S3C64XX_UINTM);
 	wr_regl(port, S3C64XX_UINTP, S3C64XX_UINTM_TXD_MSK);
 
-	count = CIRC_CNT_TO_END(xmit->head, xmit->tail, UART_XMIT_SIZE);
+	count = kfifo_out_linear(&tport->xmit_fifo, &tail, UART_XMIT_SIZE);
 
 	if (ourport->dma && ourport->dma->tx_chan &&
 	    count >= ourport->min_dma_size) {
 		int align = dma_get_cache_alignment() -
-			(xmit->tail & (dma_get_cache_alignment() - 1));
+			(tail & (dma_get_cache_alignment() - 1));
 		if (count - align >= ourport->min_dma_size) {
 			dma_count = count - align;
 			count = align;
+			tail += align;
 		}
 	}
 
@@ -1385,7 +1379,7 @@ static irqreturn_t exynos_serial_tx_chars(int irq, void *id)
 	 * stopped, disable the uart and exit
 	 */
 
-	if (uart_circ_empty(xmit) || uart_tx_stopped(port)) {
+	if (kfifo_is_empty(&tport->xmit_fifo) || uart_tx_stopped(port)) {
 		exynos_serial_stop_tx(port);
 		goto out;
 	}
@@ -1397,30 +1391,31 @@ static irqreturn_t exynos_serial_tx_chars(int irq, void *id)
 		dma_count = 0;
 	}
 
-	while (!uart_circ_empty(xmit) && count-- > 0) {
-		if (rd_regl(port, S3C2410_UFSTAT) & ourport->info->tx_fifofull)
+	while (!(rd_regl(port, S3C2410_UFSTAT) & ourport->info->tx_fifofull)
+	       && count > 0) {
+		unsigned char ch;
+
+		if (!uart_fifo_get(port, &ch))
 			break;
 
-		wr_reg(port, S3C2410_UTXH, xmit->buf[xmit->tail]);
+		wr_reg(port, S3C2410_UTXH, ch);
 		if (ourport->uart_logging)
-			trace_buf[trace_cnt++] = (unsigned
-						  char)xmit->buf[xmit->tail];
-		xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
-		port->icount.tx++;
+			trace_buf[trace_cnt++] = ch;
+		count--;
 	}
 
 	if (!count && dma_count) {
-		exynos_serial_start_tx_dma(ourport, dma_count);
+		exynos_serial_start_tx_dma(ourport, dma_count, tail);
 		goto out;
 	}
 
-	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS) {
-		spin_unlock_irqrestore(&port->lock, flags);
+	if (kfifo_len(&tport->xmit_fifo) < WAKEUP_CHARS) {
+		uart_port_unlock_irqrestore(port, flags);
 		uart_write_wakeup(port);
-		spin_lock_irqsave(&port->lock, flags);
+		uart_port_lock_irqsave(port, &flags);
 	}
 
-	if (uart_circ_empty(xmit))
+	if (kfifo_is_empty(&tport->xmit_fifo))
 		exynos_serial_stop_tx(port);
 
 out:
@@ -1442,7 +1437,7 @@ out:
 		}
 	}
 
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 	return IRQ_HANDLED;
 }
 
@@ -1454,10 +1449,10 @@ static irqreturn_t s3c64xx_serial_handle_irq(int irq, void *id)
 	irqreturn_t ret = IRQ_HANDLED;
 
 	if (rd_regl(port, S3C64XX_UINTP) & S3C64XX_UINTM_RXD_MSK)
-		ret = exynos_serial_rx_chars(irq, id);
+		ret = exynos_serial_rx_chars(ourport);
 
 	if (rd_regl(port, S3C64XX_UINTP) & S3C64XX_UINTM_TXD_MSK)
-		ret = exynos_serial_tx_chars(irq, id);
+		ret = exynos_serial_tx_chars(ourport);
 
 	return ret;
 }
@@ -1473,10 +1468,10 @@ static unsigned int exynos_serial_tx_empty(struct uart_port *port)
 		    (ufstat & info->tx_fifofull))
 			return 0;
 
-		return 1;
+		return TIOCSER_TEMT;
 	}
 
-	return exynos_serial_txempty_nofifo(port);
+	return exynos_serial_txempty_nofifo(port) ? TIOCSER_TEMT : 0;
 }
 
 /* no modem control lines */
@@ -1514,7 +1509,7 @@ static void exynos_serial_break_ctl(struct uart_port *port, int break_state)
 	unsigned long flags;
 	unsigned int ucon;
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
 	ucon = rd_regl(port, S3C2410_UCON);
 
@@ -1525,7 +1520,7 @@ static void exynos_serial_break_ctl(struct uart_port *port, int break_state)
 
 	wr_regl(port, S3C2410_UCON, ucon);
 
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 }
 
 static int exynos_serial_request_dma(struct exynos_uart_port *ourport)
@@ -1600,7 +1595,7 @@ static int exynos_serial_request_dma(struct exynos_uart_port *ourport)
 
 	/* TX buffer */
 	dma->tx_addr = dma_map_single(ourport->port.dev,
-				      ourport->port.state->xmit.buf,
+				      ourport->port.state->port.xmit_buf,
 				      UART_XMIT_SIZE, DMA_TO_DEVICE);
 	if (dma_mapping_error(ourport->port.dev, dma->tx_addr)) {
 		reason = "DMA mapping error for TX buffer";
@@ -1722,7 +1717,7 @@ static int exynos_serial_startup(struct uart_port *port)
 	ourport->tx_enabled = 0;
 	ourport->tx_claimed = 1;
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
 	ufcon = rd_regl(port, S3C2410_UFCON);
 	ufcon &= ~S5PV210_UFCON_RXTRIG256;
@@ -1733,7 +1728,7 @@ static int exynos_serial_startup(struct uart_port *port)
 
 	enable_rx_pio(ourport);
 
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 
 	/* Enable Rx Interrupt */
 	exynos_clear_bit(port, S3C64XX_UINTM_RXD, S3C64XX_UINTM);
@@ -1843,9 +1838,7 @@ static unsigned int exynos_serial_getclk(struct exynos_uart_port *ourport,
 		}
 		quot--;
 
-		calc_deviation = req_baud - baud;
-		if (calc_deviation < 0)
-			calc_deviation = -calc_deviation;
+		calc_deviation = abs(req_baud - baud);
 
 		if (calc_deviation < deviation) {
 			*best_clk = ourport->clk;
@@ -2010,7 +2003,7 @@ static void exynos_serial_set_termios(struct uart_port *port,
 		ulcon |= S3C2410_LCON_PNONE;
 	}
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
 	dev_dbg(port->dev, "setting ulcon to %08x, brddiv to %d, udivslot %08x\n",
 		ulcon, quot, udivslot);
@@ -2079,18 +2072,12 @@ static void exynos_serial_set_termios(struct uart_port *port,
 	if ((termios->c_cflag & CREAD) == 0)
 		port->ignore_status_mask |= RXSTAT_DUMMY_READ;
 
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 }
 
 static const char *exynos_serial_type(struct uart_port *port)
 {
 	switch (port->type) {
-	case PORT_S3C2410:
-		return "S3C2410";
-	case PORT_S3C2440:
-		return "S3C2440";
-	case PORT_S3C2412:
-		return "S3C2412";
 	case PORT_S3C6400:
 		return "S3C6400/10";
 	default:
@@ -2331,8 +2318,6 @@ static void exynos_serial_resetport(struct uart_port *port,
 	unsigned int ucon_mask;
 
 	ucon_mask = info->clksel_mask;
-	if (info->type == PORT_S3C2440)
-		ucon_mask |= S3C2440_UCON0_DIVMASK;
 
 	ucon &= ucon_mask;
 	if (ourport->dbg_mode & UART_LOOPBACK_MODE) {
@@ -2543,7 +2528,7 @@ static void exynos_serial_rx_fifo_wait(struct exynos_uart_port *ourport)
 		exynos_serial_stop_rx(port);
 }
 
-void exynos_serial_fifo_wait(void)
+static void exynos_serial_fifo_wait(void)
 {
 	struct exynos_uart_port *ourport;
 	struct uart_port *port;
@@ -2560,7 +2545,6 @@ void exynos_serial_fifo_wait(void)
 			 time_before(jiffies, wait_time));
 	}
 }
-EXPORT_SYMBOL_GPL(exynos_serial_fifo_wait);
 
 bool exynos_uart_console_enabled(void)
 {
@@ -2569,7 +2553,7 @@ bool exynos_uart_console_enabled(void)
 
 	list_for_each_entry(ourport, &drvdata_list, node) {
 		port = &ourport->port;
-		if (uart_console_enabled(port))
+		if (uart_console_registered(port))
 			return true;
 	}
 	return false;
@@ -2887,7 +2871,7 @@ static int exynos_serial_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int exynos_serial_remove(struct platform_device *dev)
+static void exynos_serial_remove(struct platform_device *dev)
 {
 	struct uart_port *port = exynos_dev_to_port(&dev->dev);
 
@@ -2904,8 +2888,6 @@ static int exynos_serial_remove(struct platform_device *dev)
 	}
 
 	uart_unregister_driver(&exynos_uart_drv);
-
-	return 0;
 }
 
 /* UART power management code */

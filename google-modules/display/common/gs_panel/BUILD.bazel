@@ -1,28 +1,57 @@
 # SPDX-License-Identifier: MIT
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
 
-kernel_module(
-    name = "gs_panel",
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "gs-panel",
     srcs = glob([
-        "*.h",
-        "*.c",
+        "**/*.h",
     ]) + [
-        "Kbuild",
-        "//private/google-modules/display/common:headers",
+        "drm_bridge_funcs.c",
+        "drm_panel_funcs_defaults.c",
+        "gs_dsi_dcs_helper.c",
+        "gs_panel.c",
+        "gs_panel_connector_funcs.c",
+        "gs_panel_funcs_defaults.c",
+        "gs_panel_irq.c",
+        "gs_panel_lhbm.c",
+        "gs_panel_sysfs.c",
+        "gs_panel_trace.c",
     ],
-    outs = [
-        "gs-panel.ko",
+    out = "gs-panel.ko",
+    conditional_srcs = {
+        "CONFIG_DEBUG_FS": {
+            True: [
+                "gs_panel_debugfs.c",
+            ],
+        },
+        "CONFIG_DEBUG_PANEL_TEST": {
+            True: [
+                "gs_panel_test.c",
+            ],
+        },
+    },
+    copts = [
+        "-Werror",
     ],
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/display/common/panel_tests:__subpackages__",
-        "//private/google-modules/display/common/panels:__subpackages__",
-        "//private/google-modules/display/panels:__subpackages__",
-        "//private/google-modules/touch:__subpackages__",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
     ],
     deps = [
-        "//private/google-modules/display/common/gs_drm",
-    ],
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common:ddk_headers",
+        "//private/google-modules/display/common/gs_drm:gs-drm-connector",
+    ] + select({
+        "//private/devices/google/common:soc_is_laguna_or_later": [
+            "//private/google-modules/soc/rdo:rdo_soc_headers",
+            "//private/google-modules/soc/rdo/drivers/soc/google/cdd:gcdd",
+        ],
+        "//conditions:default": [],
+    }),
 )

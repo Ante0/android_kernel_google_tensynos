@@ -63,9 +63,11 @@ typedef uint32_t gbms_tag_t;
 
 enum gbms_tags {
 	GBMS_TAG_AAWC = 0x41415743, /* AACC weights cycles */
+	GBMS_TAG_AATD = 0x41415444, /* AACC weights cycles for Temp Defender */
 	GBMS_TAG_ACIM = 0x4143494d, /* Activation Impedance */
 	GBMS_TAG_AYMD = 0x41594d44,
 	GBMS_TAG_BCNT = 0x42434e54,
+	GBMS_TAG_BCLS = 0x42434c53,
 	GBMS_TAG_BGCE = 0x42474345,
 	GBMS_TAG_BGPN = 0x4247504e,
 	GBMS_TAG_BPST = 0x42505354, /* LOTRV1: health or spare */
@@ -86,6 +88,7 @@ enum gbms_tags {
 	GBMS_TAG_HIST = 0x48495354, /* Base cell history */
 	GBMS_TAG_LOTR = 0x4C4F5452,
 	GBMS_TAG_MDLV = 0x4D444C56,
+	GBMS_TAG_MDLS = 0x4D444C53,
 	GBMS_TAG_MINF = 0x4d494e46,
 	GBMS_TAG_MXSN = 0x4d58534e,
 	GBMS_TAG_MXCN = 0x4d58434e,
@@ -101,6 +104,7 @@ enum gbms_tags {
 	GBMS_TAG_RSBR = 0x52534252,
 	GBMS_TAG_RSOC = 0x52534F43, /* save soc */
 	GBMS_TAG_SUFG = 0x53554647, /* shutdown by user_request flag */
+	GBMS_TAG_WLFW = 0x574C4657, /* wlc fw version tag */
 
 	/* Reboot scratch */
 	GBMS_TAG_RRS0 = 0x52525330,
@@ -210,7 +214,8 @@ static inline void gbee_destroy_device(void) { }
 
 static inline int gbee_storage02_info(gbms_tag_t tag, size_t *addr, size_t *count, void *ptr)
 { return -ENODEV; }
-static inline int gbee_storage_read_data_02(gbms_tag_t tag, void *data, size_t count, int idx, void *ptr)
+static inline int gbee_storage_read_data_02(gbms_tag_t tag, void *data, size_t count, int idx,
+					    void *ptr)
 { return -ENODEV; }
 
 static inline int gbee_storage01_info(gbms_tag_t tag, size_t *addr, size_t *count, void *ptr)

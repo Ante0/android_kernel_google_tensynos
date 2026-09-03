@@ -1,0 +1,94 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# RTC class/drivers.
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "rtc-s2mpg10",
+    srcs = [
+        "rtc_defines.h",
+    ],
+    out = "rtc-s2mpg10.ko",
+    conditional_srcs = {
+        "CONFIG_RTC_DRV_S2MPG10": {
+            True: [
+                "rtc-s2mpg10.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location rtc_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "rtc-s2mpg12",
+    srcs = [
+        "rtc_defines.h",
+    ],
+    out = "rtc-s2mpg12.ko",
+    conditional_srcs = {
+        "CONFIG_RTC_DRV_S2MPG12": {
+            True: [
+                "rtc-s2mpg12.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location rtc_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/mfd:s2mpg12-mfd",
+    ],
+)
+
+ddk_module(
+    name = "rtc-s2mpg14",
+    srcs = [
+        "rtc_defines.h",
+    ],
+    out = "rtc-s2mpg14.ko",
+    conditional_srcs = {
+        "CONFIG_RTC_DRV_S2MPG14": {
+            True: [
+                "rtc-s2mpg14.c",
+            ],
+        },
+    },
+    copts = [
+        "-include",
+        "$(location rtc_defines.h)",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/mfd:s2mpg14-mfd",
+    ],
+)

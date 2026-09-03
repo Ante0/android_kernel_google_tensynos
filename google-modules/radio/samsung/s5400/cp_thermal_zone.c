@@ -80,7 +80,7 @@ static const struct attribute_group cp_temp_group = {
 static int cp_sensor_get_temp(struct thermal_zone_device *tz, int *temp)
 {
 	int ret = 0;
-	struct cp_temp_sensor *s = tz->devdata;
+	struct cp_temp_sensor *s = thermal_zone_device_priv(tz);
 
 	if (s && s->valid)
 		*temp = s->temp;
@@ -136,9 +136,8 @@ fail:
 	return ret;
 }
 
-static int cp_thermal_zone_remove(struct platform_device *pdev)
+static void cp_thermal_zone_remove(struct platform_device *pdev)
 {
-	return 0;
 }
 
 static const struct of_device_id cp_thermal_zone_match[] = {

@@ -23,9 +23,6 @@
 #define DM_VERITY_FEC_BUF_MAX \
 	(1 << (PAGE_SHIFT - DM_VERITY_FEC_BUF_RS_BITS))
 
-/* maximum recursion level for verity_fec_decode */
-#define DM_VERITY_FEC_MAX_RECURSION	4
-
 #define DM_VERITY_OPT_FEC_DEV		"use_fec_from_device"
 #define DM_VERITY_OPT_FEC_BLOCKS	"fec_blocks"
 #define DM_VERITY_OPT_FEC_START		"fec_start"
@@ -50,6 +47,11 @@ struct dm_verity_fec {
 	struct kmem_cache *cache;	/* cache for buffers */
 };
 
+struct dm_verity_fec_ex {
+	struct dm_verity_fec base;
+	atomic64_t corrected; /* corrected errors */
+};
+
 /* per-bio data */
 struct dm_verity_fec_io {
 	struct rs_control *rs;	/* Reed-Solomon state */
@@ -57,7 +59,6 @@ struct dm_verity_fec_io {
 	u8 *bufs[DM_VERITY_FEC_BUF_MAX];	/* bufs for deinterleaving */
 	unsigned int nbufs;		/* number of buffers allocated */
 	u8 *output;		/* buffer for corrected output */
-	size_t output_pos;
 	unsigned int level;		/* recursion level */
 };
 
@@ -69,8 +70,8 @@ struct dm_verity_fec_io {
 extern bool verity_fec_is_enabled(struct dm_verity *v);
 
 extern int verity_fec_decode(struct dm_verity *v, struct dm_verity_io *io,
-			     enum verity_block_type type, sector_t block,
-			     u8 *dest, struct bvec_iter *iter);
+			     enum verity_block_type type, const u8 *want_digest,
+			     sector_t block, u8 *dest);
 
 extern unsigned int verity_fec_status_table(struct dm_verity *v, unsigned int sz,
 					char *result, unsigned int maxlen);
@@ -100,8 +101,8 @@ static inline bool verity_fec_is_enabled(struct dm_verity *v)
 static inline int verity_fec_decode(struct dm_verity *v,
 				    struct dm_verity_io *io,
 				    enum verity_block_type type,
-				    sector_t block, u8 *dest,
-				    struct bvec_iter *iter)
+				    const u8 *want_digest,
+				    sector_t block, u8 *dest)
 {
 	return -EOPNOTSUPP;
 }
@@ -149,5 +150,11 @@ static inline int verity_fec_ctr(struct dm_verity *v)
 }
 
 #endif /* CONFIG_DM_VERITY_FEC */
+
+static inline atomic64_t *verity_fec_corrected(struct dm_verity *v)
+{
+	/* Precondition: verity_fec_is_enabled(v). */
+	return &((struct dm_verity_fec_ex *)v->fec)->corrected;
+}
 
 #endif /* DM_VERITY_FEC_H */

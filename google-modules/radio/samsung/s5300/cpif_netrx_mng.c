@@ -146,10 +146,8 @@ struct cpif_addr_pair *cpif_map_rx_buf(struct cpif_netrx_mng *cm)
 	page_size = cpif_cur_page_size(cm->data_pool, used_tmp_alloc);
 
 	ret = kzalloc(sizeof(struct cpif_addr_pair), GFP_ATOMIC);
-	if (!ret) {
-		mif_err_limited("failed to kzalloc for addr_pair\n");
+	if (!ret)
 		goto done;
-	}
 
 	cp_addr = cpif_vmap_map_area(cm->data_map, page_to_phys(page),
 				     page_size, virt_to_phys(data));

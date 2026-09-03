@@ -38,7 +38,7 @@ struct cmu_pmu cmu_pmu_map[] = {
 	/* TODO: will be added after bring-up done */
 };
 
-void gs201_cal_data_init(void)
+static void gs201_cal_data_init(void)
 {
 	pr_info("%s: cal data init\n", __func__);
 
@@ -72,7 +72,7 @@ void (*cal_data_init)(void) = gs201_cal_data_init;
 int (*wa_set_cmuewf)(unsigned int index, unsigned int en, void *cmu_cmu, int *ewf_refcnt) = NULL;
 void (*cal_set_cmu_smpl_warn)(void) = NULL;
 
-char *gs201_get_pd_name_by_cmu(unsigned int addr)
+static char *gs201_get_pd_name_by_cmu(unsigned int addr)
 {
 	int i, map_size;
 

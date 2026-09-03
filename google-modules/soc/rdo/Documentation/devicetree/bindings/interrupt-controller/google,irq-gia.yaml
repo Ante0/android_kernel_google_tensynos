@@ -1,0 +1,108 @@
+# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+# Copyright 2024 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/interrupt-controller/google,irq-gia.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google Generic Interrupt Aggregator (GIA)
+
+maintainers:
+  - Chintan Pandya <chintanpandya@google.com>
+  - Trevor van Leeuwen <tvanl@google.com>
+
+allOf:
+  - $ref: /schemas/interrupt-controller.yaml#
+
+description: |
+  The Google GIA is a scalable interrupt controller designed to handle
+  various types of interrupts efficiently. It supports level-triggered,
+  pulse-triggered, and wide (multi-bank) configurations.
+
+properties:
+  compatible:
+    enum:
+      - google,wide-level-gia
+      - google,level-gia
+      - google,pulse-gia
+    description: Identifies the specific GIA variant.
+
+  interrupt-controller: true
+
+  reg:
+    maxItems: 1
+    description:
+      Address and length of the GIA register space. For the wide GIA cases,
+      size should account for all bank's combined size.
+
+  interrupts:
+    description: An array of output interrupts handled by this GIA.
+
+  interrupt-parent:
+    description: phandle to the interrupt domain this device belongs to.
+
+  "#interrupt-cells":
+    const: 1
+    description: Number of cells required to specify a single interrupt.
+
+  "nr-irq-chips":
+    type: integer
+    default: 1
+    description: |
+      Number of register banks in the GIA. Only applicable to
+      "google,wide-level-gia" variants.
+
+  "next-bank-offset":
+    type: integer
+    description: |
+      Offset between the base addresses of consecutive register banks.
+      Only applicable to "google,wide-level-gia" variants.
+
+  power-domains:
+    description: phandle to GenPD domain this device gets power from.
+
+required:
+  - compatible
+  - reg
+  - interrupt-controller
+  - "#interrupt-cells"
+
+examples:
+  - |
+    // Level GIA:
+    eh_multicast_aggr_3_intr: eh-multicast-aggr-3-intr@23e8e000
+    {
+	compatible = "google,level-gia";
+	power-domains = <&sswrp_eh_pd>;
+	interrupt-controller;
+        #interrupt-cells = <1>;
+	reg = <0x0 0x23e8e000 0 0x10>;
+	interrupts = <GIC_SPI SSWRP_EH_INTR_EH_AP_NS_AGGR IRQ_TYPE_LEVEL_HIGH>;
+    };
+
+    // Pulse GIA:
+    eh_pulse_aggr_0_intr: eh-pulse-aggr-0-intr@23e89000
+    {
+	compatible = "google,pulse-gia";
+	power-domains = <&sswrp_eh_pd>;
+	interrupt-controller;
+	interrupt-parent = <&eh_multicast_aggr_3_intr>;
+        #interrupt-cells = <1>;
+	reg = <0x0 0x23e89000 0 0x14>;
+	interrupts = <EH_GIA_MULTICAST_AGGR_3_AUX_GIA_PULSE_AGGR_0_INTR>;
+    };
+
+    // Wide level GIA (non-interleaved):
+    lsios_level_aggr_0_intr: lsios-level-aggr-0-intr@3bd60000
+    {
+	compatible = "google,wide-level-gia";
+	power-domains = <&lsio_s_cli_gpio_pd>;
+	interrupt-controller;
+        #interrupt-cells = <1>;
+	reg = <0x0 0x3bd60000 0 0x10>;
+	nr-irq-chips = <2>;
+	next-bank-offset = <0x10>;
+	interrupts =
+		<GIC_SPI SSWRP_LSIOS_LSIOS_AP_GPIOA_INTR IRQ_TYPE_LEVEL_HIGH>;
+    };
+...

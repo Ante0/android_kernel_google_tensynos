@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+/*
+ * Debug Policy Module device tree source
+ *
+ * Copyright 2024 Google Inc.
+ */
+
+/ {
+	dpm: dpm  {
+	}; /* end of dpm */
+}; /* end of root */
+
+/* default settings built into kernel dt */
+#include "lga-dpm-user.dtsi"

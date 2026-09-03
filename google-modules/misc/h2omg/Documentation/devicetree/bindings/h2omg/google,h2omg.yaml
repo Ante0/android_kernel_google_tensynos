@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: (GPL-2.0 OR BSD-2-Clause)
+# Copyright 2024 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/h2omg/google,h2omg.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google Water Intrusion Detection Driver
+
+maintainers:
+  - James Wylder <jwylder@google.com>
+
+description: |
+  This describes the device tree I2C bindings for the H2OMG chip.
+
+properties:
+  compatible:
+    const: google,h2omg
+
+  h2omg_irq-gpios:
+    description:
+       Gpio used for interrupts.
+
+  control:
+    description:
+       Eight bit value providing initial startup configuration.
+       See go/h2omg for chip dependent settings.
+
+  dual-trigger:
+    description:
+       When this is set, the fuse will only be blown when both sensor
+       inputs detect water.
+
+  trigger_delay_ms:
+    description:
+       When dual-trigger is set and this is set to a value greater
+       than 10 ms, the fuse will blow if both sensors detect water
+       at the same time, or if one sensor is continuously wet for the
+       duration specified by the timer.
+
+  vref_div:
+    description:
+       When this is set, it indicates the board has a divider on the
+       vref line.  The configuration needs to use a lower comparator
+       voltage setting.
+
+required:
+  - compatible
+
+examples:
+  - |
+    h2omg: h2omg@70 {
+        reg = <0x70>;
+
+        compatible = "google,h2omg";
+
+        control = /bits/ 8 <0x4f>;
+
+        pinctrl-names = "default";
+        pinctrl-0 = <&bg_cpm_alrt_od_l>;
+        h2omg_irq-gpios = <BG_CPM_ALRT_OD_L(GPIO_ACTIVE_LOW)>;
+    };

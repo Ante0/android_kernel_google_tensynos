@@ -1,13 +1,29 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module")
 
-filegroup(
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_headers(
     name = "headers",
-    srcs = glob([
-        "*.h",
-        "uapi/*.h",
+    hdrs = glob([
+        "**/*.h",
     ]),
+    includes = [
+        ".",
+        "core_pmic",
+        "core_pmic/s2mpg1x",
+        "core_pmic/s2mpg1x/**/*.h",
+        "ifpmic",
+    ],
     visibility = [
         "//private/devices/google:__subpackages__",
         "//private/google-modules/edgetpu:__subpackages__",
@@ -15,6 +31,7 @@ filegroup(
         "//private/google-modules/gxp:__subpackages__",
         "//private/google-modules/power/mitigation:__subpackages__",
         "//private/google-modules/soc/gs:__pkg__",
+        "//private/google-modules/soc/rdo:__pkg__",
     ],
 )
 
@@ -24,33 +41,270 @@ filegroup(
     visibility = [
         "//private/devices/google:__subpackages__",
         "//private/google-modules/soc/gs:__pkg__",
+        "//private/google-modules/soc/rdo:__pkg__",
     ],
 )
 
-kernel_module(
-    name = "bcl",
-    srcs = glob([
-        "**/*.c",
-        "**/*.h",
-    ]) + [
-        "//private/google-modules/bms:headers",
-        "//private/google-modules/bms/misc:headers",
-        "//private/google-modules/soc/gs:gs_soc_headers",
+ddk_module(
+    name = "google_bcl",
+    srcs = [
+        "google_bcl_core.c",
+        "google_bcl_core_helper.c",
+        "google_bcl_data_logging.c",
+        "google_bcl_debugfs.c",
+        "google_bcl_irq_mon.c",
+        "google_bcl_votable.c",
+        "ifpmic/ifpmic_class.c",
+        "ifpmic/max777x9.c",
+        "soc/userspace/userspace_bcl_qos.c",
     ],
-    outs = [
-        "google_bcl.ko",
-    ],
+    out = "google_bcl.ko",
+    conditional_srcs = {
+        "CONFIG_SOC_MBU": {
+            True: [
+                "sysfs/batoilo_policy_lvl.c",
+                "sysfs/common.c",
+                "sysfs/debounce_time.c",
+                "sysfs/qos_soc_generic.c",
+                "sysfs/ocp_timer.c",
+                "sysfs/malibu_bcl_sysfs.c",
+                "soc/malibu/malibu_bcl_qos.c",
+                "soc/malibu/malibu_bcl_soc.c",
+            ],
+        },
+        "CONFIG_SOC_RDO": {
+            True: [
+                "google_bcl_sysfs.c",
+                "soc/lga/lga_bcl_qos.c",
+                "soc/lga/lga_bcl_soc.c",
+            ],
+        },
+        "CONFIG_SOC_LGA": {
+            True: [
+                "google_bcl_sysfs.c",
+                "soc/lga/lga_bcl_qos.c",
+                "soc/lga/lga_bcl_soc.c",
+            ],
+        },
+        "CONFIG_SOC_GS101": {
+            True: [
+                "google_bcl_sysfs.c",
+                "soc/gs/gs_bcl_qos.c",
+                "soc/gs/gs_bcl_soc.c",
+            ],
+        },
+        "CONFIG_SOC_GS201": {
+            True: [
+                "google_bcl_sysfs.c",
+                "soc/gs/gs_bcl_qos.c",
+                "soc/gs/gs_bcl_soc.c",
+            ],
+        },
+        "CONFIG_SOC_ZUMA": {
+            True: [
+                "google_bcl_sysfs.c",
+                "soc/gs/gs_bcl_qos.c",
+                "soc/gs/gs_bcl_soc.c",
+            ],
+        },
+        "CONFIG_REGULATOR_S2MPG14": {
+            True: [
+                "core_pmic/s2mpg1x/s2mpg1x.c",
+                "core_pmic/s2mpg1x/s2mpg1415/s2mpg14_bcl.c",
+                "core_pmic/s2mpg1x/s2mpg1415/s2mpg15_bcl.c",
+                "core_pmic/s2mpg1x/s2mpg1415/s2mpg1415_bcl.c",
+            ],
+        },
+        "CONFIG_REGULATOR_S2MPG12": {
+            True: [
+                "core_pmic/s2mpg1x/s2mpg1x.c",
+                "core_pmic/s2mpg1x/s2mpg1213/s2mpg12_bcl.c",
+                "core_pmic/s2mpg1x/s2mpg1213/s2mpg13_bcl.c",
+                "core_pmic/s2mpg1x/s2mpg1213/s2mpg1213_bcl.c",
+            ],
+        },
+        "CONFIG_REGULATOR_S2MPG10": {
+            True: [
+                "core_pmic/s2mpg1x/s2mpg1x.c",
+                "core_pmic/s2mpg1x/s2mpg1011/s2mpg10_bcl.c",
+                "core_pmic/s2mpg1x/s2mpg1011/s2mpg11_bcl.c",
+                "core_pmic/s2mpg1x/s2mpg1011/s2mpg1011_bcl.c",
+            ],
+        },
+        "CONFIG_GOOGLE_DA9188_REGULATOR_REGISTER_ACCESS": {
+            True: [
+                "core_pmic/da918x/da918x.c",
+                "core_pmic/da918x/da918x_bcl.c",
+            ],
+        },
+        "CONFIG_GOOGLE_BCL_MAX77779": {
+            True: [
+                "ifpmic/max77779/max77779_vdroop.c",
+            ],
+        },
+        "CONFIG_GOOGLE_BCL_MAX77759": {
+            True: [
+                "ifpmic/max77759/max77759_vdroop.c",
+            ],
+        },
+    },
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/edgetpu:__subpackages__",
-        "//private/google-modules/gpu:__subpackages__",
-        "//private/google-modules/gxp:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
+    local_defines = select({
+        "//private/devices/google/common:factory_build": ["BCL_FACTORY_BUILD"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms:google-bms",
+        "//private/google-modules/bms:headers",
+        "//private/google-modules/bms:max77759-charger",
+        "//private/google-modules/bms:max77779-charger",
+        "//private/google-modules/bms:max77779-fg",
+        "//private/google-modules/bms:max77779-vimon",
+        "//private/google-modules/bms:max77779_pmic",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/soc/gs:headers",
+    ] + select({
+        "//private/devices/google/common:soc_is_malibu": [
+        ],
+        "//conditions:default": [
+            "//private/google-modules/soc/gs/drivers/soc/google/modemctl:google_modemctl",
+        ],
+    }) + select({
+        "//private/devices/google/common:soc_is_zuma_or_zumapro": [
+            "//private/google-modules/soc/gs/drivers/iio/power:odpm",
+            "//private/google-modules/soc/gs/drivers/mfd:s2mpg14-mfd",
+            "//private/google-modules/soc/gs/drivers/mfd:s2mpg15-mfd",
+            "//private/google-modules/soc/gs/drivers/regulator:s2mpg14-powermeter",
+            "//private/google-modules/soc/gs/drivers/regulator:s2mpg15-powermeter",
+        ],
+        "//private/devices/google/common:soc_is_gs201_or_before": [
+            "//private/google-modules/soc/gs/drivers/mfd:s2mpg12-mfd",
+            "//private/google-modules/soc/gs/drivers/mfd:s2mpg13-mfd",
+        ],
+        "//conditions:default": [
+        ],
+    }) + select({
+        "//private/devices/google/common:soc_is_laguna_or_later": [
+            "//private/google-modules/perf/core/google_pm_qos",
+            "//private/google-modules/soc/rdo:rdo_soc_headers",
+            "//private/google-modules/soc/rdo/ap-pmic:da9188-core",
+            "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-cpm-iface",
+            "//private/google-modules/soc/rdo/odpm:google_odpm",
+            "//private/google-modules/soc/rdo/odpm:headers",
+        ],
+        "//private/devices/google/common:soc_is_zumapro_or_before": [
+            "//private/google-modules/soc/gs/drivers/regulator:pmic_class",
+            "//private/google-modules/soc/gs/drivers/soc/google:exynos-cpupm",
+            "//private/google-modules/soc/gs/drivers/soc/google:exynos-pmu-if",
+            "//private/google-modules/soc/gs/drivers/soc/google:exynos_pm_qos",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+ddk_module(
+    name = "max77779_bcl_irq",
+    srcs = [
+        "ifpmic/max77779/max77779_bcl_irq.c",
+    ],
+    out = "max77779-bcl-irq.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
     ],
     deps = [
-        "//private/google-modules/bms",
-        "//private/google-modules/bms/misc:bms-misc",
-        "//private/google-modules/soc/gs:gs_soc_module",
+        ":headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms:headers",
+        "//private/google-modules/bms:max77779-charger",
+        "//private/google-modules/bms:max77779-vimon",
+        "//private/google-modules/bms:max77779_pmic",
+        "//private/google-modules/power/mitigation:google_bcl",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "max77759_bcl_irq",
+    srcs = [
+        "ifpmic/max77759/max77759_bcl_irq.c",
+    ],
+    out = "max77759-bcl-irq.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms:headers",
+        "//private/google-modules/bms:max77759-charger",
+        "//private/google-modules/power/mitigation:google_bcl",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "google_da918x_bcl_test",
+    srcs = [
+        "core_pmic/core_pmic_defs.h",
+        "core_pmic/da918x/da9188_limits.h",
+        "test/da918x_bcl_tests.c",
+    ],
+    out = "google_da918x_bcl_test.ko",
+    defconfig = "test/kunit_defconfig",
+    kconfig = "test/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":google_bcl",
+        ":headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "google_max77779_bcl_irq_test",
+    srcs = [
+        "test/max77779_bcl_irq_tests.c",
+    ],
+    out = "google_max77779_bcl_irq_test.ko",
+    defconfig = "test/kunit_defconfig",
+    kconfig = "test/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":google_bcl",
+        ":headers",
+        ":max77779_bcl_irq",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms:headers",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "google_max77759_bcl_irq_test",
+    srcs = [
+        "test/max77759_bcl_irq_tests.c",
+    ],
+    out = "google_max77759_bcl_irq_test.ko",
+    defconfig = "test/kunit_defconfig",
+    kconfig = "test/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":google_bcl",
+        ":headers",
+        ":max77759_bcl_irq",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms:headers",
+        "//private/google-modules/bms:max77759-charger",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
     ],
 )

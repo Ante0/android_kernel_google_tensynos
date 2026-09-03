@@ -34,6 +34,7 @@ static int __io_splice_prep(struct io_kiocb *req,
 	if (unlikely(sp->flags & ~valid_flags))
 		return -EINVAL;
 	sp->splice_fd_in = READ_ONCE(sqe->splice_fd_in);
+	req->flags |= REQ_F_FORCE_ASYNC;
 	return 0;
 }
 
@@ -50,10 +51,9 @@ int io_tee(struct io_kiocb *req, unsigned int issue_flags)
 	struct file *out = sp->file_out;
 	unsigned int flags = sp->flags & ~SPLICE_F_FD_IN_FIXED;
 	struct file *in;
-	long ret = 0;
+	ssize_t ret = 0;
 
-	if (issue_flags & IO_URING_F_NONBLOCK)
-		return -EAGAIN;
+	WARN_ON_ONCE(issue_flags & IO_URING_F_NONBLOCK);
 
 	if (sp->flags & SPLICE_F_FD_IN_FIXED)
 		in = io_file_get_fixed(req, sp->splice_fd_in, issue_flags);
@@ -68,7 +68,7 @@ int io_tee(struct io_kiocb *req, unsigned int issue_flags)
 		ret = do_tee(in, out, sp->len, flags);
 
 	if (!(sp->flags & SPLICE_F_FD_IN_FIXED))
-		io_put_file(in);
+		fput(in);
 done:
 	if (ret != sp->len)
 		req_set_fail(req);
@@ -92,10 +92,9 @@ int io_splice(struct io_kiocb *req, unsigned int issue_flags)
 	unsigned int flags = sp->flags & ~SPLICE_F_FD_IN_FIXED;
 	loff_t *poff_in, *poff_out;
 	struct file *in;
-	long ret = 0;
+	ssize_t ret = 0;
 
-	if (issue_flags & IO_URING_F_NONBLOCK)
-		return -EAGAIN;
+	WARN_ON_ONCE(issue_flags & IO_URING_F_NONBLOCK);
 
 	if (sp->flags & SPLICE_F_FD_IN_FIXED)
 		in = io_file_get_fixed(req, sp->splice_fd_in, issue_flags);
@@ -113,7 +112,7 @@ int io_splice(struct io_kiocb *req, unsigned int issue_flags)
 		ret = do_splice(in, poff_in, out, poff_out, sp->len, flags);
 
 	if (!(sp->flags & SPLICE_F_FD_IN_FIXED))
-		io_put_file(in);
+		fput(in);
 done:
 	if (ret != sp->len)
 		req_set_fail(req);

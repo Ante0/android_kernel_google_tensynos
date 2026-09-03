@@ -1,0 +1,27 @@
+config PE26100
+	tristate "PE26100 MFD Charger Driver"
+	select PE26100_BUCK_CHARGER
+	select PE26100_USECASE
+	help
+	  Say Y here to enable the google PE26100 charger driver.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called pe26100.
+
+config PE26100_BUCK_CHARGER
+	tristate "PE26100 Buck Charger Driver"
+	help
+	  Say Y here to enable the google PE26100 buck charger driver.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called pe26100-buck-charger.
+
+config PE26100_USECASE
+	tristate "PE26100 Usecase Driver"
+	help
+	  Say Y here to enable the google PE26100 usecase driver.
+
+	  Usecase state machien driver for the PE26100 charger
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called pe26100-usecase.

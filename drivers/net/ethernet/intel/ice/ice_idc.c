@@ -6,7 +6,7 @@
 #include "ice_lib.h"
 #include "ice_dcb_lib.h"
 
-static DEFINE_IDA(ice_aux_ida);
+static DEFINE_XARRAY_ALLOC1(ice_aux_id);
 
 /**
  * ice_get_auxiliary_drv - retrieve iidc_auxiliary_drv struct
@@ -229,20 +229,34 @@ void ice_get_qos_params(struct ice_pf *pf, struct iidc_qos_params *qos)
 EXPORT_SYMBOL_GPL(ice_get_qos_params);
 
 /**
- * ice_reserve_rdma_qvector - Reserve vector resources for RDMA driver
+ * ice_alloc_rdma_qvectors - Allocate vector resources for RDMA driver
  * @pf: board private structure to initialize
  */
-static int ice_reserve_rdma_qvector(struct ice_pf *pf)
+static int ice_alloc_rdma_qvectors(struct ice_pf *pf)
 {
 	if (ice_is_rdma_ena(pf)) {
-		int index;
+		int i;
 
-		index = ice_get_res(pf, pf->irq_tracker, pf->num_rdma_msix,
-				    ICE_RES_RDMA_VEC_ID);
-		if (index < 0)
-			return index;
-		pf->num_avail_sw_msix -= pf->num_rdma_msix;
-		pf->rdma_base_vector = (u16)index;
+		pf->msix_entries = kcalloc(pf->num_rdma_msix,
+					   sizeof(*pf->msix_entries),
+						  GFP_KERNEL);
+		if (!pf->msix_entries)
+			return -ENOMEM;
+
+		/* RDMA is the only user of pf->msix_entries array */
+		pf->rdma_base_vector = 0;
+
+		for (i = 0; i < pf->num_rdma_msix; i++) {
+			struct msix_entry *entry = &pf->msix_entries[i];
+			struct msi_map map;
+
+			map = ice_alloc_irq(pf, false);
+			if (map.index < 0)
+				break;
+
+			entry->entry = map.index;
+			entry->vector = map.virq;
+		}
 	}
 	return 0;
 }
@@ -253,9 +267,21 @@ static int ice_reserve_rdma_qvector(struct ice_pf *pf)
  */
 static void ice_free_rdma_qvector(struct ice_pf *pf)
 {
-	pf->num_avail_sw_msix -= pf->num_rdma_msix;
-	ice_free_res(pf->irq_tracker, pf->rdma_base_vector,
-		     ICE_RES_RDMA_VEC_ID);
+	int i;
+
+	if (!pf->msix_entries)
+		return;
+
+	for (i = 0; i < pf->num_rdma_msix; i++) {
+		struct msi_map map;
+
+		map.index = pf->msix_entries[i].entry;
+		map.virq = pf->msix_entries[i].vector;
+		ice_free_irq(pf, map);
+	}
+
+	kfree(pf->msix_entries);
+	pf->msix_entries = NULL;
 }
 
 /**
@@ -349,14 +375,15 @@ int ice_init_rdma(struct ice_pf *pf)
 		return 0;
 	}
 
-	pf->aux_idx = ida_alloc(&ice_aux_ida, GFP_KERNEL);
-	if (pf->aux_idx < 0) {
+	ret = xa_alloc(&ice_aux_id, &pf->aux_idx, NULL, XA_LIMIT(1, INT_MAX),
+		       GFP_KERNEL);
+	if (ret) {
 		dev_err(dev, "Failed to allocate device ID for AUX driver\n");
 		return -ENOMEM;
 	}
 
 	/* Reserve vector resources */
-	ret = ice_reserve_rdma_qvector(pf);
+	ret = ice_alloc_rdma_qvectors(pf);
 	if (ret < 0) {
 		dev_err(dev, "failed to reserve vectors for RDMA\n");
 		goto err_reserve_rdma_qvector;
@@ -371,7 +398,7 @@ err_plug_aux_dev:
 	ice_free_rdma_qvector(pf);
 err_reserve_rdma_qvector:
 	pf->adev = NULL;
-	ida_free(&ice_aux_ida, pf->aux_idx);
+	xa_erase(&ice_aux_id, pf->aux_idx);
 	return ret;
 }
 
@@ -386,5 +413,5 @@ void ice_deinit_rdma(struct ice_pf *pf)
 
 	ice_unplug_aux_dev(pf);
 	ice_free_rdma_qvector(pf);
-	ida_free(&ice_aux_ida, pf->aux_idx);
+	xa_erase(&ice_aux_id, pf->aux_idx);
 }

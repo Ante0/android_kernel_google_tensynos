@@ -9,10 +9,12 @@
 #include <asm/memory.h>
 #include <asm/percpu.h>
 
+#include <nvhe/trace.h>
+
 DEFINE_PER_CPU(unsigned long [OVERFLOW_STACK_SIZE/sizeof(long)], overflow_stack)
 	__aligned(16);
 
-__visible DEFINE_PER_CPU(struct kvm_nvhe_stacktrace_info, kvm_stacktrace_info);
+DEFINE_PER_CPU(struct kvm_nvhe_stacktrace_info, kvm_stacktrace_info);
 
 /*
  * hyp_prepare_backtrace - Prepare non-protected nVHE backtrace.
@@ -34,7 +36,7 @@ static void hyp_prepare_backtrace(unsigned long fp, unsigned long pc)
 	stacktrace_info->pc = pc;
 }
 
-#ifdef CONFIG_PROTECTED_NVHE_STACKTRACE
+#ifdef CONFIG_PKVM_STACKTRACE
 #include <asm/stacktrace/nvhe.h>
 
 DEFINE_PER_CPU(unsigned long [NVHE_STACKTRACE_SIZE/sizeof(long)], pkvm_stacktrace);
@@ -82,6 +84,8 @@ static void notrace unwind(struct unwind_state *state,
 	}
 }
 
+extern void __hyp_ftrace_ret_tramp(void);
+
 /*
  * pkvm_save_backtrace_entry - Saves a protected nVHE HYP stacktrace entry
  *
@@ -103,6 +107,14 @@ static bool pkvm_save_backtrace_entry(void *arg, unsigned long where)
 	if (*idx > ARRAY_SIZE(pkvm_stacktrace) - 2)
 		return false;
 
+#ifdef CONFIG_PKVM_FTRACE
+	if (ptrauth_strip_kernel_insn_pac(where) == (unsigned long)__hyp_ftrace_ret_tramp) {
+		unsigned long ret = hyp_ftrace_ret_pop();
+
+		if (ret != ULONG_MAX)
+			where = ret;
+	}
+#endif
 	stacktrace[*idx] = where;
 	stacktrace[++*idx] = 0UL;
 
@@ -134,11 +146,11 @@ static void pkvm_save_backtrace(unsigned long fp, unsigned long pc)
 
 	unwind(&state, pkvm_save_backtrace_entry, &idx);
 }
-#else /* !CONFIG_PROTECTED_NVHE_STACKTRACE */
+#else /* !CONFIG_PKVM_STACKTRACE */
 static void pkvm_save_backtrace(unsigned long fp, unsigned long pc)
 {
 }
-#endif /* CONFIG_PROTECTED_NVHE_STACKTRACE */
+#endif /* CONFIG_PKVM_STACKTRACE */
 
 /*
  * kvm_nvhe_prepare_backtrace - prepare to dump the nVHE backtrace

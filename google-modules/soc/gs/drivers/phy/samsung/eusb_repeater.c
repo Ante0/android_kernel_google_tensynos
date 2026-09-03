@@ -12,6 +12,7 @@
  */
 
 #include <linux/extcon.h>
+#include <soc/google/eusb_repeater.h>
 
 #include "eusb_repeater.h"
 
@@ -35,7 +36,7 @@ static void ensure_eusb_repeater_ready(struct eusb_repeater_data *tud)
 	mutex_unlock(&tud->mutex);
 }
 
-int eusb_repeater_i2c_write(struct eusb_repeater_data *tud, u8 reg, u8 *data, int len)
+static int eusb_repeater_i2c_write(struct eusb_repeater_data *tud, u8 reg, u8 *data, int len)
 {
 	u8 buf[I2C_WRITE_BUFFER_SIZE + 1];
 	int ret;
@@ -78,7 +79,7 @@ int eusb_repeater_i2c_write(struct eusb_repeater_data *tud, u8 reg, u8 *data, in
 	return -EIO;
 }
 
-int eusb_repeater_i2c_read(struct eusb_repeater_data *tud, u8 reg, u8 *data, int len)
+static int eusb_repeater_i2c_read(struct eusb_repeater_data *tud, u8 reg, u8 *data, int len)
 {
 	u8 buf[4];
 	int ret;
@@ -157,7 +158,6 @@ static int eusb_repeater_fill_tune_param(struct eusb_repeater_data *tud,
 				struct device_node *node)
 {
 	struct device *dev = tud->dev;
-	struct device_node *child = NULL;
 	struct eusb_repeater_tune_param *tune_param;
 	size_t size = sizeof(struct eusb_repeater_tune_param);
 	int ret;
@@ -176,7 +176,7 @@ static int eusb_repeater_fill_tune_param(struct eusb_repeater_data *tud,
 
 	tud->tune_param = tune_param;
 
-	for_each_child_of_node(node, child) {
+	for_each_child_of_node_scoped(node, child) {
 		ret = of_property_read_string(child, "tune_name", &name);
 		if (ret == 0) {
 			memcpy(tune_param[idx].name, name, strlen(name));
@@ -210,15 +210,27 @@ static int eusb_repeater_fill_tune_param(struct eusb_repeater_data *tud,
 static int eusb_repeater_ctrl(int value)
 {
 	struct eusb_repeater_data *tud = g_tud;
-	u8 write_data = value ? 0 : REG_DISABLE_P1;
-	int ret;
+	int ret = 0;
+	u8 read_data, write_data;
 
+	ret = eusb_repeater_read_reg(tud, I2C_GLOBAL_CONFIG, &read_data, 1);
+	if (ret < 0)
+		goto err;
+
+	write_data = value ? (read_data & ~REG_DISABLE_P1) : (read_data | REG_DISABLE_P1);
 	ret = eusb_repeater_write_reg(tud, I2C_GLOBAL_CONFIG, &write_data, 1);
 	if (ret < 0)
 		goto err;
 
-	dev_dbg(tud->dev, "%s Disabled mode, reg = %x\n", value ? "Exit" : "Enter", write_data);
-	tud->ctrl_sel_status = value;
+	ret = eusb_repeater_read_reg(tud, I2C_GLOBAL_CONFIG, &read_data, 1);
+	if (ret < 0)
+		goto err;
+
+	dev_info(tud->dev, "%s Disabled mode, reg = %x\n", value ? "Exit" : "Enter", read_data);
+
+	if (ret >= 0)
+		tud->ctrl_sel_status = value;
+
 	return ret;
 
 err:
@@ -824,6 +836,7 @@ static int eusb_repeater_parse_dt(struct device *dev, struct eusb_repeater_data 
 	tune_node = of_parse_phandle(dev->of_node, "repeater_tune_param", 0);
 	if (tune_node != NULL) {
 		ret = eusb_repeater_fill_tune_param(tud, tune_node);
+		of_node_put(tune_node);
 		if (ret < 0) {
 			dev_err(dev, "can't fill repeater tuning param\n");
 			return -EINVAL;
@@ -995,8 +1008,7 @@ static void eusb_repeater_debugfs_remove(struct eusb_repeater_data *tud)
 	return;
 }
 
-static int eusb_repeater_probe(struct i2c_client *client,
-				const struct i2c_device_id *id)
+static int eusb_repeater_probe(struct i2c_client *client)
 {
 	struct device_node *of_node = client->dev.of_node;
 	struct eusb_repeater_data *tud;

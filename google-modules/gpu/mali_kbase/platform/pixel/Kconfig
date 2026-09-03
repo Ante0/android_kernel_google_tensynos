@@ -9,7 +9,6 @@
 config MALI_PIXEL_GPU_QOS
 	bool "Enable QOS requests for GPU"
 	depends on MALI_MIDGARD_DVFS && PM_DEVFREQ && CPU_FREQ
-	default y
 	help
 		Turns on quality of service (QOS) requests on MIF, INT
 		and the CPU clusters based on GPU utilization. Frequency
@@ -19,7 +18,6 @@ config MALI_PIXEL_GPU_QOS
 config MALI_PIXEL_GPU_BTS
 	bool "Enable Bus Traffic Shaping for GPU"
 	depends on MALI_PIXEL_GPU_QOS && EXYNOS_BTS
-	default y
 	help
 		Enables the setting of Bus Traffic Shaping scenarios when
 		GPU utilization is at a specific level. Configuration for
@@ -29,8 +27,7 @@ config MALI_PIXEL_GPU_BTS
 
 config MALI_PIXEL_GPU_THERMAL
 	bool "Enable support for constraining GPU clocks due to thermal events"
-	depends on MALI_MIDGARD_DVFS && GPU_THERMAL && EXYNOS_THERMAL_V2
-	default y
+	depends on MALI_MIDGARD_DVFS && GPU_THERMAL
 	help
 		Sets up the GPU driver to register for thermal events that
 		require it to clock down the GPU to remain within thermal
@@ -38,7 +35,54 @@ config MALI_PIXEL_GPU_THERMAL
 
 config MALI_PIXEL_GPU_SECURE_RENDERING
 	bool "Enable Pixel GPU Secure Rendering Support"
-	depends on MALI_MIDGARD && ION_EXYNOS && EXYNOS_CONTENT_PATH_PROTECTION
-	default y
+	depends on MALI_MIDGARD && EXYNOS_CONTENT_PATH_PROTECTION
 	help
 		Enables support for the GPU to render into secure memory.
+
+config MALI_PIXEL_GPU_PM
+	bool "Enable support for Pixel PM callback functions"
+	help
+		Enables support for Pixel PM callback functions
+
+config MALI_PIXEL_GPU_SLC
+	bool "Enable support for SLC memory"
+	help
+		Enables support for SLC memory
+
+config MALI_PIXEL_GPU_SSCD
+	bool "Enable Subsystem Coredump"
+	help
+		Enables Subsystem Coredump functionality
+
+
+#
+# Options with external dependencies
+#
+
+config MALI_PM_RUNTIME_S2MPU_CONTROL
+	bool "Enable S2MPU support"
+	depends on SOC_ZUMA
+	default y
+	help
+		Enables S2MPU support
+
+config MALI_PIXEL_GPU_SLEEP
+	bool "Enable GPU sleep mode support"
+	depends on SOC_ZUMA
+	default y
+	help
+		Enables support for GPU sleep mode
+
+config MALI_PIXEL_GPU_HARD_FMAX
+	bool "Enable maximum GPU frequency cap"
+	depends on SOC_ZUMA
+	default y
+	help
+		Sets hard maximum GPU frequency limit
+
+config PIXEL_GPU_SLC_ACPM_SIGNAL
+	bool "Enable support for Pixel GPU SLC ACPM signal"
+	depends on MALI_PIXEL_GPU_SLC && SOC_ZUMA
+	default y
+	help
+		Enables support for Pixel GPU SLC ACPM signal

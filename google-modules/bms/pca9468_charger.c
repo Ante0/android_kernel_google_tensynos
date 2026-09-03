@@ -9,6 +9,9 @@
  * published by the Free Software Foundation.
  */
 
+#pragma clang diagnostic ignored "-Wenum-conversion"
+#pragma clang diagnostic ignored "-Wswitch"
+
 #include <linux/err.h>
 #include <linux/version.h>
 #include <linux/init.h>
@@ -20,7 +23,9 @@
 #include <linux/i2c.h>
 #include <linux/regmap.h>
 #include <linux/rtc.h>
+
 #include <misc/gvotable.h>
+#include <misc/logbuffer.h>
 
 #include "pca9468_regs.h"
 #include "pca9468_charger.h"
@@ -44,9 +49,9 @@ static int adc_gain[16] = { 0,  1,  2,  3,  4,  5,  6,  7,
 #define PCA9468_ENABLE_WLC_DELAY_T	300	/* 300ms */
 
 /* Battery Threshold */
-#define PCA9468_DC_VBAT_MIN		3400000 /* uV */
+#define PCA9468_DC_VBAT_MIN		3000000 /* uV */
 /* Input Current Limit default value */
-#define PCA9468_IIN_CFG_DFT		2500000 /* uA*/
+#define PCA9468_IIN_CFG_DFT		4000000 /* uA*/
 /* Charging Float Voltage default value */
 #define PCA9468_VFLOAT_DFT		5000000	/* uV */
 /* Charging Sub Float Voltage default value */
@@ -71,7 +76,7 @@ static int adc_gain[16] = { 0,  1,  2,  3,  4,  5,  6,  7,
 #define PCA9468_IIN_S_TH_DFT	10000000	/* uA */
 
 /* Maximum TA voltage threshold */
-#define PCA9468_TA_MAX_VOL		9800000 /* uV */
+#define PCA9468_TA_MAX_VOL		11000000 /* uV */
 /* Maximum TA current threshold, set to max(cc_max) / 2 */
 #define PCA9468_TA_MAX_CUR		2600000	 /* uA */
 /* Minimum TA current threshold */
@@ -94,8 +99,7 @@ static int adc_gain[16] = { 0,  1,  2,  3,  4,  5,  6,  7,
 #define PCA9468_IIN_CC_COMP_OFFSET	25000	/* uA */
 /* IIN_CC compensation offset in Power Limit Mode(Constant Power) TA */
 #define PCA9468_IIN_CC_COMP_OFFSET_CP	20000	/* uA */
-/* TA maximum voltage that can support CC in Constant Power Mode */
-#define PCA9468_TA_MAX_VOL_CP		9800000	/* 9760000uV --> 9800000uV */
+
 /* Offset for cc_max / 2 */
 #define PCA9468_IIN_MAX_OFFSET		0
 /* Offset for TA max current */
@@ -965,15 +969,15 @@ static int pca9468_get_iin_original(struct pca9468_charger *pca9468, int *iin)
 
 static int pca9468_get_iin(struct pca9468_charger *pca9468, int *iin)
 {
-    int ret;
-    int temp;
+	int ret;
+	int temp;
 
-    ret = pca9468_get_iin_original(pca9468, &temp);
-    if (ret < 0)
-        return ret;
+	ret = pca9468_get_iin_original(pca9468, &temp);
+	if (ret < 0)
+		return ret;
 
-    *iin = temp * 2;
-    return 0;
+	*iin = temp * 2;
+	return 0;
 }
 
 static int pca9468_get_batt_info(struct pca9468_charger *pca9468, int info_type, int *info)
@@ -1500,6 +1504,11 @@ static int pca9468_set_ta_current_comp2(struct pca9468_charger *pca9468)
 				iin_apdo = iin_apdo * PD_MSG_TA_CUR_STEP;
 				/* in mV */
 				val = pca9468->ta_max_pwr / (iin_apdo / pca9468->chg_mode / 1000);
+				if (iin_apdo == 0) {
+					dev_warn(pca9468->dev, "Comp.: iin_apdo too low (0), stop comp\n");
+					return -EINVAL;
+				}
+				val = (pca9468->ta_max_pwr * 1000) / iin_apdo;
 				/* Adjust values with APDO resolution(20mV) */
 				val = val * 1000 / PD_MSG_TA_VOL_STEP;
 				val = val * PD_MSG_TA_VOL_STEP; /* uV */
@@ -1802,7 +1811,11 @@ static int pca9468_set_wired_dc(struct pca9468_charger *pca9468, int vbat)
 	val = pca9468->iin_cc / PD_MSG_TA_CUR_STEP;
 	iin_cc = val * PD_MSG_TA_CUR_STEP;
 
-	val = pca9468->ta_max_pwr / (iin_cc / pca9468->chg_mode  / 1000); /* mV */
+	if (iin_cc == 0) {
+		dev_warn(pca9468->dev, "%s: iin_cc is 0, cannot calc ta_max_pwr\n", __func__);
+		return -EINVAL;
+	}
+	val = (pca9468->ta_max_pwr * 1000) / iin_cc; /* mV */
 
 	/* Adjust values with APDO resolution(20mV) */
 	val = val * 1000 / PD_MSG_TA_VOL_STEP;
@@ -1884,8 +1897,14 @@ error:
 static void pca9468_return_to_loop(struct pca9468_charger *pca9468)
 {
 	switch (pca9468->ret_state) {
+	case DC_STATE_ADJUST_CC:
+		pca9468->timer_id = TIMER_ADJUST_CCMODE;
+		break;
 	case DC_STATE_CC_MODE:
 		pca9468->timer_id = TIMER_CHECK_CCMODE;
+		break;
+	case DC_STATE_START_CV:
+		pca9468->timer_id = TIMER_ENTER_CVMODE;
 		break;
 	case DC_STATE_CV_MODE:
 		pca9468->timer_id = TIMER_CHECK_CVMODE;
@@ -2302,6 +2321,8 @@ static int pca9468_set_new_cc_max(struct pca9468_charger *pca9468, int cc_max)
 	const int prev_cc_max = pca9468->cc_max;
 	int iin_max, ret = 0;
 
+	cc_max = (cc_max == GBMS_MSC_FCC_CHARGE_OFF) ? 0 : cc_max;
+
 	if (cc_max < 0) {
 		pr_debug("%s: ignore negative cc_max=%d\n", __func__, cc_max);
 		return 0;
@@ -2355,7 +2376,8 @@ static int pca9468_apply_new_vfloat(struct pca9468_charger *pca9468)
 		goto error_done;
 
 	/* Restart the process if tier switch happened (either direction) */
-	if (pca9468->charging_state == DC_STATE_CV_MODE &&
+	if ((pca9468->charging_state == DC_STATE_CV_MODE ||
+	     pca9468->charging_state == DC_STATE_START_CV) &&
 	    abs(pca9468->new_vfloat - pca9468->fv_uv) > PCA9468_TIER_SWITCH_DELTA) {
 		ret = pca9468_reset_dcmode(pca9468);
 		if (ret < 0) {
@@ -2599,7 +2621,7 @@ static void pca9468_adjust_ccmode_wired(struct pca9468_charger *pca9468, int iin
 	}
 }
 
-static int pca9468_vote_dc_avail(struct pca9468_charger *pca9468, int vote, int enable)
+static int pca9468_vote_dc_avail(struct pca9468_charger *pca9468, int vote)
 {
 	int ret = 0;
 
@@ -2607,16 +2629,32 @@ static int pca9468_vote_dc_avail(struct pca9468_charger *pca9468, int vote, int 
 		pca9468->dc_avail = gvotable_election_get_handle(VOTABLE_DC_CHG_AVAIL);
 
 	if (pca9468->dc_avail) {
-		ret = gvotable_cast_int_vote(pca9468->dc_avail, REASON_DC_DRV, vote, enable);
+		ret = gvotable_cast_int_vote(pca9468->dc_avail, REASON_DC_DRV,
+					     GBMS_ALL_SEC_CHG_DISABLED, !vote);
 		if (ret < 0)
 			dev_err(pca9468->dev, "Unable to cast vote for DC Chg avail (%d)\n", ret);
 	}
 
-	logbuffer_prlog(pca9468, pca9468->charging_state == DC_STATE_ERROR ?
-			LOGLEVEL_INFO : LOGLEVEL_DEBUG,
-			"%s: Voting dc_avail when in error state", __func__);
+	if (pca9468->charging_state == DC_STATE_ERROR)
+		logbuffer_prlog(pca9468, LOGLEVEL_INFO,
+				"%s: Voting dc_avail when in error state", __func__);
 
 	return ret;
+}
+
+/* <0 error, 0 no new limits, >0 new limits */
+static int pca9468_apply_new_limits(struct pca9468_charger *pca9468)
+{
+	int ret = -1;
+
+	if (pca9468->new_iin && pca9468->new_iin < pca9468->iin_cc)
+		ret = pca9468_apply_new_iin(pca9468);
+	else if (pca9468->new_vfloat)
+		ret = pca9468_apply_new_vfloat(pca9468);
+	else if (pca9468->new_iin)
+		ret = pca9468_apply_new_iin(pca9468);
+
+	return ret == 0 ? 1 : 0;
 }
 
 /* 2:1 Direct Charging Adjust CC MODE control
@@ -2642,6 +2680,12 @@ static int pca9468_charge_adjust_ccmode(struct pca9468_charger *pca9468)
 	ret = pca9468_check_error(pca9468);
 	if (ret != 0)
 		goto error; // This is not active mode.
+
+	ret = pca9468_apply_new_limits(pca9468);
+	if (ret < 0)
+		goto error;
+	if (ret > 0)
+		goto done;
 
 	ccmode = pca9468_check_status(pca9468);
 	if (ccmode < 0) {
@@ -2732,35 +2776,12 @@ static int pca9468_charge_adjust_ccmode(struct pca9468_charger *pca9468)
 		goto error;
 	}
 
+done:
 	mod_delayed_work(pca9468->dc_wq, &pca9468->timer_work,
 			 msecs_to_jiffies(pca9468->timer_period));
 error:
 	mutex_unlock(&pca9468->lock);
 	pr_debug("%s: End, ret=%d\n", __func__, ret);
-	return ret;
-}
-
-/* <0 error, 0 no new limits, >0 new limits */
-static int pca9468_apply_new_limits(struct pca9468_charger *pca9468)
-{
-	int ret = 0;
-
-	if (pca9468->new_iin && pca9468->new_iin < pca9468->iin_cc) {
-		ret = pca9468_apply_new_iin(pca9468);
-		if (ret == 0)
-			ret = 1;
-	} else if (pca9468->new_vfloat) {
-		ret = pca9468_apply_new_vfloat(pca9468);
-		if (ret == 0)
-			ret = 1;
-	} else if (pca9468->new_iin) {
-		ret = pca9468_apply_new_iin(pca9468);
-		if (ret == 0)
-			ret = 1;
-	} else {
-		return 0;
-	}
-
 	return ret;
 }
 
@@ -2932,6 +2953,12 @@ static int pca9468_charge_start_cvmode(struct pca9468_charger *pca9468)
 	if (ret != 0)
 		goto error_exit;
 
+	ret = pca9468_apply_new_limits(pca9468);
+	if (ret < 0)
+		goto error_exit;
+	if (ret > 0)
+		goto done;
+
 	/* Check the status */
 	cvmode = pca9468_check_status(pca9468);
 	if (cvmode < 0) {
@@ -3030,6 +3057,7 @@ static int pca9468_charge_start_cvmode(struct pca9468_charger *pca9468)
 		break;
 	}
 
+done:
 	mod_delayed_work(pca9468->dc_wq, &pca9468->timer_work,
 			 msecs_to_jiffies(pca9468->timer_period));
 error_exit:
@@ -3327,8 +3355,8 @@ static int pca9468_preset_dcmode(struct pca9468_charger *pca9468)
 
 		if (ret < 0) {
 			pr_err("%s: No APDO to support 2:1\n", __func__);
+			pca9468_vote_dc_avail(pca9468, 0);
 			pca9468->charging_state = DC_STATE_ERROR;
-			pca9468_vote_dc_avail(pca9468, 0, 1);
 			goto error;
 		}
 
@@ -3433,8 +3461,8 @@ static int pca9468_check_active_state(struct pca9468_charger *pca9468)
 		/* try restarting only */
 		if (pca9468->retry_cnt >= PCA9468_MAX_RETRY_CNT) {
 			pr_err("%s: retry failed\n", __func__);
+			pca9468_vote_dc_avail(pca9468, 0);
 			pca9468->charging_state = DC_STATE_ERROR;
-			pca9468_vote_dc_avail(pca9468, 0, 1);
 			ret = -EINVAL;
 			goto exit_done;
 		}
@@ -3454,8 +3482,8 @@ static int pca9468_check_active_state(struct pca9468_charger *pca9468)
 		}
 	} else {
 		pr_err("%s: Error! disabling pca9468: ret(%d)\n", __func__, ret);
+		pca9468_vote_dc_avail(pca9468, 0);
 		pca9468->charging_state = DC_STATE_ERROR;
-		pca9468_vote_dc_avail(pca9468, 0, 1);
 	}
 
 exit_done:
@@ -4230,11 +4258,11 @@ static int pca9468_irq_init(struct pca9468_charger *pca9468,
 	const struct pca9468_platform_data *pdata = pca9468->pdata;
 	int ret, msk, irq;
 
-	irq = gpio_to_irq(pdata->irq_gpio);
-
-	ret = gpio_request_one(pdata->irq_gpio, GPIOF_IN, client->name);
-	if (ret < 0)
+	irq = gpiod_to_irq(pdata->irq_gpio);
+	if (irq < 0) {
+		ret = irq;
 		goto fail;
+	}
 
 	ret = request_threaded_irq(irq, NULL, pca9468_interrupt_handler,
 				   IRQF_TRIGGER_LOW | IRQF_ONESHOT,
@@ -4261,7 +4289,7 @@ static int pca9468_irq_init(struct pca9468_charger *pca9468,
 fail_write:
 	free_irq(irq, pca9468);
 fail_gpio:
-	gpio_free(pdata->irq_gpio);
+	gpiod_put(pdata->irq_gpio);
 fail:
 	client->irq = 0;
 	return ret;
@@ -4402,7 +4430,6 @@ static int pca9468_mains_set_property(struct power_supply *psy,
 
 		break;
 
-	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE_MAX:
 		ret = pca9468_set_new_vfloat(pca9468, val->intval);
 		break;
@@ -4413,7 +4440,6 @@ static int pca9468_mains_set_property(struct power_supply *psy,
 	 * NOTE: iin should be equivalent to iin = cc_max /2
 	 */
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
-	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
 		ret = pca9468_set_new_cc_max(pca9468, val->intval);
 		break;
 
@@ -4458,7 +4484,6 @@ static int pca9468_mains_get_property(struct power_supply *psy,
 			val->intval = 0;
 		break;
 
-	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE_MAX:
 		ret = pca9468_const_charge_voltage(pca9468);
 		if (ret < 0)
@@ -4466,7 +4491,6 @@ static int pca9468_mains_get_property(struct power_supply *psy,
 		val->intval = ret;
 		break;
 
-	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
 		ret = get_const_charge_current(pca9468);
 		if (ret < 0)
@@ -4483,7 +4507,7 @@ static int pca9468_mains_get_property(struct power_supply *psy,
 
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		/* return the output current - uA unit */
-		rc = pca9468_get_iin(pca9468, &val->intval);
+		rc = pca9468_get_iin_original(pca9468, &val->intval);
 		if (rc < 0)
 			dev_err(pca9468->dev, "Invalid IIN ADC (%d)\n", rc);
 		break;
@@ -4531,8 +4555,6 @@ static int pca9468_mains_get_property(struct power_supply *psy,
 
 /*
  * GBMS not visible
- * POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT,
- * POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE,
  * POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
  * POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE_MAX,
  */
@@ -4560,7 +4582,6 @@ static int pca9468_mains_is_writeable(struct power_supply *psy,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
-	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE_MAX:
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
 		return 1;
@@ -4595,7 +4616,7 @@ static int pca9468_gbms_mains_set_property(struct power_supply *psy,
 		if (val->prop.intval) {
 			if (pca9468->charging_state == DC_STATE_ERROR)
 				pca9468->charging_state = DC_STATE_NO_CHARGING;
-			pca9468_vote_dc_avail(pca9468, 1, 1);
+			pca9468_vote_dc_avail(pca9468, 1);
 		}
 		break;
 
@@ -4643,7 +4664,7 @@ static int pca9468_gbms_mains_get_property(struct power_supply *psy,
 
 	case GBMS_PROP_CURRENT_NOW:
 		/* return the input current - uA unit */
-		ret = pca9468_get_iin_original(pca9468, &val->prop.intval);
+		ret = pca9468_get_iin(pca9468, &val->prop.intval);
 		if (ret < 0)
 			dev_err(pca9468->dev, "Invalid IIN ADC (%d)\n", ret);
 		break;
@@ -4662,7 +4683,6 @@ static int pca9468_gbms_mains_is_writeable(struct power_supply *psy,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
-	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE_MAX:
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
 	case GBMS_PROP_CHARGING_ENABLED:
@@ -4717,7 +4737,7 @@ static struct gbms_desc pca9468_mains_desc = {
 	.forward		= true,
 };
 
-#if defined(CONFIG_OF)
+#if IS_ENABLED(CONFIG_OF)
 static int of_pca9468_dt(struct device *dev,
 			 struct pca9468_platform_data *pdata)
 {
@@ -4727,8 +4747,11 @@ static int of_pca9468_dt(struct device *dev,
 		return -EINVAL;
 
 	/* irq gpio */
-	pdata->irq_gpio = of_get_named_gpio(np_pca9468, "pca9468,irq-gpio", 0);
-	pr_info("%s: irq-gpio: %d \n", __func__, pdata->irq_gpio);
+	pdata->irq_gpio = devm_gpiod_get(dev, "pca9468,irq", GPIOD_IN);
+	pr_info("%s: irq-gpio: %d \n", __func__,
+		(IS_ERR_OR_NULL(pdata->irq_gpio)
+		 ? (int)PTR_ERR(pdata->irq_gpio)
+		 : desc_to_gpio(pdata->irq_gpio)));
 
 	/* input current limit */
 	ret = of_property_read_u32(np_pca9468, "pca9468,input-current-limit",
@@ -4828,7 +4851,7 @@ static int of_pca9468_dt(struct device *dev,
 	else
 		pr_info("%s: pca9468,ta-max-cur-mult is %d\n", __func__, pdata->ta_max_cur_mult);
 
-#ifdef CONFIG_THERMAL
+#if IS_ENABLED(CONFIG_THERMAL)
 	/* USBC thermal zone */
 	ret = of_property_read_string(np_pca9468, "google,usb-port-tz-name",
 				      &pdata->usb_tz_name);
@@ -4851,10 +4874,10 @@ static int of_pca9468_dt(struct device *dev,
 }
 #endif /* CONFIG_OF */
 
-#ifdef CONFIG_THERMAL
-static int pca9468_usb_tz_read_temp(struct thermal_zone_device *tzd, int *temp)
+#if IS_ENABLED(CONFIG_THERMAL)
+static int pca9468_usb_tz_read_temp(struct thermal_zone_device *tz, int *temp)
 {
-	struct pca9468_charger *pca9468 = tzd->devdata;
+	struct pca9468_charger *pca9468 = thermal_zone_device_priv(tz);
 
 	if (!pca9468)
 		return -ENODEV;
@@ -5146,8 +5169,7 @@ static int pca9468_create_fs_entries(struct pca9468_charger *chip)
 }
 
 
-static int pca9468_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id)
+static int pca9468_probe(struct i2c_client *client)
 {
 	static char *battery[] = { "pca9468-battery" };
 	struct power_supply_config mains_cfg = {};
@@ -5163,7 +5185,7 @@ static int pca9468_probe(struct i2c_client *client,
 	if (!pca9468_chg)
 		return -ENOMEM;
 
-#if defined(CONFIG_OF)
+#if IS_ENABLED(CONFIG_OF)
 	if (client->dev.of_node) {
 		pdata = devm_kzalloc(&client->dev,
 				     sizeof(struct pca9468_platform_data),
@@ -5236,7 +5258,7 @@ static int pca9468_probe(struct i2c_client *client,
 	if (ret < 0) {
 		pr_warn("pca9468: PPS not available (%d)\n", ret);
 	} else {
-		const char *logname = "pca9468";
+		const char *logname = "dc_mains";
 
 		pca9468_chg->log = logbuffer_register(logname);
 		if (IS_ERR(pca9468_chg->log)) {
@@ -5267,7 +5289,7 @@ static int pca9468_probe(struct i2c_client *client,
 	}
 
 	/* Interrupt pin is optional. */
-	if (pdata->irq_gpio >= 0) {
+	if (!IS_ERR_OR_NULL(pdata->irq_gpio)) {
 		ret = pca9468_irq_init(pca9468_chg, client);
 		if (ret < 0) {
 			dev_warn(dev, "failed to initialize IRQ: %d\n", ret);
@@ -5282,18 +5304,21 @@ static int pca9468_probe(struct i2c_client *client,
 	if (ret < 0)
 		dev_err(dev, "error while registering debugfs %d\n", ret);
 
-#ifdef CONFIG_THERMAL
+#if IS_ENABLED(CONFIG_THERMAL)
 	if (pdata->usb_tz_name) {
 		pca9468_chg->usb_tzd =
-			thermal_zone_device_register(pdata->usb_tz_name, 0, 0,
-						     pca9468_chg,
-						     &pca9468_usb_tzd_ops,
-						     NULL, 0, 0);
+			thermal_tripless_zone_device_register(pdata->usb_tz_name,
+							      pca9468_chg,
+							      &pca9468_usb_tzd_ops,
+							      NULL);
 		if (IS_ERR(pca9468_chg->usb_tzd)) {
 			pca9468_chg->usb_tzd = NULL;
 			ret = PTR_ERR(pca9468_chg->usb_tzd);
 			dev_err(dev, "Couldn't register usb connector thermal zone ret=%d\n",
 				ret);
+		} else {
+			thermal_zone_device_update(pca9468_chg->usb_tzd, THERMAL_DEVICE_UP);
+			thermal_zone_device_enable(pca9468_chg->usb_tzd);
 		}
 	}
 #endif
@@ -5321,14 +5346,14 @@ static void pca9468_remove(struct i2c_client *client)
 
 	if (client->irq) {
 		free_irq(client->irq, pca9468_chg);
-		gpio_free(pca9468_chg->pdata->irq_gpio);
+		gpiod_put(pca9468_chg->pdata->irq_gpio);
 	}
 
 	destroy_workqueue(pca9468_chg->dc_wq);
 
 	wakeup_source_unregister(pca9468_chg->monitor_wake_lock);
 
-#ifdef CONFIG_THERMAL
+#if IS_ENABLED(CONFIG_THERMAL)
 	if (pca9468_chg->usb_tzd)
 		thermal_zone_device_unregister(pca9468_chg->usb_tzd);
 #endif
@@ -5343,7 +5368,7 @@ static const struct i2c_device_id pca9468_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, pca9468_id);
 
-#if defined(CONFIG_OF)
+#if IS_ENABLED(CONFIG_OF)
 static struct of_device_id pca9468_i2c_dt_ids[] = {
 	{ .compatible = "nxp,pca9468" },
 	{ },
@@ -5351,8 +5376,8 @@ static struct of_device_id pca9468_i2c_dt_ids[] = {
 MODULE_DEVICE_TABLE(of, pca9468_i2c_dt_ids);
 #endif /* CONFIG_OF */
 
-#if defined(CONFIG_PM)
-#ifdef CONFIG_RTC_HCTOSYS
+#if IS_ENABLED(CONFIG_PM)
+#if IS_ENABLED(CONFIG_RTC_HCTOSYS)
 static int get_current_time(unsigned long *now_tm_sec)
 {
 	struct rtc_time tm;
@@ -5437,7 +5462,7 @@ static int pca9468_resume(struct device *dev)
 	pr_debug("%s: update_timer\n", __func__);
 
 	/* Update the current timer */
-#ifdef CONFIG_RTC_HCTOSYS
+#if IS_ENABLED(CONFIG_RTC_HCTOSYS)
 	pca9468_check_and_update_charging_timer(pca9468);
 #else
 	if (pca9468->timer_id != TIMER_ID_NONE) {
@@ -5456,17 +5481,16 @@ static int pca9468_resume(struct device *dev)
 #endif
 
 const struct dev_pm_ops pca9468_pm_ops = {
-	.suspend = pca9468_suspend,
-	.resume = pca9468_resume,
+	SET_LATE_SYSTEM_SLEEP_PM_OPS(pca9468_suspend, pca9468_resume)
 };
 
 static struct i2c_driver pca9468_driver = {
 	.driver = {
 		.name = "pca9468",
-#if defined(CONFIG_OF)
+#if IS_ENABLED(CONFIG_OF)
 		.of_match_table = pca9468_i2c_dt_ids,
 #endif /* CONFIG_OF */
-#if defined(CONFIG_PM)
+#if IS_ENABLED(CONFIG_PM)
 		.pm = &pca9468_pm_ops,
 #endif
 	},

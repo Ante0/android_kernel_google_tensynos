@@ -50,14 +50,8 @@ struct lwis_fence {
 	/* Lock to protect the whole structure. */
 	spinlock_t lock;
 
-	/* Whether this fence should follow the old LWIS fence API. */
-	bool legacy_lwis_fence;
-
 	/* Top device for printing logs */
 	struct lwis_device *lwis_top_dev;
-
-	/* Status wait queue for waking up userspace */
-	wait_queue_head_t status_wait_queue;
 };
 
 struct lwis_fence_pending_signal {
@@ -83,16 +77,11 @@ struct lwis_fence_fds {
 	int signal_fd;
 };
 struct lwis_fence_fds lwis_fence_create(struct lwis_device *lwis_dev);
-/* Create a fence with the legacy LWIS Fence API */
-struct lwis_fence_fds lwis_fence_legacy_create(struct lwis_device *lwis_dev);
 
 /*
  * Helper function to signal a `dma_fence` with a specific status value.
  */
 int lwis_dma_fence_signal_with_status(struct dma_fence *fence, int errno);
-
-/* Gets the DMA fence of a LWIS fence with a fd. */
-struct dma_fence *lwis_dma_fence_get(int fd);
 
 /* Creates all fences that do not currently exist */
 int lwis_initialize_transaction_fences(struct lwis_client *client,
@@ -100,7 +89,8 @@ int lwis_initialize_transaction_fences(struct lwis_client *client,
 
 bool lwis_triggered_by_condition(struct lwis_transaction *transaction);
 
-bool lwis_event_triggered_condition_ready(struct lwis_transaction *transaction,
+bool lwis_event_triggered_condition_ready(struct lwis_device *lwis_dev,
+					  struct lwis_transaction *transaction,
 					  struct lwis_transaction *weak_transaction,
 					  int64_t event_id, int64_t event_counter);
 

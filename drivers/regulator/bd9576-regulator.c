@@ -68,25 +68,25 @@ static const struct linear_range voutL1_xvd_ranges[] = {
 	REGULATOR_LINEAR_RANGE(220000, 0x6e, 0x7f, 0),
 };
 
-static struct linear_range voutS1_ocw_ranges_internal[] = {
+static const struct linear_range voutS1_ocw_ranges_internal[] = {
 	REGULATOR_LINEAR_RANGE(200000, 0x01, 0x04, 0),
 	REGULATOR_LINEAR_RANGE(250000, 0x05, 0x18, 50000),
 	REGULATOR_LINEAR_RANGE(1200000, 0x19, 0x3f, 0),
 };
 
-static struct linear_range voutS1_ocw_ranges[] = {
+static const struct linear_range voutS1_ocw_ranges[] = {
 	REGULATOR_LINEAR_RANGE(50000, 0x01, 0x04, 0),
 	REGULATOR_LINEAR_RANGE(60000, 0x05, 0x18, 10000),
 	REGULATOR_LINEAR_RANGE(250000, 0x19, 0x3f, 0),
 };
 
-static struct linear_range voutS1_ocp_ranges_internal[] = {
+static const struct linear_range voutS1_ocp_ranges_internal[] = {
 	REGULATOR_LINEAR_RANGE(300000, 0x01, 0x06, 0),
 	REGULATOR_LINEAR_RANGE(350000, 0x7, 0x1b, 50000),
 	REGULATOR_LINEAR_RANGE(1350000, 0x1c, 0x3f, 0),
 };
 
-static struct linear_range voutS1_ocp_ranges[] = {
+static const struct linear_range voutS1_ocp_ranges[] = {
 	REGULATOR_LINEAR_RANGE(70000, 0x01, 0x06, 0),
 	REGULATOR_LINEAR_RANGE(80000, 0x7, 0x1b, 10000),
 	REGULATOR_LINEAR_RANGE(280000, 0x1c, 0x3f, 0),
@@ -953,30 +953,28 @@ static int bd957x_probe(struct platform_device *pdev)
 					   dev_fwnode(pdev->dev.parent),
 					   "rohm,vout1-en", GPIOD_OUT_LOW,
 					   "vout1-en");
-		if (!IS_ERR(en)) {
-			/* VOUT1_OPS gpio ctrl */
-			/*
-			 * Regulator core prioritizes the ena_gpio over
-			 * enable/disable/is_enabled callbacks so no need to
-			 * clear them. We can still use same ops
-			 */
+
+		/* VOUT1_OPS gpio ctrl */
+		/*
+		 * Regulator core prioritizes the ena_gpio over
+		 * enable/disable/is_enabled callbacks so no need to clear them
+		 * even if GPIO is used. So, we can still use same ops.
+		 *
+		 * In theory it is possible someone wants to set vout1-en LOW
+		 * during OTP loading and set VOUT1 to be controlled by GPIO -
+		 * but control the GPIO from some where else than this driver.
+		 * For that to work we should unset the is_enabled callback
+		 * here.
+		 *
+		 * I believe such case where rohm,vout1-en-low is set and
+		 * vout1-en-gpios is not is likely to be a misconfiguration.
+		 * So let's just err out for now.
+		 */
+		if (!IS_ERR(en))
 			config.ena_gpiod = en;
-		} else {
-			/*
-			 * In theory it is possible someone wants to set
-			 * vout1-en LOW during OTP loading and set VOUT1 to be
-			 * controlled by GPIO - but control the GPIO from some
-			 * where else than this driver. For that to work we
-			 * should unset the is_enabled callback here.
-			 *
-			 * I believe such case where rohm,vout1-en-low is set
-			 * and vout1-en-gpios is not is likely to be a
-			 * misconfiguration. So let's just err out for now.
-			 */
-			dev_err(&pdev->dev,
-				"Failed to get VOUT1 control GPIO\n");
-			return PTR_ERR(en);
-		}
+		else
+			return dev_err_probe(&pdev->dev, PTR_ERR(en),
+					"Failed to get VOUT1 control GPIO\n");
 	}
 
 	/*
@@ -1037,12 +1035,10 @@ static int bd957x_probe(struct platform_device *pdev)
 
 		r->rdev = devm_regulator_register(&pdev->dev, desc,
 							   &config);
-		if (IS_ERR(r->rdev)) {
-			dev_err(&pdev->dev,
-				"failed to register %s regulator\n",
-				desc->name);
-			return PTR_ERR(r->rdev);
-		}
+		if (IS_ERR(r->rdev))
+			return dev_err_probe(&pdev->dev, PTR_ERR(r->rdev),
+					"failed to register %s regulator\n",
+					desc->name);
 		/*
 		 * Clear the VOUT1 GPIO setting - rest of the regulators do not
 		 * support GPIO control
@@ -1130,6 +1126,7 @@ MODULE_DEVICE_TABLE(platform, bd957x_pmic_id);
 static struct platform_driver bd957x_regulator = {
 	.driver = {
 		.name = "bd957x-pmic",
+		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 	},
 	.probe = bd957x_probe,
 	.id_table = bd957x_pmic_id,

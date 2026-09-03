@@ -86,7 +86,6 @@ SECTIONS
 		TEXT_TEXT
 		LOCK_TEXT
 		SCHED_TEXT
-		CPUIDLE_TEXT
 		KPROBES_TEXT
 		IRQENTRY_TEXT
 		SOFTIRQENTRY_TEXT
@@ -128,7 +127,7 @@ SECTIONS
 	}
 #endif
 
-	RO_DATA(8)
+	RO_DATA(PAGE_SIZE)
 
 	/* unwind info */
 	. = ALIGN(4);
@@ -156,6 +155,7 @@ SECTIONS
 	}
 
 	/* End of data section */
+	. = ALIGN(PAGE_SIZE);
 	_edata = .;
 
 	/* BSS */

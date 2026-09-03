@@ -26,7 +26,7 @@
 #include <linux/types.h>
 #include <linux/workqueue.h>
 
-#include <gcip/gcip-dma-fence.h>
+#include <gcip/gcip-coresight-remote.h>
 #include <gcip/gcip-firmware.h>
 #include <gcip/gcip-memory.h>
 #include <gcip/gcip-telemetry.h>
@@ -59,6 +59,7 @@
 
 typedef u64 tpu_addr_t;
 
+struct edgetpu_client;
 struct edgetpu_device_group;
 struct edgetpu_dev_iface;
 struct edgetpu_soc_data;
@@ -79,6 +80,9 @@ enum edgetpu_eventlog_eventcode {
 	EVENTLOG_EVENT_POWER_STATE_END,
 	EVENTLOG_EVENT_POWER_WAITSTATE,
 	EVENTLOG_EVENT_POWER_RPMDONE,
+	EVENTLOG_EVENT_CLIENT_TRIM_DONE,
+	EVENTLOG_EVENT_CLIENT_REMAP_DONE,
+	EVENTLOG_EVENT_CLIENT_ACCESS_FAULT,
 	EVENTLOG_EVENT_COUNT /* Number of valid event codes above. */
 };
 
@@ -87,7 +91,6 @@ enum edgetpu_eventlog_eventcode {
 
 struct edgetpu_eventlog_event {
 	struct timespec64 timestamp;
-	pid_t pid; /* pid of current thread at event log time */
 	enum edgetpu_eventlog_eventcode code;
 	long arg; /* extra info associated with the particular code */
 };
@@ -95,40 +98,6 @@ struct edgetpu_eventlog_event {
 struct edgetpu_eventlog {
 	atomic_t next_slot; /* index into event[] for next entry */
 	struct edgetpu_eventlog_event event[EDGETPU_EVENTLOG_SLOTS];
-};
-
-struct edgetpu_client {
-	/* Unique ID number of this client. */
-	uint client_id;
-	pid_t pid;
-	pid_t tgid;
-	/* PID and TGID for a limited interface to this client. -1 if no such interface. */
-	pid_t limited_pid;
-	pid_t limited_tgid;
-	char name[40];
-	/* Reference count */
-	refcount_t count;
-	/* protects group. */
-	struct mutex group_lock;
-	/*
-	 * The virtual device group this client belongs to. Can be NULL if the
-	 * client doesn't belong to any group.
-	 */
-	struct edgetpu_device_group *group;
-	/* the device opened by this client */
-	struct edgetpu_dev *etdev;
-	/* the interface from which this client was opened */
-	struct edgetpu_dev_iface *etiface;
-	/* Per-client request to keep device active */
-	struct edgetpu_wakelock wakelock;
-	/* Bit field of registered per die events */
-	u64 perdie_events;
-	/* Protects @limited_interface */
-	struct mutex limited_interface_lock;
-	/* Pointer to the limited interface to this client, if any. */
-	struct file *limited_interface;
-	/* Pixel trim currently enabled/disabled for this client. */
-	bool trim_enabled;
 };
 
 /*
@@ -170,6 +139,7 @@ struct edgetpu_kci;
 struct edgetpu_ikv;
 struct edgetpu_pm;
 struct edgetpu_mempool;
+struct edgetpu_msi;
 struct gcip_kci_response_element;
 
 #define EDGETPU_DEVICE_NAME_MAX	64
@@ -205,7 +175,7 @@ struct edgetpu_dev_prop {
 #define EDGETPU_INVALID_KCI_VERSION (~0u)
 
 struct edgetpu_dev {
-	struct device *dev;	   /* platform/pci bus device */
+	struct device *dev; /* Linux device subsystem device */
 	uint num_ifaces;		   /* Number of device interfaces */
 	uint num_cores; /* Number of cores */
 	uint num_telemetry_buffers; /* Number of log+trace telemetry buffers */
@@ -254,7 +224,6 @@ struct edgetpu_dev {
 	struct gcip_fw_tracing *fw_tracing; /* firmware tracing */
 	struct gcip_telemetry *telemetry_log; /* array of @num_telemetry_buffers entries */
 	struct gcip_telemetry *telemetry_trace; /* array of @num_telemetry_buffers entries */
-	struct gcip_telemetry telemetry_hwtrace; /* single hardware trace buffer entry. */
 
 	struct gcip_thermal *thermal;
 	struct gcip_devfreq *devfreq;
@@ -263,7 +232,6 @@ struct edgetpu_dev {
 	/* Memory pool in instruction remap region */
 	struct edgetpu_mempool *iremap_pool;
 	struct edgetpu_sw_wdt *etdev_sw_wdt;	/* software watchdog */
-	struct gcip_dma_fence_manager *gfence_mgr; /* DMA sync fences manager */
 	/* version read from the firmware binary file */
 	struct edgetpu_fw_version fw_version;
 	atomic_t job_count;	/* # times a device group has been created for this device */
@@ -298,6 +266,24 @@ struct edgetpu_dev {
 	/* List of current and preserved former client wakeup sources for power analysis. */
 	struct mutex wakeup_sources_lock;
 	struct list_head wakeup_sources;
+
+	/*
+	 * The maximum number of edgetpu_clients that can concurrently hold a wakelock.
+	 *
+	 * This value is generally equal to the number of MMU domains that can be attached at once.
+	 * Other limits, such as the number of clients supported by firmware may also be taken into
+	 * account.
+	 */
+	size_t max_concurrent_clients;
+
+	/* Coresight remote tracing */
+	struct gcip_coresight_remote *coresight_remote;
+
+	/* true if running on emulation where the TPU is much slower than AP */
+	bool emulation_slow_tpu;
+
+	/* MSI management */
+	struct edgetpu_msi *msi;
 };
 
 struct edgetpu_dev_iface {
@@ -375,7 +361,7 @@ void edgetpu_handle_client_fatal_error_notify(struct edgetpu_dev *etdev, u32 cli
 /* Handle a client inactivity timeout notification from firmware */
 void edgetpu_handle_client_inactivity_timeout(struct edgetpu_dev *etdev, u32 client_id);
 
-/* Bus (Platform/PCI) <-> Core API */
+/* Platform device <-> Core API */
 
 int __init edgetpu_init(void);
 void __exit edgetpu_exit(void);
@@ -400,27 +386,8 @@ struct dentry *edgetpu_fs_debugfs_dir(void);
 
 /* Device -> Core API */
 
-/* Add current thread as new TPU client */
-struct edgetpu_client *
-edgetpu_client_add(struct edgetpu_dev_iface *etiface);
-
-/* Remove TPU client */
-void edgetpu_client_remove(struct edgetpu_client *client);
-
-/* Set client name based on comm field of the supplied process task_id. */
-void edgetpu_client_update_name(struct edgetpu_client *client, pid_t task_id);
-
 /* mmap() device/queue memory */
 int edgetpu_mmap(struct edgetpu_client *client, struct vm_area_struct *vma);
-
-/* Increase reference count of @client. */
-struct edgetpu_client *edgetpu_client_get(struct edgetpu_client *client);
-
-/* Decrease reference count and free @client if count reaches zero */
-void edgetpu_client_put(struct edgetpu_client *client);
-
-/* Enable/disable Pixel trim for @client. @enable = non-zero enables, zero disables. */
-void edgetpu_client_trim_enable(struct edgetpu_client *client, u32 enable);
 
 /*
  * Get error code corresponding to @etdev state. Caller holds

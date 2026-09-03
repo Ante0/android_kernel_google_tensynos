@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+filegroup(
+    name = "kunit_test_scripts",
+    srcs = ["run_kunit_tests.sh"],
+    visibility = ["//visibility:public"],
+)

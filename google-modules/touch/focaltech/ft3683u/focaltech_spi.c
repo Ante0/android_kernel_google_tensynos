@@ -84,7 +84,9 @@ static int fts_spi_transfer(u8 *tx_buf, u8 *rx_buf, u32 len)
         .tx_buf = tx_buf,
         .rx_buf = rx_buf,
         .len    = len,
+#if IS_ENABLED(CONFIG_SPI_S3C64XX_GS)
         .bits_per_word = len >= 64 ? 32 : 8,
+#endif
     };
     spi_message_init(&msg);
     spi_message_add_tail(&xfer, &msg);
@@ -187,10 +189,12 @@ int fts_write(u8 *writebuf, u32 writelen)
         FTS_ERROR("writebuf/len is invalid");
         return -EINVAL;
     }
+#if IS_ENABLED(CONFIG_SPI_S3C64XX_GS)
     /* 4 bytes alignment for DMA mode. */
     if (txlen_need > 64) {
         txlen_need = ALIGN(txlen_need, 4);
     }
+#endif
 
     mutex_lock(&ts_data->bus_lock);
     if (txlen_need > SPI_BUF_LENGTH) {
@@ -223,10 +227,12 @@ int fts_write(u8 *writebuf, u32 writelen)
         memcpy(&txbuf[txlen], &writebuf[1], datalen);
         txlen = txlen + datalen;
     }
+#if IS_ENABLED(CONFIG_SPI_S3C64XX_GS)
     /* 4 bytes alignment for DMA mode. */
     if (txlen > 64) {
         txlen = ALIGN(txlen, 4);
     }
+#endif
 
     for (i = 0; i < SPI_RETRY_NUMBER; i++) {
         ret = fts_spi_transfer(txbuf, rxbuf, txlen);
@@ -291,10 +297,17 @@ int fts_read(u8 *cmd, u32 cmdlen, u8 *data, u32 datalen)
         FTS_ERROR("cmd/cmdlen/data/datalen is invalid");
         return -EINVAL;
     }
+#if IS_ENABLED(CONFIG_SPI_S3C64XX_GS)
     /* 4 bytes alignment for DMA mode */
     if (txlen_need > 64) {
         txlen_need = ALIGN(txlen_need, 4);
     }
+#else
+    /* 16 bytes alignment for DMA mode. */
+    if (txlen_need > 256) {
+        txlen_need = ALIGN(txlen_need, 16);
+    }
+#endif
 
     mutex_lock(&ts_data->bus_lock);
     if (txlen_need > SPI_BUF_LENGTH) {
@@ -329,6 +342,8 @@ int fts_read(u8 *cmd, u32 cmdlen, u8 *data, u32 datalen)
     }
     aligned_txlen = txlen;
     aligned_datalen = datalen;
+
+#if IS_ENABLED(CONFIG_SPI_S3C64XX_GS)
     /* 4 bytes alignment for DMA mode */
     if (aligned_txlen > 64) {
         aligned_txlen = ALIGN(aligned_txlen, 4);
@@ -337,6 +352,16 @@ int fts_read(u8 *cmd, u32 cmdlen, u8 *data, u32 datalen)
         txbuf[2] = (aligned_datalen >> 8) & 0xFF;
         txbuf[3] = aligned_datalen & 0xFF;
     }
+#else
+    /* 16 bytes alignment for DMA mode. */
+    if (aligned_txlen > 256) {
+        aligned_txlen = ALIGN(aligned_txlen, 16);
+        /* Calculate new datalen for CRC checking code. */
+        aligned_datalen += aligned_txlen - txlen;
+        txbuf[2] = (aligned_datalen >> 8) & 0xFF;
+        txbuf[3] = aligned_datalen & 0xFF;
+    }
+#endif
 
     for (i = 0; i < SPI_RETRY_NUMBER; i++) {
         ret = fts_spi_transfer(txbuf, rxbuf, aligned_txlen);

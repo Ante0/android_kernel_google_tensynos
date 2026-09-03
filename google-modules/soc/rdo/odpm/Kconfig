@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_ODPM
+	tristate "Google ODPM driver"
+	depends on ARCH_GOOGLE
+	depends on IIO
+	depends on GOOGLE_MBA_CPM_INTERFACE
+	help
+	  Enable support for Google ODPM.
+	  It is a software power monitor tool.
+	  Select Y if you have such device.
+	  If unsure select "N".

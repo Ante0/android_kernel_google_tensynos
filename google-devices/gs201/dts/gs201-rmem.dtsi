@@ -26,8 +26,13 @@
 			reg = <0x0 0x90000000 0x0003A000>;
 		};
 
-		gsa_reserved_protected: gsa@90200000 {
-			reg = <0x0 0x90200000 0x400000>;
+		gsa_gme {
+			reg = <0x0 0x90200000 0x3ff000>;
+			no-map;
+		};
+
+		gsa_reserved_log: gsa_reserved_log@905FF000 {
+			reg = <0x0 0x905FF000 0x1000>;
 			no-map;
 		};
 
@@ -68,11 +73,6 @@
 
 		debug_kinfo_reserved: debug_kinfo_reserved@fd3fe000 {
 			reg = <0 0xfd3fe000 0x00001000>;
-			no-map;
-		};
-
-		suspend_diag_log_reserved: suspend_diag_log_reserved@fd90c000 {
-			reg = <0 0xfd90c000 0x00001000>;
 			no-map;
 		};
 

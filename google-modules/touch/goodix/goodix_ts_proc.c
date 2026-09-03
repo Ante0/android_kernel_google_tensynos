@@ -4491,7 +4491,7 @@ int driver_test_selftest(struct goodix_ts_core *cd, char *buf, bool *result,
 			ts_test->result[GTP_SELFCAP_TEST];
 	}
 
-	strlcpy(buf, rbuf, PAGE_SIZE);
+	strscpy(buf, rbuf, PAGE_SIZE);
 
 exit:
 	return ret;

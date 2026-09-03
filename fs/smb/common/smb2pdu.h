@@ -6,7 +6,7 @@
  * Note that, due to trying to use names similar to the protocol specifications,
  * there are many mixed case field names in the structures below.  Although
  * this does not match typical Linux kernel style, it is necessary to be
- * able to match against the protocol specfication.
+ * able to match against the protocol specification.
  *
  * SMB2 commands
  * Some commands have minimal (wct=0,bcc=0), or uninteresting, responses
@@ -34,6 +34,7 @@
 #define SMB2_QUERY_INFO_HE	0x0010
 #define SMB2_SET_INFO_HE	0x0011
 #define SMB2_OPLOCK_BREAK_HE	0x0012
+#define SMB2_SERVER_TO_CLIENT_NOTIFICATION 0x0013
 
 /* The same list in little endian */
 #define SMB2_NEGOTIATE		cpu_to_le16(SMB2_NEGOTIATE_HE)
@@ -93,6 +94,9 @@
  * fill a single wsize request with a single call.
  */
 #define SMB3_DEFAULT_IOSIZE (4 * 1024 * 1024)
+
+/* According to MS-SMB2 specification The minimum recommended value is 65536.*/
+#define CIFS_MIN_DEFAULT_IOSIZE (65536)
 
 /*
  * SMB2 Header Definition
@@ -207,38 +211,45 @@ struct smb2_transform_hdr {
 	__le64  SessionId;
 } __packed;
 
-
-/* See MS-SMB2 2.2.42 */
-struct smb2_compression_transform_hdr_unchained {
-	__le32 ProtocolId;	/* 0xFC 'S' 'M' 'B' */
-	__le32 OriginalCompressedSegmentSize;
-	__le16 CompressionAlgorithm;
-	__le16 Flags;
-	__le16 Length; /* if chained it is length, else offset */
-} __packed;
-
-/* See MS-SMB2 2.2.42.1 */
+/*
+ * These are simplified versions from the spec, as we don't need a fully fledged
+ * form of both unchained and chained structs.
+ *
+ * Moreover, even in chained compressed payloads, the initial compression header
+ * has the form of the unchained one -- i.e. it never has the
+ * OriginalPayloadSize field and ::Offset field always represent an offset
+ * (instead of a length, as it is in the chained header).
+ *
+ * See MS-SMB2 2.2.42 for more details.
+ */
 #define SMB2_COMPRESSION_FLAG_NONE	0x0000
 #define SMB2_COMPRESSION_FLAG_CHAINED	0x0001
 
-struct compression_payload_header {
+struct smb2_compression_hdr {
+	__le32 ProtocolId; /* 0xFC 'S' 'M' 'B' */
+	__le32 OriginalCompressedSegmentSize;
+	__le16 CompressionAlgorithm;
+	__le16 Flags;
+	__le32 Offset; /* this is the size of the uncompressed SMB2 header below */
+	/* uncompressed SMB2 header (READ or WRITE) goes here */
+	/* compressed data goes here */
+} __packed;
+
+/*
+ * ... OTOH, set compression payload header to always have OriginalPayloadSize
+ * as it's easier to pass the struct size minus sizeof(OriginalPayloadSize)
+ * than to juggle around the header/data memory.
+ */
+struct smb2_compression_payload_hdr {
 	__le16	CompressionAlgorithm;
 	__le16	Flags;
 	__le32	Length; /* length of compressed playload including field below if present */
-	/* __le32 OriginalPayloadSize; */ /* optional, present when LZNT1, LZ77, LZ77+Huffman */
+	__le32 OriginalPayloadSize; /* accounted when LZNT1, LZ77, LZ77+Huffman */
 } __packed;
 
-/* See MS-SMB2 2.2.42.2 */
-struct smb2_compression_transform_hdr_chained {
-	__le32 ProtocolId;	/* 0xFC 'S' 'M' 'B' */
-	__le32 OriginalCompressedSegmentSize;
-	/* struct compression_payload_header[] */
-} __packed;
-
-/* See MS-SMB2 2.2.42.2.2 */
-struct compression_pattern_payload_v1 {
-	__le16	Pattern;
-	__le16	Reserved1;
+struct smb2_compression_pattern_v1 {
+	__u8	Pattern;
+	__u8	Reserved1;
 	__le16	Reserved2;
 	__le32	Repetitions;
 } __packed;
@@ -272,15 +283,16 @@ struct smb3_blob_data {
 #define SE_GROUP_RESOURCE		0x20000000
 #define SE_GROUP_LOGON_ID		0xC0000000
 
-/* struct sid_attr_data is SidData array in BlobData format then le32 Attr */
-
 struct sid_array_data {
 	__le16 SidAttrCount;
 	/* SidAttrList - array of sid_attr_data structs */
 } __packed;
 
-struct luid_attr_data {
-
+/* struct sid_attr_data is SidData array in BlobData format then le32 Attr */
+struct sid_attr_data {
+	__le16 BlobSize;
+	__u8 BlobData[];
+	/* __le32 Attr */
 } __packed;
 
 /*
@@ -349,17 +361,18 @@ struct smb2_tree_connect_req {
 #define SMB2_SHAREFLAG_NO_CACHING			0x00000030
 #define SHI1005_FLAGS_DFS				0x00000001
 #define SHI1005_FLAGS_DFS_ROOT				0x00000002
-#define SHI1005_FLAGS_RESTRICT_EXCLUSIVE_OPENS		0x00000100
-#define SHI1005_FLAGS_FORCE_SHARED_DELETE		0x00000200
-#define SHI1005_FLAGS_ALLOW_NAMESPACE_CACHING		0x00000400
-#define SHI1005_FLAGS_ACCESS_BASED_DIRECTORY_ENUM	0x00000800
-#define SHI1005_FLAGS_FORCE_LEVELII_OPLOCK		0x00001000
-#define SHI1005_FLAGS_ENABLE_HASH_V1			0x00002000
-#define SHI1005_FLAGS_ENABLE_HASH_V2			0x00004000
+#define SMB2_SHAREFLAG_RESTRICT_EXCLUSIVE_OPENS		0x00000100
+#define SMB2_SHAREFLAG_FORCE_SHARED_DELETE		0x00000200
+#define SMB2_SHAREFLAG_ALLOW_NAMESPACE_CACHING		0x00000400
+#define SMB2_SHAREFLAG_ACCESS_BASED_DIRECTORY_ENUM	0x00000800
+#define SMB2_SHAREFLAG_FORCE_LEVELII_OPLOCK		0x00001000
+#define SMB2_SHAREFLAG_ENABLE_HASH_V1			0x00002000
+#define SMB2_SHAREFLAG_ENABLE_HASH_V2			0x00004000
 #define SHI1005_FLAGS_ENCRYPT_DATA			0x00008000
 #define SMB2_SHAREFLAG_IDENTITY_REMOTING		0x00040000 /* 3.1.1 */
 #define SMB2_SHAREFLAG_COMPRESS_DATA			0x00100000 /* 3.1.1 */
-#define SHI1005_FLAGS_ALL				0x0014FF33
+#define SMB2_SHAREFLAG_ISOLATED_TRANSPORT		0x00200000
+#define SHI1005_FLAGS_ALL				0x0034FF33
 
 /* Possible share capabilities */
 #define SMB2_SHARE_CAP_DFS	cpu_to_le32(0x00000008) /* all dialects */
@@ -405,11 +418,12 @@ struct smb2_tree_disconnect_rsp {
 /* Capabilities flags */
 #define SMB2_GLOBAL_CAP_DFS		0x00000001
 #define SMB2_GLOBAL_CAP_LEASING		0x00000002 /* Resp only New to SMB2.1 */
-#define SMB2_GLOBAL_CAP_LARGE_MTU	0X00000004 /* Resp only New to SMB2.1 */
+#define SMB2_GLOBAL_CAP_LARGE_MTU	0x00000004 /* Resp only New to SMB2.1 */
 #define SMB2_GLOBAL_CAP_MULTI_CHANNEL	0x00000008 /* New to SMB3 */
 #define SMB2_GLOBAL_CAP_PERSISTENT_HANDLES 0x00000010 /* New to SMB3 */
 #define SMB2_GLOBAL_CAP_DIRECTORY_LEASING  0x00000020 /* New to SMB3 */
 #define SMB2_GLOBAL_CAP_ENCRYPTION	0x00000040 /* New to SMB3 */
+#define SMB2_GLOBAL_CAP_NOTIFICATIONS	0x00000080 /* New to SMB3.1.1 */
 /* Internal types */
 #define SMB2_NT_FIND			0x00100000
 #define SMB2_LARGE_FILES		0x00200000
@@ -480,7 +494,7 @@ struct smb2_encryption_neg_context {
 	__le16	ContextType; /* 2 */
 	__le16	DataLength;
 	__le32	Reserved;
-	/* CipherCount usally 2, but can be 3 when AES256-GCM enabled */
+	/* CipherCount usually 2, but can be 3 when AES256-GCM enabled */
 	__le16	CipherCount; /* AES128-GCM and AES128-CCM by default */
 	__le16	Ciphers[];
 } __packed;
@@ -492,6 +506,7 @@ struct smb2_encryption_neg_context {
 #define SMB3_COMPRESS_LZ77_HUFF	cpu_to_le16(0x0003)
 /* Pattern scanning algorithm See MS-SMB2 3.1.4.4.1 */
 #define SMB3_COMPRESS_PATTERN	cpu_to_le16(0x0004) /* Pattern_V1 */
+#define SMB3_COMPRESS_LZ4	cpu_to_le16(0x0005)
 
 /* Compression Flags */
 #define SMB2_COMPRESSION_CAPABILITIES_FLAG_NONE		cpu_to_le32(0x00000000)
@@ -1017,6 +1032,19 @@ struct smb2_change_notify_rsp {
 	__u8	Buffer[]; /* array of file notify structs */
 } __packed;
 
+/*
+ * SMB2_SERVER_TO_CLIENT_NOTIFICATION: See MS-SMB2 section 2.2.44
+ */
+
+#define SMB2_NOTIFY_SESSION_CLOSED	0x0000
+
+struct smb2_server_client_notification {
+	struct smb2_hdr hdr;
+	__le16	StructureSize;
+	__u16	Reserved; /* MBZ */
+	__le32	NotificationType;
+	__u8	NotificationBuffer[4]; /* MBZ */
+} __packed;
 
 /*
  * SMB2_CREATE  See MS-SMB2 section 2.2.13
@@ -1036,7 +1064,7 @@ struct smb2_change_notify_rsp {
 #define IL_IMPERSONATION	cpu_to_le32(0x00000002)
 #define IL_DELEGATE		cpu_to_le32(0x00000003)
 
-/* File Attrubutes */
+/* File Attributes */
 #define FILE_ATTRIBUTE_READONLY			0x00000001
 #define FILE_ATTRIBUTE_HIDDEN			0x00000002
 #define FILE_ATTRIBUTE_SYSTEM			0x00000004
@@ -1133,16 +1161,23 @@ struct smb2_change_notify_rsp {
 #define FILE_WRITE_THROUGH_LE		cpu_to_le32(0x00000002)
 #define FILE_SEQUENTIAL_ONLY_LE		cpu_to_le32(0x00000004)
 #define FILE_NO_INTERMEDIATE_BUFFERING_LE cpu_to_le32(0x00000008)
+/* FILE_SYNCHRONOUS_IO_ALERT_LE		cpu_to_le32(0x00000010) should be zero, ignored */
+/* FILE_SYNCHRONOUS_IO_NONALERT		cpu_to_le32(0x00000020) should be zero, ignored */
 #define FILE_NON_DIRECTORY_FILE_LE	cpu_to_le32(0x00000040)
 #define FILE_COMPLETE_IF_OPLOCKED_LE	cpu_to_le32(0x00000100)
 #define FILE_NO_EA_KNOWLEDGE_LE		cpu_to_le32(0x00000200)
+/* FILE_OPEN_REMOTE_INSTANCE		cpu_to_le32(0x00000400) should be zero, ignored */
 #define FILE_RANDOM_ACCESS_LE		cpu_to_le32(0x00000800)
-#define FILE_DELETE_ON_CLOSE_LE		cpu_to_le32(0x00001000)
+#define FILE_DELETE_ON_CLOSE_LE		cpu_to_le32(0x00001000) /* MBZ */
 #define FILE_OPEN_BY_FILE_ID_LE		cpu_to_le32(0x00002000)
 #define FILE_OPEN_FOR_BACKUP_INTENT_LE	cpu_to_le32(0x00004000)
 #define FILE_NO_COMPRESSION_LE		cpu_to_le32(0x00008000)
+/* FILE_OPEN_REQUIRING_OPLOCK		cpu_to_le32(0x00010000) should be zero, ignored */
+/* FILE_DISALLOW_EXCLUSIVE		cpu_to_le32(0x00020000) should be zero, ignored */
+/* FILE_RESERVE_OPFILTER		cpu_to_le32(0x00100000) MBZ */
 #define FILE_OPEN_REPARSE_POINT_LE	cpu_to_le32(0x00200000)
 #define FILE_OPEN_NO_RECALL_LE		cpu_to_le32(0x00400000)
+/* #define FILE_OPEN_FOR_FREE_SPACE_QUERY cpu_to_le32(0x00800000) should be zero, ignored */
 #define CREATE_OPTIONS_MASK_LE          cpu_to_le32(0x00FFFFFF)
 
 #define FILE_READ_RIGHTS_LE (FILE_READ_DATA_LE | FILE_READ_EA_LE \
@@ -1173,14 +1208,19 @@ struct smb2_change_notify_rsp {
 #define SMB2_CREATE_FLAG_REPARSEPOINT 0x01
 
 struct create_context {
-	__le32 Next;
-	__le16 NameOffset;
-	__le16 NameLength;
-	__le16 Reserved;
-	__le16 DataOffset;
-	__le32 DataLength;
+	/* New members must be added within the struct_group() macro below. */
+	__struct_group(create_context_hdr, hdr, __packed,
+		__le32 Next;
+		__le16 NameOffset;
+		__le16 NameLength;
+		__le16 Reserved;
+		__le16 DataOffset;
+		__le32 DataLength;
+	);
 	__u8 Buffer[];
 } __packed;
+static_assert(offsetof(struct create_context, Buffer) == sizeof(struct create_context_hdr),
+	      "struct member likely outside of __struct_group()");
 
 struct smb2_create_req {
 	struct smb2_hdr hdr;
@@ -1224,10 +1264,38 @@ struct smb2_create_rsp {
 } __packed;
 
 struct create_posix {
-	struct create_context ccontext;
+	struct create_context_hdr ccontext;
 	__u8    Name[16];
 	__le32  Mode;
 	__u32   Reserved;
+} __packed;
+
+/* See MS-SMB2 2.2.13.2.3 and MS-SMB2 2.2.13.2.4 */
+struct create_durable {
+	struct create_context_hdr ccontext;
+	__u8   Name[8];
+	union {
+		__u8  Reserved[16];
+		struct {
+			__u64 PersistentFileId;
+			__u64 VolatileFileId;
+		} Fid;
+	} Data;
+} __packed;
+
+/* See MS-SMB2 2.2.13.2.5 */
+struct create_mxac_req {
+	struct create_context_hdr ccontext;
+	__u8   Name[8];
+	__le64 Timestamp;
+} __packed;
+
+/* See MS-SMB2 2.2.14.2.5 */
+struct create_mxac_rsp {
+	struct create_context_hdr ccontext;
+	__u8   Name[8];
+	__le32 QueryStatus;
+	__le32 MaximalAccess;
 } __packed;
 
 #define SMB2_LEASE_NONE_LE			cpu_to_le32(0x00)
@@ -1240,6 +1308,7 @@ struct create_posix {
 
 #define SMB2_LEASE_KEY_SIZE			16
 
+/* See MS-SMB2 2.2.13.2.8 */
 struct lease_context {
 	__u8 LeaseKey[SMB2_LEASE_KEY_SIZE];
 	__le32 LeaseState;
@@ -1247,6 +1316,7 @@ struct lease_context {
 	__le64 LeaseDuration;
 } __packed;
 
+/* See MS-SMB2 2.2.13.2.10 */
 struct lease_context_v2 {
 	__u8 LeaseKey[SMB2_LEASE_KEY_SIZE];
 	__le32 LeaseState;
@@ -1258,16 +1328,45 @@ struct lease_context_v2 {
 } __packed;
 
 struct create_lease {
-	struct create_context ccontext;
+	struct create_context_hdr ccontext;
 	__u8   Name[8];
 	struct lease_context lcontext;
 } __packed;
 
 struct create_lease_v2 {
-	struct create_context ccontext;
+	struct create_context_hdr ccontext;
 	__u8   Name[8];
 	struct lease_context_v2 lcontext;
 	__u8   Pad[4];
+} __packed;
+
+/* See MS-SMB2 2.2.14.2.9 */
+struct create_disk_id_rsp {
+	struct create_context_hdr ccontext;
+	__u8   Name[8];
+	__le64 DiskFileId;
+	__le64 VolumeId;
+	__u8  Reserved[16];
+} __packed;
+
+/* See MS-SMB2 2.2.13.2.13 */
+struct create_app_inst_id {
+	struct create_context_hdr ccontext;
+	__u8 Name[16];
+	__le32 StructureSize; /* Must be 20 */
+	__u16 Reserved;
+	__u8 AppInstanceId[16];
+} __packed;
+
+/* See MS-SMB2 2.2.13.2.15 */
+struct create_app_inst_id_vers {
+	struct create_context_hdr ccontext;
+	__u8 Name[16];
+	__le32 StructureSize; /* Must be 24 */
+	__u16 Reserved;
+	__u32 Padding;
+	__le64 AppInstanceVersionHigh;
+	__le64 AppInstanceVersionLow;
 } __packed;
 
 /* See MS-SMB2 2.2.31 and 2.2.32 */

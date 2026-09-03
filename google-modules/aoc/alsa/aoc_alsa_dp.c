@@ -12,7 +12,9 @@
 #include <sound/control.h>
 #include <sound/soc.h>
 #include "aoc_alsa.h"
+#if IS_ENABLED(CONFIG_DRM_SAMSUNG_DP_AUDIO)
 #include "dp_audio.h"
+#endif
 
 static const struct snd_pcm_hardware snd_aoc_dp_hw = {
 	.info = (SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_BLOCK_TRANSFER |
@@ -62,6 +64,7 @@ static int snd_aoc_dp_close(struct snd_soc_component *component,
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_DRM_SAMSUNG_DP_AUDIO)
 static int snd_aoc_dp_fill_buffer(struct snd_pcm_substream *substream,
 	unsigned int offset, unsigned int bytes)
 {
@@ -77,13 +80,16 @@ static int snd_aoc_dp_fill_buffer(struct snd_pcm_substream *substream,
 
 	return aoc_displayport_read(chip, dst, bytes);
 }
+#endif
 
 static int snd_aoc_dp_hw_params(struct snd_soc_component *component,
 	struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params)
 {
 	struct device *dev = component->dev;
 	dev_dbg(dev, "substream=%pK\n", substream);
+#if IS_ENABLED(CONFIG_DRM_SAMSUNG_DP_AUDIO)
 	dp_dma_register_fill_buffer_cb(substream, snd_aoc_dp_fill_buffer);
+#endif
 	return 0;
 }
 
@@ -93,7 +99,9 @@ static int snd_aoc_dp_hw_free(struct snd_soc_component *component,
 {
 	struct device *dev = component->dev;
 	dev_dbg(dev, "substream=%pK\n", substream);
+#if IS_ENABLED(CONFIG_DRM_SAMSUNG_DP_AUDIO)
 	dp_dma_register_fill_buffer_cb(substream, NULL);
+#endif
 	return 0;
 }
 

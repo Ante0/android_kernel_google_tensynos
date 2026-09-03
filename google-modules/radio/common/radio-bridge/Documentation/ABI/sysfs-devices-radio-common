@@ -1,0 +1,18 @@
+What:		/sys/kernel/radio_bridge/audio_path
+Date:		December 2025
+KernelVersion:	6.12.52-android16-6
+Description:
+		Control the audio path between the AOSS and the modem.
+		Writing "on" to this node will get the radio bridge to
+		first make sure PCIe is linked up and then notify the
+		AOSS to setup the audio path. Once the audio path has been
+		setup, the sysfs node will be updated to the new value.
+		Userspace will use this node to make sure the audio path
+		has been established before sending out the speech on
+		command to the modem.
+
+		The sequence is reversed in case of the speech off command
+		where the userspace notifies the radio bridge after the speech
+		off command, that the audio path is safe to tear down. Then
+		the radio bridge can notify the AOSS and link down PCIe.
+

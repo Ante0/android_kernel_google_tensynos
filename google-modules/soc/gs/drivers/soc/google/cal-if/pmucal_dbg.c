@@ -9,6 +9,7 @@
  * published by the Free Software Foundation.
  */
 
+#include <linux/cleanup.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/of_address.h>
@@ -263,7 +264,7 @@ static const struct file_operations pmucal_dbg_profile_fops = {
 
 int __init pmucal_dbg_init(void)
 {
-	struct device_node *node = NULL;
+	struct device_node *node __free(device_node);
 	int ret;
 	u32 prop1, prop2, i;
 
@@ -308,6 +309,9 @@ int __init pmucal_dbg_init(void)
 		pr_err("%s %s:profile_en_offset has not been found.\n", PMUCAL_PREFIX, __func__);
 		return -EINVAL;
 	}
+
+	of_node_put(node);
+	node = NULL;
 
 	/* CPU */
 	pmucal_dbg_cpu_list = kzalloc(sizeof(struct pmucal_dbg_info) * pmucal_cpu_list_size, GFP_KERNEL);

@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2023 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/pmic/google,da9186.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Dialog Semiconductor DA9186/7 Power Management IC
+
+maintainers:
+  - Ryan Chu <cychu@google.com>
+
+description: |
+  This describes the DA9186/7 System PMIC pair device tree MFD bindings for the
+  SoC platform.
+
+  The DA9186 PMIC consists of:
+  Device             Description
+  ------             -----------
+  da9186-regulator  : LDOs & BUCKs
+  da9186-rtc        : Real-Time Clock
+  da9186-gpio       : GPIOs
+
+  The DA9187 PMIC consists of:
+  Device             Description
+  ------             -----------
+  da9186-regulator  : LDOs & BUCKs
+  da9186-gpio       : GPIOs
+
+  This MFD driver provides the interface to communicate to the DA9186/7 PMICs.
+
+  The following documents are the sub-nodes that uses this MFD driver:
+    [1] Regulator: google,da9186-regulator.yaml
+    [2] RTC:  google,da9186-rtc.yaml
+    [3] GPIO:  google,da9186-gpio.yaml
+
+properties:
+  compatible:
+    const: google,da9186mfd
+
+required:
+  - compatible
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    da9186mfd: da9186mfd {
+        compatible = "google,da9186mfd";
+    };

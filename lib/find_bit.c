@@ -87,7 +87,7 @@ out:										\
 	if (sz % BITS_PER_LONG)							\
 		tmp = (FETCH) & BITMAP_LAST_WORD_MASK(sz);			\
 found:										\
-	sz = min(idx * BITS_PER_LONG + fns(tmp, nr), sz);			\
+	sz = idx * BITS_PER_LONG + fns(tmp, nr);				\
 out:										\
 	sz;									\
 })
@@ -115,6 +115,18 @@ unsigned long _find_first_and_bit(const unsigned long *addr1,
 }
 EXPORT_SYMBOL(_find_first_and_bit);
 #endif
+
+/*
+ * Find the first set bit in three memory regions.
+ */
+unsigned long _find_first_and_and_bit(const unsigned long *addr1,
+				      const unsigned long *addr2,
+				      const unsigned long *addr3,
+				      unsigned long size)
+{
+	return FIND_FIRST_BIT(addr1[idx] & addr2[idx] & addr3[idx], /* nop */, size);
+}
+EXPORT_SYMBOL(_find_first_and_and_bit);
 
 #ifndef find_first_zero_bit
 /*
@@ -155,6 +167,15 @@ unsigned long __find_nth_andnot_bit(const unsigned long *addr1, const unsigned l
 }
 EXPORT_SYMBOL(__find_nth_andnot_bit);
 
+unsigned long __find_nth_and_andnot_bit(const unsigned long *addr1,
+					const unsigned long *addr2,
+					const unsigned long *addr3,
+					unsigned long size, unsigned long n)
+{
+	return FIND_NTH_BIT(addr1[idx] & addr2[idx] & ~addr3[idx], size, n);
+}
+EXPORT_SYMBOL(__find_nth_and_andnot_bit);
+
 #ifndef find_next_and_bit
 unsigned long _find_next_and_bit(const unsigned long *addr1, const unsigned long *addr2,
 					unsigned long nbits, unsigned long start)
@@ -171,6 +192,15 @@ unsigned long _find_next_andnot_bit(const unsigned long *addr1, const unsigned l
 	return FIND_NEXT_BIT(addr1[idx] & ~addr2[idx], /* nop */, nbits, start);
 }
 EXPORT_SYMBOL(_find_next_andnot_bit);
+#endif
+
+#ifndef find_next_or_bit
+unsigned long _find_next_or_bit(const unsigned long *addr1, const unsigned long *addr2,
+					unsigned long nbits, unsigned long start)
+{
+	return FIND_NEXT_BIT(addr1[idx] | addr2[idx], /* nop */, nbits, start);
+}
+EXPORT_SYMBOL(_find_next_or_bit);
 #endif
 
 #ifndef find_next_zero_bit

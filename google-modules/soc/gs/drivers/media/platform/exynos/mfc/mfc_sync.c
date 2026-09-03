@@ -351,8 +351,8 @@ int mfc_core_get_next_ctx(struct mfc_core *core)
 	return next_ctx_index;
 }
 
-int __mfc_dec_ctx_ready_set_bit(struct mfc_core_ctx *core_ctx,
-			struct mfc_bits *data, bool set)
+static int __mfc_dec_ctx_ready_set_bit(struct mfc_core_ctx *core_ctx,
+				       struct mfc_bits *data, bool set)
 {
 	struct mfc_core *core = core_ctx->core;
 	struct mfc_ctx *ctx = core_ctx->ctx;

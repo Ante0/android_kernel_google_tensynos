@@ -256,11 +256,7 @@ static int bigo_run_job(struct bigo_core *core, struct bigo_job *job)
 	bigo_push_regs(core, job->regs);
 	bigo_core_enable(core);
 	ret = wait_for_completion_timeout(&core->frame_done,
-#ifdef CONFIG_DEBUG_FS
 			msecs_to_jiffies(core->debugfs.timeout));
-#else
-			msecs_to_jiffies(JOB_COMPLETE_TIMEOUT_MS));
-#endif
 	if (!ret) {
 		pr_err("last rd addr: 0x%x, last_wr_addr: 0x%x\n",
 			bigo_core_readl(core, BIGO_REG_LAST_RD_AXI_ADDR),
@@ -640,7 +636,7 @@ static int init_chardev(struct bigo_core *core)
 		goto err_cdev_add;
 	}
 
-	core->_class = class_create(THIS_MODULE, BIGO_DEVCLASS_NAME);
+	core->_class = class_create(BIGO_DEVCLASS_NAME);
 	if (IS_ERR(core->_class)) {
 		rc = PTR_ERR(core->_class);
 		goto err_class_create;
@@ -720,6 +716,7 @@ static int bigo_worker_thread(void *data)
 			continue;
 
 		inst = container_of(job, struct bigo_inst, job);
+		bool is_secure = READ_ONCE(inst->is_secure);
 
 		if (inst->idle) {
 			inst->idle = false;
@@ -727,7 +724,7 @@ static int bigo_worker_thread(void *data)
 		}
 
 		bigo_update_qos(core);
-		if (inst->is_secure) {
+		if (is_secure) {
 			rc = exynos_smc(SMC_PROTECTION_SET, 0, BIGO_SMC_ID,
 					SMC_PROTECTION_ENABLE);
 			if (rc) {
@@ -738,7 +735,7 @@ static int bigo_worker_thread(void *data)
 
 		rc = bigo_run_job(core, job);
 
-		if (inst->is_secure) {
+		if (is_secure) {
 			if (exynos_smc(SMC_PROTECTION_SET, 0, BIGO_SMC_ID,
 					SMC_PROTECTION_DISABLE))
 				pr_err("failed to disable SMC_PROTECTION_SET: %d\n", rc);
@@ -789,6 +786,7 @@ static int bigo_probe(struct platform_device *pdev)
 	int rc = 0;
 	int i;
 	struct bigo_core *core;
+	struct iommu_domain *domain;
 
 	core = devm_kzalloc(&pdev->dev, sizeof(struct bigo_core), GFP_KERNEL);
 	if (!core) {
@@ -835,11 +833,10 @@ static int bigo_probe(struct platform_device *pdev)
 		goto err_io;
 	}
 
-	rc = iommu_register_device_fault_handler(&pdev->dev, bigo_iommu_fault_handler, core);
-	if (rc) {
-		pr_err("failed to register iommu fault handler: %d\n", rc);
-		goto err_fault_handler;
-	}
+	domain = iommu_get_domain_for_dev(&pdev->dev);
+	if (domain)
+		/* Used just for logging. */
+		iommu_set_fault_handler(domain, bigo_iommu_fault_handler, core);
 
 	rc = bigo_pt_client_register(pdev->dev.of_node, core);
 	if (rc == -EPROBE_DEFER) {
@@ -862,8 +859,6 @@ static int bigo_probe(struct platform_device *pdev)
 	return rc;
 
 err_pt_client:
-	iommu_unregister_device_fault_handler(&pdev->dev);
-err_fault_handler:
 	pm_runtime_disable(&pdev->dev);
 err_io:
 	bigo_of_dt_release(core);
@@ -875,19 +870,17 @@ err:
 	return rc;
 }
 
-static int bigo_remove(struct platform_device *pdev)
+static void bigo_remove(struct platform_device *pdev)
 {
 	struct bigo_core *core = (struct bigo_core *)platform_get_drvdata(pdev);
 
 	bigo_uninit_debugfs(core);
 	platform_device_unregister(&bigo_sscd_dev);
 	bigo_pt_client_unregister(core);
-	iommu_unregister_device_fault_handler(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 	bigo_of_dt_release(core);
 	deinit_chardev(core);
 	platform_set_drvdata(pdev, NULL);
-	return 0;
 }
 
 static const struct of_device_id bigo_dt_match[] = {

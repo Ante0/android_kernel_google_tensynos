@@ -38,7 +38,7 @@
 #include <drm/drm_encoder.h>
 #include <drm/drm_modes.h>
 #include <drm/drm_panel.h>
-#include <samsung/exynos_drm_connector.h>
+#include <exynos_drm_connector.h>
 #endif
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_TBN)
 #include <touch_bus_negotiator.h>
@@ -69,10 +69,6 @@
 #define FTS_RESET_INTERVAL      200
 
 #define FTS_CHIP_TYPE_MAPPING   {{0x88, 0x56, 0x52, 0x00, 0x00, 0x00, 0x00, 0x56, 0xB2}}
-
-#ifndef MAX
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#endif
 
 #define FTS_STTW_E3_BUF_LEN                 13
 #define FTS_LPTW_E2_BUF_LEN                 13

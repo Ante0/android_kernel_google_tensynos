@@ -1,6 +1,13 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "ddk_uapi_headers", "kernel_module")
+# ASoC-based ALSA driver gluing all the audio amplifier drivers
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module", "ddk_uapi_headers")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
 
 ddk_uapi_headers(
     name = "uapi_headers",
@@ -14,44 +21,116 @@ ddk_uapi_headers(
     visibility = ["//private/devices/google:__subpackages__"],
 )
 
-filegroup(
+ddk_headers(
     name = "headers",
-    srcs = glob([
+    hdrs = glob([
         "*.h",
     ]),
+    includes = [
+        ".",
+    ],
     visibility = [
-        "//private/google-modules/display/samsung:__pkg__",
+        "//private/google-modules/display/samsung:__subpackages__",
     ],
 )
 
-kernel_module(
-    name = "alsa",
-    srcs = glob([
-        "**/*.c",
-        "**/*.h",
-    ]) + [
-        "Kbuild",
-        "Makefile",
-        "//private/google-modules/amplifiers/audiometrics:headers",
-        "//private/google-modules/aoc:headers",
-        "//private/google-modules/aoc_ipc:headers",
-        "//private/google-modules/display/samsung:headers",
-        "//private/google-modules/soc/gs:gs_soc_headers",
+ddk_headers(
+    name = "no_dp_module",
+)
+
+label_flag(
+    name = "dp_module",
+    build_setting_default = ":no_dp_module",
+)
+
+filegroup(
+    name = "alsa.kconfig",
+    srcs = [
+        "Kconfig",
     ],
-    outs = [
-        "aoc_alsa_dev.ko",
-        "aoc_alsa_dev_util.ko",
-    ],
-    kernel_build = "//private/devices/google/common:kernel",
     visibility = [
         "//private/devices/google:__subpackages__",
-        "//private/google-modules/aoc/usb:__pkg__",
-        "//private/google-modules/soc/gs:__pkg__",
     ],
+)
+
+ddk_module(
+    name = "aoc_alsa_dev",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "aoc_alsa_card.c",
+    ],
+    out = "aoc_alsa_dev.ko",
+    copts = select({
+        "//private/devices/google/common:factory_build": ["-DAOC_FACTORY_BUILD"],
+        "//conditions:default": [],
+    }),
+    kernel_build = "//private/devices/google/common:kernel",
     deps = [
-        "//private/google-modules/amplifiers/audiometrics",
-        "//private/google-modules/aoc",
-        "//private/google-modules/display/samsung:display.samsung",
-        "//private/google-modules/soc/gs:gs_soc_module",
+        ":aoc_alsa_dev_util",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/amplifiers/audiometrics:ddk_headers",
+        "//private/google-modules/aoc:headers",
+        "//private/google-modules/aoc_ipc",
+        "//private/google-modules/radio/common/radio-bridge",
+        "//private/google-modules/soc/gs:headers",
     ],
+)
+
+ddk_module(
+    name = "aoc_alsa_dev_util",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "aoc_alsa_compr.c",
+        "aoc_alsa_ctl.c",
+        "aoc_alsa_drv.c",
+        "aoc_alsa_hw.c",
+        "aoc_alsa_incall.c",
+        "aoc_alsa_nohost.c",
+        "aoc_alsa_path.c",
+        "aoc_alsa_pcm.c",
+        "aoc_alsa_voice.c",
+        "aoc_alsa_voip.c",
+    ],
+    out = "aoc_alsa_dev_util.ko",
+    conditional_srcs = {
+        "CONFIG_AOC_ALSA_USB": {
+            True: [
+                "aoc_alsa_usb.c",
+            ],
+        },
+        "CONFIG_AOC_ALSA_DP_AUDIO": {
+            True: [
+                "aoc_alsa_dp.c",
+            ],
+        },
+    },
+    copts = select({
+        "//private/devices/google/common:factory_build": ["-DAOC_FACTORY_BUILD"],
+        "//conditions:default": [],
+    }),
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":dp_module",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/amplifiers/audiometrics",
+        "//private/google-modules/aoc:aoc_core",
+        "//private/google-modules/aoc:headers",
+        "//private/google-modules/aoc_ipc",
+        "//private/google-modules/radio/common/radio-bridge",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ] + select({
+        "//private/devices/google/common:soc_is_malibu": [
+        ],
+        "//conditions:default": [
+            "//private/google-modules/soc/gs/drivers/soc/google/modemctl:google_modemctl",
+        ],
+    }) + select({
+        "//private/devices/google/common:soc_is_laguna_or_later": [
+            "//private/google-modules/soc/rdo/drivers/soc/google/cdd:gcdd",
+        ],
+        "//conditions:default": [],
+    }),
 )

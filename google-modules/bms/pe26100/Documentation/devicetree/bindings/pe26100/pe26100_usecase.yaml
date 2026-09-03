@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2025 Google LLC
+%YAML 1.2
+---
+
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: pe26100 usecase driver
+
+maintainers:
+  - Daniel Okazaki <dtokazaki@google.com>
+
+description: |
+  pe26100 usecase driver. MFD child of pe26100_driver
+
+properties:
+  # A dictionary of DT properties for this binding schema
+  compatible:
+    enum:
+      - pe26100-usecase
+
+required:
+  - compatible

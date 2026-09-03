@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: GPL-2.0-only
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+bool_flag(
+    name = "nl80211_testmode",
+    build_setting_default = False,
+    visibility = ["//private/google-modules/wlan:__subpackages__"],
+)
+
+config_setting(
+    name = "nl80211_testmode_enabled",
+    flag_values = {":nl80211_testmode": "true"},
+    visibility = ["//private/google-modules/wlan:__subpackages__"],
+)
+
+ddk_headers(
+    name = "wlan_linux_headers",
+    hdrs = glob(["include/**/*.h"]),
+    includes = ["include"],
+    linux_includes = [
+        "include",
+        "include/uapi",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "cfg80211",
+    srcs = glob(
+        [
+            "net/wireless/**/*.c",
+            "net/wireless/**/*.h",
+            "include/**/*.h",
+        ],
+        exclude = [
+            "net/wireless/debugfs.c",
+            "net/wireless/lib80211*.c",
+            "net/wireless/wext-core.c",
+            "net/wireless/wext-proc.c",
+            "net/wireless/wext-spy.c",
+            "net/wireless/wext-priv.c",
+            "net/wireless/wext-compat.c",
+            "net/wireless/wext-sme.c",
+            # ADD THESE TWO LINES: Ignore the upstream unit tests
+            "net/wireless/tests/**/*",
+        ],
+    ),
+    out = "net/wireless/cfg80211.ko",
+    copts = [
+        "-include",
+        "wlan_config.h",
+    ] + select({
+        ":nl80211_testmode_enabled": [
+            "-DCONFIG_NL80211_TESTMODE=1",
+        ],
+        "//conditions:default": [],
+    }),
+    includes = [
+        "net/wireless",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":wlan_linux_headers",
+    ],
+)
+
+ddk_module(
+    name = "mac80211",
+    srcs = glob(
+        [
+            "net/mac80211/**/*.c",
+            "net/mac80211/**/*.h",
+            "include/**/*.h",
+        ],
+        exclude = [
+            "net/mac80211/debugfs*.c",
+            "net/mac80211/led*.c",
+            "net/mac80211/mesh*.c",
+            # The Makefile builds tests/ only if obj-y += tests/ is
+            # actively invoked for testing. We don't want to build them.
+            "net/mac80211/tests/**/*.c",
+            "net/mac80211/tests/**/*.h",
+        ],
+    ),
+    out = "net/mac80211/mac80211.ko",
+    copts = [
+        "-include",
+        "wlan_config.h",
+    ] + select({
+        ":nl80211_testmode_enabled": [
+            "-DCONFIG_NL80211_TESTMODE=1",
+        ],
+        "//conditions:default": [],
+    }),
+    includes = [
+        "net/mac80211",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":cfg80211",
+        ":wlan_linux_headers",
+    ],
+)

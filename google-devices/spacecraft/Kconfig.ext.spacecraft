@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# soc level Kconfigs are at private/devices/google/malibu/Kconfig.ext.malibu
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/radio/mediatek/t900/wwan/tmi3/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/radio/mediatek/t900/wwan/tmi3/pcie/customize/google/Kconfig"
+
+source "$(KCONFIG_EXT_MODULES_PREFIX)private/google-modules/touch/sec/p26/Kconfig"

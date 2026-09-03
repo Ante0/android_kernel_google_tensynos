@@ -95,9 +95,9 @@ static int edgetpu_platform_probe(struct platform_device *pdev)
 	return edgetpu_mobile_platform_probe(pdev, etmdev);
 }
 
-static int edgetpu_platform_remove(struct platform_device *pdev)
+static void edgetpu_platform_remove(struct platform_device *pdev)
 {
-	return edgetpu_mobile_platform_remove(pdev);
+	edgetpu_mobile_platform_remove(pdev);
 }
 
 #if IS_ENABLED(CONFIG_PM_SLEEP)

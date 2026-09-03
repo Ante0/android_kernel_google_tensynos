@@ -53,37 +53,30 @@
 struct mmu_psize_def mmu_psize_defs[MMU_PAGE_COUNT] = {
 	[MMU_PAGE_4K] = {
 		.shift	= 12,
-		.enc	= BOOK3E_PAGESZ_4K,
 	},
 	[MMU_PAGE_2M] = {
 		.shift	= 21,
-		.enc	= BOOK3E_PAGESZ_2M,
 	},
 	[MMU_PAGE_4M] = {
 		.shift	= 22,
-		.enc	= BOOK3E_PAGESZ_4M,
 	},
 	[MMU_PAGE_16M] = {
 		.shift	= 24,
-		.enc	= BOOK3E_PAGESZ_16M,
 	},
 	[MMU_PAGE_64M] = {
 		.shift	= 26,
-		.enc	= BOOK3E_PAGESZ_64M,
 	},
 	[MMU_PAGE_256M] = {
 		.shift	= 28,
-		.enc	= BOOK3E_PAGESZ_256M,
 	},
 	[MMU_PAGE_1G] = {
 		.shift	= 30,
-		.enc	= BOOK3E_PAGESZ_1GB,
 	},
 };
 
 static inline int mmu_get_tsize(int psize)
 {
-	return mmu_psize_defs[psize].enc;
+	return mmu_psize_defs[psize].shift - 10;
 }
 #else
 static inline int mmu_get_tsize(int psize)
@@ -162,6 +155,14 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long vmaddr)
 			       mmu_get_tsize(mmu_virtual_psize), 0);
 }
 EXPORT_SYMBOL(local_flush_tlb_page);
+
+void local_flush_tlb_page_psize(struct mm_struct *mm,
+				unsigned long vmaddr, int psize)
+{
+	__local_flush_tlb_page(mm, vmaddr, mmu_get_tsize(psize), 0);
+}
+EXPORT_SYMBOL(local_flush_tlb_page_psize);
+
 #endif
 
 /*
@@ -288,17 +289,6 @@ EXPORT_SYMBOL(flush_tlb_page);
 
 #endif /* CONFIG_SMP */
 
-#ifdef CONFIG_PPC_47x
-void __init early_init_mmu_47x(void)
-{
-#ifdef CONFIG_SMP
-	unsigned long root = of_get_flat_dt_root();
-	if (of_get_flat_dt_prop(root, "cooperative-partition", NULL))
-		mmu_clear_feature(MMU_FTR_USE_TLBIVAX_BCAST);
-#endif /* CONFIG_SMP */
-}
-#endif /* CONFIG_PPC_47x */
-
 /*
  * Flush kernel TLB entries in the given range
  */
@@ -342,8 +332,10 @@ void tlb_flush(struct mmu_gather *tlb)
 #ifndef CONFIG_PPC64
 void __init early_init_mmu(void)
 {
-#ifdef CONFIG_PPC_47x
-	early_init_mmu_47x();
-#endif
+	unsigned long root = of_get_flat_dt_root();
+
+	if (IS_ENABLED(CONFIG_PPC_47x) && IS_ENABLED(CONFIG_SMP) &&
+	    of_get_flat_dt_prop(root, "cooperative-partition", NULL))
+		mmu_clear_feature(MMU_FTR_USE_TLBIVAX_BCAST);
 }
 #endif /* CONFIG_PPC64 */

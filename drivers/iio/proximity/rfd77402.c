@@ -257,8 +257,7 @@ static void rfd77402_disable(void *client)
 	rfd77402_powerdown(client);
 }
 
-static int rfd77402_probe(struct i2c_client *client,
-			  const struct i2c_device_id *id)
+static int rfd77402_probe(struct i2c_client *client)
 {
 	struct rfd77402_data *data;
 	struct iio_dev *indio_dev;
@@ -309,7 +308,7 @@ static DEFINE_SIMPLE_DEV_PM_OPS(rfd77402_pm_ops, rfd77402_suspend,
 				rfd77402_resume);
 
 static const struct i2c_device_id rfd77402_id[] = {
-	{ "rfd77402", 0 },
+	{ "rfd77402" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, rfd77402_id);
@@ -319,7 +318,7 @@ static struct i2c_driver rfd77402_driver = {
 		.name   = RFD77402_DRV_NAME,
 		.pm     = pm_sleep_ptr(&rfd77402_pm_ops),
 	},
-	.probe  = rfd77402_probe,
+	.probe = rfd77402_probe,
 	.id_table = rfd77402_id,
 };
 

@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2023 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/pwm/pwm-faraday.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Faraday FTPWMTMR010 PWM Controller
+
+maintainers:
+  - Rohit Ner <rohitner@google.com>
+
+description:
+  Supports AMBA 2.0 APB bus
+  Supports up to 8 independent 32-bit timers
+  Selects internal or external clock source for each timer
+  Supports PWM function to generate each timer
+  Programmable duty control and polarity of PWM
+  Supports auto-reload mode and one-shot pulse mode
+  Dead-zone generator on PWM outputs
+  Supports timer based on DMA transfer request
+
+allOf:
+  - $ref: pwm.yaml#
+
+properties:
+  compatible:
+    const: faraday,ftpwmtmr010
+
+  reg:
+    maxItems: 1
+
+  clocks:
+    description:
+      Specifies the reference clock(s) from which
+      the output frequency is derived. Must contain an entry
+      for each entry in clock-names.
+    minItems: 1
+    maxItems: 2
+
+  clock-names:
+    description:
+      Includes the following entries
+        - pclk: system interface clock
+        - ext_clk: external clock (optional)
+    minItems: 1
+    maxItems: 2
+
+  interrupts-extended:
+    description: One interrupt per channel
+    maxItems: 1
+
+  "#pwm-cells":
+    description:
+      Number of cells in a PWM specifier.
+    const: 2
+
+required:
+  - compatible
+  - reg
+  - interrupts-extended
+  - clocks
+  - clock-names
+
+additionalProperties: false
+
+examples:
+  - |
+    pwm_ctrl@3bd90000 {
+      compatible = "faraday,ftpwmtmr010";
+      reg = <0x0 0x3bd90000 0x0 0x50>;
+      interrupts-extended = <&gia_lsios_hier 0 8>,
+                            <&gia_lsios_hier 0 9>,
+                            <&gia_lsios_hier 0 10>,
+                            <&gia_lsios_hier 0 11>;
+      clocks = <&pclk>, <&ext_clk>;
+      clock-names = "pclk", "ext_clk";
+      #pwm-cells = <2>;
+    };

@@ -16,6 +16,8 @@
  * @WWAN_PORT_QMI: Qcom modem/MSM interface for modem control
  * @WWAN_PORT_QCDM: Qcom Modem diagnostic interface
  * @WWAN_PORT_FIREHOSE: XML based command protocol
+ * @WWAN_PORT_XMMRPC: Control protocol for Intel XMM modems
+ * @WWAN_PORT_FASTBOOT: Fastboot protocol control
  *
  * @WWAN_PORT_MAX: Highest supported port types
  * @WWAN_PORT_UNKNOWN: Special value to indicate an unknown port type
@@ -27,6 +29,8 @@ enum wwan_port_type {
 	WWAN_PORT_QMI,
 	WWAN_PORT_QCDM,
 	WWAN_PORT_FIREHOSE,
+	WWAN_PORT_XMMRPC,
+	WWAN_PORT_FASTBOOT,
 
 	/* Add new port types above this line */
 
@@ -66,11 +70,21 @@ struct wwan_port_ops {
 	ANDROID_KABI_RESERVE(2);
 };
 
+/** struct wwan_port_caps - The WWAN port capbilities
+ * @frag_len: WWAN port TX fragments length
+ * @headroom_len: WWAN port TX fragments reserved headroom length
+ */
+struct wwan_port_caps {
+	size_t frag_len;
+	unsigned int headroom_len;
+};
+
 /**
  * wwan_create_port - Add a new WWAN port
  * @parent: Device to use as parent and shared by all WWAN ports
  * @type: WWAN port type
  * @ops: WWAN port operations
+ * @caps: WWAN port capabilities
  * @drvdata: Pointer to caller driver data
  *
  * Allocate and register a new WWAN port. The port will be automatically exposed
@@ -88,6 +102,7 @@ struct wwan_port_ops {
 struct wwan_port *wwan_create_port(struct device *parent,
 				   enum wwan_port_type type,
 				   const struct wwan_port_ops *ops,
+				   struct wwan_port_caps *caps,
 				   void *drvdata);
 
 /**

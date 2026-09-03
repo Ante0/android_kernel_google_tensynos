@@ -6,6 +6,7 @@
 
 #include "modem_prj.h"
 #include "modem_utils.h"
+#include "modem_ctrl.h"
 
 void modem_ctrl_set_kerneltime(struct modem_ctl *mc)
 {
@@ -106,6 +107,9 @@ void change_modem_state(struct modem_ctl *mc, enum modem_state state)
 	mc->phone_state = state;
 	spin_unlock_irqrestore(&mc->lock, flags);
 
+#if IS_ENABLED(CONFIG_GOOGLE_CRASH_DEBUG_DUMP)
+	update_google_cdd_modem_stat(mc, CDD_EVENT_MODEM_STATE, state);
+#endif
 	mif_info("%s->state changed (%s -> %s)\n", mc->name,
 		cp_state_str(old_state), cp_state_str(state));
 

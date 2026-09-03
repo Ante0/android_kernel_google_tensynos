@@ -15,13 +15,13 @@
 #include <linux/string.h>
 #include <linux/extable.h>
 #include <asm/pgtable.h>
-#include <asm-generic/extable.h>
+#include <asm/extable.h>
+#include <asm/asm-extable.h>
 #include <asm-generic/access_ok.h>
 
 extern u64 __ua_limit;
 
 #define __UA_ADDR	".dword"
-#define __UA_LA		"la.abs"
 #define __UA_LIMIT	__ua_limit
 
 /*
@@ -160,16 +160,9 @@ do {									\
 	__asm__ __volatile__(						\
 	"1:	" insn "	%1, %2				\n"	\
 	"2:							\n"	\
-	"	.section .fixup,\"ax\"				\n"	\
-	"3:	li.w	%0, %3					\n"	\
-	"	move	%1, $zero				\n"	\
-	"	b	2b					\n"	\
-	"	.previous					\n"	\
-	"	.section __ex_table,\"a\"			\n"	\
-	"	"__UA_ADDR "\t1b, 3b				\n"	\
-	"	.previous					\n"	\
+	_ASM_EXTABLE_UACCESS_ERR_ZERO(1b, 2b, %0, %1)			\
 	: "+r" (__gu_err), "=r" (__gu_tmp)				\
-	: "m" (__m(ptr)), "i" (-EFAULT));				\
+	: "m" (__m(ptr)));						\
 									\
 	(val) = (__typeof__(*(ptr))) __gu_tmp;				\
 }
@@ -192,15 +185,9 @@ do {									\
 	__asm__ __volatile__(						\
 	"1:	" insn "	%z2, %1		# __put_user_asm\n"	\
 	"2:							\n"	\
-	"	.section	.fixup,\"ax\"			\n"	\
-	"3:	li.w	%0, %3					\n"	\
-	"	b	2b					\n"	\
-	"	.previous					\n"	\
-	"	.section	__ex_table,\"a\"		\n"	\
-	"	" __UA_ADDR "	1b, 3b				\n"	\
-	"	.previous					\n"	\
+	_ASM_EXTABLE_UACCESS_ERR(1b, 2b, %0)				\
 	: "+r" (__pu_err), "=m" (__m(ptr))				\
-	: "Jr" (__pu_val), "i" (-EFAULT));				\
+	: "Jr" (__pu_val));						\
 }
 
 #define __get_kernel_nofault(dst, src, type, err_label)			\
@@ -209,8 +196,13 @@ do {									\
 									\
 	__get_kernel_common(*((type *)(dst)), sizeof(type),		\
 			    (__force type *)(src));			\
-	if (unlikely(__gu_err))						\
+	if (unlikely(__gu_err))	{					\
+		pr_info("%s: memory access failed, ecode 0x%x\n",	\
+			__func__, read_csr_excode());			\
+		pr_info("%s: the caller is %pS\n",			\
+			__func__, __builtin_return_address(0));		\
 		goto err_label;						\
+	}								\
 } while (0)
 
 #define __put_kernel_nofault(dst, src, type, err_label)			\
@@ -220,8 +212,13 @@ do {									\
 									\
 	__pu_val = *(__force type *)(src);				\
 	__put_kernel_common(((type *)(dst)), sizeof(type));		\
-	if (unlikely(__pu_err))						\
+	if (unlikely(__pu_err))	{					\
+		pr_info("%s: memory access failed, ecode 0x%x\n",	\
+			__func__, read_csr_excode());			\
+		pr_info("%s: the caller is %pS\n",			\
+			__func__, __builtin_return_address(0));		\
 		goto err_label;						\
+	}								\
 } while (0)
 
 extern unsigned long __copy_user(void *to, const void *from, __kernel_size_t n);

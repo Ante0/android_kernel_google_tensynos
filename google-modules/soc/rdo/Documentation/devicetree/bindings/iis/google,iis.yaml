@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2026 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/iis/google,iis.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google IIS PDMA Driver
+
+maintainers:
+  - Chris Hockuba <khockuba@google.com>
+
+description:
+  The IIS PDMA driver is used for communication with the Trusty TA.
+
+properties:
+  compatible:
+    const: google,iis
+
+  google,ta-iis-id:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    description:
+      The application ID for the Trusty TA. Refer to documentation or
+      device specific headers for correct value.
+
+  power-domains:
+    maxItems: 1
+
+required:
+  - compatible
+  - google,ta-iis-id
+
+additionalProperties: false
+
+examples:
+  - |
+    iis_pdma: iis-pdma {
+      compatible = "google,iis";
+      google,ta-iis-id = <1>;
+    };
+
+...

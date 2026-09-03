@@ -5,6 +5,16 @@
  * are built for 32-bit userspace.
  */
 
+/*
+ * For x86_64 16kB page size emulation
+ *
+ * The redefinition is needed here since, vdso2c is a program that runs
+ * on the host.
+ *
+ * It converts the vdso shared lib to a C array.
+ */
+#define __MAX_PAGE_SIZE		16384
+
 static void BITSFUNC(copy)(FILE *outfile, const unsigned char *data, size_t len)
 {
 	size_t i;
@@ -175,16 +185,17 @@ static void BITSFUNC(go)(void *raw_addr, size_t raw_len,
 		return;
 	}
 
-	mapping_size = (stripped_len + 4095) / 4096 * 4096;
+	mapping_size = (stripped_len + __MAX_PAGE_SIZE-1) / __MAX_PAGE_SIZE * __MAX_PAGE_SIZE;
 
 	fprintf(outfile, "/* AUTOMATICALLY GENERATED -- DO NOT EDIT */\n\n");
 	fprintf(outfile, "#include <linux/linkage.h>\n");
+	fprintf(outfile, "#include <linux/init.h>\n");
 	fprintf(outfile, "#include <asm/page_types.h>\n");
 	fprintf(outfile, "#include <asm/vdso.h>\n");
 	fprintf(outfile, "\n");
 	fprintf(outfile,
-		"static unsigned char raw_data[%lu] __ro_after_init __aligned(PAGE_SIZE) = {",
-		mapping_size);
+		"static unsigned char raw_data[%lu] __ro_after_init __aligned(%d) = {",
+		mapping_size, __MAX_PAGE_SIZE);
 	for (i = 0; i < stripped_len; i++) {
 		if (i % 10 == 0)
 			fprintf(outfile, "\n\t");
@@ -218,5 +229,10 @@ static void BITSFUNC(go)(void *raw_addr, size_t raw_len,
 			fprintf(outfile, "\t.sym_%s = %" PRIi64 ",\n",
 				required_syms[i].name, (int64_t)syms[i]);
 	}
+	fprintf(outfile, "};\n\n");
+	fprintf(outfile, "static __init int init_%s(void) {\n", image_name);
+	fprintf(outfile, "\treturn init_vdso_image(&%s);\n", image_name);
 	fprintf(outfile, "};\n");
+	fprintf(outfile, "subsys_initcall(init_%s);\n", image_name);
+
 }

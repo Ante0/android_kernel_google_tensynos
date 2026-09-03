@@ -4,8 +4,10 @@
  *
  */
 
+#include <linux/cleanup.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
+#include <net/rps.h>
 #include "modem_prj.h"
 #include "modem_utils.h"
 #include "modem_ctrl.h"
@@ -21,6 +23,8 @@
 #if IS_ENABLED(CONFIG_EXYNOS_BTS)
 #include <soc/google/bts.h>
 #endif
+
+#include <net/netdev_rx_queue.h>
 
 static struct cpif_tpmon _tpmon;
 
@@ -97,7 +101,6 @@ static void tpmon_calc_rx_speed(struct cpif_tpmon *tpmon)
 {
 	struct modem_ctl *mc = tpmon->ld->mc;
 	u32 hysteresis = mc->tp_threshold + mc->tp_hysteresis;
-	int spd;
 	int ret = 0;
 
 	ret = tpmon_calc_rx_speed_internal(tpmon, &tpmon->rx_total, false);
@@ -129,16 +132,12 @@ static void tpmon_calc_rx_speed(struct cpif_tpmon *tpmon)
 		return;
 
 	if (tpmon->rx_total.rx_mbps > hysteresis)
-		spd = pcie_get_max_link_speed(mc->pcie_ch_num);
+		tpmon->new_speed = pcie_get_max_link_speed(mc->pcie_ch_num);
 	else
-		spd = LINK_SPEED_GEN1;
+		tpmon->new_speed = LINK_SPEED_GEN1;
 
-	if (spd != tpmon->current_speed) {
-		mif_info("Change link from GEN%d to GEN%d (rx: %ldMbps)\n",
-			tpmon->current_speed, spd, tpmon->rx_total.rx_mbps);
-		tpmon->current_speed = spd;
-	}
-	pcie_change_link_speed(mc->pcie_ch_num, spd);
+	if (tpmon->new_speed != tpmon->current_speed)
+		queue_work(tpmon->update_speed_wq, &tpmon->update_speed_work);
 }
 
 /* Queue status */
@@ -804,6 +803,7 @@ static int tpmon_cpufreq_nb(struct notifier_block *nb,
 static void tpmon_set_pci_low_power(struct tpmon_data *data)
 {
 	struct modem_ctl *mc = data->tpmon->ld->mc;
+	struct s51xx_pcie *s51xx_pcie = pci_get_drvdata(mc->s51xx_pdev);
 	u32 val;
 
 	if (!data->enable)
@@ -815,8 +815,9 @@ static void tpmon_set_pci_low_power(struct tpmon_data *data)
 
 	val = tpmon_get_curr_level(data);
 	mif_info("%s (enable:%u)\n", data->name, val);
+
 	if (!mc->l1ss_disable)
-		s51xx_pcie_l1ss_ctrl((int)val, mc->pcie_ch_num);
+		s51xx_pcie_l1ss_ctrl((int)val, s51xx_pcie);
 
 out:
 	mutex_unlock(&mc->pcie_check_lock);
@@ -1011,6 +1012,20 @@ void tpmon_reset_data(char *name)
 }
 EXPORT_SYMBOL(tpmon_reset_data);
 
+static void tpmon_update_speed(struct work_struct *work)
+{
+	struct cpif_tpmon *tpmon = &_tpmon;
+	struct modem_ctl *mc = tpmon->ld->mc;
+	struct s51xx_pcie *s51xx_pcie = pci_get_drvdata(mc->s51xx_pdev);
+
+	mif_info("Change link from GEN%d to GEN%d (rx: %ldMbps)\n",
+		tpmon->current_speed, tpmon->new_speed, tpmon->rx_total.rx_mbps);
+	tpmon->current_speed = tpmon->new_speed;
+	s51xx_pcie_l1ss_ctrl(0, s51xx_pcie);
+	pcie_change_link_speed(mc->pcie_ch_num, tpmon->new_speed);
+	s51xx_pcie_l1ss_ctrl(1, s51xx_pcie);
+}
+
 /* Init */
 static int tpmon_init_params(struct cpif_tpmon *tpmon)
 {
@@ -1031,6 +1046,7 @@ static int tpmon_init_params(struct cpif_tpmon *tpmon)
 	tpmon->q_status_dit_src = 0;
 	tpmon->legacy_packet_count = 0;
 	tpmon->current_speed = LINK_SPEED_GEN1;
+	tpmon->new_speed = LINK_SPEED_GEN1;
 
 	tpmon->prev_monitor_time = 0;
 
@@ -1577,9 +1593,7 @@ static int tpmon_set_target(struct tpmon_data *data)
 
 static int tpmon_parse_dt(struct device_node *np, struct cpif_tpmon *tpmon)
 {
-	struct device_node *tpmon_np = NULL;
-	struct device_node *child_np = NULL;
-	struct device_node *boost_np = NULL;
+	struct device_node *tpmon_np __free(device_node);
 	struct tpmon_data *data = NULL;
 	int ret = 0;
 	u32 count = 0;
@@ -1609,7 +1623,7 @@ static int tpmon_parse_dt(struct device_node *np, struct cpif_tpmon *tpmon)
 	mif_dt_read_u32(tpmon_np, "boost_hold_msec", tpmon->boost_hold_msec);
 	mif_info("boost hold:%dmsec\n", tpmon->boost_hold_msec);
 
-	for_each_child_of_node(tpmon_np, child_np) {
+	for_each_child_of_node_scoped(tpmon_np, child_np) {
 		struct tpmon_data child_data = {};
 
 		mif_dt_read_string(child_np, "boost_name", child_data.name);
@@ -1619,32 +1633,8 @@ static int tpmon_parse_dt(struct device_node *np, struct cpif_tpmon *tpmon)
 		mif_dt_count_u32_array(child_np, "level",
 			child_data.level, child_data.num_level);
 
-		/*
-		 * Block specific tpmon features without modifying DTBO. Add a
-		 * build-time assertion to catch when a new tpmon target is
-		 * added, so we'll know about it and block it too if needed.
-		 */
-		BUILD_BUG_ON(MAX_TPMON_TARGET != 17);
-		switch (child_data.target) {
-		case TPMON_TARGET_RPS:
-		case TPMON_TARGET_MIF:
-		case TPMON_TARGET_IRQ_MBOX:
-		case TPMON_TARGET_IRQ_PCIE:
-		case TPMON_TARGET_IRQ_DIT:
-		case TPMON_TARGET_INT_FREQ:
-		case TPMON_TARGET_CPU_CL0:
-		case TPMON_TARGET_CPU_CL1:
-		case TPMON_TARGET_CPU_CL2:
-		case TPMON_TARGET_MIF_MAX:
-		case TPMON_TARGET_INT_FREQ_MAX:
-		case TPMON_TARGET_CPU_CL0_MAX:
-		case TPMON_TARGET_CPU_CL1_MAX:
-		case TPMON_TARGET_CPU_CL2_MAX:
-			continue;
-		}
-
 		/* boost */
-		for_each_child_of_node(child_np, boost_np) {
+		for_each_child_of_node_scoped(child_np, boost_np) {
 			if (count >= MAX_TPMON_DATA) {
 				mif_err("count is full:%d\n", count);
 				return -EINVAL;
@@ -1794,6 +1784,15 @@ int tpmon_create(struct platform_device *pdev, struct link_device *ld)
 		goto create_error;
 	}
 	INIT_DELAYED_WORK(&tpmon->boost_dwork, tpmon_boost_work);
+
+	tpmon->update_speed_wq = alloc_workqueue("cpif_tpmon_update_speed_wq",
+					__WQ_LEGACY | WQ_MEM_RECLAIM | WQ_UNBOUND, 1);
+	if (!tpmon->update_speed_wq) {
+		mif_err("alloc_workqueue() update_speed_wq error!\n");
+		return -EINVAL;
+		goto create_error;
+	}
+	INIT_WORK(&tpmon->update_speed_work, tpmon_update_speed);
 
 	tpmon->start = tpmon_start;
 	tpmon->stop = tpmon_stop;

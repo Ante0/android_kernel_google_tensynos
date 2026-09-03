@@ -17,7 +17,8 @@ struct tlb_inv_context {
 };
 
 static void enter_vmid_context(struct kvm_s2_mmu *mmu,
-			       struct tlb_inv_context *cxt)
+			       struct tlb_inv_context *cxt,
+			       bool nsh)
 {
 	struct kvm_s2_mmu *host_s2_mmu = &host_mmu.arch.mmu;
 	struct kvm_cpu_context *host_ctxt;
@@ -28,17 +29,42 @@ static void enter_vmid_context(struct kvm_s2_mmu *mmu,
 	cxt->mmu = NULL;
 
 	/*
-	 * If we're already in the desired context, then there's nothing
-	 * to do.
+	 * We have two requirements:
+	 *
+	 * - ensure that the page table updates are visible to all
+	 *   CPUs, for which a dsb(DOMAIN-st) is what we need, DOMAIN
+	 *   being either ish or nsh, depending on the invalidation
+	 *   type.
+	 *
+	 * - complete any speculative page table walk started before
+	 *   we trapped to EL2 so that we can mess with the MM
+	 *   registers out of context, for which dsb(nsh) is enough
+	 *
+	 * The composition of these two barriers is a dsb(DOMAIN), and
+	 * the 'nsh' parameter tracks the distinction between
+	 * Inner-Shareable and Non-Shareable, as specified by the
+	 * callers.
+	 */
+	if (nsh)
+		dsb(nsh);
+	else
+		dsb(ish);
+
+	/*
+	 * If we're already in the desired context, then there's nothing to do.
 	 */
 	if (vcpu) {
-		/* We're in guest context */
+		/*
+		 * We're in guest context. However, for this to work, this needs
+		 * to be called from within __kvm_vcpu_run(), which ensures that
+		 * __hyp_running_vcpu is set to the current guest vcpu.
+		 */
 		if (mmu == vcpu->arch.hw_mmu || WARN_ON(mmu != host_s2_mmu))
 			return;
 
 		cxt->mmu = vcpu->arch.hw_mmu;
 	} else {
-		/* We're in host context */
+		/* We're in host context. */
 		if (mmu == host_s2_mmu)
 			return;
 
@@ -117,8 +143,6 @@ static void exit_vmid_context(struct tlb_inv_context *cxt)
 
 		write_sysreg_el1(cxt->tcr, SYS_TCR);
 	}
-
-	cxt->mmu = NULL;
 }
 
 void __kvm_tlb_flush_vmid_ipa(struct kvm_s2_mmu *mmu,
@@ -126,10 +150,8 @@ void __kvm_tlb_flush_vmid_ipa(struct kvm_s2_mmu *mmu,
 {
 	struct tlb_inv_context cxt;
 
-	dsb(ishst);
-
 	/* Switch to requested VMID */
-	enter_vmid_context(mmu, &cxt);
+	enter_vmid_context(mmu, &cxt, false);
 
 	/*
 	 * We could do so much better if we had the VA as well.
@@ -147,30 +169,65 @@ void __kvm_tlb_flush_vmid_ipa(struct kvm_s2_mmu *mmu,
 	 */
 	dsb(ish);
 	__tlbi(vmalle1is);
-	dsb(ish);
+	__tlbi_sync_s1ish_hyp();
 	isb();
 
+	exit_vmid_context(&cxt);
+}
+
+void __kvm_tlb_flush_vmid_ipa_nsh(struct kvm_s2_mmu *mmu,
+				  phys_addr_t ipa, int level)
+{
+	struct tlb_inv_context cxt;
+
+	/* Switch to requested VMID */
+	enter_vmid_context(mmu, &cxt, true);
+
 	/*
-	 * If the host is running at EL1 and we have a VPIPT I-cache,
-	 * then we must perform I-cache maintenance at EL2 in order for
-	 * it to have an effect on the guest. Since the guest cannot hit
-	 * I-cache lines allocated with a different VMID, we don't need
-	 * to worry about junk out of guest reset (we nuke the I-cache on
-	 * VMID rollover), but we do need to be careful when remapping
-	 * executable pages for the same guest. This can happen when KSM
-	 * takes a CoW fault on an executable page, copies the page into
-	 * a page that was previously mapped in the guest and then needs
-	 * to invalidate the guest view of the I-cache for that page
-	 * from EL1. To solve this, we invalidate the entire I-cache when
-	 * unmapping a page from a guest if we have a VPIPT I-cache but
-	 * the host is running at EL1. As above, we could do better if
-	 * we had the VA.
-	 *
-	 * The moral of this story is: if you have a VPIPT I-cache, then
-	 * you should be running with VHE enabled.
+	 * We could do so much better if we had the VA as well.
+	 * Instead, we invalidate Stage-2 for this IPA, and the
+	 * whole of Stage-1. Weep...
 	 */
-	if (icache_is_vpipt())
-		icache_inval_all_pou();
+	ipa >>= 12;
+	__tlbi_level(ipas2e1, ipa, level);
+
+	/*
+	 * We have to ensure completion of the invalidation at Stage-2,
+	 * since a table walk on another CPU could refill a TLB with a
+	 * complete (S1 + S2) walk based on the old Stage-2 mapping if
+	 * the Stage-1 invalidation happened first.
+	 */
+	dsb(nsh);
+	__tlbi(vmalle1);
+	dsb(nsh);
+	isb();
+
+	exit_vmid_context(&cxt);
+}
+
+void __kvm_tlb_flush_vmid_range(struct kvm_s2_mmu *mmu,
+				phys_addr_t start, unsigned long pages)
+{
+	struct tlb_inv_context cxt;
+	unsigned long stride;
+
+	/*
+	 * Since the range of addresses may not be mapped at
+	 * the same level, assume the worst case as PAGE_SIZE
+	 */
+	stride = PAGE_SIZE;
+	start = round_down(start, stride);
+
+	/* Switch to requested VMID */
+	enter_vmid_context(mmu, &cxt, false);
+
+	__flush_s2_tlb_range_op(ipas2e1is, start, pages, stride,
+				TLBI_TTL_UNKNOWN);
+
+	dsb(ish);
+	__tlbi(vmalle1is);
+	__tlbi_sync_s1ish_hyp();
+	isb();
 
 	exit_vmid_context(&cxt);
 }
@@ -179,13 +236,11 @@ void __kvm_tlb_flush_vmid(struct kvm_s2_mmu *mmu)
 {
 	struct tlb_inv_context cxt;
 
-	dsb(ishst);
-
 	/* Switch to requested VMID */
-	enter_vmid_context(mmu, &cxt);
+	enter_vmid_context(mmu, &cxt, false);
 
 	__tlbi(vmalls12e1is);
-	dsb(ish);
+	__tlbi_sync_s1ish_hyp();
 	isb();
 
 	exit_vmid_context(&cxt);
@@ -196,7 +251,7 @@ void __kvm_flush_cpu_context(struct kvm_s2_mmu *mmu)
 	struct tlb_inv_context cxt;
 
 	/* Switch to requested VMID */
-	enter_vmid_context(mmu, &cxt);
+	enter_vmid_context(mmu, &cxt, false);
 
 	__tlbi(vmalle1);
 	asm volatile("ic iallu");
@@ -208,20 +263,8 @@ void __kvm_flush_cpu_context(struct kvm_s2_mmu *mmu)
 
 void __kvm_flush_vm_context(void)
 {
-	dsb(ishst);
-	__tlbi(alle1is);
-
-	/*
-	 * VIPT and PIPT caches are not affected by VMID, so no maintenance
-	 * is necessary across a VMID rollover.
-	 *
-	 * VPIPT caches constrain lookup and maintenance to the active VMID,
-	 * so we need to invalidate lines with a stale VMID to avoid an ABA
-	 * race after multiple rollovers.
-	 *
-	 */
-	if (icache_is_vpipt())
-		asm volatile("ic ialluis");
-
+	/* Same remark as in enter_vmid_context() */
 	dsb(ish);
+	__tlbi(alle1is);
+	__tlbi_sync_s1ish_hyp();
 }

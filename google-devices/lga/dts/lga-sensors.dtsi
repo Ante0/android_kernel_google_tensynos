@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Sensors device tree source.
+ *
+ * Copyright 2024 Google,LLC.
+ */
+
+&aoc {
+	sensor_1v8-supply = <&ldo_7s_reg>;
+	sensor_3v3-supply = <&ldo_5s_reg>;
+	sensor_power_list = "sensor_1v8", "sensor_3v3";
+};

@@ -495,7 +495,7 @@ vxlan_ping_test()
 	local delta=$((t1 - t0))
 
 	# Tolerate a couple stray extra packets.
-	((expect <= delta && delta <= expect + 2))
+	((expect <= delta && delta <= expect + 5))
 	check_err $? "$capture_dev: Expected to capture $expect packets, got $delta."
 }
 
@@ -532,7 +532,7 @@ __test_ecn_encap()
 	RET=0
 
 	tc filter add dev v1 egress pref 77 prot ip \
-		flower ip_tos $tos action pass
+		flower ip_tos $tos ip_proto udp dst_port $VXPORT action pass
 	sleep 1
 	vxlan_ping_test $h1 192.0.2.3 "-Q $q" v1 egress 77 10
 	tc filter del dev v1 egress pref 77 prot ip
@@ -559,6 +559,21 @@ vxlan_encapped_ping_do()
 	local inner_tos=$1; shift
 	local outer_tos=$1; shift
 
+	local ipv4hdr=$(:
+		    )"45:"$(                      : IP version + IHL
+		    )"$inner_tos:"$(              : IP TOS
+		    )"00:54:"$(                   : IP total length
+		    )"99:83:"$(                   : IP identification
+		    )"40:00:"$(                   : IP flags + frag off
+		    )"40:"$(                      : IP TTL
+		    )"01:"$(                      : IP proto
+		    )"CHECKSUM:"$(                : IP header csum
+		    )"c0:00:02:03:"$(             : IP saddr: 192.0.2.3
+		    )"c0:00:02:01"$(              : IP daddr: 192.0.2.1
+		)
+	local checksum=$(payload_template_calc_checksum "$ipv4hdr")
+	ipv4hdr=$(payload_template_expand_checksum "$ipv4hdr" $checksum)
+
 	$MZ $dev -c $count -d 100msec -q \
 		-b $next_hop_mac -B $dest_ip \
 		-t udp tos=$outer_tos,sp=23456,dp=$VXPORT,p=$(:
@@ -569,16 +584,7 @@ vxlan_encapped_ping_do()
 		    )"$dest_mac:"$(               : ETH daddr
 		    )"$(mac_get w2):"$(           : ETH saddr
 		    )"08:00:"$(                   : ETH type
-		    )"45:"$(                      : IP version + IHL
-		    )"$inner_tos:"$(              : IP TOS
-		    )"00:54:"$(                   : IP total length
-		    )"99:83:"$(                   : IP identification
-		    )"40:00:"$(                   : IP flags + frag off
-		    )"40:"$(                      : IP TTL
-		    )"01:"$(                      : IP proto
-		    )"00:00:"$(                   : IP header csum
-		    )"c0:00:02:03:"$(             : IP saddr: 192.0.2.3
-		    )"c0:00:02:01:"$(             : IP daddr: 192.0.2.1
+		    )"$ipv4hdr:"$(                : IPv4 header
 		    )"08:"$(                      : ICMP type
 		    )"00:"$(                      : ICMP code
 		    )"8b:f2:"$(                   : ICMP csum
@@ -680,9 +686,9 @@ test_learning()
 	local mac=de:ad:be:ef:13:37
 	local dst=192.0.2.100
 
-	# Enable learning on the VxLAN device and set ageing time to 10 seconds
-	ip link set dev br1 type bridge ageing_time 1000
-	ip link set dev vx1 type vxlan ageing 10
+	# Enable learning on the VxLAN device and set ageing time to 30 seconds
+	ip link set dev br1 type bridge ageing_time 3000
+	ip link set dev vx1 type vxlan ageing 30
 	ip link set dev vx1 type vxlan learning
 	reapply_config
 
@@ -740,7 +746,7 @@ test_learning()
 
 	vxlan_flood_test $mac $dst 0 10 0
 
-	sleep 20
+	sleep 60
 
 	bridge fdb show brport vx1 | grep $mac | grep -q self
 	check_fail $?

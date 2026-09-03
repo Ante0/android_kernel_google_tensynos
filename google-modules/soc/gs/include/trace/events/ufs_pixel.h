@@ -91,5 +91,10 @@ TRACE_EVENT(ufs_stats,
 );
 #endif /* if !defined(_TRACE_UFS_PIXEL_H) || defined(TRACE_HEADER_MULTI_READ) */
 
+#undef TRACE_INCLUDE_PATH
+#define TRACE_INCLUDE_PATH trace/events
+#undef TRACE_INCLUDE_FILE
+#define TRACE_INCLUDE_FILE ufs_pixel
+
 /* This part must be outside protection */
 #include <trace/define_trace.h>

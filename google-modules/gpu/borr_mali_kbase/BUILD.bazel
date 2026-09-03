@@ -18,9 +18,14 @@
 #
 
 load(
-    "//build/kernel/kleaf:kernel.bzl",
+    "@kleaf//build/kernel/kleaf:kernel.bzl",
     "kernel_module",
 )
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
 
 _midgard_modules = [
     "mali_kbase.ko",
@@ -38,7 +43,7 @@ kernel_module(
     ]) + [
         "//private/google-modules/gpu/common:headers",
         "//private/google-modules/power/mitigation:headers",
-        "//private/google-modules/soc/gs:gs_soc_headers",
+        "//private/google-modules/soc/gs:headers",
     ],
     outs = _midgard_modules,
     kernel_build = "//private/devices/google/common:kernel",
@@ -48,8 +53,7 @@ kernel_module(
     ],
     deps = [
         "//private/google-modules/gpu/mali_pixel",
-        "//private/google-modules/power/mitigation:bcl",
-        "//private/google-modules/soc/gs:gs_soc_module",
+        "//private/google-modules/power/mitigation:google_bcl",
     ],
 )
 

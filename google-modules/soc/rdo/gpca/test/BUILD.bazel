@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "gpca_keys_test",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "gpca_keys_test.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_GPCA_KEY_TEST": {
+            True: [
+                "gpca_keys_test.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "gpca_crypto_test_merged",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "gpca_crypto_test_merged.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_GPCA_CRYPTO_TEST": {
+            True: [
+                "gpca_asymm_test.c",
+                "gpca_cipher_test.c",
+                "gpca_crypto_test.c",
+                "gpca_hash_test.c",
+                "gpca_test_common.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)

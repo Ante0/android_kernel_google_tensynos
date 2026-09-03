@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+load("//private/devices/google/common/kleaf:bste.bzl", "bste_cc_binary", "bste_test_suite")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "bste_example_module",
+    srcs = [
+        "bste_example_module.c",
+    ],
+    out = "bste_example_module.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+    ],
+)
+
+bste_cc_binary(
+    name = "ioctl_helper",
+    srcs = ["ioctl_helper.c"],
+)
+
+bste_test_suite(
+    name = "bste_example_test_suite",
+    srcs = ["bste_example_test.sh"],
+    data = [
+        ":ioctl_helper",
+    ],
+    suite_exit = "suite_exit",
+    suite_init = "suite_init",
+    test_cases = [
+        "test_suspend",
+        "test_ioctl",
+    ],
+)

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /* Copyright (c) 2025 Google */
 
-#define _GNU_SOURCE
 #include <test_progs.h>
 #include <bpf/libbpf.h>
 #include <bpf/btf.h>
@@ -74,12 +73,10 @@ close_memfd:
 	return -1;
 }
 
-static int create_sys_heap_dmabuf(void)
+static int create_sys_heap_dmabuf(size_t bytes)
 {
-	sysheap_test_buffer_size = 20 * getpagesize();
-
 	struct dma_heap_allocation_data data = {
-		.len = sysheap_test_buffer_size,
+		.len = bytes,
 		.fd = 0,
 		.fd_flags = O_RDWR | O_CLOEXEC,
 		.heap_flags = 0,
@@ -111,7 +108,9 @@ close_sysheap_dmabuf:
 static int create_test_buffers(void)
 {
 	udmabuf = create_udmabuf();
-	sysheap_dmabuf = create_sys_heap_dmabuf();
+
+	sysheap_test_buffer_size = 20 * getpagesize();
+	sysheap_dmabuf = create_sys_heap_dmabuf(sysheap_test_buffer_size);
 
 	if (udmabuf < 0 || sysheap_dmabuf < 0)
 		return -1;
@@ -220,13 +219,71 @@ close_iter_fd:
 	close(iter_fd);
 }
 
+static void subtest_dmabuf_iter_check_lots_of_buffers(struct dmabuf_iter *skel)
+{
+	int iter_fd;
+	char buf[1024];
+	size_t total_bytes_read = 0;
+	ssize_t bytes_read;
+
+	iter_fd = bpf_iter_create(bpf_link__fd(skel->links.dmabuf_collector));
+	if (!ASSERT_OK_FD(iter_fd, "iter_create"))
+		return;
+
+	while ((bytes_read = read(iter_fd, buf, sizeof(buf))) > 0)
+		total_bytes_read += bytes_read;
+
+	ASSERT_GT(total_bytes_read, getpagesize(), "total_bytes_read");
+
+	close(iter_fd);
+}
+
+
+static void subtest_dmabuf_iter_check_open_coded(struct dmabuf_iter *skel, int map_fd)
+{
+	LIBBPF_OPTS(bpf_test_run_opts, topts);
+	char key[DMA_BUF_NAME_LEN];
+	int err, fd;
+	bool found;
+
+	/* No need to attach it, just run it directly */
+	fd = bpf_program__fd(skel->progs.iter_dmabuf_for_each);
+
+	err = bpf_prog_test_run_opts(fd, &topts);
+	if (!ASSERT_OK(err, "test_run_opts err"))
+		return;
+	if (!ASSERT_OK(topts.retval, "test_run_opts retval"))
+		return;
+
+	if (!ASSERT_OK(bpf_map_get_next_key(map_fd, NULL, key), "get next key"))
+		return;
+
+	do {
+		ASSERT_OK(bpf_map_lookup_elem(map_fd, key, &found), "lookup");
+		ASSERT_TRUE(found, "found test buffer");
+	} while (bpf_map_get_next_key(map_fd, key, key));
+}
+
 void test_dmabuf_iter(void)
 {
 	struct dmabuf_iter *skel = NULL;
+	int map_fd;
+	const bool f = false;
 
 	skel = dmabuf_iter__open_and_load();
 	if (!ASSERT_OK_PTR(skel, "dmabuf_iter__open_and_load"))
 		return;
+
+	map_fd = bpf_map__fd(skel->maps.testbuf_hash);
+	if (!ASSERT_OK_FD(map_fd, "map_fd"))
+		goto destroy_skel;
+
+	if (!ASSERT_OK(bpf_map_update_elem(map_fd, udmabuf_test_buffer_name, &f, BPF_ANY),
+		       "insert udmabuf"))
+		goto destroy_skel;
+	if (!ASSERT_OK(bpf_map_update_elem(map_fd, sysheap_test_buffer_name, &f, BPF_ANY),
+		       "insert sysheap buffer"))
+		goto destroy_skel;
 
 	if (!ASSERT_OK(create_test_buffers(), "create_test_buffers"))
 		goto destroy;
@@ -238,8 +295,28 @@ void test_dmabuf_iter(void)
 		subtest_dmabuf_iter_check_no_infinite_reads(skel);
 	if (test__start_subtest("default_iter"))
 		subtest_dmabuf_iter_check_default_iter(skel);
+	if (test__start_subtest("lots_of_buffers")) {
+		size_t NUM_BUFS = 100;
+		int buffers[NUM_BUFS];
+		int i;
+
+		for (i = 0; i < NUM_BUFS; ++i) {
+			buffers[i] = create_sys_heap_dmabuf(getpagesize());
+			if (!ASSERT_OK_FD(buffers[i], "dmabuf_fd"))
+				goto cleanup_bufs;
+		}
+
+		subtest_dmabuf_iter_check_lots_of_buffers(skel);
+
+cleanup_bufs:
+		for (--i; i >= 0; --i)
+			close(buffers[i]);
+	}
+	if (test__start_subtest("open_coded"))
+		subtest_dmabuf_iter_check_open_coded(skel, map_fd);
 
 destroy:
 	destroy_test_buffers();
+destroy_skel:
 	dmabuf_iter__destroy(skel);
 }

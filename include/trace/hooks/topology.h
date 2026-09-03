@@ -11,18 +11,14 @@
 
 struct cpumask;
 
-#if defined(CONFIG_TRACEPOINTS) && defined(CONFIG_ANDROID_VENDOR_HOOKS)
-
 DECLARE_HOOK(android_vh_arch_set_freq_scale,
 	TP_PROTO(const struct cpumask *cpus, unsigned long freq, unsigned long max,
 		unsigned long *scale),
 	TP_ARGS(cpus, freq, max, scale));
 
-#else
-
-#define trace_android_vh_arch_set_freq_scale(cpus, freq, max, scale)
-
-#endif
+DECLARE_RESTRICTED_HOOK(android_rvh_cpu_capacity_show,
+	TP_PROTO(unsigned long *capacity, int cpu),
+	TP_ARGS(capacity, cpu), 1);
 
 DECLARE_HOOK(android_vh_use_amu_fie,
 	TP_PROTO(bool *use_amu_fie),

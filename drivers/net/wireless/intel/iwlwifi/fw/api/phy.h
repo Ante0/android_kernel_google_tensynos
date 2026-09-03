@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause */
 /*
- * Copyright (C) 2012-2014, 2019-2021 Intel Corporation
+ * Copyright (C) 2012-2014, 2019-2022, 2024 Intel Corporation
  * Copyright (C) 2013-2015 Intel Mobile Communications GmbH
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
  */
@@ -29,14 +29,23 @@ enum iwl_phy_ops_subcmd_ids {
 	TEMP_REPORTING_THRESHOLDS_CMD = 0x04,
 
 	/**
-	 * @PER_CHAIN_LIMIT_OFFSET_CMD: &struct iwl_geo_tx_power_profiles_cmd
+	 * @PER_CHAIN_LIMIT_OFFSET_CMD: &struct iwl_geo_tx_power_profiles_cmd_v1,
+	 * &struct iwl_geo_tx_power_profiles_cmd_v2,
+	 * &struct iwl_geo_tx_power_profiles_cmd_v3,
+	 * &struct iwl_geo_tx_power_profiles_cmd_v4 or
+	 * &struct iwl_geo_tx_power_profiles_cmd_v5
 	 */
 	PER_CHAIN_LIMIT_OFFSET_CMD = 0x05,
 
 	/**
-	 * @PER_PLATFORM_ANT_GAIN_CMD: &struct iwl_ppag_table_cmd
+	 * @PER_PLATFORM_ANT_GAIN_CMD: &union iwl_ppag_table_cmd
 	 */
 	PER_PLATFORM_ANT_GAIN_CMD = 0x07,
+
+	/**
+	 * @AP_TX_POWER_CONSTRAINTS_CMD: &struct iwl_txpower_constraints_cmd
+	 */
+	AP_TX_POWER_CONSTRAINTS_CMD = 0x0C,
 
 	/**
 	 * @CT_KILL_NOTIFICATION: &struct ct_kill_notif
@@ -186,7 +195,7 @@ struct ct_kill_notif {
 } __packed; /* CT_KILL_NOTIFICATION_API_S_VER_1, CT_KILL_NOTIFICATION_API_S_VER_2 */
 
 /**
-* enum ctdp_cmd_operation - CTDP command operations
+* enum iwl_mvm_ctdp_cmd_operation - CTDP command operations
 * @CTDP_CMD_OPERATION_START: update the current budget
 * @CTDP_CMD_OPERATION_STOP: stop ctdp
 * @CTDP_CMD_OPERATION_REPORT: get the average budget

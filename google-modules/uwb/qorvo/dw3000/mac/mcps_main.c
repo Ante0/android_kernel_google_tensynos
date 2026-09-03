@@ -28,6 +28,7 @@
 #include <linux/mutex.h>
 #include <linux/netdevice.h>
 #include <net/rtnetlink.h>
+#include <net/mcps802154_frame.h>
 
 #include "mcps802154_i.h"
 #include "llhw-ops.h"
@@ -256,16 +257,6 @@ int mcps802154_vendor_cmd(struct mcps802154_llhw *llhw, u32 vendor_id,
 }
 EXPORT_SYMBOL(mcps802154_vendor_cmd);
 
-int mcps802154_check_hrp_uwb_params(
-	struct mcps802154_llhw *llhw,
-	const struct mcps802154_hrp_uwb_params *hrp_uwb_params)
-{
-	struct mcps802154_local *local = llhw_to_local(llhw);
-
-	return llhw_check_hrp_uwb_params(local, hrp_uwb_params);
-}
-EXPORT_SYMBOL(mcps802154_check_hrp_uwb_params);
-
 struct mcps802154_local *mcps802154_get_first_by_idx(int hw_idx)
 {
 	struct mcps802154_local *result = NULL, *local;
@@ -284,7 +275,7 @@ struct mcps802154_local *mcps802154_get_first_by_idx(int hw_idx)
 	return result;
 }
 
-int __init mcps802154_init(void)
+static int __init mcps802154_init(void)
 {
 	int r;
 
@@ -305,7 +296,7 @@ int __init mcps802154_init(void)
 	return r;
 }
 
-void __exit mcps802154_exit(void)
+static void __exit mcps802154_exit(void)
 {
 	mcps802154_on_demand_scheduler_exit();
 	mcps802154_default_scheduler_exit();

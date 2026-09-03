@@ -97,7 +97,7 @@ struct s3c64xx_spi_dma_data {
  * struct s3c64xx_spi_driver_data - Runtime info holder for SPI driver.
  * @clk: Pointer to the spi clock.
  * @src_clk: Pointer to the clock used to generate SPI signals.
- * @master: Pointer to the SPI Protocol master.
+ * @host: Pointer to the SPI Protocol host.
  * @cntrlr_info: Platform specific data for the controller this driver manages.
  * @tgl_spi: Pointer to the last CS left untoggled by the cs_change hint.
  * @lock: Controller specific lock.
@@ -117,7 +117,7 @@ struct s3c64xx_spi_driver_data {
 	struct clk                      *clk;
 	struct clk                      *src_clk;
 	struct platform_device          *pdev;
-	struct spi_master               *master;
+	struct spi_controller           *host;
 	struct s3c64xx_spi_info  *cntrlr_info;
 	struct spi_device               *tgl_spi;
 	/* lock : lock to change sdd->state */

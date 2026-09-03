@@ -200,6 +200,7 @@ ForEachMacros:
   - 'for_each_link_cpus'
   - 'for_each_link_platforms'
   - 'for_each_lru'
+  - 'for_each_lwis_io'
   - 'for_each_matching_node'
   - 'for_each_matching_node_and_match'
   - 'for_each_member'

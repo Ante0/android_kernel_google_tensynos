@@ -8,11 +8,12 @@
 #include <linux/slab.h>
 #include "gcma_heap.h"
 #include "gcma_heap_sysfs.h"
+#include "gcma_arbitrator.h"
 
 #if IS_ENABLED(CONFIG_VH_MM)
 extern struct kobject *vendor_mm_kobj;
 #endif
-static struct kobject *gcma_heap_kobj;
+struct kobject *gcma_heap_kobj;
 
 #define GCMA_HEAP_ATTR_RO(_name) \
 	static struct kobj_attribute _name##_attr = __ATTR_RO(_name)
@@ -27,6 +28,7 @@ struct gcma_heap_stat {
 	unsigned long max_usage_bytes;
 	unsigned long cur_usage_bytes;
 	unsigned long allocstall_bytes;
+	unsigned long buddy_usage_bytes;
 	struct kobject kobj;
 	struct gcma_heap *heap;
 	char name[PATH_MAX];
@@ -46,6 +48,8 @@ void inc_gcma_heap_stat(struct gcma_heap *heap, enum stat_type type,
 			 stat->max_usage_bytes = stat->cur_usage_bytes;
 	} else if (type == ALLOCSTALL) {
 		stat->allocstall_bytes += size;
+	} else if (type == BUDDY) {
+		stat->buddy_usage_bytes += size;
 	}
 	spin_unlock(&stat->lock);
 }
@@ -62,6 +66,8 @@ void dec_gcma_heap_stat(struct gcma_heap *heap, enum stat_type type,
 		stat->cur_usage_bytes -= size;
 	else if (type == ALLOCSTALL)
 		stat->allocstall_bytes -= size;
+	else if (type == BUDDY)
+		stat->buddy_usage_bytes -= size;
 	spin_unlock(&stat->lock);
 }
 
@@ -136,6 +142,32 @@ static ssize_t alloc_stall_kb_show(struct kobject *kobj,
 }
 GCMA_HEAP_ATTR_RW(alloc_stall_kb);
 
+static ssize_t pool_allocation_kb_show(struct kobject *kobj,
+				      struct kobj_attribute *attr,
+				      char *buf)
+{
+	struct gcma_heap_stat *stat = to_gcma_heap_stat(kobj);
+	struct gcma_heap *heap = stat ? stat->heap : NULL;
+	ssize_t count = 0;
+	unsigned long buddy_usage;
+
+	if (!stat || !heap)
+		return 0;
+
+	count = gcma_arbitrator_show_allocation(heap->arb, buf, PAGE_SIZE);
+
+	spin_lock(&stat->lock);
+	buddy_usage = stat->buddy_usage_bytes;
+	spin_unlock(&stat->lock);
+
+	count += scnprintf(buf + count, PAGE_SIZE - count,
+			   "buddy: %lu KB\n",
+			   buddy_usage / 1024);
+
+	return count;
+}
+GCMA_HEAP_ATTR_RO(pool_allocation_kb);
+
 static ssize_t force_empty_store(struct kobject *kobj,
 				struct kobj_attribute *attr,
 				const char *buf, size_t len)
@@ -156,7 +188,7 @@ static ssize_t force_empty_store(struct kobject *kobj,
 	pr_info("%s req_pages %d force_empty %s\n", name, req_pages,
 		page ? "succeeded" : "failed");
 	if (page)
-		gcma_free(gcma_heap->pool, page);
+		gcma_free(gcma_heap, page);
 	return page ? len : -ENOMEM;
 }
 GCMA_HEAP_ATTR_WO(force_empty);
@@ -165,6 +197,7 @@ static struct attribute *gcma_heap_attrs[] = {
 	&cur_usage_kb_attr.attr,
 	&max_usage_kb_attr.attr,
 	&alloc_stall_kb_attr.attr,
+	&pool_allocation_kb_attr.attr,
 	&force_empty_attr.attr,
 	NULL,
 };

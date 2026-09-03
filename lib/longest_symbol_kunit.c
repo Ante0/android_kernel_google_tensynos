@@ -79,4 +79,4 @@ kunit_test_suite(longest_symbol_test_suite);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Test the longest symbol length");
-MODULE_AUTHOR("Sergio GonzÃ¡lez Collado");
+MODULE_AUTHOR("Sergio González Collado");

@@ -373,8 +373,8 @@ static int pktproc_fill_data_addr(struct pktproc_queue *q)
 			desc[fore].control |= (1 << 3);	/* RINGEND */
 
 		if (unlikely(desc[fore].reserved0 != 0)) { /* W/A to detect mem poison */
-			mif_err("mem poison:0x%lX r0:%d c:%d s:%d l%d cl%d r1:%d\n",
-					(unsigned long)desc[fore].cp_data_paddr, desc[fore].reserved0,
+			mif_err("mem poison:0x%llX r0:%d c:%d s:%d l%d cl%d r1:%d\n",
+					desc[fore].cp_data_paddr, desc[fore].reserved0,
 					desc[fore].control, desc[fore].status,
 					desc[fore].lro, desc[fore].clat, desc[fore].reserved1);
 			panic("memory poison\n");
@@ -951,13 +951,26 @@ rx_error:
 int pktproc_get_usage(struct pktproc_queue *q)
 {
 	u32 usage = 0;
+	u32 fore = READ_ONCE(*q->fore_ptr);
+	u32 rear = READ_ONCE(*q->rear_ptr);
+
+	if (unlikely(fore >= q->num_desc || rear >= q->num_desc || q->done_ptr >= q->num_desc)) {
+		struct link_device *ld = &q->mld->link_dev;
+
+		mif_err_limited("Invalid rx pointer!!\n");
+		mif_err_limited("Q%d fore/rear/done/num_desc: %u/%u/%u/%u\n",
+			q->q_idx, fore, rear, q->done_ptr, q->num_desc);
+		ld->link_trigger_cp_crash(q->mld, CRASH_REASON_MIF_FORCED,
+				"invalid rx pointer given");
+		return 0;
+	}
 
 	switch (q->ppa->desc_mode) {
 	case DESC_MODE_RINGBUF:
-		usage = circ_get_usage(q->num_desc, *q->fore_ptr, *q->rear_ptr);
+		usage = circ_get_usage(q->num_desc, fore, rear);
 		break;
 	case DESC_MODE_SKTBUF:
-		usage = circ_get_usage(q->num_desc, *q->rear_ptr, q->done_ptr);
+		usage = circ_get_usage(q->num_desc, rear, q->done_ptr);
 		break;
 	default:
 		usage = 0;
@@ -2026,7 +2039,6 @@ int pktproc_create(struct platform_device *pdev, struct mem_link_device *mld,
 			alloc_size = sizeof(dma_addr_t) * q->num_desc;
 			q->dma_addr = kzalloc(alloc_size, GFP_KERNEL);
 			if (!q->dma_addr) {
-				mif_err("kzalloc() dma_addr failed\n");
 				ret = -ENOMEM;
 				goto create_error;
 			}

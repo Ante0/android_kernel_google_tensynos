@@ -384,7 +384,6 @@ static int kbase_devfreq_init_core_mask_table(struct kbase_device *kbdev)
 #else
 	struct device_node *opp_node =
 		of_parse_phandle(kbdev->dev->of_node, "operating-points-v2", 0);
-	struct device_node *node;
 	unsigned int i = 0;
 	int count;
 	u64 shader_present = kbdev->gpu_props.shader_present;
@@ -400,7 +399,7 @@ static int kbase_devfreq_init_core_mask_table(struct kbase_device *kbdev)
 	if (!kbdev->devfreq_table)
 		return -ENOMEM;
 
-	for_each_available_child_of_node(opp_node, node) {
+	for_each_available_child_of_node_scoped(opp_node, node) {
 		const void *core_count_p;
 		u64 core_mask, opp_freq, real_freqs[BASE_MAX_NR_CLOCKS_REGULATORS];
 		int err;

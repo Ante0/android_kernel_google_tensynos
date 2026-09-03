@@ -88,11 +88,18 @@ done:
  */
 static void gpu_pixel_kctx_term(struct kbase_context *kctx)
 {
-	gpu_slc_kctx_term(kctx);
+	struct pixel_platform_data *pd;
+	unsigned long flags;
+
 	gpu_dvfs_kctx_term(kctx);
 
-	kfree(kctx->platform_data);
+	spin_lock_irqsave(&kctx->kbdev->hwaccess_lock, flags);
+	gpu_slc_kctx_term(kctx);
+	pd = kctx->platform_data;
 	kctx->platform_data = NULL;
+	spin_unlock_irqrestore(&kctx->kbdev->hwaccess_lock, flags);
+
+	kfree(pd);
 }
 
 #ifdef CONFIG_MALI_PM_RUNTIME_S2MPU_CONTROL

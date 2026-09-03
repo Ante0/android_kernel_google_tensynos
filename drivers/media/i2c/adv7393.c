@@ -381,8 +381,7 @@ static int adv7393_initialize(struct v4l2_subdev *sd)
 	return err;
 }
 
-static int adv7393_probe(struct i2c_client *client,
-				const struct i2c_device_id *id)
+static int adv7393_probe(struct i2c_client *client)
 {
 	struct adv7393_state *state;
 	int err;
@@ -447,8 +446,8 @@ static void adv7393_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id adv7393_id[] = {
-	{"adv7393", 0},
-	{},
+	{ "adv7393" },
+	{}
 };
 MODULE_DEVICE_TABLE(i2c, adv7393_id);
 

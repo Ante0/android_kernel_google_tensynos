@@ -410,10 +410,11 @@ static int rsi_mac80211_start(struct ieee80211_hw *hw)
 /**
  * rsi_mac80211_stop() - This is the last handler that 802.11 module calls.
  * @hw: Pointer to the ieee80211_hw structure.
+ * @suspend: true if the this was called from suspend flow.
  *
  * Return: None.
  */
-static void rsi_mac80211_stop(struct ieee80211_hw *hw)
+static void rsi_mac80211_stop(struct ieee80211_hw *hw, bool suspend)
 {
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
@@ -665,7 +666,7 @@ static int rsi_mac80211_config(struct ieee80211_hw *hw,
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
 	struct ieee80211_conf *conf = &hw->conf;
-	int status = -EOPNOTSUPP;
+	int status = 0;
 
 	mutex_lock(&common->mutex);
 
@@ -740,7 +741,7 @@ u16 rsi_get_connected_channel(struct ieee80211_vif *vif)
 		return 0;
 
 	bss = &vif->bss_conf;
-	channel = bss->chandef.chan;
+	channel = bss->chanreq.oper.chan;
 
 	if (!channel)
 		return 0;
@@ -759,7 +760,7 @@ static void rsi_switch_channel(struct rsi_hw *adapter,
 	if (!vif)
 		return;
 
-	channel = vif->bss_conf.chandef.chan;
+	channel = vif->bss_conf.chanreq.oper.chan;
 
 	if (!channel)
 		return;
@@ -1763,8 +1764,8 @@ static int rsi_mac80211_roc(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			    struct ieee80211_channel *chan, int duration,
 			    enum ieee80211_roc_type type)
 {
-	struct rsi_hw *adapter = (struct rsi_hw *)hw->priv;
-	struct rsi_common *common = (struct rsi_common *)adapter->priv;
+	struct rsi_hw *adapter = hw->priv;
+	struct rsi_common *common = adapter->priv;
 	int status = 0;
 
 	rsi_dbg(INFO_ZONE, "***** Remain on channel *****\n");
@@ -1957,7 +1958,12 @@ static int rsi_mac80211_resume(struct ieee80211_hw *hw)
 #endif
 
 static const struct ieee80211_ops mac80211_ops = {
+	.add_chanctx = ieee80211_emulate_add_chanctx,
+	.remove_chanctx = ieee80211_emulate_remove_chanctx,
+	.change_chanctx = ieee80211_emulate_change_chanctx,
+	.switch_vif_chanctx = ieee80211_emulate_switch_vif_chanctx,
 	.tx = rsi_mac80211_tx,
+	.wake_tx_queue = ieee80211_handle_wake_tx_queue,
 	.start = rsi_mac80211_start,
 	.stop = rsi_mac80211_stop,
 	.add_interface = rsi_mac80211_add_interface,
@@ -2022,6 +2028,7 @@ int rsi_mac80211_attach(struct rsi_common *common)
 
 	hw->queues = MAX_HW_QUEUES;
 	hw->extra_tx_headroom = RSI_NEEDED_HEADROOM;
+	hw->vif_data_size = sizeof(struct vif_priv);
 
 	hw->max_rates = 1;
 	hw->max_rate_tries = MAX_RETRIES;

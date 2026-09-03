@@ -1,0 +1,97 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+/*
+ * codec3p device tree source
+ *
+ * Copyright 2025 Google LLC.
+ *
+ */
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/mbu-gic.h>
+#include <dt-bindings/power/genpd_mbu.h>
+#include <dt-bindings/interconnect/google,rdo.h>
+
+/ {
+	sswrp_codec3p: sswrp_codec3p@3da00000 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x3da00000 0x200000>;
+
+		vpu: vpu@140000 {
+			compatible = "google,vpu";
+			status = "ok";
+			reg = <0x140000 0x4000>, <0x16f000 0x50>, <0x9000 0x14420>;
+			reg-names = "vpu", "qchctl_vpu", "lpcm_vpu";
+			interrupts = <GIC_SPI SSWRP_CODEC_3P_CODEC3P_AP_INTR_NS_C3P_VM0_IRQ \
+					IRQ_TYPE_LEVEL_HIGH 0>;
+			/* Context: b/282904855#comment8. We're specifying
+			 * two identical power domains here so that Linux
+			 * will not auto attach the domain to the device.
+			 */
+			power-domains =
+				<&sswrp_codec_3p_pd>,
+				<&sswrp_codec_3p_pd>;
+			interconnects =
+				<&icc_gmc SSWRP_VPU &icc_gmc SSWRP_CODEC_3P>,
+				<&icc_gmc SSWRP_CODEC_3P &icc_gmc GMC>;
+			interconnect-names =
+				"path_vpu", "sswrp-codec-3p";
+
+			iommus =
+				<&med_smmu 0x8102>,
+				<&med_smmu 0x810a>,
+				<&med_smmu 0x8103>,
+				<&med_smmu 0x810b>,
+				<&med_smmu 0x8106>,
+				<&med_smmu 0x810e>,
+				<&med_smmu 0x8100>,
+				<&med_smmu 0x8109>,
+				<&med_smmu 0x810d>,
+				<&med_smmu 0x8101>,
+				<&med_smmu 0x8105>;
+			iommu-names =
+				"c3p_seqid_2_ns_0",
+				"c3p_seqid_2_ns_1",
+				"c3p_seqid_3_ns_0",
+				"c3p_seqid_3_ns_1",
+				"c3p_seqid_6_ns_0",
+				"c3p_seqid_6_ns_1",
+				"c3p_seqid_0_tz_ns",
+				"c3p_seqid_1_ns",
+				"c3p_seqid_5_ns",
+				"c3p_seqid_1_tz",
+				"c3p_seqid_5_tz";
+
+			qchctl_active_mask_0_offset = <0x18>;
+			resets = <&codec_3p_resets RST_CODEC_3P_CG_C3P_CORE_CLK>;
+			firmware-name = "seurat.bin";
+		};
+
+		jpu: jpu@144000 {
+			compatible = "google,jpu";
+			status = "ok";
+			reg = <0x144000 0x1000>;
+			reg-names = "jpu";
+			interrupts = <GIC_SPI SSWRP_CODEC_3P_CODEC3P_AP_INTR_NS_JPU_IRQ \
+					IRQ_TYPE_LEVEL_HIGH 0>;
+			/* Context: b/282904855#comment8. We're specifying
+			 * two identical power domains here so that Linux
+			 * will not auto attach the domain to the device.
+			 */
+			power-domains =
+				<&sswrp_codec_3p_pd>,
+				<&sswrp_codec_3p_pd>;
+			interconnects =
+				<&icc_gmc SSWRP_JPU &icc_gmc SSWRP_CODEC_3P>,
+				<&icc_gmc SSWRP_CODEC_3P &icc_gmc GMC>;
+			interconnect-names =
+				"path_jpu", "sswrp-codec-3p";
+			iommus =
+				<&med_smmu 0x8114>;
+			iommu-names =
+				"c3p_seqid_4_ns";
+			resets = <&codec_3p_resets RST_CODEC_3P_CG_C3P_JPEG_CLK>;
+		};
+	};
+};

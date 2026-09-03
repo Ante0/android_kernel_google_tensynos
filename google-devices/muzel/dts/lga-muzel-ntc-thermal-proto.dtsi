@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Thermal device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+&thermal_zones_laguna {
+	/* This thermistor is not supported in hw before EVT.*/
+	usb_pwr_therm {
+		status = "disabled";
+	};
+};

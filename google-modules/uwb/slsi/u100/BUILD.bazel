@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_module(
+    name = "u100",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "uwb_controller.c",
+        "uwb_coredump.c",
+        "uwb_debugfs.c",
+        "uwb_fw.c",
+        "uwb_fw_ap.c",
+        "uwb_fw_bl1.c",
+        "uwb_fw_common.c",
+        "uwb_gpio.c",
+        "uwb_link.c",
+        "uwb_main.c",
+        "uwb_power_stats.c",
+        "uwb_spi.c",
+        "uwb_sysnodes.c",
+    ],
+    out = "u100.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

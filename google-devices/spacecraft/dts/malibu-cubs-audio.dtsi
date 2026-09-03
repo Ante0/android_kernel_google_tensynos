@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * cubs audio device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+&aoc {
+	aoc-board-cfg = "4CS4";
+	aoc-board-id = <0x80602>;
+	aoc-board-rev = <0x10000>;
+};

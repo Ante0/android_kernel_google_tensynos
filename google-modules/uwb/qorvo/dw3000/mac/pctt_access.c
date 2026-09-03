@@ -31,7 +31,7 @@
 #include <net/mcps802154_frame.h>
 #include <net/pctt_region_nl.h>
 #include <net/pctt_region_params.h>
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 
 #include "warn_return.h"
 

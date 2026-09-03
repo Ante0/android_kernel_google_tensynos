@@ -22,7 +22,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/string.h>
-#include <stdarg.h>
+#include <linux/stdarg.h>
 #include <linux/delay.h>
 #include <linux/ctype.h>
 #include <linux/of_gpio.h>
@@ -32,16 +32,14 @@
 #else
 #include <linux/spi/spidev.h>
 #endif
-
-static void *client;	/* /< bus client retrived by the OS and
-				  * used to execute the bus transfers */
-
 #include "fts_io.h"
 #include "fts_error.h"
+#include "../fts.h"
 
-/*#define DEBUG_LOG*/
 extern struct sys_info system_info;
-static int reset_gpio = GPIO_NOT_DEFINED;
+static void *client;	/* /< bus client retrieved by the OS and
+				  * used to execute the bus transfers */
+extern int fifo_evt_size;
 
 #ifdef I2C_INTERFACE
 /**
@@ -62,7 +60,7 @@ struct i2c_client *get_client()
   *slave
   * @return client if it was previously set or NULL in all the other cases
   */
-struct spi_device *get_client()
+struct spi_device *get_client(void)
 {
 	if (client != NULL)
 		return (struct spi_device *)client;
@@ -85,17 +83,6 @@ struct device *get_dev(void)
 }
 
 /**
-  * Set the reset_gpio variable with the actual gpio number of the board link to
-  *the reset pin
-  * @param gpio gpio number link to the reset pin of the IC
-  */
-void set_reset_gpio(int gpio)
-{
-	reset_gpio = gpio;
-	log_info(1, "%s: reset_gpio = %d\n", __func__, reset_gpio);
-}
-
-/**
   * Initialize the static client variable of the fts_lib library in order
   * to allow any i2c/spi transaction in the driver (Must be called in the probe)
   * @param clt pointer to i2c_client or spi_device struct which identify the bus
@@ -106,16 +93,15 @@ int open_channel(void *clt)
 {
 	client = clt;
 #ifndef I2C_INTERFACE
-	log_info(1, "%s: spi_master: flags = %04X !\n", __func__,
-		 ((struct spi_device *)client)->master->flags);
-	log_info(1,
-		 "%s: spi_device: max_speed = %d chip select = %02X bits_per_words = %d mode = %04X !\n",
+	pr_info("%s: spi_controller: flags = %04X !\n", __func__,
+		 ((struct spi_device *)client)->controller->flags);
+	pr_info("%s: spi_device: max_speed = %d chip select = %02X bits_per_words = %d mode = %04X!\n",
 		__func__,
 		 ((struct spi_device *)client)->max_speed_hz,
-		 ((struct spi_device *)client)->chip_select,
+		 spi_get_chipselect(((struct spi_device *)client), 0),
 		 ((struct spi_device *)client)->bits_per_word,
 		 ((struct spi_device *)client)->mode);
-	log_info(1, "%s: openChannel: completed!\n", __func__);
+	pr_info("%s: openChannel: completed!\n", __func__);
 #endif
 	return OK;
 }
@@ -129,31 +115,42 @@ int open_channel(void *clt)
   */
 int fts_read(u8 *out_buf, int byte_to_read)
 {
+	struct fts_ts_info *info = dev_get_drvdata(get_dev());
 	int ret = -1;
 	int retry = 0;
 
 #ifdef I2C_INTERFACE
 	struct i2c_msg I2CMsg[1];
+#else
+	struct spi_message msg;
+	struct spi_transfer transfer[1] = { { 0 } };
+#endif
 
+	if (client == NULL)
+		return ERROR_BUS_O;
+
+	mutex_lock(&info->mutex_read_write);
+
+#ifdef I2C_INTERFACE
 	I2CMsg[0].addr = (__u16)I2C_SAD;
 	I2CMsg[0].flags = (__u16)I2C_M_RD;
 	I2CMsg[0].len = (__u16)byte_to_read;
 	I2CMsg[0].buf = (__u8 *)out_buf;
 #else
-	struct spi_message msg;
-	struct spi_transfer transfer[1] = { { 0 } };
-
 	spi_message_init(&msg);
-
-	transfer[0].len = byte_to_read;
-	transfer[0].delay_usecs = SPI_DELAY_CS;
+	if (info && info->dma_mode) {
+		transfer[0].len = spi_len_dma_align(byte_to_read);
+		transfer[0].bits_per_word = spi_bits_dma_align(byte_to_read);
+	} else {
+		transfer[0].len = byte_to_read;
+	}
+	transfer[0].delay.unit = SPI_DELAY_UNIT_USECS;
+	transfer[0].delay.value = SPI_DELAY_CS;
 	transfer[0].tx_buf = NULL;
 	transfer[0].rx_buf = out_buf;
 	spi_message_add_tail(&transfer[0], &msg);
 #endif
 
-	if (client == NULL)
-		return ERROR_BUS_O;
 	while (retry < I2C_RETRY && ret < OK) {
 #ifdef I2C_INTERFACE
 		ret = i2c_transfer(get_client()->adapter, I2CMsg, 1);
@@ -164,8 +161,11 @@ int fts_read(u8 *out_buf, int byte_to_read)
 		if (ret < OK)
 			msleep(I2C_WAIT_BEFORE_RETRY);
 	}
+
+	mutex_unlock(&info->mutex_read_write);
+
 	if (ret < 0) {
-		log_info(1, "%s: ERROR %08X\n", __func__, ERROR_BUS_R);
+		pr_err("%s: ERROR %08X\n", __func__, ERROR_BUS_R);
 		return ERROR_BUS_R;
 	}
 	return OK;
@@ -182,13 +182,36 @@ int fts_read(u8 *out_buf, int byte_to_read)
   */
 int fts_write_read(u8 *cmd, int cmd_length, u8 *out_buf, int byte_to_read)
 {
+	struct fts_ts_info *info = dev_get_drvdata(get_dev());
 	int ret = -1;
 	int retry = 0;
 #ifdef I2C_INTERFACE
 	struct i2c_msg I2CMsg[2];
-#ifdef DEBUG_LOG
+#else
+	struct spi_message msg;
+	struct spi_transfer transfer[2] = { { 0 }, { 0 } };
+#endif
+#ifdef DEBUG
 	int i = 0;
 #endif
+
+	if (client == NULL)
+		return ERROR_BUS_O;
+
+	mutex_lock(&info->mutex_read_write);
+
+#if !defined(I2C_INTERFACE) && defined(ANGSANA)
+	if (info->fw_data_length_cmd &&
+		(cmd[0] == FTS_CMD_REG_SPI_R || cmd[0] == FTS_CMD_FIFO_SPI_R))
+	{
+		if (fts_fw_data_length_cmd(byte_to_read - DUMMY_BYTE) < OK) {
+			mutex_unlock(&info->mutex_read_write);
+			return ERROR_BUS_WR;
+		}
+	}
+#endif
+
+#ifdef I2C_INTERFACE
 	/* write msg */
 	I2CMsg[0].addr = (__u16)I2C_SAD;
 	I2CMsg[0].flags = (__u16)0;
@@ -201,29 +224,31 @@ int fts_write_read(u8 *cmd, int cmd_length, u8 *out_buf, int byte_to_read)
 	I2CMsg[1].len = byte_to_read;
 	I2CMsg[1].buf = (__u8 *)out_buf;
 #else
-#ifdef DEBUG_LOG
-	int i = 0;
-#endif
-	struct spi_message msg;
-	struct spi_transfer transfer[2] = { { 0 }, { 0 } };
-
 	spi_message_init(&msg);
 
-	transfer[0].len = cmd_length;
+	if (info && info->dma_mode) {
+		transfer[0].len = spi_len_dma_align(cmd_length);
+		transfer[0].bits_per_word = spi_bits_dma_align(cmd_length);
+	} else {
+		transfer[0].len = cmd_length;
+	}
 	transfer[0].tx_buf = cmd;
 	transfer[0].rx_buf = NULL;
 	spi_message_add_tail(&transfer[0], &msg);
 
-	transfer[1].len = byte_to_read;
-	transfer[1].delay_usecs = SPI_DELAY_CS;
+	if (info && info->dma_mode) {
+		transfer[1].len = spi_len_dma_align(byte_to_read);
+		transfer[1].bits_per_word = spi_bits_dma_align(byte_to_read);
+	} else {
+		transfer[1].len = byte_to_read;
+	}
+	transfer[1].delay.unit = SPI_DELAY_UNIT_USECS;
+	transfer[1].delay.value = SPI_DELAY_CS;
 	transfer[1].tx_buf = NULL;
 	transfer[1].rx_buf = out_buf;
 	spi_message_add_tail(&transfer[1], &msg);
 
 #endif
-
-	if (client == NULL)
-		return ERROR_BUS_O;
 
 	while (retry < I2C_RETRY && ret < OK) {
 #ifdef I2C_INTERFACE
@@ -235,22 +260,26 @@ int fts_write_read(u8 *cmd, int cmd_length, u8 *out_buf, int byte_to_read)
 		if (ret < OK)
 			msleep(I2C_WAIT_BEFORE_RETRY);
 	}
-#ifdef DEBUG_LOG
-	log_info(1, "%s: W: ", __func__);
-	for (i = 0; i < cmd_length; i++)
-		printk(KERN_CONT "%02X ", cmd[i]);
-	printk(KERN_CONT "R: ");
-	for (i = 0; i < byte_to_read; i++)
-		printk(KERN_CONT "%02X ", out_buf[i]);
-	printk(KERN_CONT "\n");
+
+	mutex_unlock(&info->mutex_read_write);
+
+#ifdef DEBUG
+	if (info->debug_io) {
+		pr_info("%s: W[%d]: ", __func__, cmd_length);
+		for (i = 0; i < cmd_length; i++)
+			printk(KERN_CONT "%02X ", cmd[i]);
+		printk(KERN_CONT "R[%d]: ", byte_to_read);
+		for (i = 0; i < byte_to_read; i++)
+			printk(KERN_CONT "%02X ", out_buf[i]);
+		printk(KERN_CONT "\n");
+	}
 #endif
 	if (ret < 0) {
-		log_info(1, "%s: ERROR %08X\n", __func__, ERROR_BUS_WR);
+		pr_err("%s: ERROR %08X\n", __func__, ERROR_BUS_WR);
 		return ERROR_BUS_WR;
 	}
 	return OK;
 }
-
 
 /**
   * Perform a bus write
@@ -260,38 +289,74 @@ int fts_write_read(u8 *cmd, int cmd_length, u8 *out_buf, int byte_to_read)
   */
 int fts_write(u8 *cmd, int cmd_length)
 {
+	struct fts_ts_info *info = dev_get_drvdata(get_dev());
+	int ret = -1;
+
+	mutex_lock(&info->mutex_read_write);
+#if !defined(I2C_INTERFACE) && defined(ANGSANA)
+	if (info->fw_data_length_cmd && cmd[0] == FTS_CMD_REG_SPI_W) {
+		if (fts_fw_data_length_cmd(
+			cmd_length - 1 - FW_ADDR_SIZE) < OK) {
+			mutex_unlock(&info->mutex_read_write);
+			return ERROR_BUS_W;
+		}
+	}
+#endif
+	ret = fts_write_no_lock(cmd, cmd_length);
+	mutex_unlock(&info->mutex_read_write);
+
+	return ret;
+}
+
+/**
+  * Perform a bus write without mutex lock
+  * @param cmd byte array containing the command to write
+  * @param cmd_length size of cmd
+  * @return OK if success or an error code which specify the type of error
+  */
+int fts_write_no_lock(u8 *cmd, int cmd_length)
+{
+	struct fts_ts_info *info = dev_get_drvdata(&(get_client()->dev));
 	int ret = -1;
 	int retry = 0;
 #ifdef I2C_INTERFACE
 	struct i2c_msg I2CMsg[1];
-#ifdef DEBUG_LOG
+#else
+	struct spi_message msg;
+	struct spi_transfer transfer[1] = { { 0 } };
+#endif
+#ifdef DEBUG
 	int i = 0;
 #endif
+
+	if (client == NULL) {
+		pr_info("%s: ERROR %08X\n", __func__, ERROR_BUS_O);
+		return ERROR_BUS_O;
+	}
+
+#ifdef I2C_INTERFACE
 	I2CMsg[0].addr = (__u16)I2C_SAD;
 	I2CMsg[0].flags = (__u16)0;
 	I2CMsg[0].len = (__u16)cmd_length;
 	I2CMsg[0].buf = (__u8 *)cmd;
 #else
-#ifdef DEBUG_LOG
-	int i = 0;
-#endif
-	struct spi_message msg;
-	struct spi_transfer transfer[1] = { { 0 } };
 
 	spi_message_init(&msg);
 
-	transfer[0].len = cmd_length;
-	transfer[0].delay_usecs = SPI_DELAY_CS;
+	if (info && info->dma_mode) {
+		transfer[0].len = spi_len_dma_align(cmd_length);
+		transfer[0].bits_per_word = spi_bits_dma_align(cmd_length);
+	} else {
+		transfer[0].len = cmd_length;
+	}
+
+	transfer[0].delay.unit = SPI_DELAY_UNIT_USECS;
+	transfer[0].delay.value = SPI_DELAY_CS;
 	transfer[0].tx_buf = cmd;
 	transfer[0].rx_buf = NULL;
 	spi_message_add_tail(&transfer[0], &msg);
 #endif
 
-
-	if (client == NULL) {
-		log_info(1, "%s: ERROR %08X\n", __func__, ERROR_BUS_O);
-		return ERROR_BUS_O;
-	}
 	while (retry < I2C_RETRY && ret < OK) {
 #ifdef I2C_INTERFACE
 		ret = i2c_transfer(get_client()->adapter, I2CMsg, 1);
@@ -302,15 +367,18 @@ int fts_write(u8 *cmd, int cmd_length)
 		if (ret < OK)
 			msleep(I2C_WAIT_BEFORE_RETRY);
 	}
-#ifdef DEBUG_LOG
-	log_info(1, "%s: W: ", __func__);
-	for (i = 0; i < cmd_length; i++)
-		printk(KERN_CONT "%02X ", cmd[i]);
-	printk(KERN_CONT "\n");
+
+#ifdef DEBUG
+	if (info->debug_io) {
+		pr_info("%s: W[%d]: ", __func__, cmd_length);
+		for (i = 0; i < cmd_length; i++)
+			printk(KERN_CONT "%02X ", cmd[i]);
+		printk(KERN_CONT "\n");
+	}
 #endif
 
 	if (ret < 0) {
-		log_info(1, "%s: ERROR %08X\n", __func__, ERROR_BUS_W);
+		pr_err("%s: ERROR %08X\n", __func__, ERROR_BUS_W);
 		return ERROR_BUS_W;
 	}
 	return OK;
@@ -329,29 +397,28 @@ int fts_write(u8 *cmd, int cmd_length)
 int fts_write_u8ux(u8 cmd, addr_size_t addr_size, u64 address, u8 *data,
 						int data_size)
 {
+	struct fts_ts_info *info = dev_get_drvdata(get_dev());
 	u8 *final_cmd = NULL;
 	u8 offset = 0;
 	int remaining = data_size;
 	int to_write = 0, i = 0;
 
-	if (cmd == FTS_CMD_NONE) {
-		final_cmd = (u8 *)kmalloc(sizeof(u8) *
-			(addr_size + WRITE_CHUNK), GFP_KERNEL);
-		if (final_cmd == NULL) {
-			log_info(1, "%s: Error allocating memory\n", __func__);
+	mutex_lock(&info->mutex_read_write_buf);
+
+	if (info->io_write_buf == NULL) {
+		info->io_write_buf = devm_kzalloc(info->dev,
+			spi_len_dma_align(WRITE_CHUNK + MAX_ADDR_SIZE + 1),
+			GFP_KERNEL);
+		if (info->io_write_buf == NULL) {
+			pr_err("%s: Error allocating memory\n", __func__);
+			mutex_unlock(&info->mutex_read_write_buf);
 			return ERROR_BUS_W;
 		}
-		offset = 0;
-	} else {
-		final_cmd = (u8 *)kmalloc(sizeof(u8) *
-			(1 + addr_size + WRITE_CHUNK), GFP_KERNEL);
-		if (final_cmd == NULL) {
-			log_info(1, "%s: Error allocating memory\n", __func__);
-			return ERROR_BUS_W;
-		}
-		offset = 1;
 	}
 
+	final_cmd = info->io_write_buf;
+
+	offset = cmd == FTS_CMD_NONE ? 0 : 1;
 	if (addr_size <= sizeof(u64)) {
 		while (remaining > 0) {
 			if (remaining >= WRITE_CHUNK) {
@@ -363,29 +430,28 @@ int fts_write_u8ux(u8 cmd, addr_size_t addr_size, u64 address, u8 *data,
 			}
 			if (cmd != FTS_CMD_NONE) {
 				final_cmd[0] = cmd;
-				log_info(0, "%s: cmd[0] = %02X\n",
+				pr_debug("%s: cmd[0] = %02X\n",
 					__func__, final_cmd[0]);
 			}
-			log_info(0, "%s: addr_size_t = %d\n", __func__,
+			pr_debug("%s: addr_size_t = %d\n", __func__,
 				addr_size);
 			for (i = 0; i < addr_size; i++) {
 				final_cmd[i + offset] =
 				(u8)((address >> ((addr_size - 1 - i) *
 					8)) & 0xFF);
-				log_info(0, "%s: cmd[%d] = %02X\n", __func__,
+				pr_debug("%s: cmd[%d] = %02X\n", __func__,
 					i + offset, final_cmd[i + offset]);
 			}
 			for (i = 0; i < to_write; i++)
-				log_info(0, "%s: data[%d] = %02X\n",
+				pr_debug("%s: data[%d] = %02X\n",
 					__func__, i, data[i]);
 
 			memcpy(&final_cmd[addr_size + offset], data, to_write);
-
 			if (fts_write(final_cmd, offset +
 				addr_size + to_write) < OK) {
-				log_info(0, "%s: ERROR %08X\n",
+				pr_debug("%s: ERROR %08X\n",
 				__func__, ERROR_BUS_W);
-				kfree(final_cmd);
+				mutex_unlock(&info->mutex_read_write_buf);
 				return ERROR_BUS_W;
 			}
 
@@ -393,11 +459,10 @@ int fts_write_u8ux(u8 cmd, addr_size_t addr_size, u64 address, u8 *data,
 			data += to_write;
 		}
 	} else
-		log_info(1,
-			"%s: address size bigger than max allowed %ld... ERROR %08X\n",
+		pr_err("%s: address size bigger than max allowed %ld... ERROR %08X\n",
 			__func__, sizeof(u64), ERROR_OP_NOT_ALLOW);
 
-	kfree(final_cmd);
+	mutex_unlock(&info->mutex_read_write_buf);
 	return OK;
 }
 
@@ -417,38 +482,40 @@ int fts_write_u8ux(u8 cmd, addr_size_t addr_size, u64 address, u8 *data,
 int fts_write_read_u8ux(u8 cmd, addr_size_t addr_size, u64 address,
 			u8 *out_buf, int byte_to_read, int has_dummy_byte)
 {
+	struct fts_ts_info *info = dev_get_drvdata(&(get_client()->dev));
 	u8 *final_cmd = NULL;
 	u8 offset = 0;
 	u8 *buff = NULL;
 	int remaining = byte_to_read;
 	int to_read = 0, i = 0;
 
-	buff =  (u8 *)kmalloc(sizeof(u8) * (READ_CHUNK + 1), GFP_KERNEL);
-	if (buff == NULL) {
-		log_info(1, "%s: Error allocating memory\n", __func__);
-		return ERROR_BUS_WR;
-	}
+	mutex_lock(&info->mutex_read_write_buf);
 
-	if (cmd == FTS_CMD_NONE) {
-		final_cmd = (u8 *)kmalloc(sizeof(u8) *
-					(addr_size + WRITE_CHUNK), GFP_KERNEL);
-		if (final_cmd == NULL) {
-			log_info(1, "%s: Error allocating memory\n", __func__);
-			kfree(buff);
+	if (info->io_read_buf == NULL) {
+		info->io_read_buf = devm_kzalloc(info->dev,
+			spi_len_dma_align(READ_CHUNK + 1), GFP_KERNEL);
+		if (info->io_read_buf == NULL) {
+			pr_err("%s: Error allocating memory\n", __func__);
+			mutex_unlock(&info->mutex_read_write_buf);
 			return ERROR_BUS_WR;
 		}
-		offset = 0;
-	} else {
-		final_cmd = (u8 *)kmalloc(sizeof(u8) *
-			(1 + addr_size + WRITE_CHUNK), GFP_KERNEL);
-		if (final_cmd == NULL) {
-			log_info(1, "%s: Error allocating memory\n", __func__);
-			kfree(buff);
-			return ERROR_BUS_WR;
-		}
-		offset = 1;
 	}
 
+	if (info->io_write_buf == NULL) {
+		info->io_write_buf = devm_kzalloc(info->dev,
+			spi_len_dma_align(WRITE_CHUNK + MAX_ADDR_SIZE + 1),
+			GFP_KERNEL);
+		if (info->io_write_buf == NULL) {
+			pr_err("%s: Error allocating memory\n", __func__);
+			mutex_unlock(&info->mutex_read_write_buf);
+			return ERROR_BUS_WR;
+		}
+	}
+
+	buff = info->io_read_buf;
+	final_cmd = info->io_write_buf;
+
+	offset = cmd == FTS_CMD_NONE ? 0 : 1;
 	while (remaining > 0) {
 		if (remaining >= READ_CHUNK) {
 			to_read = READ_CHUNK;
@@ -460,35 +527,31 @@ int fts_write_read_u8ux(u8 cmd, addr_size_t addr_size, u64 address,
 
 		if (cmd != FTS_CMD_NONE) {
 			final_cmd[0] = cmd;
-			log_info(0, "%s: cmd[0] = %02X\n",
+			pr_debug("%s: cmd[0] = %02X\n",
 				__func__, final_cmd[0]);
 		}
 		for (i = 0; i < addr_size; i++) {
 			final_cmd[i + offset] =
 			(u8)((address >> ((addr_size - 1 - i) * 8)) & 0xFF);
-			log_info(0, "%s: cmd[%d] = %02X\n",
+			pr_debug("%s: cmd[%d] = %02X\n",
 			__func__, i + offset, final_cmd[i + offset]);
 		}
 
 		if (has_dummy_byte == 1) {
 			if (fts_write_read(final_cmd, offset + addr_size,
 				buff, to_read + 1) < OK) {
-				log_info(1,
-					"%s: read error... ERROR %08X\n",
+				pr_err("%s: read error... ERROR %08X\n",
 					__func__, ERROR_BUS_WR);
-				kfree(final_cmd);
-				kfree(buff);
+				mutex_unlock(&info->mutex_read_write_buf);
 				return ERROR_BUS_WR;
 			}
 			memcpy(out_buf, buff + 1, to_read);
 		} else {
 			if (fts_write_read(final_cmd, offset + addr_size, buff,
 				to_read) < OK) {
-				log_info(1,
-					"%s: read error... ERROR %08X\n",
+				pr_err("%s: read error... ERROR %08X\n",
 					__func__, ERROR_BUS_WR);
-				kfree(final_cmd);
-				kfree(buff);
+				mutex_unlock(&info->mutex_read_write_buf);
 				return ERROR_BUS_WR;
 			}
 			memcpy(out_buf, buff, to_read);
@@ -497,8 +560,8 @@ int fts_write_read_u8ux(u8 cmd, addr_size_t addr_size, u64 address,
 		address += to_read;
 		out_buf += to_read;
 	}
-	kfree(final_cmd);
-	kfree(buff);
+
+	mutex_unlock(&info->mutex_read_write_buf);
 	return OK;
 }
 
@@ -514,12 +577,13 @@ int fts_write_read_u8ux(u8 cmd, addr_size_t addr_size, u64 address,
   * in the same position of the element is ignored.
   * @param event_bytes size of event_to_search
   * @param read_data pointer to an array of byte which will contain the event
-  *found
+  * found
+  * @param read_length size of the array of byte
   * @param time_to_wait time to wait before going in timeout
   * @return OK if success or an error code which specify the type of error
   */
 int poll_for_event(int *event_to_search, int event_bytes, u8 *read_data,
-						int time_to_wait)
+						int read_length, int time_to_wait)
 {
 	int i, find, retry, count_err;
 	char temp[128] = { 0 };
@@ -528,13 +592,13 @@ int poll_for_event(int *event_to_search, int event_bytes, u8 *read_data,
 	retry = 0;
 	count_err = 0;
 	msleep(TIMEOUT_RESOLUTION);
-	while (find != 1 && retry < time_to_wait &&
-			fts_read_fw_reg(FIFO_READ_ADDR, read_data, 8) >= OK) {
+	while (find != 1 && retry < time_to_wait && (fts_read_fw_fifo(read_data, read_length) >= OK)) {
 		/* Log of errors */
 		if (read_data[0] == EVT_ID_ERROR) {
-			log_info(1, "%s: %s", __func__,
-			print_hex("ERROR EVENT = ", read_data,
-				FIFO_EVENT_SIZE, temp));
+			pr_info("%s: %s", __func__,
+				print_hex("ERROR EVENT = ",
+					  read_data, read_length,
+					  temp, sizeof(temp)));
 			switch (read_data[1]) {
 			case EVT_TYPE_ERROR_ITO_FORCETOGND:
 				printk("{ITO:Force Short to GND Error}\n");
@@ -578,14 +642,16 @@ int poll_for_event(int *event_to_search, int event_bytes, u8 *read_data,
 			count_err++;
 		} else {
 			if (read_data[0] != EVT_ID_NOEVENT) {
-				log_info(1, "%s %s\n",
-				__func__, print_hex("READ EVENT = ",
-				read_data, FIFO_EVENT_SIZE, temp));
+				pr_info("%s: %s\n", __func__,
+					print_hex("READ EVENT = ",
+						  read_data, read_length,
+						  temp, sizeof(temp)));
 				memset(temp, 0, 128);
 			}
 			if (read_data[0] == EVT_ID_CONTROLLER_READY &&
 				event_to_search[0] != EVT_ID_CONTROLLER_READY) {
-				log_info(1, "%s Unmanned Controller Ready Event! Setting reset flags...\n",
+				pr_info("%s: Unmanned Controller Ready Event!"
+					" Setting reset flags...\n",
 					__func__);
 			}
 		}
@@ -602,20 +668,20 @@ int poll_for_event(int *event_to_search, int event_bytes, u8 *read_data,
 		msleep(TIMEOUT_RESOLUTION);
 	}
 	if ((retry >= time_to_wait) && find != 1) {
-		log_info(1, "%s ERROR %08X\n", __func__, ERROR_TIMEOUT);
+		pr_err("%s: ERROR %08X\n", __func__, ERROR_TIMEOUT);
 		return ERROR_TIMEOUT;
 	} else if (find == 1) {
-		log_info(1, "%s: %s\n", __func__,
+		pr_info("%s: %s\n", __func__,
 			print_hex("FOUND EVENT = ",
-			read_data, FIFO_EVENT_SIZE, temp));
+				  read_data, read_length,
+				  temp, sizeof(temp)));
 		memset(temp, 0, 128);
 		/* kfree(temp); */
-		log_info(1,
-		"%s: Event found in (%d iterations)! Number of errors found = %d\n",
-		__func__, retry, count_err);
+		pr_debug("%s: Event found in (%d iterations)! Number of errors found = %d\n",
+			__func__, retry, count_err);
 		return count_err;
 	} else {
-		log_info(1, "%s: ERROR %08X\n", __func__, ERROR_BUS_R);
+		pr_err("%s: ERROR %08X\n", __func__, ERROR_BUS_R);
 		return ERROR_BUS_R;
 	}
 }
@@ -627,49 +693,31 @@ int poll_for_event(int *event_to_search, int event_bytes, u8 *read_data,
   * @param  buff data pointer of bytes to print in hex format
   * @param count variable for data size
   * @param result data pointer to print the combined message
+  * @param result_sz size of the combined message buffer result
   */
 
-char *print_hex(char *label, u8 *buff, int count, u8 *result)
+char *print_hex(const char *label, const u8 *buff, int count, u8 *result,
+		size_t result_sz)
 {
-	int i, offset;
+	int i;
+	ssize_t offset;
 
-	offset = strlen(label);
-	strlcpy(result, label, offset + 1); /* +1 for terminator char */
+	offset = strscpy(result, label, result_sz);
+	if (offset == -E2BIG)
+		return result;
 
+	result_sz -= (size_t) offset;
 	for (i = 0; i < count; i++) {
-		snprintf(&result[offset], 4, "%02X ", buff[i]);
 		/* this append automatically a null terminator char */
-		offset += 3;
+		int n = snprintf(&result[offset], result_sz,
+				 "%02X ", buff[i]);
+		if (n < 0 || n >= result_sz)
+			/* error or truncated */
+			return result;
+		offset += n;
+		result_sz -= (unsigned int) n;
 	}
 	return result;
-}
-
-/**
-  * Print messages in the kernel log
-  * @param force if 1, the log is printed always otherwise only if DEBUG is
-  * defined, the log will be printed
-  * @param msg string containing the message to print
-  * @param ... additional parameters that are used in msg according the format
-  * of printf
-  */
-
-void log_info(int force, const char *msg, ...)
-{
-	if (force == 1
-#ifdef DEBUG
-		|| 1
-#endif
-		) {
-		char log_buffer[120];
-		va_list args;
-
-		//printk("%s", "[ FTS ] ");
-		va_start(args, msg);
-		vscnprintf(log_buffer, sizeof(log_buffer), msg, args);
-		//vprintk(msg, args);
-		va_end(args);
-		pr_info("%s", log_buffer);
-	}
 }
 
 /**
@@ -881,60 +929,39 @@ int u64_to_u8_be(u64 src, u8 *dest, int size)
 int from_id_to_mask(u8 id, u8 *mask, int size)
 {
 	if (((int)((id) / 8)) < size) {
-		log_info(1, "%s: ID = %d Index = %d Position = %d !\n",
-		__func__, id, ((int)((id) / 8)), (id % 8));
+		pr_info("%s: ID = %d Index = %d Position = %d !\n",
+			__func__, id, ((int)((id) / 8)), (id % 8));
 		mask[((int)((id) / 8))] |= 0x01 << (id % 8);
 		return OK;
 	}
-	log_info(1, "%s: Bitmask too small! Impossible contain ID = %d %d>=%d! ERROR %08X\n",
-		__func__, id, ((int)((id) / 8)), size,
-		ERROR_OP_NOT_ALLOW);
+	pr_err("%s: Bitmask too small! Impossible contain ID = %d %d>=%d! ERROR %08X\n",
+		__func__, id, ((int)((id) / 8)), size, ERROR_OP_NOT_ALLOW);
 	return ERROR_OP_NOT_ALLOW;
 }
 
 /**
-  * Perform a system reset of the IC.
-  * If the reset pin is associated to a gpio, the function execute an hw reset
-  * (toggling of reset pin) otherwise send an hw command to the IC
-  * @param poll_event varaiable to enable polling for controller ready event
+  * Polling for controller ready event
   * @return OK if success or an error code which specify the type of error
   */
-int fts_system_reset(int poll_event)
+int fts_poll_controller_ready_event(void)
 {
 	int res = 0;
-	u8 data = SYSTEM_RESET_VAL;
 	int event_to_search = EVT_ID_CONTROLLER_READY;
-	u8 read_data[8] = { 0x00 };
-	int add = 0x001C;
-	uint8_t int_data = 0x01;
+	u8 *read_data = NULL;
 
-	if (reset_gpio == GPIO_NOT_DEFINED) {
-		res = fts_write_u8ux(FTS_CMD_HW_REG_W, BITS_32, SYS_RST_ADDR,
-			&data, 1);
-		if (res < OK) {
-			log_info(1, "%s ERROR %08X\n", __func__, res);
-			return res;
-		}
-	} else {
-		gpio_set_value(reset_gpio, 0);
-		msleep(20);
-		gpio_set_value(reset_gpio, 1);
-		res = OK;
+	read_data = (u8 *)kmalloc(fifo_evt_size, GFP_KERNEL);
+	if (read_data == NULL) {
+		pr_info("%s: Error allocating memory\n", __func__);
+		return ERROR_ALLOC;
 	}
 
-	if (poll_event) {
-		res = poll_for_event(&event_to_search, 1, read_data,
-			TIMEOUT_GENERAL);
-		if (res < OK)
-			log_info(1, "%s ERROR %08X\n", __func__, res);
-	} else
-		msleep(100);
+	res = poll_for_event(&event_to_search, 1, read_data, fifo_evt_size,
+		TIMEOUT_GENERAL);
+	if (res < OK)
+		pr_info("%s: ERROR %08X\n", __func__, res);
 
-	res = fts_write_fw_reg(add, &int_data, 1);
-	if (res < OK) {
-		log_info(1, "%s ERROR %08X\n", __func__, res);
-	}
-
+	kfree(read_data);
+	read_data = NULL;
 	return res;
 }
 
@@ -968,7 +995,7 @@ int fts_write_fw_reg(u16 address, u8 *data, uint32_t length)
 	}
 #endif
 	if (res < OK)
-		log_info(1, "%s ERROR %08X\n", __func__, res);
+		pr_err("%s: ERROR %08X\n", __func__, res);
 
 	return res;
 }
@@ -1004,10 +1031,133 @@ int fts_read_fw_reg(u16 address, u8 *read_data, uint32_t read_length)
 	}
 #endif
 	if (res < OK)
-		log_info(1, "%s ERROR %08X\n", __func__, res);
+		pr_err("%s: ERROR %08X\n", __func__, res);
 
 	return res;
 }
+
+/**
+  * Perform a firmware fifo read for events
+  * @param read_data pointer to hold the read buffer
+  * @param data_size number of bytes read from device.
+  * @return OK if success or an error code which specify the type of error
+  */
+int fts_read_fw_fifo(u8 *read_data, int data_size)
+{
+	int res = OK;
+
+	if (system_info.u8_api_ver_major < 3 ||
+		((system_info.u8_api_ver_major == 3) &&
+		(system_info.u8_api_ver_minor < 1)))
+	{
+		res = fts_read_fw_reg(FIFO_SINGLE_READ_ADDR, read_data, data_size);
+
+	} else {
+#ifdef I2C_INTERFACE
+		res = fts_read_fw_reg(FIFO_GROUP_READ_ADDR, read_data, data_size);
+#else
+		res = fts_write_read_u8ux(FTS_CMD_FIFO_SPI_R, NO_ADDR, 0, read_data,
+				data_size, DUMMY_BYTE);
+#endif
+	}
+    if (res < OK) {
+	    pr_info("%s: ERROR in reading fifo event: %08X\n", __func__, res);
+		return res;
+    }
+
+	return res;
+}
+
+/**
+  * Perform a firmware fifo read for multiple events
+  * @param read_data pointer to byte array holding events data, return NULL if no event exist.
+  * @param data_size pointer to size of read_data in bytes.
+  * @param count pointer to hold number of events in read_data.
+  * @return OK if success or an error code which specify the type of error
+  */
+int fts_read_all_fw_fifo(u8 **read_data, int *data_size, int *count)
+{
+	int res = OK;
+	int i;
+	u8 *event = NULL;
+	u8 event_count = 0;
+
+	if (system_info.u8_api_ver_major < 3 ||
+		((system_info.u8_api_ver_major == 3) &&
+		(system_info.u8_api_ver_minor < 1))) {
+
+		*read_data = (u8 *)kmalloc(FIFO_MAX_EVENT * fifo_evt_size, GFP_KERNEL);
+		if (*read_data == NULL) {
+			pr_info("%s: ERROR: %08X\n", __func__, ERROR_ALLOC);
+			return ERROR_ALLOC;
+		}
+
+		event = *read_data;
+		for (i = 0; i < FIFO_MAX_EVENT; i++) {
+			res = fts_read_fw_reg(FIFO_SINGLE_READ_ADDR, event, fifo_evt_size);
+			if (res < OK)
+				break;
+			if (event[0] == 0x00)
+				break;
+			event += fifo_evt_size;
+			event_count++;
+
+			if (event_count == FIFO_MAX_EVENT)
+				break;
+		}
+	} else {
+		res = fts_read_fw_reg(FIFO_EVENT_CNT_ADDR, &event_count, 1);
+		if (res < OK) {
+			pr_info("%s: ERROR: %08X\n", __func__, res);
+			goto exit_0;
+		}
+
+		if (event_count > FIFO_MAX_EVENT) {
+			pr_info("%s: read inavlid event count: %d\n", __func__, event_count);
+			res = ERROR_BUS_WR;
+			goto exit_0;
+		}
+
+		if (event_count == 0)
+			goto exit_0;
+
+		*read_data = (u8 *)kmalloc(event_count * fifo_evt_size, GFP_KERNEL);
+		if (*read_data == NULL) {
+			pr_info("%s: ERROR: %08X\n", __func__, ERROR_ALLOC);
+			return ERROR_ALLOC;
+		}
+
+#ifdef I2C_INTERFACE
+		res = fts_read_fw_reg(FIFO_GROUP_READ_ADDR, *read_data, event_count * fifo_evt_size);
+#else
+		res = fts_write_read_u8ux(FTS_CMD_FIFO_SPI_R, NO_ADDR, 0, *read_data,
+								event_count * fifo_evt_size, DUMMY_BYTE);
+#endif
+	}
+
+exit_0:
+    if (res < OK) {
+	    pr_info("%s: ERROR in reading all fifo events: %08X\n", __func__, res);
+		if (*read_data != NULL) {
+			kfree(*read_data);
+			*read_data = NULL;
+		}
+		*data_size = 0;
+		*count = 0;
+		return res;
+    }
+
+	if (event_count == 0) {
+		if (*read_data != NULL) {
+			kfree(*read_data);
+			*read_data = NULL;
+		}
+	}
+	*data_size = event_count * fifo_evt_size;
+	*count = (int)event_count;
+	return res;
+}
+
 
 /**
   * Perform a hdm data write to frame buffer.
@@ -1039,7 +1189,7 @@ int fts_write_hdm(u16 address, u8 *data, int length)
 	}
 #endif
 	if (res < OK)
-		log_info(1, "%s ERROR %08X\n", __func__, res);
+		pr_err("%s: ERROR %08X\n", __func__, res);
 	return res;
 }
 
@@ -1075,7 +1225,7 @@ int fts_read_hdm(u16 address, u8 *read_data, uint32_t read_length)
 	}
 #endif
 	if (res < OK)
-		log_info(1, "%s ERROR %08X\n", __func__, res);
+		pr_err("%s: ERROR %08X\n", __func__, res);
 
 	return res;
 }
@@ -1098,15 +1248,14 @@ int poll_fw_reg_clear_status(u16 address, u8 bit_to_check, int time_to_wait)
 		msleep(TIMEOUT_RESOLUTION);
 		res = fts_read_fw_reg(address, &data, 1);
 		if (res < OK) {
-			log_info(1, "%s ERROR %08X\n", __func__, res);
+			pr_err("%s: ERROR %08X\n", __func__, res);
 			return res;
 		}
 		if ((data & (0x01 << bit_to_check)) == 0x00)
 			break;
 	}
 	if (i == time_to_wait) {
-		log_info(1, "%s FW reg status timeout.. RegVal: %02X\n",
-				__func__, data);
+		pr_err("%s: FW reg status timeout.. RegVal: %02X\n", __func__, data);
 		return ERROR_TIMEOUT;
 	}
 	return OK;
@@ -1128,15 +1277,31 @@ int fts_fw_request(u16 address, u8 bit_to_set, u8 auto_clear,
 	int res = 0;
 	u8 data = 0x00;
 
+#ifdef SPRUCE
+	if (address == PI_ADDR) {
+		/* This is a SW WA to do sense-on and sense-off before FPI.
+		 * TODO(b/241527933#comment4): Asking vendor to provide the
+		 * final solution when they find the root cause.
+		 */
+		u8 sense_on;
+		pr_info("%s: sensing on and sense off before FPI.", __func__);
+		sense_on = 0x01;
+		fts_write_fw_reg(0x10, &sense_on, 1);
+		msleep(200);
+		sense_on = 0x00;
+		fts_write_fw_reg(0x10, &sense_on, 1);
+		msleep(20);
+	}
+#endif
 	res = fts_read_fw_reg(address, &data, 1);
 	if (res < OK) {
-		log_info(1, "%s ERROR %08X\n", __func__, res);
+		pr_err("%s: ERROR %08X\n", __func__, res);
 		return res;
 	}
 	data = data | (0x01 << bit_to_set);
 	res = fts_write_fw_reg(address, &data, 1);
 	if (res < OK) {
-		log_info(1, "%s ERROR %08X\n", __func__, res);
+		pr_err("%s: ERROR %08X\n", __func__, res);
 		return res;
 	}
 
@@ -1144,7 +1309,7 @@ int fts_fw_request(u16 address, u8 bit_to_set, u8 auto_clear,
 		res = poll_fw_reg_clear_status(address, bit_to_set,
 					time_to_wait);
 		if (res < OK) {
-			log_info(1, "%s ERROR %08X\n", __func__, res);
+			pr_err("%s: ERROR %08X\n", __func__, res);
 			return res;
 		}
 	} else
@@ -1167,7 +1332,7 @@ int fts_hdm_write_request(u8 save_to_flash)
 	res = fts_fw_request(HDM_WRITE_REQ_ADDR, 0, 1,
 				TIMEOUT_FW_REG_STATUS);
 	if (res < OK) {
-		log_info(1, "%s ERROR %08X\n", __func__, res);
+		pr_err("%s: ERROR %08X\n", __func__, res);
 		return res;
 	}
 
@@ -1175,7 +1340,7 @@ int fts_hdm_write_request(u8 save_to_flash)
 		res = fts_fw_request(FLASH_SAVE_ADDR, 7, 1,
 				TIMEOUT_FW_REG_STATUS);
 		if (res < OK) {
-			log_info(1, "%s ERROR %08X\n", __func__, res);
+			pr_err("%s: ERROR %08X\n", __func__, res);
 			return res;
 		}
 	}
@@ -1197,7 +1362,7 @@ int fts_request_hdm(u8 type)
 
 	res = fts_write_fw_reg(HDM_REQ_ADDR, &data, 1);
 	if (res < OK) {
-		log_info(1, "%s ERROR %08X\n", __func__, res);
+		pr_err("%s: ERROR %08X\n", __func__, res);
 		return res;
 	}
 
@@ -1205,15 +1370,14 @@ int fts_request_hdm(u8 type)
 		msleep(TIMEOUT_RESOLUTION);
 		res = fts_read_fw_reg(HDM_REQ_ADDR, &read_buff, 1);
 		if (res < OK) {
-			log_info(1, "%s ERROR %08X\n", __func__, res);
+			pr_err("%s: ERROR %08X\n", __func__, res);
 			return res;
 		}
 		if (read_buff == 0x00)
 			break;
 	}
 	if (i == TIMEOUT_FW_REG_STATUS) {
-		log_info(1, "%s HDM Request timeout.. RegVal: %02X\n",
-				__func__, read_buff);
+		pr_err("%s: HDM Request timeout.. RegVal: %02X\n", __func__, read_buff);
 		return ERROR_TIMEOUT;
 	}
 	return OK;
@@ -1232,13 +1396,12 @@ int fts_read_sys_errors(void)
 
 	res = fts_read_fw_reg(SYS_ERROR_ADDR, data, 8);
 	if (res < OK) {
-		log_info(1, "%s: ERROR %08X\n", __func__, res);
+		pr_err("%s: ERROR %08X\n", __func__, res);
 		return res;
 	}
-	log_info(1, "%s: system errors:\n", __func__);
+	pr_info("%s: system errors:\n", __func__);
 	for (; i < 8; i++)
-		log_info(1, "%s: 0x%04X: %02X\n", __func__, SYS_ERROR_ADDR + i,
-		data[i]);
+		pr_info("%s: 0x%04X: %02X\n", __func__, SYS_ERROR_ADDR + i, data[i]);
 	return res;
 }
 
@@ -1258,21 +1421,22 @@ int read_hdm_header(uint8_t type, u8 *header)
 
 	res = fts_request_hdm(type);
 	if (res < OK) {
-		log_info(1, "%s: error requesting hdm: %02X\n", __func__, type);
+		pr_err("%s: error requesting hdm: %02X\n", __func__, type);
 		return res;
 	}
 	res = fts_read_hdm(FRAME_BUFFER_ADDR, header, COMP_HEADER_SIZE);
 	if (res < OK) {
-		log_info(1, "%s read total cx header ERROR %08X\n",
+		pr_info("%s: read total cx header ERROR %08X\n",
 		__func__, res);
 		return res;
 	}
 
-	log_info(1, "%s type: %02X, cnt: %02X, len: %d words\n", __func__,
+	pr_info("%s: type: %02X, cnt: %02X, len: %d words\n", __func__,
 		header[0], header[1], (u16)((header[3] << 8) + header[2]));
-	if ((header[0] != type) && header[1] != 0)
-		log_info(1, "%s HDM request error %08X\n", __func__,
-		ERROR_TIMEOUT);
+	if ((header[0] != type) && header[1] != 0) {
+		res = ERROR_TIMEOUT;
+		pr_info("%s: HDM request error %08X\n", __func__, res);
+	}
 	return res;
 }
 /**
@@ -1289,14 +1453,14 @@ int get_frame_data(u16 address, int size, short *frame)
 	u8 *data = (u8 *)kmalloc(size * sizeof(u8), GFP_KERNEL);
 
 	if (data == NULL) {
-		log_info(1, "%s: ERROR %08X\n", __func__, ERROR_ALLOC);
+		pr_err("%s: ERROR %08X\n", __func__, ERROR_ALLOC);
 		return ERROR_ALLOC;
 	}
 
 	res = fts_write_read_u8ux(FTS_CMD_HW_REG_R, BITS_32,
 			FRAME_BUFFER_ADDRESS + address, data, size, DUMMY_BYTE);
 	if (res < OK) {
-		log_info(1, "%s: ERROR %08X\n", __func__, ERROR_BUS_R);
+		pr_err("%s: ERROR %08X\n", __func__, ERROR_BUS_R);
 		kfree(data);
 		data = NULL;
 		return ERROR_BUS_R;
@@ -1328,15 +1492,14 @@ int get_ms_frame(ms_frame_type_t type, struct mutual_sense_frame *frame)
 
 	if (force_len == 0x00 || sense_len == 0x00 ||
 		force_len == 0xFF || sense_len == 0xFF) {
-		log_info(1, "%s: number of channels not initialized ERROR %08X\n",
+		pr_err("%s: number of channels not initialized ERROR %08X\n",
 			__func__, ERROR_CH_LEN);
 		return ERROR_CH_LEN | ERROR_GET_FRAME;
 	}
 
 	frame->node_data = NULL;
 
-	log_info(1, "%s: Starting to get frame %02X\n", __func__,
-type);
+	pr_info("%s: Starting to get frame %02X\n", __func__, type);
 	switch (type) {
 	case MS_RAW:
 		offset = system_info.u16_ms_scr_raw_addr;
@@ -1351,9 +1514,9 @@ type);
 		offset = system_info.u16_ms_scr_baseline_addr;
 		break;
 	default:
-			log_info(1, "%s: Invalid type ERROR %08X\n",
-				__func__, ERROR_OP_NOT_ALLOW | ERROR_GET_FRAME);
-			return ERROR_OP_NOT_ALLOW | ERROR_GET_FRAME;
+		pr_err("%s: Invalid type ERROR %08X\n",
+			__func__, ERROR_OP_NOT_ALLOW | ERROR_GET_FRAME);
+		return ERROR_OP_NOT_ALLOW | ERROR_GET_FRAME;
 	}
 
 	frame->node_data_size = (force_len * sense_len);
@@ -1361,22 +1524,20 @@ type);
 	frame->header.sense_node = sense_len;
 	frame->header.type = type;
 
-	log_info(1, "%s: Force_len = %d Sense_len = %d Offset = %04X\n",
+	pr_info("%s: Force_len = %d Sense_len = %d Offset = %04X\n",
 		__func__, force_len, sense_len, offset);
 
 	frame->node_data = (short *)kmalloc(frame->node_data_size *
 		sizeof(short), GFP_KERNEL);
 	if (frame->node_data == NULL) {
-		log_info(1, "%s: ERROR %08X\n", __func__,
-			ERROR_ALLOC | ERROR_GET_FRAME);
+		pr_err("%s: ERROR %08X\n", __func__, ERROR_ALLOC | ERROR_GET_FRAME);
 		return ERROR_ALLOC | ERROR_GET_FRAME;
 	}
 
 	res = get_frame_data(offset, frame->node_data_size *
 			BYTES_PER_NODE, (frame->node_data));
 	if (res < OK) {
-		log_info(1, "%s %s: ERROR %08X\n",
-		__func__, ERROR_GET_FRAME_DATA);
+		pr_err("%s: ERROR %08X\n", __func__, ERROR_GET_FRAME_DATA);
 		kfree(frame->node_data);
 		frame->node_data = NULL;
 		return res | ERROR_GET_FRAME_DATA | ERROR_GET_FRAME;
@@ -1384,7 +1545,7 @@ type);
 	/* if you want to access one node i,j,
 	  * compute the offset like: offset = i*columns + j = > frame[i, j] */
 
-	log_info(1, "%s Frame acquired!\n", __func__);
+	pr_info("%s: Frame acquired!\n", __func__);
 	return OK;
 	/* return the number of data put inside frame */
 
@@ -1400,14 +1561,14 @@ int get_ss_frame(ss_frame_type_t type, struct self_sense_frame *frame)
 {
 	u16 self_force_offset = 0;
 	u16 self_sense_offset = 0;
-	int res, force_len, sense_len;
+	int res, force_len, sense_len, tmp_size;
 
 	force_len = system_info.u8_scr_tx_len;
 	sense_len = system_info.u8_scr_rx_len;
 
 	if (force_len == 0x00 || sense_len == 0x00 ||
 		force_len == 0xFF || sense_len == 0xFF) {
-		log_info(1, "%s: number of channels not initialized ERROR %08X\n",
+		pr_err("%s: number of channels not initialized ERROR %08X\n",
 			__func__, ERROR_CH_LEN);
 		return ERROR_CH_LEN | ERROR_GET_FRAME;
 	}
@@ -1417,7 +1578,7 @@ int get_ss_frame(ss_frame_type_t type, struct self_sense_frame *frame)
 	frame->header.force_node = force_len;
 	frame->header.sense_node = sense_len;
 
-	log_info(1, "%s: Starting to get frame %02X\n", __func__, type);
+	pr_info("%s: Starting to get frame %02X\n", __func__, type);
 	switch (type) {
 	case SS_RAW:
 		self_force_offset = system_info.u16_ss_tch_tx_raw_addr;
@@ -1468,27 +1629,26 @@ int get_ss_frame(ss_frame_type_t type, struct self_sense_frame *frame)
 					0 : frame->header.sense_node;
 		break;
 	default:
-		log_info(1, "%s: Invalid type ERROR %08X\n", __func__,
-					ERROR_OP_NOT_ALLOW | ERROR_GET_FRAME);
+		pr_err("%s: Invalid type ERROR %08X\n",
+			__func__, ERROR_OP_NOT_ALLOW | ERROR_GET_FRAME);
 		return ERROR_OP_NOT_ALLOW | ERROR_GET_FRAME;
 	}
 	frame->header.type = type;
-	log_info(1, "%s: Force_len = %d Sense_len = %d Offset_force = %04X Offset_sense = %04X\n",
+	pr_info("%s: Force_len = %d Sense_len = %d Offset_force = %04X Offset_sense = %04X\n",
 		__func__, frame->header.force_node, frame->header.sense_node,
 		self_force_offset, self_sense_offset);
-	frame->force_data = (short *)kmalloc(frame->header.force_node *
-						sizeof(short), GFP_KERNEL);
+
+	tmp_size = frame->header.force_node * sizeof(short);
+	frame->force_data = kmalloc(tmp_size, GFP_KERNEL);
 	if (frame->force_data == NULL) {
-		log_info(1, "%s: ERROR %08X\n", __func__,
-			ERROR_ALLOC | ERROR_GET_FRAME);
+		pr_err("%s: ERROR %08X\n", __func__, ERROR_ALLOC | ERROR_GET_FRAME);
 		return ERROR_ALLOC | ERROR_GET_FRAME;
 	}
 
-	frame->sense_data = (short *)kmalloc(frame->header.sense_node *
-						sizeof(short), GFP_KERNEL);
+	tmp_size = frame->header.sense_node * sizeof(short);
+	frame->sense_data = kmalloc(tmp_size, GFP_KERNEL);
 	if (frame->sense_data == NULL) {
-		log_info(1, "%s: ERROR %08X\n", __func__,
-				ERROR_ALLOC | ERROR_GET_FRAME);
+		pr_err("%s: ERROR %08X\n", __func__, ERROR_ALLOC | ERROR_GET_FRAME);
 		kfree(frame->force_data);
 		frame->force_data = NULL;
 		return ERROR_ALLOC | ERROR_GET_FRAME;
@@ -1499,8 +1659,8 @@ int get_ss_frame(ss_frame_type_t type, struct self_sense_frame *frame)
 			frame->header.force_node *
 			BYTES_PER_NODE, (frame->force_data));
 		if (res < OK) {
-			log_info(1, "%s: error while reading force data ERROR %08X\n",
-					__func__, ERROR_GET_FRAME_DATA);
+			pr_err("%s: error while reading force data ERROR %08X\n",
+				__func__, ERROR_GET_FRAME_DATA);
 			kfree(frame->force_data);
 			frame->force_data = NULL;
 			kfree(frame->sense_data);
@@ -1514,9 +1674,8 @@ int get_ss_frame(ss_frame_type_t type, struct self_sense_frame *frame)
 			frame->header.sense_node *
 			BYTES_PER_NODE, (frame->sense_data));
 		if (res < OK) {
-			log_info(1, "%s: error while reading force data ERROR %08X\n",
-			__func__, res | ERROR_GET_FRAME_DATA |
-			ERROR_GET_FRAME);
+			pr_err("%s: error while reading force data ERROR %08X\n",
+				__func__, res | ERROR_GET_FRAME_DATA | ERROR_GET_FRAME);
 			kfree(frame->force_data);
 			frame->force_data = NULL;
 			kfree(frame->sense_data);
@@ -1524,7 +1683,7 @@ int get_ss_frame(ss_frame_type_t type, struct self_sense_frame *frame)
 			return res | ERROR_GET_FRAME_DATA | ERROR_GET_FRAME;
 		}
 	}
-	log_info(1, "%s Frame acquired!\n", __func__);
+	pr_info("%s: Frame acquired!\n", __func__);
 	return OK;
 }
 
@@ -1557,7 +1716,7 @@ int get_sync_frame(u8 type, struct mutual_sense_frame *ms_frame,
 
 	res = read_hdm_header(type, header_data);
 	if (res < OK) {
-		log_info(1, "%s: read hdm header error\n", __func__);
+		pr_err("%s: read hdm header error\n", __func__);
 		return res | ERROR_GET_FRAME;
 	}
 	ms_frame->header.force_node = ss_frame->header.force_node =
@@ -1565,33 +1724,31 @@ int get_sync_frame(u8 type, struct mutual_sense_frame *ms_frame,
 	ms_frame->header.sense_node = ss_frame->header.sense_node =
 						header_data[6];
 	ms_frame->header.type = type;
-	log_info(1, "%s: tx_count: %d rx_count: %d\n", __func__,
+	pr_info("%s: tx_count: %d rx_count: %d\n", __func__,
 		ms_frame->header.force_node, ms_frame->header.sense_node);
 
 	if (ms_frame->header.force_node == 0x00 ||
 		ms_frame->header.sense_node == 0x00 ||
 		ms_frame->header.force_node == 0xFF ||
 		ms_frame->header.sense_node == 0xFF) {
-		log_info(1,
-		"%s: force/sense length cannot be empty.Invalid sync frame header\n");
+		pr_err("%s: force/sense length cannot be empty.Invalid sync frame header\n",
+			__func__);
 		return ERROR_CH_LEN | ERROR_GET_FRAME;
 	}
 	sync_frame_size = (header_data[5] * header_data[6] * 2) +
 				(header_data[5] * 2) + (header_data[6] * 2);
-	log_info(1, "%s: sync frame size: %d\n", __func__, sync_frame_size);
+	pr_info("%s: sync frame size: %lld\n", __func__, (unsigned long long)sync_frame_size);
 	sync_frame_data = (u8 *)kmalloc(sync_frame_size *
 			sizeof(u8), GFP_KERNEL);
 	if (sync_frame_data == NULL) {
-		log_info(1, "%s: ERROR %08X\n",
-				__func__, ERROR_ALLOC | ERROR_GET_FRAME);
+		pr_err("%s: ERROR %08X\n",	__func__, ERROR_ALLOC | ERROR_GET_FRAME);
 		return ERROR_ALLOC | ERROR_GET_FRAME;
 	}
 	address = FRAME_BUFFER_ADDR + SYNC_FRAME_HEADER_SIZE + header_data[4];
-	log_info(1, "%s: sync frame address: 0x%04X\n", __func__, address);
+	pr_info("%s: sync frame address: 0x%04X\n", __func__, address);
 	res = fts_read_hdm(address, sync_frame_data, sync_frame_size);
 	if (res < OK) {
-		log_info(1, "%s: sync frame read ERROR %08X\n",
-				__func__, ERROR_ALLOC | ERROR_GET_FRAME);
+		pr_err("%s: sync frame read ERROR %08X\n", __func__, ERROR_ALLOC | ERROR_GET_FRAME);
 		kfree(sync_frame_data);
 		sync_frame_data = NULL;
 		return res | ERROR_ALLOC | ERROR_GET_FRAME;
@@ -1601,9 +1758,8 @@ int get_sync_frame(u8 type, struct mutual_sense_frame *ms_frame,
 						ms_frame->header.sense_node;
 	ms_frame->node_data = (short *)kmalloc(ms_frame->node_data_size *
 						sizeof(short), GFP_KERNEL);
-	if (ms_frame->node_data == NULL)	{
-		log_info(1, "%s: ERROR %08X\n",
-				__func__, ERROR_ALLOC | ERROR_GET_FRAME);
+	if (ms_frame->node_data == NULL) {
+		pr_err("%s: ERROR %08X\n", __func__, ERROR_ALLOC | ERROR_GET_FRAME);
 		res = ERROR_ALLOC | ERROR_GET_FRAME;
 		goto goto_end;
 	}
@@ -1617,15 +1773,14 @@ int get_sync_frame(u8 type, struct mutual_sense_frame *ms_frame,
 	ss_frame->force_data = (short *)kmalloc(ss_frame->header.force_node *
 						sizeof(short), GFP_KERNEL);
 	if (ss_frame->force_data == NULL) {
-		log_info(1, "%s: ERROR %08X\n", __func__,
-					ERROR_ALLOC | ERROR_GET_FRAME);
+		pr_err("%s: ERROR %08X\n", __func__, ERROR_ALLOC | ERROR_GET_FRAME);
 		res = ERROR_ALLOC | ERROR_GET_FRAME;
 		goto goto_end;
 	}
 
 	j = 0;
 	offset = ss_frame->header.force_node * 2 + i;
-	log_info(1, "%s: sync frame ss force: %d\n", __func__, i);
+	pr_info("%s: sync frame ss force: %d\n", __func__, i);
 	for (; i < offset; i += 2) {
 		ss_frame->force_data[j] =
 		(short)((sync_frame_data[i + 1] << 8) + sync_frame_data[i]);
@@ -1635,14 +1790,13 @@ int get_sync_frame(u8 type, struct mutual_sense_frame *ms_frame,
 	ss_frame->sense_data = (short *)kmalloc(ss_frame->header.sense_node *
 						sizeof(short), GFP_KERNEL);
 	if (ss_frame->sense_data == NULL) {
-		log_info(1, "%s: ERROR %08X\n", __func__,
-					ERROR_ALLOC | ERROR_GET_FRAME);
+		pr_err("%s: ERROR %08X\n", __func__, ERROR_ALLOC | ERROR_GET_FRAME);
 		res = ERROR_ALLOC | ERROR_GET_FRAME;
 		goto goto_end;
 	}
 
 	offset = ss_frame->header.sense_node * 2 + i;
-	log_info(1, "%s: sync frame ss sense: %d\n", __func__, i);
+	pr_info("%s: sync frame ss sense: %d\n", __func__, i);
 	j = 0;
 	for (; i < offset; i += 2) {
 		ss_frame->sense_data[j] =
@@ -1669,10 +1823,9 @@ goto_end:
 			kfree(ss_frame->sense_data);
 			ss_frame->sense_data = NULL;
 		}
-		log_info(1, "%s: Getting Sync Frame FAILED! ERROR %08X!\n",
-					__func__, res);
+		pr_err("%s: Getting Sync Frame FAILED! ERROR %08X!\n", __func__, res);
 	} else
-		log_info(1, "%s: Getting Sync Frame Finished!!\n", __func__);
+		pr_info("%s: Getting Sync Frame Finished!!\n", __func__);
 
 	return res;
 }
@@ -1693,58 +1846,57 @@ int get_mutual_cx_data(u8 type, struct mutual_sense_cx_data *ms_cx_data)
 
 	ms_cx_data->node_data = NULL;
 	if (!(type == HDM_REQ_CX_MS_TOUCH || type == HDM_REQ_CX_MS_LOW_POWER)) {
-		log_info(1,
-			"%s: Choose a MS type of compensation data ERROR %08X\n",
+		pr_err("%s: Choose a MS type of compensation data ERROR %08X\n",
 			__func__, ERROR_OP_NOT_ALLOW | ERROR_GET_CX);
 		return ERROR_OP_NOT_ALLOW | ERROR_GET_CX;
 	}
 
 	res = read_hdm_header(type, header_data);
 	if (res < OK) {
-		log_info(1, "%s: read hdm header error\n", __func__);
+		pr_err("%s: read hdm header error\n", __func__);
 		return res | ERROR_GET_CX;
 	}
 
 	ms_cx_data->header.force_node = header_data[4];
 	ms_cx_data->header.sense_node = header_data[5];
 	ms_cx_data->header.type = type;
-	log_info(1, "%s: tx_count: %d rx_count: %d\n", __func__,
+	pr_info("%s: tx_count: %d rx_count: %d\n", __func__,
 		ms_cx_data->header.force_node, ms_cx_data->header.sense_node);
 	if (ms_cx_data->header.force_node == 0x00 ||
 		ms_cx_data->header.sense_node == 0x00 ||
 		ms_cx_data->header.force_node == 0xFF ||
 		ms_cx_data->header.sense_node == 0xFF) {
-		log_info(1,
-		"%s: force/sense length cannot be empty.Invalid header\n");
+		pr_err("%s: force/sense length cannot be empty.Invalid header\n",
+			__func__);
 		return ERROR_CH_LEN | ERROR_GET_CX;
 	}
 
 	ms_cx_data->cx1 = header_data[8];
-	log_info(1, "%s: cx1: %d\n", __func__, ms_cx_data->cx1);
+	pr_info("%s: cx1: %d\n", __func__, ms_cx_data->cx1);
 	ms_cx_data->node_data_size = ms_cx_data->header.force_node *
 				ms_cx_data->header.sense_node;
 	address = FRAME_BUFFER_ADDR + COMP_HEADER_SIZE;
-	log_info(1, "%s: compensation data address: 0x%04X, size: %d\n",
-			__func__, address, ms_cx_data->node_data_size);
+	pr_info("%s: compensation data address: 0x%04X, size: %d\n",
+		__func__, address, ms_cx_data->node_data_size);
 
 	ms_cx_data->node_data = (i8 *)kmalloc(ms_cx_data->node_data_size *
 						(sizeof(i8)), GFP_KERNEL);
 	if (ms_cx_data->node_data == NULL) {
-		log_info(1, "%s: can not allocate node_data... ERROR %08X",
-					__func__, ERROR_ALLOC);
+		pr_err("%s: can not allocate node_data... ERROR %08X",
+			__func__, ERROR_ALLOC);
 		return ERROR_ALLOC;
 	}
 
 	res = fts_read_hdm(address, ms_cx_data->node_data,
 				ms_cx_data->node_data_size);
 	if (res < OK) {
-		log_info(1, "%s: sync frame read ERROR %08X\n",
+		pr_err("%s: sync frame read ERROR %08X\n",
 			__func__, ERROR_ALLOC | ERROR_GET_FRAME);
 		kfree(ms_cx_data->node_data);
 		ms_cx_data->node_data = NULL;
 		return ERROR_ALLOC | ERROR_GET_FRAME;
 	}
-	log_info(1, "%s: Read Mutual CX data done!!\n", __func__);
+	pr_info("%s: Read Mutual CX data done!!\n", __func__);
 	return OK;
 
 }
@@ -1772,30 +1924,29 @@ int get_self_cx_data(u8 type, struct self_sense_cx_data *ss_cx_data)
 
 	if (!(type == HDM_REQ_CX_SS_TOUCH ||
 		type == HDM_REQ_CX_SS_TOUCH_IDLE)) {
-		log_info(1,
-			"%s: Choose a SS type of compensation data ERROR %08X\n",
+		pr_err("%s: Choose a SS type of compensation data ERROR %08X\n",
 			__func__, ERROR_OP_NOT_ALLOW | ERROR_GET_CX);
 		return ERROR_OP_NOT_ALLOW | ERROR_GET_CX;
 	}
 
 	res = read_hdm_header(type, header_data);
 	if (res < OK) {
-		log_info(1, "%s: read hdm header error\n", __func__);
+		pr_err("%s: read hdm header error\n", __func__);
 		return res | ERROR_GET_CX;
 	}
 
 	ss_cx_data->header.force_node = header_data[4];
 	ss_cx_data->header.sense_node = header_data[5];
 	ss_cx_data->header.type = type;
-	log_info(1, "%s: tx_count: %d rx_count: %d\n", __func__,
-			ss_cx_data->header.force_node,
-			ss_cx_data->header.sense_node);
+	pr_info("%s: tx_count: %d rx_count: %d\n", __func__,
+		ss_cx_data->header.force_node,
+		ss_cx_data->header.sense_node);
 	if (ss_cx_data->header.force_node == 0x00 ||
 		ss_cx_data->header.sense_node == 0x00 ||
 		ss_cx_data->header.force_node == 0xFF ||
 		ss_cx_data->header.sense_node == 0xFF) {
-		log_info(1,
-		"%s: force/sense length cannot be empty.Invalid header\n");
+		pr_err("%s: force/sense length cannot be empty.Invalid header\n",
+			__func__);
 		return ERROR_CH_LEN | ERROR_GET_CX;
 	}
 	ss_cx_data->tx_ix0 = header_data[8];
@@ -1806,11 +1957,10 @@ int get_self_cx_data(u8 type, struct self_sense_cx_data *ss_cx_data)
 	ss_cx_data->rx_max_n = header_data[13];
 	ss_cx_data->tx_cx1 = (i8)header_data[14];
 	ss_cx_data->rx_cx1 = (i8)header_data[15];
-	log_info(1,
-		"%s: tx_ix1 = %d rx_ix1 = %d  tx_cx1 = %d  rx_cx1 = %d\n",
+	pr_info("%s: tx_ix1 = %d rx_ix1 = %d  tx_cx1 = %d  rx_cx1 = %d\n",
 		__func__, ss_cx_data->tx_ix1, ss_cx_data->rx_ix1,
 		ss_cx_data->tx_cx1, ss_cx_data->rx_cx1);
-	log_info(1, "%s: tx_max_n = %d  rx_max_n = %d tx_ix0 = %d  rx_ix0 = %d\n",
+	pr_info("%s: tx_max_n = %d  rx_max_n = %d tx_ix0 = %d  rx_ix0 = %d\n",
 		__func__, ss_cx_data->tx_max_n, ss_cx_data->rx_max_n,
 		ss_cx_data->tx_ix0, ss_cx_data->rx_ix0);
 
@@ -1818,19 +1968,19 @@ int get_self_cx_data(u8 type, struct self_sense_cx_data *ss_cx_data)
 			(ss_cx_data->header.sense_node * 2);
 	data = (u8 *)kmalloc(size * (sizeof(u8)), GFP_KERNEL);
 	if (data == NULL) {
-		log_info(1, "%s: ERROR %08X\n", __func__,
-				ERROR_ALLOC | ERROR_GET_FRAME);
+		pr_err("%s: ERROR %08X\n", __func__,
+			ERROR_ALLOC | ERROR_GET_FRAME);
 		return ERROR_ALLOC | ERROR_GET_CX;
 	}
 
 	address = FRAME_BUFFER_ADDR + COMP_HEADER_SIZE;
-	log_info(1, "%s: compensation data address: 0x%04X, size: %d\n",
-			__func__, address, size);
+	pr_info("%s: compensation data address: 0x%04X, size: %d\n",
+		__func__, address, size);
 
 	res = fts_read_hdm(address, data, size);
 	if (res < OK) {
-		log_info(1, "%s: sync frame read ERROR %08X\n", __func__,
-				ERROR_ALLOC | ERROR_GET_FRAME);
+		pr_err("%s: sync frame read ERROR %08X\n",
+			__func__, ERROR_ALLOC | ERROR_GET_FRAME);
 		kfree(data);
 		data = NULL;
 		return ERROR_ALLOC | ERROR_GET_CX;
@@ -1839,32 +1989,32 @@ int get_self_cx_data(u8 type, struct self_sense_cx_data *ss_cx_data)
 	ss_cx_data->ix2_tx = (u8 *)kmalloc(ss_cx_data->header.force_node *
 						(sizeof(i8)), GFP_KERNEL);
 	if (ss_cx_data->ix2_tx == NULL) {
-		log_info(1, "%s: can not allocate node_data... ERROR %08X",
-				__func__, ERROR_ALLOC);
+		pr_err("%s: can not allocate node_data... ERROR %08X",
+			__func__, ERROR_ALLOC);
 		res = ERROR_ALLOC | ERROR_GET_CX;
 		goto goto_end;
 	}
 	ss_cx_data->ix2_rx = (u8 *)kmalloc(ss_cx_data->header.sense_node *
 						(sizeof(i8)), GFP_KERNEL);
 	if (ss_cx_data->ix2_rx == NULL) {
-		log_info(1, "%s: can not allocate node_data... ERROR %08X",
-				__func__, ERROR_ALLOC);
+		pr_err("%s: can not allocate node_data... ERROR %08X",
+			__func__, ERROR_ALLOC);
 		res = ERROR_ALLOC | ERROR_GET_CX;
 		goto goto_end;
 	}
 	ss_cx_data->cx2_tx = (i8 *)kmalloc(ss_cx_data->header.force_node *
 						(sizeof(i8)), GFP_KERNEL);
 	if (ss_cx_data->cx2_tx == NULL) {
-		log_info(1, "%s: can not allocate node_data... ERROR %08X",
-					__func__, ERROR_ALLOC);
+		pr_err("%s: can not allocate node_data... ERROR %08X",
+			__func__, ERROR_ALLOC);
 		res = ERROR_ALLOC | ERROR_GET_CX;
 		goto goto_end;
 	}
 	ss_cx_data->cx2_rx = (i8 *)kmalloc(ss_cx_data->header.sense_node *
 						(sizeof(i8)), GFP_KERNEL);
 	if (ss_cx_data->cx2_rx == NULL) {
-		log_info(1, "%s: can not allocate node_data... ERROR %08X",
-				__func__, ERROR_ALLOC);
+		pr_err("%s: can not allocate node_data... ERROR %08X",
+			__func__, ERROR_ALLOC);
 		res = ERROR_ALLOC | ERROR_GET_CX;
 		goto goto_end;
 	}
@@ -1900,7 +2050,7 @@ goto_end:
 			ss_cx_data->cx2_rx = NULL;
 		}
 	} else
-		log_info(1, "%s: Read Self CX data done!!\n", __func__);
+		pr_info("%s: Read Self CX data done!!\n", __func__);
 
 	return res;
 
@@ -1925,48 +2075,48 @@ int get_mutual_total_cx_data(u8 type, struct mutual_total_cx_data *tot_ms_cx_dat
 	tot_ms_cx_data->node_data = NULL;
 	if (!(type == HDM_REQ_TOT_CX_MS_TOUCH ||
 		type == HDM_REQ_TOT_CX_MS_LOW_POWER)) {
-		log_info(1,
-			"%s: Choose a MS total type of compensation data ERROR %08X\n",
+		pr_err("%s: Choose a MS total type of compensation data ERROR %08X\n",
 			__func__, ERROR_OP_NOT_ALLOW);
 		return ERROR_OP_NOT_ALLOW;
 	}
 
 	res = read_hdm_header(type, header_data);
 	if (res < OK) {
-		log_info(1, "%s: read hdm header error\n", __func__);
+		pr_err("%s: read hdm header error\n", __func__);
 		return res | ERROR_GET_CX;
 	}
 
 	tot_ms_cx_data->header.force_node = header_data[4];
 	tot_ms_cx_data->header.sense_node = header_data[5];
 	tot_ms_cx_data->header.type = type;
-	log_info(1, "%s: tx_count: %d rx_count: %d\n", __func__,
+	pr_info("%s: tx_count: %d rx_count: %d\n", __func__,
 		tot_ms_cx_data->header.force_node,
 		tot_ms_cx_data->header.sense_node);
 	if (tot_ms_cx_data->header.force_node == 0x00 ||
 		tot_ms_cx_data->header.sense_node == 0x00 ||
 		tot_ms_cx_data->header.force_node == 0xFF ||
 		tot_ms_cx_data->header.sense_node == 0xFF) {
-		log_info(1, "%s: force/sense length cannot be empty.. Invalid sysn frame header\n");
+		pr_err("%s: force/sense length cannot be empty.. Invalid sysn frame header\n",
+			__func__);
 		return ERROR_CH_LEN | ERROR_GET_CX;
 	}
 
 	size = tot_ms_cx_data->header.force_node *
 		tot_ms_cx_data->header.sense_node * 2;
 	address = FRAME_BUFFER_ADDR + COMP_HEADER_SIZE;
-	log_info(1, "%s: compensation data address: 0x%04X, size: %d\n",
+	pr_info("%s: compensation data address: 0x%04X, size: %d\n",
 		__func__, address, size);
 
 	data = (u8 *)kmalloc(size * sizeof(u8), GFP_KERNEL);
 	if (data == NULL) {
-		log_info(1, "%s: can not allocate node_data... ERROR %08X",
-		__func__, ERROR_ALLOC);
+		pr_err("%s: can not allocate node_data... ERROR %08X",
+			__func__, ERROR_ALLOC);
 		return ERROR_ALLOC | ERROR_GET_CX;
 	}
 
 	res = fts_read_hdm(address, data, size);
 	if (res < OK) {
-		log_info(1, "%s: Total Mutual CX read ERROR %08X\n", __func__,
+		pr_err("%s: Total Mutual CX read ERROR %08X\n", __func__,
 			ERROR_ALLOC | ERROR_GET_FRAME);
 		kfree(tot_ms_cx_data->node_data);
 		tot_ms_cx_data->node_data = NULL;
@@ -1978,8 +2128,8 @@ int get_mutual_total_cx_data(u8 type, struct mutual_total_cx_data *tot_ms_cx_dat
 					tot_ms_cx_data->node_data_size *
 					(sizeof(short)), GFP_KERNEL);
 	if (tot_ms_cx_data->node_data == NULL) {
-		log_info(1, "%s: can not allocate node_data... ERROR %08X",
-		__func__, ERROR_ALLOC);
+		pr_err("%s: can not allocate node_data... ERROR %08X",
+			__func__, ERROR_ALLOC);
 		return ERROR_ALLOC;
 	}
 
@@ -1989,7 +2139,7 @@ int get_mutual_total_cx_data(u8 type, struct mutual_total_cx_data *tot_ms_cx_dat
 		j++;
 	}
 
-	log_info(1, "%s: Read Mutual Total CX data done!!\n", __func__);
+	pr_info("%s: Read Mutual Total CX data done!!\n", __func__);
 	return OK;
 
 }
@@ -2015,29 +2165,29 @@ int get_self_total_cx_data(u8 type, struct self_total_cx_data *tot_ss_cx_data)
 
 	if (!(type == HDM_REQ_TOT_IX_SS_TOUCH ||
 		type == HDM_REQ_TOT_IX_SS_TOUCH_IDLE)) {
-		log_info(1,
-			"%s: Choose a SS type of compensation data ERROR %08X\n",
+		pr_err("%s: Choose a SS type of compensation data ERROR %08X\n",
 			__func__, ERROR_OP_NOT_ALLOW | ERROR_GET_CX);
 		return ERROR_OP_NOT_ALLOW | ERROR_GET_CX;
 	}
 
 	res = read_hdm_header(type, header_data);
 	if (res < OK) {
-		log_info(1, "%s: read hdm header error\n", __func__);
+		pr_err("%s: read hdm header error\n", __func__);
 		return res | ERROR_GET_CX;
 	}
 
 	tot_ss_cx_data->header.force_node = header_data[4];
 	tot_ss_cx_data->header.sense_node = header_data[5];
 	tot_ss_cx_data->header.type = type;
-	log_info(1, "%s: tx_count: %d rx_count: %d\n", __func__,
+	pr_info("%s: tx_count: %d rx_count: %d\n", __func__,
 		tot_ss_cx_data->header.force_node,
 		tot_ss_cx_data->header.sense_node);
 	if (tot_ss_cx_data->header.force_node == 0x00 ||
 		tot_ss_cx_data->header.sense_node == 0x00 ||
 		tot_ss_cx_data->header.force_node == 0xFF ||
 		tot_ss_cx_data->header.sense_node == 0xFF) {
-		log_info(1, "%s: force/sense length cannot be empty.. Invalid sysn frame header\n");
+		pr_err("%s: force/sense length cannot be empty.. Invalid sysn frame header\n",
+			__func__);
 		return ERROR_CH_LEN | ERROR_GET_CX;
 	}
 
@@ -2045,18 +2195,17 @@ int get_self_total_cx_data(u8 type, struct self_total_cx_data *tot_ss_cx_data)
 		(tot_ss_cx_data->header.sense_node * 2);
 	data = (u8 *)kmalloc(size * (sizeof(u8)), GFP_KERNEL);
 	if (data == NULL) {
-		log_info(1, "%s: ERROR %08X\n", __func__,
-		ERROR_ALLOC | ERROR_GET_FRAME);
+		pr_err("%s: ERROR %08X\n", __func__, ERROR_ALLOC | ERROR_GET_FRAME);
 		return ERROR_ALLOC | ERROR_GET_CX;
 	}
 
 	address = FRAME_BUFFER_ADDR + COMP_HEADER_SIZE;
-	log_info(1, "%s: compensation data address: 0x%04X, size: %d\n",
+	pr_info("%s: compensation data address: 0x%04X, size: %d\n",
 		__func__, address, size);
 
 	res = fts_read_hdm(address, data, size);
 	if (res < OK) {
-		log_info(1, "%s: self cx read ERROR %08X\n", __func__,
+		pr_err("%s: self cx read ERROR %08X\n", __func__,
 			ERROR_ALLOC | ERROR_GET_FRAME);
 		kfree(data);
 		data = NULL;
@@ -2066,7 +2215,7 @@ int get_self_total_cx_data(u8 type, struct self_total_cx_data *tot_ss_cx_data)
 	tot_ss_cx_data->ix_tx = (u16 *)kmalloc(tot_ss_cx_data->header.force_node
 				 * (sizeof(u16)), GFP_KERNEL);
 	if (tot_ss_cx_data->ix_tx == NULL) {
-		log_info(1, "%s: can not allocate node_data... ERROR %08X",
+		pr_err("%s: can not allocate node_data... ERROR %08X",
 			__func__, ERROR_ALLOC);
 		res = ERROR_ALLOC | ERROR_GET_CX;
 		goto goto_end;
@@ -2074,7 +2223,7 @@ int get_self_total_cx_data(u8 type, struct self_total_cx_data *tot_ss_cx_data)
 	tot_ss_cx_data->ix_rx = (u16 *)kmalloc(tot_ss_cx_data->header.sense_node
 				* (sizeof(u16)), GFP_KERNEL);
 	if (tot_ss_cx_data->ix_rx == NULL) {
-		log_info(1, "%s: can not allocate node_data... ERROR %08X",
+		pr_err("%s: can not allocate node_data... ERROR %08X",
 			__func__, ERROR_ALLOC);
 		res = ERROR_ALLOC | ERROR_GET_CX;
 		goto goto_end;
@@ -2106,8 +2255,128 @@ goto_end:
 			tot_ss_cx_data->ix_rx = NULL;
 		}
 	} else
-		log_info(1, "%s: Read Self CX data done!!\n", __func__);
+		pr_info("%s: Read Self CX data done!!\n", __func__);
 
 	return res;
 
 }
+
+static int fts_validate_hdm_frame_data(struct frame_data *frame_data)
+{
+	u8 *data = NULL;
+	u8 sum = 0;
+	bool non_zero = false;
+
+	if (frame_data->header->head_count != frame_data->footer->tail_count) {
+		pr_warn("%s: read frame data ERROR, invalid data\n", __func__);
+		return ERROR_OP_NOT_ALLOW;
+	}
+
+	data = (u8*)frame_data->header;
+	while (data <= &frame_data->footer->checksum) {
+		sum += data[0];
+		if (sum != 0) non_zero = true;
+		data++;
+	}
+
+	if (sum != 0 || !non_zero) {
+		pr_err("%s: read frame data ERROR, checksum error\n",
+				__func__);
+		return ERROR_OP_NOT_ALLOW;
+	}
+
+	return 0;
+}
+
+int fts_read_hdm_frame_data(void)
+{
+	int res = OK;
+	struct fts_ts_info *info = dev_get_drvdata(&(get_client()->dev));
+	struct frame_data *frame_data = &info->frame_data;
+	u8* frame_data_buff = info->frame_data_buff;
+	int frame_data_size = info->frame_data_size;
+	u8 *data = NULL;
+	int data_size = 0;
+	int event_count = 0;
+
+	res = fts_read_hdm(FRAME_BUFFER_ADDR, frame_data_buff, frame_data_size);
+	if (res < OK) {
+		pr_err("%s: read frame data ERROR %08X\n", __func__, res);
+		return res;
+	}
+
+	if (frame_data->header->type != HDM_REQ_FRAME_DATA) {
+		pr_info("%s: read invalid type of hdm, try to read fifo\n", __func__);
+		res = fts_read_all_fw_fifo(&data, &data_size, &event_count);
+		if (res != OK || event_count == 0) {
+			frame_data->header->event_count = 0;
+			return res;
+		}
+		memcpy(frame_data->events, data, data_size);
+		frame_data->header->event_count = event_count;
+		kfree(data);
+		frame_data->last_frame_id = 0xFF;
+		return 0;
+	}
+
+	res = fts_validate_hdm_frame_data(frame_data);
+	if (res != 0)
+		return res;
+
+	if (frame_data->last_frame_id == frame_data->header->head_count) {
+		pr_warn("%s: skip repeated frame\n", __func__);
+		frame_data->header->event_count = 0;
+		return ERROR_OP_NOT_ALLOW;
+	}
+	frame_data->last_frame_id = frame_data->header->head_count;
+
+	return res;
+}
+
+int fts_set_fw_settings(fw_settings_type_t type, u8 setting)
+{
+	int res = 0;
+	u8 data[2] = { 0  };
+
+	pr_info("%s: type: 0x%02X, setting: %d...\n", __func__, type, setting);
+
+	data[0] = type;
+	data[1] = setting;
+	res = fts_write_fw_reg(FW_SETTINGS_ADDR, data, 2);
+	if (res < OK) {
+		pr_err("%s: ERROR %08X\n", __func__, res);
+		return res;
+	}
+	return res;
+}
+
+#if !defined(I2C_INTERFACE) && defined(ANGSANA)
+/**
+ * Inform the size of data for next FW registers access.
+ * @param len size of data to write/read. maximum 65535 bytes
+ * @return OK if success or error code which specify the type of error
+ */
+int fts_fw_data_length_cmd(int length) {
+	int res = OK;
+	u8 cmd[7] = { 0 };
+	u32 data = length - 1;
+	if (data > 0xFFFF) {
+		pr_info("%s: ERROR %08X\n", __func__, ERROR_OP_NOT_ALLOW);
+		return ERROR_OP_NOT_ALLOW;
+	}
+
+	cmd[0] = FTS_CMD_HW_REG_W;
+	cmd[1] = 0x20;
+	cmd[2] = 0x01;
+	cmd[3] = 0xC0;
+	cmd[4] = 0x12;
+	cmd[5] = (data & 0x00FF) >> 0;
+	cmd[6] = (data & 0xFF00) >> 8;
+	res = fts_write_no_lock(cmd, 7);
+	if (res < OK) {
+		pr_info("%s: ERROR %08X\n", __func__, res);
+	}
+
+	return res;
+}
+#endif

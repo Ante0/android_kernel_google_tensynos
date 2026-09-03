@@ -41,16 +41,20 @@ obj-$(CONFIG_USB_F_UAC1_LEGACY)	+= usb_f_uac1_legacy.o
 usb_f_uac2-y			:= f_uac2.o
 obj-$(CONFIG_USB_F_UAC2)	+= usb_f_uac2.o
 usb_f_uvc-y			:= f_uvc.o uvc_queue.o uvc_v4l2.o uvc_video.o uvc_configfs.o
+ifneq ($(CONFIG_TRACING),)
+    CFLAGS_uvc_trace.o		:= -I$(src)
+    usb_f_uvc-y			+= uvc_trace.o
+endif
 obj-$(CONFIG_USB_F_UVC)		+= usb_f_uvc.o
 usb_f_midi-y			:= f_midi.o
 obj-$(CONFIG_USB_F_MIDI)	+= usb_f_midi.o
+usb_f_midi2-y			:= f_midi2.o
+obj-$(CONFIG_USB_F_MIDI2)	+= usb_f_midi2.o
 usb_f_hid-y			:= f_hid.o
 obj-$(CONFIG_USB_F_HID)		+= usb_f_hid.o
 usb_f_printer-y			:= f_printer.o
 obj-$(CONFIG_USB_F_PRINTER)	+= usb_f_printer.o
 usb_f_tcm-y			:= f_tcm.o
 obj-$(CONFIG_USB_F_TCM)		+= usb_f_tcm.o
-usb_f_accessory-y		:= f_accessory.o
-obj-$(CONFIG_USB_F_ACC)		+= usb_f_accessory.o
-usb_f_audio_source-y		:= f_audio_source.o
-obj-$(CONFIG_USB_F_AUDIO_SRC)	+= usb_f_audio_source.o
+usb_f_acc-y			:= android_f_accessory.o
+obj-$(CONFIG_ANDROID_USB_F_ACC)	+= usb_f_acc.o

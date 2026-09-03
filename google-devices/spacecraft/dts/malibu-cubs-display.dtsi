@@ -1,0 +1,93 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * cubs display device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+&lsioe_i2c4 {
+	status = "ok";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <400000>;
+	tps628600: tps628600@40 {
+		compatible = "ti,tps628600";
+		reg = <0x40>;
+		status = "okay";
+		regulator-name = "tps628600-reg";
+		enable-gpios = <PMICS2DISP0_BUCK_EN(GPIO_ACTIVE_HIGH)>;
+	};
+};
+
+&dpu {
+	pinctrl-0 = <&disp0_2_ap_te>;
+	pinctrl-names = "default";
+};
+
+&gs_dsi0_connector {
+	google,preferred-panel = <&google_gs_dcsda>;
+
+	google_gs_flea: panel-gs-flea {
+
+		compatible = "google,gs-flea";
+		label = "google-flea";
+		channel = <0>;
+
+		/* reset, power */
+		reset-gpios = <PMICS2DISP0_RESET_L(GPIO_ACTIVE_HIGH)>;
+		vci-supply = <&ldo_18s_reg>;
+		vddi-supply = <&buck_12s_reg>;
+	};
+
+	google_gs_fleb: panel-gs-fleb {
+
+		compatible = "google,gs-fleb";
+		label = "google-fleb";
+		channel = <0>;
+
+		/* reset, power */
+		reset-gpios = <PMICS2DISP0_RESET_L(GPIO_ACTIVE_HIGH)>;
+		vci-supply = <&ldo_18s_reg>;
+		vddi-supply = <&buck_12s_reg>;
+	};
+
+	google_gs_dcsda: panel-gs-dcsda {
+		compatible = "google,gs-dcsda";
+		label = "google-dcsda";
+		channel = <0>;
+		allowed-hs-clks = <756 740>;
+
+		/* reset, power */
+		reset-gpios = <PMICS2DISP0_RESET_L(GPIO_ACTIVE_HIGH)>;
+		tout-gpios = <DISP0_2_AP_PROX0_TOUT(GPIO_ACTIVE_HIGH)>;
+		err_fg-gpios = <DISP0_2_AP_ERR_FG(GPIO_ACTIVE_HIGH)>;
+		vci-supply = <&ldo_18s_reg>;
+		vddi-supply = <&buck_12s_reg>;
+		vddd-supply = <&tps628600>;
+		vddd-normal-microvolt = <1000000>;
+		vddd-lp-microvolt     = <962500>;
+	};
+
+	google_gs_dcsdb: panel-gs-dcsdb {
+		compatible = "google,gs-dcsdb";
+		label = "google-dcsdb";
+		channel = <0>;
+		allowed-hs-clks = <756 740>;
+
+		/* reset, power */
+		reset-gpios = <PMICS2DISP0_RESET_L(GPIO_ACTIVE_HIGH)>;
+		tout-gpios = <DISP0_2_AP_PROX0_TOUT(GPIO_ACTIVE_HIGH)>;
+		err_fg-gpios = <DISP0_2_AP_ERR_FG(GPIO_ACTIVE_HIGH)>;
+		vci-supply = <&ldo_18s_reg>;
+		vddi-supply = <&buck_12s_reg>;
+		vddd-supply = <&tps628600>;
+		vddd-normal-microvolt = <1112500>;
+		vddd-lp-microvolt     = <1062500>;
+	};
+};
+
+&dsi2h0 {
+	datarate = <756>;
+};

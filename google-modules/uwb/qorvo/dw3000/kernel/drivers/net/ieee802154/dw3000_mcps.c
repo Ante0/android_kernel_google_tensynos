@@ -111,7 +111,7 @@ static int do_start(struct dw3000 *dw, const void *in, void *out)
 #if (KERNEL_VERSION(4, 13, 0) <= LINUX_VERSION_CODE)
 	struct spi_controller *ctlr = dw->spi->controller;
 #else
-	struct spi_master *ctlr = dw->spi->master;
+	struct spi_controller *ctlr = dw->spi->controller;
 #endif
 	const unsigned long changed = (unsigned long)-1;
 	int rc;
@@ -213,7 +213,7 @@ static int do_stop(struct dw3000 *dw, const void *in, void *out)
 #if (KERNEL_VERSION(4, 13, 0) <= LINUX_VERSION_CODE)
 		struct spi_controller *ctlr = dw->spi->controller;
 #else
-		struct spi_master *ctlr = dw->spi->master;
+		struct spi_controller *ctlr = dw->spi->controller;
 #endif
 		pm_runtime_put(ctlr->dev.parent);
 		dw->has_lock_pm = false;
@@ -836,7 +836,7 @@ static int do_set_channel(struct dw3000 *dw, const void *in, void *out)
 	return 0;
 }
 
-int set_channel(struct mcps802154_llhw *llhw, u8 page, u8 channel,
+static int set_channel(struct mcps802154_llhw *llhw, u8 page, u8 channel,
 		u8 preamble_code)
 {
 	unsigned long changed = 0;
@@ -977,8 +977,8 @@ static int check_hrp_uwb_params(struct mcps802154_llhw *llhw,
 	return 0;
 }
 
-int set_hrp_uwb_params(struct mcps802154_llhw *llhw,
-		       const struct mcps802154_hrp_uwb_params *params)
+static int set_hrp_uwb_params(struct mcps802154_llhw *llhw,
+			      const struct mcps802154_hrp_uwb_params *params)
 {
 	unsigned long changed = 0;
 	struct dw3000 *dw = llhw->priv;

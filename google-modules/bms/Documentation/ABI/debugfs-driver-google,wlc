@@ -1,0 +1,39 @@
+What:		/sys/kernel/debug/vrect
+Contact:	pixel-bms-sw@google.com
+Description:
+		Read only, VRECT value
+
+What:		/sys/kernel/debug/capdiv_mode
+Contact:	pixel-bms-sw@google.com
+Description:
+		Read/write Cap divider mode. 0 = invalid, 1 = fast/switching, 2 = normal/bypass,
+
+What:		/sys/kernel/debug/ept
+Contact:	pixel-bms-sw@google.com
+Description:
+		Write only, send EPT. Value = EPT code
+
+What:		/sys/kernel/debug/inhibit
+Contact:	pixel-bms-sw@google.com
+Description:
+		Read only, inhibit GPIO value
+
+What:		/sys/kernel/debug/online_disable
+Contact:	pixel-bms-sw@google.com
+Description:
+		u32, disable online detection for manual i2c control or FW update
+
+What:		/sys/kernel/debug/icl_ramp_disable
+Contact:	pixel-bms-sw@google.com
+Description:
+		u32, disable ICL ramp for manual ICL control
+
+What:		/sys/kernel/debug/enable_i2c_debug
+Contact:	pixel-bms-sw@google.com
+Description:
+		u32, enable all i2c transactions to print into the kernel log
+
+What:		/sys/kernel/debug/fake_recharge_en
+Contact:	pixel-bms-sw@google.com
+Description:
+		u32, enable test feature to enter cloak at 100% SOC and exit at 95%

@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config GOOGLE_GPU_PF_STATE
+	tristate "Google GPU PF STATE driver"
+	depends on ARCH_GOOGLE
+	depends on GOOGLE_DVFS_HELPER
+	help
+	  This is Google GPU PF STATE driver. This driver
+	  allows clients to change power frequency of GPU by
+	  providing a common clock framework interface.
+	  If unsure select "N".
+
+config GOOGLE_PF_STATE_CPM
+	tristate "PF State CPM driver"
+	depends on ARCH_GOOGLE
+	depends on GOOGLE_DVFS_HELPER
+	help
+	  This driver allows clients to change power frequency
+	  of some SSWRPs by providing a common clock framework interface.
+	  Given a frequency, it sends a MBA message to CPM to ask CPM
+	  to set the corresponding power frequency state (pf state) of LPCM.

@@ -1,0 +1,136 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ *
+ * Copyright 2024 Google LLC
+*/
+
+/dts-v1/;
+/plugin/;
+
+&aoss_aon_multicast_aggr_4 {
+	status = "disabled";
+};
+
+&aoss_aon_multicast_aggr_4_test {
+	status = "disabled";
+};
+
+&codec_3p_multicast_aggr_0 {
+	status = "disabled";
+};
+
+&codec_3p_multicast_aggr_0_test {
+	status = "disabled";
+};
+
+&g2d_multicast_aggr_0 {
+	status = "disabled";
+};
+
+&g2d_multicast_aggr_0_test {
+	status = "disabled";
+};
+
+&aurora_pulse_aggr_0 {
+	status = "disabled";
+};
+
+&aurora_pulse_aggr_0_test {
+	status = "disabled";
+};
+
+&gsa_pulse_aggr_2 {
+	status = "disabled";
+};
+
+&gsa_pulse_aggr_2_test {
+	status = "disabled";
+};
+
+&gsa_level_aggr_1 {
+	status = "disabled";
+};
+
+&gsa_level_aggr_1_test {
+	status = "disabled";
+};
+
+&lsioe_multicast_aggr_1 {
+	status = "disabled";
+};
+
+&lsioe_multicast_aggr_1_test {
+	status = "disabled";
+};
+
+&lsioe_multicast_aggr_2 {
+	status = "disabled";
+};
+
+&lsioe_multicast_aggr_2_test {
+	status = "disabled";
+};
+
+&lsios_multicast_aggr_1 {
+	status = "disabled";
+};
+
+&lsios_multicast_aggr_1_test {
+	status = "disabled";
+};
+
+&lsios_multicast_aggr_2 {
+	status = "disabled";
+};
+
+&lsios_multicast_aggr_2_test {
+	status = "disabled";
+};
+
+&lsios_multicast_aggr_3 {
+	status = "disabled";
+};
+
+&lsios_multicast_aggr_3_test {
+	status = "disabled";
+};
+
+&lsios_multicast_aggr_4 {
+	status = "disabled";
+};
+
+&lsios_multicast_aggr_4_test {
+	status = "disabled";
+};
+
+&pcie_multicast_aggr_3_test {
+	status = "disabled";
+};
+
+&pcie_multicast_aggr_5_test {
+	status = "disabled";
+};
+
+&pcie_pulse_aggr_2_test {
+	status = "disabled";
+};
+
+&pcie_level_aggr_1_test {
+	status = "disabled";
+};
+
+&tpu_level_aggr_0 {
+	status = "disabled";
+};
+
+&tpu_level_aggr_0_test {
+	status = "disabled";
+};
+
+&tpu_pulse_aggr_0 {
+	status = "disabled";
+};
+
+&tpu_pulse_aggr_0_test {
+	status = "disabled";
+};

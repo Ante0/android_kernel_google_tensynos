@@ -21,13 +21,26 @@
  * @valid:		Mark the data valid/invalid
  * @package_id:	Package id for this instance
  * @die_id:		Die id for this instance
+ * @domain_id:		Power domain id for this instance
+ * @cluster_id:		cluster id in a domain
+ * @instance_id:	Unique instance id to append to directory name
  * @name:		Sysfs entry name for this instance
  * @uncore_attr_group:	Attribute group storage
- * @max_freq_khz_dev_attr: Storage for kobject attribute max_freq_khz
- * @mix_freq_khz_dev_attr: Storage for kobject attribute min_freq_khz
- * @initial_max_freq_khz_dev_attr: Storage for kobject attribute initial_max_freq_khz
- * @initial_min_freq_khz_dev_attr: Storage for kobject attribute initial_min_freq_khz
- * @current_freq_khz_dev_attr: Storage for kobject attribute current_freq_khz
+ * @max_freq_khz_kobj_attr: Storage for kobject attribute max_freq_khz
+ * @mix_freq_khz_kobj_attr: Storage for kobject attribute min_freq_khz
+ * @initial_max_freq_khz_kobj_attr: Storage for kobject attribute initial_max_freq_khz
+ * @initial_min_freq_khz_kobj_attr: Storage for kobject attribute initial_min_freq_khz
+ * @current_freq_khz_kobj_attr: Storage for kobject attribute current_freq_khz
+ * @domain_id_kobj_attr: Storage for kobject attribute domain_id
+ * @fabric_cluster_id_kobj_attr: Storage for kobject attribute fabric_cluster_id
+ * @package_id_kobj_attr: Storage for kobject attribute package_id
+ * @elc_low_threshold_percent_kobj_attr:
+		Storage for kobject attribute elc_low_threshold_percent
+ * @elc_high_threshold_percent_kobj_attr:
+		Storage for kobject attribute elc_high_threshold_percent
+ * @elc_high_threshold_enable_kobj_attr:
+		Storage for kobject attribute elc_high_threshold_enable
+ * @elc_floor_freq_khz_kobj_attr: Storage for kobject attribute elc_floor_freq_khz
  * @uncore_attrs:	Attribute storage for group creation
  *
  * This structure is used to encapsulate all data related to uncore sysfs
@@ -41,6 +54,9 @@ struct uncore_data {
 	bool valid;
 	int package_id;
 	int die_id;
+	int domain_id;
+	int cluster_id;
+	int instance_id;
 	char name[32];
 
 	struct attribute_group uncore_attr_group;
@@ -49,12 +65,32 @@ struct uncore_data {
 	struct kobj_attribute initial_max_freq_khz_kobj_attr;
 	struct kobj_attribute initial_min_freq_khz_kobj_attr;
 	struct kobj_attribute current_freq_khz_kobj_attr;
-	struct attribute *uncore_attrs[6];
+	struct kobj_attribute domain_id_kobj_attr;
+	struct kobj_attribute fabric_cluster_id_kobj_attr;
+	struct kobj_attribute package_id_kobj_attr;
+	struct kobj_attribute elc_low_threshold_percent_kobj_attr;
+	struct kobj_attribute elc_high_threshold_percent_kobj_attr;
+	struct kobj_attribute elc_high_threshold_enable_kobj_attr;
+	struct kobj_attribute elc_floor_freq_khz_kobj_attr;
+	struct attribute *uncore_attrs[13];
 };
 
-int uncore_freq_common_init(int (*read_control_freq)(struct uncore_data *data, unsigned int *min, unsigned int *max),
-			     int (*write_control_freq)(struct uncore_data *data, unsigned int input, unsigned int min_max),
-			     int (*uncore_read_freq)(struct uncore_data *data, unsigned int *freq));
+#define UNCORE_DOMAIN_ID_INVALID	-1
+
+enum uncore_index {
+	UNCORE_INDEX_MIN_FREQ,
+	UNCORE_INDEX_MAX_FREQ,
+	UNCORE_INDEX_CURRENT_FREQ,
+	UNCORE_INDEX_EFF_LAT_CTRL_LOW_THRESHOLD,
+	UNCORE_INDEX_EFF_LAT_CTRL_HIGH_THRESHOLD,
+	UNCORE_INDEX_EFF_LAT_CTRL_HIGH_THRESHOLD_ENABLE,
+	UNCORE_INDEX_EFF_LAT_CTRL_FREQ,
+};
+
+int uncore_freq_common_init(int (*read)(struct uncore_data *data, unsigned int *value,
+					enum uncore_index index),
+			    int (*write)(struct uncore_data *data, unsigned int input,
+					 enum uncore_index index));
 void uncore_freq_common_exit(void);
 int uncore_freq_add_entry(struct uncore_data *data, int cpu);
 void uncore_freq_remove_die_entry(struct uncore_data *data);

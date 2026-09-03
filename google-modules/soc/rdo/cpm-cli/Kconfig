@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_CPM_CLI
+	tristate "Google CPM command line driver"
+	depends on ARCH_GOOGLE
+	depends on GOOGLE_MBA_CPM_INTERFACE
+	help
+	  Enable support for Google CPM cli driver.
+	  The driver would create a debugfs interface to send command
+	  from AP to CPM.
+	  If unsure select "N".

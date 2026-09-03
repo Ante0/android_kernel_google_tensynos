@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2023 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/pmic/google,da9186-rtc.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Dialog Semiconductor DA9186 PMIC RTC
+
+maintainers:
+  - Ryan Chu <cychu@google.com>
+
+description: |
+  This binding describes the RTC instance inside the DA9186 PMIC.
+
+properties:
+  compatible:
+    const: google,da9186-rtc
+
+  mba-dest-channel:
+    $ref: /schemas/types.yaml#/definitions/uint32-array
+    description: The mailbox tx destination channel.
+    maxItems: 1
+
+  mboxes:
+    description: A mailbox phandle and rx channel specifier.
+    maxItems: 1
+
+required:
+  - compatible
+  - mba-dest-channel
+  - mboxes
+
+additionalProperties: false
+
+examples:
+  - |
+    da9186-rtc {
+        compatible = "google,da91186-rtc";
+        mba-dest-channel = <10>;
+        mboxes = <&mbactrl_ap_cpm 11>;
+    };

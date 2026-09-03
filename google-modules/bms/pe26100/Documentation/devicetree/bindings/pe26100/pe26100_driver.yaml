@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2025 Google LLC
+%YAML 1.2
+---
+
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: pe26100 MFD charger driver
+
+maintainers:
+  - Daniel Okazaki <dtokazaki@google.com>
+  - Prasanna Prapancham <prapancham@google.com>
+
+description: |
+  pe26100 driver.
+
+properties:
+  # A dictionary of DT properties for this binding schema
+  compatible:
+    enum:
+      - pe26100
+
+  reg:
+    description: address of the charger.
+
+  pe26100,preprod:
+    description: indicates a preprod IC, use a different register config then prod devices
+
+required:
+  - compatible
+  - reg
+  - pe26100_buck_charger
+  - pe26100_charge_pump
+  - pe26100_usecase

@@ -16,6 +16,8 @@ enum common_ev_idx {
 	L3_CACHE_MISS_IDX,
 	INST_IDX,
 	CYCLE_IDX,
+	MEM_RD_INST_IDX,
+	MEM_WR_INST_IDX,
 	NUM_COMMON_EVS
 };
 

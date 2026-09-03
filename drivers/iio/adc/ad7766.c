@@ -261,7 +261,7 @@ static int ad7766_probe(struct spi_device *spi)
 		 * don't enable the interrupt to avoid extra load on the system
 		 */
 		ret = devm_request_irq(&spi->dev, spi->irq, ad7766_irq,
-				       IRQF_TRIGGER_FALLING | IRQF_NO_AUTOEN,
+				       IRQF_TRIGGER_FALLING | IRQF_NO_AUTOEN | IRQF_NO_THREAD,
 				       dev_name(&spi->dev),
 				       ad7766->trig);
 		if (ret < 0)
@@ -291,13 +291,13 @@ static int ad7766_probe(struct spi_device *spi)
 }
 
 static const struct spi_device_id ad7766_id[] = {
-	{"ad7766", ID_AD7766},
-	{"ad7766-1", ID_AD7766_1},
-	{"ad7766-2", ID_AD7766_2},
-	{"ad7767", ID_AD7766},
-	{"ad7767-1", ID_AD7766_1},
-	{"ad7767-2", ID_AD7766_2},
-	{}
+	{ "ad7766", ID_AD7766 },
+	{ "ad7766-1", ID_AD7766_1 },
+	{ "ad7766-2", ID_AD7766_2 },
+	{ "ad7767", ID_AD7766 },
+	{ "ad7767-1", ID_AD7766_1 },
+	{ "ad7767-2", ID_AD7766_2 },
+	{ }
 };
 MODULE_DEVICE_TABLE(spi, ad7766_id);
 

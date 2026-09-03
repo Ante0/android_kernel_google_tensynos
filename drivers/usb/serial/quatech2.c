@@ -9,7 +9,7 @@
  *
  */
 
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 #include <linux/errno.h>
 #include <linux/slab.h>
 #include <linux/tty.h>
@@ -175,14 +175,6 @@ static inline int qt2_control_msg(struct usb_device *dev,
 			       request, 0x40, data, index,
 			       NULL, 0, QT2_USB_TIMEOUT);
 }
-
-static inline int qt2_setdevice(struct usb_device *dev, u8 *data)
-{
-	u16 x = ((u16) (data[1] << 8) | (u16) (data[0]));
-
-	return qt2_control_msg(dev, QT_SET_GET_DEVICE, x, 0);
-}
-
 
 static inline int qt2_getregister(struct usb_device *dev,
 				  u8 uart,
@@ -749,7 +741,7 @@ static int qt2_tiocmset(struct tty_struct *tty,
 	return update_mctrl(port_priv, set, clear);
 }
 
-static void qt2_break_ctl(struct tty_struct *tty, int break_state)
+static int qt2_break_ctl(struct tty_struct *tty, int break_state)
 {
 	struct usb_serial_port *port = tty->driver_data;
 	struct qt2_port_private *port_priv;
@@ -762,10 +754,14 @@ static void qt2_break_ctl(struct tty_struct *tty, int break_state)
 
 	status = qt2_control_msg(port->serial->dev, QT2_BREAK_CONTROL,
 				 val, port_priv->device_port);
-	if (status < 0)
+	if (status < 0) {
 		dev_warn(&port->dev,
 			 "%s - failed to send control message: %i\n", __func__,
 			 status);
+		return status;
+	}
+
+	return 0;
 }
 
 
@@ -928,7 +924,6 @@ write_out:
 
 static struct usb_serial_driver qt2_device = {
 	.driver = {
-		.owner = THIS_MODULE,
 		.name = "quatech-serial",
 	},
 	.description	     = DRIVER_DESC,

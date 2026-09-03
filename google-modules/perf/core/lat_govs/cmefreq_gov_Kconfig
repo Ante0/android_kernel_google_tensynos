@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Configurations for CME Frequency Governor.
+#
+
+config GOOGLE_CMEFREQ_GOVERNOR
+        tristate "Google CME Frequency Governor"
+        depends on GS_PERF_MON
+        depends on GOOGLE_PM_QOS
+	depends on PIXEL_CME
+        default n
+        help
+	  The Google CME Frequency Governor is a mechanism to dynamically
+          adjust CME frequencies. When enabled, this governor
+          monitors CME usage and can boost CME frequencies to improve
+          performance.

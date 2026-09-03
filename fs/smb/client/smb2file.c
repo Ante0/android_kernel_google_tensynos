@@ -7,6 +7,7 @@
  *
  */
 #include <linux/fs.h>
+#include <linux/filelock.h>
 #include <linux/stat.h>
 #include <linux/slab.h>
 #include <linux/pagemap.h>
@@ -20,7 +21,7 @@
 #include "cifs_unicode.h"
 #include "fscache.h"
 #include "smb2proto.h"
-#include "smb2status.h"
+#include "../common/smb2status.h"
 
 static struct smb2_symlink_err_rsp *symlink_data(const struct kvec *iov)
 {
@@ -62,12 +63,12 @@ static struct smb2_symlink_err_rsp *symlink_data(const struct kvec *iov)
 	return sym;
 }
 
-int smb2_parse_symlink_response(struct cifs_sb_info *cifs_sb, const struct kvec *iov, char **path)
+int smb2_parse_symlink_response(struct cifs_sb_info *cifs_sb, const struct kvec *iov,
+				const char *full_path, char **path)
 {
 	struct smb2_symlink_err_rsp *sym;
 	unsigned int sub_offs, sub_len;
 	unsigned int print_offs, print_len;
-	char *s;
 
 	if (!cifs_sb || !iov || !iov->iov_base || !iov->iov_len || !path)
 		return -EINVAL;
@@ -85,15 +86,13 @@ int smb2_parse_symlink_response(struct cifs_sb_info *cifs_sb, const struct kvec 
 	    iov->iov_len < SMB2_SYMLINK_STRUCT_SIZE + print_offs + print_len)
 		return -EINVAL;
 
-	s = cifs_strndup_from_utf16((char *)sym->PathBuffer + sub_offs, sub_len, true,
-				    cifs_sb->local_nls);
-	if (!s)
-		return -ENOMEM;
-	convert_delimiter(s, '/');
-	cifs_dbg(FYI, "%s: symlink target: %s\n", __func__, s);
-
-	*path = s;
-	return 0;
+	return smb2_parse_native_symlink(path,
+					 (char *)sym->PathBuffer + sub_offs,
+					 sub_len,
+					 true,
+					 le32_to_cpu(sym->Flags) & SYMLINK_FLAG_RELATIVE,
+					 full_path,
+					 cifs_sb);
 }
 
 int smb2_open_file(const unsigned int xid, struct cifs_open_parms *oparms, __u32 *oplock, void *buf)
@@ -123,6 +122,9 @@ int smb2_open_file(const unsigned int xid, struct cifs_open_parms *oparms, __u32
 	rc = SMB2_open(xid, oparms, smb2_path, &smb2_oplock, smb2_data, NULL, &err_iov,
 		       &err_buftype);
 	if (rc == -EACCES && retry_without_read_attributes) {
+		free_rsp_buf(err_buftype, err_iov.iov_base);
+		memset(&err_iov, 0, sizeof(err_iov));
+		err_buftype = CIFS_NO_BUFFER;
 		oparms->desired_access &= ~FILE_READ_ATTRIBUTES;
 		rc = SMB2_open(xid, oparms, smb2_path, &smb2_oplock, smb2_data, NULL, &err_iov,
 			       &err_buftype);
@@ -134,6 +136,7 @@ int smb2_open_file(const unsigned int xid, struct cifs_open_parms *oparms, __u32
 			goto out;
 		if (hdr->Status == STATUS_STOPPED_ON_SYMLINK) {
 			rc = smb2_parse_symlink_response(oparms->cifs_sb, &err_iov,
+							 oparms->path,
 							 &data->symlink_target);
 			if (!rc) {
 				memset(smb2_data, 0, sizeof(*smb2_data));
@@ -204,9 +207,7 @@ smb2_unlock_range(struct cifsFileInfo *cfile, struct file_lock *flock,
 	struct cifsInodeInfo *cinode = CIFS_I(d_inode(cfile->dentry));
 	struct cifsLockInfo *li, *tmp;
 	__u64 length = 1 + flock->fl_end - flock->fl_start;
-	struct list_head tmp_llist;
-
-	INIT_LIST_HEAD(&tmp_llist);
+	LIST_HEAD(tmp_llist);
 
 	/*
 	 * Accessing maxBuf is racy with cifs_reconnect - need to store value
@@ -236,7 +237,7 @@ smb2_unlock_range(struct cifsFileInfo *cfile, struct file_lock *flock,
 			 * flock and OFD lock are associated with an open
 			 * file description, not the process.
 			 */
-			if (!(flock->fl_flags & (FL_FLOCK | FL_OFDLCK)))
+			if (!(flock->c.flc_flags & (FL_FLOCK | FL_OFDLCK)))
 				continue;
 		if (cinode->can_cache_brlcks) {
 			/*

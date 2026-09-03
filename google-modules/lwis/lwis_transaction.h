@@ -9,6 +9,7 @@
 #define LWIS_TRANSACTION_H_
 
 #include "lwis_commands.h"
+#include <linux/atomic.h>
 #include <linux/dma-fence.h>
 
 #define EXPLICIT_EVENT_COUNTER(x)                                                                  \
@@ -17,6 +18,35 @@
 /* LWIS forward declarations */
 struct lwis_device;
 struct lwis_client;
+
+struct lwis_io_bundle {
+	atomic_t refcount;
+	size_t num_io_entries;
+	struct lwis_io_entry *io_entries;
+	size_t num_device_io_entries;
+	struct lwis_device_io_entries *device_io_entries;
+	struct file **device_io_fps;
+};
+
+/*
+ * Used in conjunction with for_each_lwis_io to reduce variable creation when
+ * using the macro.
+ */
+struct lwis_io_iter_state {
+	/* The lwis_device the io_entries will be run on. */
+	struct lwis_device *lwis_dev;
+	/* The current IO entries in the iteration. */
+	struct lwis_io_entry *io_entries;
+	/* The number of IO entries in the iteration. */
+	int num_io_entries;
+	/* The index of in device_io_entries where the io_entries are coming from. */
+	int device_entry_index;
+	/*
+	 * Indicates if this call to for_each_lwis_io is being called on
+	 * device_io_entries or regular io_entries.
+	 */
+	bool is_batch;
+};
 
 /*
  * Transaction entry. Each entry belongs to two queues:
@@ -49,8 +79,6 @@ struct lwis_transaction {
 	struct list_head completion_fence_list;
 	/* Precondition fence file pointer */
 	struct dma_fence *precondition_fence;
-	/* Whether fences should use LWIS Fence legacy API. */
-	bool legacy_lwis_fence;
 	/*
 	 * If the transaction has more entries to process than the transaction_process_limit
 	 * for the processing device, then this will save the number of entries that are
@@ -67,6 +95,11 @@ struct lwis_transaction {
 	int64_t triggered_event_timestamp;
 	/* The timestamp when the transaction is allowed to be executed */
 	int64_t delayed_execution_timestamp;
+
+	/* Holds references to the device_io_entry devices for this transaction. */
+	struct file **device_io_fps;
+	/* Bundle to share IO entries across repeating iterations */
+	struct lwis_io_bundle *bundle;
 };
 
 /*
@@ -105,6 +138,7 @@ struct lwis_pending_transaction_id {
 	struct list_head node;
 	/* Make sure not to remove the callback from the fence if it is being triggered. */
 	bool triggered;
+	bool free_on_trigger;
 	/* Transaction id to be looked up during triggering. */
 	int64_t id;
 };
@@ -122,7 +156,12 @@ void lwis_transaction_fence_trigger(struct lwis_client *client, struct dma_fence
 
 int lwis_transaction_cancel(struct lwis_client *client, int64_t id);
 
-void lwis_transaction_free(struct lwis_device *lwis_dev, struct lwis_transaction **ptransaction);
+void lwis_transaction_free(struct lwis_client *client, struct lwis_transaction **ptransaction);
+void lwis_free_transaction_io_entries(struct lwis_device *lwis_dev, struct lwis_io_entry *entries,
+				      int num_io_entries);
+
+int lwis_transaction_prepare_response(struct lwis_client *client,
+				      struct lwis_transaction *transaction);
 
 /*
  * Expects lwis_client->transaction_lock to be acquired before calling

@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# misc devices that really don't fit anywhere else.
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "gsc-spi",
+    out = "gsc-spi.ko",
+    conditional_srcs = {
+        "CONFIG_GSC_TPM": {
+            True: [
+                "gsc-spi.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "access_ramoops",
+    out = "access_ramoops.ko",
+    conditional_srcs = {
+        "CONFIG_ACCESS_RAMOOPS": {
+            True: [
+                "access_ramoops.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

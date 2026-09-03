@@ -5,6 +5,5 @@
 #include <linux/oom.h>
 
 int pa_kill_sysfs_init(void);
-int kill_process(void);
 
 #endif

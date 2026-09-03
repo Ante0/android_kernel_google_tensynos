@@ -18,36 +18,22 @@
 #
 #
 
+load("@bazel_skylib//lib:selects.bzl", "selects")
 load(
     "@bazel_skylib//rules:common_settings.bzl",
     "bool_flag",
     "string_flag",
 )
-load("@bazel_skylib//lib:selects.bzl", "selects")
 
-package(
-    default_visibility = [
-        "//:__subpackages__",
-        "@kleaf//common:__pkg__",
-    ],
-)
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
 
 #Base Module Configs
 
-bool_flag(
-    name = "DMA_SHARED_BUFFER",
-    build_setting_default = False,
-)
-
-config_setting(
-    name = "dma_shared_buffer",
-    flag_values = {
-        ":DMA_SHARED_BUFFER": "true",
-    },
-)
-
-
 #Generic C flags defines
+
 bool_flag(
     name = "MALI_GCOV_KERNEL",
     build_setting_default = False,
@@ -82,7 +68,7 @@ config_setting(
 
 bool_flag(
     name = "MALI_EXPERT",
-    build_setting_default = False,
+    build_setting_default = True,
 )
 
 config_setting(
@@ -114,12 +100,22 @@ config_setting(
 
 bool_flag(
     name = "MIDGARD_DVFS",
-    build_setting_default = False,
+    build_setting_default = True,
 )
 
 config_setting(
     name = "midgard_dvfs",
     flag_values = {":MIDGARD_DVFS": "true"},
+)
+
+bool_flag(
+    name = "MALI_KUTF",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "mali_kutf",
+    flag_values = {":MALI_KUTF": "true"},
 )
 
 bool_flag(
@@ -136,7 +132,7 @@ config_setting(
 
 bool_flag(
     name = "MALI_CUSTOMER_RELEASE",
-    build_setting_default = False,
+    build_setting_default = True,
 )
 
 config_setting(
@@ -145,7 +141,6 @@ config_setting(
         ":MALI_CUSTOMER_RELEASE": "true",
     },
 )
-
 
 selects.config_setting_group(
     name = "mali_debug_kutf",
@@ -189,13 +184,14 @@ selects.config_setting_group(
 
 string_flag(
     name = "mali_platform_name",
-    build_setting_default = "devicetree",
+    build_setting_default = "pixel",
     values = [
         "devicetree",
         "meson",
         "vexpress",
         "vexpress_1xv7_a57",
         "vexpress_6xvirtex7_10mhz",
+        "pixel",
     ],
 )
 
@@ -222,4 +218,97 @@ config_setting(
 config_setting(
     name = "mali_platform_name_vexpress_6xvirtex7_10mhz",
     flag_values = {":mali_platform_name": "vexpress_6xvirtex7_10mhz"},
+)
+
+# For Pixel specific integration
+
+config_setting(
+    name = "mali_platform_name_pixel",
+    flag_values = {":mali_platform_name": "pixel"},
+)
+
+bool_flag(
+    name = "MALI_PIXEL_GPU_QOS",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "mali_pixel_gpu_qos",
+    flag_values = {":MALI_PIXEL_GPU_QOS": "true"},
+)
+
+bool_flag(
+    name = "MALI_PIXEL_GPU_BTS",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "mali_pixel_gpu_bts",
+    flag_values = {":MALI_PIXEL_GPU_BTS": "true"},
+)
+
+bool_flag(
+    name = "MALI_PIXEL_GPU_SECURE_RENDERING",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "mali_pixel_gpu_secure_rendering",
+    flag_values = {":MALI_PIXEL_GPU_SECURE_RENDERING": "true"},
+)
+
+bool_flag(
+    name = "MALI_PIXEL_GPU_THERMAL",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "mali_pixel_gpu_thermal",
+    flag_values = {":MALI_PIXEL_GPU_THERMAL": "true"},
+)
+
+bool_flag(
+    name = "MALI_PIXEL_GPU_PM",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "mali_pixel_gpu_pm",
+    flag_values = {":MALI_PIXEL_GPU_PM": "true"},
+)
+
+bool_flag(
+    name = "MALI_PIXEL_GPU_SLC",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "mali_pixel_gpu_slc",
+    flag_values = {":MALI_PIXEL_GPU_SLC": "true"},
+)
+
+bool_flag(
+    name = "MALI_PIXEL_GPU_SSCD",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "mali_pixel_gpu_sscd",
+    flag_values = {":MALI_PIXEL_GPU_SSCD": "true"},
+)
+
+selects.config_setting_group(
+    name = "pixel_and_midgard_dvfs",
+    match_all = [
+        ":mali_platform_name_pixel",
+        ":midgard_dvfs",
+    ],
+)
+
+selects.config_setting_group(
+    name = "pixel_and_kutf",
+    match_all = [
+        ":mali_platform_name_pixel",
+        ":mali_kutf",
+    ],
 )

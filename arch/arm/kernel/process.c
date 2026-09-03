@@ -78,7 +78,6 @@ void arch_cpu_idle(void)
 		arm_pm_idle();
 	else
 		cpu_do_idle();
-	raw_local_irq_enable();
 }
 
 void arch_cpu_idle_prepare(void)
@@ -223,7 +222,6 @@ void flush_thread(void)
 
 	flush_ptrace_hw_breakpoint(tsk);
 
-	memset(thread->used_cp, 0, sizeof(thread->used_cp));
 	memset(&tsk->thread.debug, 0, sizeof(struct debug_info));
 	memset(&thread->fpstate, 0, sizeof(union fp_state));
 
@@ -371,7 +369,7 @@ static unsigned long sigpage_addr(const struct mm_struct *mm,
 
 	slots = ((last - first) >> PAGE_SHIFT) + 1;
 
-	offset = prandom_u32_max(slots);
+	offset = get_random_u32_below(slots);
 
 	addr = first + (offset << PAGE_SHIFT);
 

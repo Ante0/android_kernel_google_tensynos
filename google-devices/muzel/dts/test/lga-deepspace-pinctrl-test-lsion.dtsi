@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,lga.h>
+
+&lsion_pinctrl {
+	lsion_uwb_output_gpios: lsion_uwb_output_gpios {
+		pins = "XLSION_CLI16_PIN0";
+		function = "lsion_gpio";
+		bias-pull-up;
+		output-high;
+	};
+	lsion_audio_output_gpios: lsion_audio_output_gpios {
+		pins = "XLSION_CLI16_PIN2",
+		       "XLSION_CLI16_PIN3";
+		function = "lsion_gpio";
+		bias-pull-up;
+		output-high;
+	};
+};

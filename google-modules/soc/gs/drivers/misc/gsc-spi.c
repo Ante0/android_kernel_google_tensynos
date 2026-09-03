@@ -133,7 +133,7 @@ static int gsc_tpm_datagram(struct gsc_data *gsc,
 	int gsc_fell_over = 0;
 
 	/* Lock the SPI bus until we're completely done */
-	spi_bus_lock(spi->master);
+	spi_bus_lock(spi->controller);
 
 	/* Check whether GSC is awake (b/142475097) */
 	ret = gsc_is_awake(gsc);
@@ -213,7 +213,7 @@ static int gsc_tpm_datagram(struct gsc_data *gsc,
 		ret = -EFAULT;
 
 exit:
-	spi_bus_unlock(spi->master);
+	spi_bus_unlock(spi->controller);
 
 	return ret;
 }
@@ -223,7 +223,7 @@ static int gsc_reset(struct gsc_data *gsc)
 	/* Synchronize with the datagrams by locking the SPI bus */
 	struct spi_device *spi = gsc->spi;
 
-	spi_bus_lock(spi->master);
+	spi_bus_lock(spi->controller);
 
 	/* Assert reset for at least 3ms after VDDIOM is stable; 10ms is safe */
 	gpio_set_value(gsc->ctdl_rst, 1);
@@ -233,7 +233,7 @@ static int gsc_reset(struct gsc_data *gsc)
 	gpio_set_value(gsc->ctdl_rst, 0);
 	msleep(100);
 
-	spi_bus_unlock(spi->master);
+	spi_bus_unlock(spi->controller);
 	return 0;
 }
 
@@ -356,7 +356,6 @@ static const struct file_operations gsc_fops = {
 	.poll =			gsc_poll,
 	.release =		gsc_release,
 	.unlocked_ioctl =	gsc_ioctl,
-	.llseek =		no_llseek,
 };
 
 #ifdef CONFIG_OF
@@ -408,7 +407,7 @@ static int gsc_probe(struct spi_device *spi)
 	u32 minor;
 
 	/* use chip select as minor */
-	minor = (u32)spi->chip_select;
+	minor = spi_get_chipselect(spi, 0);
 	if (minor >= GSC_MAX_DEVICES) {
 		dev_err(&spi->dev, "minor %u out of boundaries\n", minor);
 		return -ENXIO;
@@ -443,12 +442,9 @@ static int gsc_probe(struct spi_device *spi)
 		goto free_gsc;
 	}
 
-	ret = devm_request_irq(&gsc->spi->dev,
-			       gpio_to_irq(gsc->ctdl_ap_irq),
-			       gsc_irq_handler,
-			       IRQF_TRIGGER_RISING | IRQF_ONESHOT,
-			       dev_name(&spi->dev),
-			       gsc);
+	ret = devm_request_irq(&gsc->spi->dev, gpio_to_irq(gsc->ctdl_ap_irq),
+			       gsc_irq_handler, IRQF_TRIGGER_RISING,
+			       dev_name(&spi->dev), gsc);
 	if (ret) {
 		dev_err(&spi->dev,
 			"devm_request_irq  gsc,ctdl_ap_irq failed.\n");
@@ -523,7 +519,7 @@ static int __init gsc_init(void)
 		return ret;
 	}
 
-	gsc_class = class_create(THIS_MODULE, "gsc");
+	gsc_class = class_create("gsc");
 	if (IS_ERR(gsc_class)) {
 		unregister_chrdev_region(gsc_devt, 1);
 		return PTR_ERR(gsc_class);

@@ -98,5 +98,8 @@ void stmvl53l1_clean_up_i2c(void);
 int stmvl53l1_start_intr(void *object, int *poll_mode);
 void *stmvl53l1_get(void *arg);
 int stmvl53l1_put(void *arg);
+bool is_shared_i2c_with_stmvl53l1(struct pinctrl *pinctrl);
+int shared_i2c_set_state(struct device *dev, struct pinctrl *pinctrl,
+			 const char *state_str);
 
 #endif /* STMVL53L1_I2C_H */

@@ -22,20 +22,13 @@
 
 struct cal_regs_dqe regs_dqe[REGS_DQE_ID_MAX];
 
-struct cal_regs_offset regs_dqe_offset[DQE_VERSION_MAX] = {
-	{0x0,   0x0,   0x0,   0x0,   0x0,   0x0},       /* GS101(9845) EVT0/A0 */
-	{0x400, 0x800, 0x800, 0x800, 0x400, 0x400},     /* GS101(9845) EVT1/B0 */
-	{0x400, 0x800, 0x800, 0x800, 0x400, 0x400},	/* GS201(9855) */
-	{0x400, 0x800, 0x800, 0x800, 0x400, 0x400},	/* Zuma(9865) */
-};
-
 void dqe_regs_desc_init(void __iomem *regs, phys_addr_t start, const char *name,
 			enum dqe_version ver, unsigned int dqe_id)
 {
 	regs_dqe[dqe_id].desc.regs = regs;
 	regs_dqe[dqe_id].desc.name = name;
 	regs_dqe[dqe_id].version = ver;
-        regs_dqe[dqe_id].desc.start = start;
+	regs_dqe[dqe_id].desc.start = start;
 }
 
 static void dqe_reg_set_img_size(u32 dqe_id, u32 width, u32 height)

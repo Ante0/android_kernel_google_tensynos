@@ -1429,26 +1429,20 @@ static void dp_disable(struct drm_encoder *encoder)
 }
 
 // For BIST
-static void dp_parse_edid(struct dp_device *dp, struct edid *edid)
+static void dp_parse_edid(struct dp_device *dp, const struct drm_edid *drm_edid)
 {
-	u8 *edid_vendor = dp->sink.edid_manufacturer;
-	u32 edid_prod_id = 0;
+	struct drm_edid_product_id id;
 
-	if (edid == NULL)
+	if (drm_edid == NULL)
 		return;
 
-	edid_vendor[0] = ((edid->mfg_id[0] & 0x7c) >> 2) + '@';
-	edid_vendor[1] = (((edid->mfg_id[0] & 0x3) << 3) |
-			  ((edid->mfg_id[1] & 0xe0) >> 5)) +
-			 '@';
-	edid_vendor[2] = (edid->mfg_id[1] & 0x1f) + '@';
+	drm_edid_get_product_id(drm_edid, &id);
 
-	edid_prod_id |= EDID_PRODUCT_ID(edid);
+	drm_edid_decode_mfg_id(be16_to_cpu(id.manufacturer_name), dp->sink.edid_manufacturer);
+	dp->sink.edid_product = le16_to_cpu(id.product_code);
+	dp->sink.edid_serial = le32_to_cpu(id.serial_number);
 
-	dp->sink.edid_product = edid_prod_id;
-	dp->sink.edid_serial = edid->serial;
-
-	drm_edid_get_monitor_name(edid, dp->sink.sink_name, SINK_NAME_LEN);
+	drm_edid_get_monitor_name(drm_edid_raw(drm_edid), dp->sink.sink_name, SINK_NAME_LEN);
 
 	dp_info(dp, "EDID: Sink Manufacturer: %s\n", dp->sink.edid_manufacturer);
 	dp_info(dp, "EDID: Sink Product: %x\n", dp->sink.edid_product);
@@ -1627,30 +1621,30 @@ static void dp_on_by_hpd_plug(struct dp_device *dp)
 {
 	struct drm_connector *connector = &dp->connector;
 	struct drm_device *dev = connector->dev;
-	struct edid *edid;
+	const struct drm_edid *drm_edid;
 	struct cea_sad *sads;
 	struct drm_display_mode *fs_mode;
 	int timeout;
 
-	edid = drm_do_get_edid(connector, dp_get_edid_block, dp);
-	if (!edid) {
+	drm_edid = drm_edid_read_custom(connector, dp_get_edid_block, dp);
+	if (!drm_edid) {
 		dp_err(dp, "EDID: failed to read EDID from sink, using fake EDID\n");
 		dp->stats.edid_read_failures++;
-		edid = kmemdup(dp_fake_edid, EDID_LENGTH, GFP_KERNEL);
-	} else if (!drm_edid_is_valid(edid)) {
+		drm_edid = drm_edid_alloc(dp_fake_edid, sizeof(dp_fake_edid));
+	} else if (!drm_edid_valid(drm_edid)) {
 		dp_err(dp, "EDID: invalid EDID, using fake EDID\n");
 		dp->stats.edid_invalid_failures++;
-		kfree(edid);
-		edid = kmemdup(dp_fake_edid, EDID_LENGTH, GFP_KERNEL);
+		drm_edid_free(drm_edid);
+		drm_edid = drm_edid_alloc(dp_fake_edid, sizeof(dp_fake_edid));
 	}
 
-	if (drm_connector_update_edid_property(connector, edid))
-		dp_err(dp, "EDID: drm_connector_update_edid_property() failed\n");
+	if (drm_edid_connector_update(connector, drm_edid))
+		dp_err(dp, "EDID: drm_edid_connector_update() failed\n");
 
-	dp_parse_edid(dp, edid);
+	dp_parse_edid(dp, drm_edid);
 	mutex_lock(&dev->mode_config.mutex);
 	dp_clean_drm_modes(dp);
-	dp->num_modes = drm_add_edid_modes(connector, edid);
+	dp->num_modes = drm_edid_connector_add_modes(connector);
 	fs_mode = drm_mode_duplicate(connector->dev, failsafe_mode);
 	if (fs_mode) {
 		drm_mode_probed_add(connector, fs_mode);
@@ -1658,11 +1652,11 @@ static void dp_on_by_hpd_plug(struct dp_device *dp)
 	}
 	mutex_unlock(&dev->mode_config.mutex);
 
-	dp->num_sads = drm_edid_to_sad(edid, &sads);
+	dp->num_sads = drm_edid_to_sad(drm_edid_raw(drm_edid), &sads);
 	dp_sad_to_audio_info(dp, sads);
 	if (dp->num_sads > 0)
 		kfree(sads);
-	kfree(edid);
+	drm_edid_free(drm_edid);
 
 	/* Sort the obtained modes so that the largest
 	 * preferred resolution is at head of the list
@@ -3515,7 +3509,7 @@ err:
 	return ret;
 }
 
-static int dp_remove(struct platform_device *pdev)
+static void dp_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct dp_device *dp = platform_get_drvdata(pdev);
@@ -3536,7 +3530,6 @@ static int dp_remove(struct platform_device *pdev)
 	destroy_workqueue(dp->dp_wq);
 
 	dp_info(dp, "DP Driver has been removed\n");
-	return 0;
 }
 
 static const struct of_device_id dp_of_match[] = {

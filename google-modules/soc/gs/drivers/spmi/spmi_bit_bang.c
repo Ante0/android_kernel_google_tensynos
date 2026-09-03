@@ -207,7 +207,7 @@ static bool spmi_cmd_seq_extended_register_write(struct spmi_bb_info *info,
 	u8 sid, u8 reg, const u8 *val, u8 bytes)
 {
 	u32 i;
-	u8 command = SPMI_CMD_EXT_WRITE | ((bytes - 1) & 0x0f);
+	u8 command = SPMI_CMD_EXT_WRITE | (bytes - 1 & 0x0f);
 
 	spmi_send_ssc(info);
 	spmi_send_command_frame(info, sid, command);
@@ -223,7 +223,7 @@ static bool spmi_cmd_seq_extended_register_read(struct spmi_bb_info *info,
 {
 	bool ret = true;
 	u32 i;
-	u8 command = SPMI_CMD_EXT_READ | ((bytes - 1) & 0x0f);
+	u8 command = SPMI_CMD_EXT_READ | (bytes - 1 & 0x0f);
 
 	spmi_send_ssc(info);
 	spmi_send_command_frame(info, sid, command);
@@ -477,7 +477,7 @@ static int spmi_bb_read_cmd(struct spmi_controller *ctrl,
 		ret = -EIO;
 	}
 	spmi_disable(info);
-	return 0;
+	return ret;
 }
 
 static int spmi_bb_dt_init(struct spmi_bb_info *info)
@@ -554,14 +554,13 @@ err_put_controller:
 	return ret;
 }
 
-static int spmi_bb_remove(struct platform_device *pdev)
+static void spmi_bb_remove(struct platform_device *pdev)
 {
 	struct spmi_bb_info *spmi_bb_info = platform_get_drvdata(pdev);
 	struct spmi_controller *ctrl = spmi_bb_info->ctrl;
 
 	spmi_controller_remove(ctrl);
 	spmi_controller_put(ctrl);
-	return 0;
 }
 
 static const struct of_device_id spmi_bb_match_table[] = {

@@ -32,4 +32,16 @@ int lwis_i2c_set_state(struct lwis_i2c_device *i2c, const char *state_str);
  */
 int lwis_i2c_io_entry_rw(struct lwis_i2c_device *i2c, struct lwis_io_entry *entry);
 
+int lwis_i2c_io_entries_rw(struct lwis_i2c_device *i2c, struct lwis_io_entry *entries,
+			   int entries_cnt);
+
+/*
+ *  lwis_i2c_io_entry_mod: lwis_io_modify operation consists of
+ *  an io_read followed by an io_write, where the io_write is dependent
+ *  on the io_read result. Not compatible to asynchronous process.
+ */
+int lwis_i2c_io_entry_mod(struct lwis_i2c_device *i2c, struct lwis_io_entry *entry);
+
+int lwis_i2c_write(struct lwis_i2c_device *i2c, uint64_t offset, uint64_t value);
+
 #endif /* LWIS_I2C_H_ */

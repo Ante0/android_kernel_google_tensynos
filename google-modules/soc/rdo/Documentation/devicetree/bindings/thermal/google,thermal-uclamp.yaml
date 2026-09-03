@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2025 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/thermal/google,thermal-uclamp.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google thermal uclamp cooling device
+
+maintainers:
+  - Ram Chandrasekar <rchandrasekar@google.com>
+
+description: |
+  This driver creates cooling devices for CPU clusters. These cooling devices
+  apply frequency capping via the uclamp_max mechanism. The mapping between a
+  CPU cluster (represented by one of its CPU's device tree nodes) and a
+  hardware cooling device ID (used for power table lookups) is provided in
+  the device tree.
+
+properties:
+  compatible:
+    const: google,thermal-uclamp
+
+  google,cluster-cdev-map:
+    description:
+      A list of pairs, mapping a phandle of a CPU cluster's representative
+      CPU node to a hardware cooling device ID. Each pair consists of a
+      phandle and one cell for the cooling device ID. The cooling device ID
+      is defined in "dt-bindings/soc/google/google-thermal-def.h".
+    $ref: /schemas/types.yaml#/definitions/phandle-array
+
+required:
+  - compatible
+  - google,cluster-cdev-map
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/soc/google/google-thermal-def.h>
+
+    thermal_uclamp {
+        compatible = "google,thermal-uclamp";
+        google,cluster-cdev-map =
+            <&cpu0 HW_DT_CDEV_LIT>,
+            <&cpu4 HW_DT_CDEV_MID>,
+            <&cpu6 HW_DT_CDEV_BIG_MID>,
+            <&cpu7 HW_DT_CDEV_BIG>;
+    };

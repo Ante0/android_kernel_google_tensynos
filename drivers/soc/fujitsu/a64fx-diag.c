@@ -116,7 +116,7 @@ static int a64fx_diag_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int a64fx_diag_remove(struct platform_device *pdev)
+static void a64fx_diag_remove(struct platform_device *pdev)
 {
 	struct a64fx_diag_priv *priv = platform_get_drvdata(pdev);
 
@@ -127,8 +127,6 @@ static int a64fx_diag_remove(struct platform_device *pdev)
 		free_nmi(priv->irq, NULL);
 	else
 		free_irq(priv->irq, NULL);
-
-	return 0;
 }
 
 static const struct acpi_device_id a64fx_diag_acpi_match[] = {
@@ -149,6 +147,5 @@ static struct platform_driver a64fx_diag_driver = {
 
 module_platform_driver(a64fx_diag_driver);
 
-MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Hitomi Hasegawa <hasegawa-hitomi@fujitsu.com>");
 MODULE_DESCRIPTION("A64FX diag driver");

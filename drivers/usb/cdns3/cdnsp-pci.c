@@ -28,10 +28,11 @@
 #define PCI_DRIVER_NAME		"cdns-pci-usbssp"
 #define PLAT_DRIVER_NAME	"cdns-usbssp"
 
-#define CDNS_VENDOR_ID		0x17cd
-#define CDNS_DEVICE_ID		0x0200
-#define CDNS_DRD_ID		0x0100
-#define CDNS_DRD_IF		(PCI_CLASS_SERIAL_USB << 8 | 0x80)
+#define PCI_DEVICE_ID_CDNS_USB3		0x0100
+#define PCI_DEVICE_ID_CDNS_UDC		0x0200
+
+#define PCI_CLASS_SERIAL_USB_CDNS_USB3	(PCI_CLASS_SERIAL_USB << 8 | 0x80)
+#define PCI_CLASS_SERIAL_USB_CDNS_UDC	PCI_CLASS_SERIAL_USB_DEVICE
 
 #define CHICKEN_APB_TIMEOUT_VALUE       0x1C20
 
@@ -42,10 +43,10 @@ static struct pci_dev *cdnsp_get_second_fun(struct pci_dev *pdev)
 	 * Platform has two function. The fist keeps resources for
 	 * Host/Device while the secon keeps resources for DRD/OTG.
 	 */
-	if (pdev->device == CDNS_DEVICE_ID)
-		return  pci_get_device(pdev->vendor, CDNS_DRD_ID, NULL);
-	else if (pdev->device == CDNS_DRD_ID)
-		return pci_get_device(pdev->vendor, CDNS_DEVICE_ID, NULL);
+	if (pdev->device == PCI_DEVICE_ID_CDNS_UDC)
+		return pci_get_device(pdev->vendor, PCI_DEVICE_ID_CDNS_USB3, NULL);
+	if (pdev->device == PCI_DEVICE_ID_CDNS_USB3)
+		return pci_get_device(pdev->vendor, PCI_DEVICE_ID_CDNS_UDC, NULL);
 
 	return NULL;
 }
@@ -90,7 +91,7 @@ static int cdnsp_pci_probe(struct pci_dev *pdev,
 		cdnsp = kzalloc(sizeof(*cdnsp), GFP_KERNEL);
 		if (!cdnsp) {
 			ret = -ENOMEM;
-			goto disable_pci;
+			goto put_pci;
 		}
 	}
 
@@ -173,9 +174,6 @@ free_cdnsp:
 	if (!pci_is_enabled(func))
 		kfree(cdnsp);
 
-disable_pci:
-	pci_disable_device(pdev);
-
 put_pci:
 	pci_dev_put(func);
 
@@ -193,14 +191,12 @@ static void cdnsp_pci_remove(struct pci_dev *pdev)
 	if (pci_dev_run_wake(pdev))
 		pm_runtime_get_noresume(&pdev->dev);
 
-	if (!pci_is_enabled(func)) {
+	if (pci_is_enabled(func)) {
+		cdns_remove(cdnsp);
+	} else {
 		kfree(cdnsp);
-		goto pci_put;
 	}
 
-	cdns_remove(cdnsp);
-
-pci_put:
 	pci_dev_put(func);
 }
 
@@ -230,18 +226,18 @@ static const struct dev_pm_ops cdnsp_pci_pm_ops = {
 };
 
 static const struct pci_device_id cdnsp_pci_ids[] = {
-	{ PCI_VENDOR_ID_CDNS, CDNS_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID,
-	  PCI_CLASS_SERIAL_USB_DEVICE, PCI_ANY_ID },
-	{ PCI_VENDOR_ID_CDNS, CDNS_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID,
-	  CDNS_DRD_IF, PCI_ANY_ID },
-	{ PCI_VENDOR_ID_CDNS, CDNS_DRD_ID, PCI_ANY_ID, PCI_ANY_ID,
-	  CDNS_DRD_IF, PCI_ANY_ID },
+	{ PCI_DEVICE(PCI_VENDOR_ID_CDNS, PCI_DEVICE_ID_CDNS_UDC),
+	  .class = PCI_CLASS_SERIAL_USB_CDNS_UDC },
+	{ PCI_DEVICE(PCI_VENDOR_ID_CDNS, PCI_DEVICE_ID_CDNS_UDC),
+	  .class = PCI_CLASS_SERIAL_USB_CDNS_USB3 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_CDNS, PCI_DEVICE_ID_CDNS_USB3),
+	  .class = PCI_CLASS_SERIAL_USB_CDNS_USB3 },
 	{ 0, }
 };
 
 static struct pci_driver cdnsp_pci_driver = {
 	.name = "cdnsp-pci",
-	.id_table = &cdnsp_pci_ids[0],
+	.id_table = cdnsp_pci_ids,
 	.probe = cdnsp_pci_probe,
 	.remove = cdnsp_pci_remove,
 	.driver = {

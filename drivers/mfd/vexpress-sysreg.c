@@ -61,35 +61,27 @@ static struct mfd_cell vexpress_sysreg_cells[] = {
 		.name = "basic-mmio-gpio",
 		.of_compatible = "arm,vexpress-sysreg,sys_led",
 		.num_resources = 1,
-		.resources = (struct resource []) {
-			DEFINE_RES_MEM_NAMED(SYS_LED, 0x4, "dat"),
-		},
+		.resources = &DEFINE_RES_MEM_NAMED(SYS_LED, 0x4, "dat"),
 		.platform_data = &vexpress_sysreg_sys_led_pdata,
 		.pdata_size = sizeof(vexpress_sysreg_sys_led_pdata),
 	}, {
 		.name = "basic-mmio-gpio",
 		.of_compatible = "arm,vexpress-sysreg,sys_mci",
 		.num_resources = 1,
-		.resources = (struct resource []) {
-			DEFINE_RES_MEM_NAMED(SYS_MCI, 0x4, "dat"),
-		},
+		.resources = &DEFINE_RES_MEM_NAMED(SYS_MCI, 0x4, "dat"),
 		.platform_data = &vexpress_sysreg_sys_mci_pdata,
 		.pdata_size = sizeof(vexpress_sysreg_sys_mci_pdata),
 	}, {
 		.name = "basic-mmio-gpio",
 		.of_compatible = "arm,vexpress-sysreg,sys_flash",
 		.num_resources = 1,
-		.resources = (struct resource []) {
-			DEFINE_RES_MEM_NAMED(SYS_FLASH, 0x4, "dat"),
-		},
+		.resources = &DEFINE_RES_MEM_NAMED(SYS_FLASH, 0x4, "dat"),
 		.platform_data = &vexpress_sysreg_sys_flash_pdata,
 		.pdata_size = sizeof(vexpress_sysreg_sys_flash_pdata),
 	}, {
 		.name = "vexpress-syscfg",
 		.num_resources = 1,
-		.resources = (struct resource []) {
-			DEFINE_RES_MEM(SYS_MISC, 0x4c),
-		},
+		.resources = &DEFINE_RES_MEM(SYS_MISC, 0x4c),
 	}
 };
 
@@ -98,6 +90,7 @@ static int vexpress_sysreg_probe(struct platform_device *pdev)
 	struct resource *mem;
 	void __iomem *base;
 	struct gpio_chip *mmc_gpio_chip;
+	int ret;
 
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!mem)
@@ -118,7 +111,10 @@ static int vexpress_sysreg_probe(struct platform_device *pdev)
 	bgpio_init(mmc_gpio_chip, &pdev->dev, 0x4, base + SYS_MCI,
 			NULL, NULL, NULL, NULL, 0);
 	mmc_gpio_chip->ngpio = 2;
-	devm_gpiochip_add_data(&pdev->dev, mmc_gpio_chip, NULL);
+
+	ret = devm_gpiochip_add_data(&pdev->dev, mmc_gpio_chip, NULL);
+	if (ret)
+		return ret;
 
 	return devm_mfd_add_devices(&pdev->dev, PLATFORM_DEVID_AUTO,
 			vexpress_sysreg_cells,
@@ -140,4 +136,5 @@ static struct platform_driver vexpress_sysreg_driver = {
 };
 
 module_platform_driver(vexpress_sysreg_driver);
+MODULE_DESCRIPTION("Versatile Express system registers driver");
 MODULE_LICENSE("GPL v2");

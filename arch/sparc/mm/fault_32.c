@@ -178,8 +178,11 @@ retry:
 	 */
 	fault = handle_mm_fault(vma, address, flags, regs);
 
-	if (fault_signal_pending(fault, regs))
+	if (fault_signal_pending(fault, regs)) {
+		if (!from_user)
+			goto no_context;
 		return;
+	}
 
 	/* The fault is fully completed (including releasing mmap lock) */
 	if (fault & VM_FAULT_COMPLETED)
@@ -309,7 +312,7 @@ static void force_user_fault(unsigned long address, int write)
 
 	code = SEGV_MAPERR;
 
-	vma = lock_mm_and_find_vma(mm, address, regs);
+	vma = lock_mm_and_find_vma(mm, address, NULL);
 	if (!vma)
 		goto bad_area_nosemaphore;
 	code = SEGV_ACCERR;

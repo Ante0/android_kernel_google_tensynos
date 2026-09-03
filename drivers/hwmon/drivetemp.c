@@ -165,6 +165,7 @@ static int drivetemp_scsi_command(struct drivetemp_data *st,
 {
 	u8 scsi_cmd[MAX_COMMAND_SIZE];
 	enum req_op op;
+	int err;
 
 	memset(scsi_cmd, 0, sizeof(scsi_cmd));
 	scsi_cmd[0] = ATA_16;
@@ -192,8 +193,11 @@ static int drivetemp_scsi_command(struct drivetemp_data *st,
 	scsi_cmd[12] = lba_high;
 	scsi_cmd[14] = ata_command;
 
-	return scsi_execute_cmd(st->sdev, scsi_cmd, op, st->smartdata,
-				ATA_SECT_SIZE, HZ, 5, NULL);
+	err = scsi_execute_cmd(st->sdev, scsi_cmd, op, st->smartdata,
+			       ATA_SECT_SIZE, 10 * HZ, 5, NULL);
+	if (err > 0)
+		err = -EIO;
+	return err;
 }
 
 static int drivetemp_ata_command(struct drivetemp_data *st, u8 feature,
@@ -526,7 +530,7 @@ static umode_t drivetemp_is_visible(const void *data,
 	return 0;
 }
 
-static const struct hwmon_channel_info *drivetemp_info[] = {
+static const struct hwmon_channel_info * const drivetemp_info[] = {
 	HWMON_CHANNEL_INFO(chip,
 			   HWMON_C_REGISTER_TZ),
 	HWMON_CHANNEL_INFO(temp, HWMON_T_INPUT |
@@ -550,7 +554,7 @@ static const struct hwmon_chip_info drivetemp_chip_info = {
  * The device argument points to sdev->sdev_dev. Its parent is
  * sdev->sdev_gendev, which we can use to get the scsi_device pointer.
  */
-static int drivetemp_add(struct device *dev, struct class_interface *intf)
+static int drivetemp_add(struct device *dev)
 {
 	struct scsi_device *sdev = to_scsi_device(dev->parent);
 	struct drivetemp_data *st;
@@ -585,7 +589,7 @@ abort:
 	return err;
 }
 
-static void drivetemp_remove(struct device *dev, struct class_interface *intf)
+static void drivetemp_remove(struct device *dev)
 {
 	struct drivetemp_data *st, *tmp;
 

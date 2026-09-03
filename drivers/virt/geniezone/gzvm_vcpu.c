@@ -3,17 +3,61 @@
  * Copyright (c) 2023 MediaTek Inc.
  */
 
-#include <asm/sysreg.h>
 #include <linux/anon_inodes.h>
 #include <linux/device.h>
 #include <linux/file.h>
 #include <linux/mm.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
-#include <linux/gzvm_drv.h>
+#include <linux/soc/mediatek/gzvm_drv.h>
+#include <trace/events/geniezone.h>
+#include <trace/hooks/gzvm.h>
 
 /* maximum size needed for holding an integer */
 #define ITOA_MAX_LEN 12
+
+/**
+ * gzvm_vcpu_wakeup_all - wakes up all vCPUs associated with the specified
+ * gzvm.
+ * @gzvm: Pointer to gzvm structure.
+ */
+void gzvm_vcpu_wakeup_all(struct gzvm *gzvm)
+{
+	for (int i = 0; i < GZVM_MAX_VCPUS; i++) {
+		if (gzvm->vcpus[i]) {
+			gzvm->vcpus[i]->idle_events.virtio_irq += 1;
+			rcuwait_wake_up(&gzvm->vcpus[i]->wait);
+		}
+	}
+}
+
+static enum hrtimer_restart gzvm_vtimer_expire(struct hrtimer *hrt)
+{
+	struct gzvm_vcpu *vcpu;
+
+	vcpu = container_of(hrt, struct gzvm_vcpu, gzvm_vtimer);
+
+	gzvm_vcpu_wakeup_all(vcpu->gzvm);
+
+	return HRTIMER_NORESTART;
+}
+
+static void gzvm_vtimer_init(struct gzvm_vcpu *vcpu)
+{
+	/* gzvm_vtimer init based on hrtimer */
+	hrtimer_init(&vcpu->gzvm_vtimer, CLOCK_MONOTONIC, HRTIMER_MODE_ABS_HARD);
+	vcpu->gzvm_vtimer.function = gzvm_vtimer_expire;
+}
+
+void gzvm_vtimer_set(struct gzvm_vcpu *vcpu, u64 ns)
+{
+	hrtimer_start(&vcpu->gzvm_vtimer, ktime_add_ns(ktime_get(), ns), HRTIMER_MODE_ABS_HARD);
+}
+
+void gzvm_vtimer_release(struct gzvm_vcpu *vcpu)
+{
+	hrtimer_cancel(&vcpu->gzvm_vtimer);
+}
 
 static long gzvm_vcpu_update_one_reg(struct gzvm_vcpu *vcpu,
 				     void __user *argp,
@@ -28,7 +72,7 @@ static long gzvm_vcpu_update_one_reg(struct gzvm_vcpu *vcpu,
 	if (copy_from_user(&reg, argp, sizeof(reg)))
 		return -EFAULT;
 
-	reg_addr = (void __user *)reg.addr;
+	reg_addr = u64_to_user_ptr(reg.addr);
 	reg_size = (reg.id & GZVM_REG_SIZE_MASK) >> GZVM_REG_SIZE_SHIFT;
 	reg_size = BIT(reg_size);
 
@@ -88,7 +132,7 @@ static bool gzvm_vcpu_handle_mmio(struct gzvm_vcpu *vcpu)
 static long gzvm_vcpu_run(struct gzvm_vcpu *vcpu, void __user *argp)
 {
 	bool need_userspace = false;
-	u64 exit_reason = 0;
+	u64 exit_reason;
 
 	if (copy_from_user(vcpu->run, argp, sizeof(struct gzvm_vcpu_run)))
 		return -EFAULT;
@@ -103,6 +147,7 @@ static long gzvm_vcpu_run(struct gzvm_vcpu *vcpu, void __user *argp)
 
 	while (!need_userspace && !signal_pending(current)) {
 		gzvm_arch_vcpu_run(vcpu, &exit_reason);
+		trace_mtk_vcpu_exit(exit_reason);
 
 		switch (exit_reason) {
 		case GZVM_EXIT_MMIO:
@@ -136,16 +181,21 @@ static long gzvm_vcpu_run(struct gzvm_vcpu *vcpu, void __user *argp)
 			fallthrough;
 		case GZVM_EXIT_GZ:
 			break;
+		case GZVM_EXIT_IDLE:
+			gzvm_handle_guest_idle(vcpu);
+			break;
+		case GZVM_EXIT_IPI:
+			gzvm_handle_guest_ipi(vcpu);
+			break;
 		case GZVM_EXIT_UNKNOWN:
 			fallthrough;
 		default:
 			pr_err("vcpu unknown exit\n");
 			need_userspace = true;
-			goto out;
 		}
+		trace_android_vh_gzvm_vcpu_exit_reason(vcpu, &need_userspace);
 	}
 
-out:
 	if (copy_to_user(argp, vcpu->run, sizeof(struct gzvm_vcpu_run)))
 		return -EFAULT;
 	if (signal_pending(current)) {
@@ -162,6 +212,13 @@ static long gzvm_vcpu_ioctl(struct file *filp, unsigned int ioctl,
 	int ret = -ENOTTY;
 	void __user *argp = (void __user *)arg;
 	struct gzvm_vcpu *vcpu = filp->private_data;
+
+	/*
+	 * Reject ioctls issued by a process other than the VM creator
+	 * (cf. KVM's kvm->mm check).
+	 */
+	if (vcpu->gzvm->mm != current->mm)
+		return -EIO;
 
 	switch (ioctl) {
 	case GZVM_RUN:
@@ -182,7 +239,16 @@ static long gzvm_vcpu_ioctl(struct file *filp, unsigned int ioctl,
 	return ret;
 }
 
+static int gzvm_vcpu_release(struct inode *inode, struct file *filp)
+{
+	struct gzvm_vcpu *vcpu = filp->private_data;
+
+	gzvm_vm_put(vcpu->gzvm);
+	return 0;
+}
+
 static const struct file_operations gzvm_vcpu_fops = {
+	.release	= gzvm_vcpu_release,
 	.unlocked_ioctl = gzvm_vcpu_ioctl,
 	.llseek		= noop_llseek,
 };
@@ -193,6 +259,7 @@ static void gzvm_destroy_vcpu(struct gzvm_vcpu *vcpu)
 	if (!vcpu)
 		return;
 
+	hrtimer_cancel(&vcpu->gzvm_vtimer);
 	gzvm_arch_destroy_vcpu(vcpu->gzvm->vm_id, vcpu->vcpuid);
 	/* clean guest's data */
 	memset(vcpu->run, 0, GZVM_VCPU_RUN_MAP_SIZE);
@@ -237,6 +304,8 @@ int gzvm_vm_ioctl_create_vcpu(struct gzvm *gzvm, u32 cpuid)
 	struct gzvm_vcpu *vcpu;
 	int ret;
 
+	gzvm_vm_get(gzvm);
+
 	if (cpuid >= GZVM_MAX_VCPUS)
 		return -EINVAL;
 
@@ -271,6 +340,7 @@ int gzvm_vm_ioctl_create_vcpu(struct gzvm *gzvm, u32 cpuid)
 		goto free_vcpu_run;
 	gzvm->vcpus[cpuid] = vcpu;
 
+	gzvm_vtimer_init(vcpu);
 	return ret;
 
 free_vcpu_run:

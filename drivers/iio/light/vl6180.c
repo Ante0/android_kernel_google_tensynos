@@ -20,7 +20,6 @@
 #include <linux/i2c.h>
 #include <linux/mutex.h>
 #include <linux/err.h>
-#include <linux/of.h>
 #include <linux/delay.h>
 #include <linux/util_macros.h>
 
@@ -493,8 +492,7 @@ static int vl6180_init(struct vl6180_data *data)
 	return vl6180_hold(data, false);
 }
 
-static int vl6180_probe(struct i2c_client *client,
-			  const struct i2c_device_id *id)
+static int vl6180_probe(struct i2c_client *client)
 {
 	struct vl6180_data *data;
 	struct iio_dev *indio_dev;
@@ -529,7 +527,7 @@ static const struct of_device_id vl6180_of_match[] = {
 MODULE_DEVICE_TABLE(of, vl6180_of_match);
 
 static const struct i2c_device_id vl6180_id[] = {
-	{ "vl6180", 0 },
+	{ "vl6180" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, vl6180_id);
@@ -539,7 +537,7 @@ static struct i2c_driver vl6180_driver = {
 		.name   = VL6180_DRV_NAME,
 		.of_match_table = vl6180_of_match,
 	},
-	.probe  = vl6180_probe,
+	.probe = vl6180_probe,
 	.id_table = vl6180_id,
 };
 

@@ -5,6 +5,10 @@
  * MAX77779 Scratch space management
  */
 
+#pragma clang diagnostic ignored "-Wenum-conversion"
+#pragma clang diagnostic ignored "-Wswitch"
+#pragma clang diagnostic ignored "-Wunused-function"
+
 #include <linux/debugfs.h>
 #include <linux/device.h>
 #include <linux/module.h>
@@ -91,49 +95,64 @@ static int max77779_sp_info(gbms_tag_t tag, size_t *addr, size_t size)
 {
 	switch (tag) {
 	case GBMS_TAG_RS32:
-		if (size && size > OPCODE_USER_SPACE_R_RES_LEN)
+		if (size > OPCODE_USER_SPACE_R_RES_LEN)
 			return -EINVAL;
 		*addr = RSBM_ADDR;
 		break;
 	case GBMS_TAG_RSBM:
-		if (size && size > RS_TAG_LENGTH)
+		if (size > RS_TAG_LENGTH)
 			return -EINVAL;
 		*addr = RSBM_ADDR;
 		break;
 	case GBMS_TAG_RSBR:
-		if (size && size > RS_TAG_LENGTH)
+		if (size > RS_TAG_LENGTH)
 			return -EINVAL;
 		*addr = RSBR_ADDR;
 		break;
 	case GBMS_TAG_SUFG:
-		if (size && size > SU_TAG_LENGTH)
+		if (size > SU_TAG_LENGTH)
 			return -EINVAL;
 		*addr = SUFG_ADDR;
 		break;
 	case GBMS_TAG_RSOC:
-		if (size && size > RSOC_TAG_LENGTH)
+		if (size > RSOC_TAG_LENGTH)
 			return -EINVAL;
 		*addr = RSOC_ADDR;
 		break;
 	case GBMS_TAG_FWHI:
-		if (size && size > FWHI_TAG_LENGTH)
+		if (size > FWHI_TAG_LENGTH)
 			return -EINVAL;
 		*addr = FWHI_ADDR;
 		break;
 	case GBMS_TAG_FWSF:
-		if (size && size > FWSF_TAG_LENGTH)
+		if (size > FWSF_TAG_LENGTH)
 			return -EINVAL;
 		*addr = FWSF_ADDR;
 		break;
-	case GBMS_TAG_MDLV:
-		if (size && size > MDLV_TAG_LENGTH)
+	case GBMS_TAG_MDLS:
+		if (size > MDLS_TAG_LENGTH)
 			return -EINVAL;
-		*addr = MDLV_ADDR;
+		*addr = MDLS_ADDR;
+		break;
+	case GBMS_TAG_WLFW:
+		if (size > WLFW_TAG_LENGTH)
+			return -EINVAL;
+		*addr = WLFW_ADDR;
+		break;
+	case GBMS_TAG_BCLS:
+		if (size > BCLS_TAG_LENGTH)
+			return -EINVAL;
+		*addr = BCLS_ADDR;
 		break;
 	case GBMS_TAG_AAWC:
-		if (size && size > AAWC_TAG_LENGTH)
+		if (size && size > AACC_TAG_LENGTH)
 			return -EINVAL;
 		*addr = AAWC_ADDR;
+		break;
+	case GBMS_TAG_AATD:
+		if (size && size > AACC_TAG_LENGTH)
+			return -EINVAL;
+		*addr = AATD_ADDR;
 		break;
 	default:
 		return -ENOENT;
@@ -144,9 +163,12 @@ static int max77779_sp_info(gbms_tag_t tag, size_t *addr, size_t size)
 
 static int max77779_sp_iter(int index, gbms_tag_t *tag, void *ptr)
 {
-	static gbms_tag_t keys[] = {GBMS_TAG_RS32, GBMS_TAG_RSBM, GBMS_TAG_RSBR,
-				    GBMS_TAG_SUFG, GBMS_TAG_RSOC, GBMS_TAG_FWHI,
-				    GBMS_TAG_FWSF, GBMS_TAG_MDLV, GBMS_TAG_AAWC};
+	static const gbms_tag_t keys[] = {GBMS_TAG_RS32, GBMS_TAG_RSBM,
+					  GBMS_TAG_RSBR, GBMS_TAG_SUFG,
+					  GBMS_TAG_RSOC, GBMS_TAG_FWHI,
+					  GBMS_TAG_FWSF, GBMS_TAG_MDLS,
+					  GBMS_TAG_WLFW, GBMS_TAG_BCLS,
+					  GBMS_TAG_AAWC, GBMS_TAG_AATD};
 	const int count = ARRAY_SIZE(keys);
 
 	if (index >= 0 && index < count) {

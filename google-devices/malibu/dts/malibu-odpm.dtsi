@@ -1,0 +1,334 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+
+/*
+ * Malibu odpm controller/channel device tree source
+ *
+ * Copyright 2025 Google LLC.
+ */
+
+/ {
+	ODPM {
+		compatible = "google,odpm";
+		mba-dest-channel = <MBOX_DEST_CHAN_ODPM>;
+		mboxes = <&goog_mba_cpm_iface>;
+		sample-rate-count = <8>;
+		sample-rate-uhz = <7811250 15625000 31250000 62500000
+			125000000 250000000 500000000 1000000000>;
+		sample-rate-index = <2>;
+		sample-rate-external-count = <6>;
+		sample-rate-external-uhz= <7811250 15625000 31250000 62500000
+			125000000 250000000>;
+		sample-rate-external-index = <4>;
+		pmic = <&da9188_regulator>;
+		shared-memory-size = <0x400>;
+		protocol-version = <1>;
+
+		ext_rails {
+			pmic_main {
+				m_ext1_rail: VSEN_C1 {
+					regulator-name = "VSEN_C1";
+					google,schematic-name = "VSYS_CAMERA";
+					google,subsystem-name = "Camera";
+					google,shunt-res-uohm = <5000>;
+					google,external-rail;
+				};
+
+				m_ext2_rail: VSEN_C2 {
+					regulator-name = "VSEN_C2";
+					google,schematic-name = "VSYS_MODEM_G1";
+					google,subsystem-name = "Modem";
+					google,shunt-res-uohm = <10000>;
+					google,external-rail;
+				};
+
+				m_ext3_rail: VSEN_C3 {
+					regulator-name = "VSEN_C3";
+					google,schematic-name = "VSYS_MODEM_G2";
+					google,subsystem-name = "Modem";
+					google,shunt-res-uohm = <10000>;
+					google,external-rail;
+				};
+
+				m_ext4_rail: VSEN_C4 {
+					regulator-name = "VSEN_C4";
+					google,schematic-name = "VSYS_ALL";
+					google,subsystem-name = "Battery";
+					google,shunt-res-uohm = <2000>;
+					google,external-rail;
+				};
+			};
+
+			pmic_sub {
+				s_ext5_rail: VSEN_C5 {
+					regulator-name = "VSEN_C5";
+					google,schematic-name = "VSYS_DISPLAY";
+					google,subsystem-name = "Display";
+					google,shunt-res-uohm = <5000>;
+					google,external-rail;
+				};
+
+				s_ext6_rail: VSEN_C6 {
+					regulator-name = "VSEN_C6";
+					google,schematic-name = "VSYS_TSPKR";
+					google,subsystem-name = "Top_Speaker";
+					google,shunt-res-uohm = <5000>;
+					google,external-rail;
+				};
+
+				s_ext7_rail: VSEN_C7 {
+					regulator-name = "VSEN_C7";
+					google,schematic-name = "VSYS_RFFE";
+					google,subsystem-name = "Cellular";
+					google,shunt-res-uohm = <5000>;
+					google,external-rail;
+				};
+
+				s_ext8_rail: VSEN_C8 {
+					regulator-name = "VSEN_C8";
+					google,schematic-name = "VSYS_WLAN_BT_MMWAVE";
+					google,subsystem-name = "WLAN_BT_MMWAVE";
+					google,shunt-res-uohm = <5000>;
+					google,external-rail;
+				};
+			};
+		};
+
+		channels {
+			ch0: channel@0 {
+				rail-name = "buck_1m";
+				channel_enabled;
+			};
+
+			ch1: channel@1 {
+				rail-name = "buck_2m";
+				channel_enabled;
+			};
+
+			ch2: channel@2 {
+				rail-name = "buck_3m";
+				channel_enabled;
+			};
+
+			ch3: channel@3 {
+				rail-name = "buck_4m";
+				channel_enabled;
+			};
+
+			ch4: channel@4 {
+				rail-name = "buck_5m";
+				channel_enabled;
+			};
+
+			ch5: channel@5 {
+				rail-name = "buck_6m";
+				channel_enabled;
+			};
+
+			ch6: channel@6 {
+				rail-name = "buck_7m";
+				channel_enabled;
+			};
+
+			ch7: channel@7 {
+				rail-name = "buck_8m";
+				channel_enabled;
+			};
+
+			ch8: channel@8 {
+				rail-name = "buck_9m";
+				channel_enabled;
+			};
+
+			ch9: channel@9 {
+				rail-name = "buck_10m";
+				channel_enabled;
+			};
+
+			ch10: channel@10 {
+				rail-name = "buck_11m";
+				channel_enabled;
+			};
+
+			ch11: channel@11 {
+				rail-name = "buck_13m";
+				channel_enabled;
+			};
+
+			ch12: channel@12 {
+				rail-name = "VSEN_C1";
+				channel_enabled;
+				external;
+			};
+
+			ch13: channel@13 {
+				rail-name = "VSEN_C2";
+				channel_enabled;
+				external;
+			};
+
+			ch14: channel@14 {
+				rail-name = "VSEN_C3";
+				channel_enabled;
+				external;
+			};
+
+			ch15: channel@15 {
+				rail-name = "VSEN_C4";
+				channel_enabled;
+				external;
+			};
+
+			ch41: channel@41 {
+				rail-name = "buck_1s";
+				channel_enabled;
+			};
+
+			ch42: channel@42 {
+				rail-name = "buck_2s";
+				channel_enabled;
+			};
+
+			ch43: channel@43 {
+				rail-name = "buck_3s";
+				channel_enabled;
+			};
+
+			ch44: channel@44 {
+				rail-name = "buck_4s";
+				channel_enabled;
+			};
+
+			ch45: channel@45 {
+				rail-name = "buck_5s";
+				channel_enabled;
+			};
+
+			ch46: channel@46 {
+				rail-name = "buck_6s";
+				channel_enabled;
+			};
+
+			ch47: channel@47 {
+				rail-name = "buck_7s";
+				channel_enabled;
+			};
+
+			ch48: channel@48 {
+				rail-name = "buck_8s";
+				channel_enabled;
+			};
+
+			ch49: channel@49 {
+				rail-name = "buck_9s";
+				channel_enabled;
+			};
+
+			ch50: channel@50 {
+				rail-name = "buck_10s";
+				channel_enabled;
+			};
+
+			ch51: channel@51 {
+				rail-name = "buck_11s";
+				channel_enabled;
+			};
+
+			ch52: channel@52 {
+				rail-name = "buck_12s";
+				channel_enabled;
+			};
+
+			ch53: channel@53 {
+				rail-name = "VSEN_C5";
+				channel_enabled;
+				external;
+			};
+
+			ch54: channel@54 {
+				rail-name = "VSEN_C6";
+				channel_enabled;
+				external;
+			};
+
+			ch55: channel@55 {
+				rail-name = "VSEN_C7";
+				channel_enabled;
+				external;
+			};
+
+			ch56: channel@56 {
+				rail-name = "VSEN_C8";
+				channel_enabled;
+				external;
+			};
+		};
+
+		virt_nodes {
+			node1: node@1 {
+				node-name = "SOC";
+				chan-idxs = <1 2 11 3 42 6 41 49 48 9 0 4 10 8 50 43 7>;
+				chan-idxs-count = <17>;
+			};
+
+			node2: node@2 {
+				node-name = "DDR";
+				chan-idxs = <44 45>;
+				chan-idxs-count = <2>;
+			};
+
+			node3: node@3 {
+				node-name = "UFS";
+				chan-idxs = <51>;
+				chan-idxs-count = <1>;
+			};
+
+			node4: node@4 {
+				node-name = "MISC_SUBS";
+				chan-idxs = <46 5 47 52>;
+				chan-idxs-count = <4>;
+			};
+
+			node5: node@5 {
+				node-name = "DISPLAY";
+				chan-idxs = <53>;
+				chan-idxs-count = <1>;
+			};
+
+			node6: node@6 {
+				node-name = "CAMERA";
+				chan-idxs = <12>;
+				chan-idxs-count = <1>;
+			};
+
+			node7: node@7 {
+				node-name = "RFFE";
+				chan-idxs = <55>;
+				chan-idxs-count = <1>;
+			};
+
+			node8: node@8 {
+				node-name = "MODEM";
+				chan-idxs = <13 14>;
+				chan-idxs-count = <2>;
+			};
+
+			node9: node@9 {
+				node-name = "WLAN_BT_MMWAVE";
+				chan-idxs = <56>;
+				chan-idxs-count = <1>;
+			};
+
+			node10: node@10 {
+				node-name = "SPEAKER";
+				chan-idxs = <54>;
+				chan-idxs-count = <1>;
+			};
+
+			node11: node@11 {
+				node-name = "BATTERY";
+				chan-idxs = <15>;
+				chan-idxs-count = <1>;
+			};
+		};
+	};
+};

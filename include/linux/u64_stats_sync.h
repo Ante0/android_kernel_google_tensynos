@@ -89,6 +89,11 @@ static inline void u64_stats_add(u64_stats_t *p, unsigned long val)
 	local64_add(val, &p->v);
 }
 
+static inline void u64_stats_sub(u64_stats_t *p, s64 val)
+{
+	local64_sub(val, &p->v);
+}
+
 static inline void u64_stats_inc(u64_stats_t *p)
 {
 	local64_inc(&p->v);
@@ -128,6 +133,11 @@ static inline void u64_stats_set(u64_stats_t *p, u64 val)
 static inline void u64_stats_add(u64_stats_t *p, unsigned long val)
 {
 	p->v += val;
+}
+
+static inline void u64_stats_sub(u64_stats_t *p, s64 val)
+{
+	p->v -= val;
 }
 
 static inline void u64_stats_inc(u64_stats_t *p)
@@ -212,18 +222,6 @@ static inline bool u64_stats_fetch_retry(const struct u64_stats_sync *syncp,
 					 unsigned int start)
 {
 	return __u64_stats_fetch_retry(syncp, start);
-}
-
-/* Obsolete interfaces */
-static inline unsigned int u64_stats_fetch_begin_irq(const struct u64_stats_sync *syncp)
-{
-	return u64_stats_fetch_begin(syncp);
-}
-
-static inline bool u64_stats_fetch_retry_irq(const struct u64_stats_sync *syncp,
-					     unsigned int start)
-{
-	return u64_stats_fetch_retry(syncp, start);
 }
 
 #endif /* _LINUX_U64_STATS_SYNC_H */

@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM thermal_exynos
-#define NOTRACE
 
 #if !defined(_TRACE_EXYNOS_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_THERMAL_EXYNOS_H
@@ -389,7 +388,8 @@ TRACE_EVENT(thermal_exynos_arm_update,
 );
 
 TRACE_EVENT(thermal_exynos_allow_max_power,
-	TP_PROTO(const char *tmu_name, bool is_hardlimited, char *cdev_type, unsigned long state),
+	TP_PROTO(const char *tmu_name, bool is_hardlimited, const char *cdev_type,
+		 unsigned long state),
 
 	TP_ARGS(tmu_name, is_hardlimited, cdev_type, state),
 

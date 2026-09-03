@@ -425,6 +425,7 @@ static int32_t tas25xx_create_custom_controls(struct tas25xx_priv *p_tas25xx)
 
 	ret = snd_soc_add_component_controls(plat_data->codec,
 			&tas25xx_custom_ctrls[0], 2);
+	p_tas25xx->custom_ctrls_added = true;
 	return ret;
 }
 
@@ -532,11 +533,16 @@ int32_t tas25xx_process_block(struct tas25xx_priv *p_tas25xx, char *mem, int32_t
 	uint8_t *buffer = NULL;
 	uint8_t *ptr = NULL;
 
+	plat_data = (struct linux_platform *) p_tas25xx->platform_data;
+
+	/* ignore non probed chn but return 0 to let codec can be registered */
+	if (p_tas25xx->devs[chn]->is_probed == 0)
+		return 0;
+
 	fw_state = atomic_read(&p_tas25xx->fw_state);
 	if (fw_state != TAS25XX_DSP_FW_OK)
 		return -EINVAL;
 
-	plat_data = (struct linux_platform *) p_tas25xx->platform_data;
 	memcpy(&block_size, mem, sizeof(int32_t));
 	mem += sizeof(int32_t);
 	ptr = mem;
@@ -1301,6 +1307,9 @@ static int32_t tas25xx_int_put_idx_value(struct tas25xx_priv *p_tas25xx,
 		chn = g_kctrl_data[ctrl_idx].kcontrol.int_type.channel;
 		mask_w = g_kctrl_data[ctrl_idx].kcontrol.int_type.mask;
 		value_w = 0;
+
+		if (p_tas25xx->devs[chn]->is_probed == 0)
+			return ret;
 
 		dev_info(plat_data->dev, "%s kcontrol=%s with value index=%d", __func__,
 			g_kctrl_data[ctrl_idx].kcontrol.int_type.name, value_idx);
@@ -2524,16 +2533,50 @@ int32_t tas25xx_set_post_powerdown(struct tas25xx_priv *p_tas25xx, int32_t ch)
 	return ret;
 }
 
+static void tas25xx_remove_controls(struct snd_soc_component *comp,
+				const struct snd_kcontrol_new *controls,
+				int num_controls)
+{
+	struct snd_card *card;
+	struct snd_ctl_elem_id id;
+	struct snd_kcontrol *kctl;
+	int i;
+
+	if (comp->card == NULL) {
+		pr_warn("%s: comp->card is NULL\n", __func__);
+		return;
+	}
+
+	card = comp->card->snd_card;
+
+	if (card == NULL) {
+		pr_warn("%s: comp->card->snd_card is NULL\n", __func__);
+		return;
+	}
+
+	for (i = 0; i < num_controls; i++) {
+		memset(&id, 0, sizeof(id));
+		id.iface = SNDRV_CTL_ELEM_IFACE_MIXER;
+		strscpy(id.name, controls[i].name, sizeof(id.name));
+
+		kctl = snd_ctl_find_id(card, &id);
+		if (kctl)
+			snd_ctl_remove(card, kctl);
+	}
+}
+
 int32_t tas25xx_remove_binfile(struct tas25xx_priv *p_tas25xx)
 {
 	int32_t i = 0, j = 0;
 	int32_t count;
+	struct linux_platform *plat_data = p_tas25xx->platform_data;
 
 	/* firmware not loaded */
 	if (p_tas25xx)
 		atomic_set(&p_tas25xx->fw_state, TAS25XX_DSP_FW_NONE);
 
 	if (g_profile_list) {
+		tas25xx_remove_controls(plat_data->codec, &tas25xx_profile_ctrl, 1);
 		for (i = 0; i < g_no_of_profiles; i++) {
 			kfree(g_profile_list[i]);
 			g_profile_list[i] = NULL;
@@ -2554,7 +2597,13 @@ int32_t tas25xx_remove_binfile(struct tas25xx_priv *p_tas25xx)
 		}
 	}
 
+	if (p_tas25xx->custom_ctrls_added) {
+		p_tas25xx->custom_ctrls_added = false;
+		tas25xx_remove_controls(plat_data->codec, &tas25xx_custom_ctrls[0], 2);
+	}
+
 	if (g_kctrl_data) {
+		tas25xx_remove_controls(plat_data->codec, g_kctrl_ctrl, g_no_of_kcontrols);
 		for (i = 0; i < g_no_of_kcontrols; i++) {
 			if (g_kctrl_data[i].type != 0) {
 				count = g_kctrl_data[i].kcontrol.enum_type.count;

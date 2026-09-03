@@ -25,10 +25,15 @@
 #include <linux/of_irq.h>
 #include <linux/of_gpio.h>
 #include <linux/mfd/syscon.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/regmap.h>
 #include "i2c-exynos5.h"
 
 #include <soc/google/exynos-cpupm.h>
+
+#if IS_ENABLED(CONFIG_I2C_DEBUG_BUS)
+#define DEBUG
+#endif
 
 /*
  * HSI2C controller from Samsung supports 2 modes of operation
@@ -912,14 +917,12 @@ static int exynos5_i2c_xfer_msg(struct exynos5_i2c *i2c,
 		HSI2C_INT_TRANSFER_DONE;
 	writel(i2c_int_en, i2c->regs + HSI2C_INT_ENABLE);
 
-	if (IS_ENABLED(CONFIG_SOC_GS201) || !IS_ENABLED(CONFIG_IRQ_SBALANCE)) {
-		cpumask_set_cpu(cpu, &cpu_mask);
-		if (IS_ENABLED(CONFIG_SOC_ZUMA) && cpu == 8) {
-			cpumask_setall(&cpu_mask);
-			cpumask_clear_cpu(cpu, &cpu_mask);
-		}
-		irq_set_affinity_and_hint(i2c->irq, &cpu_mask);
+	cpumask_set_cpu(cpu, &cpu_mask);
+	if (IS_ENABLED(CONFIG_SOC_ZUMA) && cpu == 8) {
+		cpumask_setall(&cpu_mask);
+		cpumask_clear_cpu(cpu, &cpu_mask);
 	}
+	irq_set_affinity_and_hint(i2c->irq, &cpu_mask);
 
 	i2c_auto_conf &= ~(0xffff);
 	i2c_auto_conf |= i2c->msg->len;
@@ -1219,11 +1222,11 @@ static int exynos5_i2c_probe(struct platform_device *pdev)
 
 	i2c->idle_ip_index = exynos_get_idle_ip_index(dev_name(&pdev->dev));
 
-	strlcpy(i2c->adap.name, "exynos5-i2c", sizeof(i2c->adap.name));
+	strscpy(i2c->adap.name, "exynos5-i2c", sizeof(i2c->adap.name));
 	i2c->adap.owner   = THIS_MODULE;
 	i2c->adap.algo    = &exynos5_i2c_algorithm;
 	i2c->adap.retries = 2;
-	i2c->adap.class   = I2C_CLASS_HWMON | I2C_CLASS_SPD;
+	i2c->adap.class   = I2C_CLASS_HWMON;
 
 	i2c->dev = &pdev->dev;
 	i2c->clk = devm_clk_get(&pdev->dev, "gate_hsi2c_clk");
@@ -1291,12 +1294,7 @@ static int exynos5_i2c_probe(struct platform_device *pdev)
 	}
 
 	ret = devm_request_irq(&pdev->dev, i2c->irq, exynos5_i2c_irq,
-#ifdef CONFIG_SOC_GS201
-			       IRQF_NOBALANCING | IRQF_NO_SUSPEND,
-#else
-			       IRQF_NO_SUSPEND,
-#endif
-			       dev_name(&pdev->dev), i2c);
+				IRQF_NO_SUSPEND, dev_name(&pdev->dev), i2c);
 	disable_irq(i2c->irq);
 
 	if (ret != 0) {
@@ -1337,15 +1335,13 @@ static int exynos5_i2c_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int exynos5_i2c_remove(struct platform_device *pdev)
+static void exynos5_i2c_remove(struct platform_device *pdev)
 {
 	struct exynos5_i2c *i2c = platform_get_drvdata(pdev);
 
 	i2c_del_adapter(&i2c->adap);
 
 	clk_unprepare(i2c->clk);
-
-	return 0;
 }
 
 #ifdef CONFIG_PM

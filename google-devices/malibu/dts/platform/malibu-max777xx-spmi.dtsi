@@ -1,0 +1,121 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Max777xx devicetree config.
+ * Intended to be included on the SPMI busses for Max777 devices.
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+
+max77779_pmic:max77779pmic@f {
+	compatible = "maxim,max77779pmic-spmi";
+	reg = <0xf 0>;
+
+	max77779_pmic_irq:max77779pmicirq {
+		compatible = "max77779-pmic-irq";
+		pinctrl-names = "default";
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	max77779_pinctrl:max77779pinctrl {
+		compatible = "max77779-pinctrl";
+	};
+
+	max77779_sgpio: max77779_sgpio {
+		gpio-controller;
+		compatible = "max77779-pmic-sgpio";
+		#gpio-cells = <2>;
+
+		pinctrl-names = "default";
+		gpio-ranges = <&max77779_pinctrl 0 0 8>;
+
+		interrupt-parent = <&max77779_pmic_irq>;
+		interrupts = <5 IRQ_TYPE_LEVEL_LOW>;
+		ngpios = <8>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	max77779_vdroop: max77779vdroop {
+		compatible = "max77779-vdroop";
+
+		max77779,fg = <&max77779_fg>;
+		interrupt-parent = <&max77779_pmic_irq>;
+		interrupts = <6 IRQ_TYPE_LEVEL_LOW>;
+	};
+};
+
+max77779_fg:max77779fg@6 {
+	compatible = "maxim,max77779fg-spmi";
+	reg = <0x6 0>;
+
+	interrupt-parent = <&max77779_pmic_irq>;
+	interrupts = <1 IRQ_TYPE_LEVEL_LOW>;
+
+	max77779,pmic = <&max77779_pmic>;
+
+	max77779,psy-type-unknown;
+	maxim,fg-data {
+		#include "malibu-fake-battery-data.dtsi"
+	};
+};
+
+max77779_chg:max77779chrg@3 {
+	compatible = "maxim,max77779chrg-spmi";
+	reg = <0x3 0>;
+
+	max77779,psy-name = "main-charger";
+	max77779,pmic = <&max77779_pmic>;
+
+	interrupt-parent = <&max77779_pmic_irq>;
+	interrupts = <2 IRQ_TYPE_LEVEL_LOW>;
+
+	interrupt-controller;
+	#interrupt-cells = <2>;
+
+	max77779,chg-term-voltage = <4400>;
+
+	max77779_usecase: max77779-usecase {
+		compatible = "max77779,usecase";
+	};
+
+	max77779_gpio: max77779_gpio {
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <1>;
+	};
+};
+
+max77779_sp:max77779sp@1 {
+	compatible = "maxim,max77779sp-spmi";
+	reg = <0x1 0>;
+};
+
+max77779_vimon:max77779vimon@5 {
+	compatible = "maxim,max77779vimon-spmi";
+	reg = <0x5 0>;
+
+	interrupt-parent = <&max77779_pmic_irq>;
+	interrupts = <4 IRQ_TYPE_LEVEL_LOW>;
+
+	max77779,pmic = <&max77779_pmic>;
+
+	max77779,psy-type-unknown;
+};
+
+max77779_i2cm:max77779i2cm@2 {
+	reg = <0x2 0>;
+
+	compatible = "maxim,max77779i2cm-spmi";
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	max77779,timeout = <0xff>;
+	max77779,completion_timeout_ms = <0x200>;
+	max77779,speed = <0x02>;
+	i2c-id = <IFPMIC_I2C_BUS_ID>;
+};

@@ -6,6 +6,7 @@
 #ifndef MAX77779_I2CM_H_
 #define MAX77779_I2CM_H_
 
+#include <linux/debugfs.h>
 #include "max77779_regs.h"
 
 #define DONEI_SET(v) _max77779_i2cm_interrupt_donei_set(0, v)
@@ -61,7 +62,6 @@
 
 struct max77779_i2cm_info {
 	struct i2c_adapter	adap;  /* bus */
-	struct i2c_client	*client;
 	int			irq;
 	struct device		*dev;
 	struct regmap		*regmap;
@@ -70,6 +70,13 @@ struct max77779_i2cm_info {
 	unsigned int		completion_timeout_ms;
 	unsigned int		speed;
 	u8			reg_vals[I2CM_MAX_REGISTER + 1];
+	struct mutex		io_lock;
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+	struct dentry		*debugfs_root;
+	int			debug_i2c_address;
+	u8			debug_i2c_reg;
+	u32			debug_reg_address;
+#endif
 };
 
 int max77779_i2cm_init(struct max77779_i2cm_info *info);

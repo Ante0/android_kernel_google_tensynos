@@ -25,6 +25,7 @@
 #include "ufs-vs-mmio.h"
 #include "ufs-vs-regs.h"
 #include "ufs-exynos-dbg.h"
+#include "ufs-exynos-gs.h"
 #include "ufs-dump.h"
 
 /* Structure for ufs cmd logging */

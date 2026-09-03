@@ -117,8 +117,6 @@ void lwis_bus_manager_lock_bus(struct lwis_device *lwis_dev);
 
 void lwis_bus_manager_unlock_bus(struct lwis_device *lwis_dev);
 
-struct lwis_bus_manager *lwis_bus_manager_get(struct lwis_device *lwis_dev);
-
 int lwis_bus_manager_create(struct lwis_device *lwis_dev);
 
 void lwis_bus_manager_disconnect_device(struct lwis_device *lwis_dev);

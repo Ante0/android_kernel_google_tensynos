@@ -263,7 +263,7 @@ __be32 ipv4str_to_be32(const char *ipv4str, size_t count)
 	char *next = ipstr;
 	int i;
 
-	strlcpy(ipstr, ipv4str, ARRAY_SIZE(ipstr));
+	strscpy(ipstr, ipv4str, sizeof(ipstr));
 
 	for (i = 0; i < 4; i++) {
 		char *p;

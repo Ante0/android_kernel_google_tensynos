@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# vendor thermal module
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "vh_thermal",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "vh_thermal.ko",
+    conditional_srcs = {
+        "CONFIG_VH_THERMAL": {
+            True: [
+                "init.c",
+                "thermal_genl.c",
+                "thermal_trip_flag.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

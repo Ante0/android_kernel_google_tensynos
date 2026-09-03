@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2024 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/soc/google/gdmc/google,cdd.yaml#
+$schema: http://devicetree.org/meta-schemas/base.yaml#
+
+title: Google CDD (Crash Debug Dump)
+
+maintainers:
+  - Jone Chou <jonechou@google.com>
+
+description:
+  This binding describes the Google CDD interface, which allows
+  access to the CDD header and log kevents' buffers.
+
+properties:
+  compatible:
+    const: google,crash-debug-dump
+
+  freq_names:
+    type: string
+    description: List the frequency domains which we want to trace.
+
+  memory-region:
+    maxItems: 2
+    description: Introduce two reserved memory regions, cdd_header and log_kevents.
+
+  panic-action:
+    type: integer
+    description: use to determine kernel panic reset type.
+
+  wdt-handle:
+    type: object
+    description: phandle to `google,wdt` device node. This points to the Google WDT
+                 operations which used by Google CDD to force watchdog reset.
+
+required:
+  - compatible
+  - freq-names
+  - memory-region
+  - panic-action
+  - wdt-handle
+
+additionalProperties: false
+
+examples:
+  - |
+    gcdd: gcdd {
+        compatible = "google,crash-debug-dump";
+        freq-names = "LIT", "MID0", "MID1", "BIG";
+        memory-region = <&cdd_header>, <&log_kevents>;
+        panic-action = <GO_DEFAULT_ID>;
+        wdt-handle = <&wdt1>;
+    };

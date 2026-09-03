@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Dabears charging config for Malibu devices
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+
+#include "google-base/malibu-dabears-spacecraft-charging.dtsi"
+
+&max77779_chg {
+	max77779,wlcin-is-child;
+};
+
+&max77779_usecase {
+	max77779,usecase-version = <2>;
+};
+
+&pe26100 {
+	reg = <0x6a>;
+};

@@ -7,13 +7,25 @@
 #ifndef __S51xx_PCIE_H__
 #define __S51xx_PCIE_H__
 
-#include <linux/exynos-pci-noti.h>
-
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_SOC_EXYNOS)
 #include "cpif_pcie_shim_exynos.h"
+#elif IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_SOC_GOOGLE)
+#include "cpif_pcie_shim_google.h"
+#endif
+
+#if IS_ENABLED(CONFIG_EXYNOS_PCIE_IOMMU)
+#define EXYNOS_IOMMU
+#elif IS_ENABLED(CONFIG_ARM_SMMU_V3_PIXEL) || \
+	IS_ENABLED(CONFIG_ARM_SMMU_V3_PKVM_PIXEL) || \
+	IS_ENABLED(CONFIG_ARM_SMMU_V3) || \
+	IS_ENABLED(CONFIG_ARM_SMMU_V3_PKVM)
+#define PIXEL_IOMMU
+#else
+#error "Unknown IOMMU Architecture"
 #endif
 
 #define MAX_MSI_NUM	(16)
+#define DEFAULT_MSI_VEC_NUM (2)
 
 extern void first_save_s51xx_status(struct pci_dev *pdev);
 extern int s51xx_pcie_init(struct modem_ctl *mc);
@@ -36,6 +48,10 @@ struct s51xx_pcie {
 	pcie_register_event_t pcie_cpl_timeout_event;
 	struct pci_saved_state *pci_saved_configs;
 	struct pci_saved_state *first_pci_saved_configs;
+
+	bool l1ss_force;
+	bool l11_enable;
+	bool l12_enable;
 };
 
 #define AUTOSUSPEND_TIMEOUT	200
@@ -49,14 +65,21 @@ struct s51xx_pcie {
 #define AOC_PCIE_WINDOW_START	0x195FD000
 #define AOC_PCIE_WINDOW_SIZE	0x3000
 
-int s51xx_pcie_request_msi_int(struct pci_dev *pdev, int int_num);
+int s51xx_pcie_request_msi_int(struct pci_dev *pdev, int int_num,
+				bool use_exclusive_irq);
 void __iomem *s51xx_pcie_get_doorbell_address(void);
 int s51xx_pcie_send_doorbell_int(struct pci_dev *pdev, int int_num);
 void s51xx_pcie_save_state(struct pci_dev *pdev);
 void s51xx_pcie_restore_state(struct pci_dev *pdev, bool boot_on,
 		enum modem_variant variant);
 int s51xx_check_pcie_link_status(int ch_num);
-void s51xx_pcie_l1ss_ctrl(int enable, int ch_num);
+void s51xx_pcie_l1ss_ctrl(int enable, struct s51xx_pcie *s51xx_pcie);
 void disable_msi_int(struct pci_dev *pdev);
 void print_msi_register(struct pci_dev *pdev);
+
+#ifdef PIXEL_IOMMU
+int setup_iommu_mapping(struct modem_ctl *mc, bool boot_on);
+int reset_iommu_mapping(struct modem_ctl *mc);
+#endif
+
 #endif /* __S51xx_PCIE_H__ */

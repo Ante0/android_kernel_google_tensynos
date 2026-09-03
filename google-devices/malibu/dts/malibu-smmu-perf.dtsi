@@ -1,0 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/ {
+	iommu_map_benchmark_amb_smmu: iommu_map_benchmark_amb_smmu {
+		compatible = "iommu-map-benchmark";
+		iommus = <&amb_smmu 32>;
+	};
+};

@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_VOTE_MANAGER
+	tristate "Google Vote Manager"
+	help
+	  Enable support for Google Vote Manager module
+	  The module expose sysf nodes for userland cpu/device
+	  frequency voting

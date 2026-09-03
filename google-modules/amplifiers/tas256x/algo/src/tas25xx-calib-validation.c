@@ -997,7 +997,7 @@ void tas25xx_algo_add_calib_valid_bigdata(uint8_t channels)
 			tas25xx_bd_attr_r, sizeof(tas25xx_bd_attr_r));
 	}
 
-	algo->algo_class = class_create(THIS_MODULE, TAS25XX_SYSFS_CLASS_NAME);
+	algo->algo_class = class_create(TAS25XX_SYSFS_CLASS_NAME);
 	if (IS_ERR(algo->algo_class)) {
 		ret = PTR_ERR(algo->algo_class);
 		pr_err("[TI-SmartPA:%s] err class create\n", __func__);

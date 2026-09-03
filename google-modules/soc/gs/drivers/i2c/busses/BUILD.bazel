@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# Makefile for the i2c bus drivers.
+# Embedded system I2C/SMBus host controller drivers
+# Other I2C/SMBus bus drivers
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "headers",
+    hdrs = [
+        "i2c-exynos5.h",
+    ],
+    includes = ["."],
+)
+
+ddk_module(
+    name = "i2c-exynos5",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "i2c-exynos5.ko",
+    conditional_srcs = {
+        "CONFIG_I2C_EXYNOS5_GS": {
+            True: [
+                "i2c-exynos5.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-cpupm",
+    ],
+)
+
+ddk_module(
+    name = "i2c-acpm",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "i2c-acpm.ko",
+    conditional_srcs = {
+        "CONFIG_I2C_ACPM": {
+            True: [
+                "i2c-acpm.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

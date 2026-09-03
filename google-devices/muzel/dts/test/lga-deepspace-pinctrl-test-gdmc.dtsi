@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,lga.h>
+
+&gdmc_pinctrl {
+	gdmc_nfc_input_gpios: gdmc_nfc_input_gpios {
+		pins = "XGDMC_DEBUG_DEFAULT_1";
+		function = "gdmc_int";
+		bias-pull-up;
+		input-enable;
+	};
+	gdmc_modem_input_gpios: gdmc_modem_input_gpios {
+		pins = "XGDMC_IN_DEBUG_1";
+		function = "gdmc_int";
+		bias-pull-up;
+		input-enable;
+	};
+};

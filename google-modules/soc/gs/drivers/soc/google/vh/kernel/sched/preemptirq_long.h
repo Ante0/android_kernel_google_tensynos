@@ -1,45 +1,15 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
-/*
- * Copyright (c) 2020 The Linux Foundation. All rights reserved.
- */
+/* SPDX-License-Identifier: GPL-2.0 */
+#ifndef __PREEMPTIRQ_LONG_H
+#define __PREEMPTIRQ_LONG_H
 
-#undef TRACE_SYSTEM
-#define TRACE_SYSTEM preemptirq_long
+struct task_struct;
 
-#if !defined(_TRACE_PREEMPTIRQ_LONG_H) || defined(TRACE_HEADER_MULTI_READ)
-#define _TRACE_PREEMPTIRQ_LONG_H
+void note_irq_disable(void *u1, unsigned long u2, unsigned long u3);
+void test_irq_disable_long(void *u1, unsigned long u2, unsigned long u3);
+void test_preempt_disable_long(void *u1, unsigned long u2, unsigned long u3);
+void note_preempt_disable(void *u1, unsigned long u2, unsigned long u3);
+void note_context_switch(void *u1, bool u2, struct task_struct *u3,
+			 struct task_struct *next, unsigned int prev_state);
+int preemptirq_long_init(void);
 
-#include <linux/tracepoint.h>
-
-DECLARE_EVENT_CLASS(preemptirq_long_template,
-
-	TP_PROTO(u64 delta),
-
-	TP_ARGS(delta),
-
-	TP_STRUCT__entry(
-		__field(u64, delta)
-	),
-
-	TP_fast_assign(
-		__entry->delta = delta;
-	),
-
-	TP_printk("delta=%llu(ns)", __entry->delta)
-);
-
-DEFINE_EVENT(preemptirq_long_template, irq_disable_long,
-	     TP_PROTO(u64 delta),
-	     TP_ARGS(delta));
-
-DEFINE_EVENT(preemptirq_long_template, preempt_disable_long,
-	     TP_PROTO(u64 delta),
-	     TP_ARGS(delta));
-
-#endif /* _TRACE_PREEMPTIRQ_LONG_H */
-
-/* This part must be outside protection */
-#undef TRACE_INCLUDE_PATH
-#define TRACE_INCLUDE_PATH .
-#define TRACE_INCLUDE_FILE preemptirq_long
-#include <trace/define_trace.h>
+#endif /* __PREEMPTIRQ_LONG_H */

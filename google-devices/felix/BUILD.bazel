@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch")
+load("//private/devices/google/common/kleaf:device_build.bzl", "device_build")
+load("//private/devices/google/gs201:constants.bzl", "GS201_DTBS", "GS201_MODULE_OUTS")
+load(":constants.bzl", "FELIX_DTBOS")
+
+package(
+    default_visibility = [
+        "//private/devices/google/gs201:__subpackages__",
+    ],
+)
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+device_build(
+    name = "felix",
+    base_device = "//private/devices/google/gs201:gs201_base",
+    build_dtb = True,
+    build_dtbo = True,
+    build_system_dlkm = True,
+    build_vendor_dlkm = True,
+    build_vendor_kernel_boot = True,
+    defconfig_fragments = ["felix_defconfig"],
+    dtb_outs = GS201_DTBS,
+    dtbo_outs = FELIX_DTBOS,
+    dts_makefile = "dts/Makefile",
+    dts_srcs = glob(["dts/**"]) + [
+        "//private/google-modules/soc/gs:gs.dt-bindings",
+    ],
+    insmod_cfgs = glob(["insmod_cfg/*.cfg"]),
+    kconfig_exts = ["Kconfig.ext.felix"],
+    # keep sorted
+    kconfigs = [
+        "//private/google-modules/radio/samsung/s5300:cpif.kconfig",
+    ],
+    module_outs = GS201_MODULE_OUTS,
+    # keep sorted
+    vendor_dlkm_modules = [
+        "//private/devices/google/felix/touch/fst2",
+        "//private/google-modules/amplifiers/cs35l41:snd-soc-cs35l41-i2c",
+        "//private/google-modules/amplifiers/cs40l26:cl_dsp-core",
+        "//private/google-modules/amplifiers/cs40l26:cs40l26-core",
+        "//private/google-modules/amplifiers/cs40l26:snd-soc-cs40l26",
+        "//private/google-modules/bluetooth/broadcom:nitrous",
+        "//private/google-modules/fingerprint/fpc:fpc1020_platform_tee",
+        "//private/google-modules/gps/broadcom/bcm47765:bbd_pps_gpio",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel/drivers/net/ieee802154:dw3000",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel/drivers/net/ieee802154:dw3000-core-tests",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel/net/mcps802154",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel/net/mcps802154:mcps802154_region_fira",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel/net/mcps802154:mcps802154_region_nfcc_coex",
+        "//private/google-modules/uwb/qorvo/dw3000/kernel/net/mcps802154:mcps802154_region_pctt",
+    ],
+    # keep sorted
+    vendor_dlkm_modules_blocklisted = [
+        "//private/devices/google/felix/touch/ftm5",
+        "//private/google-modules/amplifiers/cs40l26:cs40l26-i2c",
+        "//private/google-modules/wlan/bcmdhd/bcm4389:bcmdhd4389",
+    ],
+    # keep sorted
+    vendor_ramdisk_modules = [
+        "//private/devices/google/felix/display:panel-samsung-ana6707-f10",
+        "//private/devices/google/felix/display:panel-samsung-ea8182-f10",
+        "//private/google-modules/amplifiers/cs35l41:snd-soc-cs35l41",
+        "//private/google-modules/amplifiers/cs35l41:snd-soc-cs35l41-spi",
+        "//private/google-modules/amplifiers/snd_soc_wm_adsp:snd-soc-wm-adsp",
+        "//private/google-modules/display/samsung/panel:panel-samsung-s6e3fc3",
+        "//private/google-modules/display/samsung/panel:panel-samsung-s6e3fc3-p10",
+        "//private/google-modules/display/samsung/panel:panel-samsung-s6e3hc2",
+        "//private/google-modules/display/samsung/panel:panel-samsung-s6e3hc3",
+        "//private/google-modules/display/samsung/panel:panel-samsung-sofef01",
+        "//private/google-modules/gps/broadcom/bcm47765:bcm47765_ko",
+        "//private/google-modules/nfc:st21nfc",
+        "//private/google-modules/nfc/ese:st33spi",
+        "//private/google-modules/nfc/ese:st54spi",
+        "//private/google-modules/radio/samsung/s5300:cp_thermal_zone",
+        "//private/google-modules/radio/samsung/s5300:cpif_ko",
+        "//private/google-modules/radio/samsung/s5300:cpif_page",
+        "//private/google-modules/radio/samsung/s5300:shm_ipc",
+        "//private/google-modules/sensors/hall_sensor",
+    ],
+)
+
+# For compatibility
+alias(
+    name = "gs201_felix_dist",
+    actual = ":felix/dist",
+)
+
+alias(
+    name = "gs201_felix_abi_update_symbol_list",
+    actual = ":felix/kernel_abi_update_symbol_list",
+)
+
+alias(
+    name = "kernel",
+    actual = ":felix/kernel",
+)
+
+alias(
+    name = "kernel_abi_update_symbol_list",
+    actual = ":felix/kernel_abi_update_symbol_list",
+)
+
+alias(
+    name = "kernel_compile_commands",
+    actual = ":felix/kernel_compile_commands",
+)

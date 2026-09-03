@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# gnssif
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "gnss_spi",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "gnss_spi.ko",
+    conditional_srcs = {
+        "CONFIG_EXYNOS_GNSS_IF_SPI": {
+            True: [
+                "gnss_spi.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "gnssif",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "gnssif.ko",
+    conditional_srcs = {
+        "CONFIG_EXYNOS_GNSS_IF_SPI": {
+            True: [
+                "gnss_io_device.c",
+                "gnss_keplerctl_device.c",
+                "gnss_link_device.c",
+                "gnss_main.c",
+                "gnss_utils.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":gnss_spi",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

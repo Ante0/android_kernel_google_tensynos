@@ -25,6 +25,7 @@
 #include <linux/gpio.h>
 #include <linux/input.h>
 #include <linux/miscdevice.h>
+#include <linux/overflow.h>
 #include <linux/kernel.h>
 #include <linux/fs.h>
 #include <linux/time.h>
@@ -1079,7 +1080,7 @@ static ssize_t roi_store(struct device *dev,
 		if (n_roi >= 0) {
 			if (n_roi)
 				memcpy(data->roi_cfg.UserRois, rois,
-						n_roi*sizeof(rois[0]));
+				       array_size(n_roi, sizeof(rois[0])));
 			data->roi_cfg.NumberOfRoi = n_roi;
 			dump_roi(dev, data->roi_cfg.UserRois,
 				 data->roi_cfg.NumberOfRoi);

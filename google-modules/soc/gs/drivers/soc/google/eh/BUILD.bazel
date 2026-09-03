@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: MIT
+
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load(
+    "@kleaf//build/kernel/kleaf:kernel.bzl",
+    "ddk_module",
+)
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+string_flag(
+    name = "ip_idle",
+    build_setting_default = "undefined",
+)
+
+config_setting(
+    name = "ip_idle_exynos",
+    flag_values = {
+        ":ip_idle": "exynos_ip_idle",
+    },
+)
+
+config_setting(
+    name = "ip_idle_google",
+    flag_values = {
+        ":ip_idle": "google_ip_idle",
+    },
+)
+
+ddk_module(
+    name = "eh",
+    srcs = [
+        "eh_internal.h",
+        "eh_main.c",
+        "eh_regs.h",
+    ],
+    out = "eh.ko",
+    hdrs = [
+        "include/linux/eh.h",
+    ],
+    defconfig = "defconfig",
+    includes = ["include"],
+    kconfig = "Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ] + select({
+        ":ip_idle_exynos": [
+        ],
+        ":ip_idle_google": [
+            "//private/google-modules/perf/infra/mbfs",
+            "//private/google-modules/soc/rdo:rdo_soc_headers",
+        ],
+    }) + select({
+        "//private/devices/google/common:soc_is_laguna": [
+            "//private/google-modules/soc/rdo/ip-idle-notifier:google_ip_idle_notifier",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "//private/devices/google/common:soc_is_zumapro_or_before": [
+            "//private/google-modules/soc/gs/drivers/soc/google:exynos-cpupm",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "//private/devices/google/common:soc_is_zuma_or_zumapro": [
+            "//private/google-modules/soc/gs/drivers/soc/google/pkvm-s2mpu:pkvm-s2mpu-v9",
+        ],
+        "//private/devices/google/common:soc_is_gs201_or_before": [
+            "//private/google-modules/soc/gs/drivers/soc/google/pkvm-s2mpu",
+        ],
+        "//conditions:default": [],
+    }),
+)

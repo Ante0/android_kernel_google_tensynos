@@ -1,0 +1,101 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2024 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/cpu_lpm_stats/google,cpu-lpm-stats.yaml#
+$schema: http://devicetree.org/meta-schemas/base.yaml#
+
+title: Google CPUSS Power Mode Latency Driver
+
+maintainers:
+  - Mariano Marciello <mmarciello@google.com>
+  - Mahesh Sivasubramanian <msivasub@google.com>
+  - Marcin Wasowicz <mkwasowicz@google.com>
+
+description:
+  This defines the CPUs and cluster power domains for which the driver will
+  monitor and record the total active time and the activation/deactivation
+  timestamps of each power domain.
+
+properties:
+  compatible:
+    description: "google,cpu-lpm-stats"
+      Each subnode in the device represents a power domain for a CPU or a
+      cluster. These power domains are used to collect latency and residency
+      data through the cpu_lpm_stats driver.
+
+  $nodename:
+    pattern: "^power-domain-.*"
+    description:
+      This node designates a CPU or cluster power domain that the cpu_lpm_stats
+      driver will utilize for gathering latency and residency data.
+    properties:
+      "power-domains":
+        type: object
+        description: Reference to the specific power domain to be monitored.
+
+      "power-state":
+        type: integer
+        description: The id of low power state of specific power domain. This id
+          is used to calculate memory location where statistics for specific
+          power domain low power state are stored.
+
+examples:
+	cpu_lpm_stats: cpu_lpm_stats {
+		compatible = "google,cpu-lpm-stats";
+
+		power-domain-cpu0 {
+			power-domains = <&CPU_PD0>;
+			power-state = <C2_CORE0>;
+		};
+
+		power-domain-cpu1 {
+			power-domains = <&CPU_PD1>;
+			power-state = <C2_CORE1>;
+		};
+
+		power-domain-cpu2 {
+			power-domains = <&CPU_PD2>;
+			power-state = <C2_CORE2>;
+		};
+
+		power-domain-cpu3 {
+			power-domains = <&CPU_PD3>;
+			power-state = <C2_CORE3>;
+		};
+
+		power-domain-cpu4 {
+			power-domains = <&CPU_PD4>;
+			power-state = <C2_CORE4>;
+		};
+
+		power-domain-cpu5 {
+			power-domains = <&CPU_PD5>;
+			power-state = <C2_CORE5>;
+		};
+
+		power-domain-cpu6 {
+			power-domains = <&CPU_PD6>;
+			power-state = <C2_CORE6>;
+		};
+
+		power-domain-cpu7 {
+			power-domains = <&CPU_PD7>;
+			power-state = <C2_CORE7>;
+		};
+
+		power-domain-top-cluster {
+			power-domains = <&CPU_TOP_CL>;
+			power-state = <C4>;
+		};
+
+		power-domain-cluster-1 {
+			power-domains = <&CPUCL1>;
+			power-state = <C3_CLUSTER1>;
+		};
+
+		power-domain-cluster-2 {
+			power-domains = <&CPUCL2>;
+			power-state = <C3_CLUSTER2>;
+		};
+	};

@@ -38,11 +38,11 @@
 
 #define MAXNAME 32
 #define DW_ENTRY __array(char, dw_name, MAXNAME)
-#define DW_ASSIGN strlcpy(__entry->dw_name, dw->dev->kobj.name, MAXNAME)
+#define DW_ASSIGN strscpy(__entry->dw_name, dw->dev->kobj.name, MAXNAME)
 #define DW_PR_FMT "%s"
 #define DW_PR_ARG __entry->dw_name
 
-#ifdef CONFIG_MCPS802154_TESTMODE
+#if IS_ENABLED(CONFIG_MCPS802154_TESTMODE)
 #define DW_TM_CMD_ENTRY __field(u32, cmd)
 #define DW_TM_CMD_ASSIGN __entry->cmd = cmd
 #define DW_TM_CMD_PR_FMT "cmd: %s"
@@ -1340,7 +1340,7 @@ TRACE_EVENT(dw3000_nfcc_coex_err,
 	),
 	TP_fast_assign(
 		DW_ASSIGN;
-		__assign_str(err, err);
+		__assign_str(err);
 	),
 	TP_printk(DW_PR_FMT ", err: \"%s\"", DW_PR_ARG, __get_str(err))
 );
@@ -1354,7 +1354,7 @@ TRACE_EVENT(dw3000_nfcc_coex_warn,
 	),
 	TP_fast_assign(
 		DW_ASSIGN;
-		__assign_str(warn, warn);
+		__assign_str(warn);
 	),
 	TP_printk(DW_PR_FMT ", warn: \"%s\"", DW_PR_ARG, __get_str(warn))
 );
@@ -1407,7 +1407,7 @@ DEFINE_EVENT(dw_only_evt, dw3000_nfcc_coex_disable,
  *		dw3000 optional functions traces	     *
  *************************************************************/
 
-#ifdef CONFIG_MCPS802154_TESTMODE
+#if IS_ENABLED(CONFIG_MCPS802154_TESTMODE)
 TRACE_EVENT(dw3000_tm_cmd,
 	TP_PROTO(struct dw3000 *dw, u32 cmd),
 	TP_ARGS(dw, cmd),

@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_LCM
+	tristate "Google LCM driver support(STOPGAP)"
+	depends on ARCH_GOOGLE
+	select COMMON_CLK
+	select RESET_CONTROLLER
+	help
+	  Enable support for LCM clocks and resets.
+	  Allows client to configure divs, muxes,
+	  gates and resets.
+	  Select Y if you have such device.
+	  If unsure select "N".

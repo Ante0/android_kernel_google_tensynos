@@ -90,8 +90,7 @@ void __init setup_arch(char **cmdline_p)
 	config_BSP(&command_line[0], sizeof(command_line));
 
 #if defined(CONFIG_BOOTPARAM)
-	strncpy(&command_line[0], CONFIG_BOOTPARAM_STRING, sizeof(command_line));
-	command_line[sizeof(command_line) - 1] = 0;
+	strscpy(&command_line[0], CONFIG_BOOTPARAM_STRING, sizeof(command_line));
 #endif /* CONFIG_BOOTPARAM */
 
 	process_uboot_commandline(&command_line[0], sizeof(command_line));
@@ -139,7 +138,7 @@ void __init setup_arch(char **cmdline_p)
 
 	pr_debug("KERNEL -> TEXT=0x%p-0x%p DATA=0x%p-0x%p BSS=0x%p-0x%p\n",
 		 _stext, _etext, _sdata, _edata, __bss_start, __bss_stop);
-	pr_debug("MEMORY -> ROMFS=0x%p-0x%06lx MEM=0x%06lx-0x%06lx\n ",
+	pr_debug("MEMORY -> ROMFS=0x%p-0x%06lx MEM=0x%06lx-0x%06lx\n",
 		 __bss_stop, memory_start, memory_start, memory_end);
 
 	memblock_add(_rambase, memory_end - _rambase);

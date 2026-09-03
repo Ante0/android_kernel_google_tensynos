@@ -10,7 +10,7 @@
 #ifndef _UFS_PIXEL_H_
 #define _UFS_PIXEL_H_
 
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 #include <ufs/ufshcd.h>
 #include <scsi/scsi_cmnd.h>
 

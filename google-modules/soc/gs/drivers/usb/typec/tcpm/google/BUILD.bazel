@@ -1,0 +1,339 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Copyright (C) 2021, Google LLC
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "google_tcpci_shim",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "google_tcpci_shim.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_TCPCI_SHIM": {
+            True: [
+                "google_tcpci_shim.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "tcpci_fusb307",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "tcpci_fusb307.ko",
+    conditional_srcs = {
+        "CONFIG_TYPEC_FUSB307": {
+            True: [
+                "tcpci_fusb307.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "slg46826",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "slg46826.ko",
+    conditional_srcs = {
+        "CONFIG_TYPEC_FUSB307": {
+            True: [
+                "slg46826.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "usb_psy",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "usb_psy.ko",
+    conditional_srcs = {
+        "CONFIG_USB_PSY": {
+            True: [
+                "usb_psy.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":max77759_helper",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "tcpci_max77759",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "tcpci_max77759.ko",
+    hdrs = [
+        "google_tcpci_shim.h",
+        "tcpci_max77759.h",
+        "usb_psy.h",
+    ],
+    conditional_srcs = {
+        "CONFIG_TYPEC_MAX77759": {
+            True: [
+                "tcpci_max77759.c",
+            ],
+        },
+    },
+    includes = ["."],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":bc_max77759",
+        ":google_tcpci_shim",
+        ":max77759_helper",
+        ":max777x9_contaminant",
+        ":usb_psy",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77759_helper",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "max77759_helper.ko",
+    conditional_srcs = {
+        "CONFIG_TYPEC_MAX77759": {
+            True: [
+                "max77759_helper.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "bc_max77759",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "bc_max77759.ko",
+    conditional_srcs = {
+        "CONFIG_TYPEC_MAX77759": {
+            True: [
+                "bc_max77759.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":max77759_helper",
+        ":usb_psy",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max777x9_contaminant",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "max777x9_contaminant.ko",
+    conditional_srcs = {
+        "CONFIG_TYPEC_MAX77759": {
+            True: [
+                "max777x9_contaminant.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":max77759_contaminant",
+        ":max77759_helper",
+        ":max77779_contaminant",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77759_contaminant",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "max77759_contaminant.ko",
+    conditional_srcs = {
+        "CONFIG_TYPEC_MAX77759_CONTAMINANT": {
+            True: [
+                "max77759_contaminant.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":max77759_helper",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779_contaminant",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "max77779_contaminant.ko",
+    conditional_srcs = {
+        "CONFIG_TYPEC_MAX77779_CONTAMINANT": {
+            True: [
+                "max77779_contaminant.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":max77759_helper",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "tcpci_max777x9_i2c",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "tcpci_max777x9_i2c.ko",
+    conditional_srcs = {
+        "CONFIG_TYPEC_MAX777X9_I2C": {
+            True: [
+                "tcpci_max777x9_i2c.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":tcpci_max77759",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "tcpci_max777x9_spmi",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "tcpci_max777x9_spmi.ko",
+    conditional_srcs = {
+        "CONFIG_TYPEC_MAX777X9_SPMI": {
+            True: [
+                "tcpci_max777x9_spmi.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":tcpci_max77759",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "pogo_transport",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "pogo_transport.ko",
+    conditional_srcs = {
+        "CONFIG_POGO_TRANSPORT": {
+            True: [
+                "pogo_transport.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "usbc_cooling_dev",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "usbc_cooling_dev.ko",
+    conditional_srcs = {
+        "CONFIG_TYPEC_COOLING_DEV": {
+            True: [
+                "usbc_cooling_dev.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

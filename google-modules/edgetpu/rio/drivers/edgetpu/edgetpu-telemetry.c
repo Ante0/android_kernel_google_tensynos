@@ -13,6 +13,7 @@
 #include <gcip/gcip-memory.h>
 #include <gcip/gcip-telemetry.h>
 
+#include "edgetpu-config.h"
 #include "edgetpu-internal.h"
 #include "edgetpu-iremap-pool.h"
 #include "edgetpu-mmu.h"
@@ -23,7 +24,7 @@ static void set_telemetry_mem(struct edgetpu_dev *etdev)
 {
 	struct gcip_telemetry *tel_log = etdev->telemetry_log;
 	struct gcip_telemetry *tel_trace = etdev->telemetry_trace;
-	int i, offset = 0;
+	int i, offset = EDGETPU_TELEMETRY_BUFFERS_OFFSET;
 
 	for (i = 0; i < etdev->num_telemetry_buffers; i++) {
 		tel_log[i].memory.virt_addr = edgetpu_firmware_shared_data_vaddr(etdev) + offset;
@@ -85,60 +86,6 @@ int edgetpu_telemetry_init(struct edgetpu_dev *etdev)
 	return ret;
 }
 
-static void edgetpu_telemetry_hwtrace_setup_fw(struct edgetpu_dev *etdev)
-{
-	int ret;
-
-	if (!edgetpu_telemetry_mapped(&etdev->telemetry_hwtrace))
-		return;
-
-	ret = gcip_telemetry_kci(&etdev->telemetry_hwtrace, edgetpu_kci_map_hwtrace_buffer,
-				 etdev->etkci->kci);
-	if (ret)
-		etdev_warn(etdev, "failed to send hwtrace setup info to fw: %d\n", ret);
-}
-
-int edgetpu_telemetry_hwtrace_init(struct edgetpu_dev *etdev, size_t buffer_size)
-{
-	int ret;
-
-	etdev->telemetry_hwtrace.memory.sgt =
-		gcip_alloc_noncontiguous(etdev->dev, buffer_size, GFP_KERNEL);
-	if (!etdev->telemetry_hwtrace.memory.sgt)
-		return -ENOMEM;
-
-        ret = edgetpu_mmu_map_iova_sgt(etdev, EDGETPU_TELEMETRY_HWTRACE_IOVA,
-				       etdev->telemetry_hwtrace.memory.sgt, DMA_BIDIRECTIONAL,
-				       EDGETPU_MMU_COHERENT, edgetpu_mmu_default_domain(etdev));
-        if (ret)
-		goto err_free_sgt;
-
-	etdev->telemetry_hwtrace.memory.virt_addr =
-		gcip_noncontiguous_sgt_to_mem(etdev->telemetry_hwtrace.memory.sgt);
-	etdev->telemetry_hwtrace.memory.dma_addr =
-		sg_dma_address(etdev->telemetry_hwtrace.memory.sgt->sgl);
-	etdev->telemetry_hwtrace.memory.host_addr = 0;
-	etdev->telemetry_hwtrace.memory.phys_addr = 0; /* Not used for HWTRACE */
-	etdev->telemetry_hwtrace.memory.size = buffer_size;
-	ret = gcip_telemetry_init(&etdev->telemetry_hwtrace, GCIP_TELEMETRY_TYPE_HWTRACE,
-				  etdev->dev);
-	if (ret)
-		goto err_unmap_sgt;
-
-	edgetpu_telemetry_hwtrace_setup_fw(etdev);
-	return ret;
-
-err_unmap_sgt:
-	edgetpu_mmu_unmap_iova_sgt(etdev,etdev->telemetry_hwtrace.memory.dma_addr,
-				   etdev->telemetry_hwtrace.memory.sgt,
-				   DMA_BIDIRECTIONAL, edgetpu_mmu_default_domain(etdev));
-	etdev->telemetry_hwtrace.memory.dma_addr = 0;
-err_free_sgt:
-	gcip_free_noncontiguous(etdev->telemetry_hwtrace.memory.sgt);
-	etdev->telemetry_hwtrace.memory.sgt = NULL;
-	return ret;
-}
-
 void edgetpu_telemetry_exit(struct edgetpu_dev *etdev)
 {
 	int i;
@@ -146,16 +93,6 @@ void edgetpu_telemetry_exit(struct edgetpu_dev *etdev)
 	for (i = 0; i < etdev->num_telemetry_buffers; i++) {
 		gcip_telemetry_exit(&etdev->telemetry_trace[i]);
 		gcip_telemetry_exit(&etdev->telemetry_log[i]);
-	}
-
-	if (edgetpu_telemetry_mapped(&etdev->telemetry_hwtrace)) {
-		gcip_telemetry_exit(&etdev->telemetry_hwtrace);
-		edgetpu_mmu_unmap_iova_sgt(etdev, etdev->telemetry_hwtrace.memory.dma_addr,
-					   etdev->telemetry_hwtrace.memory.sgt,
-					   DMA_BIDIRECTIONAL, edgetpu_mmu_default_domain(etdev));
-		etdev->telemetry_hwtrace.memory.dma_addr = 0;
-		gcip_free_noncontiguous(etdev->telemetry_hwtrace.memory.sgt);
-		etdev->telemetry_hwtrace.memory.sgt = NULL;
 	}
 }
 
@@ -174,7 +111,6 @@ int edgetpu_telemetry_kci(struct edgetpu_dev *etdev)
 	if (ret)
 		return ret;
 
-	edgetpu_telemetry_hwtrace_setup_fw(etdev);
 	return 0;
 }
 
@@ -182,9 +118,6 @@ int edgetpu_telemetry_set_event(struct edgetpu_dev *etdev, struct gcip_telemetry
 {
 	int ret;
 	int i;
-
-	if (tel->type == GCIP_TELEMETRY_TYPE_HWTRACE)
-		return gcip_telemetry_set_event(tel, eventfd);
 
 	for (i = 0; i < etdev->num_telemetry_buffers; i++) {
 		ret = gcip_telemetry_set_event(&tel[i], eventfd);
@@ -201,11 +134,6 @@ void edgetpu_telemetry_unset_event(struct edgetpu_dev *etdev, struct gcip_teleme
 {
 	int i;
 
-	if (tel->type == GCIP_TELEMETRY_TYPE_HWTRACE) {
-		gcip_telemetry_unset_event(tel);
-		return;
-	}
-
 	for (i = 0; i < etdev->num_telemetry_buffers; i++)
 		gcip_telemetry_unset_event(&tel[i]);
 }
@@ -218,9 +146,6 @@ void edgetpu_telemetry_irq_handler(struct edgetpu_dev *etdev)
 		gcip_telemetry_irq_handler(&etdev->telemetry_log[i]);
 		gcip_telemetry_irq_handler(&etdev->telemetry_trace[i]);
 	}
-
-	if (edgetpu_telemetry_mapped(&etdev->telemetry_hwtrace))
-		gcip_telemetry_irq_handler(&etdev->telemetry_hwtrace);
 }
 
 static void telemetry_mappings_show(struct gcip_telemetry *tel, struct seq_file *s)
@@ -237,9 +162,6 @@ void edgetpu_telemetry_mappings_show(struct edgetpu_dev *etdev, struct seq_file 
 		telemetry_mappings_show(&etdev->telemetry_log[i], s);
 		telemetry_mappings_show(&etdev->telemetry_trace[i], s);
 	}
-
-	if (edgetpu_telemetry_mapped(&etdev->telemetry_hwtrace))
-		telemetry_mappings_show(&etdev->telemetry_hwtrace, s);
 }
 
 int edgetpu_mmap_telemetry_buffer(struct edgetpu_dev *etdev, struct gcip_telemetry *tel,

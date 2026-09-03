@@ -73,11 +73,20 @@ int tas25xx_change_book(struct tas25xx_priv *p_tas25xx,
 	int32_t chn, int book)
 {
 	int ret = -EINVAL;
+	struct linux_platform *plat_data;
+
+	plat_data = (struct linux_platform *) p_tas25xx->platform_data;
 
 	if (chn >= p_tas25xx->ch_count)
 		return ret;
 
 	ret = 0;
+
+	if (p_tas25xx->devs[chn]->is_probed == 0) {
+		dev_dbg(plat_data->dev, "ignore access channel %d\n", chn);
+		return ret;
+	}
+
 	if (p_tas25xx->devs[chn]->mn_current_book != book) {
 		ret = p_tas25xx->plat_write(
 				p_tas25xx->platform_data,
@@ -464,13 +473,21 @@ int tas25xx_irq_work_func(struct tas25xx_priv *p_tas25xx)
 	p_tas25xx->enable_irq(p_tas25xx);
 
 	if (intr_detected == 0) {
-		if (is_power_up_state(p_tas25xx->m_power_state))
+		if (is_power_up_state(p_tas25xx->m_power_state)) {
 			for (i = 0; i < p_tas25xx->ch_count; i++)
-				tas25xx_dump_regs(p_tas25xx, i);
+				if (p_tas25xx->devs[i]->is_probed)
+					tas25xx_dump_regs(p_tas25xx, i);
+				else
+					dev_err(plat_data->dev,
+						"--- TAS25XX Channel-%d is not present ---\n", i);
+		}
 		return ret;
 	}
 
 	for (i = 0; i < p_tas25xx->ch_count; i++) {
+		if (p_tas25xx->devs[i]->is_probed == 0)
+			continue;
+
 		if ((intr_detected & (1 << i)) == 0)
 			continue;
 
@@ -733,19 +750,25 @@ static int tas_smartamp_add_irq_bd(struct tas25xx_priv *p_tas25xx)
 		total_irqs += intr_data->count;
 	}
 
-	p_irqpd = (struct device_attribute *)kzalloc(total_irqs *
-			sizeof(struct device_attribute), GFP_KERNEL);
+	p_irqpd = kcalloc(total_irqs, sizeof(struct device_attribute),
+			  GFP_KERNEL);
 	if (!p_irqpd)
 		return -ENOMEM;
 
 	total_irqs++;
-	attribute_array = kzalloc((sizeof(struct attribute *) * total_irqs), GFP_KERNEL);
+	attribute_array = kcalloc(total_irqs, sizeof(struct attribute *),
+				  GFP_KERNEL);
+	if (!attribute_array) {
+		ret = -ENOMEM;
+		goto free_mem;
+	}
 
 	k = 0;
 	for (i = 0; i < p_tas25xx->ch_count; i++) {
 		intr_data = &p_tas25xx->intr_data[i];
 		for (j = 0; j < intr_data->count; j++) {
 			intr_info = &intr_data->intr_info[j];
+			sysfs_attr_init(&p_irqpd[k].attr);
 			p_irqpd[k].attr.name = intr_info->name;
 			p_irqpd[k].attr.mode = 0664;
 			p_irqpd[k].show = irq_bd_show;
@@ -765,7 +788,7 @@ static int tas_smartamp_add_irq_bd(struct tas25xx_priv *p_tas25xx)
 			"%sFailed to create irqs\n", __func__);
 		ret = PTR_ERR(irq_dev);
 		irq_dev = NULL;
-		goto err_irqbd;
+		goto free_mem;
 	}
 
 	ret = sysfs_create_group(&irq_dev->kobj,
@@ -773,7 +796,7 @@ static int tas_smartamp_add_irq_bd(struct tas25xx_priv *p_tas25xx)
 	if (ret) {
 		dev_err(plat_data->dev,
 			"%sFailed to create sysfs group\n", __func__);
-		goto err_irqbd;
+		goto free_mem;
 	}
 
 	p_tas25xx->irqdata.p_dev_attr = p_irqpd;
@@ -786,9 +809,9 @@ static int tas_smartamp_add_irq_bd(struct tas25xx_priv *p_tas25xx)
 
 	return ret;
 
-err_irqbd:
-	kfree(p_irqpd);
+free_mem:
 	kfree(attribute_array);
+	kfree(p_irqpd);
 	return ret;
 }
 
@@ -947,22 +970,20 @@ static int tas_smartamp_add_cmd_intf(struct tas25xx_priv *p_tas25xx)
 
 	cmd_count = ARRAY_SIZE(cmd_arr);
 
-	p_attr_arr = (struct device_attribute *)kzalloc(cmd_count *
-			sizeof(struct device_attribute), GFP_KERNEL);
-	if (!p_attr_arr) {
-		attr_arry = NULL;
-		ret = -ENOMEM;
-		goto err_cmd;
-	}
+	p_attr_arr = kcalloc(cmd_count, sizeof(struct device_attribute),
+			     GFP_KERNEL);
+	if (!p_attr_arr)
+		return -ENOMEM;
 
-	attr_arry = kzalloc((sizeof(struct attribute *) *
-					cmd_count), GFP_KERNEL);
+	attr_arry = kcalloc(cmd_count, sizeof(struct attribute *),
+			    GFP_KERNEL);
 	if (!attr_arry) {
 		ret = -ENOMEM;
-		goto err_cmd;
+		goto free_mem;
 	}
 
 	for (i = 0; (i < cmd_count) && cmd_str_arr[i]; i++) {
+		sysfs_attr_init(&p_attr_arr[i].attr);
 		p_attr_arr[i].attr.name = cmd_str_arr[i];
 		p_attr_arr[i].attr.mode = 0664;
 		p_attr_arr[i].show = cmd_show;
@@ -979,7 +1000,7 @@ static int tas_smartamp_add_cmd_intf(struct tas25xx_priv *p_tas25xx)
 		dev_err(plat_data->dev,
 			"%sFailed to create cmds\n", __func__);
 		ret = PTR_ERR(cmd_dev);
-		goto err_cmd;
+		goto free_mem;
 	}
 
 	ret = sysfs_create_group(&cmd_dev->kobj,
@@ -987,7 +1008,7 @@ static int tas_smartamp_add_cmd_intf(struct tas25xx_priv *p_tas25xx)
 	if (ret) {
 		dev_err(plat_data->dev,
 			"%s Failed to create sysfs group\n", __func__);
-		goto err_cmd;
+		goto free_mem;
 	}
 
 	p_tas25xx->cmd_data.p_dev_attr = p_attr_arr;
@@ -1000,9 +1021,9 @@ static int tas_smartamp_add_cmd_intf(struct tas25xx_priv *p_tas25xx)
 
 	return ret;
 
-err_cmd:
-	kfree(p_attr_arr);
+free_mem:
 	kfree(attr_arry);
+	kfree(p_attr_arr);
 	return ret;
 }
 
@@ -1028,7 +1049,10 @@ static int tas_smartamp_add_sysfs(struct tas25xx_priv *p_tas25xx)
 	struct linux_platform *plat_data =
 		(struct linux_platform *) p_tas25xx->platform_data;
 
-	class = class_create(THIS_MODULE, "tas25xx_dev");
+	if (p_tas25xx->class)
+		return ret;
+
+	class = class_create("tas25xx_dev");
 	if (IS_ERR(class)) {
 		ret = PTR_ERR(class);
 		dev_err(plat_data->dev,
@@ -1125,8 +1149,10 @@ int tas25xx_set_power_state(struct tas25xx_priv *p_tas25xx,
 	struct linux_platform *plat_data =
 		(struct linux_platform *) p_tas25xx->platform_data;
 
-	dev_info(plat_data->dev, "%s: state %s\n", __func__,
-		(state <= TAS_POWER_SHUTDOWN) ? tas_power_states_str[state] : "INVALID");
+	if (state == TAS_POWER_ACTIVE && !p_tas25xx->device_used) {
+		dev_info(plat_data->dev, "%s: switch is off\n", __func__);
+		return 0;
+	}
 
 	cur_state = p_tas25xx->m_power_state;
 	p_tas25xx->m_power_state = state;
@@ -1134,11 +1160,21 @@ int tas25xx_set_power_state(struct tas25xx_priv *p_tas25xx,
 	/* supports max 4 channels */
 	ch_bitmask &= tas25xx_get_drv_channel_opmode() & 0xF;
 
+	dev_info(plat_data->dev, "%s: state %s on ch %x\n", __func__,
+		(state <= TAS_POWER_SHUTDOWN) ?
+			tas_power_states_str[state] : "INVALID", ch_bitmask);
+
 	switch (state) {
 	case TAS_POWER_ACTIVE:
 		for (i = 0; i < p_tas25xx->ch_count; i++) {
 			if ((ch_bitmask & (1<<i)) == 0)
 				continue;
+
+			/* ch is active but not present */
+			if (p_tas25xx->devs[i]->is_probed == 0) {
+				ret = -EINVAL;
+				continue;
+			}
 
 			if (cur_state != state) {
 				dev_dbg(plat_data->dev,
@@ -1170,6 +1206,8 @@ int tas25xx_set_power_state(struct tas25xx_priv *p_tas25xx,
 		for (i = 0; i < p_tas25xx->ch_count; i++) {
 			if ((ch_bitmask & (1<<i)) == 0)
 				continue;
+			if (p_tas25xx->devs[i]->is_probed == 0)
+				continue;
 			tas25xx_set_power_mute(p_tas25xx, i);
 		}
 		break;
@@ -1177,6 +1215,8 @@ int tas25xx_set_power_state(struct tas25xx_priv *p_tas25xx,
 	case TAS_POWER_SHUTDOWN:
 		for (i = 0; i < p_tas25xx->ch_count; i++) {
 			if ((ch_bitmask & (1<<i)) == 0)
+				continue;
+			if (p_tas25xx->devs[i]->is_probed == 0)
 				continue;
 
 			/* device interrupt disable */

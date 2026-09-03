@@ -248,7 +248,7 @@ int adv_tracer_ipc_send_data_async(unsigned int id,
 }
 EXPORT_SYMBOL(adv_tracer_ipc_send_data_async);
 
-struct adv_tracer_ipc_cmd *adv_tracer_ipc_get_channel_cmd(unsigned int id)
+static struct adv_tracer_ipc_cmd *adv_tracer_ipc_get_channel_cmd(unsigned int id)
 {
 	struct adv_tracer_ipc_ch *channel = NULL;
 	struct adv_tracer_ipc_cmd *cmd = NULL;
@@ -267,24 +267,6 @@ struct adv_tracer_ipc_cmd *adv_tracer_ipc_get_channel_cmd(unsigned int id)
 out:
 	return cmd;
 }
-EXPORT_SYMBOL(adv_tracer_ipc_get_channel_cmd);
-
-struct adv_tracer_ipc_ch *eat_ipc_get_channel(unsigned int id)
-{
-	struct adv_tracer_ipc_ch *ipc_channel = NULL;
-
-	if (IS_ERR(eat_ipc))
-		goto out;
-
-	ipc_channel = &eat_ipc->channel[id];
-	if (IS_ERR(ipc_channel)) {
-		dev_err(eat_info->dev, "%d channel is not allocated\n", id);
-		ipc_channel = NULL;
-	}
-out:
-	return ipc_channel;
-}
-EXPORT_SYMBOL(eat_ipc_get_channel);
 
 static int adv_tracer_ipc_channel_init(unsigned int id, unsigned int offset,
 				      unsigned int len, ipc_callback handler,

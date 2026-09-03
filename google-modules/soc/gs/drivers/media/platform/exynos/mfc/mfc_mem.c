@@ -43,7 +43,7 @@ int mfc_mem_get_user_shared_handle(struct mfc_ctx *ctx,
 		goto dma_buf_size_fail;
 	}
 
-	ret = dma_buf_vmap(handle->dma_buf, &map);
+	ret = dma_buf_vmap_unlocked(handle->dma_buf, &map);
 	if (ret) {
 		mfc_ctx_err("Failed to get kernel virtual address\n");
 		goto map_kernel_fail;
@@ -71,7 +71,7 @@ void mfc_mem_cleanup_user_shared_handle(struct mfc_ctx *ctx,
 	struct iosys_map map = IOSYS_MAP_INIT_VADDR(handle->vaddr);
 
 	if (handle->vaddr)
-		dma_buf_vunmap(handle->dma_buf, &map);
+		dma_buf_vunmap_unlocked(handle->dma_buf, &map);
 	if (handle->dma_buf)
 		dma_buf_put(handle->dma_buf);
 
@@ -126,8 +126,8 @@ static int mfc_mem_dma_heap_alloc(struct mfc_dev *dev,
 		goto err_attach;
 	}
 
-	special_buf->sgt = dma_buf_map_attachment(special_buf->attachment,
-			DMA_BIDIRECTIONAL);
+	special_buf->sgt = dma_buf_map_attachment_unlocked(special_buf->attachment,
+							   DMA_BIDIRECTIONAL);
 	if (IS_ERR(special_buf->sgt)) {
 		mfc_dev_err("Failed to get sgt (err %ld)\n",
 				PTR_ERR(special_buf->sgt));
@@ -147,7 +147,7 @@ static int mfc_mem_dma_heap_alloc(struct mfc_dev *dev,
 		struct iosys_map map;
 		int ret;
 
-		ret = dma_buf_vmap(special_buf->dma_buf, &map);
+		ret = dma_buf_vmap_unlocked(special_buf->dma_buf, &map);
 		if (ret) {
 			mfc_dev_err("Failed to get kernel virtual adddress\n");
 			goto err_vaddr;
@@ -164,8 +164,8 @@ err_vaddr:
 	special_buf->vaddr = NULL;
 err_daddr:
 	special_buf->daddr = 0;
-	dma_buf_unmap_attachment(special_buf->attachment, special_buf->sgt,
-				 DMA_BIDIRECTIONAL);
+	dma_buf_unmap_attachment_unlocked(special_buf->attachment,
+					  special_buf->sgt, DMA_BIDIRECTIONAL);
 err_map:
 	special_buf->sgt = NULL;
 	dma_buf_detach(special_buf->dma_buf, special_buf->attachment);
@@ -179,15 +179,16 @@ err_dma_heap_find:
 	return -ENOMEM;
 }
 
-void mfc_mem_dma_heap_free(struct mfc_special_buf *special_buf)
+static void mfc_mem_dma_heap_free(struct mfc_special_buf *special_buf)
 {
 	struct iosys_map map = IOSYS_MAP_INIT_VADDR(special_buf->vaddr);
 
 	if (special_buf->vaddr)
-		dma_buf_vunmap(special_buf->dma_buf, &map);
+		dma_buf_vunmap_unlocked(special_buf->dma_buf, &map);
 	if (special_buf->sgt)
-		dma_buf_unmap_attachment(special_buf->attachment,
-					 special_buf->sgt, DMA_BIDIRECTIONAL);
+		dma_buf_unmap_attachment_unlocked(special_buf->attachment,
+						  special_buf->sgt,
+						  DMA_BIDIRECTIONAL);
 	if (special_buf->attachment)
 		dma_buf_detach(special_buf->dma_buf, special_buf->attachment);
 	if (special_buf->dma_buf)
@@ -351,8 +352,8 @@ void mfc_put_iovmm(struct mfc_ctx *ctx, struct dpb_table *dpb, int num_planes, i
 			mfc_debug(2, "[IOVMM] index %d buf[%d] fd: %d addr: %#llx\n",
 					index, i, dpb[index].fd[i], dpb[index].addr[i]);
 		if (dpb[index].sgt[i])
-			dma_buf_unmap_attachment(dpb[index].attach[i], dpb[index].sgt[i],
-					DMA_BIDIRECTIONAL);
+			dma_buf_unmap_attachment_unlocked(dpb[index].attach[i], dpb[index].sgt[i],
+							  DMA_BIDIRECTIONAL);
 		if (dpb[index].attach[i])
 			dma_buf_detach(dpb[index].dmabufs[i], dpb[index].attach[i]);
 		if (dpb[index].dmabufs[i])
@@ -415,8 +416,8 @@ void mfc_get_iovmm(struct mfc_ctx *ctx, struct vb2_buffer *vb, struct dpb_table 
 			goto err_iovmm;
 		}
 
-		dpb[index].sgt[i] = dma_buf_map_attachment(dpb[index].attach[i],
-				DMA_BIDIRECTIONAL);
+		dpb[index].sgt[i] = dma_buf_map_attachment_unlocked(dpb[index].attach[i],
+								    DMA_BIDIRECTIONAL);
 		if (IS_ERR(dpb[index].sgt[i])) {
 			mfc_ctx_err("[IOVMM] Failed to get sgt (err %ld)\n",
 					PTR_ERR(dpb[index].sgt[i]));
@@ -547,7 +548,8 @@ int mfc_iommu_map_firmware(struct mfc_core *core, struct mfc_special_buf *fw_buf
 	fw_buf->map_size = iommu_map_sg(core->domain, reserved_base,
 			fw_buf->sgt->sgl,
 			fw_buf->sgt->orig_nents,
-			IOMMU_READ|IOMMU_WRITE);
+			IOMMU_READ|IOMMU_WRITE,
+			GFP_KERNEL);
 	if (!fw_buf->map_size) {
 		mfc_core_err("Failed to map iova (err VA: %pad, PA: %pap)\n",
 				&reserved_base, &fw_buf->paddr);

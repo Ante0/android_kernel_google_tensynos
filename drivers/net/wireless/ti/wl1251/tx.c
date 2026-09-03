@@ -402,11 +402,13 @@ static void wl1251_tx_packet_cb(struct wl1251 *wl,
 	int hdrlen;
 	u8 *frame;
 
-	skb = wl->tx_frames[result->id];
-	if (skb == NULL) {
-		wl1251_error("SKB for packet %d is NULL", result->id);
+	if (unlikely(result->id >= ARRAY_SIZE(wl->tx_frames) ||
+		     wl->tx_frames[result->id] == NULL)) {
+		wl1251_error("invalid packet id %u", result->id);
 		return;
 	}
+
+	skb = wl->tx_frames[result->id];
 
 	info = IEEE80211_SKB_CB(skb);
 
@@ -436,7 +438,7 @@ static void wl1251_tx_packet_cb(struct wl1251 *wl,
 		     result->status, wl1251_tx_parse_status(result->status));
 
 
-	ieee80211_tx_status(wl->hw, skb);
+	ieee80211_tx_status_skb(wl->hw, skb);
 
 	wl->tx_frames[result->id] = NULL;
 }
@@ -568,7 +570,7 @@ void wl1251_tx_flush(struct wl1251 *wl)
 		if (!(info->flags & IEEE80211_TX_CTL_REQ_TX_STATUS))
 				continue;
 
-		ieee80211_tx_status(wl->hw, skb);
+		ieee80211_tx_status_skb(wl->hw, skb);
 	}
 
 	for (i = 0; i < FW_TX_CMPLT_BLOCK_SIZE; i++)
@@ -579,7 +581,7 @@ void wl1251_tx_flush(struct wl1251 *wl)
 			if (!(info->flags & IEEE80211_TX_CTL_REQ_TX_STATUS))
 				continue;
 
-			ieee80211_tx_status(wl->hw, skb);
+			ieee80211_tx_status_skb(wl->hw, skb);
 			wl->tx_frames[i] = NULL;
 		}
 }

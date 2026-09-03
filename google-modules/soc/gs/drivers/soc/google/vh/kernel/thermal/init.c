@@ -9,13 +9,18 @@
 #include <linux/module.h>
 #include <trace/hooks/thermal.h>
 
-extern void vh_enable_thermal_genl_check(void *data, int event, int tz_id, int *enable_thermal_genl);
+#include "thermal_genl.h"
+#include "thermal_trip_flag.h"
 
 static int vh_thermal_init(void)
 {
 	int ret = 0;
 	ret = register_trace_android_vh_enable_thermal_genl_check(
 						vh_enable_thermal_genl_check, NULL);
+	ret = register_trace_android_vh_update_thermal_trip_flag(
+						vh_update_thermal_trip_flag, NULL);
+	ret = register_trace_android_vh_thermal_pm_notify_suspend(
+						vh_thermal_pm_notify_suspend, NULL);
 
 	return ret;
 }

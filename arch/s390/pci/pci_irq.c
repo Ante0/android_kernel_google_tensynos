@@ -107,9 +107,6 @@ static int zpci_set_irq(struct zpci_dev *zdev)
 	else
 		rc = zpci_set_airq(zdev);
 
-	if (!rc)
-		zdev->irqs_registered = 1;
-
 	return rc;
 }
 
@@ -123,16 +120,13 @@ static int zpci_clear_irq(struct zpci_dev *zdev)
 	else
 		rc = zpci_clear_airq(zdev);
 
-	if (!rc)
-		zdev->irqs_registered = 0;
-
 	return rc;
 }
 
 static int zpci_set_irq_affinity(struct irq_data *data, const struct cpumask *dest,
 				 bool force)
 {
-	struct msi_desc *entry = irq_get_msi_desc(data->irq);
+	struct msi_desc *entry = irq_data_get_msi_desc(data);
 	struct msi_msg msg = entry->msg;
 	int cpu_addr = smp_cpu_get_cpu_address(cpumask_first(dest));
 
@@ -163,7 +157,7 @@ static void zpci_handle_cpu_local_irq(bool rescan)
 			if (!rescan || irqs_on++)
 				/* End of second scan with interrupts on. */
 				break;
-			/* First scan complete, reenable interrupts. */
+			/* First scan complete, re-enable interrupts. */
 			if (zpci_set_irq_ctrl(SIC_IRQ_MODE_D_SINGLE, PCI_ISC, &iib))
 				break;
 			bit = 0;
@@ -202,7 +196,7 @@ static void zpci_handle_fallback_irq(void)
 			if (irqs_on++)
 				/* End of second scan with interrupts on. */
 				break;
-			/* First scan complete, reenable interrupts. */
+			/* First scan complete, re-enable interrupts. */
 			if (zpci_set_irq_ctrl(SIC_IRQ_MODE_SINGLE, PCI_ISC, &iib))
 				break;
 			cpu = 0;
@@ -247,7 +241,7 @@ static void zpci_floating_irq_handler(struct airq_struct *airq,
 			if (irqs_on++)
 				/* End of second scan with interrupts on. */
 				break;
-			/* First scan complete, reenable interrupts. */
+			/* First scan complete, re-enable interrupts. */
 			if (zpci_set_irq_ctrl(SIC_IRQ_MODE_SINGLE, PCI_ISC, &iib))
 				break;
 			si = 0;
@@ -427,8 +421,7 @@ bool arch_restore_msi_irqs(struct pci_dev *pdev)
 {
 	struct zpci_dev *zdev = to_zpci(pdev);
 
-	if (!zdev->irqs_registered)
-		zpci_set_irq(zdev);
+	zpci_set_irq(zdev);
 	return true;
 }
 

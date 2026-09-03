@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * QC ultrasonic fps device tree source
+ *
+ * Copyright 2024 Google,LLC.
+ */
+
+&odm {
+	qbt_handler: qcom,qbt-handler {
+		status = "okay";
+		compatible = "qcom,qbt-handler";
+		interrupt-parent = <&cpm_pinctrl>;
+		interrupts = <XCPM_EINT_7 0>;
+		spi-max-frequency = <40000000>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&udfps2ap_int_l_1v2>;
+		qcom,ipc-gpio = <UDFPS2AP_INT_L_1V2(0)>;
+		spi-gpio-provider = <&lsios_pinctrl>;
+	};
+};
+
+/* update gpio-reserved-ranges property to exclude FPS SPI pins from pictrl driver */
+&lsios_pinctrl {
+	gpio-reserved-ranges = <40 4>, <54 1>;
+};

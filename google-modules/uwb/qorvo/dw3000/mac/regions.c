@@ -40,7 +40,7 @@ int mcps802154_region_register(struct mcps802154_region_ops *region_ops)
 	struct mcps802154_region_ops *ops;
 	int r = 0;
 
-	if (WARN_ON(!region_ops || !region_ops->name ||
+	if (WARN_ON(!region_ops || !region_ops->owner || !region_ops->name ||
 		    !region_ops->open || !region_ops->close ||
 		    !region_ops->get_access))
 		return -EINVAL;
@@ -185,12 +185,10 @@ void mcps802154_region_xmit_done(struct mcps802154_llhw *llhw,
 {
 	struct mcps802154_local *local = llhw_to_local(llhw);
 
-	if (ok) {
+	if (ok)
 		ieee802154_xmit_complete(local->hw, skb, false);
-	} else {
-		ieee802154_wake_queue(local->hw);
-		dev_kfree_skb_any(skb);
-	}
+	else
+		ieee802154_xmit_error(local->hw, skb, IEEE802154_SYSTEM_ERROR);
 }
 EXPORT_SYMBOL_GPL(mcps802154_region_xmit_done);
 

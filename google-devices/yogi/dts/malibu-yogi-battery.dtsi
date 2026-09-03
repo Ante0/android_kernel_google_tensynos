@@ -1,0 +1,76 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Battery device tree entries specific to Yogi
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+
+#include "google-base/platform/malibu-dual-battery-common.dtsi"
+
+&google_battery {
+	google,vbatt-crit-deadline-sec = <120>;
+
+	google,ttf-temp-idx= <2>;
+	google,ttf-adapter = <4500>;
+	google,ttf-soc-table =  <63 83 94 96  99  100>;
+	google,ttf-elap-table = <37 64 92 142 247 90>;
+	google,ttf-tier-table = <0 68 81>;
+};
+
+
+&max77779_fg {
+	maxfg,dr_vfsoc_delta = <10>;
+	maxfg,vfocv_inhibit_min_mv = <3000>;
+	maxfg,vfocv_inhibit_max_mv = <3000>;
+	max77779,dual-battery = "maxfg_base";
+	max77779,status-charge-threshold-ma = <30>;
+	maxim,fg-data {
+		#include "malibu-yogi-battery-data.dtsi"
+	};
+};
+
+&max77779_i2cm {
+	#include "google-base/platform/malibu-max1720x-fg.dtsi"
+};
+
+&max1720x_fg {
+	pinctrl-0 = <&fuelgauge2aoss_alert_od_l>;
+
+	interrupt-parent = <&aoss_pinctrl>;
+	maxim,irq-gpio = <FUELGAUGE2AOSS_ALERT_OD_L(GPIO_ACTIVE_LOW)>;
+
+	maxim,status-charge-threshold-ma = <70>;
+
+	maxim,filtercfg-temp = <100>;
+	maxim,filtercfg-temp-hysteresis = <30>;
+	maxim,filtercfg-default = /bits/ 16 <0x0ea7>;
+	maxim,filtercfg-adjust = /bits/ 16 <0x0e97>;
+	maxim,r_regval_1720x =  /bits/ 16 <
+		0x3A 0xA95A	/* VEmpty */
+	>;
+	maxim,config {
+		maxim,atl-1k {
+			maxim,batt-id-kohm = <1>;
+			maxim,fg-aafv = /bits/ 32 <
+				0    95  0xf  0x02B3
+				20   90  0xf  0x015A
+				40   85  0xf  0x015A
+				60   80  0xf  0x015A
+				80   75  0xf  0x015A
+				100  70  0xf  0x015A
+			>;
+		};
+		maxim,lwn-4k {
+			maxim,batt-id-kohm = <4>;
+			maxim,fg-aafv = /bits/ 32 <
+				0    95  0xf  0x02B8
+				20   90  0xf  0x015C
+				40   85  0xf  0x015C
+				60   80  0xf  0x015C
+				80   75  0xf  0x015C
+				100  70  0xf  0x015C
+			>;
+		};
+	};
+};

@@ -1,0 +1,1459 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * camera lwis device tree for spacecraft
+ *
+ * Copyright 2025 Google LLC.
+ *
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	fragment@lwiscamera {
+		target-path = "/";
+		__overlay__ {
+			pathfinder1_rear_main_camera_power_seq: pathfinder1_module_power_seq@0 {
+				/* Power up sequence */
+				power-up-seqs =
+					"vana",
+					"vdig",
+					"vio",
+					"vm_vana_enable",
+					"af_vm",
+					"ois_vm",
+					"mclk_on",
+					"resume";
+				power-up-seq-types =
+					"regulator",
+					"regulator",
+					"regulator",
+					"gpio",
+					"regulator",
+					"gpio",
+					"pinctrl",
+					"controller";
+				power-up-seq-delays-us =
+					<0
+					 0
+					 1000
+					 0
+					 1000
+					 0
+					 1000
+					 /* AF need 7.1ms (rounded to 8ms) before I2C stable,
+					    added the remaining here */
+					 6000>;
+
+				power-down-seqs =
+					"suspend",
+					"mclk_off",
+					"ois_vm",
+					"af_vm",
+					"vm_vana_enable",
+					"vio",
+					"vdig",
+					"vana";
+				power-down-seq-types =
+					"controller",
+					"pinctrl",
+					"gpio",
+					"regulator",
+					"gpio",
+					"regulator",
+					"regulator",
+					"regulator";
+				power-down-seq-delays-us =
+					<0
+					 0
+					 1000
+					 0
+					 1000
+					 1000
+					 1000
+					 2000>;
+			};
+
+			pathfinder1_inner_front_camera_power_seq: pathfinder1_module_power_seq@4 {
+				power-up-seqs =
+					"vio",
+					"vdda",
+					"vdig",
+					"reset",
+					"mclk_on",
+					"resume";
+				power-up-seq-types =
+					"regulator",
+					"regulator",
+					"regulator",
+					"gpio",
+					"pinctrl",
+					"controller";
+				power-up-seq-delays-us =
+					<2500
+					 0
+					 1000
+					 1000
+					 0
+					 1000>;
+
+				power-down-seqs =
+					"suspend",
+					"mclk_off",
+					"reset",
+					"vdig",
+					"vdda",
+					"vio";
+				power-down-seq-types =
+					"controller",
+					"pinctrl",
+					"gpio",
+					"regulator",
+					"regulator",
+					"regulator";
+				power-down-seq-delays-us =
+					<0
+					 0
+					 0
+					 0
+					 0
+					 0>;
+			};
+
+			pathfinder1_rear_tele_camera_power_seq: pathfinder1_module_power_seq@3 {
+				/* Power up sequence */
+				power-up-seqs =
+					"vio",
+					"hvana",
+					"vdig",
+					"afois",
+					"afvm",
+					"shared-reset",
+					"shared-afois-reset",
+					"mclk_on",
+					"resume";
+				power-up-seq-types =
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"gpio",
+					"gpio",
+					"pinctrl",
+					"controller";
+				power-up-seq-delays-us =
+					<2500
+					 0
+					 1000
+					 1000
+					 1000
+					 0
+					 0
+					 10000
+					 0>;
+
+				/* Power down sequence */
+				power-down-seqs =
+					"suspend",
+					"mclk_off",
+					"shared-afois-reset",
+					"shared-reset",
+					"afvm",
+					"afois",
+					"vdig",
+					"hvana",
+					"vio";
+				power-down-seq-types =
+					"controller",
+					"pinctrl",
+					"gpio",
+					"gpio",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator";
+				power-down-seq-delays-us =
+					<0
+					 0
+					 0
+					 0
+					 0
+					 0
+					 0
+					 0
+					 0>;
+			};
+
+			pathfinder1_rear_main_camera_power_seq2: pathfinder1_module_power_seq@10 {
+				/* Power up sequence */
+				power-up-seqs =
+					"vio",
+					"vana",
+					"vdig",
+					"vdig_alt",
+					"vm_vana_enable",
+					"af_vm",
+					"ois_vm",
+					"mclk_on",
+					"resume";
+				power-up-seq-types =
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"gpio",
+					"regulator",
+					"gpio",
+					"pinctrl",
+					"controller";
+				power-up-seq-delays-us =
+					<2500
+					 0
+					 0
+					 1000
+					 0
+					 1000
+					 0
+					 1000
+					 /* AF need 7.1ms (rounded to 8ms) before I2C stable,
+					    added the remaining here */
+					 6000>;
+
+				power-down-seqs =
+					"suspend",
+					"mclk_off",
+					"ois_vm",
+					"af_vm",
+					"vm_vana_enable",
+					"vdig_alt",
+					"vdig",
+					"vana",
+					"vio";
+				power-down-seq-types =
+					"controller",
+					"pinctrl",
+					"gpio",
+					"regulator",
+					"gpio",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator";
+				power-down-seq-delays-us =
+					<0
+					 0
+					 1000
+					 0
+					 1000
+					 0
+					 0
+					 1000
+					 2000>;
+			};
+
+			pathfinder1_rear_uw_camera_power_seq: pathfinder1_module_power_seq@2 {
+				power-up-seqs =
+					"vio",
+					"vana",
+					"vdig",
+					"af_vm",
+					"reset",
+					"mclk_on",
+					"resume";
+				power-up-seq-types =
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"gpio",
+					"pinctrl",
+					"controller";
+				power-up-seq-delays-us =
+					<2500
+					 0
+					 1000
+					 0
+					 1000
+					 0
+					 10000>;
+
+				power-down-seqs =
+					"suspend",
+					"mclk_off",
+					"reset",
+					"af_vm",
+					"vdig",
+					"vana",
+					"vio";
+				power-down-seq-types =
+					"controller",
+					"pinctrl",
+					"gpio",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator";
+				power-down-seq-delays-us =
+					<0
+					 1000
+					 0
+					 1000
+					 0
+					 1000
+					 0>;
+			};
+
+			/* REAR CAMERA BOITATA CSIB */
+			pathfinder1_sensor0: pathfinder1_sensor@0 {
+				compatible = "google,lwis-i3c-proxy-device";
+
+				/* Device node name */
+				node-name = "sensor-boitata-pathfinder";
+
+				/* I2C */
+				i2c-bus = <&lsios_i3c2>;
+				i2c-addr = <0x3D>;
+				/* I3C */
+				i3c-enabled;
+				i3c-dcr = <130>;
+
+				/* Power up mode */
+				lwis,power-up-to-suspend;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <16>;
+
+				 /* I2C OTP settings (reg, val) */
+				i2c-otp-settings =
+					<0xFCFC 0x4000
+					 0x6012 0x0001
+					 0x7002 0x0008
+					 0x6014 0x0001>;
+				i2c-otp-settle-time = <10000>;
+
+				/* I3C OTP settings (reg, val) */
+				i3c-otp-settings =
+					<0xFCFC 0x4000
+					 0x6012 0x0001
+					 0x7002 0x1008
+					 0x6066 0x0216
+					 0x6068 0x08EF
+					 0x6014 0x0001>;
+				i3c-otp-settle-time = <10000>;
+
+				/* I3C IBI */
+				ibi-max-payload-len = <3>;
+				ibi-num-slots = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+				vm_vana_enable-gpios = <PMICM2RCAM_AFOIS_VANA_EN(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&rcam_vdig>;
+				af_vm-supply = <&sgm38122_avdd3_csia>;
+				ois_vm-gpios = <&io_expander2 7 GPIO_ACTIVE_HIGH>;
+				vana-supply = <&rcam_vana>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m4_clk>;
+				clock-names = "MCLK4";
+				clock-rates = <24576000>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_rear_main_camera_power_seq>;
+
+				/* resume sequence */
+				resume-seqs = "reset";
+				resume-seq-types = "gpio";
+				resume-seq-delays-us = <9000>;
+
+				/* suspend sequence */
+				suspend-seqs = "reset";
+				suspend-seq-types = "gpio";
+				suspend-seq-delays-us = <1000>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <0>;
+				transaction-process-limit = <20>;
+			};
+
+			/* INNER FRONT SVAROG CSIC */
+			pathfinder1_sensor4: pathfinder1_sensor@4 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "sensor-svarog-pathfinder";
+
+				/* I2C */
+				i2c-bus = <&lsios_i2c0>;
+				i2c-addr = <0x10>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <16>;
+
+				/* I2C setting in kernel */
+				lwis,i2c-otp;
+				i2c-otp-settings =
+					<0xFCFC 0x4000
+					 0x6000 0x0005
+					 0x6010 0x0001>;
+				i2c-otp-settle-time = <5000>;
+
+				/* GPIOs */
+				reset-gpios = <AP2FCAM1_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdda-supply = <&sgm38122_avdd2_csic>;
+				vdig-supply = <&sgm38122_dvdd_csic>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m3_clk>;
+				clock-names = "MCLK3";
+				clock-rates = <24576000>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2fcam1_mclk_24mhz>;
+				pinctrl-1 = <&ap2fcam1_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_inner_front_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <4>;
+			};
+
+			/* REAR Tele Camera TAOTIE CSIE */
+			pathfinder1_sensor3: pathfinder1_sensor@3 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "sensor-taotie-tele-pf";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c1>;
+				i2c-addr = <0x33>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				shared-reset-gpios = <AP2FCAM0_RST_L(GPIO_ACTIVE_HIGH)>;
+				/* AF OIS RESET is IO_EXPNDR2_CSIE_DRV_RST_L */
+				shared-afois-reset-gpios =
+					<&io_expander2 5 GPIO_ACTIVE_HIGH>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&sgm38122_dvdd_csie>;
+				afvm-supply = <&sgm38122_avdd1_csie>;
+				hvana-supply = <&sgm38122_avdd2_csie>;
+				afois-supply = <&sgm38122_avdd3_csie>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m6_clk>;
+				clock-names = "MCLK6";
+				clock-rates = <24576000>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2fcam0_mclk_24mhz>;
+				pinctrl-1 = <&ap2fcam0_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_rear_tele_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <3>;
+			};
+
+			/* REAR CAMERA CHEMOSH CSIB */
+			pathfinder1_sensor10: pathfinder1_sensor@10 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "sensor-chemosh-pathfinder";
+
+				/* I2C */
+				i2c-bus = <&lsios_i3c2>;
+				i2c-addr = <0x56>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <16>;
+
+				/* Enable after LWIS support multiple wait points for OTP */
+				// /* I3C */
+				// i3c-enabled;
+				// i3c-dcr = <130>;
+
+				//  /* I2C OTP settings (reg, val) */
+				// i2c-otp-settings =
+				// 	<>;
+				// i2c-otp-settle-time = <10000>;
+
+				// /* I3C OTP settings (reg, val) */
+				// i3c-otp-settings =
+				// 	<>;
+				// i3c-otp-settle-time = <10000>;
+
+				// /* I3C IBI */
+				// ibi-max-payload-len = <3>;
+				// ibi-num-slots = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+				vm_vana_enable-gpios = <PMICM2RCAM_AFOIS_VANA_EN(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&rcam_vdig>;
+				vdig_alt-supply = <&sgm38122_dvdd_csib>;
+				af_vm-supply = <&sgm38122_avdd3_csia>;
+				ois_vm-gpios = <&io_expander2 7 GPIO_ACTIVE_HIGH>;
+				vana-supply = <&rcam_vana>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m4_clk>;
+				clock-names = "MCLK4";
+				clock-rates = <24576000>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_rear_main_camera_power_seq2>;
+
+				/* Power up mode */
+				lwis,power-up-to-suspend;
+
+				/* resume sequence */
+				resume-seqs = "reset";
+				resume-seq-types = "gpio";
+				resume-seq-delays-us = <10000>;
+
+				/* suspend sequence */
+				suspend-seqs = "reset";
+				suspend-seq-types = "gpio";
+				suspend-seq-delays-us = <1000>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <0>;
+				transaction-process-limit = <20>;
+			};
+
+			/* REAR ULTRA WIDE IMENTET CSIA */
+			pathfinder1_sensor2: pathfinder1_sensor@2 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "sensor-imentet-pathfinder";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c2>;
+				i2c-addr = <0x2D>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <16>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RUWCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				af_vm-supply = <&sgm38122_avdd1_csia>;
+				// ois_vm-gpios = <&io_expander1 5 GPIO_ACTIVE_HIGH>;
+				vana-supply = <&sgm38122_avdd3_csib>;
+				vdig-supply = <&sgm38122_dvdd_csia>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m2_clk>;
+				clock-names = "MCLK2";
+				clock-rates = <24576000>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2ruwcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2ruwcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_rear_uw_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <2>;
+			};
+
+			/* Actuator CORNERFOLK for BOITATA */
+			pathfinder1_actuator0: pathfinder1_actuator@0 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "act-cornerfolk-pathfinder";
+
+				/* I2C */
+				i2c-bus = <&lsios_i3c2>;
+				i2c-addr = <0xC>;
+
+				/* Registers */
+				reg-addr-bitwidth = <8>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+				vm_vana_enable-gpios = <PMICM2RCAM_AFOIS_VANA_EN(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&rcam_vdig>;
+				af_vm-supply = <&sgm38122_avdd3_csia>;
+				ois_vm-gpios = <&io_expander2 7 GPIO_ACTIVE_HIGH>;
+				vana-supply = <&rcam_vana>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_rear_main_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <0>;
+			};
+
+			/* Actuator CORNERFOLK for CHEMOSH */
+			pathfinder1_actuator10: pathfinder1_actuator@10 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "act-cornerfolk-chemosh";
+
+				/* I2C */
+				i2c-bus = <&lsios_i3c2>;
+				i2c-addr = <0xC>;
+
+				/* Registers */
+				reg-addr-bitwidth = <8>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+				vm_vana_enable-gpios = <PMICM2RCAM_AFOIS_VANA_EN(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&rcam_vdig>;
+				vdig_alt-supply = <&sgm38122_dvdd_csib>;
+				af_vm-supply = <&sgm38122_avdd3_csia>;
+				ois_vm-gpios = <&io_expander2 7 GPIO_ACTIVE_HIGH>;
+				vana-supply = <&rcam_vana>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_rear_main_camera_power_seq2>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <0>;
+			};
+
+			/* Actuator for REAR ULTRAWIDE CAMERA */
+			pathfinder1_actuator2: pathfinder1_actuator@2 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "act-cornerfolk-uw-pathfinder";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c2>;
+				i2c-addr = <0xF>;
+
+				/* Registers */
+				reg-addr-bitwidth = <8>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RUWCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				af_vm-supply = <&sgm38122_avdd1_csia>;
+				// ois_vm-gpios = <&io_expander1 5 GPIO_ACTIVE_HIGH>;
+				vana-supply = <&sgm38122_avdd3_csib>;
+				vdig-supply = <&sgm38122_dvdd_csia>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2ruwcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2ruwcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_rear_uw_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <2>;
+			};
+
+			/* OIS DJINN for BOITATA */
+			pathfinder1_ois0: pathfinder1_ois@0 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "ois-djinn-pathfinder";
+
+				/* I2C */
+				i2c-bus = <&lsios_i3c2>;
+				i2c-addr = <0x24>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <32>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+				vm_vana_enable-gpios = <PMICM2RCAM_AFOIS_VANA_EN(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&rcam_vdig>;
+				af_vm-supply = <&sgm38122_avdd3_csia>;
+				ois_vm-gpios = <&io_expander2 7 GPIO_ACTIVE_HIGH>;
+				vana-supply = <&rcam_vana>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_rear_main_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <0>;
+			};
+
+			/* OIS HUMBABA for Tele */
+			pathfinder1_ois1: pathfinder1_ois@1 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "ois-humbaba-pathfinder";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c1>;
+				i2c-addr = <0x61>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				shared-reset-gpios = <AP2FCAM0_RST_L(GPIO_ACTIVE_HIGH)>;
+				/* AF OIS RESET is IO_EXPNDR2_CSIE_DRV_RST_L */
+				shared-afois-reset-gpios =
+					<&io_expander2 5 GPIO_ACTIVE_HIGH>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&sgm38122_dvdd_csie>;
+				afvm-supply = <&sgm38122_avdd1_csie>;
+				hvana-supply = <&sgm38122_avdd2_csie>;
+				afois-supply = <&sgm38122_avdd3_csie>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2fcam0_mclk_24mhz>;
+				pinctrl-1 = <&ap2fcam0_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_rear_tele_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <3>;
+				lwis,disable-group-transfer;
+			};
+
+			/* EEPROM DJINN for BOITATA */
+			pathfinder1_eeprom0: pathfinder1_eeprom@0 {
+				compatible = "google,lwis-i2c-device";
+				/* Device node name */
+				node-name = "eeprom-djinn-pathfinder";
+				/* I2C */
+				i2c-bus = <&lsios_i3c2>;
+				i2c-addr = <0x24>;
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <32>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+				vm_vana_enable-gpios = <PMICM2RCAM_AFOIS_VANA_EN(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&rcam_vdig>;
+				af_vm-supply = <&sgm38122_avdd3_csia>;
+				ois_vm-gpios = <&io_expander2 7 GPIO_ACTIVE_HIGH>;
+				vana-supply = <&rcam_vana>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_rear_main_camera_power_seq>;
+
+				/* Thread priority */
+				/* Match with other bus devices */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <0>;
+			};
+
+			/* EEPROM SMAUG for UW */
+			pathfinder1_eeprom2: pathfinder1_eeprom@2 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "eeprom-smaug-uw-pathfinder";
+				/* I2C */
+				i2c-bus = <&lsioe_i2c2>;
+				i2c-addr = <0x50>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2RUWCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				af_vm-supply = <&sgm38122_avdd1_csia>;
+				// ois_vm-gpios = <&io_expander1 5 GPIO_ACTIVE_HIGH>;
+				vana-supply = <&sgm38122_avdd3_csib>;
+				vdig-supply = <&sgm38122_dvdd_csia>;
+				vio-supply = <&ldo_22s_reg>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2ruwcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2ruwcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_rear_uw_camera_power_seq>;
+
+				/* Thread priority */
+				/* Match with other bus devices */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <2>;
+			};
+
+			/* EEPROM HUMBABA for Tele */
+			pathfinder1_eeprom3: pathfinder1_eeprom@3 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "eeprom-humbaba-pathfinder";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c1>;
+				i2c-addr = <0x61>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				shared-reset-gpios = <AP2FCAM0_RST_L(GPIO_ACTIVE_HIGH)>;
+				/* AF OIS RESET is IO_EXPNDR2_CSIE_DRV_RST_L */
+				shared-afois-reset-gpios =
+					<&io_expander2 5 GPIO_ACTIVE_HIGH>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&sgm38122_dvdd_csie>;
+				afvm-supply = <&sgm38122_avdd1_csie>;
+				hvana-supply = <&sgm38122_avdd2_csie>;
+				afois-supply = <&sgm38122_avdd3_csie>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2fcam0_mclk_24mhz>;
+				pinctrl-1 = <&ap2fcam0_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_rear_tele_camera_power_seq>;
+
+				/* Thread priority */
+				/* Match with other bus devices */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <3>;
+				lwis,disable-group-transfer;
+			};
+
+			/* EEPROM SMAUG for SVAROG INNER FRONT */
+			pathfinder1_eeprom4: pathfinder1_eeprom@4 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "eeprom-smaug-svarog-pathfinder";
+
+				/* I2C */
+				i2c-bus = <&lsios_i2c0>;
+				i2c-addr = <0x50>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				reset-gpios = <AP2FCAM1_RST_L(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdda-supply = <&sgm38122_avdd2_csic>;
+				vdig-supply = <&sgm38122_dvdd_csic>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2fcam1_mclk_24mhz>;
+				pinctrl-1 = <&ap2fcam1_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_inner_front_camera_power_seq>;
+
+				/* Thread priority */
+				/* Match with other bus devices */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <4>;
+			};
+
+			/* IO EXPANDER 1 on NORTH_I2C */
+			pathfinder1_io_expander0: pathfinder1_io_expander@0 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "io-pca6416-0";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c0>;
+				i2c-addr = <0x20>;
+
+				/* Registers */
+				reg-addr-bitwidth = <8>;
+				reg-value-bitwidth = <8>;
+
+				/* Power supplies */
+				dvdd-supply = <&ldo_24m_reg>;
+
+				power-up-seqs =
+					"dvdd";
+				power-up-seq-types =
+					"regulator";
+				power-up-seq-delays-us =
+					<1000>;
+
+				power-down-seqs =
+					"dvdd";
+				power-down-seq-types =
+					"regulator";
+				power-down-seq-delays-us =
+					<1000>;
+
+				i2c-lock-group-id = <6>;
+			};
+
+			/* IO EXPANDER 2 on NORTH_I2C */
+			pathfinder1_io_expander1: pathfinder1_io_expander@1 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "io-pca6416-1";
+
+				/* I2C */
+				i2c-bus = <&lsioe_i2c0>;
+				i2c-addr = <0x21>;
+
+				/* Registers */
+				reg-addr-bitwidth = <8>;
+				reg-value-bitwidth = <8>;
+
+				/* Power supplies */
+				dvdd-supply = <&ldo_24m_reg>;
+
+				power-up-seqs =
+					"dvdd";
+				power-up-seq-types =
+					"regulator";
+				power-up-seq-delays-us =
+					<1000>;
+
+				power-down-seqs =
+					"dvdd";
+				power-down-seq-types =
+					"regulator";
+				power-down-seq-delays-us =
+					<1000>;
+
+				i2c-lock-group-id = <6>;
+			};
+
+			pathfinder1_outer_front_camera_power_seq: pathfinder1_module_power_seq@1 {
+				/* Power up sequence */
+				power-up-seqs =
+					"shared-csimux_sel",
+					"vio",
+					"vdig",
+					"afois_vana",
+					"afois_vm",
+					"shared-reset",
+					"shared-afois-reset",
+					"mclk_on",
+					"resume";
+
+				power-up-seq-types =
+					"gpio",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"gpio",
+					"gpio",
+					"pinctrl",
+					"controller";
+				power-up-seq-delays-us =
+					<0
+					 1000
+					 1000
+					 1000
+					 1000
+					 0
+					 0
+					 8000
+					 0>;
+
+				/* Power down sequence */
+				power-down-seqs =
+					"suspend",
+					"mclk_off",
+					"shared-afois-reset",
+					"shared-reset",
+					"afois_vm",
+					"afois_vana",
+					"vdig",
+					"vio",
+					"shared-csimux_sel";
+				power-down-seq-types =
+					"controller",
+					"pinctrl",
+					"gpio",
+					"gpio",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"gpio";
+				power-down-seq-delays-us =
+					<0
+					 0
+					 0
+					 0
+					 0
+					 0
+					 0
+					 1000
+					 0>;
+			};
+
+			/* CSIF DOKKAEBI with MUX on as OUTER FRONT */
+			pathfinder1_sensor1: pathfinder1_sensor@1 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "sensor-dokkaebi-pf";
+
+				/* I2C */
+				i2c-bus = <&lsios_i2c3>;
+				i2c-addr = <0x10>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <16>;
+
+				/* I2C setting in kernel */
+				lwis,i2c-otp;
+				i2c-otp-settings =
+					<0xFCFC 0x4000
+					 0x6010 0x0001>;
+				i2c-otp-settle-time = <3000>;
+
+				/* GPIOs */
+				shared-reset-gpios = <AP2RTCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+				shared-afois-reset-gpios =
+					<AP2RTCAM_AF_OIS_RST(GPIO_ACTIVE_HIGH)>;
+				shared-csimux_sel-gpios =
+					<AP2CSIMUX_SEL(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&sgm38122_dvdd_csif>;
+				afois_vana-supply = <&sgm38122_avdd1_csif>;
+				afois_vm-supply = <&sgm38122_avdd3_csif>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m5_clk>;
+				clock-names = "MCLK5";
+				clock-rates = <24576000>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rtcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rtcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_outer_front_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <1>;
+			};
+
+			/* EEPROM SMAUG for DOKKAEBI */
+			pathfinder1_eeprom1: pathfinder1_eeprom@1 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "eeprom-smaug-dokkaebi-pf";
+
+				/* I2C */
+				i2c-bus = <&lsios_i2c3>;
+				i2c-addr = <0x51>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				shared-reset-gpios = <AP2RTCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+				shared-afois-reset-gpios =
+					<AP2RTCAM_AF_OIS_RST(GPIO_ACTIVE_HIGH)>;
+				shared-csimux_sel-gpios =
+					<AP2CSIMUX_SEL(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&sgm38122_dvdd_csif>;
+				afois_vana-supply = <&sgm38122_avdd1_csif>;
+				afois_vm-supply = <&sgm38122_avdd3_csif>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rtcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rtcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_outer_front_camera_power_seq>;
+
+				/* Thread priority */
+				/* Match with other bus devices */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <1>;
+			};
+
+			/* Actuator CORNERFOLK for DOKKAEBI */
+			pathfinder1_actuator1: pathfinder1_actuator@1 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "act-cornerfolk-dokkaebi-pf";
+
+				/* I2C */
+				i2c-bus = <&lsios_i2c3>;
+				i2c-addr = <0xC>;
+
+				/* Registers */
+				reg-addr-bitwidth = <8>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				shared-reset-gpios = <AP2RTCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+				shared-afois-reset-gpios =
+					<AP2RTCAM_AF_OIS_RST(GPIO_ACTIVE_HIGH)>;
+				shared-csimux_sel-gpios =
+					<AP2CSIMUX_SEL(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&sgm38122_dvdd_csif>;
+				afois_vana-supply = <&sgm38122_avdd1_csif>;
+				afois_vm-supply = <&sgm38122_avdd3_csif>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rtcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rtcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_outer_front_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <1>;
+			};
+
+			pathfinder1_alt_outer_front_power_seq: pathfinder1_module_power_seq@11 {
+				/* Power up sequence */
+				power-up-seqs =
+					"vio",
+					"vdig",
+					"afois_vana",
+					"afois_vm",
+					"shared-reset",
+					"shared-afois-reset",
+					"mclk_on",
+					"resume";
+				power-up-seq-types =
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator",
+					"gpio",
+					"gpio",
+					"pinctrl",
+					"controller";
+				power-up-seq-delays-us =
+					<1000
+					 1000
+					 1000
+					 1000
+					 0
+					 0
+					 8000
+					 0>;
+
+				/* Power down sequence */
+				power-down-seqs =
+					"suspend",
+					"mclk_off",
+					"shared-afois-reset",
+					"shared-reset",
+					"afois_vm",
+					"afois_vana",
+					"vdig",
+					"vio";
+				power-down-seq-types =
+					"controller",
+					"pinctrl",
+					"gpio",
+					"gpio",
+					"regulator",
+					"regulator",
+					"regulator",
+					"regulator";
+				power-down-seq-delays-us =
+					<0
+					 0
+					 0
+					 0
+					 0
+					 0
+					 0
+					 1000>;
+			};
+
+			/* CSIF DOKKAEBI TELE as OUTER FRONT */
+			pathfinder1_sensor11: pathfinder1_sensor@11 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "sensor-dokkaebi-tele-pf";
+
+				/* I2C */
+				i2c-bus = <&lsios_i2c3>;
+				i2c-addr = <0x10>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <16>;
+
+				/* I2C setting in kernel */
+				lwis,i2c-otp;
+				i2c-otp-settings =
+					<0xFCFC 0x4000
+					 0x6010 0x0001>;
+				i2c-otp-settle-time = <3000>;
+
+				/* GPIOs */
+				shared-reset-gpios = <AP2RTCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+				shared-afois-reset-gpios =
+					<AP2RTCAM_AF_OIS_RST(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&sgm38122_dvdd_csif>;
+				afois_vana-supply = <&sgm38122_avdd1_csif>;
+				afois_vm-supply = <&sgm38122_avdd3_csif>;
+
+				/* Power domains: cpm_clk */
+				power-domains = <&sswrp_lsio_s_pd>;
+
+				clocks = <&lsio_s_m5_clk>;
+				clock-names = "MCLK5";
+				clock-rates = <24576000>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rtcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rtcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_alt_outer_front_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <1>;
+			};
+
+			/* EEPROM HUMBABA for DOKKAEBI TELE as OUTER FRONT */
+			pathfinder1_eeprom11: pathfinder1_eeprom@11 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "eeprom-humbaba-tele-pf";
+
+				/* I2C */
+				i2c-bus = <&lsios_i2c3>;
+				i2c-addr = <0x61>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				shared-reset-gpios = <AP2RTCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+				shared-afois-reset-gpios =
+					<AP2RTCAM_AF_OIS_RST(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&sgm38122_dvdd_csif>;
+				afois_vana-supply = <&sgm38122_avdd1_csif>;
+				afois_vm-supply = <&sgm38122_avdd3_csif>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rtcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rtcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_alt_outer_front_power_seq>;
+
+				/* Thread priority */
+				/* Match with other bus devices */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <1>;
+				lwis,disable-group-transfer;
+			};
+
+			/* OIS HUMBABA for DOKKAEBI TELE as OUTER FRONT */
+			pathfinder1_ois11: pathfinder1_ois@11 {
+				compatible = "google,lwis-i2c-device";
+
+				/* Device node name */
+				node-name = "ois-humbaba-tele-pf";
+
+				/* I2C */
+				i2c-bus = <&lsios_i2c3>;
+				i2c-addr = <0x61>;
+
+				/* Registers */
+				reg-addr-bitwidth = <16>;
+				reg-value-bitwidth = <8>;
+
+				/* GPIOs */
+				shared-reset-gpios = <AP2RTCAM_RST_L(GPIO_ACTIVE_HIGH)>;
+				shared-afois-reset-gpios =
+					<AP2RTCAM_AF_OIS_RST(GPIO_ACTIVE_HIGH)>;
+
+				/* Power supplies */
+				vio-supply = <&ldo_22s_reg>;
+				vdig-supply = <&sgm38122_dvdd_csif>;
+				afois_vana-supply = <&sgm38122_avdd1_csif>;
+				afois_vm-supply = <&sgm38122_avdd3_csif>;
+
+				/* MCLK Control */
+				pinctrl-names = "mclk_on", "mclk_off";
+				pinctrl-0 = <&ap2rtcam_mclk_24mhz>;
+				pinctrl-1 = <&ap2rtcam_mclk_24mhz_sleep>;
+
+				/* Power sequence */
+				power-seq = <&pathfinder1_alt_outer_front_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
+				i2c-lock-group-id = <1>;
+				lwis,disable-group-transfer;
+			};
+		};
+	};
+};

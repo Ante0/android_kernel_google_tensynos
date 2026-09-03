@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# vendor sched module
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "vh_cgroup",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "vh_cgroup.ko",
+    conditional_srcs = {
+        "CONFIG_VH_CGROUP": {
+            True: [
+                "cgroup.c",
+                "init.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2024 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/thermal/google,ntc-thermal.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google NTC thermistor driver
+
+maintainers:
+  - Ram Chandrasekar <rchandrasekar@google.com>
+
+description: |
+  PMIC MFD has telemetry block, which has support for NTC thermistors.
+  These thermistors are placed in different locations, for thermal driver
+  to monitor the skin temperature or a device temperature. This drivers,
+  configures this hardware, registers each channel/thermistor as a
+  thermal zone with support to configure threshold and receive interrupts.
+
+properties:
+  compatible:
+    const: google,ntc-thermal
+
+  "#thermal-sensor-cells":
+    const: 1
+    description:
+      Number of cells required to uniquely identify the thermal sensors.
+      Since we have multiple thermistor channels/sensors, this is sent to 1.
+
+  "filter-spurious-samples":
+    type: boolean
+    description:
+      When specified, it enables the software filtering of extremely high
+      temperature readings. This extremely high temperatures are filtered
+      for a predefined amount of time and the last valid reading will be
+      returned. After the predefined time, if the high temp persists, it
+      will not be filtered. This feature only filters the instantaneous
+      temperature readings.
+
+  "enable-hw-lpf":
+    type: boolean
+    description:
+      When specified, it enables the reading of hardware averaged or low
+      pass filtered temperature reading. The default behavior is to read
+      the instantaneous temperature reading.
+
+  required:
+    - compatible
+    - "#thermal-sensor-cells"
+
+additionalProperties: false
+
+examples:
+  - |
+	ntc_thermal: ntc_thermal {
+		compatible = "google,ntc-thermal";
+		#thermal-sensor-cells = <1>;
+                filter-spurious-samples;
+                enable-hw-lpf;
+	};

@@ -61,12 +61,12 @@ int openChannel(void *clt)
 		I2CSAD);
 #else
 	dev_info(&((struct spi_device *)clt)->dev,
-		"%s: spi_master: flags = %04X !\n", __func__,
-		 ((struct spi_device *)clt)->master->flags);
+		"%s: spi_controller: flags = %04X !\n", __func__,
+		 ((struct spi_device *)clt)->controller->flags);
 	dev_info(&((struct spi_device *)clt)->dev,
 		"%s: spi_device: max_speed = %d chip select = %02X bits_per_words = %d mode = %04X !\n",
 		__func__, ((struct spi_device *)clt)->max_speed_hz,
-		((struct spi_device *)clt)->chip_select,
+		spi_get_chipselect(((struct spi_device *)clt), 0),
 		((struct spi_device *)clt)->bits_per_word,
 		((struct spi_device *)clt)->mode);
 	dev_info(&((struct spi_device *)clt)->dev, "openChannel: completed!\n");

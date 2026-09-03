@@ -24,7 +24,7 @@ static const struct i2c_device_id max77779_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, max77779_id);
 
-static int max77779_charger_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static int max77779_charger_i2c_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
 	struct max77779_chgr_data *data;
@@ -45,7 +45,7 @@ static int max77779_charger_i2c_probe(struct i2c_client *client, const struct i2
 		return -ENOMEM;
 
 	data->dev = dev;
-	data->uc_data.dev = dev;
+	data->dev->init_name = "i2c-max77779-chrg";
 	data->regmap = regmap;
 	data->irq_int = client->irq;
 
@@ -61,14 +61,14 @@ static void max77779_charger_i2c_remove(struct i2c_client *client)
 	max77779_charger_remove(data);
 }
 
-static const struct of_device_id max77779_charger_i2c_of_match_table[] = {
+static const struct of_device_id max77779_charger_of_match_table[] = {
 	{ .compatible = "maxim,max77779chrg-i2c"},
 	{},
 };
-MODULE_DEVICE_TABLE(of, max77779_charger_i2c_of_match_table);
+MODULE_DEVICE_TABLE(of, max77779_charger_of_match_table);
 
 static const struct dev_pm_ops max77779_charger_pm_ops = {
-	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(
+	SET_LATE_SYSTEM_SLEEP_PM_OPS(
 		max77779_charger_pm_suspend,
 		max77779_charger_pm_resume)
 };
@@ -77,7 +77,7 @@ static struct i2c_driver max77779_charger_i2c_driver = {
 	.driver = {
 		.name = "max77779-charger",
 		.owner = THIS_MODULE,
-		.of_match_table = max77779_charger_i2c_of_match_table,
+		.of_match_table = max77779_charger_of_match_table,
 #if IS_ENABLED(CONFIG_PM)
 		.pm = &max77779_charger_pm_ops,
 #endif

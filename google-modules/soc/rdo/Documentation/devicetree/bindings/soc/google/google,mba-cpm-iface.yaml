@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2023-2024 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/soc/google/google,mba-cpm-iface.yaml#
+$schema: http://devicetree.org/meta-schemas/base.yaml#
+
+title: Google MBA (MailBox Array) CPM Interface
+
+maintainers:
+  - Lucas Wei <lucaswei@google.com>
+  - Subhash Jadavani <sjadavani@google.com>
+
+description:
+  The Google MailBox Array CPM interface provides CPM services APIs.
+  CPM interface provides bi-direction message transaction to help clients
+  and CPM host communication.
+  CPM interface would request "req/resp" mailbox channels for CPM message
+  transactions. Client modules can register their callback to receive CPM
+  initiated requests and respond through CPM interface with given token.
+
+
+properties:
+  compatible:
+    enum:
+      - google,mba-cpm-iface
+
+  "mboxes":
+    type: object
+    description: Mailbox Channels provided by Google MBA queue mode controller driver.
+
+  "req-mboxes-idx":
+    type: array
+    description: a bunch of index in `mboxes` property which are used to send request
+      (client initiated transaction) and respond to CPM initiated request.
+
+  "resp-mboxes-idx":
+    type: array
+    description: a bunch of index in `mboxes` property which are used to send response
+      (CPM response to client's request) and CPM initiated request.
+
+  "msg-buf-size":
+    type: integer
+    description: the size of mailbox message buffer in words (one word is 4-bytes).
+
+required:
+  - compatible
+  - mboxes
+  - req-mboxes-idx
+  - resp-mboxes-idx
+  - payload-size
+
+additionalProperties: false
+
+examples:
+  - |
+    goog_mba_cpm_iface: goog_mba_cpm_iface {
+      compatible = "google,mba-cpm-iface"
+      mboxes = <&mba_sswrp_cpm_req 0
+                &mba_sswrp_cpm_req 1
+                &mba_sswrp_cpm_req 2
+                &mba_sswrp_cpm_req 3
+                &mba_sswrp_cpm_req 4
+                &mba_sswrp_cpm_req 5
+                &mba_sswrp_cpm_req 6
+                &mba_sswrp_cpm_req 7
+                &mba_sswrp_cpm_resp 0
+                &mba_sswrp_cpm_resp 1
+                &mba_sswrp_cpm_resp 2
+                &mba_sswrp_cpm_resp 3>;
+      req-mboxes-idx = <0 1 2 3 4 5 6 7>;
+      resp-mboxes-idx = <8 9 10 11>;
+      msg-buf-size = <4>;
+    };

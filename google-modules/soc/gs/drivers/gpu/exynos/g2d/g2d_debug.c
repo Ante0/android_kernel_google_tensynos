@@ -345,7 +345,7 @@ static struct regs_info g2d_reg_info_filter_cv[] = {
 
 #define G2D_COMP_DEBUG_DATA_COUNT 16
 
-void g2d_dump_afbcdata(struct g2d_device *g2d_dev)
+static void g2d_dump_afbcdata(struct g2d_device *g2d_dev)
 {
 	int i, cluster;
 	u32 cfg;
@@ -461,7 +461,7 @@ static void __g2d_dump_filter(void __iomem *reg, unsigned int map)
 	}
 }
 
-void g2d_dump_sfr(struct g2d_device *g2d_dev, struct g2d_task *task)
+static void g2d_dump_sfr(struct g2d_device *g2d_dev, struct g2d_task *task)
 {
 	unsigned int hdrmap = task ? 0 : ~0;
 	unsigned int filtermap = task ? 0 : ~0;
@@ -484,7 +484,7 @@ void g2d_dump_sfr(struct g2d_device *g2d_dev, struct g2d_task *task)
 		__g2d_dump_filter(g2d_dev->reg, filtermap);
 }
 
-void g2d_dump_cmd(struct g2d_task *task)
+static void g2d_dump_cmd(struct g2d_task *task)
 {
 	unsigned int i;
 	struct g2d_reg *regs;
@@ -567,7 +567,7 @@ void g2d_stamp_task(struct g2d_task *task, u32 stampid, u64 val)
 	if (g2d_stamp_types[stampid].type == G2D_STAMPTYPE_FENCE) {
 		struct dma_fence *fence = (struct dma_fence *)val;
 
-		strlcpy(stamp->fence.name, fence->ops->get_driver_name(fence),
+		strscpy(stamp->fence.name, fence->ops->get_driver_name(fence),
 			sizeof(stamp->fence.name));
 		stamp->fence.seqno = fence->seqno;
 	} else {

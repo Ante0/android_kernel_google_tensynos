@@ -9,9 +9,11 @@
 
 #include <linux/init.h>
 #include <linux/acpi.h>
+#include <linux/efi-bgrt.h>
 #include <linux/irq.h>
 #include <linux/irqdomain.h>
 #include <linux/memblock.h>
+#include <linux/of_fdt.h>
 #include <linux/serial_core.h>
 #include <asm/io.h>
 #include <asm/numa.h>
@@ -28,9 +30,9 @@ int disabled_cpus;
 
 u64 acpi_saved_sp;
 
-#define MAX_CORE_PIC 256
-
 #define PREFIX			"ACPI: "
+
+struct acpi_madt_core_pic acpi_core_pic[MAX_CORE_PIC];
 
 void __init __iomem * __acpi_map_table(unsigned long phys, unsigned long size)
 {
@@ -57,38 +59,47 @@ void __iomem *acpi_os_ioremap(acpi_physical_address phys, acpi_size size)
 }
 
 #ifdef CONFIG_SMP
-static int set_processor_mask(u32 id, u32 flags)
+static int set_processor_mask(u32 id, u32 pass)
 {
+	int cpu = -1, cpuid = id;
 
-	int cpu, cpuid = id;
-
-	if (num_processors >= nr_cpu_ids) {
-		pr_warn(PREFIX "nr_cpus/possible_cpus limit of %i reached."
-			" processor 0x%x ignored.\n", nr_cpu_ids, cpuid);
+	if (num_processors >= NR_CPUS) {
+		pr_warn(PREFIX "nr_cpus limit of %i reached."
+			" processor 0x%x ignored.\n", NR_CPUS, cpuid);
 
 		return -ENODEV;
 
 	}
+
 	if (cpuid == loongson_sysconf.boot_cpu_id)
 		cpu = 0;
-	else
-		cpu = cpumask_next_zero(-1, cpu_present_mask);
 
-	if (flags & ACPI_MADT_ENABLED) {
+	switch (pass) {
+	case 1: /* Pass 1 handle enabled processors */
+		if (cpu < 0)
+			cpu = find_first_zero_bit(cpumask_bits(cpu_present_mask), NR_CPUS);
 		num_processors++;
-		set_cpu_possible(cpu, true);
 		set_cpu_present(cpu, true);
-		__cpu_number_map[cpuid] = cpu;
-		__cpu_logical_map[cpu] = cpuid;
-	} else
+		break;
+	case 2: /* Pass 2 handle disabled processors */
+		if (cpu < 0)
+			cpu = find_first_zero_bit(cpumask_bits(cpu_possible_mask), NR_CPUS);
 		disabled_cpus++;
+		break;
+	default:
+		return cpu;
+	}
+
+	set_cpu_possible(cpu, true);
+	__cpu_number_map[cpuid] = cpu;
+	__cpu_logical_map[cpu] = cpuid;
 
 	return cpu;
 }
 #endif
 
 static int __init
-acpi_parse_processor(union acpi_subtable_headers *header, const unsigned long end)
+acpi_parse_p1_processor(union acpi_subtable_headers *header, const unsigned long end)
 {
 	struct acpi_madt_core_pic *processor = NULL;
 
@@ -98,12 +109,30 @@ acpi_parse_processor(union acpi_subtable_headers *header, const unsigned long en
 
 	acpi_table_print_madt_entry(&header->common);
 #ifdef CONFIG_SMP
-	set_processor_mask(processor->core_id, processor->flags);
+	acpi_core_pic[processor->core_id] = *processor;
+	if (processor->flags & ACPI_MADT_ENABLED)
+		set_processor_mask(processor->core_id, 1);
 #endif
 
 	return 0;
 }
 
+static int __init
+acpi_parse_p2_processor(union acpi_subtable_headers *header, const unsigned long end)
+{
+	struct acpi_madt_core_pic *processor = NULL;
+
+	processor = (struct acpi_madt_core_pic *)header;
+	if (BAD_MADT_ENTRY(processor, end))
+		return -EINVAL;
+
+#ifdef CONFIG_SMP
+	if (!(processor->flags & ACPI_MADT_ENABLED))
+		set_processor_mask(processor->core_id, 2);
+#endif
+
+	return 0;
+}
 static int __init
 acpi_parse_eio_master(union acpi_subtable_headers *header, const unsigned long end)
 {
@@ -115,7 +144,7 @@ acpi_parse_eio_master(union acpi_subtable_headers *header, const unsigned long e
 		return -EINVAL;
 
 	core = eiointc->node * CORES_PER_EIO_NODE;
-	set_bit(core, &(loongson_sysconf.cores_io_master));
+	set_bit(core, loongson_sysconf.cores_io_master);
 
 	return 0;
 }
@@ -131,7 +160,10 @@ static void __init acpi_process_madt(void)
 	}
 #endif
 	acpi_table_parse_madt(ACPI_MADT_TYPE_CORE_PIC,
-			acpi_parse_processor, MAX_CORE_PIC);
+			acpi_parse_p1_processor, MAX_CORE_PIC);
+
+	acpi_table_parse_madt(ACPI_MADT_TYPE_CORE_PIC,
+			acpi_parse_p2_processor, MAX_CORE_PIC);
 
 	acpi_table_parse_madt(ACPI_MADT_TYPE_EIO_PIC,
 			acpi_parse_eio_master, MAX_IO_PICS);
@@ -139,20 +171,55 @@ static void __init acpi_process_madt(void)
 	loongson_sysconf.nr_cpus = num_processors;
 }
 
+int pptt_enabled;
+
+int __init parse_acpi_topology(void)
+{
+	int cpu, topology_id;
+
+	for_each_possible_cpu(cpu) {
+		topology_id = find_acpi_cpu_topology(cpu, 0);
+		if (topology_id < 0) {
+			pr_warn("Invalid BIOS PPTT\n");
+			return -ENOENT;
+		}
+
+		if (acpi_pptt_cpu_is_thread(cpu) <= 0)
+			cpu_data[cpu].core = topology_id;
+		else {
+			topology_id = find_acpi_cpu_topology(cpu, 1);
+			if (topology_id < 0)
+				return -ENOENT;
+
+			cpu_data[cpu].core = topology_id;
+		}
+	}
+
+	pptt_enabled = 1;
+
+	return 0;
+}
+
+#ifndef CONFIG_SUSPEND
+int (*acpi_suspend_lowlevel)(void);
+#else
+int (*acpi_suspend_lowlevel)(void) = loongarch_acpi_suspend;
+#endif
+
 void __init acpi_boot_table_init(void)
 {
 	/*
 	 * If acpi_disabled, bail out
 	 */
 	if (acpi_disabled)
-		return;
+		goto fdt_earlycon;
 
 	/*
 	 * Initialize the ACPI boot-time table parser.
 	 */
 	if (acpi_table_init()) {
 		disable_acpi();
-		return;
+		goto fdt_earlycon;
 	}
 
 	loongson_sysconf.boot_cpu_id = read_csr_cpuid();
@@ -164,6 +231,15 @@ void __init acpi_boot_table_init(void)
 
 	/* Do not enable ACPI SPCR console by default */
 	acpi_parse_spcr(earlycon_acpi_spcr_enable, false);
+
+	if (IS_ENABLED(CONFIG_ACPI_BGRT))
+		acpi_table_parse(ACPI_SIG_BGRT, acpi_parse_bgrt);
+
+	return;
+
+fdt_earlycon:
+	if (earlycon_acpi_spcr_enable)
+		early_init_dt_scan_chosen_stdout();
 }
 
 #ifdef CONFIG_ACPI_NUMA
@@ -224,7 +300,6 @@ acpi_numa_processor_affinity_init(struct acpi_srat_cpu_affinity *pa)
 	pr_info("SRAT: PXM %u -> CPU 0x%02x -> Node %u\n", pxm, pa->apic_id, node);
 }
 
-void __init acpi_numa_arch_fixup(void) {}
 #endif
 
 void __init arch_reserve_mem_area(acpi_physical_address addr, size_t size)
@@ -242,6 +317,10 @@ static int __ref acpi_map_cpu2node(acpi_handle handle, int cpu, int physid)
 	int nid;
 
 	nid = acpi_get_node(handle);
+
+	if (nid != NUMA_NO_NODE)
+		nid = early_cpu_to_node(cpu);
+
 	if (nid != NUMA_NO_NODE) {
 		set_cpuid_to_node(physid, nid);
 		node_set(nid, numa_nodes_parsed);
@@ -256,12 +335,14 @@ int acpi_map_cpu(acpi_handle handle, phys_cpuid_t physid, u32 acpi_id, int *pcpu
 {
 	int cpu;
 
-	cpu = set_processor_mask(physid, ACPI_MADT_ENABLED);
-	if (cpu < 0) {
+	cpu = cpu_number_map(physid);
+	if (cpu < 0 || cpu >= nr_cpu_ids) {
 		pr_info(PREFIX "Unable to map lapic to logical cpu number\n");
-		return cpu;
+		return -ERANGE;
 	}
 
+	num_processors++;
+	set_cpu_present(cpu, true);
 	acpi_map_cpu2node(handle, cpu, physid);
 
 	*pcpu = cpu;

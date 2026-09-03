@@ -33,13 +33,13 @@ struct dm_irq_params {
 	struct mod_vrr_params vrr_params;
 	struct dc_stream_state *stream;
 	int active_planes;
-	bool allow_psr_entry;
+	bool allow_sr_entry;
 	struct mod_freesync_config freesync_config;
 
 #ifdef CONFIG_DEBUG_FS
 	enum amdgpu_dm_pipe_crc_source crc_src;
 #ifdef CONFIG_DRM_AMD_SECURE_DISPLAY
-	struct crc_window_parm crc_window;
+	struct crc_window_param window_param;
 #endif
 #endif
 };

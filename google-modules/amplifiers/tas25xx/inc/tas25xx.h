@@ -269,6 +269,7 @@ struct tas_device {
 	unsigned long jiffies;
 	/* Fail Safe */
 	unsigned int mn_restart;
+	int is_probed;
 };
 
 struct tas25xx_intr_info {
@@ -414,6 +415,8 @@ struct tas25xx_priv {
 	int irqz_value;
 	int left_em_mode;
 	int right_em_mode;
+	bool nop_codec_is_register;
+	bool custom_ctrls_added;
 };
 
 static inline int is_power_up_state(enum tas_power_states_t state)

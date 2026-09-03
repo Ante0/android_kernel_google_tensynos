@@ -9,7 +9,7 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/of_platform.h>
+#include <linux/of.h>
 #include <linux/syscore_ops.h>
 #include <linux/slab.h>
 
@@ -115,15 +115,14 @@ static void print_bcm_dbg_data(struct exynos_bcm_dbg_data *data)
 static int exynos_bcm_ipc_node_parse_dt(struct device_node *np,
 				struct exynos_bcm_dbg_data *data)
 {
-	struct device_node *child_np;
-
-	for_each_child_of_node(np, child_np) {
+	for_each_child_of_node_scoped(np, child_np) {
 		const char *node_name;
 
 		node_name = child_np->name;
 		BCM_DBG("%s: child node name: %s\n", __func__, node_name);
 		if (!strcmp(node_name, "ipc_bcm_event")) {
-			data->ipc_node = child_np;
+			data->ipc_node = no_free_ptr(child_np);
+			return 0;
 		} else {
 			BCM_ERR("%s: No device node name: %s\n", __func__,
 				node_name);
@@ -141,9 +140,10 @@ static int exynos_bcm_pd_info_parse_dt(struct device_node *np,
 	int size;
 
 	size = of_property_count_strings(np, "pd-name");
-	if (size < 0) {
-		BCM_ERR("%s: Failed get number of pd-name\n", __func__);
-		return size;
+	if (size < 0 || size >= ARRAY_SIZE(list)) {
+		BCM_ERR("%s: Failed get number of pd-name or too many\n",
+			__func__);
+		return size < 0 ? size : -E2BIG;
 	}
 	data->pd_size = size;
 

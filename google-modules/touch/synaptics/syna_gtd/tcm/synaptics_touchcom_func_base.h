@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * Synaptics TouchComm C library
  *
- * Synaptics TouchCom touchscreen driver
- *
- * Copyright (C) 2017-2020 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2024 Synaptics Incorporated. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,451 +29,492 @@
  * DOLLARS.
  */
 
-/*
+/**
  * @file synaptics_touchcom_func_base.h
  *
- * This file declares generic and foundational APIs being used to communicate
- * with Synaptics touch controller through TouchComm communication protocol.
+ * This file declares foundational APIs for the use of TouchComm core library
+ * and also all foundational APIs supported in the Synaptics TouchComm protocol.
  */
 
 #ifndef _SYNAPTICS_TOUCHCOM_BASE_FUNCS_H_
 #define _SYNAPTICS_TOUCHCOM_BASE_FUNCS_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+
 #include "synaptics_touchcom_core_dev.h"
 
-/*
- * syna_tcm_allocate_device()
- *
- * Create the TouchCom core device handle.
- * This function must be called in order to allocate the main device handle,
- * structure syna_tcm_dev, which will be passed to all other operations and
- * functions within the entire source code.
- *
- * Meanwhile, caller has to prepare specific syna_tcm_hw_interface structure,
- * so that all the implemented functions can access hardware components
- * through syna_tcm_hw_interface.
- *
- * @param
- *    [out] ptcm_dev_ptr: a pointer to the device handle returned
- *    [ in] hw_if:        hardware-specific data on target platform
- *    [ in] resp_reading: default resp reading method
- *                        set 'RESP_IN_ATTN' to apply ATTN-driven method;
- *                        set 'RESP_IN_POLLING' to read in resp by polling
- * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
- */
-int syna_tcm_allocate_device(struct tcm_dev **ptcm_dev_ptr,
-		struct syna_hw_interface *hw_if, unsigned int resp_reading);
+
+/** Types of configurable timing settings being used in syna_tcm_set_command_timings */
+enum tcm_message_timings {
+	TIMINGS_ALL = 0xFFFF,
+
+	/* basic settings for command processing */
+	TIMINGS_CMD_TIMEOUT = 0x01,      /* timing for command timeout */
+	TIMINGS_CMD_POLLING = 0x02,      /* timing for the response polling */
+	TIMINGS_TURNAROUND = 0x04,       /* timing for command turnaround time */
+	TIMINGS_CMD_RETRY = 0x08,        /* timing for command retry */
+
+	/* settings for the specific commands, applied only when processed in polling */
+	TIMINGS_FW_SWITCH = 0x100,        /* time period when fw mode is switched */
+	TIMINGS_RESET_DELAY = 0x200,      /* an additional delay after a reset */
+};
+
 
 /*
- * syna_tcm_remove_device()
+ * TCM Core Library Interface Definitions
+ */
+
+/**
+ * @brief   Allocate and initialize the TouchCom core device module.
  *
- * Remove the TouchCom core device handler.
- * This function must be invoked when the device is no longer needed.
+ *          This function must be invoked to initialize the module before calling
+ *          other functions.
  *
+ *          The specific syna_tcm_hw_interface structure is must.
  * @param
- *    [ in] tcm_dev: the device handle
+ *    [out] ptcm_dev_ptr: a pointer to the TouchComm device handle
+ *    [ in] hw:           hardware platform interface
+ *    [ in] parent_ptr:   data structure representing the parent device
  *
  * @return
- *    none.
+ *    0 or positive value in case of success, a negative value otherwise.
+ */
+int syna_tcm_allocate_device(struct tcm_dev **ptcm_dev_ptr,
+	struct tcm_hw_platform *hw, void *parent_ptr);
+
+/**
+ * @brief   Remove the TouchCom core device module.
+ *          This function must be invoked when the library is no longer needed.
+ *
+ * @param
+ *    [ in] tcm_dev: the TouchComm device handle
+ *
+ * @return
+ *    void.
  */
 void syna_tcm_remove_device(struct tcm_dev *tcm_dev);
 
-/*
- * syna_tcm_detect_device()
+/**
+ * @brief   Determine the type of device being connected, and distinguish which
+ *          version of TouchCom firmware running on the device.
  *
- * Determine the type of device being connected, and distinguish which
- * version of TouchCom firmware running on the device.
- *
- * This function should be called as the first step of initialization.
- *
- * The start-up packet has an important data to identify the attached device
- * so it's recommended to process the startup packet in default.
- *
+ *          This function should be called to communicate with the specific sensor device.
  * @param
- *    [ in] tcm_dev: the device handle
- *    [ in] protocol: protocol to detect
- *                    0 - auto detection (default)
- *                    1 - TouchComm version 1
- *                    2 - TouchComm version 1
- *    [ in] startup:  request to handle the startup packet
- *                    set to 'True' if uncertainty
+ *    [ in] tcm_dev:          the TouchComm device handle
+ *    [ in] mode:             mode for the protocol detection
+ *                            [0:3] x0 DETECT_AUTO      - auto detection
+ *                                  x1 DETECT_VERSION_1 - detect TouchComm version 1 only
+ *                                  x2 DETECT_VERSION_2 - detect TouchComm version 2 only
+ *                            [4:7] x8 FORCE_ASSIGNMENT - direct assign the protocol without the detection
+ *
+ *    [ in] reset_to_detect:  set if willing to use 'reset' command for the detection
  *
  * @return
- *    on success, the current mode running on the device is returned;
- *    otherwise, negative value on error.
+ *    the current mode running on the device in case of success, a negative value otherwise.
  */
-int syna_tcm_detect_device(struct tcm_dev *tcm_dev,
-		int protocol, bool startup);
+int syna_tcm_detect_device(struct tcm_dev *tcm_dev, unsigned int mode, bool reset_to_detect);
+
+/**
+ * @brief   Set up the specific timing for the command processing
+ *
+ * @param
+ *    [ in] tcm_msg: handle of message wrapper
+ *    [ in] product: the required timing settings for products
+ *                   an essential in case of the followings
+						 TIMINGS_ALL
+						 TIMINGS_TURNAROUND
+						 TIMINGS_CMD_RETRY
+ *                   otherwise, could be NULL and then do setup through the argument 'setting'
+ *    [ in] setting: '0' if using 'product' to update
+					 otherwise, a positive value to change a particular setting
+ *    [ in] type:    target to change
+ *                       TIMINGS_ALL         - set up all timings
+ *                       TIMINGS_CMD_TIMEOUT - update the command timeout time
+ *                       TIMINGS_CMD_POLLING - update the response polling time
+ *                       TIMINGS_TURNAROUND  - update the command turnaround time
+ *                       TIMINGS_CMD_RETRY   - update the command retry periods
+ *                       TIMINGS_FW_SWITCH   - update the firmware switching time
+ *                       TIMINGS_RESET_DELAY - update the delay time after reset
+ * @return
+ *    0 or positive value in case of success, a negative value otherwise.
+ */
+int syna_tcm_config_timings(struct tcm_dev *tcm_dev, struct tcm_timings *product,
+	unsigned int setting, unsigned int type);
+
 
 /*
- * syna_tcm_get_event_data()
+ * Generic API Definitions
+ */
+
+/**
+ * @brief   Helper to read out TouchComm messages when ATTN is asserted.
+ *          After returning, the ATTN signal should be no longer asserted.
  *
- * Helper to read TouchComm messages when ATTN signal is asserted.
- * After returning, the ATTN signal should be no longer asserted.
- *
- * The 'code' returned will guide the caller on the next action.
- * For example, do touch reporting once returned code is equal to REPORT_TOUCH.
+ *          The 'code' returned will guide the caller on the next action.
+ *          For example, do touch reporting if the returned code belongs to REPORT_TOUCH.
  *
  * @param
- *    [ in] tcm_dev: the device handle
+ *    [ in] tcm_dev: the TouchComm device handle
  *    [out] code:    received report code
- *    [out] report:  report data returned
+ *    [out] data:    a user buffer for data returned
  *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 int syna_tcm_get_event_data(struct tcm_dev *tcm_dev,
-		unsigned char *code,
-		struct tcm_buffer *report);
+	unsigned char *code, struct tcm_buffer *report);
 
-/*
- * syna_tcm_change_resp_read()
- *
- * Helper to change the default method to read the response packet.
+/**
+ * @brief   Request an IDENTIFY report from device.
  *
  * @param
- *    [in] tcm_dev: the device handle
- *    [in] request: resp reading method to change
- *                  set '0' or 'RESP_IN_ATTN' for ATTN-driven; otherwise,
- *                  assign a positive value standing for the polling time
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [out] id_info:       the identification info packet returned
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    none.
- */
-void syna_tcm_change_resp_read(struct tcm_dev *tcm_dev, unsigned int request);
-
-/*
- * syna_tcm_identify()
- *
- * Implement the standard command code to request an IDENTIFY report.
- *
- * @param
- *    [ in] tcm_dev: the device handle
- *    [out] id_info: the identification info packet returned
- *
- * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 int syna_tcm_identify(struct tcm_dev *tcm_dev,
-		struct tcm_identification_info *id_info);
+	struct tcm_identification_info *id_info, unsigned int resp_reading);
 
-/*
- * syna_tcm_reset()
+/**
+ * @brief   Perform a soft reset.
+ *          At the end of a successful reset, an IDENTIFY report shall be received.
  *
- * Implement the standard command code, which is used to perform a sw reset
- * immediately. After a successful reset, an IDENTIFY report is received to
- * indicate that device is ready.
- *
- * Caller shall be aware that the firmware will be reloaded after reset.
- * Therefore, if expecting that a different firmware version is loaded, please
- * do app firmware setup after reset.
+ *          Caller shall be aware that the firmware will be reloaded after reset.
  *
  * @param
- *    [ in] tcm_dev: the device handle
- *
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_reset(struct tcm_dev *tcm_dev);
+int syna_tcm_reset(struct tcm_dev *tcm_dev, unsigned int resp_reading);
 
-/*
- * syna_tcm_enable_report()
- *
- * Implement the application fw command code to enable or disable the
- * specific TouchComm report.
+/**
+ * @brief   Enable or disable the requested TouchComm report.
  *
  * @param
- *    [ in] tcm_dev:     the device handle
- *    [ in] report_code: the requested report code being generated
- *    [ in] en:          '1' for enabling; '0' for disabling
- *
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] report_code:   the requested report code being generated
+ *    [ in] en:            '1' for enabling; '0' for disabling
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 int syna_tcm_enable_report(struct tcm_dev *tcm_dev, unsigned char report_code,
-		bool en, unsigned int resp_reading);
+	bool en, unsigned int resp_reading);
 
-/*
- * syna_tcm_switch_fw_mode()
- *
- * Request to switch the firmware mode running on.
+/**
+ * @brief   Request to switch the firmware mode running on.
  *
  * @param
- *    [ in] tcm_dev: the device handle
- *    [ in] mode:    target firmware mode
+ *    [ in] tcm_dev:         the TouchComm device handle
+ *    [ in] mode:            target firmware mode
  *    [ in] fw_switch_delay: delay time for fw mode switching.
  *                           a positive value presents the time for polling;
  *                           or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 int syna_tcm_switch_fw_mode(struct tcm_dev *tcm_dev,
-		unsigned char mode, unsigned int fw_switch_delay);
+	unsigned char mode, unsigned int fw_switch_delay);
 
-/*
- * syna_tcm_get_boot_info()
- *
- * Implement the bootloader command code to request the bootloader
- * information.
+/**
+ * @brief   Request the bootloader information.
  *
  * @param
- *    [ in] tcm_dev:   the device handle
- *    [out] boot_info: the boot info packet returned
- *
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [out] boot_info:     the boot info packet returned
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 int syna_tcm_get_boot_info(struct tcm_dev *tcm_dev,
-		struct tcm_boot_info *boot_info);
+	struct tcm_boot_info *boot_info, unsigned int resp_reading);
 
-/*
- * syna_tcm_get_app_info()
- *
- * Implement the application fw command code to request an application
- * information from device.
+/**
+ * @brief   Request the application information.
  *
  * @param
- *    [ in] tcm_dev:  the device handle
- *    [out] app_info: the application info packet returned
- *
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [out] app_info:      the application info packet returned
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 int syna_tcm_get_app_info(struct tcm_dev *tcm_dev,
-		struct tcm_application_info *app_info);
+	struct tcm_application_info *app_info, unsigned int resp_reading);
 
-/*
- * syna_tcm_get_static_config()
- *
- * Implement the application fw command code to retrieve the contents of
- * the static configuration.
- *
- * The size of static configuration is available from the app info.
+/**
+ * @brief   Request the static configuration.
+ *          The size of static configuration is available from the app info.
  *
  * @param
- *    [ in] tcm_dev:   the device handle
- *    [out] buf:       buffer stored the static configuration
- *    [ in] buf_size:  the size of given buffer
- *
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [out] buf:           buffer stored the static configuration
+ *    [ in] buf_size:      the size of given buffer
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_get_static_config(struct tcm_dev *tcm_dev,
-		unsigned char *buf, unsigned int buf_size);
+int syna_tcm_get_static_config(struct tcm_dev *tcm_dev, unsigned char *buf,
+	unsigned int buf_size, unsigned int resp_reading);
 
-/*
- * syna_tcm_set_static_config()
- *
- * Implement the application fw command code to set the contents of
- * the static configuration. When the write is completed, the device will
- * restart touch sensing with the new settings.
- *
- * The size of static configuration is available from the app info.
+/**
+ * @brief   Update the static configuration.
+ *          The size of static configuration is available from the app info.
  *
  * @param
- *    [ in] tcm_dev:          the device handle
+ *    [ in] tcm_dev:          the TouchComm device handle
  *    [ in] config_data:      the data of static configuration
  *    [ in] config_data_size: the size of given data
- *
+ *    [ in] resp_reading:     method to read in the response
+ *                            a positive value presents the ms time delay for polling;
+ *                            or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_set_static_config(struct tcm_dev *tcm_dev,
-		unsigned char *config_data, unsigned int config_data_size);
+int syna_tcm_set_static_config(struct tcm_dev *tcm_dev, unsigned char *config_data,
+	unsigned int config_data_size, unsigned int resp_reading);
 
-/*
- * syna_tcm_get_dynamic_config()
- *
- * Implement the application fw command code to get the value from the a single
- * field of the dynamic configuration.
+/**
+ * @brief   Get the value from the a single field of the dynamic configuration.
  *
  * @param
- *    [ in] tcm_dev:  the device handle
- *    [ in] id:       target field id
- *    [out] value:    the value returned
- *    [ in] delay_ms_resp: delay time for response reading.
- *                         a positive value presents the time for polling;
- *                         or, set '0' or 'RESP_IN_ATTN' for ATTN driven
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] id:            target field id
+ *    [out] value:         the value returned
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_get_dynamic_config(struct tcm_dev *tcm_dev,
-		unsigned char id, unsigned short *value,
-		unsigned int delay_ms_resp);
+int syna_tcm_get_dynamic_config(struct tcm_dev *tcm_dev, unsigned char id,
+	unsigned short *value, unsigned int resp_reading);
 
-/*
- * syna_tcm_set_dynamic_config()
- *
- * Implement the application fw command code to set the specified value to
- * the selected field of the dynamic configuration.
+/**
+ * @brief   Update the value to the selected field of the dynamic configuration.
  *
  * @param
- *    [ in] tcm_dev:  the device handle
- *    [ in] id:       target field id
- *    [ in] value:    the value to the selected field
- *    [ in] delay_ms_resp: delay time for response reading.
- *                         a positive value presents the time for polling;
- *                         or, set '0' or 'RESP_IN_ATTN' for ATTN driven
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] id:            target field id
+ *    [ in] value:         the value to the selected field
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_set_dynamic_config(struct tcm_dev *tcm_dev,
-		unsigned char id, unsigned short value,
-		unsigned int delay_ms_resp);
+int syna_tcm_set_dynamic_config(struct tcm_dev *tcm_dev, unsigned char id,
+	unsigned short value, unsigned int resp_reading);
 
-/*
- * syna_tcm_rezero()
- *
- * Implement the application fw command code to force the device to rezero its
- * baseline estimate.
+/**
+ * @brief   Request to rezero the baseline estimate.
  *
  * @param
- *    [ in] tcm_dev: the device handle
- *
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_rezero(struct tcm_dev *tcm_dev);
+int syna_tcm_rezero(struct tcm_dev *tcm_dev, unsigned int resp_reading);
 
-/*
- * syna_tcm_set_config_id()
- *
- * Implement the application fw command code to set the 16-byte config id
- * defined in the app info.
+/**
+ * @brief   Config the device into low power sleep mode or the normal active mode.
  *
  * @param
- *    [ in] tcm_dev:   the device handle
- *    [ in] config_id: config id to be set
- *    [ in] size:      size of input data
- *
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] en:            '1' to low power deep sleep mode; '0' to active mode
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_set_config_id(struct tcm_dev *tcm_dev,
-		unsigned char *config_id, unsigned int size);
+int syna_tcm_sleep(struct tcm_dev *tcm_dev, bool en, unsigned int resp_reading);
 
-/*
- * syna_tcm_sleep()
- *
- * Implement the application fw command code to put the device into low power
- * deep sleep mode or the normal active mode.
+/**
+ * @brief   Query the supported features in firmware.
  *
  * @param
- *    [ in] tcm_dev: the device handle
- *    [ in] en:      '1' to low power deep sleep mode; '0' to active mode
- *
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [out] info:          the features description packet returned
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_sleep(struct tcm_dev *tcm_dev, bool en);
+int syna_tcm_get_features(struct tcm_dev *tcm_dev, struct tcm_features_info *info,
+	unsigned int resp_reading);
 
-/*
- * syna_tcm_get_features()
- *
- * Implement the application fw command code to query the supported features.
+/**
+ * @brief   Request to run a specified production test.
+ *          Items are listed at enum test_code (PID$).
  *
  * @param
- *    [ in] tcm_dev: the device handle
- *    [out] info:    the features description packet returned
- *
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] test_item:     the requested testing item
+ *    [out] tdata:         testing data returned
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_get_features(struct tcm_dev *tcm_dev,
-		struct tcm_features_info *info);
+int syna_tcm_run_production_test(struct tcm_dev *tcm_dev, unsigned char test_item,
+	struct tcm_buffer *tdata, unsigned int resp_reading);
 
-/*
- * syna_tcm_run_production_test()
- *
- * Implement the application fw command code to request the device to run
- * the production test.
- *
- * Production tests are listed at enum test_code (PID$).
+/**
+ * @brief   Request to reset the smart bridge product.
  *
  * @param
- *    [ in] tcm_dev:    the device handle
- *    [ in] test_item:  the requested testing item
- *    [out] tdata:      testing data returned
- *
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] resp_reading:  method to read in the response
+ *                          a positive value presents the ms time delay for polling;
+ *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-int syna_tcm_run_production_test(struct tcm_dev *tcm_dev,
-		unsigned char test_item, struct tcm_buffer *tdata);
+int syna_tcm_reset_smart_bridge(struct tcm_dev *tcm_dev, unsigned int resp_reading);
 
-/*
- * syna_tcm_send_command()
- *
- * Helper to execute the custom command.
+/**
+ * @brief   Helper to process the custom command.
  *
  * @param
- *    [ in] tcm_dev:        the device handle
+ *    [ in] tcm_dev:        the TouchComm device handle
  *    [ in] command:        TouchComm command
  *    [ in] payload:        data payload, if any
  *    [ in] payload_length: length of data payload, if any
  *    [out] resp_code:      response code returned
  *    [out] resp:           buffer to store the response data
- *    [ in] delay_ms_resp:  delay time for response reading.
- *                          a positive value presents the time for polling;
- *                          or, set '0' or 'RESP_IN_ATTN' for ATTN driven
+ *    [ in] resp_reading:   method to read in the response
+ *                           a positive value presents the ms time delay for polling;
+ *                           or, set '0' or 'RESP_IN_ATTN' for ATTN driven
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 int syna_tcm_send_command(struct tcm_dev *tcm_dev, unsigned char command,
-		unsigned char *payload, unsigned int payload_length,
-		unsigned int total_length, unsigned char *code,
-		struct tcm_buffer *resp, unsigned int delay_ms_resp);
+	unsigned char *payload, unsigned int payload_length, unsigned char *code,
+	struct tcm_buffer *resp, unsigned int delay_ms_resp);
+
+
+
 
 /*
- * syna_tcm_enable_predict_reading()
+ * API Definitions for Driver Features
+ */
+
+/**
+ * @brief   Enable the feature of predict reading.
  *
- * Helper to enable the feature of predict reading.
- *
- * This feature aims to read in all data at one bus transferring.
- * In contrast to the predict reading, standard reads require two transfers
- * to separately read the header and the payload data.
- *
+ *          This feature aims to read in all data in one transaction.
+ *          In contrast to the predict reading, standard reads typically require two
+ *          transfers for the header and the payload data.
  * @param
- *    [ in] tcm_dev: the device handle
+ *    [ in] tcm_dev: the TouchComm device handle
  *    [ in] en:      '1' to low power deep sleep mode; '0' to active mode
  *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 int syna_tcm_enable_predict_reading(struct tcm_dev *tcm_dev, bool en);
-/*
- * syna_tcm_set_reset_occurrence_callback()
- *
- * Set up callback function once an unexpected identify report is received.
- *
- * This callback can help the shell implementations to handle unexpected event.
- *
- * @param
- *    [ in] tcm_dev:  the device handle
- *    [ in] p_cb:     the pointer of callback function
- *    [ in] p_cbdata: pointer to caller data
- *
- * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
- */
-int syna_tcm_set_reset_occurrence_callback(struct tcm_dev *tcm_dev,
-		tcm_reset_occurrence_callback_t p_cb, void *p_cbdata);
-/*
- * syna_tcm_smart_bridge_reset()
- *
- * Implement the specific command code to reset the smart bride entirely.
- * After a successful reset, wait at least 200 ms before reading the IDENTIFY
- * report.
- *
- * @param
- *    [ in] tcm_dev: the device handle
- *    [ in] delay:   specific delay time to read in the response
- *                   set '0' to apply the default delay time which is 200 ms
- *
- * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
- */
-int syna_tcm_smart_bridge_reset(struct tcm_dev *tcm_dev, int delay);
 
+/**
+ * @brief   Terminate the command processing.
+ *
+ * @param
+ *    [ in] tcm_dev: the TouchComm device handle
+ *
+ * @return
+ *    none
+ */
+void syna_tcm_clear_command_processing(struct tcm_dev *tcm_dev);
+
+
+/**
+ * Helpers to set up callbacks
+ */
+
+/**
+ * @brief   Register callback function to handle the particular report.
+ *
+ * @param
+ *    [ in] tcm_dev:  the TouchComm device handle
+ *    [ in] code:     the target report code to register
+ *    [ in] p_cb:     the function pointer to the callback
+ *    [ in] data:     private data to pass to the callback
+ *
+ * @return
+ *    0 or positive value in case of success, a negative value otherwise.
+ */
+int syna_tcm_set_report_dispatcher(struct tcm_dev *tcm_dev,
+	unsigned char code, tcm_message_callback_t p_cb, void *private_data);
+
+/**
+ * @brief   Set up callback function to duplicate the data.
+ *
+ * @param
+ *    [ in] tcm_dev:  the TouchComm device handle
+ *    [ in] code:     the target report code to register
+ *    [ in] p_cb:     the function pointer to the callback
+ *    [ in] data:     private data to pass to the callback
+ *
+ * @return
+ *    0 or positive value in case of success, a negative value otherwise.
+ */
+int syna_tcm_set_data_duplicator(struct tcm_dev *tcm_dev,
+	unsigned char code, tcm_message_callback_t p_cb, void *private_data);
+
+/**
+ * @brief   Clear the callback of data duplicator registered previously.
+ *
+ * @param
+ *    [ in] tcm_dev:  the TouchComm device handle
+ *
+ * @return
+ *    0 or positive value in case of success, a negative value otherwise.
+ */
+int syna_tcm_clear_data_duplicator(struct tcm_dev *tcm_dev);
+
+/**
+ * @brief   Helper to acquire one report data in polling
+ *
+ * @param
+ *    [ in] tcm_dev:       the TouchComm device handle
+ *    [ in] report_code:   the requested report code waiting for
+ *    [out] buffer:        buffer stored the report data
+ *    [ in] polling_ms:    the period to attempt acquiring the report data
+ *    [ in] timeout:       timeout time in ms to wait for a report data
+ *
+ * @return
+ *    0 or positive value in case of success, a negative value otherwise.
+ */
+int syna_tcm_wait_for_report(struct tcm_dev *tcm_dev, unsigned char report_code,
+	struct tcm_buffer *buffer, unsigned int polling_ms, unsigned int timeout_ms);
+
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* end of _SYNAPTICS_TOUCHCOM_BASE_FUNCS_H_ */

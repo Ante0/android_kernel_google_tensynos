@@ -96,6 +96,7 @@ static const struct of_device_id of_match_clk_mt2701_bdp[] = {
 		/* sentinel */
 	}
 };
+MODULE_DEVICE_TABLE(of, of_match_clk_mt2701_bdp);
 
 static struct platform_driver clk_mt2701_bdp_drv = {
 	.probe = mtk_clk_simple_probe,
@@ -106,4 +107,6 @@ static struct platform_driver clk_mt2701_bdp_drv = {
 	},
 };
 module_platform_driver(clk_mt2701_bdp_drv);
+
+MODULE_DESCRIPTION("MediaTek MT2701 BDP clocks driver");
 MODULE_LICENSE("GPL");

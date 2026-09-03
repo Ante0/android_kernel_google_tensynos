@@ -17,6 +17,7 @@
 #include <linux/workqueue.h>
 
 #include <gcip/gcip-alloc-helper.h>
+#include <gcip/gcip-android-build.h>
 #include <gcip/gcip-memory.h>
 #include <gcip/gcip-pm.h>
 
@@ -43,8 +44,10 @@
 #include "gxp-mcu.h"
 #endif /* GXP_HAS_MCU */
 
+/* Size of shared debug dump memory per core. */
+#define PER_CORE_DEBUG_DUMP_MEMORY_SIZE SZ_1M
 /* Shared debug dump memory size between DSP cores and GXP kernel driver. */
-#define CORE_DEBUG_DUMP_MEMORY_SIZE SZ_4M
+#define CORE_DEBUG_DUMP_MEMORY_SIZE (PER_CORE_DEBUG_DUMP_MEMORY_SIZE * GXP_NUM_CORES)
 /* Shared debug dump memory size between MCU and GXP kernel driver. */
 #define MCU_DEBUG_DUMP_MEMORY_SIZE SZ_128K
 
@@ -69,14 +72,6 @@ enum gxp_common_segments_idx {
 #else
 #define TEST_SLEEP()
 #endif /* IS_GXP_TEST */
-
-/* Whether or not the debug dump subsystem should be enabled. */
-#if !IS_GXP_TEST && !GXP_ENABLE_DEBUG_DUMP
-static int gxp_debug_dump_enable;
-#else
-static int gxp_debug_dump_enable = 1;
-#endif /* !IS_GXP_TEST && !GXP_ENABLE_DEBUG_DUMP */
-module_param_named(debug_dump_enable, gxp_debug_dump_enable, int, 0660);
 
 static void gxp_debug_dump_cache_invalidate(struct gxp_dev *gxp)
 {
@@ -752,7 +747,17 @@ static void gxp_debug_dump_mcu_dump_exit(struct gxp_dev *gxp)
 }
 #endif /* #if GXP_HAS_MCU */
 
-void gxp_debug_dump_invalidate_core_segments(struct gxp_dev *gxp, uint32_t core_id)
+/**
+ * gxp_debug_dump_invalidate_core_segments() - Invalidate core dump segments to enable core
+ *                                             firmware to populate them on next debug dump
+ *                                             trigger.
+ *
+ * This function is not thread safe. Caller should take the necessary precautions.
+ *
+ * @gxp: The GXP device to obtain the handler for
+ * @core_id: physical id of the DSP core whose dump segments need to be invalidated.
+ */
+static void gxp_debug_dump_invalidate_core_segments(struct gxp_dev *gxp, uint32_t core_id)
 {
 	int i;
 	struct gxp_debug_dump_manager *mgr = gxp->debug_dump_mgr;
@@ -795,6 +800,9 @@ void gxp_debug_dump_send_forced_debug_dump_request(struct gxp_dev *gxp,
 	uint core, phys_core;
 	uint generate_debug_dump;
 	uint debug_dump_generated;
+
+	if (!gxp_debug_dump_is_enabled(gxp))
+		return;
 
 	for (phys_core = 0; phys_core < GXP_NUM_CORES; phys_core++) {
 		if (!(vd->core_list & BIT(phys_core)))
@@ -989,10 +997,11 @@ static int gxp_debug_dump_add_segments(struct gxp_dev *gxp, struct gxp_virtual_d
 #endif /* GXP_HAS_MCU */
 
 	core_cfg = vd->core_cfg.virt_addr + (vd->core_cfg.size / GXP_NUM_CORES) * virt_core_id;
-	scnprintf(mgr->sscd_segments[core_id].sscd_msg, SSCD_MSG_LENGTH - 1,
-		  "gxp debug dump (vdid %d)(core %0x)(exccause:0x%x, excvaddr:0x%x, epc1:0x%x)",
-		  vd->vdid, core_id, core_cfg->crash_exccause, core_cfg->crash_excvaddr,
-		  core_cfg->crash_epc1);
+	scnprintf(
+		mgr->sscd_segments[core_id].sscd_msg, SSCD_MSG_LENGTH - 1,
+		"gxp debug dump (vdid %d)(core %0x)(device_id:0x%x)(exccause:0x%x, excvaddr:0x%x, epc1:0x%x)",
+		vd->vdid, core_id, core_cfg->device_id, core_cfg->crash_exccause,
+		core_cfg->crash_excvaddr, core_cfg->crash_epc1);
 
 out_add_seg:
 	if (ret)
@@ -1213,6 +1222,9 @@ void gxp_debug_dump_prepare_dump_mcu_mode(struct gxp_dev *gxp, uint *core_list,
 	uint core;
 	int ret;
 
+	if (!gxp_debug_dump_is_enabled(gxp))
+		return;
+
 	lockdep_assert_held(&crashed_vd->debug_dump_lock);
 	mutex_lock(&gxp->debug_dump_mgr->debug_dump_lock);
 
@@ -1239,6 +1251,9 @@ void gxp_debug_dump_process_dump_mcu_mode(struct gxp_dev *gxp, uint *core_list)
 {
 	uint core;
 
+	if (!gxp_debug_dump_is_enabled(gxp))
+		return;
+
 	mutex_lock(&gxp->debug_dump_mgr->debug_dump_lock);
 
 	for (core = 0; core < GXP_NUM_CORES; core++) {
@@ -1260,7 +1275,7 @@ struct work_struct *gxp_debug_dump_get_notification_handler(struct gxp_dev *gxp,
 {
 	struct gxp_debug_dump_manager *mgr = gxp->debug_dump_mgr;
 
-	if (!gxp_debug_dump_is_enabled())
+	if (!gxp_debug_dump_is_enabled(gxp))
 		return NULL;
 
 	if (!mgr->core_buf.vaddr) {
@@ -1276,7 +1291,7 @@ static int debugfs_coredump(void *data, u64 val)
 	struct gxp_dev *gxp = (struct gxp_dev *)data;
 	int core;
 
-	if (!gxp_debug_dump_is_enabled()) {
+	if (!gxp_debug_dump_is_enabled(gxp)) {
 		dev_err(gxp->dev, "Debug dump functionality is disabled\n");
 		return -EINVAL;
 	}
@@ -1326,8 +1341,16 @@ int gxp_debug_dump_init(struct gxp_dev *gxp, void *sscd_dev, void *sscd_pdata)
 	struct gxp_debug_dump_manager *mgr;
 	int ret;
 
-	/* Don't initialize the debug dump subsystem unless it's enabled. */
-	if (!gxp_debug_dump_enable)
+	/*
+	 * Skip enabling debug dump on Android user builds. We pass
+	 * fallback_to_user = false to gcip_is_android_user_build() to ensure we
+	 * do not accidentally disable debug dump on non-user builds where the
+	 * build type cannot be definitively verified. For actual user builds
+	 * where detection might fail, a secondary safety net is enforced by the
+	 * SSCD module, which restricts saving dumps to the filesystem and
+	 * effectively disables the feature.
+	 */
+	if (gcip_is_android_user_build(gxp->dev, false))
 		return 0;
 
 	mgr = devm_kzalloc(gxp->dev, sizeof(*mgr), GFP_KERNEL);
@@ -1402,9 +1425,9 @@ void gxp_debug_dump_exit(struct gxp_dev *gxp)
 	gxp->debug_dump_mgr = NULL;
 }
 
-bool gxp_debug_dump_is_enabled(void)
+bool gxp_debug_dump_is_enabled(struct gxp_dev *gxp)
 {
-	return gxp_debug_dump_enable;
+	return gxp->debug_dump_mgr != NULL;
 }
 
 #if GXP_HAS_MCU
@@ -1599,6 +1622,9 @@ void gxp_debug_dump_report_mcu_crash(struct gxp_dev *gxp, enum gcip_fw_crash_typ
 	struct gxp_mailbox_queue_desc kci_mailbox_queue_desc, uci_mailbox_queue_desc;
 	int seg_idx = 0;
 	char sscd_msg[SSCD_MSG_LENGTH];
+
+	if (!gxp_debug_dump_is_enabled(gxp))
+		return;
 
 	scnprintf(sscd_msg, SSCD_MSG_LENGTH - 1, "MCU crashed.");
 	mutex_lock(&mgr->debug_dump_lock);

@@ -17,7 +17,7 @@
 
 struct lwis_clock {
 	struct clk *clk;
-	char *name;
+	const char *name;
 	uint32_t rate;
 };
 
@@ -48,7 +48,8 @@ void lwis_clock_list_free(struct lwis_clock_list *list);
  *  clock rate.
  *  Returns: index number (>= 0) if success, -ve if error
  */
-int lwis_clock_get(struct lwis_clock_list *list, char *name, struct device *dev, uint32_t rate);
+int lwis_clock_get(struct lwis_clock_list *list, const char *name, struct device *dev,
+		   uint32_t rate);
 
 /*
  *  lwis_clock_put_by_idx: Unregister the clock by index.

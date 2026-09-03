@@ -27,7 +27,7 @@
 #include <linux/cpufreq.h>
 #include <soc/google/cal-if.h>
 #include <soc/google/exynos-devfreq.h>
-#include "../../../soc/google/cal-if/acpm_dvfs.h"
+#include "acpm_dvfs.h"
 #if defined(CONFIG_SOC_GS101)
 #include <dt-bindings/clock/gs101.h>
 #include <linux/mfd/samsung/s2mpg10.h>
@@ -798,6 +798,7 @@ static int acpm_mfd_set_pmic(void)
 	p_np = of_parse_phandle(np, "main-pmic", 0);
 	if (p_np) {
 		i2c_main = of_find_i2c_device_by_node(p_np);
+		of_node_put(p_np);
 		if (!i2c_main) {
 			dev_err(mbox->device, "%s: Cannot find main-pmic i2c\n",
 				__func__);
@@ -806,8 +807,6 @@ static int acpm_mfd_set_pmic(void)
 		mbox->mfd->s2mpg_main = i2c_get_clientdata(i2c_main);
 	} else
 		dev_err(mbox->device, "%s: Cannot find main-pmic\n", __func__);
-
-	of_node_put(p_np);
 
 	if (!mbox->mfd->s2mpg_main) {
 		dev_err(mbox->device, "%s: S2MPG-Main device not found\n",
@@ -838,6 +837,7 @@ static int acpm_mfd_set_pmic(void)
 	p_np = of_parse_phandle(np, "sub-pmic", 0);
 	if (p_np) {
 		i2c_sub = of_find_i2c_device_by_node(p_np);
+		of_node_put(p_np);
 		if (!i2c_sub) {
 			dev_err(mbox->device, "%s: Cannot find sub-pmic i2c\n",
 				__func__);
@@ -846,8 +846,6 @@ static int acpm_mfd_set_pmic(void)
 		mbox->mfd->s2mpg_sub = i2c_get_clientdata(i2c_sub);
 	} else
 		dev_err(mbox->device, "%s: Cannot find sub-pmic\n", __func__);
-
-	of_node_put(p_np);
 
 	if (!mbox->mfd->s2mpg_sub) {
 		dev_err(mbox->device, "%s: S2MPG-Sub device not found\n",
@@ -904,7 +902,7 @@ static int acpm_mfd_set_pmic(void)
 	return 0;
 }
 
-unsigned int acpm_pt_clients_enable(void)
+static unsigned int acpm_pt_clients_enable(void)
 {
 	struct pt_handle *client = NULL;
 	unsigned int client_cnt = 0;
@@ -922,7 +920,7 @@ unsigned int acpm_pt_clients_enable(void)
 	return client_cnt;
 }
 
-void acpm_pt_clients_disable(void)
+static void acpm_pt_clients_disable(void)
 {
 	struct pt_handle *client = NULL;
 
@@ -1861,7 +1859,7 @@ err_tmu:
 	return ret;
 }
 
-static int acpm_mbox_test_remove(struct platform_device *pdev)
+static void acpm_mbox_test_remove(struct platform_device *pdev)
 {
 	int i;
 
@@ -1901,7 +1899,6 @@ static int acpm_mbox_test_remove(struct platform_device *pdev)
 
 	dev_info(mbox->device, "%s done.\n", __func__);
 	kfree(mbox);
-	return 0;
 }
 
 static const struct of_device_id acpm_mbox_test_match[] = {

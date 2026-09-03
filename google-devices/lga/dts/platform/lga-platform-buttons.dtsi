@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/google,lga.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/linux-event-codes.h>
+
+/ {
+	fragment@buttons {
+		target-path = "/";
+		__overlay__ {
+			gpio_keys: gpio_keys {
+				compatible = "gpio-keys";
+				status = "okay";
+				pinctrl-names = "default";
+				pinctrl-0 = <&vol_dn_l &vol_up_l &pmicm2ap_gsc_pwron_od_l>;
+				button-voldn {
+					label = "gpio-keys: KEY_VOLUMEDOWN";
+					linux,code = <KEY_VOLUMEDOWN>;
+					gpios = <VOL_DN_L(GPIO_ACTIVE_LOW)>;
+					wakeup-source;
+				};
+				button-volup {
+					label = "gpio-keys: KEY_VOLUMEUP";
+					linux,code = <KEY_VOLUMEUP>;
+					gpios = <VOL_UP_L(GPIO_ACTIVE_LOW)>;
+					wakeup-source;
+				};
+				button-power {
+					label = "gpio-keys: KEY_POWER";
+					linux,code = <KEY_POWER>;
+					gpios = <PMICM2AP_GSC_PWRON_OD_L(GPIO_ACTIVE_LOW)>;
+					wakeup-source;
+				};
+			};
+		};
+	};
+};

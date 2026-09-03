@@ -419,10 +419,14 @@ static int wm8974_update_clocks(struct snd_soc_dai *dai)
 	fs256 = 256 * priv->fs;
 
 	f = wm8974_get_mclkdiv(priv->mclk, fs256, &mclkdiv);
-
 	if (f != priv->mclk) {
 		/* The PLL performs best around 90MHz */
-		fpll = wm8974_get_mclkdiv(22500000, fs256, &mclkdiv);
+		if (fs256 % 8000)
+			f = 22579200;
+		else
+			f = 24576000;
+
+		fpll = wm8974_get_mclkdiv(f, fs256, &mclkdiv);
 	}
 
 	wm8974_set_dai_pll(dai, 0, 0, priv->mclk, fpll);
@@ -707,7 +711,7 @@ static int wm8974_i2c_probe(struct i2c_client *i2c)
 }
 
 static const struct i2c_device_id wm8974_i2c_id[] = {
-	{ "wm8974", 0 },
+	{ "wm8974" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, wm8974_i2c_id);
@@ -723,7 +727,7 @@ static struct i2c_driver wm8974_i2c_driver = {
 		.name = "wm8974",
 		.of_match_table = wm8974_of_match,
 	},
-	.probe_new = wm8974_i2c_probe,
+	.probe = wm8974_i2c_probe,
 	.id_table = wm8974_i2c_id,
 };
 

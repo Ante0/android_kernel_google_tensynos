@@ -93,7 +93,7 @@ void nvt_change_mode(uint8_t mode)
 	}
 }
 
-int32_t nvt_set_pen_inband_mode_1(uint8_t freq_idx, uint8_t x_term)
+static int32_t nvt_set_pen_inband_mode_1(uint8_t freq_idx, uint8_t x_term)
 {
 	uint8_t buf[8] = {0};
 	int32_t i = 0;
@@ -129,7 +129,7 @@ int32_t nvt_set_pen_inband_mode_1(uint8_t freq_idx, uint8_t x_term)
 	}
 }
 
-int32_t nvt_set_pen_normal_mode(void)
+static int32_t nvt_set_pen_normal_mode(void)
 {
 	uint8_t buf[8] = {0};
 	int32_t i = 0;
@@ -392,7 +392,7 @@ static int32_t c_fw_version_show(struct seq_file *m, void *v)
 		ts->trim_table->id[0], ts->trim_table->id[1],
 		ts->trim_table->id[2], ts->trim_table->id[3],
 		ts->trim_table->id[4], ts->trim_table->id[5]);
-#if !SPI_FLASH
+#if !IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	seq_printf(m, "mp_fw_name= %s\n", get_mp_fw_name());
 #endif
 	seq_printf(m, "fw_name= %s\n", get_fw_name());
@@ -654,7 +654,7 @@ static int32_t nvt_fw_update_open(struct inode *inode, struct file *file)
 
 	NVT_LOGD("++\n");
 
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 	ts->force_fw_update = true;
 	reinit_completion(&ts->fwu_done);
 	ret = !queue_delayed_work(nvt_fwu_wq, &ts->nvt_fwu_work, 0);
@@ -668,7 +668,7 @@ static int32_t nvt_fw_update_open(struct inode *inode, struct file *file)
 	mutex_lock(&ts->lock);
 	ret = nvt_update_firmware(get_fw_name(), 1);
 	mutex_unlock(&ts->lock);
-#endif // SPI_FLASH
+#endif // IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 
 	if (ret) {
 		NVT_ERR("failed, ret = %d\n", ret);

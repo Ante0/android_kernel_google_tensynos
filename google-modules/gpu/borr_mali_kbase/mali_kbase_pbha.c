@@ -19,6 +19,8 @@
  *
  */
 
+#include <linux/cleanup.h>
+
 #include "mali_kbase_pbha.h"
 
 #include <device/mali_kbase_device.h>
@@ -315,7 +317,7 @@ static int kbase_pbha_read_propagate_bits_property(struct kbase_device *kbdev,
 int kbase_pbha_read_dtb(struct kbase_device *kbdev)
 {
 #if MALI_USE_CSF
-	const struct device_node *pbha_node;
+	struct device_node *pbha_node __free(device_node) = NULL;
 	int err;
 
 	if (!kbasep_pbha_supported(kbdev))

@@ -59,7 +59,7 @@ static int lwis_spi_read(struct lwis_spi_device *spi_dev, uint64_t offset, uint6
 		return -EINVAL;
 	}
 
-	value_bits = spi_dev->base_dev.native_value_bitwidth;
+	value_bits = spi_dev->base_dev.native_read_value_bitwidth;
 	value_bytes = value_bits / BITS_PER_BYTE;
 	if (!check_bitwidth(value_bits, MIN_DATA_BITS, MAX_DATA_BITS)) {
 		dev_err(spi_dev->base_dev.dev, "Invalid value bitwidth %d\n", value_bits);
@@ -136,7 +136,7 @@ static int lwis_spi_write(struct lwis_spi_device *spi_dev, uint64_t offset, uint
 		return -EINVAL;
 	}
 
-	value_bits = spi_dev->base_dev.native_value_bitwidth;
+	value_bits = spi_dev->base_dev.native_write_value_bitwidth;
 	value_bytes = value_bits / BITS_PER_BYTE;
 	if (!check_bitwidth(value_bits, MIN_DATA_BITS, MAX_DATA_BITS)) {
 		dev_err(spi_dev->base_dev.dev, "Invalid value bitwidth %d\n", value_bits);

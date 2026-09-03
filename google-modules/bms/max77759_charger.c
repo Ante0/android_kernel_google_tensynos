@@ -15,7 +15,12 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#pragma clang diagnostic ignored "-Wenum-conversion"
+#pragma clang diagnostic ignored "-Wswitch"
+#pragma clang diagnostic ignored "-Wunused-function"
+
 #include <linux/ctype.h>
+#include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
@@ -28,6 +33,7 @@
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/platform_device.h>
+#include <misc/gvotable.h>
 #include "gbms_power_supply.h"
 #include "google_bms.h"
 #include "max_m5.h"
@@ -189,7 +195,7 @@ int max77759_external_reg_read(struct device *dev, uint8_t reg, uint8_t *val)
 	if (max77759_resume_check(data))
 		return -EAGAIN;
 
-	if (max77759_reg_read(data->regmap, reg, val) < 0)
+	if (max77759_readn(data->regmap, reg, val, 2) < 0)
 		return -EINVAL;
 
 	return 0;
@@ -381,6 +387,7 @@ static int max77759_find_pmic(struct max77759_chgr_data *data)
 		return -ENXIO;
 
 	data->pmic_i2c_client = of_find_i2c_device_by_node(dn);
+	of_node_put(dn);
 	if (!data->pmic_i2c_client)
 		return -EAGAIN;
 
@@ -399,6 +406,7 @@ static int max77759_find_fg(struct max77759_chgr_data *data)
 		return -ENXIO;
 
 	data->fg_i2c_client = of_find_i2c_device_by_node(dn);
+	of_node_put(dn);
 	if (!data->fg_i2c_client)
 		return -EAGAIN;
 
@@ -562,7 +570,8 @@ static int max77759_foreach_callback(void *data, const char *reason,
 		cb_data->otg_on += 1;
 		break;
 	/* DC Charging: mode=0, set CP_EN */
-	case GBMS_CHGR_MODE_CHGR_DC:
+	case GBMS_CHGR_MODE_CHGR_DC_USB:
+	case GBMS_CHGR_MODE_CHGR_DC_WLC:
 		if (!cb_data->dc_on)
 			cb_data->reason = reason;
 		pr_debug("%s: DC_ON vote=0x%x\n", __func__, mode);
@@ -596,6 +605,10 @@ static int max77759_foreach_callback(void *data, const char *reason,
 		pr_debug("%s: POGO VOUT vote=%x\n", __func__, mode);
 		cb_data->pogo_vout += 1;
 		break;
+	case GBMS_CHG_OFF:
+		pr_debug("%s: GBMS_CHG_OFF vote=%x\n", __func__, mode);
+		cb_data->charge_off = true;
+		break;
 
 	default:
 		pr_err("mode=%x not supported\n", mode);
@@ -614,7 +627,7 @@ static int max77759_foreach_callback(void *data, const char *reason,
  */
 static bool cb_data_is_chgr_on(const struct max77759_foreach_cb_data *cb_data)
 {
-	return cb_data->stby_on ? 0 : (cb_data->chgr_on >= 2);
+	return cb_data->stby_on || cb_data->charge_off ? 0 : (cb_data->chgr_on >= 2);
 }
 
 /*
@@ -821,7 +834,7 @@ static int max77759_get_usecase(struct max77759_foreach_cb_data *cb_data,
 		cb_data->dc_avail_votable = gvotable_election_get_handle(VOTABLE_DC_CHG_AVAIL);
 	if (cb_data->dc_avail_votable)
 		gvotable_cast_int_vote(cb_data->dc_avail_votable,
-				       "WLC_TX", wlc_tx? 0 : 1, wlc_tx);
+				       "WLC_TX", GBMS_ALL_SEC_CHG_DISABLED, wlc_tx);
 
 	/* reg might be ignored later */
 	cb_data->reg = _chg_cnfg_00_cp_en_set(cb_data->reg, dc_on);
@@ -833,18 +846,15 @@ static int max77759_get_usecase(struct max77759_foreach_cb_data *cb_data,
 static void max77759_set_pogo_ovp_en(struct max77759_usecase_data *uc_data,
 				     const int enabled)
 {
-	const int gpio_en = gpio_get_value_cansleep(uc_data->pogo_ovp_en);
-	const bool pogo_ovp_en = uc_data->pogo_ovp_en_act_low ?
-				 (gpio_en == 0) : (gpio_en == 1);
+	const int gpio_en = gpiod_get_value_cansleep(uc_data->pogo_ovp_en);
+	const bool pogo_ovp_en = !!gpio_en;
 
 	/* return if pogo_ovp_en has been set */
 	if ((enabled && pogo_ovp_en) || (!enabled && !pogo_ovp_en))
 		return;
 
 	/* turn on/off pogo_ovp_en */
-	gpio_set_value_cansleep(uc_data->pogo_ovp_en, enabled ?
-				!uc_data->pogo_ovp_en_act_low :
-				uc_data->pogo_ovp_en_act_low);
+	gpiod_set_value_cansleep(uc_data->pogo_ovp_en, !!enabled);
 }
 
 /*
@@ -902,8 +912,8 @@ static int max77759_set_insel(struct max77759_chgr_data *data,
 		/* always disable WCIN when pogo power out */
 		insel_value &= ~MAX77759_CHG_CNFG_12_WCINSEL;
 		/* turn off pogo_ovp */
-		if (uc_data->pogo_ovp_en > 0)
-			gpio_set_value_cansleep(uc_data->pogo_ovp_en, uc_data->pogo_ovp_en_act_low);
+		if (!IS_ERR(uc_data->pogo_ovp_en))
+			gpiod_set_value_cansleep(uc_data->pogo_ovp_en, 0);
 	} else if (cb_data->pogo_vin && !cb_data->wlcin_off) {
 		/* always disable USB when Dock is present */
 		insel_value &= ~MAX77759_CHG_CNFG_12_CHGINSEL;
@@ -977,11 +987,24 @@ static int max77759_set_usecase(struct max77759_chgr_data *data,
 
 	/* Need this only for usecases that control the switches */
 	if (!uc_data->init_done) {
-		uc_data->init_done = gs101_setup_usecases(uc_data, data->dev->of_node);
+		uc_data->init_done = gs101_setup_usecases(uc_data, data->dev->of_node, data->dev);
 
 		dev_info(data->dev, "bst_on:%d, bst_sel:%d, ext_bst_ctl:%d lsw1_o:%d lsw1_c:%d\n",
-			 uc_data->bst_on, uc_data->bst_sel, uc_data->ext_bst_ctl,
-			 uc_data->lsw1_is_open, uc_data->lsw1_is_closed);
+			 (IS_ERR_OR_NULL(uc_data->bst_on)
+			  ? (int)PTR_ERR(uc_data->bst_on)
+			  : desc_to_gpio(uc_data->bst_on)),
+			 (IS_ERR_OR_NULL(uc_data->bst_sel)
+			  ? (int)PTR_ERR(uc_data->bst_sel)
+			  : desc_to_gpio(uc_data->bst_sel)),
+			 (IS_ERR_OR_NULL(uc_data->ext_bst_ctl)
+			  ? (int)PTR_ERR(uc_data->ext_bst_ctl)
+			  : desc_to_gpio(uc_data->ext_bst_ctl)),
+			 (IS_ERR_OR_NULL(uc_data->lsw1_is_open)
+			  ? (int)PTR_ERR(uc_data->lsw1_is_open)
+			  : desc_to_gpio(uc_data->lsw1_is_open)),
+			 (IS_ERR_OR_NULL(uc_data->lsw1_is_closed)
+			  ? (int)PTR_ERR(uc_data->lsw1_is_closed)
+			  : desc_to_gpio(uc_data->lsw1_is_closed)));
 	}
 
 	uc_data->to_uc = use_case;
@@ -1092,15 +1115,13 @@ static int max77759_mode_callback(struct gvotable_election *el,
 		goto unlock_done;
 	}
 
-	dev_info(data->dev, "%s:%s full=%d raw=%d stby_on=%d, dc_on=%d, chgr_on=%d, buck_on=%d,"
-		" boost_on=%d, otg_on=%d, uno_on=%d wlc_tx=%d wlc_rx=%d usb_wlc=%d"
-		" chgin_off=%d wlcin_off=%d frs_on=%d pogo_vout=%d pogo_vin=%d\n",
+	dev_info(data->dev, "%s:%s full=%d raw=%d stby_on=%d, dc_on=%d, chgr_on=%d, buck_on=%d, boost_on=%d, otg_on=%d, uno_on=%d wlc_tx=%d wlc_rx=%d usb_wlc=%d chgin_off=%d wlcin_off=%d frs_on=%d pogo_vout=%d pogo_vin=%d chg_off:%d\n",
 		__func__, trigger ? trigger : "<>",
 		data->charge_done, cb_data.use_raw, cb_data.stby_on, cb_data.dc_on,
 		cb_data.chgr_on, cb_data.buck_on, cb_data.boost_on, cb_data.otg_on,
 		cb_data.uno_on, cb_data.wlc_tx, cb_data.wlc_rx, cb_data.usb_wlc,
 		cb_data.chgin_off, cb_data.wlcin_off, cb_data.frs_on, cb_data.pogo_vout,
-		cb_data.pogo_vin);
+		cb_data.pogo_vin, cb_data.charge_off);
 
 	/* just use raw "as is", no changes to switches etc */
 	if (cb_data.use_raw) {
@@ -1113,7 +1134,8 @@ static int max77759_mode_callback(struct gvotable_election *el,
 		/* insel needs it, otg usecases needs it */
 		if (!uc_data->init_done) {
 			uc_data->init_done = gs101_setup_usecases(uc_data,
-						data->dev->of_node);
+								  data->dev->of_node,
+								  data->dev);
 			gs101_dump_usecasase_config(uc_data);
 		}
 
@@ -1121,8 +1143,8 @@ static int max77759_mode_callback(struct gvotable_election *el,
 		 * force FRS if ext boost or NBC is not enabled
 		 * TODO: move to setup_usecase
 		 */
-		use_internal_bst = uc_data->vin_is_valid < 0 &&
-				   uc_data->bst_on < 0;
+		use_internal_bst = IS_ERR(uc_data->vin_is_valid) &&
+				   IS_ERR(uc_data->bst_on);
 		if (cb_data.otg_on && use_internal_bst)
 			cb_data.frs_on = cb_data.otg_on;
 
@@ -1150,8 +1172,8 @@ static int max77759_mode_callback(struct gvotable_election *el,
 				cancel_delayed_work_sync(&data->otg_fccm_worker);
 
 				/* Force to reset the FCCM mode to disable */
-				if (data->uc_data.ext_bst_mode > 0)
-					gpio_set_value_cansleep(data->uc_data.ext_bst_mode, 0);
+				if (!IS_ERR(data->uc_data.ext_bst_mode))
+					gpiod_set_value_cansleep(data->uc_data.ext_bst_mode, 0);
 				__pm_relax(data->otg_fccm_wake_lock);
 			}
 		}
@@ -1430,10 +1452,12 @@ static int max77759_get_regulation_voltage_uv(struct max77759_chgr_data *data,
 static int max77759_set_charger_current_max_ua(struct max77759_chgr_data *data,
 					       int current_ua)
 {
-	const int disabled = current_ua == 0;
+	const int disabled = (current_ua == 0) || (current_ua == GBMS_MSC_FCC_CHARGE_OFF);
 	u8 value, reg;
 	int ret;
 	bool cp_enabled;
+
+	current_ua = (current_ua == GBMS_MSC_FCC_CHARGE_OFF) ? 0 : current_ua;
 
 	if (current_ua < 0)
 		return 0;
@@ -1791,7 +1815,7 @@ static void max77759_wcin_charge_disable_work(struct work_struct *work)
 #if IS_ENABLED(CONFIG_GPIOLIB)
 static int max77759_gpio_get_direction(struct gpio_chip *chip, unsigned int offset)
 {
-	return GPIOF_DIR_OUT;
+	return GPIO_LINE_DIRECTION_OUT;
 }
 
 static int max77759_gpio_get(struct gpio_chip *chip, unsigned int offset)
@@ -2092,7 +2116,7 @@ static int max77759_gbms_wcin_prop_is_writeable(struct power_supply *psy,
 }
 
 static struct gbms_desc max77759_wcin_psy_desc = {
-	.psy_dsc.name = "dc",
+	.psy_dsc.name = GOOGLE_WLCIN_MAINS_NAME,
 	.psy_dsc.type = POWER_SUPPLY_TYPE_UNKNOWN,
 	.psy_dsc.properties = max77759_wcin_props,
 	.psy_dsc.num_properties = ARRAY_SIZE(max77759_wcin_props),
@@ -2730,6 +2754,8 @@ static enum power_supply_property max77759_psy_props[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,		/* input voltage limit */
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_STATUS,
+	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
+	POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE_MAX,
 };
 
 static struct gbms_desc max77759_psy_desc = {
@@ -3239,7 +3265,7 @@ static void max77759_otg_fccm_worker(struct work_struct *work)
 
 	__pm_stay_awake(data->otg_fccm_wake_lock);
 
-	if (data->uc_data.ext_bst_mode <= 0)
+	if (IS_ERR_OR_NULL(data->uc_data.ext_bst_mode))
 		goto done_relax;
 
 	ret = max77759_read_vbatt(data, &vbatt);
@@ -3249,16 +3275,16 @@ static void max77759_otg_fccm_worker(struct work_struct *work)
         }
 
 	vbatt = vbatt / 1000;
-	gpio_en = gpio_get_value_cansleep(data->uc_data.ext_bst_mode);
+	gpio_en = gpiod_get_value_cansleep(data->uc_data.ext_bst_mode);
 
 	dev_dbg(data->dev, "fccm: vbatt=%d, gpio_en=%d\n", vbatt, gpio_en);
 
 	if (vbatt > data->otg_fccm_vbatt_upperbd && !gpio_en) {
 		dev_info(data->dev, "enable fccm mode.\n");
-		gpio_set_value_cansleep(data->uc_data.ext_bst_mode, 1);
+		gpiod_set_value_cansleep(data->uc_data.ext_bst_mode, 1);
 	} else if (vbatt < data->otg_fccm_vbatt_lowerbd && gpio_en) {
 		dev_info(data->dev, "disable fccm mode.\n");
-		gpio_set_value_cansleep(data->uc_data.ext_bst_mode, 0);
+		gpiod_set_value_cansleep(data->uc_data.ext_bst_mode, 0);
 	}
 
 	schedule_delayed_work(&data->otg_fccm_worker, msecs_to_jiffies(30000));
@@ -3268,8 +3294,7 @@ done_relax:
 
 #define MAX77759_FCCM_UPPERBD_VOL 4600
 #define MAX77759_FCCM_LOWERBD_VOL 3600
-static int max77759_charger_probe(struct i2c_client *client,
-				  const struct i2c_device_id *id)
+static int max77759_charger_probe(struct i2c_client *client)
 {
 	struct power_supply_config chgr_psy_cfg = { 0 };
 	struct device *dev = &client->dev;
@@ -3279,7 +3304,9 @@ static int max77759_charger_probe(struct i2c_client *client,
 	u32 usb_otg_mv;
 	int ret = 0;
 	u8 ping;
-
+#if IS_ENABLED(CONFIG_GPIOLIB)
+	struct device_node *dp;
+#endif
 	regmap = devm_regmap_init_i2c(client, &max77759_chg_regmap_cfg);
 	if (IS_ERR(regmap)) {
 		dev_err(dev, "Failed to initialize regmap\n");
@@ -3334,7 +3361,7 @@ static int max77759_charger_probe(struct i2c_client *client,
 	}
 
 	/* CHARGER_MODE needs this (initialized to -EPROBE_DEFER) */
-	gs101_setup_usecases(&data->uc_data, NULL);
+	gs101_setup_usecases(&data->uc_data, NULL, dev);
 	data->uc_data.client = client;
 
 	INIT_DELAYED_WORK(&data->mode_rerun_work, max77759_mode_rerun_work);
@@ -3430,14 +3457,15 @@ static int max77759_charger_probe(struct i2c_client *client,
 
 #if IS_ENABLED(CONFIG_GPIOLIB)
 	max77759_gpio_init(data);
-	data->gpio.parent = &client->dev;
-	data->gpio.of_node = of_find_node_by_name(client->dev.of_node,
-							    data->gpio.label);
-	if (!data->gpio.of_node)
-		dev_err(&client->dev, "Failed to find %s DT node\n", data->gpio.label);
-
-	ret = devm_gpiochip_add_data(&client->dev, &data->gpio, data);
-	dev_info(&client->dev, "%d GPIOs registered ret: %d\n", data->gpio.ngpio, ret);
+	data->gpio.parent = dev;
+	/* balance of_node_put() in of_find_node_by_name() */
+	of_node_get(client->dev.of_node);
+	dp = of_find_node_by_name(dev->of_node, data->gpio.label);
+	if (!dp)
+		dev_warn(dev, "Failed to find %s DT node\n", data->gpio.label);
+	data->gpio.fwnode = of_node_to_fwnode(dp);
+	ret = devm_gpiochip_add_data(dev, &data->gpio, data);
+	dev_dbg(dev, "%d GPIOs registered ret: %d\n", data->gpio.ngpio, ret);
 #endif
 
 	data->init_complete = 1;
@@ -3453,11 +3481,12 @@ static int max77759_charger_probe(struct i2c_client *client,
 		pr_err("Couldn't register dc power supply (%d)\n", ret);
 
 	/* Init irq last */
-	data->irq_gpio = of_get_named_gpio(dev->of_node, "max77759,irq-gpio", 0);
-	if (data->irq_gpio < 0) {
+	data->irq_gpio = devm_gpiod_get(dev, "max77759,irq",
+					GPIOD_IN | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
+	if (IS_ERR(data->irq_gpio)) {
 		dev_err(dev, "failed get irq_gpio\n");
 	} else {
-		client->irq = gpio_to_irq(data->irq_gpio);
+		client->irq = gpiod_to_irq(data->irq_gpio);
 
 		ret = devm_request_threaded_irq(data->dev, client->irq, NULL,
 						max77759_chgr_irq,
@@ -3554,7 +3583,7 @@ static struct i2c_driver max77759_charger_i2c_driver = {
 		.name = "max77759-charger",
 		.owner = THIS_MODULE,
 		.of_match_table = max77759_charger_of_match_table,
-#ifdef CONFIG_PM
+#if IS_ENABLED(CONFIG_PM)
 		.pm = &max77759_charger_pm_ops,
 #endif
 	},

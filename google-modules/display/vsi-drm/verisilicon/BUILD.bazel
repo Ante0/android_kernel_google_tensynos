@@ -1,0 +1,139 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+load("//private/google-modules/display/vsi-drm/verisilicon:vs_drm_cflags.bzl", "VS_DRM_COPTS")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "ddk_headers",
+    hdrs = glob([
+        "**/*.h",
+    ]),
+    includes = [
+        ".",
+        "9x00",
+        "9x00/info",
+    ],
+    visibility = [
+        ":__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "vs_drm",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "vs_crtc.c",
+        "vs_dc_drm_property.c",
+        "vs_drm_atomic.c",
+        "vs_drm_state_record.c",
+        "vs_drv.c",
+        "vs_fb.c",
+        "vs_gem.c",
+        "vs_gem_pool.c",
+        "vs_module_params.c",
+        "vs_plane.c",
+        "vs_qos.c",
+        "vs_recovery.c",
+        "vs_simple_enc.c",
+        "vs_sscd.c",
+        "vs_sysfs.c",
+        "vs_task_fence.c",
+        "vs_trace.c",
+        "vs_writeback.c",
+    ],
+    out = "vs_drm.ko",
+    conditional_srcs = {
+        "CONFIG_VERISILICON_CHIP_9x00": {
+            True: [
+                "9x00/display_compress/vs_dc_dsc.c",
+                "9x00/display_compress/vs_dc_dsc_rc_tables.c",
+                "9x00/info/vs_dc_info.c",
+                "9x00/postprocess/vs_dc_display_3d_lut.c",
+                "9x00/postprocess/vs_dc_display_blender.c",
+                "9x00/postprocess/vs_dc_display_yuv.c",
+                "9x00/postprocess/vs_dc_histogram.c",
+                "9x00/postprocess/vs_dc_ltm.c",
+                "9x00/postprocess/vs_dc_postprocess.c",
+                "9x00/postprocess/vs_dc_scale.c",
+                "9x00/postprocess/vs_dc_sharpness.c",
+                "9x00/preprocess/vs_dc_hdr.c",
+                "9x00/preprocess/vs_dc_plane_blender.c",
+                "9x00/preprocess/vs_dc_preprocess.c",
+                "9x00/preprocess/vs_dc_pvric.c",
+                "9x00/preprocess/vs_dc_display_rcd.c",
+                "9x00/vs_dc.c",
+                "9x00/vs_dc_debugfs.c",
+                "9x00/vs_dc_hw.c",
+                "9x00/vs_dc_lut.c",
+                "9x00/vs_dc_post.c",
+                "9x00/vs_dc_pre.c",
+                "9x00/vs_dc_property.c",
+                "9x00/vs_dc_sram.c",
+                "9x00/vs_trace_9x00.c",
+                "9x00/writeback/vs_dc_writeback.c",
+            ],
+        },
+        "CONFIG_VERISILICON_DC9400_0x316": {
+            True: [
+                "9x00/info/vs_dc_info_9400_0x316.c",
+            ],
+        },
+        "CONFIG_VERISILICON_DC9400_0x32a": {
+            True: [
+                "9x00/info/vs_dc_info_9400_0x32a.c",
+            ],
+        },
+        "CONFIG_VERISILICON_DC9400_0x20000005": {
+            True: [
+                "9x00/info/vs_dc_info_9400_0x20000005.c",
+            ],
+        },
+        "CONFIG_VERISILICON_MIPI_DSI2H": {
+            True: [
+                "vs_mipi_dsi2h.c",
+            ],
+        },
+        "CONFIG_VERISILICON_DISPLAYPORT": {
+            True: [
+                "vs_dp_enc.c",
+            ],
+        },
+    },
+    copts = VS_DRM_COPTS,
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        ":ddk_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common/gs_drm:gs-drm-connector",
+        "//private/google-modules/display/vsi-drm:ddk_headers",
+        "//private/google-modules/display/vsi-drm/bridge/synopsys/dsi2host:mipi-dsi2h",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/core/gs_perf_domain:perf_domain",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/interconnect:google_icc",
+    ] + select({
+        "//private/google-modules/display/vsi-drm:trusty_is_enabled": [
+            "//private/google-modules/soc/gs:headers",
+            "//private/google-modules/soc/gs/drivers/soc/google/gsa:tzprot",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+exports_files(
+    [
+        "Kconfig",
+    ],
+    [
+        "//private/google-modules/display/vsi-drm:__pkg__",
+    ],
+)

@@ -1,0 +1,122 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+/*
+ * Device tree source for Laguna "Buenos" TPU common to all revisions.
+ *
+ * Copyright 2024 Google LLC
+ */
+
+#include <dt-bindings/interrupt-controller/lga-gic.h>
+#include <dt-bindings/interrupt-controller/irq-gia-google-lga.h>
+
+/ {
+	sswrp_tpu: sswrp_tpu@36000000 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x36000000 0xac1000>;
+
+		/* Default domain IOVA allocs start after fw remap region */
+		tpu_iovas_resv: tpu_iovas_resv {
+			iommu-addresses = <&edgetpu 0x0 0x18000000>;
+		};
+
+		/* TPU TOP */
+		edgetpu: buenos@500000 {
+			compatible = "google,edgetpu-laguna";
+			#dma-address-cells = <1>;
+			#dma-size-cells = <2>;
+			pasid-num-bits = <4>;
+			/*
+			 * DIVE can only access IOVA > 2G (0x80000000),
+			 * From which the top 1MB is reserved for shared mappings.
+			 * An additional 64MB is reserved for the DIVE image.
+			 */
+			gcip-dma-window = <0x84000000 0xF 0x7BF00000>;
+			reg = <0x500000 0x541000
+			       0x9000   0xb2e4>;
+			reg-names = "top", "lpcm";
+			/* TLB classes used by the TPU come out as different streams */
+			iommus = <&tpu_smmu 0x0>, 	/* Hib0ParameterRead  */
+				<&tpu_smmu 0x10>, 	/* Hib0InputReadOutputWrite */
+				<&tpu_smmu 0x20>, 	/* Hib1ParameterRead */
+				<&tpu_smmu 0x30>, 	/* Hib1InputReadOutputWrite */
+				<&tpu_smmu 0x40>, 	/* DiveCluster0 */
+				<&tpu_smmu 0x50>, 	/* DiveCluster1 */
+				<&tpu_smmu 0x60>, 	/* TpuControlCore0 */
+				<&tpu_smmu 0x70>, 	/* TpuControlCore1 */
+				<&tpu_smmu 0x80>, 	/* Dma330A  */
+				<&tpu_smmu 0x90>; 	/* Dma330B  */
+
+			interrupts =
+				<GIC_SPI SSWRP_TPU_SSWRP_TPU_AP_NS_MBA_IRQ_0_169
+					IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_TPU_SSWRP_TPU_AP_NS_MBA_IRQ_1_170
+					IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_TPU_SSWRP_TPU_AP_NS_MBA_IRQ_2_171
+					IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_TPU_SSWRP_TPU_AP_NS_MBA_IRQ_3_172
+					IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_TPU_SSWRP_TPU_AP_NS_MBA_IRQ_4_173
+					IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_TPU_SSWRP_TPU_AP_NS_MBA_IRQ_5_174
+					IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_TPU_SSWRP_TPU_AP_NS_MBA_IRQ_6_175
+					IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_TPU_SSWRP_TPU_AP_NS_MBA_IRQ_7_176
+					IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_TPU_SSWRP_TPU_AP_NS_MBA_IRQ_8_177
+					IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_TPU_SSWRP_TPU_AP_NS_MBA_IRQ_9_178
+					IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_TPU_SSWRP_TPU_AP_NS_MBA_IRQ_10_179
+					IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_TPU_SSWRP_TPU_AP_NS_MBA_IRQ_11_180
+					IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_TPU_SSWRP_TPU_AP_NS_MBA_IRQ_12_181
+					IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_TPU_SSWRP_TPU_AP_NS_MBA_IRQ_13_182
+					IRQ_TYPE_LEVEL_HIGH 0>,
+					/* TODO: more mboxes if needed */
+				<GIC_SPI SSWRP_TPU_SSWRP_TPU_AP_WDT_IRQ_0_214
+					IRQ_TYPE_LEVEL_HIGH 0>,
+				<GIC_SPI SSWRP_TPU_SSWRP_TPU_AP_WDT_IRQ_1_215
+					IRQ_TYPE_LEVEL_HIGH 0>;
+			interrupt-names = "mbox_0",
+				"mbox_1",
+				"mbox_2",
+				"mbox_3",
+				"mbox_4",
+				"mbox_5",
+				"mbox_6",
+				"mbox_7",
+				"mbox_8",
+				"mbox_9",
+				"mbox_10",
+				"mbox_11",
+				"mbox_12",
+				"mbox_13",
+				"wdt_0",
+				"wdt_1";
+			power-domains = <&sswrp_tpu_pd>;
+			google,qos_box_dev =
+				<&qos_box_tpu_0>,
+				<&qos_box_tpu_1>,
+				<&qos_box_tpu_2>,
+				<&qos_box_tpu_3>;
+			google,qos_box_dev_names =
+				"tpu_ss0",
+				"tpu_ss1",
+				"tpu_ss2",
+				"tpu_ss3";
+			status = "okay";
+			memory-region = <&tpu_fw_reserved &tpu_iovas_resv>;
+			gsa-device = <&gsa>;
+			iif-device = <&iif>;
+			use-kernel-vii;
+			/*
+			 * 'gcip-dvfs-table-size' and 'gcip-dvfs-table' fields are defined in
+			 * revision-specific dtsi files that include this base file.
+			 */
+		};
+	};
+};

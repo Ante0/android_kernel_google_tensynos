@@ -1901,7 +1901,6 @@ static int dit_register_irq(struct platform_device *pdev)
 
 	dc->irq_buf = devm_kzalloc(dev, sizeof(int) * dc->irq_len, GFP_KERNEL);
 	if (!dc->irq_buf) {
-		mif_err("dit irq buf alloc failed\n");
 		ret = -ENOMEM;
 		goto error;
 	}
@@ -2350,9 +2349,6 @@ int dit_set_irq_affinity(int affinity)
 	int i;
 	int num_cpu;
 
-	if (IS_ENABLED(CONFIG_IRQ_SBALANCE))
-		return 0;
-
 	if (!dc)
 		return -EPERM;
 
@@ -2583,7 +2579,6 @@ int dit_create(struct platform_device *pdev)
 
 	dc = devm_kzalloc(dev, sizeof(struct dit_ctrl_t), GFP_KERNEL);
 	if (!dc) {
-		mif_err("dit ctrl alloc failed\n");
 		ret = -ENOMEM;
 		goto error;
 	}
@@ -2645,10 +2640,8 @@ int dit_create(struct platform_device *pdev)
 
 #if IS_ENABLED(CONFIG_EXYNOS_ITMON)
 	itmon_nb = devm_kzalloc(dev, sizeof(struct notifier_block), GFP_KERNEL);
-	if (!itmon_nb) {
-		mif_err("itmon notifier block alloc failed\n");
+	if (!itmon_nb)
 		goto error;
-	}
 
 	itmon_nb->notifier_call = itmon_notifier_callback;
 	itmon_notifier_chain_register(itmon_nb);
@@ -2697,9 +2690,8 @@ static int dit_probe(struct platform_device *pdev)
 	return dit_create(pdev);
 }
 
-static int dit_remove(struct platform_device *pdev)
+static void dit_remove(struct platform_device *pdev)
 {
-	return 0;
 }
 
 static int dit_suspend(struct device *dev)

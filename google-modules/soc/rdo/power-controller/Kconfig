@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_POWER_CONTROLLER
+	tristate "Google power controller driver"
+	depends on GOOGLE_MBA_CPM_INTERFACE
+	select PM_GENERIC_DOMAINS
+	help
+	  This driver allows client to power on/off Google SoC
+	  power domains via generic power domain framework.
+	  For GPU, it directly update LPCM registers. For other
+	  sswrps, it sends a MBA mailbox to CPM to request toggle
+	  the power domains.
+
+config GOOGLE_SYSPM
+	tristate "Power request rerouting to SysPM"
+	depends on GOOGLE_POWER_CONTROLLER
+	help
+	  Enable power domain request rerouting to interface
+	  provided by SysPM framework. If unsure do not enable.

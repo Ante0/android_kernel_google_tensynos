@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Configurations for irm devfreq driver
+#
+
+config GOOGLE_IRM_DEVFREQ
+	tristate "Google Irm Devfreq"
+	default n
+	help
+	  A devfreq driver for irm backed devfreq.
+	  Support gmc/memss frequency vote in low latency
+
+

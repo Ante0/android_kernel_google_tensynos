@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# GS Clock
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "clk_exynos_gs",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "clk_exynos_gs.ko",
+    conditional_srcs = {
+        "CONFIG_EXYNOS_GS_COMMON_CLK": {
+            True: [
+                "composite.c",
+            ],
+        },
+        "CONFIG_SOC_GS101": {
+            True: [
+                "clk-gs101.c",
+            ],
+        },
+        "CONFIG_SOC_GS201": {
+            True: [
+                "clk-gs201.c",
+            ],
+        },
+        "CONFIG_SOC_ZUMA": {
+            True: [
+                "clk-zuma.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/cal-if:cmupmucal",
+        "//private/google-modules/soc/gs/drivers/soc/google/cal-if:headers",
+    ],
+)

@@ -88,6 +88,7 @@
 #define STORE_LE32(addr, val)	(*(u32 *)addr = val)
 
 
+MODULE_DESCRIPTION("Mediated virtual PCI display host device driver");
 MODULE_LICENSE("GPL v2");
 
 static int max_mbytes = 256;
@@ -133,7 +134,9 @@ static struct mdev_type *mbochs_mdev_types[] = {
 };
 
 static dev_t		mbochs_devt;
-static struct class	*mbochs_class;
+static const struct class mbochs_class = {
+	.name = MBOCHS_CLASS_NAME,
+};
 static struct cdev	mbochs_cdev;
 static struct device	mbochs_dev;
 static struct mdev_parent mbochs_parent;
@@ -594,7 +597,6 @@ static void mbochs_release_dev(struct vfio_device *vdev)
 	atomic_add(mdev_state->type->mbytes, &mbochs_avail_mbytes);
 	kfree(mdev_state->pages);
 	kfree(mdev_state->vconfig);
-	vfio_free_device(vdev);
 }
 
 static void mbochs_remove(struct mdev_device *mdev)
@@ -1263,7 +1265,7 @@ static long mbochs_ioctl(struct vfio_device *vdev, unsigned int cmd,
 
 	case VFIO_DEVICE_QUERY_GFX_PLANE:
 	{
-		struct vfio_device_gfx_plane_info plane;
+		struct vfio_device_gfx_plane_info plane = {};
 
 		minsz = offsetofend(struct vfio_device_gfx_plane_info,
 				    region_index);
@@ -1375,6 +1377,10 @@ static const struct vfio_device_ops mbochs_dev_ops = {
 	.write = mbochs_write,
 	.ioctl = mbochs_ioctl,
 	.mmap = mbochs_mmap,
+	.bind_iommufd	= vfio_iommufd_emulated_bind,
+	.unbind_iommufd	= vfio_iommufd_emulated_unbind,
+	.attach_ioas	= vfio_iommufd_emulated_attach_ioas,
+	.detach_ioas	= vfio_iommufd_emulated_detach_ioas,
 };
 
 static struct mdev_driver mbochs_driver = {
@@ -1419,19 +1425,16 @@ static int __init mbochs_dev_init(void)
 	if (ret)
 		goto err_cdev;
 
-	mbochs_class = class_create(THIS_MODULE, MBOCHS_CLASS_NAME);
-	if (IS_ERR(mbochs_class)) {
-		pr_err("Error: failed to register mbochs_dev class\n");
-		ret = PTR_ERR(mbochs_class);
+	ret = class_register(&mbochs_class);
+	if (ret)
 		goto err_driver;
-	}
-	mbochs_dev.class = mbochs_class;
+	mbochs_dev.class = &mbochs_class;
 	mbochs_dev.release = mbochs_device_release;
 	dev_set_name(&mbochs_dev, "%s", MBOCHS_NAME);
 
 	ret = device_register(&mbochs_dev);
 	if (ret)
-		goto err_class;
+		goto err_put;
 
 	ret = mdev_register_parent(&mbochs_parent, &mbochs_dev, &mbochs_driver,
 				   mbochs_mdev_types,
@@ -1442,9 +1445,10 @@ static int __init mbochs_dev_init(void)
 	return 0;
 
 err_device:
-	device_unregister(&mbochs_dev);
-err_class:
-	class_destroy(mbochs_class);
+	device_del(&mbochs_dev);
+err_put:
+	put_device(&mbochs_dev);
+	class_unregister(&mbochs_class);
 err_driver:
 	mdev_unregister_driver(&mbochs_driver);
 err_cdev:
@@ -1462,8 +1466,7 @@ static void __exit mbochs_dev_exit(void)
 	mdev_unregister_driver(&mbochs_driver);
 	cdev_del(&mbochs_cdev);
 	unregister_chrdev_region(mbochs_devt, MINORMASK + 1);
-	class_destroy(mbochs_class);
-	mbochs_class = NULL;
+	class_unregister(&mbochs_class);
 }
 
 MODULE_IMPORT_NS(DMA_BUF);

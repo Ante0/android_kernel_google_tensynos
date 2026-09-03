@@ -6,11 +6,13 @@
  * S2MPG14 Keyboard Driver
  */
 
+#include <linux/cleanup.h>
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/of_irq.h>
+#include <linux/overflow.h>
 #include <linux/pm.h>
 #include <linux/platform_device.h>
 #include <linux/input.h>
@@ -39,8 +41,8 @@ struct power_keys_drvdata {
 	struct i2c_client *pmm_i2c;
 	int irq_pwronr;
 	int irq_pwronf;
-	struct power_button_data button_data[0];
 	bool suspended;
+	struct power_button_data button_data[];
 };
 
 static int power_keys_wake_lock_timeout(struct device *dev, long timeout)
@@ -170,7 +172,8 @@ static struct power_keys_platform_data *
 power_keys_get_devtree_pdata(struct s2mpg14_dev *iodev)
 {
 	struct device *dev = iodev->dev;
-	struct device_node *mfd_np, *key_np, *pp;
+	struct device_node *mfd_np;
+	struct device_node *key_np __free(device_node) = NULL;
 	struct power_keys_platform_data *pdata;
 	struct power_keys_button *button;
 	int nbuttons, i;
@@ -187,6 +190,8 @@ power_keys_get_devtree_pdata(struct s2mpg14_dev *iodev)
 		return ERR_PTR(-ENODEV);
 	}
 
+	/* balance of_node_put() in of_find_node_by_name() */
+	of_node_get(mfd_np);
 	key_np = of_find_node_by_name(mfd_np, "s2mpg14-keys");
 	if (!key_np) {
 		dev_err(dev, "could not find current_node\n");
@@ -209,7 +214,7 @@ power_keys_get_devtree_pdata(struct s2mpg14_dev *iodev)
 	pdata->nbuttons = nbuttons;
 
 	i = 0;
-	for_each_child_of_node(key_np, pp) {
+	for_each_child_of_node_scoped(key_np, pp) {
 		button = &pdata->buttons[i++];
 		if (of_property_read_u32(pp, "linux,code", &button->code))
 			return ERR_PTR(-EINVAL);
@@ -325,7 +330,7 @@ power_keys_set_drvdata(struct platform_device *pdev,
 	struct device *dev = &pdev->dev;
 	size_t size;
 
-	size = sizeof(*ddata) + pdata->nbuttons * sizeof(struct power_button_data);
+	size = struct_size(ddata, button_data, pdata->nbuttons);
 	ddata = devm_kzalloc(dev, size, GFP_KERNEL);
 	if (!ddata)
 		return ERR_PTR(-ENOMEM);
@@ -423,7 +428,7 @@ static int power_keys_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int power_keys_remove(struct platform_device *pdev)
+static void power_keys_remove(struct platform_device *pdev)
 {
 	struct power_keys_drvdata *ddata = platform_get_drvdata(pdev);
 	struct input_dev *input = ddata->input;
@@ -433,8 +438,6 @@ static int power_keys_remove(struct platform_device *pdev)
 	power_keys_remove_datas(ddata, ddata->pdata->nbuttons);
 
 	input_unregister_device(input);
-
-	return 0;
 }
 
 #if IS_ENABLED(CONFIG_PM_SLEEP)

@@ -19,7 +19,7 @@
 #include "gs_panel/gs_panel_funcs_defaults.h"
 
 /* DSC1.2 */
-static const struct drm_dsc_config pps_config = {
+static struct drm_dsc_config pps_config = {
 	.line_buf_depth = 9,
 	.bits_per_component = 8,
 	.convert_rgb = true,
@@ -545,7 +545,7 @@ static const struct gs_panel_funcs ct3e_gs_funcs = {
 	.is_mode_seamless = gs_panel_is_mode_seamless_helper,
 	.mode_set = ct3e_mode_set,
 	.get_panel_rev = ct3e_get_panel_rev,
-	.read_id = gs_panel_read_slsi_ddic_id,
+	.read_serial = gs_panel_read_slsi_ddic_id,
 };
 
 const struct gs_panel_brightness_desc ct3e_brightness_desc = {

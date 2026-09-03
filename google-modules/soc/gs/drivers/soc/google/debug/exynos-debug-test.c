@@ -95,7 +95,7 @@ static const char * const test_vector[] = {
 /* timeout for dog bark/bite */
 #define DELAY_TIME 30000
 
-static void pull_down_other_cpus(void)
+static void exynos_pull_down_other_cpus(void)
 {
 #if IS_ENABLED(CONFIG_HOTPLUG_CPU)
 	int cpu, ret;
@@ -130,7 +130,7 @@ static void simulate_DP(char *arg)
 {
 	dev_crit(exynos_debug_desc.dev, "%s()\n", __func__);
 
-	pull_down_other_cpus();
+	exynos_pull_down_other_cpus();
 	dev_crit(exynos_debug_desc.dev, "%s() start to hanging\n", __func__);
 	local_irq_disable();
 	mdelay(DELAY_TIME);

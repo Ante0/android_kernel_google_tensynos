@@ -1,0 +1,8 @@
+config SAMPLE_RUST_MINIMAL
+	tristate "Rust minimal sample"
+	help
+	  This is a minimal sample of a Rust kernel module that demonstrates
+	  how to use ddk_module with Rust source files in the Kleaf build
+	  system. It provides a basic starting point for Rust development.
+
+	  If unsure, say N.

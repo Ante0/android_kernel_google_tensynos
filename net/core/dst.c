@@ -45,7 +45,7 @@ const struct dst_metrics dst_default_metrics = {
 EXPORT_SYMBOL(dst_default_metrics);
 
 void dst_init(struct dst_entry *dst, struct dst_ops *ops,
-	      struct net_device *dev, int initial_ref, int initial_obsolete,
+	      struct net_device *dev, int initial_obsolete,
 	      unsigned short flags)
 {
 	dst->dev = dev;
@@ -66,7 +66,9 @@ void dst_init(struct dst_entry *dst, struct dst_ops *ops,
 	dst->tclassid = 0;
 #endif
 	dst->lwtstate = NULL;
-	atomic_set(&dst->__refcnt, initial_ref);
+	rcuref_init(&dst->__rcuref, 1);
+	INIT_LIST_HEAD(&dst->rt_uncached);
+	dst->rt_uncached_list = NULL;
 	dst->__use = 0;
 	dst->lastuse = jiffies;
 	dst->flags = flags;
@@ -76,30 +78,26 @@ void dst_init(struct dst_entry *dst, struct dst_ops *ops,
 EXPORT_SYMBOL(dst_init);
 
 void *dst_alloc(struct dst_ops *ops, struct net_device *dev,
-		int initial_ref, int initial_obsolete, unsigned short flags)
+		int initial_obsolete, unsigned short flags)
 {
 	struct dst_entry *dst;
 
 	if (ops->gc &&
 	    !(flags & DST_NOCOUNT) &&
-	    dst_entries_get_fast(ops) > ops->gc_thresh) {
-		if (ops->gc(ops)) {
-			pr_notice_ratelimited("Route cache is full: consider increasing sysctl net.ipv6.route.max_size.\n");
-			return NULL;
-		}
-	}
+	    dst_entries_get_fast(ops) > ops->gc_thresh)
+		ops->gc(ops);
 
 	dst = kmem_cache_alloc(ops->kmem_cachep, GFP_ATOMIC);
 	if (!dst)
 		return NULL;
 
-	dst_init(dst, ops, dev, initial_ref, initial_obsolete, flags);
+	dst_init(dst, ops, dev, initial_obsolete, flags);
 
 	return dst;
 }
 EXPORT_SYMBOL(dst_alloc);
 
-struct dst_entry *dst_destroy(struct dst_entry * dst)
+static void dst_destroy(struct dst_entry *dst)
 {
 	struct dst_entry *child = NULL;
 
@@ -126,15 +124,13 @@ struct dst_entry *dst_destroy(struct dst_entry * dst)
 	dst = child;
 	if (dst)
 		dst_release_immediate(dst);
-	return NULL;
 }
-EXPORT_SYMBOL(dst_destroy);
 
 static void dst_destroy_rcu(struct rcu_head *head)
 {
 	struct dst_entry *dst = container_of(head, struct dst_entry, rcu_head);
 
-	dst = dst_destroy(dst);
+	dst_destroy(dst);
 }
 
 /* Operations to mark dst as DEAD and clean up the net device referenced
@@ -152,10 +148,10 @@ void dst_dev_put(struct dst_entry *dst)
 
 	dst->obsolete = DST_OBSOLETE_DEAD;
 	if (dst->ops->ifdown)
-		dst->ops->ifdown(dst, dev, true);
-	dst->input = dst_discard;
-	dst->output = dst_discard_out;
-	dst->dev = blackhole_netdev;
+		dst->ops->ifdown(dst, dev);
+	WRITE_ONCE(dst->input, dst_discard);
+	WRITE_ONCE(dst->output, dst_discard_out);
+	WRITE_ONCE(dst->dev, blackhole_netdev);
 	netdev_ref_replace(dev, blackhole_netdev, &dst->dev_tracker,
 			   GFP_ATOMIC);
 }
@@ -169,34 +165,26 @@ static void dst_count_dec(struct dst_entry *dst)
 
 void dst_release(struct dst_entry *dst)
 {
-	if (dst) {
-		int newrefcnt;
+	if (dst && rcuref_put(&dst->__rcuref)) {
+#ifdef CONFIG_DST_CACHE
+		if (dst->flags & DST_METADATA) {
+			struct metadata_dst *md_dst = (struct metadata_dst *)dst;
 
-		newrefcnt = atomic_dec_return(&dst->__refcnt);
-		if (WARN_ONCE(newrefcnt < 0, "dst_release underflow"))
-			net_warn_ratelimited("%s: dst:%p refcnt:%d\n",
-					     __func__, dst, newrefcnt);
-		if (!newrefcnt){
-			dst_count_dec(dst);
-			call_rcu_hurry(&dst->rcu_head, dst_destroy_rcu);
+			if (md_dst->type == METADATA_IP_TUNNEL)
+				dst_cache_reset_now(&md_dst->u.tun_info.dst_cache);
 		}
+#endif
+		dst_count_dec(dst);
+		call_rcu_hurry(&dst->rcu_head, dst_destroy_rcu);
 	}
 }
 EXPORT_SYMBOL(dst_release);
 
 void dst_release_immediate(struct dst_entry *dst)
 {
-	if (dst) {
-		int newrefcnt;
-
-		newrefcnt = atomic_dec_return(&dst->__refcnt);
-		if (WARN_ONCE(newrefcnt < 0, "dst_release_immediate underflow"))
-			net_warn_ratelimited("%s: dst:%p refcnt:%d\n",
-					     __func__, dst, newrefcnt);
-		if (!newrefcnt){
-			dst_count_dec(dst);
-			dst_destroy(dst);
-		}
+	if (dst && rcuref_put(&dst->__rcuref)) {
+		dst_count_dec(dst);
+		dst_destroy(dst);
 	}
 }
 EXPORT_SYMBOL(dst_release_immediate);
@@ -276,7 +264,7 @@ unsigned int dst_blackhole_mtu(const struct dst_entry *dst)
 {
 	unsigned int mtu = dst_metric_raw(dst, RTAX_MTU);
 
-	return mtu ? : dst->dev->mtu;
+	return mtu ? : dst_dev(dst)->mtu;
 }
 EXPORT_SYMBOL_GPL(dst_blackhole_mtu);
 
@@ -296,7 +284,7 @@ static void __metadata_dst_init(struct metadata_dst *md_dst,
 	struct dst_entry *dst;
 
 	dst = &md_dst->dst;
-	dst_init(dst, &dst_blackhole_ops, NULL, 1, DST_OBSOLETE_NONE,
+	dst_init(dst, &dst_blackhole_ops, NULL, DST_OBSOLETE_NONE,
 		 DST_METADATA | DST_NOCOUNT);
 	memset(dst + 1, 0, sizeof(*md_dst) + optslen - sizeof(*dst));
 	md_dst->type = type;
@@ -323,6 +311,8 @@ void metadata_dst_free(struct metadata_dst *md_dst)
 	if (md_dst->type == METADATA_IP_TUNNEL)
 		dst_cache_destroy(&md_dst->u.tun_info.dst_cache);
 #endif
+	if (md_dst->type == METADATA_XFRM)
+		dst_release(md_dst->u.xfrm_info.dst_orig);
 	kfree(md_dst);
 }
 EXPORT_SYMBOL_GPL(metadata_dst_free);
@@ -347,16 +337,18 @@ EXPORT_SYMBOL_GPL(metadata_dst_alloc_percpu);
 
 void metadata_dst_free_percpu(struct metadata_dst __percpu *md_dst)
 {
-#ifdef CONFIG_DST_CACHE
 	int cpu;
 
 	for_each_possible_cpu(cpu) {
 		struct metadata_dst *one_md_dst = per_cpu_ptr(md_dst, cpu);
 
+#ifdef CONFIG_DST_CACHE
 		if (one_md_dst->type == METADATA_IP_TUNNEL)
 			dst_cache_destroy(&one_md_dst->u.tun_info.dst_cache);
-	}
 #endif
+		if (one_md_dst->type == METADATA_XFRM)
+			dst_release(one_md_dst->u.xfrm_info.dst_orig);
+	}
 	free_percpu(md_dst);
 }
 EXPORT_SYMBOL_GPL(metadata_dst_free_percpu);

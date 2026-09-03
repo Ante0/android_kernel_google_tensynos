@@ -5,6 +5,7 @@
  */
 #ifndef __ACPM_MBOX_TEST_H__
 #define __ACPM_MBOX_TEST_H__
+#include <soc/google/gs-chipid.h>
 #include <soc/google/pt.h>
 #if defined(CONFIG_SOC_GS101)
 #include <dt-bindings/clock/gs101.h>
@@ -519,8 +520,6 @@ union tmu_ipc_message {
 	struct tmu_ipc_response resp;
 };
 
-extern u32 gs_chipid_get_type(void);
-extern u32 gs_chipid_get_revision(void);
 static int acpm_dvfs_set_cpufreq(unsigned int dm_id, unsigned int rate,
 				 int cycle);
 static int acpm_dvfs_set_devfreq(unsigned int dm_id, unsigned int rate,

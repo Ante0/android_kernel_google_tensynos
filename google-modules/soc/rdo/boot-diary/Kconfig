@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_BOOT_DIARY
+	tristate "Google BOOT_DIARY driver"
+	depends on ARCH_GOOGLE
+	help
+	  This driver expose boot diary blob to debugfs interface from IRAM,
+	  use boot_diary parser to get the human readable log.
+	  Select Y if you have such device.
+	  If unsure select "N".

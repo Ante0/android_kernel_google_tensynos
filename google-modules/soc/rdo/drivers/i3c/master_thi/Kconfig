@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: GPL-2.0
+config GOOGLE_DW_I3C_MASTER_THI
+	tristate "Synopsys DesignWare I3C master THI AP"
+	depends on I3C
+	depends on HAS_IOMEM
+	depends on !(ALPHA || PARISC)
+	# ALPHA and PARISC needs {read,write}sl()
+	help
+	  THI(Transfer Host Isolation) version of DesignWare MIPI I3C Controller driver.
+	  Performs only generic bus maintanence logic. All transactions are sent to transfer
+	  host which implements THI API.
+
+	  For HW details please see
+	  https://www.synopsys.com/dw/ipdir.php?ds=mipi_i3c
+
+	  This driver can also be built as a module.  If so, the module
+	  will be called dw-i3c-master-thi.
+
+config GOOGLE_DW_I3C_XFER_HOST_AP
+	tristate "Synopsys DesignWare I3C master AP transfer host driver"
+	depends on GOOGLE_DW_I3C_MASTER_THI
+	depends on HAS_IOMEM
+	depends on !(ALPHA || PARISC)
+	# ALPHA and PARISC needs {read,write}sl()
+	help
+	  AP version of Synopsys DesignWare I3C transfer host.
+	  Implements THI(Transfer Host Isolation) API
+	  and executes transactions on I3C controller.
+
+	  For HW details please see
+	  https://www.synopsys.com/dw/ipdir.php?ds=mipi_i3c
+
+	  This driver can also be built as a module.  If so, the module
+	  will be called dw-i3c-master-thi.

@@ -29,9 +29,11 @@ static struct bio_map_data *bio_alloc_map_data(struct iov_iter *data,
 	bmd = kmalloc(struct_size(bmd, iov, data->nr_segs), gfp_mask);
 	if (!bmd)
 		return NULL;
-	memcpy(bmd->iov, data->iov, sizeof(struct iovec) * data->nr_segs);
 	bmd->iter = *data;
-	bmd->iter.iov = bmd->iov;
+	if (iter_is_iovec(data)) {
+		memcpy(bmd->iov, iter_iov(data), sizeof(struct iovec) * data->nr_segs);
+		bmd->iter.__iov = bmd->iov;
+	}
 	return bmd;
 }
 
@@ -187,7 +189,7 @@ static int bio_copy_user_iov(struct request *rq, struct rq_map_data *map_data,
 			}
 		}
 
-		if (bio_add_pc_page(rq->q, bio, page, bytes, offset) < bytes) {
+		if (bio_add_page(bio, page, bytes, offset) < bytes) {
 			if (!map_data)
 				__free_page(page);
 			break;
@@ -253,10 +255,8 @@ static struct bio *blk_rq_map_bio_alloc(struct request *rq,
 {
 	struct bio *bio;
 
-	if (rq->cmd_flags & REQ_POLLED && (nr_vecs <= BIO_INLINE_VECS)) {
-		blk_opf_t opf = rq->cmd_flags | REQ_ALLOC_CACHE;
-
-		bio = bio_alloc_bioset(NULL, nr_vecs, opf, gfp_mask,
+	if (rq->cmd_flags & REQ_ALLOC_CACHE && (nr_vecs <= BIO_INLINE_VECS)) {
+		bio = bio_alloc_bioset(NULL, nr_vecs, rq->cmd_flags, gfp_mask,
 					&fs_bio_set);
 		if (!bio)
 			return NULL;
@@ -272,83 +272,27 @@ static struct bio *blk_rq_map_bio_alloc(struct request *rq,
 static int bio_map_user_iov(struct request *rq, struct iov_iter *iter,
 		gfp_t gfp_mask)
 {
-	unsigned int max_sectors = queue_max_hw_sectors(rq->q);
 	unsigned int nr_vecs = iov_iter_npages(iter, BIO_MAX_VECS);
 	struct bio *bio;
 	int ret;
-	int j;
 
 	if (!iov_iter_count(iter))
 		return -EINVAL;
 
 	bio = blk_rq_map_bio_alloc(rq, nr_vecs, gfp_mask);
-	if (bio == NULL)
+	if (!bio)
 		return -ENOMEM;
-
-	while (iov_iter_count(iter)) {
-		struct page **pages, *stack_pages[UIO_FASTIOV];
-		ssize_t bytes;
-		size_t offs;
-		int npages;
-
-		if (nr_vecs <= ARRAY_SIZE(stack_pages)) {
-			pages = stack_pages;
-			bytes = iov_iter_get_pages2(iter, pages, LONG_MAX,
-							nr_vecs, &offs);
-		} else {
-			bytes = iov_iter_get_pages_alloc2(iter, &pages,
-							LONG_MAX, &offs);
-		}
-		if (unlikely(bytes <= 0)) {
-			ret = bytes ? bytes : -EFAULT;
-			goto out_unmap;
-		}
-
-		npages = DIV_ROUND_UP(offs + bytes, PAGE_SIZE);
-
-		if (unlikely(offs & queue_dma_alignment(rq->q)))
-			j = 0;
-		else {
-			for (j = 0; j < npages; j++) {
-				struct page *page = pages[j];
-				unsigned int n = PAGE_SIZE - offs;
-				bool same_page = false;
-
-				if (n > bytes)
-					n = bytes;
-
-				if (!bio_add_hw_page(rq->q, bio, page, n, offs,
-						     max_sectors, &same_page)) {
-					if (same_page)
-						put_page(page);
-					break;
-				}
-
-				bytes -= n;
-				offs = 0;
-			}
-		}
-		/*
-		 * release the pages we didn't map into the bio, if any
-		 */
-		while (j < npages)
-			put_page(pages[j++]);
-		if (pages != stack_pages)
-			kvfree(pages);
-		/* couldn't stuff something into bio? */
-		if (bytes) {
-			iov_iter_revert(iter, bytes);
-			break;
-		}
-	}
-
+	ret = bio_iov_iter_get_pages(bio, iter);
+	if (ret)
+		goto out_put;
 	ret = blk_rq_append_bio(rq, bio);
 	if (ret)
-		goto out_unmap;
+		goto out_release;
 	return 0;
 
- out_unmap:
+out_release:
 	bio_release_pages(bio, false);
+out_put:
 	blk_mq_map_bio_put(bio);
 	return ret;
 }
@@ -419,8 +363,7 @@ static struct bio *bio_map_kern(struct request_queue *q, void *data,
 			page = virt_to_page(data);
 		else
 			page = vmalloc_to_page(data);
-		if (bio_add_pc_page(q, bio, page, bytes,
-				    offset) < bytes) {
+		if (bio_add_page(bio, page, bytes, offset) < bytes) {
 			/* we don't support partial mappings */
 			bio_uninit(bio);
 			kfree(bio);
@@ -504,7 +447,7 @@ static struct bio *bio_copy_kern(struct request_queue *q, void *data,
 		if (!reading)
 			memcpy(page_address(page), p, bytes);
 
-		if (bio_add_pc_page(q, bio, page, bytes, 0) < bytes)
+		if (bio_add_page(bio, page, bytes, 0) < bytes)
 			break;
 
 		len -= bytes;
@@ -533,12 +476,19 @@ cleanup:
  */
 int blk_rq_append_bio(struct request *rq, struct bio *bio)
 {
-	struct bvec_iter iter;
-	struct bio_vec bv;
+	const struct queue_limits *lim = &rq->q->limits;
+	unsigned int max_bytes = lim->max_hw_sectors << SECTOR_SHIFT;
 	unsigned int nr_segs = 0;
+	int ret;
 
-	bio_for_each_bvec(bv, bio, iter)
-		nr_segs += blk_segments(&rq->q->limits, bv.bv_len);
+	/* check that the data layout matches the hardware restrictions */
+	ret = bio_split_rw_at(bio, lim, &nr_segs, max_bytes);
+	if (ret) {
+		/* if we would have to split the bio, copy instead */
+		if (ret > 0)
+			ret = -EREMOTEIO;
+		return ret;
+	}
 
 	if (!rq->bio) {
 		blk_rq_bio_prep(rq, bio, nr_segs);
@@ -558,55 +508,23 @@ EXPORT_SYMBOL(blk_rq_append_bio);
 /* Prepare bio for passthrough IO given ITER_BVEC iter */
 static int blk_rq_map_user_bvec(struct request *rq, const struct iov_iter *iter)
 {
-	struct request_queue *q = rq->q;
-	size_t nr_iter = iov_iter_count(iter);
-	size_t nr_segs = iter->nr_segs;
-	struct bio_vec *bvecs, *bvprvp = NULL;
-	struct queue_limits *lim = &q->limits;
-	unsigned int nsegs = 0, bytes = 0;
+	unsigned int max_bytes = rq->q->limits.max_hw_sectors << SECTOR_SHIFT;
 	struct bio *bio;
-	size_t i;
+	int ret;
 
-	if (!nr_iter || (nr_iter >> SECTOR_SHIFT) > queue_max_hw_sectors(q))
-		return -EINVAL;
-	if (nr_segs > queue_max_segments(q))
+	if (!iov_iter_count(iter) || iov_iter_count(iter) > max_bytes)
 		return -EINVAL;
 
-	/* no iovecs to alloc, as we already have a BVEC iterator */
+	/* reuse the bvecs from the iterator instead of allocating new ones */
 	bio = blk_rq_map_bio_alloc(rq, 0, GFP_KERNEL);
-	if (bio == NULL)
+	if (!bio)
 		return -ENOMEM;
-
 	bio_iov_bvec_set(bio, (struct iov_iter *)iter);
-	blk_rq_bio_prep(rq, bio, nr_segs);
 
-	/* loop to perform a bunch of sanity checks */
-	bvecs = (struct bio_vec *)iter->bvec;
-	for (i = 0; i < nr_segs; i++) {
-		struct bio_vec *bv = &bvecs[i];
-
-		/*
-		 * If the queue doesn't support SG gaps and adding this
-		 * offset would create a gap, fallback to copy.
-		 */
-		if (bvprvp && bvec_gap_to_prev(lim, bvprvp, bv->bv_offset)) {
-			blk_mq_map_bio_put(bio);
-			return -EREMOTEIO;
-		}
-		/* check full condition */
-		if (nsegs >= nr_segs || bytes > UINT_MAX - bv->bv_len)
-			goto put_bio;
-		if (bytes + bv->bv_len > nr_iter)
-			break;
-
-		nsegs++;
-		bytes += bv->bv_len;
-		bvprvp = bv;
-	}
-	return 0;
-put_bio:
-	blk_mq_map_bio_put(bio);
-	return -EINVAL;
+	ret = blk_rq_append_bio(rq, bio);
+	if (ret)
+		blk_mq_map_bio_put(bio);
+	return ret;
 }
 
 /**
@@ -629,7 +547,7 @@ int blk_rq_map_user_iov(struct request_queue *q, struct request *rq,
 			const struct iov_iter *iter, gfp_t gfp_mask)
 {
 	bool copy = false, map_bvec = false;
-	unsigned long align = q->dma_pad_mask | queue_dma_alignment(q);
+	unsigned long align = blk_lim_dma_alignment_and_pad(&q->limits);
 	struct bio *bio = NULL;
 	struct iov_iter i;
 	int ret = -EINVAL;
@@ -642,7 +560,7 @@ int blk_rq_map_user_iov(struct request_queue *q, struct request *rq,
 		copy = true;
 	else if (iov_iter_is_bvec(iter))
 		map_bvec = true;
-	else if (!iter_is_iovec(iter))
+	else if (!user_backed_iter(iter))
 		copy = true;
 	else if (queue_virt_boundary(q))
 		copy = queue_virt_boundary(q) & iov_iter_gap_alignment(iter);
@@ -663,8 +581,11 @@ int blk_rq_map_user_iov(struct request_queue *q, struct request *rq,
 			ret = bio_copy_user_iov(rq, map_data, &i, gfp_mask);
 		else
 			ret = bio_map_user_iov(rq, &i, gfp_mask);
-		if (ret)
+		if (ret) {
+			if (ret == -EREMOTEIO)
+				ret = -EINVAL;
 			goto unmap_rq;
+		}
 		if (!bio)
 			bio = rq->bio;
 	} while (iov_iter_count(&i));
@@ -683,9 +604,8 @@ int blk_rq_map_user(struct request_queue *q, struct request *rq,
 		    struct rq_map_data *map_data, void __user *ubuf,
 		    unsigned long len, gfp_t gfp_mask)
 {
-	struct iovec iov;
 	struct iov_iter i;
-	int ret = import_single_range(rq_data_dir(rq), ubuf, len, &iov, &i);
+	int ret = import_ubuf(rq_data_dir(rq), ubuf, len, &i);
 
 	if (unlikely(ret < 0))
 		return ret;
@@ -752,6 +672,9 @@ int blk_rq_unmap_user(struct bio *bio)
 		} else {
 			bio_release_pages(bio, bio_data_dir(bio) == READ);
 		}
+
+		if (bio_integrity(bio))
+			bio_integrity_unmap_user(bio);
 
 		next_bio = bio;
 		bio = bio->bi_next;

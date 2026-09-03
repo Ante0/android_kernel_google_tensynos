@@ -1,0 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Wireless charger device tree for Tesseract
+ *
+ * Copyright 2024 Google LLC
+ *
+ */
+#define MUZEL_PROTO_WLC
+#include "lga-muzel-wcharger.dtsi"

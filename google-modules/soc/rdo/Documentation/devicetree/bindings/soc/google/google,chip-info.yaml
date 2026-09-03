@@ -1,0 +1,101 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2024-2025 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/soc/google/google,chip-info.yaml#
+$schema: http://devicetree.org/meta-schemas/base.yaml#
+
+title: Google Chip Info Driver
+
+maintainers:
+  - Lucas Wei <lucaswei@google.com>
+  - Eddy Li <ehyli@google.com>
+  - Subhash Jadavani <sjadavani@google.com>
+
+description:
+  The Google Chip Info driver helps to read OTP fused values and create sysfs
+  to export platform information.
+
+properties:
+  compatible:
+    enum:
+      - google,chip-info
+
+  reg:
+    maxItems: 4
+    description: register ranges for OTP shadow registers.
+
+  reg-names:
+    maxItems: 4
+    description: names for register ranges.
+
+  "google,syscon-phandle":
+    type: object
+    description: device node of syscon phandle to access global OTP registers.
+
+  "google,reg-index":
+    $ref: /schemas/types.yaml#/definitions/uint32
+    description: index of the reg range in the parent node to be used for this feature.
+
+  "feature-name":
+    type: string
+    description: feature name for a feature to be a child node of chip info
+      driver. This name will be showed at the first line of every sysfs.
+
+  "translator":
+    type: string
+    description: The name of translator to be applied on this feature.
+      Once feature use translator, it will applied to every OTP entries to do
+      the translation and append the result in the entry tail.
+
+  "serial-codes":
+    type: bool
+    description: indicate this node is serial code feature.
+      The serial codes will show in the end of the sysfs file of device-table
+      feature.
+
+  "device-table":
+    type: bool
+    description: indicate this node is device table feature.
+      The sysfs file of device table will have serial code following in the bottom
+      of file. This design is for data alignment to earlier version of chip info
+      and don't break the parsing rules for sysfs.
+
+  "lcs-state":
+    type: bool
+    description: indicate this node is LCS state feature.
+      The LCS state value is used to identify device stage. Only features with
+      property of `visible-in-prod` can bypass this security enforcement.
+
+  "visible-in-prod":
+    type: bool
+    description: if a feature has this property, it can bypass security enforcement
+      of lcs-state check. Otherwise, userspace will get error message.
+
+  "private":
+    type: bool
+    description: indicate this node is private feature used for main chip-info
+      driver. This will stop main driver to create sysfs to export values to
+      userspace.
+
+required:
+  - compatible
+  - feature-name
+
+additionalProperties: false
+
+examples:
+  - |
+    goog_chip_info: goog_chip_info@ebd2000 {
+      compatible = "google,chip-info";
+      reg = <0xebd2000 0x1000>;
+      reg-names = "cpm";
+
+      device_table: device_table {
+        compatible = "google,lga_a0_ptde";
+        google,reg-index = <0>;
+        feature-name = "Device table";
+        device-table;
+        visible-in-prod;
+      };
+    };

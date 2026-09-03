@@ -4,17 +4,16 @@
 $id: http://devicetree.org/schemas/clock/qcom,sm6375-gcc.yaml#
 $schema: http://devicetree.org/meta-schemas/core.yaml#
 
-title: Qualcomm Global Clock & Reset Controller Binding for SM6375
+title: Qualcomm Global Clock & Reset Controller on SM6375
 
 maintainers:
-  - Konrad Dybcio <konrad.dybcio@somainline.org>
+  - Konrad Dybcio <konradybcio@kernel.org>
 
 description: |
-  Qualcomm global clock control module which supports the clocks, resets and
-  power domains on SM6375
+  Qualcomm global clock control module provides the clocks, resets and power
+  domains on SM6375
 
-  See also:
-  - dt-bindings/clock/qcom,sm6375-gcc.h
+  See also:: include/dt-bindings/clock/qcom,sm6375-gcc.h
 
 allOf:
   - $ref: qcom,gcc.yaml#
@@ -32,6 +31,7 @@ properties:
 required:
   - compatible
   - clocks
+  - '#power-domain-cells'
 
 unevaluatedProperties: false
 

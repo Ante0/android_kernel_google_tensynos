@@ -6,7 +6,9 @@
 #include <net/bluetooth/bluetooth.h>
 #include <net/bluetooth/hci_core.h>
 
-static struct class *bt_class;
+static const struct class bt_class = {
+	.name = "bluetooth",
+};
 
 static void bt_link_release(struct device *dev)
 {
@@ -26,7 +28,7 @@ void hci_conn_init_sysfs(struct hci_conn *conn)
 	bt_dev_dbg(hdev, "conn %p", conn);
 
 	conn->dev.type = &bt_link;
-	conn->dev.class = bt_class;
+	conn->dev.class = &bt_class;
 	conn->dev.parent = &hdev->dev;
 
 	device_initialize(&conn->dev);
@@ -88,9 +90,28 @@ static void bt_host_release(struct device *dev)
 	module_put(THIS_MODULE);
 }
 
+static ssize_t reset_store(struct device *dev, struct device_attribute *attr,
+			   const char *buf, size_t count)
+{
+	struct hci_dev *hdev = to_hci_dev(dev);
+
+	if (hdev->reset)
+		hdev->reset(hdev);
+
+	return count;
+}
+static DEVICE_ATTR_WO(reset);
+
+static struct attribute *bt_host_attrs[] = {
+	&dev_attr_reset.attr,
+	NULL,
+};
+ATTRIBUTE_GROUPS(bt_host);
+
 static const struct device_type bt_host = {
 	.name    = "host",
 	.release = bt_host_release,
+	.groups = bt_host_groups,
 };
 
 void hci_init_sysfs(struct hci_dev *hdev)
@@ -98,7 +119,7 @@ void hci_init_sysfs(struct hci_dev *hdev)
 	struct device *dev = &hdev->dev;
 
 	dev->type = &bt_host;
-	dev->class = bt_class;
+	dev->class = &bt_class;
 
 	__module_get(THIS_MODULE);
 	device_initialize(dev);
@@ -106,12 +127,10 @@ void hci_init_sysfs(struct hci_dev *hdev)
 
 int __init bt_sysfs_init(void)
 {
-	bt_class = class_create(THIS_MODULE, "bluetooth");
-
-	return PTR_ERR_OR_ZERO(bt_class);
+	return class_register(&bt_class);
 }
 
 void bt_sysfs_cleanup(void)
 {
-	class_destroy(bt_class);
+	class_unregister(&bt_class);
 }

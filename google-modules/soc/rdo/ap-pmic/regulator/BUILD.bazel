@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "da9186-regulator",
+    out = "da9186-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_DA9186_REGULATOR": {
+            True: [
+                "da9186-regulator.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "da9188-regulator",
+    out = "da9188-regulator.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_DA9188_REGULATOR": {
+            True: [
+                "da9188-regulator.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/ap-pmic:da9188-core",
+    ],
+)

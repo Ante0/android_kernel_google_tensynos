@@ -1,0 +1,60 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Virtual machine board device tree source on MBU SOC
+ *
+ * Copyright 2026 Google LLC
+ */
+
+/dts-v1/;
+/plugin/;
+
+#define BOARD_ID_FLAG_VM (0x1 << 31)
+
+/ {
+	board_id = <(BOARD_ID_FLAG_VM | 0x80602)>;
+	board_rev = <0x000000>;
+
+	host {
+		#address-cells = <2>;
+		#size-cells = <1>;
+
+		guest0_tpu_mailboxes: tpu_mailboxes {
+			reg = <0x0 0x36514000 0x2000>,
+			      <0x0 0x36516000 0x2000>,
+			      <0x0 0xa0a00000 0x200000>;
+			/* TLB classes used by the TPU come out as different streams */
+			iommus =
+				<&iommu_edgetpu 0x100>, /* Hib0ParameterRead */
+				<&iommu_edgetpu 0x110>, /* Hib0InputReadOutputWrite */
+				<&iommu_edgetpu 0x140>, /* DiveCluster0/TpuControlCore0 */
+				<&iommu_edgetpu 0x180>, /* Dma330A */
+				<&iommu_edgetpu 0x190>; /* Dma330B */
+			android,pvmfw,target = <&santafe>;
+		};
+
+		iommu_edgetpu: iommus_edgetpu {
+			#iommu-cells = <1>;
+			android,pvmfw,token = <0x0 0x36100000>;
+		};
+	};
+
+	fragment@santafe {
+		target-path = "/";
+		__overlay__ {
+			santafe: santafe {
+				compatible = "google,edgetpu-malibu";
+				reg-names = "kci_mailbox", "vii_mailbox", "iremap-carveout";
+				interrupt-names = "kci_mailbox", "vii_mailbox";
+				#dma-address-cells = <1>;
+				#dma-size-cells = <2>;
+				pasid-num-bits = <1>;
+				gcip-dma-window = <0x84000000 0xF 0x7BF00000>;
+				guest-driver;
+			};
+		};
+	};
+
+	__symbols__ {
+		santafe = "/fragment@santafe/__overlay__/santafe";
+	};
+};

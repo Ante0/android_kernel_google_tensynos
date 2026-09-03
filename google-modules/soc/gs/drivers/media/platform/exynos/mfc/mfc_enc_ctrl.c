@@ -1348,7 +1348,7 @@ static void __mfc_core_enc_set_buf_ctrls_exception(struct mfc_core *core,
 	}
 
 	/* set drop control */
-	if (buf_ctrl->id == V4L2_CID_MPEG_VIDEO_DROP_CONTROL) {
+	if (p->drop_control && buf_ctrl->id == V4L2_CID_MPEG_VIDEO_DROP_CONTROL) {
 		p->rc_frame_delta = mfc_enc_get_ts_delta(ctx);
 		value = MFC_CORE_READL(MFC_REG_E_RC_FRAME_RATE);
 		value &= ~(0xFFFF);
@@ -1737,6 +1737,8 @@ static int mfc_enc_set_buf_ctrls_val_nal_q(struct mfc_ctx *ctx,
 			param_change = 1;
 			break;
 		case V4L2_CID_MPEG_VIDEO_DROP_CONTROL:
+			if (!p->drop_control)
+				break;
 			if (!ctx->ts_last_interval) {
 				p->rc_frame_delta = p->rc_framerate_res / p->rc_framerate;
 				mfc_debug(3, "[NALQ][DROPCTRL] default delta: %d\n", p->rc_frame_delta);

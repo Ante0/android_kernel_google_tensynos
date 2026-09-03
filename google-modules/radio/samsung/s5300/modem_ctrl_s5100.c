@@ -31,6 +31,7 @@
 
 #include <linux/exynos-pci-ctrl.h>
 #include <linux/shm_ipc.h>
+#include <misc/logbuffer.h>
 
 #include "modem_prj.h"
 #include "modem_utils.h"
@@ -53,6 +54,8 @@ static int s5100_lcd_notifier(struct notifier_block *notifier,
 #endif /* CONFIG_CP_LCD_NOTIFIER */
 
 #define msecs_to_loops(t) (loops_per_jiffy / 1000 * HZ * t)
+
+#define RUNTIME_PM_AFFINITY_CORE 2
 
 static struct modem_ctl *g_mc;
 
@@ -347,7 +350,8 @@ static irqreturn_t ap_wakeup_handler(int irq, void *data)
 		(gpio_val == 1 ? IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH));
 	mif_enable_irq(&mc->cp_gpio_irq[CP_GPIO_IRQ_CP2AP_WAKEUP]);
 
-	queue_work(mc->wakeup_wq, gpio_val == 1 ? &mc->wakeup_work : &mc->suspend_work);
+	queue_work_on(RUNTIME_PM_AFFINITY_CORE, mc->wakeup_wq,
+			(gpio_val == 1 ? &mc->wakeup_work : &mc->suspend_work));
 
 	return IRQ_HANDLED;
 }
@@ -826,7 +830,8 @@ static int register_pcie(struct link_device *ld)
 		return -EINVAL;
 	}
 
-	mc->s2mpu = s2mpu_fwnode_to_info(&s2mpu_dn->fwnode);
+	mc->s2mpu = s2mpu_fwnode_to_info(of_fwnode_handle(s2mpu_dn));
+	of_node_put(s2mpu_dn);
 	if (!mc->s2mpu) {
 		mif_err("Failed to get S2MPU\n");
 		return -EPROBE_DEFER;
@@ -2005,7 +2010,8 @@ static int s5100_pm_notifier(struct notifier_block *notifier,
 				(gpio_val == 1 ? IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH));
 			mif_enable_irq(&mc->cp_gpio_irq[CP_GPIO_IRQ_CP2AP_WAKEUP]);
 
-			queue_work(mc->wakeup_wq, gpio_val == 1 ? &mc->wakeup_work : &mc->suspend_work);
+			queue_work_on(RUNTIME_PM_AFFINITY_CORE, mc->wakeup_wq,
+				(gpio_val == 1 ? &mc->wakeup_work : &mc->suspend_work));
 		}
 		spin_unlock_irqrestore(&mc->pcie_pm_lock, flags);
 		break;
@@ -2163,13 +2169,15 @@ static int s5100_call_state_notifier(struct notifier_block *nb,
 			cpif_wake_unlock(mc->ws_wrst);
 			logbuffer_log(mc->log, "released wrst wakelock after voice call");
 		}
-		queue_work(mc->wakeup_wq, &mc->call_off_work);
+		queue_work_on(RUNTIME_PM_AFFINITY_CORE, mc->wakeup_wq,
+			&mc->call_off_work);
 		break;
 	case MODEM_VOICE_CALL_ON:
 		mc->pcie_voice_call_on = true;
 		if (mc->mdm_data->mif_off_during_volte)
 			mif_enable_irq(&mc->cp_gpio_irq[CP_GPIO_IRQ_CP2AP_CP_WRST_N]);
-		queue_work(mc->wakeup_wq, &mc->call_on_work);
+		queue_work_on(RUNTIME_PM_AFFINITY_CORE, mc->wakeup_wq,
+			&mc->call_on_work);
 		break;
 	default:
 		mif_err("undefined call event = %lu\n", action);

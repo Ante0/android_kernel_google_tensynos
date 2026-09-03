@@ -1,0 +1,103 @@
+What:		/sys/bus/i2c/devices/[0-9]+-0078/registers/control
+Date:		June 2024
+KernelVersion:	6.6
+Contact:	"Jim Wylder" <jwylder@google.com>
+Description:
+	Enable/Disable detectors and fuse.
+	Fields map to a virtual 8 bit register.
+
+What:		/sys/bus/i2c/devices/[0-9]+-0078/registers/state
+Date:		June 2024
+KernelVersion:	6.6
+Contact:	"Jim Wylder" <jwylder@google.com>
+Description:
+	Read current status of detectors and fuse
+	Fields map to a virtual 8 bit register.
+
+What:		/sys/bus/i2c/devices/[0-9]+-0078/detect/enable
+Date:		June 2024
+KernelVersion:	6.6
+Contact:	"Jim Wylder" <jwylder@google.com>
+Description:
+	Enable/Disable water detection.  0 = disabled, 1 = enabled.  (RW)
+	To function both detect/enable and at least once sensor/enable
+	must be set to 1.  Once the fuse is blow ('open'), it will remain
+	in that condition.
+
+What:		/sys/bus/i2c/devices/[0-9]+-0078/detect/mode
+Date:		June 2024
+KernelVersion:	6.6
+Contact:	"Jim Wylder" <jwylder@google.com>
+Description:
+	Detection runs in two modes 'wet' and 'dry'.  The system typically
+	runs to detect water intrusion ('wet').  In this case the notification
+	will be given when the sensor transitions from a not detecting water
+	to detecting water.  Alternately, setting the mode 'dry' after water
+	has been detected, will signal when the sensor has dried.
+
+What:		/sys/bus/i2c/devices/[0-9]+-0078/fuse/enable
+Date:		June 2024
+KernelVersion:	6.6
+Contact:	"Jim Wylder" <jwylder@google.com>
+Description:
+	Enable/Disable fuse.  0 = disabled, 1 = enabled.  (RW)
+
+What:		/sys/bus/i2c/devices/[0-9]+-0078/fuse/status
+Date:		June 2024
+KernelVersion:	6.6
+Contact:	"Jim Wylder" <jwylder@google.com>
+Description:
+	Show status of the fuse. 'open' = 1 water has been detected at some point
+	while the fuse was enabled. 'short' = 0 water has not been detected
+	with the fuse enabled.
+
+What:		/sys/bus/i2c/devices/[0-9]+-0078/reference/realtime_value
+Date:		June 2024
+KernelVersion:	6.6
+Contact:	"Jim Wylder" <jwylder@google.com>
+Description:
+	Diagnostic sensor reading to determine proper functioning of sensor.
+	Shows values in realtime.  Return values are:
+	0 for short connection,
+	1 for open connection.
+
+What:		/sys/bus/i2c/devices/[0-9]+-0078/sensor[0-2]/enable
+Date:		June 2024
+KernelVersion:	6.6
+Contact:	"Jim Wylder" <jwylder@google.com>
+Description:
+	Enable/Disable individual sensor.  0 = disabled, 1 = enabled.  (RW)
+
+What:		/sys/bus/i2c/devices/[0-9]+-0078/sensor[0-2]/boot_value
+Date:		Oct 2024
+KernelVersion:	6.6
+Contact:	"Jim Wylder" <jwylder@google.com>
+Description:
+	Show value read into memory during boot.  Provides same function as
+	latched_value, but reflects any state changes that may have occurred
+	while the phone was off, or not fully booted. Return values are:
+	'wet' = sensor detects water,
+	'dry' = sensor does not detect water,
+	'dis' = sensor is not enabled (detect/enable != 1 or sensor/enable != 1)
+	'inv' = sensor reading is invalid, because the reference sensor is 'wet'.
+
+What:		/sys/bus/i2c/devices/[0-9]+-0078/sensor[0-2]/latched_value
+Date:		June 2024
+KernelVersion:	6.6
+Contact:	"Jim Wylder" <jwylder@google.com>
+Description:
+	Show value read into memory from interrupt handler.  Return values are:
+	'wet' = sensor detects water,
+	'dry' = sensor does not detect water,
+	'dis' = sensor is not enabled (detect/enable != 1 or sensor/enable != 1)
+	'inv' = sensor reading is invalid, because the reference sensor is 'wet'.
+
+What:		/sys/bus/i2c/devices/[0-9]+-0078/sensor[0-2]/realtime_value
+Date:		June 2024
+KernelVersion:	6.6
+Contact:	"Jim Wylder" <jwylder@google.com>
+Description:
+	Diagnostic sensor reading to determine proper functioning of sensor.
+	Shows values in realtime.  Return values are:
+	0 for short connection,
+	1 for open connection.

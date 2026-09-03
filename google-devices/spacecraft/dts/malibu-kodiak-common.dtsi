@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * kodiak common device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+#include "malibu-kodiak-display.dtsi"
+#include "malibu-kodiak-pcie.dtsi"
+#include "malibu-kodiak-pmic.dtsi"
+#include "malibu-kodiak-audio.dtsi"
+#include "google-base/platform/malibu-platform-charging-ultra.dtsi"
+#include "google-base/platform/malibu-platform-haptics.dtsi"
+#include "malibu-kodiak-touch.dtsi"
+#include "malibu-kodiak-wcharger.dtsi"
+#include "google-base/platform/malibu-platform-h2omg.dtsi"
+#include "google-base/platform/malibu-platform-uwb.dtsi"
+#include "malibu-spacecraft-ultrasonic-udfps.dtsi"
+#include "malibu-kodiak-battery.dtsi"
+#include "malibu-kodiak-charging.dtsi"
+#include "malibu-ntc-thermal.dtsi"
+#include "malibu-kodiak-typec.dtsi"
+#include "malibu-kodiak-usb.dtsi"
+#include "malibu-kodiak-usbdp-phy.dtsi"
+#include "malibu-kodiak-charging-thermal.dtsi"

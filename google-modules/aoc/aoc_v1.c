@@ -6,6 +6,7 @@
  */
 
 #include "aoc.h"
+#include "aoc_v1.h"
 #include <linux/io.h>
 #include <linux/mutex.h>
 #include <linux/of_irq.h>
@@ -23,10 +24,23 @@
 #define SSMT_NS_READ_PID(n)	(0x4000 + 4 * (n))
 #define SSMT_NS_WRITE_PID(n)	(0x4200 + 4 * (n))
 
-extern enum AOC_FW_STATE aoc_state;
 extern struct platform_device *aoc_platform_device;
 extern struct resource *aoc_sram_resource;
 extern struct mutex aoc_service_lock;
+
+const char * const control_channels[] = {
+	"control",
+};
+const int control_channels_size = ARRAY_SIZE(control_channels);
+
+struct aoc_v1_prvdata {
+	u32 aoc_pcu_base;
+	u32 aoc_gpio_base;
+	u32 aoc_cp_aperture_start_offset;
+	u32 aoc_cp_aperture_end_offset;
+};
+
+struct aoc_v1_prvdata *v1_prvdata;
 
 #if IS_ENABLED(CONFIG_EXYNOS_ITMON)
 static int aoc_itmon_notifier(struct notifier_block *nb, unsigned long action,
@@ -43,9 +57,9 @@ static int aoc_itmon_notifier(struct notifier_block *nb, unsigned long action,
 		return NOTIFY_STOP;
 
 	if ((itmon_info->target_addr >= aoc_sram_resource->start +
-			prvdata->aoc_cp_aperture_start_offset) &&
+			v1_prvdata->aoc_cp_aperture_start_offset) &&
 	    (itmon_info->target_addr <= aoc_sram_resource->start +
-			prvdata->aoc_cp_aperture_end_offset)) {
+			v1_prvdata->aoc_cp_aperture_end_offset)) {
 		dev_err(prvdata->dev,
 			"Valid memory access triggered ITMON error. Please file a bug with bugreport and contents of /data/vendor/ssrdump\n");
 		return NOTIFY_STOP;
@@ -70,7 +84,7 @@ static void acpm_aoc_reset_callback(unsigned int *cmd, unsigned int size)
 bool aoc_release_from_reset(struct aoc_prvdata *prvdata)
 {
 	u32 pcu_value;
-	void __iomem *pcu = aoc_sram_translate(prvdata->aoc_pcu_base);
+	void __iomem *pcu = aoc_sram_translate(v1_prvdata->aoc_pcu_base);
 
 	if (!pcu)
 		return false;
@@ -124,12 +138,9 @@ int aoc_watchdog_restart(struct aoc_prvdata *prvdata,
 	bool aoc_reset_successful;
 	int i;
 
-	pcu = aoc_sram_translate(prvdata->aoc_pcu_base);
+	pcu = aoc_sram_translate(v1_prvdata->aoc_pcu_base);
 	if (!pcu)
 		return -ENODEV;
-
-	if (*(aoc_module_params->aoc_disable_restart))
-		return AOC_RESTART_DISABLED_RC;
 
 	aoc_reset_successful = false;
 	for (i = 0; i < aoc_reset_tries; i++) {
@@ -178,12 +189,15 @@ int aoc_watchdog_restart(struct aoc_prvdata *prvdata,
 		dbg_snapshot_emergency_reboot("AoC Restart timed out");
 		return -ETIMEDOUT;
 	}
-	reset_sensor_power(prvdata, false);
 	dev_info(prvdata->dev, "aoc reset finished\n");
 	prvdata->aoc_reset_done = false;
 
 	/* Restore IOMMU settings by briefly setting AoC to runtime active. Since IOMMU is a
 	 * supplier to AoC, it will be set to runtime active as a side effect. */
+
+	//TODO: b/469263456 Find way to check if IOMMU control is ready
+	msleep(20);
+
 	rc = pm_runtime_set_active(prvdata->dev);
 	if (rc < 0) {
 		dev_err(prvdata->dev, "iommu restore failed: pm_runtime_resume rc = %d\n", rc);
@@ -195,44 +209,44 @@ int aoc_watchdog_restart(struct aoc_prvdata *prvdata,
 		return rc;
 	}
 
-	rc = start_firmware_load(prvdata->dev);
-	if (rc) {
-		dev_err(prvdata->dev, "load aoc firmware failed: rc = %d\n", rc);
-		return rc;
-	}
-
 	return rc;
 }
 EXPORT_SYMBOL_GPL(aoc_watchdog_restart);
 
-int platform_specific_probe(struct platform_device *pdev, struct aoc_prvdata *prvdata)
+static int platform_specific_probe_parse_dt(struct device *dev, struct device_node *aoc_node)
 {
-	unsigned int acpm_async_size;
-	struct device *dev = &pdev->dev;
-	struct device_node *aoc_node = dev->of_node;
-
-	int rc = 0, ret = acpm_ipc_request_channel(aoc_node, acpm_aoc_reset_callback,
-				       &prvdata->acpm_async_id, &acpm_async_size);
-	if (ret < 0) {
-		dev_err(dev, "failed to register acpm aoc reset callback\n");
-		rc = -EIO;
+	v1_prvdata->aoc_pcu_base = dt_property(aoc_node, "pcu-base");
+	if (v1_prvdata->aoc_pcu_base == DT_PROPERTY_NOT_FOUND) {
+		dev_err(dev, "AOC DT missing property pcu-base");
+		return -EINVAL;
+	}
+	v1_prvdata->aoc_gpio_base = dt_property(aoc_node, "gpio-base");
+	if (v1_prvdata->aoc_gpio_base == DT_PROPERTY_NOT_FOUND) {
+		dev_err(dev, "AOC DT missing property gpio-base");
+		return -EINVAL;
+	}
+	v1_prvdata->aoc_cp_aperture_start_offset = dt_property(aoc_node,
+								"cp-aperture-start-offset");
+	if (v1_prvdata->aoc_cp_aperture_start_offset == DT_PROPERTY_NOT_FOUND) {
+		dev_err(dev, "AOC DT missing property cp-aperture-start-offset");
+		return -EINVAL;
+	}
+	v1_prvdata->aoc_cp_aperture_end_offset = dt_property(aoc_node,
+								"cp-aperture-end-offset");
+	if (v1_prvdata->aoc_cp_aperture_end_offset == DT_PROPERTY_NOT_FOUND) {
+		dev_err(dev, "AOC DT missing property cp-aperture-end-offset");
+		return -EINVAL;
 	}
 
-#if IS_ENABLED(CONFIG_EXYNOS_ITMON)
-	prvdata->itmon_nb.notifier_call = aoc_itmon_notifier;
-	itmon_notifier_chain_register(&prvdata->itmon_nb);
-#endif
-
-	return rc;
+	return 0;
 }
-EXPORT_SYMBOL_GPL(platform_specific_probe);
 
 static void aoc_clear_gpio_interrupt(struct aoc_prvdata *prvdata)
 {
 #if defined(GPIO_INTERRUPT)
 	int reg = GPIO_INTERRUPT, val;
 	u32 *gpio_register =
-		aoc_sram_translate(prvdata->aoc_gpio_base + ((reg / 32) * 12));
+		aoc_sram_translate(v1_prvdata->aoc_gpio_base + ((reg / 32) * 12));
 
 	val = ioread32(gpio_register);
 	val &= ~(1 << (reg % 32));
@@ -240,11 +254,52 @@ static void aoc_clear_gpio_interrupt(struct aoc_prvdata *prvdata)
 #endif
 }
 
-void aoc_configure_hardware(struct aoc_prvdata *prvdata)
+static void aoc_configure_hardware(struct aoc_prvdata *prvdata)
 {
 	aoc_clear_gpio_interrupt(prvdata);
 }
-EXPORT_SYMBOL_GPL(aoc_configure_hardware);
+
+int platform_specific_probe(struct platform_device *pdev, struct aoc_prvdata *prvdata)
+{
+	unsigned int acpm_async_size;
+	struct device *dev = &pdev->dev;
+	struct device_node *aoc_node = dev->of_node;
+	int ret;
+
+	v1_prvdata = devm_kzalloc(dev, sizeof(*v1_prvdata), GFP_KERNEL);
+	if (!v1_prvdata)
+		return -ENOMEM;
+
+	ret = platform_specific_probe_parse_dt(dev, aoc_node);
+	if (ret < 0)
+		return ret;
+
+	aoc_configure_hardware(prvdata);
+
+	ret = acpm_ipc_request_channel(aoc_node, acpm_aoc_reset_callback,
+				       &prvdata->acpm_async_id, &acpm_async_size);
+	if (ret < 0) {
+		dev_err(dev, "failed to register acpm aoc reset callback\n");
+		return -EIO;
+	}
+
+#if IS_ENABLED(CONFIG_EXYNOS_ITMON)
+	prvdata->itmon_nb.notifier_call = aoc_itmon_notifier;
+	itmon_notifier_chain_register(&prvdata->itmon_nb);
+#endif
+
+	pm_runtime_set_active(dev);
+	/*
+	 * Leave AoC in suspended state. Otherwise, AoC IOMMU is set to active which results in the
+	 * IOMMU driver trying to access IOMMU SFRs during device suspend/resume operations. The
+	 * latter is problematic if AoC is in monitor mode and BLK_AOC is off.
+	 */
+
+	pm_runtime_set_suspended(dev);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(platform_specific_probe);
 
 void trigger_aoc_ramdump(struct aoc_prvdata *prvdata)
 {
@@ -341,6 +396,11 @@ void aoc_configure_ssmt(struct platform_device *pdev
 #endif
 EXPORT_SYMBOL_GPL(aoc_configure_ssmt);
 
+void platform_specific_remove(struct platform_device *pdev, struct aoc_prvdata *prvdata)
+{
+	acpm_ipc_release_channel(pdev->dev.of_node, prvdata->acpm_async_id);
+}
+
 void configure_crash_interrupts(struct aoc_prvdata *prvdata, bool enable)
 {
 	if (prvdata->first_fw_load) {
@@ -364,3 +424,55 @@ void configure_crash_interrupts(struct aoc_prvdata *prvdata, bool enable)
 	}
 }
 EXPORT_SYMBOL_GPL(configure_crash_interrupts);
+
+u32 aoc_chip_get_revision(void)
+{
+	return gs_chipid_get_revision();
+}
+
+u32 aoc_chip_get_type(void)
+{
+	return gs_chipid_get_type();
+}
+
+size_t platform_specific_get_dvfs_freq(char *buff)
+{
+	return -ENODATA;
+}
+EXPORT_SYMBOL_GPL(platform_specific_get_dvfs_freq);
+
+u32 aoc_chip_get_product_id(void)
+{
+	return gs_chipid_get_product_id();
+}
+
+int platform_specific_aoc_online(void)
+{
+	return 0;
+}
+
+int platform_specific_aoc_offline(void)
+{
+	return 0;
+}
+
+void platform_specific_aoc_core_suspend(void)
+{
+}
+
+void platform_specific_aoc_core_resume(void)
+{
+}
+
+u64 aoc_get_timer_ticks(void)
+{
+	return arch_timer_read_counter();
+}
+
+void aoc_print_core_boot_breadcrumbs(struct aoc_prvdata *prvdata)
+{
+}
+
+void aoc_init_core_boot_breadcrumbs(struct aoc_prvdata *prvdata)
+{
+}

@@ -2,14 +2,17 @@
 /*
  * Virtual Inference Interface, implements the protocol between AP kernel and TPU firmware.
  *
- * Copyright (C) 2023-2025 Google LLC
+ * Copyright (C) 2023-2026 Google LLC
  */
 
 #ifndef __EDGETPU_IKV_H__
 #define __EDGETPU_IKV_H__
 
+#include <linux/atomic.h>
+#include <linux/kref.h>
 #include <linux/list.h>
 #include <linux/mutex.h>
+#include <linux/rwlock.h>
 #include <linux/seq_file.h>
 #include <linux/spinlock.h>
 
@@ -33,37 +36,35 @@
 #define IKV_TIMEOUT	(120000)
 #endif
 
+/**
+ * struct edgetpu_ikv_rsp_mgr - Manages pending and ready VII/IKV responses.
+ * @kref: Reference count of this manager.
+ * @enable_lock: Read/write lock protecting @enable.
+ * @enable: True if the manager is enabled and accepting new responses.
+ * @list_lock: Spin lock protecting @rslt_list.
+ * @rslt_list: List of ready/completed responses.
+ * @group: Pointer to the EdgeTPU device group.
+ * @cancel_reason: Reason for cancelling IKV commands in this manager.
+ * @pending_count: Number of pending responses in mailbox wait list.
+ */
+struct edgetpu_ikv_rsp_mgr {
+	struct kref kref;
+	rwlock_t enable_lock;
+	bool enable;
+	spinlock_t list_lock;
+	struct list_head rslt_list;
+	struct edgetpu_device_group *group;
+	int cancel_reason;
+	atomic_t pending_count;
+};
+
 struct edgetpu_ikv_response {
 	struct edgetpu_ikv *etikv;
 	struct list_head list_entry;
 	/* Pointer to the VII response packet. */
 	void *resp;
-	/*
-	 * The queue this response will be added to when it has been submitted to the mailbox.
-	 *
-	 * Access to this queue must be protected by `queue_lock`.
-	 */
-	struct list_head *pending_queue;
-	/*
-	 * The queue this response will be added to when it has arrived.
-	 *
-	 * Access to this queue must be protected by `queue_lock`.
-	 */
-	struct list_head *dest_queue;
-	/*
-	 * Indicates whether this response has already been handled (either prepared for a client or
-	 * marked as timedout).
-	 * This flag is used to detect and handle races between response arrival and timeout.
-	 *
-	 * Accessing this value must be done while holding `queue_lock`.
-	 */
-	bool processed;
-	/*
-	 * Lock to synchronize arrival, timeout, and consumption of this response.
-	 *
-	 * Protects `pending_queue`, `dest_queue` and `processed`.
-	 */
-	spinlock_t *queue_lock;
+	/* The response manager managing this response. */
+	struct edgetpu_ikv_rsp_mgr *rsp_mgr;
 	/*
 	 * Mailbox awaiter this response was delivered in.
 	 * Must be released with `gcip_mailbox_awaiter_put()` after this response has been
@@ -79,10 +80,6 @@ struct edgetpu_ikv_response {
 	 * using conflicting numbers (e.g. Client A and Client B both send commands with seq=3).
 	 */
 	u64 client_seq;
-	/*
-	 * A group to notify with the EDGETPU_EVENT_RESPDATA event when this response arrives.
-	 */
-	struct edgetpu_device_group *group_to_notify;
 	/* Fences which the command is waiting on. */
 	struct gcip_fence_array *in_fence_array;
 	/* Fences to signal on timeout or completion. */
@@ -130,6 +127,12 @@ struct edgetpu_ikv {
 	 * param `user_ikv_timeout`.
 	 */
 	unsigned int command_timeout_ms;
+
+	/*
+	 * Size of both the command and response queues, in number of packets.
+	 * Set during `edgetpu_ikv_init()` then never changes.
+	 */
+	size_t queue_size;
 };
 
 /*
@@ -213,9 +216,7 @@ void edgetpu_ikv_clear_active_clients(struct edgetpu_ikv *etikv);
  *
  * Returns 0 on success, -errno on error.
  */
-int edgetpu_ikv_send_cmd(struct edgetpu_ikv *etikv, void *cmd, struct list_head *pending_queue,
-			 struct list_head *ready_queue, spinlock_t *queue_lock,
-			 struct edgetpu_device_group *group_to_notify,
+int edgetpu_ikv_send_cmd(struct edgetpu_ikv *etikv, void *cmd, struct edgetpu_device_group *group,
 			 struct gcip_fence_array *in_fence_array,
 			 struct gcip_fence_array *out_fence_array, struct iif_fence *iif_dma_fence,
 			 struct edgetpu_ikv_additional_info *additional_info,
@@ -266,5 +267,40 @@ void edgetpu_ikv_send_iif_unblock_notification(struct edgetpu_ikv *etikv, int fe
  * Dumps in-kernel VII queue addresses for debug mappings.
  */
 void edgetpu_ikv_mappings_show(struct edgetpu_ikv *etikv, struct seq_file *s);
+
+/**
+ * edgetpu_ikv_rsp_mgr_create() - Allocates and initializes a response manager.
+ * @group: The EdgeTPU device group to bind to.
+ *
+ * The created object must be destroyed by calling edgetpu_ikv_rsp_mgr_disband().
+ *
+ * Return: A pointer to the allocated response manager, or ERR_PTR(-ENOMEM) on failure.
+ */
+struct edgetpu_ikv_rsp_mgr *edgetpu_ikv_rsp_mgr_create(struct edgetpu_device_group *group);
+
+/**
+ * edgetpu_ikv_rsp_mgr_disband() - Disables the manager, cleans up awaiters and drops reference.
+ * @rsp_mgr: The response manager.
+ *
+ * This function also drops the reference count of @rsp_mgr instead of directly freeing it.
+ */
+void edgetpu_ikv_rsp_mgr_disband(struct edgetpu_ikv_rsp_mgr *rsp_mgr);
+
+/**
+ * edgetpu_ikv_rsp_mgr_get() - Increments the reference count of the manager.
+ * @rsp_mgr: The response manager.
+ *
+ * Return: The pointer to the response manager.
+ */
+struct edgetpu_ikv_rsp_mgr *edgetpu_ikv_rsp_mgr_get(struct edgetpu_ikv_rsp_mgr *rsp_mgr);
+
+/**
+ * edgetpu_ikv_rsp_mgr_put() - Decrements the reference count of the manager.
+ * @rsp_mgr: The response manager.
+ *
+ * When the reference count reaches 0, this function releases the memory allocated for the manager.
+ * To properly release internal resources, we should use edgetpu_ikv_rsp_mgr_disband() instead.
+ */
+void edgetpu_ikv_rsp_mgr_put(struct edgetpu_ikv_rsp_mgr *rsp_mgr);
 
 #endif /* __EDGETPU_IKV_H__*/

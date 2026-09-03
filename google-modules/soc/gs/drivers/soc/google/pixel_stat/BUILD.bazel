@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "pixel_stat_sysfs",
+    out = "pixel_stat_sysfs.ko",
+    conditional_srcs = {
+        "CONFIG_PIXEL_STAT": {
+            True: [
+                "pixel_stat_sysfs.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

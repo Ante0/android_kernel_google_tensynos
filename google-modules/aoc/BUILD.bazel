@@ -1,52 +1,292 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module")
 
-filegroup(
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_headers(
     name = "headers",
-    srcs = glob([
+    hdrs = glob([
         "*.h",
         "uapi/*.h",
     ]),
+    includes = [
+        ".",
+    ],
     visibility = [
         # keep sorted
         ":__subpackages__",
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/touch/common:__pkg__",
+        "//private/google-modules/touch/common:__subpackages__",
     ],
 )
 
-kernel_module(
-    name = "aoc",
+ddk_headers(
+    name = "aoc_common_header",
+    hdrs = [
+        "aoc_common.h",
+    ],
+    includes = [
+        ".",
+    ],
+    visibility = [
+        # keep sorted
+        ":__subpackages__",
+        "//private/google-modules/aoc_ipc:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "aoc.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "mailbox-wc",
     srcs = glob([
-        "**/*.c",
         "**/*.h",
     ]) + [
-        "Kbuild",
-        "Makefile",
-        "//private/google-modules/aoc_ipc:sources",
-        "//private/google-modules/soc/gs:gs_soc_headers",
-        "//private/google-modules/trusty:headers",
+        "mailbox-wc.c",
     ],
-    outs = [
-        "aoc_channel_dev.ko",
-        "aoc_char_dev.ko",
-        "aoc_control_dev.ko",
-        "aoc_core.ko",
-        "aoc_tbn_service_dev.ko",
-        "aoc_unit_test_dev.ko",
-        "aoc_uwb_platform_drv.ko",
-        "aoc_uwb_service_dev.ko",
-        "mailbox-wc.ko",
-    ],
+    out = "mailbox-wc.ko",
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        ":__subpackages__",
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
-        "//private/google-modules/touch/common:__pkg__",
-    ],
     deps = [
-        "//private/google-modules/soc/gs:gs_soc_module",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/aoc_ipc",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/trusty:trusty_headers",
+    ],
+)
+
+ddk_module(
+    name = "aoc_core",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "aoc.c",
+        "aoc_firmware.c",
+        "aoc_service_core.c",
+    ] + select({
+        "//conditions:default": [
+            "ion_physical_heap.c",
+        ],
+    }),
+    out = "aoc_core.ko",
+    conditional_srcs = {
+        "CONFIG_AOC_V1": {
+            True: [
+                "aoc_v1.c",
+            ],
+        },
+        "CONFIG_AOC_LGA": {
+            True: [
+                "aoc_lga.c",
+            ],
+        },
+        "CONFIG_AOC_MBU": {
+            True: [
+                "aoc_mbu.c",
+                "aoss_ssr.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/aoc_ipc",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/dma-buf/heaps/samsung:headers",
+        "//private/google-modules/soc/gs/drivers/dma-buf/heaps/samsung:samsung_dma_heap",
+        "//private/google-modules/soc/gs/drivers/soc/google/gsa:gsa_ko",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/trusty:trusty_headers",
+    ] + select({
+        "//private/devices/google/common:soc_is_zumapro_or_before": [
+            "//private/google-modules/soc/gs/drivers/soc/google:exynos-cpupm",
+            "//private/google-modules/soc/gs/drivers/soc/google:exynos-pmu-if",
+            "//private/google-modules/soc/gs/drivers/soc/google:gs-chipid",
+            "//private/google-modules/soc/gs/drivers/soc/google/acpm:gs_acpm",
+            "//private/google-modules/soc/gs/drivers/soc/google/debug:dss",
+            "//private/google-modules/soc/gs/drivers/soc/google/debug:itmon",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "//private/devices/google/common:soc_is_malibu": [
+            "//private/google-modules/soc/rdo/aoss-ssr-notifier:aoss_ssr_notifier",
+            "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-cpm-iface",
+            "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-gdmc-iface",
+            "//private/google-modules/soc/rdo/drivers/soc/google:google_gtc",
+        ],
+        "//private/devices/google/common:soc_is_laguna": [
+            "//private/google-modules/soc/rdo/aoss-ssr-notifier:aoss_ssr_notifier",
+            "//private/google-modules/soc/rdo/drivers/pinctrl/google:pinctrl",
+            "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-cpm-iface",
+            "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-gdmc-iface",
+            "//private/google-modules/soc/rdo/drivers/soc/google:google_gtc",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+ddk_module(
+    name = "aoc_char_dev",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "aoc_char_dev.c",
+    ],
+    out = "aoc_char_dev.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":aoc_core",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/aoc_ipc",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/trusty:trusty_headers",
+    ],
+)
+
+ddk_module(
+    name = "aoc_control_dev",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "aoc_control_dev.c",
+    ],
+    out = "aoc_control_dev.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":aoc_core",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/aoc_ipc",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/trusty:trusty_headers",
+    ],
+)
+
+ddk_module(
+    name = "aoc_channel_dev",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "aoc_channel_dev.c",
+    ],
+    out = "aoc_channel_dev.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":aoc_core",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/aoc_ipc",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/trusty:trusty_headers",
+    ],
+)
+
+ddk_module(
+    name = "aoc_uwb_platform_drv",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "aoc_uwb_platform_drv.c",
+    ],
+    out = "aoc_uwb_platform_drv.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":aoc_uwb_service_dev",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/aoc_ipc",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/trusty:trusty_headers",
+    ],
+)
+
+ddk_module(
+    name = "aoc_uwb_service_dev",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "aoc_uwb_service_dev.c",
+    ],
+    out = "aoc_uwb_service_dev.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":aoc_core",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/aoc_ipc",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/trusty:trusty_headers",
+    ],
+)
+
+ddk_module(
+    name = "aoc_tbn_service_dev",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "aoc_tbn_service_dev.c",
+    ],
+    out = "aoc_tbn_service_dev.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":aoc_core",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/aoc_ipc",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/trusty:trusty_headers",
+    ],
+)
+
+ddk_module(
+    name = "aoc_mbox_full_sdev",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "aoc_mbox_full_service_dev.c",
+    ],
+    out = "aoc_mbox_full_service_dev.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":aoc_core",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/aoc_ipc",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "aoc_unit_test_dev",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "aoc_unit_test_dev.c",
+    ],
+    out = "aoc_unit_test_dev.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":aoc_core",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/aoc_ipc",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/trusty:trusty_headers",
     ],
 )

@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config SND_SMARTPA_AW882XX
+ tristate "SoC Audio for awinic aw882xxseries"
+ depends on I2C
+ help
+ This option enables support for aw882xx series Smart PA.
+
+config AW882XX_CALIB
+ bool "Enable aw882xx calibration support"
+ depends on SND_SMARTPA_AW882XX
+ default n
+ help
+  This option enables aw882xx calibration support.
+  Note, Please check b/417847554 before enable it.

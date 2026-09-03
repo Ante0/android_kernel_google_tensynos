@@ -7,15 +7,6 @@ menu "Google SoC drivers"
 
 config SOC_GOOGLE
 	bool "Google SoC driver support"
-	# Force enable the GKI hack dependencies for tristate dependencies so
-	# that the dependencies are =y instead of =m, since they're expected to
-	# be =y. This lets us work correctly without needing to enable
-	# unnecessary cruft from the GKI hack configs.
-	select DRM_KMS_HELPER
-	select PHYLINK
-	select REGMAP_SPMI
-	select V4L2_MEM2MEM_DEV
-	select VIDEOBUF2_DMA_SG
 
 config SOC_GS101
 	bool "Google GS101"
@@ -206,26 +197,6 @@ config EXYNOS_CPUHP
 	help
 	Support CPU Hotplug for Exynos SoC.
 
-config SLC_PARTITION_MANAGER
-	tristate "PT API framework"
-	default n
-	help
-	Enable PT framework for managing system level cache.
-
-config GS_SLC_ACPM
-	tristate "PT ACPM driver"
-	depends on SLC_PARTITION_MANAGER && GS_ACPM
-	default n
-	help
-	Support PT ACPM drvier
-
-config SLC_PMON
-	bool "Enable SLC perf counter support"
-	depends on GS_SLC_ACPM
-	default n
-	help
-	Enable SLC perf counter support in PT ACPM driver.
-
 config VH_KERNEL
 	bool "Vendor kernel modules"
 	default y
@@ -237,6 +208,14 @@ config PIXEL_STAT
 	default n
 	help
 	Support Pixel statistics.
+
+config PIXEL_STAT_MM
+	tristate "Enable Pixel memory statistics"
+	depends on PIXEL_STAT
+	depends on VH_SCHED
+	default n
+	help
+	Support Pixel memory statistics.
 
 config EXYNOS_SECURE_LOG
 	tristate "Exynos Secure Log"
@@ -256,15 +235,13 @@ config PERF_TRACE_CTRS
 	help
 	Support perf_trace_counters
 
-source "$(KCONFIG_SOC_GS_PREFIX)drivers/soc/google/gsa/Kconfig"
-
 source "$(KCONFIG_SOC_GS_PREFIX)drivers/soc/google/debug/Kconfig"
 
 source "$(KCONFIG_SOC_GS_PREFIX)drivers/soc/google/gnssif_spi/Kconfig"
 
-source "$(KCONFIG_SOC_GS_PREFIX)drivers/soc/google/eh/Kconfig"
-
 source "$(KCONFIG_SOC_GS_PREFIX)drivers/soc/google/gcma/Kconfig"
+
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/soc/google/pt/Kconfig"
 
 source "$(KCONFIG_SOC_GS_PREFIX)drivers/soc/google/pa_kill/Kconfig"
 
@@ -300,6 +277,8 @@ config SYSRQ_HOOK
 	help
 	Modules for sysrq hooks.
 
+source "$(KCONFIG_SOC_GS_PREFIX)drivers/soc/google/pkvm-smc/Kconfig"
+
 config PKVM_S2MPU
 	tristate "S2MPU driver compatible with pKVM"
 	default n
@@ -311,6 +290,33 @@ config PKVM_S2MPU_V9
 	default n
 	help
 	This module is a driver for the stage-2 IOMMU controlled by hypervisor.
+
+config S2MPU_BYPASS
+	tristate "S2MPU driver of bypass mode"
+	default n
+	depends on !PKVM_S2MPU && !PKVM_S2MPU_V9
+	help
+	  This option enables a minimal S2MPU driver that puts the S2MPU
+	  (Stage 2 Memory Protection Unit) into bypass mode.
+
+	  When the S2MPU comes out of reset, it blocks all DMA traffic,
+	  preventing devices from accessing the memory system. This minimal
+	  driver initializes the S2MPU to a bypass mode, allowing devices
+	  to function.
+
+	  The primary purpose of this driver is to facilitate early kernel
+	  bring-up during in-market kernel upgrades. The full S2MPU
+	  driver has a dependency on the pKVM IOMMU framework, which can
+	  undergo significant changes between kernel versions, making it
+	  challenging to integrate during upgrades.
+
+	  This minimal driver, in contrast, uses stable Linux kernel APIs
+	  that are less likely to change, ensuring forward compatibility.
+	  It is intended to be used until the pKVM IOMMU framework in a
+	  given Android LTS kernel is stable.
+
+	  If you are not performing an in-market kernel upgrade or require
+	  the full functionality of the pKVM IOMMU, you should say N here.
 
 config KERNEL_TOP
 	tristate "Display processes statistic"

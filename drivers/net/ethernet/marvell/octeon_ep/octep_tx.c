@@ -21,7 +21,6 @@ static void octep_iq_reset_indices(struct octep_iq *iq)
 	iq->flush_index = 0;
 	iq->pkts_processed = 0;
 	iq->pkt_in_done = 0;
-	atomic_set(&iq->instr_pending, 0);
 }
 
 /**
@@ -82,16 +81,15 @@ int octep_iq_process_completions(struct octep_iq *iq, u16 budget)
 	}
 
 	iq->pkts_processed += compl_pkts;
-	atomic_sub(compl_pkts, &iq->instr_pending);
-	iq->stats.instr_completed += compl_pkts;
-	iq->stats.bytes_sent += compl_bytes;
-	iq->stats.sgentry_sent += compl_sg;
+	iq->stats->instr_completed += compl_pkts;
+	iq->stats->bytes_sent += compl_bytes;
+	iq->stats->sgentry_sent += compl_sg;
 	iq->flush_index = fi;
 
 	netdev_tx_completed_queue(iq->netdev_q, compl_pkts, compl_bytes);
 
 	if (unlikely(__netif_subqueue_stopped(iq->netdev, iq->q_no)) &&
-	    ((iq->max_count - atomic_read(&iq->instr_pending)) >
+	    (IQ_INSTR_SPACE(iq) >
 	     OCTEP_WAKE_QUEUE_THRESHOLD))
 		netif_wake_subqueue(iq->netdev, iq->q_no);
 	return !budget;
@@ -144,7 +142,6 @@ static void octep_iq_free_pending(struct octep_iq *iq)
 		dev_kfree_skb_any(skb);
 	}
 
-	atomic_set(&iq->instr_pending, 0);
 	iq->flush_index = fi;
 	netdev_tx_reset_queue(netdev_get_tx_queue(iq->netdev, iq->q_no));
 }
@@ -190,6 +187,7 @@ static int octep_setup_iq(struct octep_device *oct, int q_no)
 	iq->netdev = oct->netdev;
 	iq->dev = &oct->pdev->dev;
 	iq->q_no = q_no;
+	iq->stats = &oct->stats_iq[q_no];
 	iq->max_count = CFG_GET_IQ_NUM_DESC(oct->conf);
 	iq->ring_size_mask = iq->max_count - 1;
 	iq->fill_threshold = CFG_GET_IQ_DB_MIN(oct->conf);

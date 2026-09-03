@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Pixel IOVA allocator optimizations
+
+description: |
+  Enable Pixel-specific allocator optimizations in the I/O Virtual Address
+  (IOVA) allocator code.
+
+properties:
+  iova_max_align_shift:
+    type: integer
+    description: |
+      This allows limiting the maximum alignment automatically applied by the
+      IOVA framework during allocation. By default, the framework aligns
+      allocations to the smallest power-of-2 multiple of PAGE_SIZE that is
+      greater than or equal to the requested allocation size. For very large
+      allocations (e.g., > 64 MB), this default behavior can lead to
+      excessively large alignments, which quickly exhausts the available IOVA
+      space, particularly for devices limited to 32-bit DMA addresses.
+
+      This feature introduces a configurable cap on the maximum alignment the
+      IOVA allocator will impose. Use the Device Tree property
+      "iommu-max-align-shift = <n>;" to specify the maximum alignment shift
+      value (n). The automatically calculated alignment will not exceed 2^n
+      pages, even if the allocation size might otherwise dictate a larger
+      alignment.
+    required: false
+    example: 9 # Alignment on 2MB Boundary
+
+  iommu_best_fit_algo:
+    type: boolean
+    description: |
+      Enable or disable the IOVA best-fit allocation algorithm. This algorithm
+      attempts to find the smallest available memory region that can
+      accommodate a given allocation request. When disabled, the default
+      allocation strategy is used (e.g., first-fit). Setting this property to
+      true will enable the best-fit algorithm."
+    required: false
+    example: true # Example when it is enable.

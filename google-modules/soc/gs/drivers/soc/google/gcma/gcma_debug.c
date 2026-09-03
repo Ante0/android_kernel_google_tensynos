@@ -2,6 +2,7 @@
 #include <linux/debugfs.h>
 
 #include "gcma_core.h"
+#include "gcma_debug.h"
 
 static bool workingset = true;
 

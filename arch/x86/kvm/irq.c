@@ -7,6 +7,7 @@
  * Authors:
  *   Yaozu (Eddie) Dong <Eddie.dong@intel.com>
  */
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/export.h>
 #include <linux/kvm_host.h>
@@ -31,7 +32,6 @@ int kvm_cpu_has_pending_timer(struct kvm_vcpu *vcpu)
 
 	return r;
 }
-EXPORT_SYMBOL(kvm_cpu_has_pending_timer);
 
 /*
  * check if there is a pending userspace external interrupt
@@ -108,7 +108,7 @@ EXPORT_SYMBOL_GPL(kvm_cpu_has_interrupt);
  * Read pending interrupt(from non-APIC source)
  * vector and intack.
  */
-static int kvm_cpu_get_extint(struct kvm_vcpu *v)
+int kvm_cpu_get_extint(struct kvm_vcpu *v)
 {
 	if (!kvm_cpu_has_extint(v)) {
 		WARN_ON(!lapic_in_kernel(v));
@@ -118,8 +118,10 @@ static int kvm_cpu_get_extint(struct kvm_vcpu *v)
 	if (!lapic_in_kernel(v))
 		return v->arch.interrupt.nr;
 
+#ifdef CONFIG_KVM_XEN
 	if (kvm_xen_has_interrupt(v))
 		return v->kvm->arch.xen.upcall_vector;
+#endif
 
 	if (irqchip_split(v->kvm)) {
 		int vector = v->arch.pending_external_vector;
@@ -129,6 +131,7 @@ static int kvm_cpu_get_extint(struct kvm_vcpu *v)
 	} else
 		return kvm_pic_read_irq(v->kvm); /* PIC */
 }
+EXPORT_SYMBOL_GPL(kvm_cpu_get_extint);
 
 /*
  * Read pending interrupt vector and intack.
@@ -139,9 +142,12 @@ int kvm_cpu_get_interrupt(struct kvm_vcpu *v)
 	if (vector != -1)
 		return vector;			/* PIC */
 
-	return kvm_get_apic_interrupt(v);	/* APIC */
+	vector = kvm_apic_has_interrupt(v);	/* APIC */
+	if (vector != -1)
+		kvm_apic_ack_interrupt(v, vector);
+
+	return vector;
 }
-EXPORT_SYMBOL_GPL(kvm_cpu_get_interrupt);
 
 void kvm_inject_pending_timer_irqs(struct kvm_vcpu *vcpu)
 {
@@ -150,13 +156,12 @@ void kvm_inject_pending_timer_irqs(struct kvm_vcpu *vcpu)
 	if (kvm_xen_timer_enabled(vcpu))
 		kvm_xen_inject_timer_irqs(vcpu);
 }
-EXPORT_SYMBOL_GPL(kvm_inject_pending_timer_irqs);
 
 void __kvm_migrate_timers(struct kvm_vcpu *vcpu)
 {
 	__kvm_migrate_apic_timer(vcpu);
 	__kvm_migrate_pit_timer(vcpu);
-	static_call_cond(kvm_x86_migrate_timers)(vcpu);
+	kvm_x86_call(migrate_timers)(vcpu);
 }
 
 bool kvm_arch_irqfd_allowed(struct kvm *kvm, struct kvm_irqfd *args)
@@ -164,4 +169,9 @@ bool kvm_arch_irqfd_allowed(struct kvm *kvm, struct kvm_irqfd *args)
 	bool resample = args->flags & KVM_IRQFD_FLAG_RESAMPLE;
 
 	return resample ? irqchip_kernel(kvm) : irqchip_in_kernel(kvm);
+}
+
+bool kvm_arch_irqchip_in_kernel(struct kvm *kvm)
+{
+	return irqchip_in_kernel(kvm);
 }

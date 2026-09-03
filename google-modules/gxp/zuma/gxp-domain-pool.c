@@ -42,6 +42,8 @@ gxp_domain_pool_alloc(struct gcip_domain_pool *pool)
 
 	if (IS_ERR_OR_NULL(gdomain))
 		return NULL;
+
+	/* TODO(b/518020601): Update for Pixel IOMMU fault handler. */
 	iommu_set_fault_handler(domain, gxp_iommu_fault_handler, NULL);
 
 	return gdomain;

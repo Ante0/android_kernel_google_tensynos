@@ -135,9 +135,7 @@ struct ftxxxx_proc {
 
 struct fts_ts_platform_data {
     u32 irq_gpio;
-    u32 irq_gpio_flags;
     u32 reset_gpio;
-    u32 reset_gpio_flags;
     struct drm_panel *panel;
     u32 initial_panel_index;
     bool have_key;

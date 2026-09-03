@@ -1,0 +1,283 @@
+import("//build_overrides/noa.gni")
+import("//build_overrides/pigweed.gni")
+
+import("$dir_pw_build/target_types.gni")
+import("$dir_pw_protobuf_compiler/proto.gni")
+import("$dir_pw_unit_test/test.gni")
+
+config("public_include_path") {
+  include_dirs = [ "public" ]
+}
+
+pw_source_set("mock_transport") {
+  public_deps = [
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_client",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_status",
+  ]
+  sources = [ "mock_transport.cc" ]
+  public = [ "mock_transport.h" ]
+  visibility = [ ":*" ]
+}
+
+pw_source_set("dma_service_client_nanopb") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_service_client",
+    "$dir_noa_services/dma_rpc_service:dma_service_proto.nanopb_rpc",
+  ]
+  public = [ "public/pw_rpc_service_client/dma_service_client.nanopb.h" ]
+}
+
+pw_source_set("shell_cmd_service_client_nanopb") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_service_client",
+    "$dir_noa_services/shell_cmd_rpc_service:shell_cmd_service_proto.nanopb_rpc",
+  ]
+  public = [ "public/pw_rpc_service_client/shell_cmd_service_client.nanopb.h" ]
+}
+
+pw_source_set("ipsec_test_service_client_nanopb") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_service_client",
+    "$dir_noa_services/ipsec_test_rpc_service:ipsec_test_service_proto.nanopb_rpc",
+  ]
+  public = [ "public/pw_rpc_service_client/ipsec_test_service_client.nanopb.h" ]
+}
+
+pw_source_set("pw_log_service_client_nanopb") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_client",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_service_client",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_status",
+    "$dir_pw_log",
+    "$dir_pw_log:protos.nanopb_rpc",
+    "$dir_pw_rpc:protos.nanopb_rpc",
+    "$dir_pw_third_party/nanopb",
+  ]
+  sources = [ "pw_log_service_client.nanopb.c" ]
+  public = [ "public/pw_rpc_service_client/pw_log_service_client.nanopb.h" ]
+}
+
+pw_source_set("echo_service_client_nanopb") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_service_client",
+    "$dir_pw_rpc:protos.nanopb_rpc",
+  ]
+  public = [ "public/pw_rpc_service_client/echo_service_client.nanopb.h" ]
+}
+
+pw_source_set("ring_event_service_client_nanopb") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_service_client",
+    "$dir_noa_services/ring_event_rpc_service:ring_event_service_proto.nanopb_rpc",
+  ]
+  public = [ "public/pw_rpc_service_client/ring_event_service_client.nanopb.h" ]
+}
+
+pw_source_set("modem_cmd_service_client_nanopb") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_service_client",
+    "$dir_noa_services/modem_cmd_rpc_service:modem_cmd_service_proto.nanopb_rpc",
+  ]
+  public = [ "public/pw_rpc_service_client/modem_cmd_service_client.nanopb.h" ]
+}
+
+pw_source_set("wlan_rpc_service_client_nanopb") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_service_client",
+    "$dir_noa_services/wlan_rpc_service:wlan_rpc_service_proto.nanopb_rpc",
+  ]
+  public = [ "public/pw_rpc_service_client/wlan_rpc_service_client.nanopb.h" ]
+}
+
+pw_source_set("nep_cmd_rpc_service_client_nanopb") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_service_client",
+    "$dir_noa_services/nep_cmd_rpc_service:nep_cmd_service_proto.nanopb_rpc",
+  ]
+  public =
+      [ "public/pw_rpc_service_client/nep_cmd_rpc_service_client.nanopb.h" ]
+}
+
+pw_source_set("vpn_rpc_service_client_nanopb") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_call",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_client",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_status",
+  ]
+  public = [ "public/pw_rpc_service_client/vpn_rpc_service_client.nanopb.h" ]
+}
+
+pw_source_set("tea_rpc_service_client_nanopb") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_service_client",
+    "$dir_noa_services/tea_rpc_service:tea_rpc_service_proto.nanopb_rpc",
+  ]
+  public = [ "public/pw_rpc_service_client/tea_rpc_service_client.nanopb.h" ]
+}
+
+pw_source_set("power_service_client_nanopb") {
+  public_configs = [ ":public_include_path" ]
+  public_deps = [
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_service_client",
+    "$dir_noa_services/power_rpc_service:power_service_proto.nanopb_rpc",
+  ]
+  public = [ "public/pw_rpc_service_client/power_service_client.nanopb.h" ]
+}
+
+pw_test_group("tests") {
+  tests = [
+    ":shell_cmd_service_client_nanopb_test",
+    ":pw_log_service_client_nanopb_test",
+    ":echo_service_client_nanopb_test",
+    ":dma_service_client_nanopb_test",
+    ":ring_event_service_client_nanopb_test",
+    ":modem_cmd_service_client_nanopb_test",
+    ":wlan_rpc_service_client_nanopb_test",
+    ":nep_cmd_rpc_service_client_nanopb_test",
+    ":vpn_rpc_service_client_nanopb_test",
+    ":tea_rpc_service_client_nanopb_test",
+    ":ipsec_test_service_client_nanopb_test",
+    ":power_service_client_nanopb_test",
+  ]
+}
+
+pw_test("ipsec_test_service_client_nanopb_test") {
+  deps = [
+    ":ipsec_test_service_client_nanopb",
+    ":mock_transport",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_packet",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_status",
+  ]
+  sources = [ "ipsec_test_service_client_test.nanopb.cc" ]
+}
+
+pw_test("shell_cmd_service_client_nanopb_test") {
+  deps = [
+    ":mock_transport",
+    ":shell_cmd_service_client_nanopb",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_packet",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_status",
+  ]
+  sources = [ "shell_cmd_service_client_test.nanopb.cc" ]
+}
+
+pw_test("pw_log_service_client_nanopb_test") {
+  deps = [
+    ":mock_transport",
+    ":pw_log_service_client_nanopb",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_packet",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_status",
+  ]
+  sources = [ "pw_log_service_client_test.nanopb.cc" ]
+}
+
+pw_test("echo_service_client_nanopb_test") {
+  deps = [
+    ":echo_service_client_nanopb",
+    ":mock_transport",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_packet",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_status",
+    "$dir_pw_third_party/nanopb",
+  ]
+  sources = [ "echo_service_client_test.nanopb.cc" ]
+}
+
+pw_test("ring_event_service_client_nanopb_test") {
+  deps = [
+    ":mock_transport",
+    ":ring_event_service_client_nanopb",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_packet",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_status",
+    "$dir_pw_third_party/nanopb",
+  ]
+  sources = [ "ring_event_service_client_test.nanopb.cc" ]
+}
+
+pw_test("modem_cmd_service_client_nanopb_test") {
+  deps = [
+    ":mock_transport",
+    ":modem_cmd_service_client_nanopb",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_packet",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_status",
+    "$dir_pw_third_party/nanopb",
+  ]
+  sources = [ "modem_cmd_service_client_test.nanopb.cc" ]
+}
+
+pw_test("wlan_rpc_service_client_nanopb_test") {
+  deps = [
+    ":mock_transport",
+    ":wlan_rpc_service_client_nanopb",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_packet",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_status",
+    "$dir_pw_third_party/nanopb",
+  ]
+  sources = [ "wlan_rpc_service_client_test.nanopb.cc" ]
+}
+
+pw_test("nep_cmd_rpc_service_client_nanopb_test") {
+  deps = [
+    ":mock_transport",
+    ":nep_cmd_rpc_service_client_nanopb",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_packet",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_status",
+    "$dir_pw_third_party/nanopb",
+  ]
+  sources = [ "nep_cmd_rpc_service_client_test.nanopb.cc" ]
+}
+
+pw_test("vpn_rpc_service_client_nanopb_test") {
+  deps = [
+    ":vpn_rpc_service_client_nanopb",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:client_server_testing",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_client",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_status",
+    "$dir_noa_services/vpn_rpc_service:service_protos.nanopb_rpc",
+    "$dir_pw_rpc/nanopb:server_api",
+  ]
+  sources = [ "vpn_rpc_service_client_test.nanopb.cc" ]
+}
+
+pw_test("dma_service_client_nanopb_test") {
+  deps = [
+    ":dma_service_client_nanopb",
+    ":mock_transport",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_packet",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_status",
+    "$dir_pw_third_party/nanopb",
+  ]
+  sources = [ "dma_service_client_test.nanopb.cc" ]
+}
+
+pw_test("tea_rpc_service_client_nanopb_test") {
+  deps = [
+    ":mock_transport",
+    ":tea_rpc_service_client_nanopb",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_packet",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_status",
+    "$dir_pw_third_party/nanopb",
+  ]
+  sources = [ "tea_rpc_service_client_test.nanopb.cc" ]
+}
+
+pw_test("power_service_client_nanopb_test") {
+  deps = [
+    ":power_service_client_nanopb",
+    ":mock_transport",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_rpc_packet",
+    "$dir_noa_packages/noah_lib/pw_rpc_c:pw_status",
+    "$dir_pw_third_party/nanopb",
+  ]
+  sources = [ "power_service_client_test.nanopb.cc" ]
+}

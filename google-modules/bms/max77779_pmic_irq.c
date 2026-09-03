@@ -31,6 +31,7 @@ struct max77779_pmic_irq_info {
 
 	unsigned int		wake_u;
 	unsigned int		wake;
+	uint8_t		intb_irq_handling_order[MAX77779_NUM_IRQS];
 };
 
 static irqreturn_t max77779_pmic_irq_handler(int irq, void *ptr)
@@ -39,7 +40,7 @@ static irqreturn_t max77779_pmic_irq_handler(int irq, void *ptr)
 	struct device *core = info->core;
 	uint8_t intsrc_sts;
 	int sub_irq;
-	int offset;
+	int i, offset;
 	int err;
 
 	pm_stay_awake(info->dev);
@@ -50,7 +51,8 @@ static irqreturn_t max77779_pmic_irq_handler(int irq, void *ptr)
 		return IRQ_NONE;
 	}
 
-	for (offset = 0; offset < MAX77779_NUM_IRQS; offset++) {
+	for (i = 0; i < MAX77779_NUM_IRQS; ++i) {
+		offset = info->intb_irq_handling_order[i];
 		if (intsrc_sts & (1 << offset)) {
 			sub_irq = irq_find_mapping(info->domain, offset);
 			if (sub_irq)
@@ -59,6 +61,7 @@ static irqreturn_t max77779_pmic_irq_handler(int irq, void *ptr)
 	}
 
 	err = max77779_external_pmic_reg_write(core, MAX77779_PMIC_INTSRC_STS, intsrc_sts);
+
 	if (err)
 		dev_err_ratelimited(info->dev, "write error %d\n", err);
 
@@ -190,7 +193,7 @@ static int max77779_pmic_irq_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct max77779_pmic_irq_info *info;
-	int irq_gpio;
+	struct gpio_desc *irq_gpio;
 	int i;
 	int err;
 
@@ -206,25 +209,13 @@ static int max77779_pmic_irq_probe(struct platform_device *pdev)
 	mutex_init(&info->lock);
 
 	/* this is our input gpio from sequoia */
-	irq_gpio = of_get_named_gpio(dev->of_node, "max777x9,irq-gpio", 0);
-	if (irq_gpio < 0) {
+	irq_gpio = devm_gpiod_get(dev, "max777x9,irq", GPIOD_IN | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
+	if (IS_ERR(irq_gpio)) {
 		dev_err(dev, "irq_gpio is not defined\n");
 		return -ENODEV;
 	}
 
-	err = devm_gpio_request_one(dev, irq_gpio, 0, "max77779-irq");
-	if (err) {
-		dev_err(dev, "Unable to request max77779-irq err =  %d\n", err);
-		return err;
-	}
-
-	err = gpio_direction_input(irq_gpio);
-	if (err < 0) {
-		dev_err(dev, "Error setting irq_gpio to input\n");
-		return err;
-	}
-
-	info->irq = gpio_to_irq(irq_gpio);
+	info->irq = gpiod_to_irq(irq_gpio);
 	if (info->irq < 0) {
 		dev_err(dev, "Error getting irq (%d)\n", info->irq);
 		return info->irq;
@@ -233,7 +224,7 @@ static int max77779_pmic_irq_probe(struct platform_device *pdev)
 	device_init_wakeup(dev, true);
 
 	/* mask and clear all interrupts */
-	err =  max77779_external_pmic_reg_write(info->core, MAX77779_PMIC_INTB_MASK, 0xff);
+	err = max77779_external_pmic_reg_write(info->core, MAX77779_PMIC_INTB_MASK, 0xff);
 	if (err) {
 		dev_err(dev, "Unable to clear mask. err = %d\n", err);
 		return err;
@@ -246,8 +237,8 @@ static int max77779_pmic_irq_probe(struct platform_device *pdev)
 	}
 
 	info->trig_type = 0x00000000;
-	info->domain = irq_domain_add_linear(dev->of_node, MAX77779_NUM_IRQS,
-			&irq_domain_simple_ops, info);
+	info->domain = irq_domain_create_linear(dev_fwnode(dev), MAX77779_NUM_IRQS,
+						&irq_domain_simple_ops, info);
 	if (!info->domain) {
 		dev_err(info->dev, "Unable to get irq domain\n");
 		return -ENODEV;
@@ -274,13 +265,36 @@ static int max77779_pmic_irq_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
+	/* TODO: b/395572046 - move the definition to device tree */
+	/* ----------------------------------------------------------------------------
+	 * Initialize intb nested irq priority
+	 *
+	 * BITFIELD            BITS  PR
+	 * ----------------------------------------------------------------------------
+	 * PMICTOP_INT            7   2
+	 * VDROOP_INT             6   0
+	 * GPIO_INT               5   4
+	 * BATTVIMON_INT          4   1
+	 * I2CM_INT               3   5
+	 * CHGR_INT               2   6
+	 * FG_INT                 1   3
+	 * TCPC_INT               0   7
+	 */
+	info->intb_irq_handling_order[0] = 6;
+	info->intb_irq_handling_order[1] = 4;
+	info->intb_irq_handling_order[2] = 7;
+	info->intb_irq_handling_order[3] = 1;
+	info->intb_irq_handling_order[4] = 5;
+	info->intb_irq_handling_order[5] = 3;
+	info->intb_irq_handling_order[6] = 2;
+	info->intb_irq_handling_order[7] = 0;
+
 	return 0;
 }
 
-static int max77779_pmic_irq_remove(struct platform_device *pdev)
+static void max77779_pmic_irq_remove(struct platform_device *pdev)
 {
 	device_init_wakeup(&pdev->dev, false);
-	return 0;
 }
 
 static const struct platform_device_id max77779_pmic_irq_id[] = {

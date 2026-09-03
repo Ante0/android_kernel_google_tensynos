@@ -19,8 +19,10 @@
 #include <linux/proc_fs.h>
 #include <linux/sched.h>
 #include <linux/seq_file.h>
+#include <linux/pm.h>
 #include <linux/poll.h>
 #include <linux/device.h>
+#include <linux/kstrtox.h>
 #include <linux/mutex.h>
 #include <linux/rcupdate.h>
 #include "input-compat.h"
@@ -98,44 +100,12 @@ static void input_stop_autorepeat(struct input_dev *dev)
 }
 
 /*
- * Pass event first through all filters and then, if event has not been
- * filtered out, through all open handles. This function is called with
- * dev->event_lock held and interrupts disabled.
- */
-static unsigned int input_to_handler(struct input_handle *handle,
-			struct input_value *vals, unsigned int count)
-{
-	struct input_handler *handler = handle->handler;
-	struct input_value *end = vals;
-	struct input_value *v;
-
-	if (handler->filter) {
-		for (v = vals; v != vals + count; v++) {
-			if (handler->filter(handle, v->type, v->code, v->value))
-				continue;
-			if (end != v)
-				*end = *v;
-			end++;
-		}
-		count = end - vals;
-	}
-
-	if (!count)
-		return 0;
-
-	if (handler->events)
-		handler->events(handle, vals, count);
-	else if (handler->event)
-		for (v = vals; v != vals + count; v++)
-			handler->event(handle, v->type, v->code, v->value);
-
-	return count;
-}
-
-/*
  * Pass values first through all filters and then, if event has not been
- * filtered out, through all open handles. This function is called with
- * dev->event_lock held and interrupts disabled.
+ * filtered out, through all open handles. This order is achieved by placing
+ * filters at the head of the list of handles attached to the device, and
+ * placing regular handles at the tail of the list.
+ *
+ * This function is called with dev->event_lock held and interrupts disabled.
  */
 static void input_pass_values(struct input_dev *dev,
 			      struct input_value *vals, unsigned int count)
@@ -145,18 +115,16 @@ static void input_pass_values(struct input_dev *dev,
 
 	lockdep_assert_held(&dev->event_lock);
 
-	if (!count)
-		return;
-
 	rcu_read_lock();
 
 	handle = rcu_dereference(dev->grab);
 	if (handle) {
-		count = input_to_handler(handle, vals, count);
+		count = handle->handle_events(handle, vals, count);
 	} else {
 		list_for_each_entry_rcu(handle, &dev->h_list, d_node)
 			if (handle->open) {
-				count = input_to_handler(handle, vals, count);
+				count = handle->handle_events(handle, vals,
+							      count);
 				if (!count)
 					break;
 			}
@@ -188,6 +156,7 @@ static int input_handle_abs_event(struct input_dev *dev,
 				  unsigned int code, int *pval)
 {
 	struct input_mt *mt = dev->mt;
+	bool is_new_slot = false;
 	bool is_mt_event;
 	int *pold;
 
@@ -208,6 +177,7 @@ static int input_handle_abs_event(struct input_dev *dev,
 		pold = &dev->absinfo[code].value;
 	} else if (mt) {
 		pold = &mt->slots[mt->slot].abs[code - ABS_MT_FIRST];
+		is_new_slot = mt->slot != dev->absinfo[ABS_MT_SLOT].value;
 	} else {
 		/*
 		 * Bypass filtering for multi-touch events when
@@ -226,8 +196,8 @@ static int input_handle_abs_event(struct input_dev *dev,
 	}
 
 	/* Flush pending "slot" event */
-	if (is_mt_event && mt && mt->slot != input_abs_get_val(dev, ABS_MT_SLOT)) {
-		input_abs_set_val(dev, ABS_MT_SLOT, mt->slot);
+	if (is_new_slot) {
+		dev->absinfo[ABS_MT_SLOT].value = mt->slot;
 		return INPUT_PASS_TO_HANDLERS | INPUT_SLOT;
 	}
 
@@ -349,9 +319,6 @@ static void input_event_dispose(struct input_dev *dev, int disposition,
 {
 	if ((disposition & INPUT_PASS_TO_DEVICE) && dev->event)
 		dev->event(dev, type, code, value);
-
-	if (!dev->vals)
-		return;
 
 	if (disposition & INPUT_PASS_TO_HANDLERS) {
 		struct input_value *v;
@@ -857,13 +824,29 @@ static int input_default_getkeycode(struct input_dev *dev,
 	return 0;
 }
 
-static int input_default_setkeycode(struct input_dev *dev,
-				    const struct input_keymap_entry *ke,
-				    unsigned int *old_keycode)
+/**
+ * input_default_setkeycode - default setkeycode method
+ * @dev: input device which keymap is being updated.
+ * @ke: new keymap entry.
+ * @old_keycode: pointer to the location where old keycode should be stored.
+ *
+ * This function is the default implementation of &input_dev.setkeycode()
+ * method. It is typically used when a driver does not provide its own
+ * implementation, but it is also exported so drivers can extend it.
+ *
+ * The function must be called with &input_dev.event_lock held.
+ *
+ * Return: 0 on success, or a negative error code on failure.
+ */
+int input_default_setkeycode(struct input_dev *dev,
+			     const struct input_keymap_entry *ke,
+			     unsigned int *old_keycode)
 {
 	unsigned int index;
 	int error;
 	int i;
+
+	lockdep_assert_held(&dev->event_lock);
 
 	if (!dev->keycodesize)
 		return -EINVAL;
@@ -918,6 +901,7 @@ static int input_default_setkeycode(struct input_dev *dev,
 	__set_bit(ke->keycode, dev->keybit);
 	return 0;
 }
+EXPORT_SYMBOL(input_default_setkeycode);
 
 /**
  * input_get_keycode - retrieve keycode currently mapped to a given scancode
@@ -1112,32 +1096,30 @@ static inline void input_wakeup_procfs_readers(void)
 	wake_up(&input_devices_poll_wait);
 }
 
+struct input_seq_state {
+	unsigned short pos;
+	bool mutex_acquired;
+	int input_devices_state;
+};
+
 static __poll_t input_proc_devices_poll(struct file *file, poll_table *wait)
 {
+	struct seq_file *seq = file->private_data;
+	struct input_seq_state *state = seq->private;
+
 	poll_wait(file, &input_devices_poll_wait, wait);
-	if (file->f_version != input_devices_state) {
-		file->f_version = input_devices_state;
+	if (state->input_devices_state != input_devices_state) {
+		state->input_devices_state = input_devices_state;
 		return EPOLLIN | EPOLLRDNORM;
 	}
 
 	return 0;
 }
 
-union input_seq_state {
-	struct {
-		unsigned short pos;
-		bool mutex_acquired;
-	};
-	void *p;
-};
-
 static void *input_devices_seq_start(struct seq_file *seq, loff_t *pos)
 {
-	union input_seq_state *state = (union input_seq_state *)&seq->private;
+	struct input_seq_state *state = seq->private;
 	int error;
-
-	/* We need to fit into seq->private pointer */
-	BUILD_BUG_ON(sizeof(union input_seq_state) != sizeof(seq->private));
 
 	error = mutex_lock_interruptible(&input_mutex);
 	if (error) {
@@ -1157,7 +1139,7 @@ static void *input_devices_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 
 static void input_seq_stop(struct seq_file *seq, void *v)
 {
-	union input_seq_state *state = (union input_seq_state *)&seq->private;
+	struct input_seq_state *state = seq->private;
 
 	if (state->mutex_acquired)
 		mutex_unlock(&input_mutex);
@@ -1243,7 +1225,8 @@ static const struct seq_operations input_devices_seq_ops = {
 
 static int input_proc_devices_open(struct inode *inode, struct file *file)
 {
-	return seq_open(file, &input_devices_seq_ops);
+	return seq_open_private(file, &input_devices_seq_ops,
+				sizeof(struct input_seq_state));
 }
 
 static const struct proc_ops input_devices_proc_ops = {
@@ -1251,16 +1234,13 @@ static const struct proc_ops input_devices_proc_ops = {
 	.proc_poll	= input_proc_devices_poll,
 	.proc_read	= seq_read,
 	.proc_lseek	= seq_lseek,
-	.proc_release	= seq_release,
+	.proc_release	= seq_release_private,
 };
 
 static void *input_handlers_seq_start(struct seq_file *seq, loff_t *pos)
 {
-	union input_seq_state *state = (union input_seq_state *)&seq->private;
+	struct input_seq_state *state = seq->private;
 	int error;
-
-	/* We need to fit into seq->private pointer */
-	BUILD_BUG_ON(sizeof(union input_seq_state) != sizeof(seq->private));
 
 	error = mutex_lock_interruptible(&input_mutex);
 	if (error) {
@@ -1276,7 +1256,7 @@ static void *input_handlers_seq_start(struct seq_file *seq, loff_t *pos)
 
 static void *input_handlers_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 {
-	union input_seq_state *state = (union input_seq_state *)&seq->private;
+	struct input_seq_state *state = seq->private;
 
 	state->pos = *pos + 1;
 	return seq_list_next(v, &input_handler_list, pos);
@@ -1285,7 +1265,7 @@ static void *input_handlers_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 static int input_handlers_seq_show(struct seq_file *seq, void *v)
 {
 	struct input_handler *handler = container_of(v, struct input_handler, node);
-	union input_seq_state *state = (union input_seq_state *)&seq->private;
+	struct input_seq_state *state = seq->private;
 
 	seq_printf(seq, "N: Number=%u Name=%s", state->pos, handler->name);
 	if (handler->filter)
@@ -1306,14 +1286,15 @@ static const struct seq_operations input_handlers_seq_ops = {
 
 static int input_proc_handlers_open(struct inode *inode, struct file *file)
 {
-	return seq_open(file, &input_handlers_seq_ops);
+	return seq_open_private(file, &input_handlers_seq_ops,
+				sizeof(struct input_seq_state));
 }
 
 static const struct proc_ops input_handlers_proc_ops = {
 	.proc_open	= input_proc_handlers_open,
 	.proc_read	= seq_read,
 	.proc_lseek	= seq_lseek,
-	.proc_release	= seq_release,
+	.proc_release	= seq_release_private,
 };
 
 static int __init input_proc_init(void)
@@ -1361,8 +1342,8 @@ static ssize_t input_dev_show_##name(struct device *dev,		\
 {									\
 	struct input_dev *input_dev = to_input_dev(dev);		\
 									\
-	return scnprintf(buf, PAGE_SIZE, "%s\n",			\
-			 input_dev->name ? input_dev->name : "");	\
+	return sysfs_emit(buf, "%s\n",					\
+			  input_dev->name ? input_dev->name : "");	\
 }									\
 static DEVICE_ATTR(name, S_IRUGO, input_dev_show_##name, NULL)
 
@@ -1371,7 +1352,7 @@ INPUT_DEV_STRING_ATTR_SHOW(phys);
 INPUT_DEV_STRING_ATTR_SHOW(uniq);
 
 static int input_print_modalias_bits(char *buf, int size,
-				     char name, unsigned long *bm,
+				     char name, const unsigned long *bm,
 				     unsigned int min_bit, unsigned int max_bit)
 {
 	int bit = min_bit;
@@ -1384,7 +1365,7 @@ static int input_print_modalias_bits(char *buf, int size,
 }
 
 static int input_print_modalias_parts(char *buf, int size, int full_len,
-				      struct input_dev *id)
+				      const struct input_dev *id)
 {
 	int len, klen, remainder, space;
 
@@ -1455,7 +1436,7 @@ static int input_print_modalias_parts(char *buf, int size, int full_len,
 	return len;
 }
 
-static int input_print_modalias(char *buf, int size, struct input_dev *id)
+static int input_print_modalias(char *buf, int size, const struct input_dev *id)
 {
 	int full_len;
 
@@ -1486,7 +1467,7 @@ static ssize_t input_dev_show_modalias(struct device *dev,
 }
 static DEVICE_ATTR(modalias, S_IRUGO, input_dev_show_modalias, NULL);
 
-static int input_print_bitmap(char *buf, int buf_size, unsigned long *bitmap,
+static int input_print_bitmap(char *buf, int buf_size, const unsigned long *bitmap,
 			      int max, int add_cr);
 
 static ssize_t input_dev_show_properties(struct device *dev,
@@ -1509,7 +1490,7 @@ static ssize_t inhibited_show(struct device *dev,
 {
 	struct input_dev *input_dev = to_input_dev(dev);
 
-	return scnprintf(buf, PAGE_SIZE, "%d\n", input_dev->inhibited);
+	return sysfs_emit(buf, "%d\n", input_dev->inhibited);
 }
 
 static ssize_t inhibited_store(struct device *dev,
@@ -1520,7 +1501,7 @@ static ssize_t inhibited_store(struct device *dev,
 	ssize_t rv;
 	bool inhibited;
 
-	if (strtobool(buf, &inhibited))
+	if (kstrtobool(buf, &inhibited))
 		return -EINVAL;
 
 	if (inhibited)
@@ -1556,7 +1537,7 @@ static ssize_t input_dev_show_id_##name(struct device *dev,		\
 					char *buf)			\
 {									\
 	struct input_dev *input_dev = to_input_dev(dev);		\
-	return scnprintf(buf, PAGE_SIZE, "%04x\n", input_dev->id.name);	\
+	return sysfs_emit(buf, "%04x\n", input_dev->id.name);		\
 }									\
 static DEVICE_ATTR(name, S_IRUGO, input_dev_show_id_##name, NULL)
 
@@ -1578,7 +1559,7 @@ static const struct attribute_group input_dev_id_attr_group = {
 	.attrs	= input_dev_id_attrs,
 };
 
-static int input_print_bitmap(char *buf, int buf_size, unsigned long *bitmap,
+static int input_print_bitmap(char *buf, int buf_size, const unsigned long *bitmap,
 			      int max, int add_cr)
 {
 	int i;
@@ -1675,7 +1656,7 @@ static void input_dev_release(struct device *device)
  * device bitfields.
  */
 static int input_add_uevent_bm_var(struct kobj_uevent_env *env,
-				   const char *name, unsigned long *bitmap, int max)
+				   const char *name, const unsigned long *bitmap, int max)
 {
 	int len;
 
@@ -1710,7 +1691,7 @@ static int input_add_uevent_bm_var(struct kobj_uevent_env *env,
 #define UEVENT_ENV_EXTRA_LEN	96
 
 static int input_add_uevent_modalias_var(struct kobj_uevent_env *env,
-					 struct input_dev *dev)
+					 const struct input_dev *dev)
 {
 	int len;
 
@@ -1750,9 +1731,9 @@ static int input_add_uevent_modalias_var(struct kobj_uevent_env *env,
 			return err;					\
 	} while (0)
 
-static int input_dev_uevent(struct device *device, struct kobj_uevent_env *env)
+static int input_dev_uevent(const struct device *device, struct kobj_uevent_env *env)
 {
-	struct input_dev *dev = to_input_dev(device);
+	const struct input_dev *dev = to_input_dev(device);
 
 	INPUT_ADD_HOTPLUG_VAR("PRODUCT=%x/%x/%x/%x",
 				dev->id.bustype, dev->id.vendor,
@@ -1901,7 +1882,6 @@ out:
 	return ret;
 }
 
-#ifdef CONFIG_PM_SLEEP
 static int input_dev_suspend(struct device *dev)
 {
 	struct input_dev *input_dev = to_input_dev(dev);
@@ -1976,23 +1956,20 @@ static const struct dev_pm_ops input_dev_pm_ops = {
 	.poweroff	= input_dev_poweroff,
 	.restore	= input_dev_resume,
 };
-#endif /* CONFIG_PM */
 
 static const struct device_type input_dev_type = {
 	.groups		= input_dev_attr_groups,
 	.release	= input_dev_release,
 	.uevent		= input_dev_uevent,
-#ifdef CONFIG_PM_SLEEP
-	.pm		= &input_dev_pm_ops,
-#endif
+	.pm		= pm_sleep_ptr(&input_dev_pm_ops),
 };
 
-static char *input_devnode(struct device *dev, umode_t *mode)
+static char *input_devnode(const struct device *dev, umode_t *mode)
 {
 	return kasprintf(GFP_KERNEL, "input/%s", dev_name(dev));
 }
 
-struct class input_class = {
+const struct class input_class = {
 	.name		= "input",
 	.devnode	= input_devnode,
 };
@@ -2013,21 +1990,40 @@ struct input_dev *input_allocate_device(void)
 	struct input_dev *dev;
 
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
-	if (dev) {
-		dev->dev.type = &input_dev_type;
-		dev->dev.class = &input_class;
-		device_initialize(&dev->dev);
-		mutex_init(&dev->mutex);
-		spin_lock_init(&dev->event_lock);
-		timer_setup(&dev->timer, NULL, 0);
-		INIT_LIST_HEAD(&dev->h_list);
-		INIT_LIST_HEAD(&dev->node);
+	if (!dev)
+		return NULL;
 
-		dev_set_name(&dev->dev, "input%lu",
-			     (unsigned long)atomic_inc_return(&input_no));
-
-		__module_get(THIS_MODULE);
+	/*
+	 * Start with space for SYN_REPORT + 7 EV_KEY/EV_MSC events + 2 spare,
+	 * see input_estimate_events_per_packet(). We will tune the number
+	 * when we register the device.
+	 */
+	dev->max_vals = 10;
+	dev->vals = kcalloc(dev->max_vals, sizeof(*dev->vals), GFP_KERNEL);
+	if (!dev->vals) {
+		kfree(dev);
+		return NULL;
 	}
+
+	mutex_init(&dev->mutex);
+	spin_lock_init(&dev->event_lock);
+	timer_setup(&dev->timer, NULL, 0);
+	INIT_LIST_HEAD(&dev->h_list);
+	INIT_LIST_HEAD(&dev->node);
+
+	dev->dev.type = &input_dev_type;
+	dev->dev.class = &input_class;
+	device_initialize(&dev->dev);
+	/*
+	 * From this point on we can no longer simply "kfree(dev)", we need
+	 * to use input_free_device() so that device core properly frees its
+	 * resources associated with the input device.
+	 */
+
+	dev_set_name(&dev->dev, "input%lu",
+		     (unsigned long)atomic_inc_return(&input_no));
+
+	__module_get(THIS_MODULE);
 
 	return dev;
 }
@@ -2242,7 +2238,7 @@ static unsigned int input_estimate_events_per_packet(struct input_dev *dev)
 		mt_slots = dev->mt->num_slots;
 	} else if (test_bit(ABS_MT_TRACKING_ID, dev->absbit)) {
 		mt_slots = dev->absinfo[ABS_MT_TRACKING_ID].maximum -
-			   dev->absinfo[ABS_MT_TRACKING_ID].minimum + 1,
+			   dev->absinfo[ABS_MT_TRACKING_ID].minimum + 1;
 		mt_slots = clamp(mt_slots, 2, 32);
 	} else if (test_bit(ABS_MT_POSITION_X, dev->absbit)) {
 		mt_slots = 2;
@@ -2368,6 +2364,35 @@ bool input_device_enabled(struct input_dev *dev)
 }
 EXPORT_SYMBOL_GPL(input_device_enabled);
 
+static int input_device_tune_vals(struct input_dev *dev)
+{
+	struct input_value *vals;
+	unsigned int packet_size;
+	unsigned int max_vals;
+
+	packet_size = input_estimate_events_per_packet(dev);
+	if (dev->hint_events_per_packet < packet_size)
+		dev->hint_events_per_packet = packet_size;
+
+	max_vals = dev->hint_events_per_packet + 2;
+	if (dev->max_vals >= max_vals)
+		return 0;
+
+	vals = kcalloc(max_vals, sizeof(*vals), GFP_KERNEL);
+	if (!vals)
+		return -ENOMEM;
+
+	spin_lock_irq(&dev->event_lock);
+	dev->max_vals = max_vals;
+	swap(dev->vals, vals);
+	spin_unlock_irq(&dev->event_lock);
+
+	/* Because of swap() above, this frees the old vals memory */
+	kfree(vals);
+
+	return 0;
+}
+
 /**
  * input_register_device - register device with input core
  * @dev: device to be registered
@@ -2395,7 +2420,6 @@ int input_register_device(struct input_dev *dev)
 {
 	struct input_devres *devres = NULL;
 	struct input_handler *handler;
-	unsigned int packet_size;
 	const char *path;
 	int error;
 
@@ -2423,16 +2447,9 @@ int input_register_device(struct input_dev *dev)
 	/* Make sure that bitmasks not mentioned in dev->evbit are clean. */
 	input_cleanse_bitmasks(dev);
 
-	packet_size = input_estimate_events_per_packet(dev);
-	if (dev->hint_events_per_packet < packet_size)
-		dev->hint_events_per_packet = packet_size;
-
-	dev->max_vals = dev->hint_events_per_packet + 2;
-	dev->vals = kcalloc(dev->max_vals, sizeof(*dev->vals), GFP_KERNEL);
-	if (!dev->vals) {
-		error = -ENOMEM;
+	error = input_device_tune_vals(dev);
+	if (error)
 		goto err_devres_free;
-	}
 
 	/*
 	 * If delay and period are pre-set by the driver, then autorepeating
@@ -2452,7 +2469,7 @@ int input_register_device(struct input_dev *dev)
 
 	error = device_add(&dev->dev);
 	if (error)
-		goto err_free_vals;
+		goto err_devres_free;
 
 	path = kobject_get_path(&dev->dev.kobj, GFP_KERNEL);
 	pr_info("%s as %s\n",
@@ -2482,9 +2499,6 @@ int input_register_device(struct input_dev *dev)
 
 err_device_del:
 	device_del(&dev->dev);
-err_free_vals:
-	kfree(dev->vals);
-	dev->vals = NULL;
 err_devres_free:
 	devres_free(devres);
 	return error;
@@ -2517,6 +2531,26 @@ void input_unregister_device(struct input_dev *dev)
 }
 EXPORT_SYMBOL(input_unregister_device);
 
+static int input_handler_check_methods(const struct input_handler *handler)
+{
+	int count = 0;
+
+	if (handler->filter)
+		count++;
+	if (handler->events)
+		count++;
+	if (handler->event)
+		count++;
+
+	if (count > 1) {
+		pr_err("%s: only one event processing method can be defined (%s)\n",
+		       __func__, handler->name);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 /**
  * input_register_handler - register a new input handler
  * @handler: handler to be registered
@@ -2530,11 +2564,15 @@ int input_register_handler(struct input_handler *handler)
 	struct input_dev *dev;
 	int error;
 
-	error = mutex_lock_interruptible(&input_mutex);
+	error = input_handler_check_methods(handler);
 	if (error)
 		return error;
 
 	INIT_LIST_HEAD(&handler->h_list);
+
+	error = mutex_lock_interruptible(&input_mutex);
+	if (error)
+		return error;
 
 	list_add_tail(&handler->node, &input_handler_list);
 
@@ -2605,6 +2643,75 @@ int input_handler_for_each_handle(struct input_handler *handler, void *data,
 }
 EXPORT_SYMBOL(input_handler_for_each_handle);
 
+/*
+ * An implementation of input_handle's handle_events() method that simply
+ * invokes handler->event() method for each event one by one.
+ */
+static unsigned int input_handle_events_default(struct input_handle *handle,
+						struct input_value *vals,
+						unsigned int count)
+{
+	struct input_handler *handler = handle->handler;
+	struct input_value *v;
+
+	for (v = vals; v != vals + count; v++)
+		handler->event(handle, v->type, v->code, v->value);
+
+	return count;
+}
+
+/*
+ * An implementation of input_handle's handle_events() method that invokes
+ * handler->filter() method for each event one by one and removes events
+ * that were filtered out from the "vals" array.
+ */
+static unsigned int input_handle_events_filter(struct input_handle *handle,
+					       struct input_value *vals,
+					       unsigned int count)
+{
+	struct input_handler *handler = handle->handler;
+	struct input_value *end = vals;
+	struct input_value *v;
+
+	for (v = vals; v != vals + count; v++) {
+		if (handler->filter(handle, v->type, v->code, v->value))
+			continue;
+		if (end != v)
+			*end = *v;
+		end++;
+	}
+
+	return end - vals;
+}
+
+/*
+ * An implementation of input_handle's handle_events() method that does nothing.
+ */
+static unsigned int input_handle_events_null(struct input_handle *handle,
+					     struct input_value *vals,
+					     unsigned int count)
+{
+	return count;
+}
+
+/*
+ * Sets up appropriate handle->event_handler based on the input_handler
+ * associated with the handle.
+ */
+static void input_handle_setup_event_handler(struct input_handle *handle)
+{
+	struct input_handler *handler = handle->handler;
+
+	if (handler->filter)
+		handle->handle_events = input_handle_events_filter;
+	else if (handler->event)
+		handle->handle_events = input_handle_events_default;
+	else if (handler->events)
+		handle->handle_events = handler->events;
+	else
+		handle->handle_events = input_handle_events_null;
+}
+
 /**
  * input_register_handle - register a new input handle
  * @handle: handle to register
@@ -2622,6 +2729,7 @@ int input_register_handle(struct input_handle *handle)
 	struct input_dev *dev = handle->dev;
 	int error;
 
+	input_handle_setup_event_handler(handle);
 	/*
 	 * We take dev->mutex here to prevent race with
 	 * input_release_device().
@@ -2703,17 +2811,15 @@ int input_get_new_minor(int legacy_base, unsigned int legacy_num,
 	 * locking is needed here.
 	 */
 	if (legacy_base >= 0) {
-		int minor = ida_simple_get(&input_ida,
-					   legacy_base,
-					   legacy_base + legacy_num,
-					   GFP_KERNEL);
+		int minor = ida_alloc_range(&input_ida, legacy_base,
+					    legacy_base + legacy_num - 1,
+					    GFP_KERNEL);
 		if (minor >= 0 || !allow_dynamic)
 			return minor;
 	}
 
-	return ida_simple_get(&input_ida,
-			      INPUT_FIRST_DYNAMIC_DEV, INPUT_MAX_CHAR_DEVICES,
-			      GFP_KERNEL);
+	return ida_alloc_range(&input_ida, INPUT_FIRST_DYNAMIC_DEV,
+			       INPUT_MAX_CHAR_DEVICES - 1, GFP_KERNEL);
 }
 EXPORT_SYMBOL(input_get_new_minor);
 
@@ -2726,7 +2832,7 @@ EXPORT_SYMBOL(input_get_new_minor);
  */
 void input_free_minor(unsigned int minor)
 {
-	ida_simple_remove(&input_ida, minor);
+	ida_free(&input_ida, minor);
 }
 EXPORT_SYMBOL(input_free_minor);
 

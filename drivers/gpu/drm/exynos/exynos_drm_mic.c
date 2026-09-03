@@ -340,7 +340,6 @@ static const struct component_ops exynos_mic_component_ops = {
 	.unbind	= exynos_mic_unbind,
 };
 
-#ifdef CONFIG_PM
 static int exynos_mic_suspend(struct device *dev)
 {
 	struct exynos_mic *mic = dev_get_drvdata(dev);
@@ -369,13 +368,9 @@ static int exynos_mic_resume(struct device *dev)
 	}
 	return 0;
 }
-#endif
 
-static const struct dev_pm_ops exynos_mic_pm_ops = {
-	SET_RUNTIME_PM_OPS(exynos_mic_suspend, exynos_mic_resume, NULL)
-	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
-				pm_runtime_force_resume)
-};
+static DEFINE_RUNTIME_DEV_PM_OPS(exynos_mic_pm_ops, exynos_mic_suspend,
+				 exynos_mic_resume, NULL);
 
 static int exynos_mic_probe(struct platform_device *pdev)
 {
@@ -429,7 +424,9 @@ static int exynos_mic_probe(struct platform_device *pdev)
 	mic->bridge.funcs = &mic_bridge_funcs;
 	mic->bridge.of_node = dev->of_node;
 
-	drm_bridge_add(&mic->bridge);
+	ret = devm_drm_bridge_add(dev, &mic->bridge);
+	if (ret)
+		goto err;
 
 	pm_runtime_enable(dev);
 
@@ -447,16 +444,10 @@ err:
 	return ret;
 }
 
-static int exynos_mic_remove(struct platform_device *pdev)
+static void exynos_mic_remove(struct platform_device *pdev)
 {
-	struct exynos_mic *mic = platform_get_drvdata(pdev);
-
 	component_del(&pdev->dev, &exynos_mic_component_ops);
 	pm_runtime_disable(&pdev->dev);
-
-	drm_bridge_remove(&mic->bridge);
-
-	return 0;
 }
 
 static const struct of_device_id exynos_mic_of_match[] = {
@@ -467,11 +458,10 @@ MODULE_DEVICE_TABLE(of, exynos_mic_of_match);
 
 struct platform_driver mic_driver = {
 	.probe		= exynos_mic_probe,
-	.remove		= exynos_mic_remove,
+	.remove_new	= exynos_mic_remove,
 	.driver		= {
 		.name	= "exynos-mic",
-		.pm	= &exynos_mic_pm_ops,
-		.owner	= THIS_MODULE,
+		.pm	= pm_ptr(&exynos_mic_pm_ops),
 		.of_match_table = exynos_mic_of_match,
 	},
 };

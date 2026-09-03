@@ -33,7 +33,7 @@
 #define SKX_NUM_CHANNELS	3	/* Channels per memory controller */
 #define SKX_NUM_DIMMS		2	/* Max DIMMS per channel */
 
-#define I10NM_NUM_DDR_IMC	4
+#define I10NM_NUM_DDR_IMC	12
 #define I10NM_NUM_DDR_CHANNELS	2
 #define I10NM_NUM_DDR_DIMMS	2
 
@@ -45,7 +45,6 @@
 #define I10NM_NUM_CHANNELS	MAX(I10NM_NUM_DDR_CHANNELS, I10NM_NUM_HBM_CHANNELS)
 #define I10NM_NUM_DIMMS		MAX(I10NM_NUM_DDR_DIMMS, I10NM_NUM_HBM_DIMMS)
 
-#define MAX(a, b)	((a) > (b) ? (a) : (b))
 #define NUM_IMC		MAX(SKX_NUM_IMC, I10NM_NUM_IMC)
 #define NUM_CHANNELS	MAX(SKX_NUM_CHANNELS, I10NM_NUM_CHANNELS)
 #define NUM_DIMMS	MAX(SKX_NUM_DIMMS, I10NM_NUM_DIMMS)
@@ -55,6 +54,33 @@
 
 #define MCI_MISC_ECC_MODE(m)	(((m) >> 59) & 15)
 #define MCI_MISC_ECC_DDRT	8	/* read from DDRT */
+
+/*
+ * According to Intel Architecture spec vol 3B,
+ * Table 15-10 "IA32_MCi_Status [15:0] Compound Error Code Encoding"
+ * memory errors should fit one of these masks:
+ *	000f 0000 1mmm cccc (binary)
+ *	000f 0010 1mmm cccc (binary)	[RAM used as cache]
+ * where:
+ *	f = Correction Report Filtering Bit. If 1, subsequent errors
+ *	    won't be shown
+ *	mmm = error type
+ *	cccc = channel
+ */
+#define MCACOD_MEM_ERR_MASK	0xef80
+/*
+ * Errors from either the memory of the 1-level memory system or the
+ * 2nd level memory (the slow "far" memory) of the 2-level memory system.
+ */
+#define MCACOD_MEM_CTL_ERR	0x80
+/*
+ * Errors from the 1st level memory (the fast "near" memory as cache)
+ * of the 2-level memory system.
+ */
+#define MCACOD_EXT_MEM_ERR	0x280
+
+/* Max RRL register sets per {,sub-,pseudo-}channel. */
+#define NUM_RRL_SET		3
 
 /*
  * Each cpu socket contains some pci devices that provide global
@@ -70,6 +96,16 @@ struct skx_dev {
 	struct pci_dev *uracu; /* for i10nm CPU */
 	struct pci_dev *pcu_cr3; /* for HBM memory detection */
 	u32 mcroute;
+	/*
+	 * Some server BIOS may hide certain memory controllers, and the
+	 * EDAC driver skips those hidden memory controllers. However, the
+	 * ADXL still decodes memory error address using physical memory
+	 * controller indices. The mapping table is used to convert the
+	 * physical indices (reported by ADXL) to the logical indices
+	 * (used the EDAC driver) of present memory controllers during the
+	 * error handling process.
+	 */
+	u8 mc_mapping[NUM_IMC];
 	struct skx_imc {
 		struct mem_ctl_info *mci;
 		struct pci_dev *mdev; /* for i10nm CPU */
@@ -84,9 +120,11 @@ struct skx_dev {
 		struct skx_channel {
 			struct pci_dev	*cdev;
 			struct pci_dev	*edev;
-			u32 retry_rd_err_log_s;
-			u32 retry_rd_err_log_d;
-			u32 retry_rd_err_log_d2;
+			/*
+			 * Two groups of RRL control registers per channel to save default RRL
+			 * settings of two {sub-,pseudo-}channels in Linux RRL control mode.
+			 */
+			u32 rrl_ctl[2][NUM_RRL_SET];
 			struct skx_dimm {
 				u8 close_pg;
 				u8 bank_xor_enable;
@@ -105,7 +143,8 @@ struct skx_pvt {
 enum type {
 	SKX,
 	I10NM,
-	SPR
+	SPR,
+	GNR
 };
 
 enum {
@@ -120,6 +159,13 @@ enum {
 	INDEX_NM_DIMM,
 	INDEX_NM_CS,
 	INDEX_MAX
+};
+
+enum error_source {
+	ERR_SRC_1LM,
+	ERR_SRC_2LM_NM,
+	ERR_SRC_2LM_FM,
+	ERR_SRC_NOT_MEMORY,
 };
 
 #define BIT_NM_MEMCTRL	BIT_ULL(INDEX_NM_MEMCTRL)
@@ -149,19 +195,47 @@ struct decoded_addr {
 	bool	decoded_by_adxl;
 };
 
+struct pci_bdf {
+	u32 bus : 8;
+	u32 dev : 5;
+	u32 fun : 3;
+};
+
 struct res_config {
 	enum type type;
 	/* Configuration agent device ID */
 	unsigned int decs_did;
 	/* Default bus number configuration register offset */
 	int busno_cfg_offset;
+	/* DDR memory controllers per socket */
+	int ddr_imc_num;
+	/* DDR channels per DDR memory controller */
+	int ddr_chan_num;
+	/* DDR DIMMs per DDR memory channel */
+	int ddr_dimm_num;
 	/* Per DDR channel memory-mapped I/O size */
 	int ddr_chan_mmio_sz;
+	/* HBM memory controllers per socket */
+	int hbm_imc_num;
+	/* HBM channels per HBM memory controller */
+	int hbm_chan_num;
+	/* HBM DIMMs per HBM memory channel */
+	int hbm_dimm_num;
 	/* Per HBM channel memory-mapped I/O size */
 	int hbm_chan_mmio_sz;
 	bool support_ddr5;
-	/* SAD device number and function number */
-	unsigned int sad_all_devfn;
+	/* SAD device BDF */
+	struct pci_bdf sad_all_bdf;
+	/* PCU device BDF */
+	struct pci_bdf pcu_cr3_bdf;
+	/* UTIL device BDF */
+	struct pci_bdf util_all_bdf;
+	/* URACU device BDF */
+	struct pci_bdf uracu_bdf;
+	/* DDR mdev device BDF */
+	struct pci_bdf ddr_mdev_bdf;
+	/* HBM mdev device BDF */
+	struct pci_bdf hbm_mdev_bdf;
 	int sad_all_offset;
 	/* Offsets of retry_rd_err_log registers */
 	u32 *offsets_scrub;
@@ -182,6 +256,8 @@ int skx_adxl_get(void);
 void skx_adxl_put(void);
 void skx_set_decode(skx_decode_f decode, skx_show_retry_log_f show_retry_log);
 void skx_set_mem_cfg(bool mem_cfg_2lm);
+void skx_set_res_cfg(struct res_config *cfg);
+void skx_set_mc_mapping(struct skx_dev *d, u8 pmc, u8 lmc);
 
 int skx_get_src_id(struct skx_dev *d, int off, u8 *id);
 int skx_get_node_id(struct skx_dev *d, u8 *id);
@@ -206,5 +282,13 @@ int skx_mce_check_error(struct notifier_block *nb, unsigned long val,
 			void *data);
 
 void skx_remove(void);
+
+#ifdef CONFIG_EDAC_DEBUG
+void skx_setup_debug(const char *name);
+void skx_teardown_debug(void);
+#else
+static inline void skx_setup_debug(const char *name) {}
+static inline void skx_teardown_debug(void) {}
+#endif
 
 #endif /* _SKX_COMM_EDAC_H */

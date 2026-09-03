@@ -9,14 +9,13 @@
 #ifndef _DMA_HEAPS_H
 #define _DMA_HEAPS_H
 
-#include <linux/cdev.h>
 #include <linux/types.h>
 
 struct dma_heap;
 
 /**
  * struct dma_heap_ops - ops to operate on a given heap
- * @allocate:		allocate dmabuf and return struct dma_buf ptr
+ * @allocate:	allocate dmabuf and return struct dma_buf ptr
  * @get_pool_size:	if heap maintains memory pools, get pool size in bytes
  *
  * allocate returns dmabuf on success, ERR_PTR(-errno) on error.
@@ -24,8 +23,8 @@ struct dma_heap;
 struct dma_heap_ops {
 	struct dma_buf *(*allocate)(struct dma_heap *heap,
 				    unsigned long len,
-				    unsigned long fd_flags,
-				    unsigned long heap_flags);
+				    u32 fd_flags,
+				    u64 heap_flags);
 	long (*get_pool_size)(struct dma_heap *heap);
 };
 
@@ -43,13 +42,6 @@ struct dma_heap_export_info {
 	void *priv;
 };
 
-/**
- * dma_heap_get_drvdata() - get per-heap driver data
- * @heap: DMA-Heap to retrieve private data for
- *
- * Returns:
- * The per-heap data for the heap.
- */
 void *dma_heap_get_drvdata(struct dma_heap *heap);
 
 /**
@@ -70,10 +62,6 @@ struct device *dma_heap_get_dev(struct dma_heap *heap);
  */
 const char *dma_heap_get_name(struct dma_heap *heap);
 
-/**
- * dma_heap_add - adds a heap to dmabuf heaps
- * @exp_info:		information needed to register this heap
- */
 struct dma_heap *dma_heap_add(const struct dma_heap_export_info *exp_info);
 
 /**
@@ -101,8 +89,8 @@ struct dma_heap *dma_heap_find(const char *name);
  * This is for internal dma-buf allocations only.
  */
 struct dma_buf *dma_heap_buffer_alloc(struct dma_heap *heap, size_t len,
-				      unsigned int fd_flags,
-				      unsigned int heap_flags);
+				      u32 fd_flags,
+				      u64 heap_flags);
 
 /** dma_heap_buffer_free - Free dma_buf allocated by dma_heap_buffer_alloc
  * @dma_buf:	dma_buf to free
@@ -119,6 +107,13 @@ void dma_heap_buffer_free(struct dma_buf *);
  * @heap_flags:	flags to pass to the dma heap
  */
 int dma_heap_bufferfd_alloc(struct dma_heap *heap, size_t len,
-			    unsigned int fd_flags,
-			    unsigned int heap_flags);
+			    u32 fd_flags,
+			    u64 heap_flags);
+
+/**
+ * dma_heap_try_get_pool_size_kb - Returns total dma-heap pool size in kb
+ * if there is no lock contention. The pool size will always be 0 if no heaps
+ * use pools, or do not implement get_pool_size.
+ **/
+long dma_heap_try_get_pool_size_kb(void);
 #endif /* _DMA_HEAPS_H */

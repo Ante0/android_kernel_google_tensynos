@@ -7,7 +7,7 @@
 #define __ASV_GS201_H__
 
 int asv_get_grp(unsigned int id);
-
 int asv_get_ids_info(unsigned int id);
+void asv_init(void);
 
 #endif

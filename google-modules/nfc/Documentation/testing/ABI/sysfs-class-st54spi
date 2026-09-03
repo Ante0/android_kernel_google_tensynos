@@ -1,0 +1,109 @@
+What:		/sys/class/st54spi/st54spi/device/st54spi_power_state_snap
+Date:		Oct 2024
+KernelVersion:  6.6
+Contact:	"George Chang" <georgekgchang@google.com>
+Description:
+		For collecting power state transition data, userspace can
+		request a snapshot of current power record via reading
+		"st54spi_power_state_snap" sysfs.
+		And it returns current system timestamp of the last snapshot.
+		After requesting a snapshot, userspace can read the power
+		records from the following sysfs.
+		st54spi_power_idle_count
+		st54spi_power_idle_duration
+		st54spi_power_idle_entry_time
+		st54spi_power_idle_exit_time
+		st54spi_power_active_count
+		st54spi_power_active_duration
+		st54spi_power_active_entry_time
+		st54spi_power_active_exit_time
+		st54spi_power_snap_time
+Users:		eSE HAL and Power record collection process in userspace.
+
+What:		/sys/class/st54spi/st54spi/device/st54spi_power_idle_count
+Date:		Oct 2024
+KernelVersion:  6.6
+Contact:	"George Chang" <georgekgchang@google.com>
+Description:
+		Userspace can read the idle state transition count from the
+		last snapshot via "st54spi_power_idle_count" sysfs.
+Users:		eSE HAL and Power data collection process in userspace.
+
+What:		/sys/class/st54spi/st54spi/device/st54spi_power_idle_duration
+Date:		Oct 2024
+KernelVersion:  6.6
+Contact:	"George Chang" <georgekgchang@google.com>
+Description:
+		Userspace can read the idle state time duration in
+		milliseconds(hex) from the last snapshot via
+		"st54spi_power_idle_duration" sysfs.
+Users:		eSE HAL and Power record collection process in userspace.
+
+What:		/sys/class/st54spi/st54spi/device/st54spi_power_idle_entry_time
+Date:		Oct 2024
+KernelVersion:  6.6
+Contact:	"George Chang" <georgekgchang@google.com>
+Description:
+		Userspace can read the idle state entry timestamp in
+		milliseconds(hex) from the last snapshot via
+		"st54spi_power_idle_entry_time" sysfs.
+Users:		eSE HAL and Power record collection process in userspace.
+
+What:		/sys/class/st54spi/st54spi/device/st54spi_power_idle_exit_time
+Date:		Oct 2024
+KernelVersion:  6.6
+Contact:	"George Chang" <georgekgchang@google.com>
+Description:
+		Userspace can read the idle state exit timestamp in
+		milliseconds(hex) from the last snapshot via
+		"st54spi_power_idle_exit_time" sysfs.
+Users:		eSE HAL and Power record collection process in userspace.
+
+What:		/sys/class/st54spi/st54spi/device/st54spi_power_active_count
+Date:		Oct 2024
+KernelVersion:  6.6
+Contact:	"George Chang" <georgekgchang@google.com>
+Description:
+		Userspace can read the active state transition count from the
+		last snapshot via "st54spi_power_active_count" sysfs.
+Users:		eSE HAL and Power data collection process in userspace.
+
+What:		/sys/class/st54spi/st54spi/device/st54spi_power_active_duration
+Date:		Oct 2024
+KernelVersion:  6.6
+Contact:	"George Chang" <georgekgchang@google.com>
+Description:
+		Userspace can read the active state time duration in
+		milliseconds(hex) from the last snapshot via
+		"st54spi_power_active_duration" sysfs.
+Users:		eSE HAL and Power record collection process in userspace.
+
+What:		/sys/class/st54spi/st54spi/device/st54spi_power_active_entry_time
+Date:		Oct 2024
+KernelVersion:  6.6
+Contact:	"George Chang" <georgekgchang@google.com>
+Description:
+		Userspace can read the active state entry timestamp in
+		milliseconds(hex) from the last snapshot via
+		"st54spi_power_active_entry_time" sysfs.
+Users:		eSE HAL and Power record collection process in userspace.
+
+What:		/sys/class/st54spi/st54spi/device/st54spi_power_active_exit_time
+Date:		Oct 2024
+KernelVersion:  6.6
+Contact:	"George Chang" <georgekgchang@google.com>
+Description:
+		Userspace can read the active state exit timestamp in
+		milliseconds(hex) from the last snapshot via
+		"st54spi_power_active_exit_time" sysfs.
+Users:		eSE HAL and Power record collection process in userspace.
+
+What:		/sys/class/st54spi/st54spi/device/st54spi_power_snap_time
+Date:		Oct 2024
+KernelVersion:  6.6
+Contact:	"George Chang" <georgekgchang@google.com>
+Description:
+		Userspace can read the last snap timestamp in
+		milliseconds(hex) from the last snapshot via
+		"st54spi_power_snap_time" sysfs.
+Users:		eSE HAL and Power record collection process in userspace.

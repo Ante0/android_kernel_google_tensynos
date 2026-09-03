@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Yogi PCIe configuration
+ *
+ * Copyright 2026 Google LLC
+ */
+
+&pcie0 {
+	/*
+	 * Each 4 bits:
+	 * - Upstream RX Preset hint: -6db
+	 * - Upstream TX Preset: P5
+	 * - Downstream RX Preset hint: -6db
+	 * - Downstream TX Preset: P5
+	 */
+	eq-presets-8gts = /bits/ 16 <0x0505>;
+	/*
+	* Each 4 bits:
+	* - Downstream TX Preset: P5
+	* - Upstream TX Preset: P5
+	*/
+	eq-presets-16gts = /bits/ 8 <0x55>;
+};
+
+&pcie1 {
+	/*
+	 * Each 4 bits:
+	 * - Upstream RX Preset hint: -6db
+	 * - Upstream TX Preset: P3
+	 * - Downstream RX Preset hint: -6db
+	 * - Downstream TX Preset: P3
+	 */
+	eq-presets-8gts = /bits/ 16 <0x0303>;
+	/*
+	 * The MAX GEN speed of pcie1 is GEN3,
+	 * so skip the GEN4 setting.
+	 */
+};

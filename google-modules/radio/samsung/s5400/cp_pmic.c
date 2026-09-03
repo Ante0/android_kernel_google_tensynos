@@ -134,6 +134,11 @@ void pmic_warm_reset_sequence(struct device *dev)
 	struct pmic_reg_sequence *seq;
 	struct reg_entry *entry;
 
+	if (!info) {
+		dev_err(dev, "pmic_info not available.\n");
+		return;
+	}
+
 	seq = &info->warm_reset_seq;
 	for (i = 0; i < seq->num_entries; i++) {
 		int retry;
@@ -144,7 +149,7 @@ void pmic_warm_reset_sequence(struct device *dev)
 			msleep(2);
 		}
 		if (retry == 2) {
-			dev_info(dev, "Failed to write register %#x\n", entry->reg);
+			dev_err(dev, "Failed to write register %#x\n", entry->reg);
 			return;
 		}
 		if (entry->delay_ms)
@@ -159,6 +164,11 @@ int pmic_get_otp(struct device *dev)
 	struct pmic_info *info = dev_get_drvdata(dev);
 	int retry;
 	int otp_version = -1;
+
+	if (!info) {
+		dev_err(dev, "pmic_info not available.\n");
+		return otp_version;
+	}
 
 	for (retry = 0; retry < 2; retry++) {
 		if (regmap_read(info->regmap, info->pmic_otp_reg, &otp_version) == 0)
@@ -266,7 +276,7 @@ static int of_dev_node_match(struct device *dev, const void *node)
 struct device *pmic_get_device(struct device_node *node)
 {
 	struct device *dev = NULL;
-	struct bus_type *sbt = pmic_driver.driver.bus;
+	const struct bus_type *sbt = pmic_driver.driver.bus;
 
 	if (sbt)
 		dev = bus_find_device(sbt, NULL, node, of_dev_node_match);

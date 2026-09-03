@@ -1,0 +1,1 @@
+../../../wlan_fw/modules/wlan_ring_manager/wlan_wdev_ring_manager.cc

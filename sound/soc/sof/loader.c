@@ -3,7 +3,7 @@
 // This file is provided under a dual BSD/GPLv2 license.  When using or
 // redistributing this file, you may do so under either license.
 //
-// Copyright(c) 2018 Intel Corporation. All rights reserved.
+// Copyright(c) 2018 Intel Corporation
 //
 // Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
 //
@@ -58,12 +58,6 @@ int snd_sof_load_firmware_raw(struct snd_sof_dev *sdev)
 			fw_filename, ret);
 	}
 
-	/*
-	 * Until the platform code is switched to use the new container the fw
-	 * and payload offset must be set in plat_data
-	 */
-	plat_data->fw = sdev->basefw.fw;
-	plat_data->fw_offset = sdev->basefw.payload_offset;
 err:
 	kfree(fw_filename);
 
@@ -73,7 +67,6 @@ EXPORT_SYMBOL(snd_sof_load_firmware_raw);
 
 int snd_sof_load_firmware_memcpy(struct snd_sof_dev *sdev)
 {
-	struct snd_sof_pdata *plat_data = sdev->pdata;
 	int ret;
 
 	ret = snd_sof_load_firmware_raw(sdev);
@@ -108,7 +101,6 @@ int snd_sof_load_firmware_memcpy(struct snd_sof_dev *sdev)
 error:
 	release_firmware(sdev->basefw.fw);
 	sdev->basefw.fw = NULL;
-	plat_data->fw = NULL;
 	return ret;
 
 }
@@ -131,7 +123,7 @@ int snd_sof_run_firmware(struct snd_sof_dev *sdev)
 					       "fw_version", 0444);
 		/* errors are only due to memory allocation, not debugfs */
 		if (ret < 0) {
-			dev_err(sdev->dev, "error: snd_sof_debugfs_buf_item failed\n");
+			dev_err(sdev->dev, "snd_sof_debugfs_buf_item failed\n");
 			return ret;
 		}
 	}
@@ -139,7 +131,7 @@ int snd_sof_run_firmware(struct snd_sof_dev *sdev)
 	/* perform pre fw run operations */
 	ret = snd_sof_dsp_pre_fw_run(sdev);
 	if (ret < 0) {
-		dev_err(sdev->dev, "error: failed pre fw run op\n");
+		dev_err(sdev->dev, "failed pre fw run op\n");
 		return ret;
 	}
 
@@ -172,6 +164,9 @@ int snd_sof_run_firmware(struct snd_sof_dev *sdev)
 	if (sdev->fw_state == SOF_FW_BOOT_READY_FAILED)
 		return -EIO; /* FW boots but fw_ready op failed */
 
+	dev_dbg(sdev->dev, "firmware boot complete\n");
+	sof_set_fw_state(sdev, SOF_FW_BOOT_COMPLETE);
+
 	/* perform post fw run operations */
 	ret = snd_sof_dsp_post_fw_run(sdev);
 	if (ret < 0) {
@@ -179,11 +174,8 @@ int snd_sof_run_firmware(struct snd_sof_dev *sdev)
 		return ret;
 	}
 
-	dev_dbg(sdev->dev, "firmware boot complete\n");
-	sof_set_fw_state(sdev, SOF_FW_BOOT_COMPLETE);
-
-	if (sdev->first_boot && sdev->ipc->ops->fw_loader->query_fw_configuration)
-		return sdev->ipc->ops->fw_loader->query_fw_configuration(sdev);
+	if (sdev->ipc->ops->post_fw_boot)
+		return sdev->ipc->ops->post_fw_boot(sdev);
 
 	return 0;
 }
@@ -194,6 +186,5 @@ void snd_sof_fw_unload(struct snd_sof_dev *sdev)
 	/* TODO: support module unloading at runtime */
 	release_firmware(sdev->basefw.fw);
 	sdev->basefw.fw = NULL;
-	sdev->pdata->fw = NULL;
 }
 EXPORT_SYMBOL(snd_sof_fw_unload);

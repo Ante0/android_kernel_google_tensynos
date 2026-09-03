@@ -9,10 +9,13 @@
 #define DISCARD_EH_FRAME	*(.eh_frame)
 #endif
 
+#include <asm-generic/codetag.lds.h>
+
 SECTIONS {
 	/DISCARD/ : {
 		*(.discard)
 		*(.discard.*)
+		*(.export_symbol)
 	}
 
 	__ksymtab		0 : { *(SORT(___ksymtab+*)) }
@@ -62,12 +65,6 @@ SECTIONS {
 	}
 #endif
 
-#if defined(CONFIG_LTO_CLANG) || defined(CONFIG_CRYPTO_FIPS140_MERGE_MOD_SECTIONS)
-	/*
-	 * With CONFIG_LTO_CLANG, LLD always enables -fdata-sections and
-	 * -ffunction-sections, which increases the size of the final module.
-	 * Merge the split sections in the final binary.
-	 */
 	.bss : {
 		*(.bss .bss.[0-9a-zA-Z_]*)
 		*(.bss..L*)
@@ -91,7 +88,8 @@ SECTIONS {
 		*(.text.._end)
 		*(.text.._fips140_unchecked)
 	}
-#endif
+
+	MOD_SEPARATE_CODETAG_SECTIONS()
 }
 
 /* bring in arch-specific sections */

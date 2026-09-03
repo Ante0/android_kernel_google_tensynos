@@ -1,0 +1,69 @@
+What:		/sys/devices/platform/[0-9]+.dpa/state
+Date:		May 2025
+KernelVersion:	6.12
+Contact:	koudai@google.com
+Description:
+Description:	DPA processor state
+		Reports the state of the remote processor, which will be one of:
+
+		- "unloaded"
+		- "authenticated"
+		- "ncp released"
+		- "running"
+		- "power off failed"
+
+		"unloaded" means the remote processor is powered off.
+
+		"authenticated" means the firmware image is authenticated and
+		waiting to be loaded to DPA.
+
+		"ncp released" means that NCP core is released from the wait
+		state and the driver is waiting for the boot completion.
+
+		"running" is the normal state of an available remote processor
+
+		"power off failed" indicates that the driver tried to shutdown
+		the firmware but failed. Writing "force stop" to this sysfs
+		node will attempt to shutdown DPA forcefully again.
+
+		Writing this file controls the state of the remote processor.
+		The following states can be written:
+
+		- "start"
+		- "force stop"
+		- "unload"
+
+		Writing "start" will attempt to start the DPA with the
+		firmwares indicated by, or written to,
+		/sys/devices/platform/[0-9]+.dpa/ncp/firmware and
+		/sys/devices/platform/[0-9]+.dpa/nep/firmware.
+		This is valid when the state is "unloaded" or "authenticated".
+
+		Writing "force stop" will attempt to stop the DPA forcefully.
+		This is valid when the state is "ncp released" or "running" or
+		"power off failed".
+
+		Writing "unload" will release the resources allocated by DPA
+		driver. It is valid when the state is "authenticated". The
+		state moves to "unloaded".
+		/sys/devices/platform/[0-9]+.dpa/ncp/firmware and
+		/sys/devices/platform/[0-9]+.dpa/nep/firmware can be updated
+		when the state is in "unloaded".
+
+What:		/sys/devices/platform/[0-9]+.dpa/rpc-(ncp|nep)/check_health
+Date:		May 2025
+KernelVersion:	6.12
+Contact:	mshavit@google.com
+Description:
+Description:	Check health of remote RPC system
+		Probe whether the remote is still responsive to RPCs. Output
+		will be one of:
+
+		- "healthy"
+		- "unhealthy"
+
+		"healthy" means that the remote responded to our rpc health
+		probe.
+
+		"unhealthy" means that we failed to send an RPC to the remote,
+		or failed to receive the expected reply.

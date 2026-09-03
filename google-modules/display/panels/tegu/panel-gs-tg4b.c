@@ -521,7 +521,7 @@ static void tg4b_get_panel_rev(struct gs_panel *ctx, u32 id)
 	gs_panel_get_panel_rev(ctx, main | sub);
 }
 
-static int tg4b_read_id(struct gs_panel *ctx)
+static int tg4b_read_serial(struct gs_panel *ctx)
 {
 	struct device *dev = ctx->dev;
 	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
@@ -537,7 +537,7 @@ static int tg4b_read_id(struct gs_panel *ctx)
 		ret = 0;
 	}
 
-	bin2hex(ctx->panel_id, buf, TG4B_DDIC_ID_LEN);
+	bin2hex(ctx->panel_serial_number, buf, TG4B_DDIC_ID_LEN);
 done:
 	GS_DCS_WRITE_CMD(dev, 0xFF, 0xAA, 0x55, 0xA5, 0x00);
 	return ret;
@@ -551,7 +551,7 @@ static const struct gs_display_underrun_param underrun_param = {
 /* Truncate 8-bit signed value to 6-bit signed value */
 #define TO_6BIT_SIGNED(v) ((v) & 0x3F)
 
-static const struct drm_dsc_config tg4b_dsc_cfg = {
+static struct drm_dsc_config tg4b_dsc_cfg = {
 	.first_line_bpg_offset = 13,
 	.rc_range_params = {
 		{0, 0, 0},
@@ -586,7 +586,7 @@ static const struct gs_panel_mode_array tg4b_modes = {
 	.modes = {
 		{
 			.mode = {
-				.name = "1080x2424@60:60",
+				.name = "1080x2424x60@60",
 				DRM_MODE_TIMING(60, 1080, 32, 12, 16, 2424, 12, 4, 15),
 				/* aligned to bootloader setting */
 				.type = DRM_MODE_TYPE_PREFERRED,
@@ -608,7 +608,7 @@ static const struct gs_panel_mode_array tg4b_modes = {
 		},
 		{
 			.mode = {
-				.name = "1080x2424@120:120",
+				.name = "1080x2424x120@120",
 				DRM_MODE_TIMING(120, 1080, 32, 12, 16, 2424, 12, 4, 15),
 				.width_mm = WIDTH_MM,
 				.height_mm = HEIGHT_MM,
@@ -634,7 +634,7 @@ static const struct gs_panel_mode_array tg4b_lp_modes = {
 	.modes = {
 		{
 			.mode = {
-				.name = "1080x2424@30:30",
+				.name = "1080x2424x30@30",
 				DRM_MODE_TIMING(30, 1080, 32, 12, 16, 2424, 12, 4, 15),
 				.type = DRM_MODE_TYPE_DRIVER,
 				.width_mm = WIDTH_MM,
@@ -717,7 +717,7 @@ static const struct gs_panel_funcs tg4b_gs_funcs = {
 	.get_te2_edges = gs_panel_get_te2_edges_helper,
 	.set_te2_edges = gs_panel_set_te2_edges_helper,
 	.update_te2 = tg4b_update_te2,
-	.read_id = tg4b_read_id,
+	.read_serial = tg4b_read_serial,
 	.atomic_check = tg4b_atomic_check,
 };
 
@@ -805,7 +805,8 @@ static int tg4b_panel_config(struct gs_panel *ctx)
 {
 	gs_panel_model_init(ctx, PROJECT, 0);
 	return gs_panel_update_brightness_desc(&tg4b_brightness_desc, tg4b_btr_configs,
-						ARRAY_SIZE(tg4b_btr_configs), ctx->panel_rev);
+					       ARRAY_SIZE(tg4b_btr_configs),
+					       ctx->panel_rev_bitmask);
 }
 
 static const struct of_device_id gs_panel_of_match[] = {

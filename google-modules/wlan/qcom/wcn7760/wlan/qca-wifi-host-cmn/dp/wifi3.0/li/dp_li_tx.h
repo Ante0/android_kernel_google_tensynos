@@ -1,0 +1,249 @@
+/*
+ * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ *
+ * Permission to use, copy, modify, and/or distribute this software for
+ * any purpose with or without fee is hereby granted, provided that the
+ * above copyright notice and this permission notice appear in all
+ * copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+ * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+ * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
+ * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
+ */
+#ifndef __DP_LI_TX_H
+#define __DP_LI_TX_H
+
+#include <dp_types.h>
+
+/**
+ * dp_tx_hw_enqueue_li() - Enqueue to TCL HW for transmit
+ * @soc: DP Soc Handle
+ * @vdev: DP vdev handle
+ * @tx_desc: Tx Descriptor Handle
+ * @fw_metadata: Metadata to send to Target Firmware along with frame
+ * @tx_exc_metadata: Handle that holds exception path meta data
+ * @msdu_info: MSDU information
+ *
+ *  Gets the next free TCL HW DMA descriptor and sets up required parameters
+ *  from software Tx descriptor
+ *
+ * Return: QDF_STATUS_SUCCESS: success
+ *         QDF_STATUS_E_RESOURCES: Error return
+ */
+QDF_STATUS
+dp_tx_hw_enqueue_li(struct dp_soc *soc, struct dp_vdev *vdev,
+		    struct dp_tx_desc_s *tx_desc, uint16_t fw_metadata,
+		    struct cdp_tx_exception_metadata *tx_exc_metadata,
+		    struct dp_tx_msdu_info_s *msdu_info);
+/**
+ * dp_tx_comp_get_params_from_hal_desc_li() - Get TX desc from HAL comp desc
+ * @soc: DP soc handle
+ * @tx_comp_hal_desc: HAL TX Comp Descriptor
+ * @r_tx_desc: SW Tx Descriptor retrieved from HAL desc.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+dp_tx_comp_get_params_from_hal_desc_li(struct dp_soc *soc,
+				       void *tx_comp_hal_desc,
+				       struct dp_tx_desc_s **r_tx_desc);
+
+/**
+ * dp_tx_process_htt_completion_li() - Tx HTT Completion Indication Handler
+ * @soc: Handle to DP soc structure
+ * @tx_desc: software descriptor head pointer
+ * @status: Tx completion status from HTT descriptor
+ * @ring_id: ring number
+ *
+ * This function will process HTT Tx indication messages from Target
+ *
+ * Return: none
+ */
+void dp_tx_process_htt_completion_li(struct dp_soc *soc,
+				     struct dp_tx_desc_s *tx_desc,
+				     uint8_t *status,
+				     uint8_t ring_id);
+
+/**
+ * dp_tx_desc_pool_init_li() - Initialize Tx Descriptor pool(s)
+ * @soc: Handle to DP Soc structure
+ * @num_elem: pool descriptor number
+ * @pool_id: pool to allocate
+ * @spcl_tx_desc: if special desc
+ *
+ * Return: QDF_STATUS_SUCCESS - success, others - failure
+ */
+QDF_STATUS dp_tx_desc_pool_init_li(struct dp_soc *soc,
+				   uint32_t num_elem,
+				   uint8_t pool_id,
+				   bool spcl_tx_desc);
+
+/**
+ * dp_tx_desc_pool_deinit_li() - De-initialize Tx Descriptor pool(s)
+ * @soc: Handle to DP Soc structure
+ * @tx_desc_pool: Tx descriptor pool handler
+ * @pool_id: pool to deinit
+ * @spcl_tx_desc: if special desc
+ *
+ * Return: None.
+ */
+void dp_tx_desc_pool_deinit_li(struct dp_soc *soc,
+			       struct dp_tx_desc_pool_s *tx_desc_pool,
+			       uint8_t pool_id, bool spcl_tx_desc);
+
+/**
+ * dp_tx_compute_tx_delay_li() - Compute HW Tx completion delay
+ * @soc: Handle to DP Soc structure
+ * @vdev: vdev
+ * @ts: Tx completion status
+ * @delay_us: Delay to be calculated in microseconds
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS dp_tx_compute_tx_delay_li(struct dp_soc *soc,
+				     struct dp_vdev *vdev,
+				     struct hal_tx_completion_status *ts,
+				     uint32_t *delay_us);
+
+/**
+ * dp_tx_desc_pool_alloc_li() - Allocate TX descriptor pool
+ * @soc: Handle to DP Soc structure
+ * @num_elem: Number of elements to allocate
+ * @pool_id: TCL descriptor pool ID
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS dp_tx_desc_pool_alloc_li(struct dp_soc *soc, uint32_t num_elem,
+				    uint8_t pool_id);
+
+/**
+ * dp_tx_desc_pool_free_li() - Free TX descriptor pool
+ * @soc: Handle to DP Soc structure
+ * @pool_id: TCL descriptor pool ID
+ *
+ * Return: none
+ */
+void dp_tx_desc_pool_free_li(struct dp_soc *soc, uint8_t pool_id);
+
+/**
+ * dp_mlo_tx_pool_map_li() - Check whether need to remap tx desc pool
+ * for mlo case.
+ *
+ * @soc: dp soc handle
+ * @vdev_id: dp vdev id
+ * @mod_id: module id which is requesting the reference
+ *
+ * Return: true if pool already remap and not need create,
+ *         otherwise return false.
+ */
+static inline
+bool dp_mlo_tx_pool_map_li(struct dp_soc *soc,
+			   uint8_t vdev_id,
+			   enum dp_mod_id mod_id)
+{
+	return false;
+}
+
+/**
+ * dp_mlo_tx_pool_unmap_li() - Check whether need to unmap tx desc pool
+ * for mlo case.
+ *
+ * @soc: dp soc handle
+ * @vdev_id: dp vdev id
+ * @new_id: output the new pool id that will be deleted
+ * @mod_id: module id which is requesting the reference
+ *
+ * Return: true if pool not need unmap, otherwise return false.
+ */
+static inline
+bool dp_mlo_tx_pool_unmap_li(struct dp_soc *soc, uint8_t vdev_id,
+			     uint8_t *new_id,
+			     enum dp_mod_id mod_id)
+{
+	return false;
+}
+
+/**
+ * dp_tx_override_flow_pool_id_li() - Override the pool id of the tx desc pool
+ * @vdev: dp vdev
+ * @queue: queue ids container for nbuf
+ *
+ * Return: None
+ */
+static inline void
+dp_tx_override_flow_pool_id_li(struct dp_vdev *vdev,
+			       struct dp_tx_queue *queue)
+{
+}
+
+#ifdef FEATURE_DAL_DP_SUPPORT
+/**
+ * dp_tx_gen_hw_desc_li() - Generate hardware descriptor for LI architecture
+ * @soc: DP soc handle
+ * @vdev: DP vdev handle
+ * @tx_desc: TX descriptor
+ * @fw_metadata: Firmware metadata
+ * @tx_exc_metadata: TX exception metadata
+ * @msdu_info: MSDU information
+ * @tcl_desc: TCL descriptor
+ *
+ * This function is a stub implementation for generating hardware descriptors
+ * in the Lithium (LI) architecture. Currently returns failure status as the
+ * functionality is not implemented.
+ *
+ * Return: QDF_STATUS_E_FAILURE - Always returns failure
+ */
+QDF_STATUS
+dp_tx_gen_hw_desc_li(struct dp_soc *soc, struct dp_vdev *vdev,
+		     struct dp_tx_desc_s *tx_desc,
+		     uint16_t fw_metadata,
+		     struct cdp_tx_exception_metadata *tx_exc_metadata,
+		     struct dp_tx_msdu_info_s *msdu_info,
+		     void *tcl_desc);
+/**
+ * dp_tx_hw_desc_sync_li() - LI specific hw desc sync function
+ * @hal_tx_desc_cached: cached descriptor in host memory
+ * @hw_desc: descriptor in hardware memory
+ * @num_bytes: number of bytes to sync
+ *
+ * Return: None
+ */
+void dp_tx_hw_desc_sync_li(void *hal_tx_desc_cached, void *hw_desc,
+			   uint8_t num_bytes);
+
+/**
+ * dp_tx_desc_update_buffer_info_li() - Dummy function for LI architecture
+ * @soc: DP soc handle
+ * @hal_tx_desc_cached: cached descriptor in host memory
+ * @tx_desc: tx descriptor
+ * @ring_id: ring ID
+ *
+ * This is a dummy place holder function for LI architecture.
+ *
+ * Return: None
+ */
+void dp_tx_desc_update_buffer_info_li(struct dp_soc *soc,
+				      void *hal_tx_desc_cached,
+				      struct dp_tx_desc_s *tx_desc,
+				      uint8_t ring_id);
+
+/**
+ * dp_dal_tx_comp_check_reserved_cookie_li() - Check if cookie is DAL reserved
+ * @soc: DP soc handle
+ * @tx_comp_hal_desc: TX completion HAL descriptor
+ *
+ * This is a dummy implementation for LI architecture that always returns false
+ * since LI doesn't support DAL reserved cookie functionality.
+ *
+ * Return: false - Always returns false for LI architecture
+ */
+bool dp_dal_tx_comp_check_reserved_cookie_li(struct dp_soc *soc,
+					     void *tx_comp_hal_desc);
+#endif /* FEATURE_DAL_DP_SUPPORT */
+#endif

@@ -145,6 +145,7 @@
     },
     {
         "BriefDescription": "Outstanding snoop code requests",
+        "Counter": "0",
         "EventCode": "0xB3",
         "EventName": "SNOOPQ_REQUESTS_OUTSTANDING.CODE",
         "SampleAfterValue": "2000000",
@@ -152,6 +153,7 @@
     },
     {
         "BriefDescription": "Cycles snoop code requests queued",
+        "Counter": "0",
         "CounterMask": "1",
         "EventCode": "0xB3",
         "EventName": "SNOOPQ_REQUESTS_OUTSTANDING.CODE_NOT_EMPTY",
@@ -160,6 +162,7 @@
     },
     {
         "BriefDescription": "Outstanding snoop data requests",
+        "Counter": "0",
         "EventCode": "0xB3",
         "EventName": "SNOOPQ_REQUESTS_OUTSTANDING.DATA",
         "SampleAfterValue": "2000000",
@@ -167,6 +170,7 @@
     },
     {
         "BriefDescription": "Cycles snoop data requests queued",
+        "Counter": "0",
         "CounterMask": "1",
         "EventCode": "0xB3",
         "EventName": "SNOOPQ_REQUESTS_OUTSTANDING.DATA_NOT_EMPTY",
@@ -175,6 +179,7 @@
     },
     {
         "BriefDescription": "Outstanding snoop invalidate requests",
+        "Counter": "0",
         "EventCode": "0xB3",
         "EventName": "SNOOPQ_REQUESTS_OUTSTANDING.INVALIDATE",
         "SampleAfterValue": "2000000",
@@ -182,6 +187,7 @@
     },
     {
         "BriefDescription": "Cycles snoop invalidate requests queued",
+        "Counter": "0",
         "CounterMask": "1",
         "EventCode": "0xB3",
         "EventName": "SNOOPQ_REQUESTS_OUTSTANDING.INVALIDATE_NOT_EMPTY",

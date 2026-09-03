@@ -4,33 +4,12 @@
 # Run traceroute/traceroute6 tests
 #
 
+source lib.sh
 VERBOSE=0
 PAUSE_ON_FAIL=no
 
 ################################################################################
 #
-log_test()
-{
-	local rc=$1
-	local expected=$2
-	local msg="$3"
-
-	if [ ${rc} -eq ${expected} ]; then
-		printf "TEST: %-60s  [ OK ]\n" "${msg}"
-		nsuccess=$((nsuccess+1))
-	else
-		ret=1
-		nfail=$((nfail+1))
-		printf "TEST: %-60s  [FAIL]\n" "${msg}"
-		if [ "${PAUSE_ON_FAIL}" = "yes" ]; then
-			echo
-			echo "hit enter to continue, 'q' to quit"
-			read a
-			[ "$a" = "q" ] && exit 1
-		fi
-	fi
-}
-
 run_cmd()
 {
 	local ns
@@ -69,9 +48,6 @@ create_ns()
 	[ -z "${addr}" ] && addr="-"
 	[ -z "${addr6}" ] && addr6="-"
 
-	ip netns add ${ns}
-
-	ip netns exec ${ns} ip link set lo up
 	if [ "${addr}" != "-" ]; then
 		ip netns exec ${ns} ip addr add dev lo ${addr}
 	fi
@@ -160,12 +136,7 @@ connect_ns()
 
 cleanup_traceroute6()
 {
-	local ns
-
-	for ns in host-1 host-2 router-1 router-2
-	do
-		ip netns del ${ns} 2>/dev/null
-	done
+	cleanup_ns $h1 $h2 $r1 $r2
 }
 
 setup_traceroute6()
@@ -176,49 +147,48 @@ setup_traceroute6()
 	cleanup_traceroute6
 
 	set -e
-	create_ns host-1
-	create_ns host-2
-	create_ns router-1
-	create_ns router-2
+	setup_ns h1 h2 r1 r2
+	create_ns $h1
+	create_ns $h2
+	create_ns $r1
+	create_ns $r2
 
 	# Setup N3
-	connect_ns router-2 eth3 - 2000:103::2/64 host-2 eth3 - 2000:103::4/64
-	ip netns exec host-2 ip route add default via 2000:103::2
+	connect_ns $r2 eth3 - 2000:103::2/64 $h2 eth3 - 2000:103::4/64
+	ip netns exec $h2 ip route add default via 2000:103::2
 
 	# Setup N2
-	connect_ns router-1 eth2 - 2000:102::1/64 router-2 eth2 - 2000:102::2/64
-	ip netns exec router-1 ip route add default via 2000:102::2
+	connect_ns $r1 eth2 - 2000:102::1/64 $r2 eth2 - 2000:102::2/64
+	ip netns exec $r1 ip route add default via 2000:102::2
 
 	# Setup N1. host-1 and router-2 connect to a bridge in router-1.
-	ip netns exec router-1 ip link add name ${brdev} type bridge
-	ip netns exec router-1 ip link set ${brdev} up
-	ip netns exec router-1 ip addr add 2000:101::1/64 dev ${brdev}
+	ip netns exec $r1 ip link add name ${brdev} type bridge
+	ip netns exec $r1 ip link set ${brdev} up
+	ip netns exec $r1 ip addr add 2000:101::1/64 dev ${brdev}
 
-	connect_ns host-1 eth0 - 2000:101::3/64 router-1 eth0 - -
-	ip netns exec router-1 ip link set dev eth0 master ${brdev}
-	ip netns exec host-1 ip route add default via 2000:101::1
+	connect_ns $h1 eth0 - 2000:101::3/64 $r1 eth0 - -
+	ip netns exec $r1 ip link set dev eth0 master ${brdev}
+	ip netns exec $h1 ip route add default via 2000:101::1
 
-	connect_ns router-2 eth1 - 2000:101::2/64 router-1 eth1 - -
-	ip netns exec router-1 ip link set dev eth1 master ${brdev}
+	connect_ns $r2 eth1 - 2000:101::2/64 $r1 eth1 - -
+	ip netns exec $r1 ip link set dev eth1 master ${brdev}
 
 	# Prime the network
-	ip netns exec host-1 ping6 -c5 2000:103::4 >/dev/null 2>&1
+	ip netns exec $h1 ping6 -c5 2000:103::4 >/dev/null 2>&1
 
 	set +e
 }
 
 run_traceroute6()
 {
-	if [ ! -x "$(command -v traceroute6)" ]; then
-		echo "SKIP: Could not run IPV6 test without traceroute6"
-		return
-	fi
-
 	setup_traceroute6
 
+	RET=0
+
 	# traceroute6 host-2 from host-1 (expects 2000:102::2)
-	run_cmd host-1 "traceroute6 2000:103::4 | grep -q 2000:102::2"
-	log_test $? 0 "IPV6 traceroute"
+	run_cmd $h1 "traceroute6 2000:103::4 | grep -q 2000:102::2"
+	check_err $? "traceroute6 did not return 2000:102::2"
+	log_test "IPv6 traceroute"
 
 	cleanup_traceroute6
 }
@@ -240,12 +210,7 @@ run_traceroute6()
 
 cleanup_traceroute()
 {
-	local ns
-
-	for ns in host-1 host-2 router
-	do
-		ip netns del ${ns} 2>/dev/null
-	done
+	cleanup_ns $h1 $h2 $router
 }
 
 setup_traceroute()
@@ -254,40 +219,39 @@ setup_traceroute()
 	cleanup_traceroute
 
 	set -e
-	create_ns host-1
-	create_ns host-2
-	create_ns router
+	setup_ns h1 h2 router
+	create_ns $h1
+	create_ns $h2
+	create_ns $router
 
-	connect_ns host-1 eth0 1.0.1.3/24 - \
-	           router eth1 1.0.3.1/24 -
-	ip netns exec host-1 ip route add default via 1.0.1.1
+	connect_ns $h1 eth0 1.0.1.3/24 - \
+	           $router eth1 1.0.3.1/24 -
+	ip netns exec $h1 ip route add default via 1.0.1.1
 
-	ip netns exec router ip addr add 1.0.1.1/24 dev eth1
-	ip netns exec router sysctl -qw \
+	ip netns exec $router ip addr add 1.0.1.1/24 dev eth1
+	ip netns exec $router sysctl -qw \
 				net.ipv4.icmp_errors_use_inbound_ifaddr=1
 
-	connect_ns host-2 eth0 1.0.2.4/24 - \
-	           router eth2 1.0.2.1/24 -
-	ip netns exec host-2 ip route add default via 1.0.2.1
+	connect_ns $h2 eth0 1.0.2.4/24 - \
+	           $router eth2 1.0.2.1/24 -
+	ip netns exec $h2 ip route add default via 1.0.2.1
 
 	# Prime the network
-	ip netns exec host-1 ping -c5 1.0.2.4 >/dev/null 2>&1
+	ip netns exec $h1 ping -c5 1.0.2.4 >/dev/null 2>&1
 
 	set +e
 }
 
 run_traceroute()
 {
-	if [ ! -x "$(command -v traceroute)" ]; then
-		echo "SKIP: Could not run IPV4 test without traceroute"
-		return
-	fi
-
 	setup_traceroute
 
+	RET=0
+
 	# traceroute host-2 from host-1 (expects 1.0.1.1). Takes a while.
-	run_cmd host-1 "traceroute 1.0.2.4 | grep -q 1.0.1.1"
-	log_test $? 0 "IPV4 traceroute"
+	run_cmd $h1 "traceroute 1.0.2.4 | grep -q 1.0.1.1"
+	check_err $? "traceroute did not return 1.0.1.1"
+	log_test "IPv4 traceroute"
 
 	cleanup_traceroute
 }
@@ -304,9 +268,6 @@ run_tests()
 ################################################################################
 # main
 
-declare -i nfail=0
-declare -i nsuccess=0
-
 while getopts :pv o
 do
 	case $o in
@@ -316,7 +277,9 @@ do
 	esac
 done
 
+require_command traceroute6
+require_command traceroute
+
 run_tests
 
-printf "\nTests passed: %3d\n" ${nsuccess}
-printf "Tests failed: %3d\n"   ${nfail}
+exit "${EXIT_STATUS}"

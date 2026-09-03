@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_headers(
+    name = "bcmdhd_headers",
+    hdrs = glob([
+        "**/*.h",
+        "**/*.mk",
+    ]) + [
+        "//private/google-modules/soc/gs:headers",
+    ],
+    includes = [
+        ".",
+        "include",
+    ],
+)
+
+ddk_module(
+    name = "bcmdhd4398",
+    srcs = glob(
+        [
+            "**/*.c",
+            "**/*.h",
+        ],
+        exclude = [
+            "bcm_l2_filter.c",
+            "verhoeff_chksum.c",
+            "dhd_custom_google.c",
+            "dhd_custom_google_4383.c",
+            "dhd_custom_google_4390.c",
+            "dhd_custom_meson.c",
+        ],
+    ),
+    out = "bcmdhd4398.ko",
+    copts = [
+        "-include",
+        "dhd_defines.h",
+        "-DBCMDHD=4398",
+        "-I$(ROOT_DIR)/private/google-modules/soc/gs/include",
+        "-Wno-date-time",
+        "-Wno-missing-prototypes",
+        "-Wno-parentheses-equality",
+        "-fstrict-flex-arrays=0",
+    ],
+    includes = [
+        ".",
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":bcmdhd_headers",
+        "//private/google-modules/soc/gs/drivers/pci/controller/dwc:pcie-exynos-gs",
+    ],
+)

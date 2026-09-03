@@ -7,6 +7,7 @@
  */
 
 #include <linux/delay.h>
+#include <linux/gpio/consumer.h>
 #include <linux/media-bus-format.h>
 #include <linux/module.h>
 #include <linux/of.h>
@@ -43,11 +44,10 @@ struct seiko_panel_desc {
 
 struct seiko_panel {
 	struct drm_panel base;
-	bool prepared;
-	bool enabled;
 	const struct seiko_panel_desc *desc;
 	struct regulator *dvdd;
 	struct regulator *avdd;
+	struct gpio_desc *enable_gpio;
 };
 
 static inline struct seiko_panel *to_seiko_panel(struct drm_panel *panel)
@@ -120,24 +120,11 @@ static int seiko_panel_get_fixed_modes(struct seiko_panel *panel,
 	return num;
 }
 
-static int seiko_panel_disable(struct drm_panel *panel)
-{
-	struct seiko_panel *p = to_seiko_panel(panel);
-
-	if (!p->enabled)
-		return 0;
-
-	p->enabled = false;
-
-	return 0;
-}
-
 static int seiko_panel_unprepare(struct drm_panel *panel)
 {
 	struct seiko_panel *p = to_seiko_panel(panel);
 
-	if (!p->prepared)
-		return 0;
+	gpiod_set_value_cansleep(p->enable_gpio, 0);
 
 	regulator_disable(p->avdd);
 
@@ -146,8 +133,6 @@ static int seiko_panel_unprepare(struct drm_panel *panel)
 
 	regulator_disable(p->dvdd);
 
-	p->prepared = false;
-
 	return 0;
 }
 
@@ -155,9 +140,6 @@ static int seiko_panel_prepare(struct drm_panel *panel)
 {
 	struct seiko_panel *p = to_seiko_panel(panel);
 	int err;
-
-	if (p->prepared)
-		return 0;
 
 	err = regulator_enable(p->dvdd);
 	if (err < 0) {
@@ -174,25 +156,13 @@ static int seiko_panel_prepare(struct drm_panel *panel)
 		goto disable_dvdd;
 	}
 
-	p->prepared = true;
+	gpiod_set_value_cansleep(p->enable_gpio, 1);
 
 	return 0;
 
 disable_dvdd:
 	regulator_disable(p->dvdd);
 	return err;
-}
-
-static int seiko_panel_enable(struct drm_panel *panel)
-{
-	struct seiko_panel *p = to_seiko_panel(panel);
-
-	if (p->enabled)
-		return 0;
-
-	p->enabled = true;
-
-	return 0;
 }
 
 static int seiko_panel_get_modes(struct drm_panel *panel,
@@ -222,10 +192,8 @@ static int seiko_panel_get_timings(struct drm_panel *panel,
 }
 
 static const struct drm_panel_funcs seiko_panel_funcs = {
-	.disable = seiko_panel_disable,
 	.unprepare = seiko_panel_unprepare,
 	.prepare = seiko_panel_prepare,
-	.enable = seiko_panel_enable,
 	.get_modes = seiko_panel_get_modes,
 	.get_timings = seiko_panel_get_timings,
 };
@@ -240,8 +208,6 @@ static int seiko_panel_probe(struct device *dev,
 	if (!panel)
 		return -ENOMEM;
 
-	panel->enabled = false;
-	panel->prepared = false;
 	panel->desc = desc;
 
 	panel->dvdd = devm_regulator_get(dev, "dvdd");
@@ -251,6 +217,12 @@ static int seiko_panel_probe(struct device *dev,
 	panel->avdd = devm_regulator_get(dev, "avdd");
 	if (IS_ERR(panel->avdd))
 		return PTR_ERR(panel->avdd);
+
+	panel->enable_gpio = devm_gpiod_get_optional(dev, "enable",
+						     GPIOD_OUT_LOW);
+	if (IS_ERR(panel->enable_gpio))
+		return dev_err_probe(dev, PTR_ERR(panel->enable_gpio),
+				     "failed to request GPIO\n");
 
 	drm_panel_init(&panel->base, dev, &seiko_panel_funcs,
 		       DRM_MODE_CONNECTOR_DPI);
@@ -266,21 +238,11 @@ static int seiko_panel_probe(struct device *dev,
 	return 0;
 }
 
-static int seiko_panel_remove(struct platform_device *pdev)
+static void seiko_panel_remove(struct platform_device *pdev)
 {
 	struct seiko_panel *panel = platform_get_drvdata(pdev);
 
 	drm_panel_remove(&panel->base);
-	drm_panel_disable(&panel->base);
-
-	return 0;
-}
-
-static void seiko_panel_shutdown(struct platform_device *pdev)
-{
-	struct seiko_panel *panel = platform_get_drvdata(pdev);
-
-	drm_panel_disable(&panel->base);
 }
 
 static const struct display_timing seiko_43wvf1g_timing = {
@@ -335,8 +297,7 @@ static struct platform_driver seiko_panel_platform_driver = {
 		.of_match_table = platform_of_match,
 	},
 	.probe = seiko_panel_platform_probe,
-	.remove = seiko_panel_remove,
-	.shutdown = seiko_panel_shutdown,
+	.remove_new = seiko_panel_remove,
 };
 module_platform_driver(seiko_panel_platform_driver);
 

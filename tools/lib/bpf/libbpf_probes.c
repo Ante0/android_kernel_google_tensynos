@@ -12,10 +12,93 @@
 #include <linux/btf.h>
 #include <linux/filter.h>
 #include <linux/kernel.h>
+#include <linux/version.h>
 
 #include "bpf.h"
 #include "libbpf.h"
 #include "libbpf_internal.h"
+
+/* On Ubuntu LINUX_VERSION_CODE doesn't correspond to info.release,
+ * but Ubuntu provides /proc/version_signature file, as described at
+ * https://ubuntu.com/kernel, with an example contents below, which we
+ * can use to get a proper LINUX_VERSION_CODE.
+ *
+ *   Ubuntu 5.4.0-12.15-generic 5.4.8
+ *
+ * In the above, 5.4.8 is what kernel is actually expecting, while
+ * uname() call will return 5.4.0 in info.release.
+ */
+static __u32 get_ubuntu_kernel_version(void)
+{
+	const char *ubuntu_kver_file = "/proc/version_signature";
+	__u32 major, minor, patch;
+	int ret;
+	FILE *f;
+
+	if (faccessat(AT_FDCWD, ubuntu_kver_file, R_OK, AT_EACCESS) != 0)
+		return 0;
+
+	f = fopen(ubuntu_kver_file, "re");
+	if (!f)
+		return 0;
+
+	ret = fscanf(f, "%*s %*s %u.%u.%u\n", &major, &minor, &patch);
+	fclose(f);
+	if (ret != 3)
+		return 0;
+
+	return KERNEL_VERSION(major, minor, patch);
+}
+
+/* On Debian LINUX_VERSION_CODE doesn't correspond to info.release.
+ * Instead, it is provided in info.version. An example content of
+ * Debian 10 looks like the below.
+ *
+ *   utsname::release   4.19.0-22-amd64
+ *   utsname::version   #1 SMP Debian 4.19.260-1 (2022-09-29)
+ *
+ * In the above, 4.19.260 is what kernel is actually expecting, while
+ * uname() call will return 4.19.0 in info.release.
+ */
+static __u32 get_debian_kernel_version(struct utsname *info)
+{
+	__u32 major, minor, patch;
+	char *p;
+
+	p = strstr(info->version, "Debian ");
+	if (!p) {
+		/* This is not a Debian kernel. */
+		return 0;
+	}
+
+	if (sscanf(p, "Debian %u.%u.%u", &major, &minor, &patch) != 3)
+		return 0;
+
+	return KERNEL_VERSION(major, minor, patch);
+}
+
+__u32 get_kernel_version(void)
+{
+	__u32 major, minor, patch, version;
+	struct utsname info;
+
+	/* Check if this is an Ubuntu kernel. */
+	version = get_ubuntu_kernel_version();
+	if (version != 0)
+		return version;
+
+	uname(&info);
+
+	/* Check if this is a Debian kernel. */
+	version = get_debian_kernel_version(&info);
+	if (version != 0)
+		return version;
+
+	if (sscanf(info.release, "%u.%u.%u", &major, &minor, &patch) != 3)
+		return 0;
+
+	return KERNEL_VERSION(major, minor, patch);
+}
 
 static int probe_prog_load(enum bpf_prog_type prog_type,
 			   const struct bpf_insn *insns, size_t insns_cnt,
@@ -98,6 +181,9 @@ static int probe_prog_load(enum bpf_prog_type prog_type,
 	case BPF_PROG_TYPE_FLOW_DISSECTOR:
 	case BPF_PROG_TYPE_CGROUP_SYSCTL:
 		break;
+	case BPF_PROG_TYPE_NETFILTER:
+		opts.expected_attach_type = BPF_NETFILTER;
+		break;
 	default:
 		return -EOPNOTSUPP;
 	}
@@ -133,7 +219,8 @@ int libbpf_probe_bpf_prog_type(enum bpf_prog_type prog_type, const void *opts)
 }
 
 int libbpf__load_raw_btf(const char *raw_types, size_t types_len,
-			 const char *str_sec, size_t str_len)
+			 const char *str_sec, size_t str_len,
+			 int token_fd)
 {
 	struct btf_header hdr = {
 		.magic = BTF_MAGIC,
@@ -143,6 +230,10 @@ int libbpf__load_raw_btf(const char *raw_types, size_t types_len,
 		.str_off = types_len,
 		.str_len = str_len,
 	};
+	LIBBPF_OPTS(bpf_btf_load_opts, opts,
+		.token_fd = token_fd,
+		.btf_flags = token_fd ? BPF_F_TOKEN_FD : 0,
+	);
 	int btf_fd, btf_len;
 	__u8 *raw_btf;
 
@@ -155,7 +246,7 @@ int libbpf__load_raw_btf(const char *raw_types, size_t types_len,
 	memcpy(raw_btf + hdr.hdr_len, raw_types, hdr.type_len);
 	memcpy(raw_btf + hdr.hdr_len + hdr.type_len, str_sec, hdr.str_len);
 
-	btf_fd = bpf_btf_load(raw_btf, btf_len, NULL);
+	btf_fd = bpf_btf_load(raw_btf, btf_len, &opts);
 
 	free(raw_btf);
 	return btf_fd;
@@ -185,7 +276,7 @@ static int load_local_storage_btf(void)
 	};
 
 	return libbpf__load_raw_btf((char *)types, sizeof(types),
-				     strs, sizeof(strs));
+				     strs, sizeof(strs), 0);
 }
 
 static int probe_map_create(enum bpf_map_type map_type)
@@ -221,6 +312,7 @@ static int probe_map_create(enum bpf_map_type map_type)
 	case BPF_MAP_TYPE_SK_STORAGE:
 	case BPF_MAP_TYPE_INODE_STORAGE:
 	case BPF_MAP_TYPE_TASK_STORAGE:
+	case BPF_MAP_TYPE_CGRP_STORAGE:
 		btf_key_type_id = 1;
 		btf_value_type_id = 3;
 		value_size = 8;
@@ -239,11 +331,19 @@ static int probe_map_create(enum bpf_map_type map_type)
 	case BPF_MAP_TYPE_STRUCT_OPS:
 		/* we'll get -ENOTSUPP for invalid BTF type ID for struct_ops */
 		opts.btf_vmlinux_value_type_id = 1;
+		opts.value_type_btf_obj_fd = -1;
 		exp_err = -524; /* -ENOTSUPP */
 		break;
 	case BPF_MAP_TYPE_BLOOM_FILTER:
 		key_size = 0;
 		max_entries = 1;
+		break;
+	case BPF_MAP_TYPE_ARENA:
+		key_size	= 0;
+		value_size	= 0;
+		max_entries	= 1; /* one page */
+		opts.map_extra	= 0; /* can mmap() at any address */
+		opts.map_flags	= BPF_F_MMAPABLE;
 		break;
 	case BPF_MAP_TYPE_HASH:
 	case BPF_MAP_TYPE_ARRAY:
@@ -348,7 +448,8 @@ int libbpf_probe_bpf_helper(enum bpf_prog_type prog_type, enum bpf_func_id helpe
 	/* If BPF verifier doesn't recognize BPF helper ID (enum bpf_func_id)
 	 * at all, it will emit something like "invalid func unknown#181".
 	 * If BPF verifier recognizes BPF helper but it's not supported for
-	 * given BPF program type, it will emit "unknown func bpf_sys_bpf#166".
+	 * given BPF program type, it will emit "unknown func bpf_sys_bpf#166"
+	 * or "program of this type cannot use helper bpf_sys_bpf#166".
 	 * In both cases, provided combination of BPF program type and BPF
 	 * helper is not supported by the kernel.
 	 * In all other cases, probe_prog_load() above will either succeed (e.g.,
@@ -357,7 +458,8 @@ int libbpf_probe_bpf_helper(enum bpf_prog_type prog_type, enum bpf_func_id helpe
 	 * that), or we'll get some more specific BPF verifier error about
 	 * some unsatisfied conditions.
 	 */
-	if (ret == 0 && (strstr(buf, "invalid func ") || strstr(buf, "unknown func ")))
+	if (ret == 0 && (strstr(buf, "invalid func ") || strstr(buf, "unknown func ") ||
+			 strstr(buf, "program of this type cannot use helper ")))
 		return 0;
 	return 1; /* assume supported */
 }

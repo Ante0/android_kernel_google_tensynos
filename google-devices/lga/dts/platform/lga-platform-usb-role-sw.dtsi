@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * LGA platform common - USB data role switch devicetree config
+ *
+ * Copyright 2025 Google LLC.
+ *
+ */
+
+/ {
+	fragment@usb_data_role_switch {
+		target-path = "/";
+		__overlay__ {
+			goog_usb_role_sw: goog_usb_role_sw {
+				compatible = "google,usb-role-sw";
+				eusb-role-sw-dev = <&eusb2_repeater>;
+				role-sw-dev = <&usb>;
+				status = "okay";
+			};
+		};
+	};
+};

@@ -59,7 +59,7 @@ int print_task_context_switch_counts;
 	}
 
 /* Maximum size of response requested or message sent */
-#define MAX_MSG_SIZE	1024
+#define MAX_MSG_SIZE	2048
 /* Maximum number of cpus expected to be specified in a cpumask */
 #define MAX_CPUS	32
 
@@ -112,6 +112,32 @@ static int create_nl_socket(int protocol)
 error:
 	close(fd);
 	return -1;
+}
+
+static int recv_taskstats_msg(int sd, struct msgtemplate *msg)
+{
+	struct sockaddr_nl nladdr;
+	struct iovec iov = {
+		.iov_base = msg,
+		.iov_len = sizeof(*msg),
+	};
+	struct msghdr hdr = {
+		.msg_name = &nladdr,
+		.msg_namelen = sizeof(nladdr),
+		.msg_iov = &iov,
+		.msg_iovlen = 1,
+	};
+	int ret;
+
+	ret = recvmsg(sd, &hdr, 0);
+	if (ret < 0)
+		return -1;
+	if (hdr.msg_flags & MSG_TRUNC) {
+		errno = EMSGSIZE;
+		return -1;
+	}
+
+	return ret;
 }
 
 
@@ -198,17 +224,19 @@ static void print_delayacct(struct taskstats *t)
 	printf("\n\nCPU   %15s%15s%15s%15s%15s\n"
 	       "      %15llu%15llu%15llu%15llu%15.3fms\n"
 	       "IO    %15s%15s%15s\n"
-          "      %15llu%15llu%15.3fms\n"
+	       "      %15llu%15llu%15.3fms\n"
 	       "SWAP  %15s%15s%15s\n"
-          "      %15llu%15llu%15.3fms\n"
+	       "      %15llu%15llu%15.3fms\n"
 	       "RECLAIM  %12s%15s%15s\n"
-          "      %15llu%15llu%15.3fms\n"
+	       "      %15llu%15llu%15.3fms\n"
 	       "THRASHING%12s%15s%15s\n"
-          "      %15llu%15llu%15.3fms\n"
+	       "      %15llu%15llu%15.3fms\n"
 	       "COMPACT  %12s%15s%15s\n"
-          "      %15llu%15llu%15.3fms\n"
+	       "      %15llu%15llu%15.3fms\n"
 	       "WPCOPY   %12s%15s%15s\n"
-          "      %15llu%15llu%15.3fms\n",
+	       "      %15llu%15llu%15.3fms\n"
+	       "IRQ   %15s%15s%15s\n"
+	       "      %15llu%15llu%15.3fms\n",
 	       "count", "real total", "virtual total",
 	       "delay total", "delay average",
 	       (unsigned long long)t->cpu_count,
@@ -219,27 +247,31 @@ static void print_delayacct(struct taskstats *t)
 	       "count", "delay total", "delay average",
 	       (unsigned long long)t->blkio_count,
 	       (unsigned long long)t->blkio_delay_total,
-          average_ms((double)t->blkio_delay_total, t->blkio_count),
+	       average_ms((double)t->blkio_delay_total, t->blkio_count),
 	       "count", "delay total", "delay average",
 	       (unsigned long long)t->swapin_count,
 	       (unsigned long long)t->swapin_delay_total,
-          average_ms((double)t->swapin_delay_total, t->swapin_count),
+	       average_ms((double)t->swapin_delay_total, t->swapin_count),
 	       "count", "delay total", "delay average",
 	       (unsigned long long)t->freepages_count,
 	       (unsigned long long)t->freepages_delay_total,
-          average_ms((double)t->freepages_delay_total, t->freepages_count),
+	       average_ms((double)t->freepages_delay_total, t->freepages_count),
 	       "count", "delay total", "delay average",
 	       (unsigned long long)t->thrashing_count,
 	       (unsigned long long)t->thrashing_delay_total,
-          average_ms((double)t->thrashing_delay_total, t->thrashing_count),
+	       average_ms((double)t->thrashing_delay_total, t->thrashing_count),
 	       "count", "delay total", "delay average",
 	       (unsigned long long)t->compact_count,
 	       (unsigned long long)t->compact_delay_total,
-          average_ms((double)t->compact_delay_total, t->compact_count),
+	       average_ms((double)t->compact_delay_total, t->compact_count),
 	       "count", "delay total", "delay average",
 	       (unsigned long long)t->wpcopy_count,
 	       (unsigned long long)t->wpcopy_delay_total,
-          average_ms((double)t->wpcopy_delay_total, t->wpcopy_count));
+	       average_ms((double)t->wpcopy_delay_total, t->wpcopy_count),
+	       "count", "delay total", "delay average",
+	       (unsigned long long)t->irq_count,
+	       (unsigned long long)t->irq_delay_total,
+	       average_ms((double)t->irq_delay_total, t->irq_count));
 }
 
 static void task_context_switch_counts(struct taskstats *t)
@@ -459,12 +491,16 @@ int main(int argc, char *argv[])
 	}
 
 	do {
-		rep_len = recv(nl_sd, &msg, sizeof(msg), 0);
+		rep_len = recv_taskstats_msg(nl_sd, &msg);
 		PRINTF("received %d bytes\n", rep_len);
 
 		if (rep_len < 0) {
-			fprintf(stderr, "nonfatal reply error: errno %d\n",
-				errno);
+			if (errno == EMSGSIZE)
+				fprintf(stderr,
+					"dropped truncated taskstats netlink message, please increase MAX_MSG_SIZE\n");
+			else
+				fprintf(stderr, "nonfatal reply error: errno %d\n",
+					errno);
 			continue;
 		}
 		if (msg.n.nlmsg_type == NLMSG_ERROR ||
@@ -506,6 +542,9 @@ int main(int argc, char *argv[])
 							printf("TGID\t%d\n", rtid);
 						break;
 					case TASKSTATS_TYPE_STATS:
+						PRINTF("version %u\n",
+						       ((struct taskstats *)
+							NLA_DATA(na))->version);
 						if (print_delays)
 							print_delayacct((struct taskstats *) NLA_DATA(na));
 						if (print_io_accounting)

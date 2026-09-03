@@ -66,6 +66,8 @@ properties:
               - ti,tca6408
               - ti,tca6416
               - ti,tca6424
+              - ti,tca9535
+              - ti,tca9538
               - ti,tca9539
               - ti,tca9554
 
@@ -105,19 +107,8 @@ properties:
 patternProperties:
   "^(hog-[0-9]+|.+-hog(-[0-9]+)?)$":
     type: object
-    properties:
-      gpio-hog: true
-      gpios: true
-      input: true
-      output-high: true
-      output-low: true
-      line-name: true
-
     required:
       - gpio-hog
-      - gpios
-
-    additionalProperties: false
 
 required:
   - compatible
@@ -151,7 +142,7 @@ examples:
     #include <dt-bindings/gpio/gpio.h>
     #include <dt-bindings/interrupt-controller/irq.h>
 
-    i2c0 {
+    i2c {
         #address-cells = <1>;
         #size-cells = <0>;
 
@@ -177,7 +168,7 @@ examples:
   - |
     #include <dt-bindings/interrupt-controller/irq.h>
 
-    i2c1 {
+    i2c {
         #address-cells = <1>;
         #size-cells = <0>;
 
@@ -203,7 +194,7 @@ examples:
   - |
     #include <dt-bindings/interrupt-controller/irq.h>
 
-    i2c2 {
+    i2c {
         #address-cells = <1>;
         #size-cells = <0>;
 
@@ -221,7 +212,7 @@ examples:
     };
 
   - |
-    i2c3 {
+    i2c {
         #address-cells = <1>;
         #size-cells = <0>;
 

@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0
+config PIXEL_TRIM
+       tristate "Trim"
+       help
+         This option enables support for Trim framework for Pixel devices.
+         System will call the Trim operation to alleviate memory pressure.

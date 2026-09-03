@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load(
+    "@kleaf//build/kernel/kleaf:kernel.bzl",
+    "ddk_module",
+)
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "snd-soc-aw882xx",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "aw882xx.c",
+        "aw882xx_bin_parse.c",
+        "aw882xx_device.c",
+        "aw882xx_dsp.c",
+        "aw882xx_init.c",
+        "aw882xx_monitor.c",
+        "aw882xx_spin.c",
+    ],
+    out = "snd-soc-aw882xx.ko",
+    conditional_srcs = {
+        "CONFIG_AW882XX_CALIB": {
+            True: [
+                "aw882xx_calib.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+    ],
+)

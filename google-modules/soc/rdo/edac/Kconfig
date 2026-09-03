@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_EDAC
+	tristate "Google EDAC driver"
+	depends on ARCH_GOOGLE
+	help
+	  Enable support for Google EDAC(Error Dectection And Correction).
+	  This driver exposes to userspace see if cache error happened.
+	  Select Y if you have such device.
+	  If unsure select "N".

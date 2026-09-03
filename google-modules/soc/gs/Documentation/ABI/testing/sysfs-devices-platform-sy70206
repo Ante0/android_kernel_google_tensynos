@@ -1,0 +1,5 @@
+What:		/sys/devices/platform/.../devid
+Date:		January 2025
+KernelVersion:	6.12
+Contact:	Xu Han <xuhanyz@google.com>
+Description:	Reports the device identifier as a hexadecimal number.

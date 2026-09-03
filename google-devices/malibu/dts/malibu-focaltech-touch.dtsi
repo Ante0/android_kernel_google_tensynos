@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+/*
+ * Malibu Focaltech touch device tree source.
+ *
+ * Copyright 2025 Google Inc.
+ *
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+&spitouch {
+	status = "disabled";
+
+	compatible = "focaltech,ts";
+	reg = <0>;
+	spi-max-frequency = <19200000>;
+	rx-sample-delay-ns = <25>;
+
+	focaltech,irq-gpio = <TS0_2_AOSS_INT_L_1V2(GPIO_ACTIVE_LOW)>;
+	focaltech,reset-gpio = <PMICS2TS0_RESET_L_1V2(GPIO_ACTIVE_LOW)>;
+	focaltech,max-touch-number = <10>;
+	focaltech,display-coords = <0 0 10799 24239>;
+	focaltech,rx_ch_num = <36>;
+	focaltech,tx_ch_num = <16>;
+
+	focaltech,mm2px= /bits/ 8 <17>;
+
+};

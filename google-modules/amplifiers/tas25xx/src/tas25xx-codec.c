@@ -471,6 +471,23 @@ static irqreturn_t tas25xx_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+static void tas25xx_release_irq(struct tas25xx_priv *p_tas25xx)
+{
+	struct linux_platform *plat_data = p_tas25xx->platform_data;
+	int i;
+
+	if (!plat_data)
+		return;
+
+	for (i = 0; i < p_tas25xx->ch_count; i++) {
+		if (p_tas25xx->irq_registered[i] == 1) {
+			p_tas25xx->irq_registered[i] = 0;
+			devm_free_irq(plat_data->dev, p_tas25xx->devs[i]->irq_no, p_tas25xx);
+			gpio_free(p_tas25xx->devs[i]->irq_gpio);
+		}
+	}
+}
+
 static int tas25xx_setup_irq(struct tas25xx_priv *p_tas25xx)
 {
 	int i, ret = -EINVAL;
@@ -483,6 +500,11 @@ static int tas25xx_setup_irq(struct tas25xx_priv *p_tas25xx)
 	/* register for interrupts */
 	for (i = 0; i < p_tas25xx->ch_count; i++) {
 		p_tas25xx->irq_registered[i] = 0;
+		if (p_tas25xx->devs[i]->is_probed == 0) {
+			dev_info(plat_data->dev, "%s: ignore channel %d\n", __func__, i);
+			continue;
+		}
+
 		if (gpio_is_valid(p_tas25xx->devs[i]->irq_gpio)) {
 			ret = gpio_request(p_tas25xx->devs[i]->irq_gpio,
 					irq_gpio_label[i]);
@@ -608,6 +630,7 @@ static int tas25xx_codec_probe(struct snd_soc_component *codec)
 	char *w_name[4] = {NULL};
 	const char *prefix = codec->name_prefix;
 	int w_count = 0;
+	int retries = 3;
 
 	if (plat_data)
 		plat_data->codec = codec;
@@ -637,12 +660,41 @@ static int tas25xx_codec_probe(struct snd_soc_component *codec)
 
 	snd_soc_dapm_sync(dapm);
 
-	ret = tas25xx_start_fw_load(p_tas25xx, 20);
-	if (ret == -ENOENT)
-		ret = 0;
+	while (retries > 0) {
+		ret = tas25xx_start_fw_load(p_tas25xx, 20);
+		/* tas25xx_start_fw_load returns 1 on success,
+		 * but soc_codec_driver probe expects 0 on success.
+		 * -ENOENT is also treated as non-fatal. */
+		if (ret == 1 || ret == -ENOENT) {
+			ret = 0;
+			break;
+		}
+
+		retries--;
+		dev_err(plat_data->dev,
+			"%s: Firmware load failed with error %d. Retries left: %d\n",
+			__func__, ret, retries);
+
+		cancel_delayed_work_sync(&p_tas25xx->fw_load_work);
+		tas25xx_release_irq(p_tas25xx);
+		tas25xx_remove_binfile(p_tas25xx);
+		p_tas25xx->hw_reset(p_tas25xx);
+		for (i = 0; i < p_tas25xx->ch_count; i++)
+			p_tas25xx->devs[i]->mn_current_book = -1;
+
+		if (retries > 0)
+			msleep(50);
+	}
 
 	dev_info(plat_data->dev, "%s returning ret=%d\n",
 		__func__, ret);
+
+	if (ret < 0) {
+		dev_info(plat_data->dev,
+			"ignoring error %d to allow sound card to become ready\n", ret);
+		atomic_set(&p_tas25xx->fw_state, TAS25XX_DSP_FW_LOAD_FAIL);
+		ret = 0;
+	}
 
 	return ret;
 }
@@ -687,6 +739,78 @@ int tas25xx_register_codec(struct tas25xx_priv *p_tas25xx)
 }
 
 int tas25xx_deregister_codec(struct tas25xx_priv *p_tas25xx)
+{
+	struct linux_platform *plat_data =
+		(struct linux_platform *) p_tas25xx->platform_data;
+
+	snd_soc_unregister_component(plat_data->dev);
+
+	return 0;
+}
+
+static const struct snd_kcontrol_new tas25xx_controls_nop[] = {
+	SOC_SINGLE("AMP Disabled", SND_SOC_NOPM, 0, 0, 0),
+};
+
+static const struct snd_soc_component_driver soc_component_dev_tas25xx_nop = {
+	.controls = tas25xx_controls_nop,
+	.num_controls = ARRAY_SIZE(tas25xx_controls_nop),
+};
+
+static int tas25xx_pcm_startup_nop(struct snd_pcm_substream *substream,
+			       struct snd_soc_dai *dai)
+{
+	pr_warn("%s: enter dai->name = %s\n", __func__, dai->name);
+	return 0;
+}
+
+static const struct snd_soc_dai_ops tas25xx_ops_nop = {
+	.startup = tas25xx_pcm_startup_nop,
+};
+
+static struct snd_soc_dai_driver tas25xx_dai_nop[] = {
+	{
+		.name = "tas25xx ASI1",
+		.id = 0,
+		.playback = {
+			.stream_name    = "ASI1 Playback",
+			.channels_min   = 1,
+			.channels_max   = 8,
+			.rates      = SNDRV_PCM_RATE_8000_192000,
+			.formats    = TAS25XX_FORMATS,
+		},
+		.capture = {
+			.stream_name    = "ASI1 Capture",
+			.channels_min   = 1,
+			.channels_max   = 8,
+			.rates          = SNDRV_PCM_RATE_8000_192000,
+			.formats    = TAS25XX_FORMATS,
+		},
+		.ops = &tas25xx_ops_nop,
+		.symmetric_rate = 1,
+	},
+};
+
+int tas25xx_register_nop_codec(struct tas25xx_priv *p_tas25xx)
+{
+	int ret = -1;
+	struct linux_platform *plat_data =
+		(struct linux_platform *) p_tas25xx->platform_data;
+
+	if (devm_snd_soc_register_component(plat_data->dev,
+			&soc_component_dev_tas25xx_nop,
+			tas25xx_dai_nop, ARRAY_SIZE(tas25xx_dai_nop)) < 0) {
+		dev_err(plat_data->dev, "%s: Register codec failed\n", __func__);
+	} else {
+		dev_info(plat_data->dev, "%s: Register nop codec\n", __func__);
+		p_tas25xx->nop_codec_is_register = true;
+		ret = 0;
+	}
+
+	return ret;
+}
+
+int tas25xx_deregister_nop_codec(struct tas25xx_priv *p_tas25xx)
 {
 	struct linux_platform *plat_data =
 		(struct linux_platform *) p_tas25xx->platform_data;

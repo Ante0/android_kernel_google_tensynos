@@ -448,9 +448,9 @@ struct pixel_context {
 		atomic_t active;
 	} itmon;
 #endif
-#ifndef PIXEL_GPU_SLC_ACPM_SIGNAL
+#if !IS_ENABLED(CONFIG_PIXEL_GPU_SLC_ACPM_SIGNAL)
 	atomic64_t slc_demand;
-#endif /* PIXEL_GPU_SLC_ACPM_SIGNAL */
+#endif /* CONFIG_PIXEL_GPU_SLC_ACPM_SIGNAL */
 
 	struct gpu_uevent_ctx gpu_uevent_ctx;
 };
@@ -467,9 +467,9 @@ struct pixel_platform_data {
 	struct kbase_context *kctx;
 	struct gpu_dvfs_metrics_uid_stats* stats;
 	int slc_vote;
-#ifndef PIXEL_GPU_SLC_ACPM_SIGNAL
+#if !IS_ENABLED(CONFIG_PIXEL_GPU_SLC_ACPM_SIGNAL)
 	atomic64_t slc_demand;
-#endif /* PIXEL_GPU_SLC_ACPM_SIGNAL */
+#endif /* CONFIG_PIXEL_GPU_SLC_ACPM_SIGNAL */
 };
 
 #endif /* _KBASE_CONFIG_PLATFORM_H_ */

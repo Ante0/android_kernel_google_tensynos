@@ -1,0 +1,27 @@
+import("//build_overrides/noa.gni")
+import("$dir_noa_packages/noa_common/sim/ncp/wlan_fw/wlan_service.gni")
+
+wlan_source_set("wlan_ring") {
+  public = [ "$dir_wlan_fw/modules/wlan_ring/wlan_ring.h" ]
+  public_deps = [
+    "$dir_wlan_fw:wlan_cast",
+    "$dir_wlan_fw/sys_if:common",
+    "$dir_wlan_fw/sys_if:io",
+    "$dir_wlan_fw/sys_if:memory",
+    "$dir_wlan_fw/sys_if:types",
+  ]
+  sources = [ "$dir_wlan_fw/modules/wlan_ring/wlan_ring.cc" ]
+}
+
+wlan_test("wlan_ring_test") {
+  enable_if = current_os == "linux"
+  sources = [ "$dir_wlan_fw/modules/wlan_ring/wlan_ring_test.cc" ]
+  deps = [
+    ":wlan_ring",
+    "$dir_wlan_fw/sys_if:io",
+  ]
+}
+
+wlan_test_group("tests") {
+  tests = [ ":wlan_ring_test" ]
+}

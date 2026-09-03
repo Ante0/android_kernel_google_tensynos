@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "kunit_example",
+    srcs = [
+        "kunit_example.c",
+        "kunit_example.h",
+    ],
+    out = "kunit_example.ko",
+    kconfig = "Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+    ],
+)
+
+ddk_module(
+    name = "kunit_example_kunit_test",
+    srcs = [
+        "kunit_example.h",
+        "test/kunit_example_test.c",
+    ],
+    out = "kunit_example_test.ko",
+    defconfig = "test/kunit_defconfig",
+    kconfig = "test/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":kunit_example",
+        "//common:all_headers_aarch64",
+    ],
+)

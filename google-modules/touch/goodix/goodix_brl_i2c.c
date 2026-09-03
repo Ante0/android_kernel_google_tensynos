@@ -154,8 +154,7 @@ write_exit:
 	return r;
 }
 
-static int goodix_i2c_probe(
-	struct i2c_client *client, const struct i2c_device_id *dev_id)
+static int goodix_i2c_probe(struct i2c_client *client)
 {
 	struct goodix_device_resource *dev_res;
 	int ret = 0;
@@ -213,7 +212,7 @@ static int goodix_i2c_remove(struct i2c_client *client)
 }
 #endif
 
-#ifdef CONFIG_OF
+#if IS_ENABLED(CONFIG_OF)
 static const struct of_device_id i2c_matches[] = {
 	{
 		.compatible = "goodix,brl-a",

@@ -1,0 +1,974 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/cli/google,lga.h>
+
+/ {
+	lsios_cli0@3bf00000 {
+		compatible = "pinctrl-single";
+		reg = <0 0x3bf00000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli0_i2c_conf: cli0_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli0_i2c_hs_conf: cli0_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli0_uart_conf: cli0_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli0_spi_conf: cli0_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli0_i3c_conf: cli0_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsios_cli1@3bf10000 {
+		compatible = "pinctrl-single";
+		reg = <0 0x3bf10000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli1_i2c_conf: cli1_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli1_i2c_hs_conf: cli1_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli1_uart_conf: cli1_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli1_spi_conf: cli1_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli1_i3c_conf: cli1_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsios_cli2@3bf20000 {
+		compatible = "pinctrl-single";
+		reg = <0 0x3bf20000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli2_i2c_conf: cli2_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli2_i2c_hs_conf: cli2_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli2_uart_conf: cli2_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli2_spi_conf: cli2_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli2_i3c_conf: cli2_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsios_cli3@3bf30000 {
+		compatible = "pinctrl-single";
+		reg = <0 0x3bf30000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli3_i2c_conf: cli3_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli3_i2c_hs_conf: cli3_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli3_uart_conf: cli3_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli3_spi_conf: cli3_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli3_i3c_conf: cli3_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsios_cli4@3bf40000 {
+		compatible = "pinctrl-single";
+		reg = <0 0x3bf40000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli4_i2c_conf: cli4_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli4_i2c_hs_conf: cli4_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli4_uart_conf: cli4_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli4_spi_conf: cli4_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli4_i3c_conf: cli4_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsios_cli5@3bf50000 {
+		compatible = "pinctrl-single";
+		reg = <0 0x3bf50000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli5_i2c_conf: cli5_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli5_i2c_hs_conf: cli5_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli5_uart_conf: cli5_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli5_spi_conf: cli5_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli5_i3c_conf: cli5_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsios_cli6@3bf60000 {
+		compatible = "pinctrl-single";
+		reg = <0 0x3bf60000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli6_i2c_conf: cli6_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli6_i2c_hs_conf: cli6_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli6_uart_conf: cli6_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli6_spi_conf: cli6_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli6_i3c_conf: cli6_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsioe_cli7@3a300000 {
+		compatible = "pinctrl-single";
+		reg = <0 0x3a300000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli7_i2c_conf: cli7_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli7_i2c_hs_conf: cli7_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli7_uart_conf: cli7_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli7_spi_conf: cli7_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli7_i3c_conf: cli7_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsioe_cli8@3a310000 {
+		compatible = "pinctrl-single";
+		reg = <0 0x3a310000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli8_i2c_conf: cli8_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli8_i2c_hs_conf: cli8_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli8_uart_conf: cli8_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli8_spi_conf: cli8_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli8_i3c_conf: cli8_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsioe_cli9@3a320000 {
+		compatible = "pinctrl-single";
+		reg = <0 0x3a320000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli9_i2c_conf: cli9_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli9_i2c_hs_conf: cli9_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli9_uart_conf: cli9_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli9_spi_conf: cli9_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli9_i3c_conf: cli9_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsioe_cli10@3a330000 {
+		compatible = "pinctrl-single";
+		reg = <0 0x3a330000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli10_i2c_conf: cli10_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli10_i2c_hs_conf: cli10_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli10_uart_conf: cli10_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli10_spi_conf: cli10_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli10_i3c_conf: cli10_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsioe_cli11@3a340000 {
+		compatible = "pinctrl-single";
+		reg = <0 0x3a340000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli11_i2c_conf: cli11_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli11_i2c_hs_conf: cli11_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli11_uart_conf: cli11_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli11_spi_conf: cli11_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli11_i3c_conf: cli11_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsioe_cli12@3a350000 {
+		compatible = "pinctrl-single";
+		reg = <0 0x3a350000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli12_i2c_conf: cli12_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli12_i2c_hs_conf: cli12_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli12_uart_conf: cli12_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli12_spi_conf: cli12_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli12_i3c_conf: cli12_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsioe_cli13@3a360000 {
+		compatible = "pinctrl-single";
+		reg = <0 0x3a360000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli13_i2c_conf: cli13_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli13_i2c_hs_conf: cli13_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli13_uart_conf: cli13_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli13_spi_conf: cli13_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli13_i3c_conf: cli13_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsioe_cli14@3a370000 {
+		compatible = "pinctrl-single";
+		reg = <0 0x3a370000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli14_i2c_conf: cli14_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli14_i2c_hs_conf: cli14_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli14_uart_conf: cli14_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli14_spi_conf: cli14_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli14_i3c_conf: cli14_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsion_cli_int0@db00000 {
+		compatible = "pinctrl-single";
+		reg = <0 0xdb00000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli_int0_i2c_conf: cli_int0_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli_int0_i2c_hs_conf: cli_int0_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli_int0_uart_conf: cli_int0_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli_int0_spi_conf: cli_int0_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli_int0_i3c_conf: cli_int0_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsion_cli_int1@db10000 {
+		compatible = "pinctrl-single";
+		reg = <0 0xdb10000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli_int1_i2c_conf: cli_int1_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli_int1_i2c_hs_conf: cli_int1_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli_int1_uart_conf: cli_int1_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli_int1_spi_conf: cli_int1_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli_int1_i3c_conf: cli_int1_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsion_cli_int2@db20000 {
+		compatible = "pinctrl-single";
+		reg = <0 0xdb20000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli_int2_i2c_conf: cli_int2_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli_int2_i2c_hs_conf: cli_int2_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli_int2_uart_conf: cli_int2_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli_int2_spi_conf: cli_int2_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli_int2_i3c_conf: cli_int2_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsion_cli_int3@db30000 {
+		compatible = "pinctrl-single";
+		reg = <0 0xdb30000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli_int3_i2c_conf: cli_int3_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli_int3_i2c_hs_conf: cli_int3_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli_int3_uart_conf: cli_int3_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli_int3_spi_conf: cli_int3_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli_int3_i3c_conf: cli_int3_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsion_cli_int4@db40000 {
+		compatible = "pinctrl-single";
+		reg = <0 0xdb40000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli_int4_i2c_conf: cli_int4_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli_int4_i2c_hs_conf: cli_int4_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli_int4_uart_conf: cli_int4_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli_int4_spi_conf: cli_int4_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli_int4_i3c_conf: cli_int4_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsion_cli15@db50000 {
+		compatible = "pinctrl-single";
+		reg = <0 0xdb50000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli15_i2c_conf: cli15_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli15_i2c_hs_conf: cli15_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli15_uart_conf: cli15_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli15_spi_conf: cli15_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli15_i3c_conf: cli15_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+	lsion_cli16@db60000 {
+		compatible = "pinctrl-single";
+		reg = <0 0xdb60000 0 0x10>;
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <0xffffffff>;
+		#pinctrl-cells = <1>;
+
+		cli16_i2c_conf: cli16_i2c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+			>;
+		};
+		cli16_i2c_hs_conf: cli16_i2c_hs {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I2C
+				0x4 CLI_PAD_SPU
+				0x8 CLI_PAD_SPU
+				0xc CLI_I2C_HS
+			>;
+		};
+		cli16_uart_conf: cli16_uart {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_UART
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli16_spi_conf: cli16_spi {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_SPI
+				0x4 CLI_PAD_OPEN
+				0x8 CLI_PAD_OPEN
+			>;
+		};
+		cli16_i3c_conf: cli16_i3c {
+			pinctrl-single,pins = <
+				0x0 IPTYPE_I3C
+			>;
+		};
+
+	};
+
+};

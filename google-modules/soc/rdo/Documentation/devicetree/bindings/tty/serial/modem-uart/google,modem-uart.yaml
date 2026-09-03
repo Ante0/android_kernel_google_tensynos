@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2026 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/tty/serial/modem-uart/google,modem-uart.yaml#
+$schema: http://devicetree.org/meta-schemas/base.yaml#
+
+title: Google Modem Uart
+
+maintainers:
+  - Kanstantsin Yarmash <kyarmash@google.com>
+
+description:
+  Device tree binding for the Modem UART driver, which manages the saving and
+  retrieval of modem UART logs from a DRAM carveout via the GDMC.
+
+properties:
+  compatible:
+    const: google,modem-uart
+
+  gdmc-iface:
+    description:
+      A phandle to the mailbox controller used for communication with the GDMC.
+
+  memory-region:
+    description:
+      A phandle to a reserved memory region used for DMA buffers to exchange
+      data with the GDMC firmware.
+
+  buffer-offset:
+    description:
+      Offset of the DMA buffer within the reserved memory region.
+
+  buffer-size:
+    description:
+      Size of the DMA buffer within the reserved memory region.
+
+required:
+  - compatible
+  - gdmc-iface
+  - memory-region
+  - buffer-offset
+  - buffer-size
+
+additionalProperties: false
+
+examples:
+  - |
+    modem_uart: modem_uart {
+      compatible = "google,modem-uart";
+      gdmc-iface = <&goog_mba_gdmc_iface>;
+      memory-region = <&gdmc_metrics_dma_buffer>;
+      buffer-offset = <0x2000>;
+      buffer-size = <0x2000>;
+    };

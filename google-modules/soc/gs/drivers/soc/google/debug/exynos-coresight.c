@@ -344,7 +344,7 @@ static const struct dev_pm_ops cs_pm_ops = {
 	.resume = exynos_cs_halt_resume,
 };
 
-int exynos_cs_stop_cpus(void)
+static int exynos_cs_stop_cpus(void)
 {
 	int cpu;
 
@@ -507,8 +507,6 @@ static const struct of_device_id of_exynos_cs_matches[] __initconst= {
 static int exynos_cs_parsing_dt(struct device *dev)
 {
 	struct device_node *np = dev->of_node;
-	struct property *prop;
-	const __be32 *cur;
 	u32 val, i = 0;
 	int ret;
 
@@ -532,53 +530,49 @@ static int exynos_cs_parsing_dt(struct device *dev)
 	if (!ecs_info->sgi_base)
 		return -ENOMEM;
 
-	of_property_for_each_u32(np, "dbg_base", prop, cur, val) {
+	of_property_for_each_u32(np, "dbg_base", val) {
 		if (i >= num_possible_cpus() || !val)
 			return -EINVAL;
 
 		ecs_info->dbg_base[i] = devm_ioremap(dev, val, SZ_4K);
 		if (!ecs_info->dbg_base[i]) {
-			dev_err(ecs_info->dev, "fail property %s(%d) ioremap\n",
-					prop->name, i);
+			dev_err(ecs_info->dev, "fail property dbg_base(%d) ioremap\n", i);
 			return -ENOMEM;
 		}
 		i++;
 	}
 
 	i = 0;
-	of_property_for_each_u32(np, "cti_base", prop, cur, val) {
+	of_property_for_each_u32(np, "cti_base", val) {
 		if (i >= num_possible_cpus() || !val)
 			return -EINVAL;
 		ecs_info->cti_base[i] = devm_ioremap(dev, val, SZ_4K);
 		if (!ecs_info->cti_base[i]) {
-			dev_err(ecs_info->dev, "fail property %s(%d) ioremap\n",
-					prop->name, i);
+			dev_err(ecs_info->dev, "fail property cti_base(%d) ioremap\n", i);
 			return -ENOMEM;
 		}
 		i++;
 	}
 
 	i = 0;
-	of_property_for_each_u32(np, "pmu_base", prop, cur, val) {
+	of_property_for_each_u32(np, "pmu_base", val) {
 		if (i >= num_possible_cpus() || !val)
 			return -EINVAL;
 		ecs_info->pmu_base[i] = devm_ioremap(dev, val, SZ_4K);
 		if (!ecs_info->pmu_base[i]) {
-			dev_err(ecs_info->dev, "fail property %s(%d) ioremap\n",
-					prop->name, i);
+			dev_err(ecs_info->dev, "fail property pmu_base(%d) ioremap\n", i);
 			return -ENOMEM;
 		}
 		i++;
 	}
 
 	i = 0;
-	of_property_for_each_u32(np, "sgi_base", prop, cur, val) {
+	of_property_for_each_u32(np, "sgi_base", val) {
 		if (i >= num_possible_cpus() || !val)
 			return -EINVAL;
 		ecs_info->sgi_base[i] = devm_ioremap(dev, val, SZ_64K);
 		if (!ecs_info->sgi_base[i]) {
-			dev_err(ecs_info->dev, "fail property %s(%d) ioremap\n",
-					prop->name, i);
+			dev_err(ecs_info->dev, "fail property sgi_base(%d) ioremap\n", i);
 			return -ENOMEM;
 		}
 		i++;

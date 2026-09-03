@@ -6,7 +6,8 @@
  * Copyright 2021 Google LLC
  */
 
-#include "linux/vm_event_item.h"
+#include <linux/thread_info.h>
+#include <linux/vm_event_item.h>
 #include <linux/mm.h>
 #include <linux/types.h>
 #include <linux/kobject.h>
@@ -16,7 +17,8 @@
 #include <linux/pagemap.h>
 #include <linux/ktime.h>
 
-#include "../../vh/include/sched.h"
+#include "sched.h"
+#include "vmscan.h"
 
 #define CREATE_TRACE_POINTS
 #include "pixel_mm_trace.h"
@@ -62,7 +64,7 @@ void vh_direct_reclaim_begin(void *data, int order, gfp_t gfp_mask)
 {
 	struct vendor_task_struct *tsk;
 
-	tsk = get_vendor_task_struct(current);
+	tsk = sched_get_vendor_task_struct(current);
 	tsk->direct_reclaim_ts = jiffies;
 }
 
@@ -75,7 +77,7 @@ void vh_direct_reclaim_end(void *data, unsigned long nr_reclaimed)
 	struct vendor_task_struct *tsk;
 	unsigned long old_ts;
 
-	tsk = get_vendor_task_struct(current);
+	tsk = sched_get_vendor_task_struct(current);
 	old_ts = tsk->direct_reclaim_ts;
 	oom_score_adj = current->signal->oom_score_adj;
 
@@ -129,11 +131,10 @@ void rvh_madvise_pageout_end(void *data, void *private, struct list_head *folio_
 		return;
 
 	while (!list_empty(&vendor_private->ret_list)) {
-		struct page *page;
+		struct folio *folio = lru_to_folio(&vendor_private->ret_list);
 
-		page = lru_to_page(&vendor_private->ret_list);
-		wait_on_page_writeback(page);
-		list_move(&page->lru, folio_list);
+		folio_wait_writeback(folio);
+		list_move(&folio->lru, folio_list);
 	}
 
 	kfree(vendor_private);
@@ -319,8 +320,8 @@ static unsigned long total_pgalloc(unsigned long const *events)
 	 * is simple - so there is a good chance the loop will be unrolled.
 	 */
 	enum vm_event_item indexes[] = { FOR_ALL_ZONES(PGALLOC) };
-
 	unsigned long total = 0;
+
 	for (int i = 0; i != ARRAY_SIZE(indexes); i++)
 		total += events[indexes[i]];
 

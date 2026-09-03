@@ -142,16 +142,13 @@ static int vfio_platform_regions_init(struct vfio_platform_device *vdev)
 		cnt++;
 
 	vdev->regions = kcalloc(cnt, sizeof(struct vfio_platform_region),
-				GFP_KERNEL);
+				GFP_KERNEL_ACCOUNT);
 	if (!vdev->regions)
 		return -ENOMEM;
 
 	for (i = 0; i < cnt;  i++) {
 		struct resource *res =
 			vdev->get_resource(vdev, i);
-
-		if (!res)
-			goto err;
 
 		vdev->regions[i].addr = res->start;
 		vdev->regions[i].size = resource_size(res);
@@ -231,7 +228,8 @@ void vfio_platform_close_device(struct vfio_device *core_vdev)
 			"reset driver is required and reset call failed in release (%d) %s\n",
 			ret, extra_dbg ? extra_dbg : "");
 	}
-	pm_runtime_put(vdev->device);
+	if (!vdev->low_power)
+		pm_runtime_put(vdev->device);
 	vfio_platform_regions_cleanup(vdev);
 	vfio_platform_irq_cleanup(vdev);
 }
@@ -255,6 +253,8 @@ int vfio_platform_open_device(struct vfio_device *core_vdev)
 	ret = pm_runtime_get_sync(vdev->device);
 	if (ret < 0)
 		goto err_rst;
+
+	vdev->low_power = false;
 
 	ret = vfio_platform_call_reset(vdev, &extra_dbg);
 	if (ret && vdev->reset_required) {
@@ -385,16 +385,47 @@ long vfio_platform_ioctl(struct vfio_device *core_vdev,
 }
 EXPORT_SYMBOL_GPL(vfio_platform_ioctl);
 
+static int vfio_platform_pm(struct vfio_device *core_vdev, u32 flags, bool enter)
+{
+	int ret = vfio_check_feature(flags, 0, VFIO_DEVICE_FEATURE_SET, 0);
+	struct vfio_platform_device *vdev =
+		container_of(core_vdev, struct vfio_platform_device, vdev);
+
+	if (ret != 1)
+		return ret;
+
+	guard(mutex)(&vdev->igate);
+
+	if (vdev->low_power == enter)
+		return 0;
+
+	ret = enter ? pm_runtime_put(vdev->device) : pm_runtime_get_sync(vdev->device);
+
+	/* Even on an error, the power refcount is updated */
+	vdev->low_power = enter;
+
+	return ret;
+}
+
+int vfio_platform_ioctl_feature(struct vfio_device *core_vdev, u32 flags, void __user *arg,
+				size_t argsz)
+{
+	switch (flags & VFIO_DEVICE_FEATURE_MASK) {
+	case VFIO_DEVICE_FEATURE_LOW_POWER_ENTRY:
+		return vfio_platform_pm(core_vdev, flags, true);
+	case VFIO_DEVICE_FEATURE_LOW_POWER_EXIT:
+		return vfio_platform_pm(core_vdev, flags, false);
+	}
+
+	return -ENOTTY;
+}
+EXPORT_SYMBOL_GPL(vfio_platform_ioctl_feature);
+
 static ssize_t vfio_platform_read_mmio(struct vfio_platform_region *reg,
 				       char __user *buf, size_t count,
 				       loff_t off)
 {
 	unsigned int done = 0;
-
-	if (off >= reg->size)
-		return -EINVAL;
-
-	count = min_t(size_t, count, reg->size - off);
 
 	if (off >= reg->size)
 		return -EINVAL;
@@ -458,6 +489,10 @@ ssize_t vfio_platform_read(struct vfio_device *core_vdev,
 	unsigned int index = VFIO_PLATFORM_OFFSET_TO_INDEX(*ppos);
 	loff_t off = *ppos & VFIO_PLATFORM_OFFSET_MASK;
 
+	/* Only readable through mmap*/
+	if (core_vdev->protected)
+		return -EINVAL;
+
 	if (index >= vdev->num_regions)
 		return -EINVAL;
 
@@ -479,11 +514,6 @@ static ssize_t vfio_platform_write_mmio(struct vfio_platform_region *reg,
 					loff_t off)
 {
 	unsigned int done = 0;
-
-	if (off >= reg->size)
-		return -EINVAL;
-
-	count = min_t(size_t, count, reg->size - off);
 
 	if (off >= reg->size)
 		return -EINVAL;
@@ -545,6 +575,10 @@ ssize_t vfio_platform_write(struct vfio_device *core_vdev, const char __user *bu
 		container_of(core_vdev, struct vfio_platform_device, vdev);
 	unsigned int index = VFIO_PLATFORM_OFFSET_TO_INDEX(*ppos);
 	loff_t off = *ppos & VFIO_PLATFORM_OFFSET_MASK;
+
+	/* Only writable through mmap*/
+	if (core_vdev->protected)
+		return -EINVAL;
 
 	if (index >= vdev->num_regions)
 		return -EINVAL;
@@ -670,10 +704,13 @@ int vfio_platform_init_common(struct vfio_platform_device *vdev)
 	mutex_init(&vdev->igate);
 
 	ret = vfio_platform_get_reset(vdev);
-	if (ret && vdev->reset_required)
+	if (ret && vdev->reset_required) {
 		dev_err(dev, "No reset function found for device %s\n",
 			vdev->name);
-	return ret;
+		return ret;
+	}
+
+	return 0;
 }
 EXPORT_SYMBOL_GPL(vfio_platform_init_common);
 

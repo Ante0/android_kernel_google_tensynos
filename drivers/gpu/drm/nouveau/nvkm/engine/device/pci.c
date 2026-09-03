@@ -1574,6 +1574,12 @@ nvkm_device_pci_resource_size(struct nvkm_device *device, unsigned bar)
 	return pci_resource_len(pdev->pdev, bar);
 }
 
+static int
+nvkm_device_pci_irq(struct nvkm_device *device)
+{
+	return nvkm_device_pci(device)->pdev->irq;
+}
+
 static void
 nvkm_device_pci_fini(struct nvkm_device *device, bool suspend)
 {
@@ -1612,6 +1618,7 @@ nvkm_device_pci_func = {
 	.dtor = nvkm_device_pci_dtor,
 	.preinit = nvkm_device_pci_preinit,
 	.fini = nvkm_device_pci_fini,
+	.irq = nvkm_device_pci_irq,
 	.resource_addr = nvkm_device_pci_resource_addr,
 	.resource_size = nvkm_device_pci_resource_size,
 	.cpu_coherent = !IS_ENABLED(CONFIG_ARM),
@@ -1619,7 +1626,6 @@ nvkm_device_pci_func = {
 
 int
 nvkm_device_pci_new(struct pci_dev *pci_dev, const char *cfg, const char *dbg,
-		    bool detect, bool mmio, u64 subdev_mask,
 		    struct nvkm_device **pdevice)
 {
 	const struct nvkm_device_quirk *quirk = NULL;
@@ -1673,8 +1679,7 @@ nvkm_device_pci_new(struct pci_dev *pci_dev, const char *cfg, const char *dbg,
 				    pci_dev->bus->number << 16 |
 				    PCI_SLOT(pci_dev->devfn) << 8 |
 				    PCI_FUNC(pci_dev->devfn), name,
-			       cfg, dbg, detect, mmio, subdev_mask,
-			       &pdev->device);
+			       cfg, dbg, &pdev->device);
 
 	if (ret)
 		return ret;

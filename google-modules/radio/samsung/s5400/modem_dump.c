@@ -127,7 +127,7 @@ int cp_get_log_dump(struct io_device *iod, struct link_device *ld, unsigned long
 	case LOG_IDX_DATABUF_DL:
 		base = phys_to_virt(cp_shmem_get_base(cp_num, SHMEM_PKTPROC));
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
-		if (exynos_pcie_is_sysmmu_enabled(iod->mc->pcie_ch_num)) {
+		if (pcie_is_sysmmu_enabled(iod->mc->pcie_ch_num)) {
 			size = mld->pktproc.buff_rgn_offset;
 		} else {
 			size = cp_shmem_get_size(cp_num, SHMEM_PKTPROC);

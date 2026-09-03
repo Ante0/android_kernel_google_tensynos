@@ -14,8 +14,6 @@
 #include <linux/delayacct.h>
 #include <linux/module.h>
 
-#ifdef CONFIG_TASK_DELAY_ACCT
-
 DEFINE_STATIC_KEY_FALSE(delayacct_key);
 int delayacct_on __read_mostly;	/* Delay accounting turned on/off */
 struct kmem_cache *delayacct_cache;
@@ -46,7 +44,7 @@ void delayacct_init(void)
 }
 
 #ifdef CONFIG_PROC_SYSCTL
-static int sysctl_delayacct(struct ctl_table *table, int write, void *buffer,
+static int sysctl_delayacct(const struct ctl_table *table, int write, void *buffer,
 		     size_t *lenp, loff_t *ppos)
 {
 	int state = delayacct_on;
@@ -76,7 +74,6 @@ static struct ctl_table kern_delayacct_table[] = {
 		.extra1         = SYSCTL_ZERO,
 		.extra2         = SYSCTL_ONE,
 	},
-	{ }
 };
 
 static __init int kernel_delayacct_sysctls_init(void)
@@ -181,12 +178,15 @@ int delayacct_add_tsk(struct taskstats *d, struct task_struct *tsk)
 	d->compact_delay_total = (tmp < d->compact_delay_total) ? 0 : tmp;
 	tmp = d->wpcopy_delay_total + tsk->delays->wpcopy_delay;
 	d->wpcopy_delay_total = (tmp < d->wpcopy_delay_total) ? 0 : tmp;
+	tmp = d->irq_delay_total + tsk->delays->irq_delay;
+	d->irq_delay_total = (tmp < d->irq_delay_total) ? 0 : tmp;
 	d->blkio_count += tsk->delays->blkio_count;
 	d->swapin_count += tsk->delays->swapin_count;
 	d->freepages_count += tsk->delays->freepages_count;
 	d->thrashing_count += tsk->delays->thrashing_count;
 	d->compact_count += tsk->delays->compact_count;
 	d->wpcopy_count += tsk->delays->wpcopy_count;
+	d->irq_count += tsk->delays->irq_count;
 	raw_spin_unlock_irqrestore(&tsk->delays->lock, flags);
 
 	return 0;
@@ -276,105 +276,14 @@ void __delayacct_wpcopy_end(void)
 		      &current->delays->wpcopy_delay,
 		      &current->delays->wpcopy_count);
 }
-#else
-#include <trace/hooks/delayacct.h>
 
-int delayacct_enabled __read_mostly;	/* Delay accounting turned on/off */
-bool get_delayacct_enabled(void)
+void __delayacct_irq(struct task_struct *task, u32 delta)
 {
-	return delayacct_enabled;
-}
+	unsigned long flags;
 
-void set_delayacct_enabled(bool enabled)
-{
-	delayacct_enabled = enabled;
+	raw_spin_lock_irqsave(&task->delays->lock, flags);
+	task->delays->irq_delay += delta;
+	task->delays->irq_count++;
+	raw_spin_unlock_irqrestore(&task->delays->lock, flags);
 }
-EXPORT_SYMBOL_GPL(set_delayacct_enabled);
-
-void _trace_android_rvh_delayacct_init(void)
-{
-	trace_android_rvh_delayacct_init(NULL);
-}
-
-void _trace_android_rvh_delayacct_tsk_init(struct task_struct *tsk)
-{
-	trace_android_rvh_delayacct_tsk_init(tsk);
-}
-
-void _trace_android_rvh_delayacct_tsk_free(struct task_struct *tsk)
-{
-	trace_android_rvh_delayacct_tsk_free(tsk);
-}
-
-void _trace_android_vh_delayacct_blkio_start(void)
-{
-	trace_android_vh_delayacct_blkio_start(NULL);
-}
-
-void _trace_android_vh_delayacct_blkio_end(struct task_struct *p)
-{
-	trace_android_vh_delayacct_blkio_end(p);
-}
-
-void _trace_android_vh_delayacct_add_tsk(struct taskstats *d, struct task_struct *tsk, int *ret)
-{
-	trace_android_vh_delayacct_add_tsk(d, tsk, ret);
-}
-
-void _trace_android_vh_delayacct_blkio_ticks(struct task_struct *tsk, __u64 *ret)
-{
-	trace_android_vh_delayacct_blkio_ticks(tsk, ret);
-}
-
-void _trace_android_vh_delayacct_freepages_start(void)
-{
-	trace_android_vh_delayacct_freepages_start(NULL);
-}
-
-void _trace_android_vh_delayacct_freepages_end(void)
-{
-	trace_android_vh_delayacct_freepages_end(NULL);
-}
-
-void _trace_android_vh_delayacct_thrashing_start(bool *in_thrashing)
-{
-	trace_android_vh_delayacct_thrashing_start(in_thrashing);
-}
-
-void _trace_android_vh_delayacct_thrashing_end(bool *in_thrashing)
-{
-	trace_android_vh_delayacct_thrashing_end(in_thrashing);
-}
-
-void _trace_android_vh_delayacct_swapin_start(void)
-{
-	trace_android_vh_delayacct_swapin_start(NULL);
-}
-
-void _trace_android_vh_delayacct_swapin_end(void)
-{
-	trace_android_vh_delayacct_swapin_end(NULL);
-}
-
-void _trace_android_vh_delayacct_compact_start(void)
-{
-	trace_android_vh_delayacct_compact_start(NULL);
-}
-
-void _trace_android_vh_delayacct_compact_end(void)
-{
-	trace_android_vh_delayacct_compact_end(NULL);
-}
-
-void _trace_android_vh_delayacct_wpcopy_start(void)
-{
-	trace_android_vh_delayacct_wpcopy_start(NULL);
-}
-
-void _trace_android_vh_delayacct_wpcopy_end(void)
-{
-	trace_android_vh_delayacct_wpcopy_end(NULL);
-}
-
-#endif
 

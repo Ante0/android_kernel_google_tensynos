@@ -70,7 +70,7 @@ static inline uint16_t _ ## name ## _get(uint16_t r) \
 static inline const char *
 max77779_pmic_revision_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " REV=%x",
@@ -123,7 +123,7 @@ MAX77779_BFF(max77779_pmic_revision_ver, 7, 3)
 static inline const char *
 max77779_pmic_intsrc_sts_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " TCPC_INT=%x",
@@ -190,7 +190,7 @@ MAX77779_BFF(max77779_pmic_intsrc_sts_pmictop_int, 7, 7)
 static inline const char *
 max77779_pmic_vdroop_int_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " OILO2_CNT_INT=%x",
@@ -257,7 +257,7 @@ MAX77779_BFF(max77779_pmic_vdroop_int_sys_uvlo1_int, 7, 7)
 static inline const char *
 max77779_pmic_intb_mask_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " TCPC_INT_M=%x",
@@ -324,7 +324,7 @@ MAX77779_BFF(max77779_pmic_intb_mask_pmictop_int_m, 7, 7)
 static inline const char *
 max77779_pmic_spmi_int_mask_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " TCPC_INT_SM=%x",
@@ -372,7 +372,7 @@ MAX77779_BFF(max77779_pmic_spmi_int_mask_pmictop_int_sm, 7, 7)
 static inline const char *
 max77779_pmic_spmi_int_priority_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " SPMI_INT_PR=%x",
@@ -421,7 +421,7 @@ MAX77779_BFF(max77779_pmic_spmi_int_priority_spr_7_1, 7, 1)
 static inline const char *
 max77779_pmic_vdroop_int_mask_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " OILO2_CNT_M=%x",
@@ -488,7 +488,7 @@ MAX77779_BFF(max77779_pmic_vdroop_int_mask_sys_uvlo1_m, 7, 7)
 static inline const char *
 max77779_pmic_vdroop_int_spmi_mask_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " OILO2_CNT_SM=%x",
@@ -536,7 +536,7 @@ MAX77779_BFF(max77779_pmic_vdroop_int_spmi_mask_sys_uvlo1_sm, 7, 7)
 static inline const char *
 max77779_pmic_vdroop_int_spmi_priority_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " VDROOP_INT_PR=%x",
@@ -585,7 +585,7 @@ MAX77779_BFF(max77779_pmic_vdroop_int_spmi_priority_spr_7_1, 7, 1)
 static inline const char *
 max77779_pmic_int_sts_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " SPR_0=%x",
@@ -652,7 +652,7 @@ MAX77779_BFF(max77779_pmic_int_sts_apcmdresi_int, 7, 7)
 static inline const char *
 max77779_pmic_int_mask_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " FSHIP_NOT_RD=%x",
@@ -703,7 +703,7 @@ MAX77779_BFF(max77779_pmic_int_mask_apcmdres_m, 7, 7)
 static inline const char *
 max77779_pmic_event_cnt_cfg_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " ENABLE=%x",
@@ -782,7 +782,7 @@ MAX77779_BFF(max77779_pmic_event_cnt_cfg_spr_7_3, 7, 3)
 static inline const char *
 max77779_pmic_i2c_cnfg_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " HS_EXT_EN=%x",
@@ -830,7 +830,7 @@ MAX77779_BFF(max77779_pmic_i2c_cnfg_spr_7, 7, 7)
 static inline const char *
 max77779_pmic_spmi_cnfg_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " CLOAD=%x",
@@ -884,7 +884,7 @@ MAX77779_BFF(max77779_pmic_spmi_cnfg_spmi_hold_clk_on, 7, 7)
 static inline const char *
 max77779_pmic_spmi_mid_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " SPMI_MID=%x",
@@ -931,7 +931,7 @@ MAX77779_BFF(max77779_pmic_spmi_mid_spmi_msg_repeat, 7, 7)
 static inline const char *
 max77779_pmic_spmi_sts_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " SPMI_ARB_ERR=%x",
@@ -964,7 +964,7 @@ MAX77779_BFF(max77779_pmic_spmi_sts_rsvd_6_1, 6, 1)
 static inline const char *
 max77779_pmic_swreset_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " SWR_RST=%x",
@@ -994,7 +994,7 @@ MAX77779_BFF(max77779_pmic_swreset_vio_ok_mask, 7, 7)
 static inline const char *
 max77779_pmic_control_fg_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " TSHDN_DIS=%x",
@@ -1178,7 +1178,7 @@ MAX77779_BFF(max77779_pmic_control_fg_tshdn_dis, 4, 4)
 static inline const char *
 max77779_pmic_gpio_sgpio_int_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " SGPIO0_STS=%x",
@@ -1244,7 +1244,7 @@ MAX77779_BFF(max77779_pmic_gpio_sgpio_int_sgpio7_sts, 7, 7)
 static inline const char *
 max77779_pmic_gpio_sgpio_pu_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " PU0=%x",
@@ -1310,7 +1310,7 @@ MAX77779_BFF(max77779_pmic_gpio_sgpio_pu_pu7, 7, 7)
 static inline const char *
 max77779_pmic_gpio_sgpio_pd_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " PD0=%x",
@@ -1367,7 +1367,7 @@ MAX77779_BFF(max77779_pmic_gpio_sgpio_pd_pd7, 7, 7)
 static inline const char *
 max77779_pmic_gpio_agpio_pu_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " PU0=%x",
@@ -1415,7 +1415,7 @@ MAX77779_BFF(max77779_pmic_gpio_agpio_pu_spr_7_4, 7, 4)
 static inline const char *
 max77779_pmic_gpio_agpio_pd_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " PD0=%x",
@@ -1463,7 +1463,7 @@ MAX77779_BFF(max77779_pmic_gpio_agpio_pd_spr_7_4, 7, 4)
 static inline const char *
 max77779_pmic_gpio_sgpio_cnfg0_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DATA=%x",
@@ -1511,7 +1511,7 @@ MAX77779_BFF(max77779_pmic_gpio_sgpio_cnfg0_irq_sel, 7, 6)
 static inline const char *
 max77779_pmic_gpio_sgpio_cnfg1_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DATA=%x",
@@ -1559,7 +1559,7 @@ MAX77779_BFF(max77779_pmic_gpio_sgpio_cnfg1_irq_sel, 7, 6)
 static inline const char *
 max77779_pmic_gpio_sgpio_cnfg2_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DATA=%x",
@@ -1607,7 +1607,7 @@ MAX77779_BFF(max77779_pmic_gpio_sgpio_cnfg2_irq_sel, 7, 6)
 static inline const char *
 max77779_pmic_gpio_sgpio_cnfg3_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DATA=%x",
@@ -1655,7 +1655,7 @@ MAX77779_BFF(max77779_pmic_gpio_sgpio_cnfg3_irq_sel, 7, 6)
 static inline const char *
 max77779_pmic_gpio_sgpio_cnfg4_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DATA=%x",
@@ -1703,7 +1703,7 @@ MAX77779_BFF(max77779_pmic_gpio_sgpio_cnfg4_irq_sel, 7, 6)
 static inline const char *
 max77779_pmic_gpio_sgpio_cnfg5_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DATA=%x",
@@ -1751,7 +1751,7 @@ MAX77779_BFF(max77779_pmic_gpio_sgpio_cnfg5_irq_sel, 7, 6)
 static inline const char *
 max77779_pmic_gpio_sgpio_cnfg6_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DATA=%x",
@@ -1799,7 +1799,7 @@ MAX77779_BFF(max77779_pmic_gpio_sgpio_cnfg6_irq_sel, 7, 6)
 static inline const char *
 max77779_pmic_gpio_sgpio_cnfg7_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DATA=%x",
@@ -1847,7 +1847,7 @@ MAX77779_BFF(max77779_pmic_gpio_sgpio_cnfg7_irq_sel, 7, 6)
 static inline const char *
 max77779_pmic_gpio_agpio_cnfg0_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DATA=%x",
@@ -1895,7 +1895,7 @@ MAX77779_BFF(max77779_pmic_gpio_agpio_cnfg0_rsvd_7_6, 7, 6)
 static inline const char *
 max77779_pmic_gpio_agpio_cnfg1_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DATA=%x",
@@ -1943,7 +1943,7 @@ MAX77779_BFF(max77779_pmic_gpio_agpio_cnfg1_rsvd_7_6, 7, 6)
 static inline const char *
 max77779_pmic_gpio_agpio_cnfg2_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DATA=%x",
@@ -1991,7 +1991,7 @@ MAX77779_BFF(max77779_pmic_gpio_agpio_cnfg2_rsvd_7_6, 7, 6)
 static inline const char *
 max77779_pmic_gpio_agpio_cnfg3_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DATA=%x",
@@ -2036,7 +2036,7 @@ MAX77779_BFF(max77779_pmic_gpio_agpio_cnfg3_rsvd_7_6, 7, 6)
 static inline const char *
 max77779_pmic_gpio_agpio_cnfg4_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DATA=%x",
@@ -2078,7 +2078,7 @@ MAX77779_BFF(max77779_pmic_gpio_agpio_cnfg4_rsvd_7_4, 7, 4)
 static inline const char *
 max77779_pmic_gpio_agpio_cnfg5_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DATA=%x",
@@ -2114,7 +2114,7 @@ MAX77779_BFF(max77779_pmic_gpio_agpio_cnfg5_rsvd_7_4, 7, 4)
 static inline const char *
 max77779_pmic_gpio_vgpi_cnfg_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " VGPI_PR=%x",
@@ -2247,7 +2247,7 @@ MAX77779_BFF(max77779_pmic_gpio_vgpi_cnfg_spr_7_1, 7, 1)
 static inline const char *
 max77779_chg_jeita_ctrl_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " IN_ADC_FORCE=%x",
@@ -2302,7 +2302,7 @@ MAX77779_BFF(max77779_chg_jeita_ctrl_batt_id2_do, 4, 4)
 static inline const char *
 max77779_chg_jeita_flags_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " CHGIN_ADC_ON=%x",
@@ -2353,7 +2353,7 @@ MAX77779_BFF(max77779_chg_jeita_flags_batt_id1_adc_ok, 6, 6)
 static inline const char *
 max77779_chg_cop_ctrl_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " COP_EN=%x",
@@ -2386,7 +2386,7 @@ MAX77779_BFF(max77779_chg_cop_ctrl_cop_alert_sts, 7, 7)
 static inline const char *
 max77779_chg_cop_debounce_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " COP_DB_TIME=%x",
@@ -2455,7 +2455,7 @@ MAX77779_BFF(max77779_chg_cop_debounce_cop_db_time, 2, 0)
 static inline const char *
 max77779_chg_int_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BYP_I=%x",
@@ -2522,7 +2522,7 @@ MAX77779_BFF(max77779_chg_int_aicl_i, 7, 7)
 static inline const char *
 max77779_chg_int2_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " CHG_STA_DONE_I=%x",
@@ -2588,7 +2588,7 @@ MAX77779_BFF(max77779_chg_int2_insel_i, 7, 7)
 static inline const char *
 max77779_chg_int_mask_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BYP_M=%x",
@@ -2655,7 +2655,7 @@ MAX77779_BFF(max77779_chg_int_mask_aicl_m, 7, 7)
 static inline const char *
 max77779_chg_int2_mask_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " CHG_STA_DONE_M=%x",
@@ -2721,7 +2721,7 @@ MAX77779_BFF(max77779_chg_int2_mask_insel_m, 7, 7)
 static inline const char *
 max77779_chg_int_ok_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BYP_OK=%x",
@@ -2778,7 +2778,7 @@ MAX77779_BFF(max77779_chg_int_ok_aicl_ok, 7, 7)
 static inline const char *
 max77779_chg_details_00_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " TREG=%x",
@@ -2820,7 +2820,7 @@ MAX77779_BFF(max77779_chg_details_00_vdroop1_ok, 7, 7)
 static inline const char *
 max77779_chg_details_01_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " CHG_DTLS=%x",
@@ -2859,7 +2859,7 @@ MAX77779_BFF(max77779_chg_details_01_vdroop2_ok, 7, 7)
 static inline const char *
 max77779_chg_details_02_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BYP_DTLS=%x",
@@ -2898,7 +2898,7 @@ MAX77779_BFF(max77779_chg_details_02_nxt_bck_input, 7, 6)
 static inline const char *
 max77779_chg_details_03_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " THM1_DTLS=%x",
@@ -2940,7 +2940,7 @@ MAX77779_BFF(max77779_chg_details_03_jeita_aux_dtls, 7, 6)
 static inline const char *
 max77779_chg_details_04_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " FSHIP_EXIT_DTLS=%x",
@@ -2985,7 +2985,7 @@ MAX77779_BFF(max77779_chg_details_04_bck_maxval_sts, 6, 6)
 static inline const char *
 max77779_chg_cnfg_00_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " MODE=%x",
@@ -3030,7 +3030,7 @@ MAX77779_BFF(max77779_chg_cnfg_00_wdtclr, 7, 6)
 static inline const char *
 max77779_chg_cnfg_01_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " FCHGTIME=%x",
@@ -3066,7 +3066,7 @@ MAX77779_BFF(max77779_chg_cnfg_01_pqen, 7, 7)
 static inline const char *
 max77779_chg_cnfg_02_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " CHGCC=%x",
@@ -3099,7 +3099,7 @@ MAX77779_BFF(max77779_chg_cnfg_02_chgcc, 5, 0)
 static inline const char *
 max77779_chg_cnfg_03_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " TO_ITH=%x",
@@ -3132,7 +3132,7 @@ MAX77779_BFF(max77779_chg_cnfg_03_sys_track_dis, 7, 7)
 static inline const char *
 max77779_chg_cnfg_04_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " CHG_CV_PRM=%x",
@@ -3159,7 +3159,7 @@ MAX77779_BFF(max77779_chg_cnfg_04_chg_cv_prm, 5, 0)
 static inline const char *
 max77779_chg_cnfg_05_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " OTG_ILIM=%x",
@@ -3192,7 +3192,7 @@ MAX77779_BFF(max77779_chg_cnfg_05_wcsm_ilim, 7, 4)
 static inline const char *
 max77779_chg_cnfg_06_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " WCIN_PD_DIS=%x",
@@ -3225,7 +3225,7 @@ MAX77779_BFF(max77779_chg_cnfg_06_chg_ctm_key, 7, 4)
 static inline const char *
 max77779_chg_cnfg_07_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " FSHIP_MODE=%x",
@@ -3267,7 +3267,7 @@ MAX77779_BFF(max77779_chg_cnfg_07_regtemp, 6, 3)
 static inline const char *
 max77779_chg_cnfg_08_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " FSW=%x",
@@ -3309,7 +3309,7 @@ MAX77779_BFF(max77779_chg_cnfg_08_vchgcv_warm, 6, 6)
 static inline const char *
 max77779_chg_cnfg_09_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " CHGIN_ILIM=%x",
@@ -3339,7 +3339,7 @@ MAX77779_BFF(max77779_chg_cnfg_09_no_autoibus, 7, 7)
 static inline const char *
 max77779_chg_cnfg_10_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " WCIN_ILIM=%x",
@@ -3386,7 +3386,7 @@ MAX77779_BFF(max77779_chg_cnfg_10_chgin_ilim_speed, 7, 7)
 static inline const char *
 max77779_chg_cnfg_12_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DISKIP=%x",
@@ -3434,7 +3434,7 @@ MAX77779_BFF(max77779_chg_cnfg_12_chg_en, 7, 7)
 static inline const char *
 max77779_chg_cnfg_13_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " USB_TEMP_THR=%x",
@@ -3470,7 +3470,7 @@ MAX77779_BFF(max77779_chg_cnfg_13_chgin_ss_en, 5, 5)
 static inline const char *
 max77779_chg_cnfg_14_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " TPWROUT=%x",
@@ -3509,7 +3509,7 @@ MAX77779_BFF(max77779_chg_cnfg_14_aicl, 7, 6)
 static inline const char *
 max77779_chg_cnfg_15_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " WDTEN=%x",
@@ -3554,7 +3554,7 @@ MAX77779_BFF(max77779_chg_cnfg_15_minvsys, 5, 4)
 static inline const char *
 max77779_chg_cnfg_16_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " SLOWLX=%x",
@@ -3606,7 +3606,7 @@ MAX77779_BFF(max77779_chg_cnfg_16_auto_fship_time, 7, 5)
 static inline const char *
 max77779_chg_cnfg_17_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " THM3_JEITA_EN=%x",
@@ -3651,7 +3651,7 @@ MAX77779_BFF(max77779_chg_cnfg_17_vdp2_stp_bst, 7, 7)
 static inline const char *
 max77779_sys_uvlo1_cnfg_0_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " SYS_UVLO1=%x",
@@ -3684,7 +3684,7 @@ MAX77779_BFF(max77779_sys_uvlo1_cnfg_0_sys_uvlo1_hyst, 5, 4)
 static inline const char *
 max77779_sys_uvlo1_cnfg_1_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " SYS_UVLO1_REL=%x",
@@ -3717,7 +3717,7 @@ MAX77779_BFF(max77779_sys_uvlo1_cnfg_1_sys_uvlo1_vdrp1_en, 7, 7)
 static inline const char *
 max77779_sys_uvlo2_cnfg_0_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " SYS_UVLO2=%x",
@@ -3750,7 +3750,7 @@ MAX77779_BFF(max77779_sys_uvlo2_cnfg_0_sys_uvlo2_hyst, 5, 4)
 static inline const char *
 max77779_sys_uvlo2_cnfg_1_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " SYS_UVLO2_REL=%x",
@@ -3780,7 +3780,7 @@ MAX77779_BFF(max77779_sys_uvlo2_cnfg_1_sys_uvlo2_vdrp2_en, 7, 7)
 static inline const char *
 max77779_bat_oilo1_cnfg_0_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BAT_OILO1=%x",
@@ -3807,7 +3807,7 @@ MAX77779_BFF(max77779_bat_oilo1_cnfg_0_bat_oilo1, 4, 0)
 static inline const char *
 max77779_bat_oilo1_cnfg_1_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BAT_OILO1_DET=%x",
@@ -3837,7 +3837,7 @@ MAX77779_BFF(max77779_bat_oilo1_cnfg_1_bat_oilo1_rel, 7, 5)
 static inline const char *
 max77779_bat_oilo1_cnfg_2_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BAT_OILO1_INT_DET=%x",
@@ -3873,7 +3873,7 @@ MAX77779_BFF(max77779_bat_oilo1_cnfg_2_bat_oilo1_int_rel, 7, 5)
 static inline const char *
 max77779_bat_oilo1_cnfg_3_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BAT_OPEN_TO_1=%x",
@@ -3906,7 +3906,7 @@ MAX77779_BFF(max77779_bat_oilo1_cnfg_3_bat_oilo1_vdrp2_en, 7, 7)
 static inline const char *
 max77779_bat_oilo2_cnfg_0_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BAT_OILO2=%x",
@@ -3933,7 +3933,7 @@ MAX77779_BFF(max77779_bat_oilo2_cnfg_0_bat_oilo2, 4, 0)
 static inline const char *
 max77779_bat_oilo2_cnfg_1_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BAT_OILO2_DET=%x",
@@ -3963,7 +3963,7 @@ MAX77779_BFF(max77779_bat_oilo2_cnfg_1_bat_oilo2_rel, 7, 5)
 static inline const char *
 max77779_bat_oilo2_cnfg_2_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BAT_OILO2_INT_DET=%x",
@@ -3996,7 +3996,7 @@ MAX77779_BFF(max77779_bat_oilo2_cnfg_2_bat_oilo2_int_rel, 7, 5)
 static inline const char *
 max77779_bat_oilo2_cnfg_3_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BAT_OPEN_TO_2=%x",
@@ -4035,7 +4035,7 @@ MAX77779_BFF(max77779_bat_oilo2_cnfg_3_bat_oilo2_vdrp2_en, 7, 7)
 static inline const char *
 max77779_chg_cust_tm_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BAT_OILO2_CTM=%x",
@@ -4111,7 +4111,7 @@ MAX77779_BFF(max77779_chg_cust_tm_sys_uvlo1_ctm, 3, 3)
 static inline const char *
 max77779_fg_status_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " PONR=%x",
@@ -4183,7 +4183,7 @@ MAX77779_BFF16(max77779_fg_status_br, 15, 15)
 static inline const char *
 max77779_fg_configpwr_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " VIO_SHDN=%x",
@@ -4232,7 +4232,7 @@ MAX77779_BFF16(max77779_fg_configpwr_pwronb2_wk, 3, 3)
 static inline const char *
 max77779_fg_hibcfg_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " HibScalar=%x",
@@ -4274,7 +4274,7 @@ MAX77779_BFF16(max77779_fg_hibcfg_enhib, 15, 15)
 static inline const char *
 max77779_fg_valrtth_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " VMIN=%x",
@@ -4304,7 +4304,7 @@ MAX77779_BFF16(max77779_fg_valrtth_vmax, 15, 8)
 static inline const char *
 max77779_fg_talrtth_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " TMIN=%x",
@@ -4334,7 +4334,7 @@ MAX77779_BFF16(max77779_fg_talrtth_tmax, 15, 8)
 static inline const char *
 max77779_fg_salrtth_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " SMIN=%x",
@@ -4374,7 +4374,7 @@ MAX77779_BFF16(max77779_fg_salrtth_smax, 15, 8)
 static inline const char *
 max77779_fg_shdntimer_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " CTR=%x",
@@ -4404,7 +4404,7 @@ MAX77779_BFF16(max77779_fg_shdntimer_thr, 15, 13)
 static inline const char *
 max77779_fg_maxmintemp_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " MINTEMP=%x",
@@ -4434,7 +4434,7 @@ MAX77779_BFF16(max77779_fg_maxmintemp_maxtemp, 15, 8)
 static inline const char *
 max77779_fg_maxmincurr_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " MINCURR=%x",
@@ -4464,7 +4464,7 @@ MAX77779_BFF16(max77779_fg_maxmincurr_maxcurr, 15, 8)
 static inline const char *
 max77779_fg_maxminvolt_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " MINVOLT=%x",
@@ -4521,7 +4521,7 @@ MAX77779_BFF16(max77779_fg_maxminvolt_maxvolt, 15, 8)
 static inline const char *
 max77779_fg_config_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " Ber=%x",
@@ -4603,7 +4603,7 @@ MAX77779_BFF16(max77779_fg_config_ss, 14, 14)
 static inline const char *
 max77779_fg_misccfg_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " SACFG=%x",
@@ -4713,7 +4713,7 @@ MAX77779_BFF16(max77779_fg_misccfg_fus, 15, 12)
 static inline const char *
 max77779_fg_vempty_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " VR=%x",
@@ -4804,7 +4804,7 @@ MAX77779_BFF16(max77779_fg_vempty_ve, 15, 7)
 static inline const char *
 max77779_fg_learncfg_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " RCx=%x",
@@ -4874,7 +4874,7 @@ MAX77779_BFF16(max77779_fg_learncfg_fclm, 9, 8)
 static inline const char *
 max77779_fg_sochold_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " EmptySocHold=%x",
@@ -4931,7 +4931,7 @@ MAX77779_BFF16(max77779_fg_sochold_ibattnoload, 15, 14)
 static inline const char *
 max77779_fg_fstat_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DNR=%x",
@@ -4992,7 +4992,7 @@ MAX77779_BFF16(max77779_fg_fstat_debn, 12, 12)
 static inline const char *
 max77779_fg_inputsocholdsts_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " InputSoCHoldNow=%x",
@@ -5102,7 +5102,7 @@ MAX77779_BFF16(max77779_fg_inputsocholdsts_inputssts, 14, 14)
 static inline const char *
 max77779_fg_currentoffsetcal_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " FDET_Done=%x",
@@ -5146,7 +5146,7 @@ MAX77779_BFF16(max77779_fg_currentoffsetcal_learnedoffsetvalue, 15, 6)
 static inline const char *
 max77779_fg_debuginfo_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " PatchUse=%x",
@@ -5333,7 +5333,7 @@ MAX77779_BFF16(max77779_fg_debuginfo_patchuse, 1, 0)
 static inline const char *
 max77779_fg_cgain_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " C_Offset=%x",
@@ -5366,7 +5366,7 @@ MAX77779_BFF16(max77779_fg_cgain_c_gain, 15, 6)
 static inline const char *
 max77779_fg_modelcfg_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " ModelID=%x",
@@ -5411,7 +5411,7 @@ MAX77779_BFF16(max77779_fg_modelcfg_refresh, 15, 15)
 static inline const char *
 max77779_fg_config2_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " Reset_VFOCV=%x",
@@ -5453,7 +5453,7 @@ MAX77779_BFF16(max77779_fg_config2_ldmdl, 15, 15)
 static inline const char *
 max77779_fg_status2_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " Hib=%x",
@@ -5488,7 +5488,7 @@ MAX77779_BFF16(max77779_fg_status2_fulldet, 5, 5)
 static inline const char *
 max77779_fg_ialrtth_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " IMIN=%x",
@@ -5515,7 +5515,7 @@ MAX77779_BFF16(max77779_fg_ialrtth_imax, 15, 8)
 static inline const char *
 max77779_fg_ic_info_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " TestProgramRev=%x",
@@ -5589,7 +5589,7 @@ MAX77779_BFF16(max77779_fg_ic_info_testprogramrev, 15, 8)
 static inline const char *
 max77779_fg_trimvbattgain_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " vbattgtrim=%x",
@@ -5613,7 +5613,7 @@ MAX77779_BFF16(max77779_fg_trimvbattgain_vbattgtrim, 11, 0)
 static inline const char *
 max77779_fg_trimibattgain_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " ibattgtrim=%x",
@@ -5640,7 +5640,7 @@ MAX77779_BFF16(max77779_fg_trimibattgain_ibattgtrim, 11, 0)
 static inline const char *
 max77779_fg_trimbattoffset_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " ibattotrim=%x",
@@ -5707,7 +5707,7 @@ MAX77779_BFF16(max77779_fg_trimbattoffset_vbattotrim, 15, 8)
 static inline const char *
 max77779_fg_fg_int_sts_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " PONR=%x",
@@ -5803,7 +5803,7 @@ MAX77779_BFF16(max77779_fg_fg_int_sts_br, 15, 15)
 static inline const char *
 max77779_fg_fg_int_mask_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " POR_m=%x",
@@ -5863,7 +5863,7 @@ MAX77779_BFF16(max77779_fg_fg_int_mask_br_m, 15, 15)
 static inline const char *
 max77779_fg_command_fw_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " CMD_FW=%x",
@@ -5887,7 +5887,7 @@ MAX77779_BFF16(max77779_fg_command_fw_cmd_fw, 11, 0)
 static inline const char *
 max77779_fg_command_ack_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " CMD_FW_BUSY=%x",
@@ -5917,7 +5917,7 @@ MAX77779_BFF16(max77779_fg_command_ack_cmd_fw_busy, 0, 0)
 static inline const char *
 max77779_fg_usr_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " NLOCK=%x",
@@ -5954,7 +5954,7 @@ MAX77779_BFF16(max77779_fg_usr_rlock, 3, 3)
 static inline const char *
 max77779_fg_nvm_nvalrtth_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " nVMIN=%x",
@@ -5984,7 +5984,7 @@ MAX77779_BFF16(max77779_fg_nvm_nvalrtth_nvmax, 15, 8)
 static inline const char *
 max77779_fg_nvm_ntalrtth_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " nTMIN=%x",
@@ -6014,7 +6014,7 @@ MAX77779_BFF16(max77779_fg_nvm_ntalrtth_ntmax, 15, 8)
 static inline const char *
 max77779_fg_nvm_nialrtth_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " nIMIN=%x",
@@ -6044,7 +6044,7 @@ MAX77779_BFF16(max77779_fg_nvm_nialrtth_nimax, 15, 8)
 static inline const char *
 max77779_fg_nvm_nsalrtth_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " nSMIN=%x",
@@ -6092,7 +6092,7 @@ MAX77779_BFF16(max77779_fg_nvm_nsalrtth_nsmax, 15, 8)
 static inline const char *
 max77779_fg_nvm_nlearncfg_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " RCx=%x",
@@ -6193,7 +6193,7 @@ MAX77779_BFF16(max77779_fg_nvm_nlearncfg_learnstage, 6, 4)
 static inline const char *
 max77779_fg_nvm_relaxcfg_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " dT=%x",
@@ -6226,7 +6226,7 @@ MAX77779_BFF16(max77779_fg_nvm_relaxcfg_load, 15, 9)
 static inline const char *
 max77779_fg_nvm_nconvgcfg_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " VoltLowOff=%x",
@@ -6269,7 +6269,7 @@ MAX77779_BFF16(max77779_fg_nvm_nconvgcfg_replow, 15, 12)
 static inline const char *
 max77779_fg_nvm_nhibcfg_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " HibScalar=%x",
@@ -6319,7 +6319,7 @@ MAX77779_BFF16(max77779_fg_nvm_nhibcfg_enhib, 15, 15)
 static inline const char *
 max77779_fg_nvm_nnvcfg0_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " Reserved_2_0=%x",
@@ -6352,7 +6352,7 @@ MAX77779_BFF16(max77779_fg_nvm_nnvcfg0_reserved_15_4, 15, 4)
 static inline const char *
 max77779_fg_nvm_nvempty_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " VR=%x",
@@ -6400,7 +6400,7 @@ MAX77779_BFF16(max77779_fg_nvm_nvempty_ve, 15, 7)
 static inline const char *
 max77779_fg_nvm_nprotmiscth_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " CurrentOffCalEn=%x",
@@ -6440,7 +6440,7 @@ MAX77779_BFF16(max77779_fg_nvm_nprotmiscth_learnedoffnoqc, 2, 2)
 static inline const char *
 max77779_i2cm_interrupt_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DONEI=%x",
@@ -6476,7 +6476,7 @@ MAX77779_BFF(max77779_i2cm_interrupt_erri, 7, 7)
 static inline const char *
 max77779_i2cm_intmask_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " DONEIM=%x",
@@ -6509,7 +6509,7 @@ MAX77779_BFF(max77779_i2cm_intmask_errim, 7, 7)
 static inline const char *
 max77779_i2cm_status_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " ERROR=%x",
@@ -6559,7 +6559,7 @@ MAX77779_BFF(max77779_i2cm_status_bus, 7, 7)
 static inline const char *
 max77779_i2cm_control_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " I2CEN=%x",
@@ -6604,7 +6604,7 @@ MAX77779_BFF(max77779_i2cm_control_sdao, 7, 7)
 static inline const char *
 max77779_i2cm_sladd_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " TO_SRC=%x",
@@ -6634,7 +6634,7 @@ MAX77779_BFF(max77779_i2cm_sladd_slave_id, 7, 1)
 static inline const char *
 max77779_i2cm_txdata_cnt_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " TXCNT=%x",
@@ -6834,7 +6834,7 @@ MAX77779_BFF(max77779_i2cm_txdata_cnt_spr_7_6, 7, 6)
 static inline const char *
 max77779_i2cm_rxdata_cnt_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " RXCNT=%x",
@@ -6867,7 +6867,7 @@ MAX77779_BFF(max77779_i2cm_rxdata_cnt_spr_7_5, 7, 5)
 static inline const char *
 max77779_i2cm_cmd_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " I2CMWRITE=%x",
@@ -7061,7 +7061,7 @@ MAX77779_BFF(max77779_i2cm_cmd_spr_7_2, 7, 2)
 static inline const char *
 max77779_bvim_int_sts_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BVIM_Samples_Rdy=%x",
@@ -7085,7 +7085,7 @@ MAX77779_BFF(max77779_bvim_int_sts_bvim_samples_rdy, 0, 0)
 static inline const char *
 max77779_bvim_mask_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BVIM_Samples_Rdy_m=%x",
@@ -7109,7 +7109,7 @@ MAX77779_BFF(max77779_bvim_mask_bvim_samples_rdy_m, 0, 0)
 static inline const char *
 max77779_bvim_ctrl_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BVIMON_TRIG=%x",
@@ -7156,7 +7156,7 @@ MAX77779_BFF(max77779_bvim_ctrl_bvimon_trig, 0, 0)
 static inline const char *
 max77779_bvim_bvim_cfg_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " smpl_n=%x",
@@ -7210,7 +7210,7 @@ MAX77779_BFF(max77779_bvim_bvim_cfg_vioaok_stop, 15, 15)
 static inline const char *
 max77779_bvim_smpl_math_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " math_avg=%x",
@@ -7292,7 +7292,7 @@ MAX77779_BFF(max77779_bvim_smpl_math_smpl_start_add, 15, 7)
 static inline const char *
 max77779_bvim_bvim_trig_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " trig_now=%x",
@@ -7383,7 +7383,7 @@ MAX77779_BFF(max77779_bvim_bvim_trig_oilo_stop_source, 15, 15)
 static inline const char *
 max77779_bvim_bvimtr_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " v_md=%x",
@@ -7487,7 +7487,7 @@ MAX77779_BFF(max77779_bvim_bvimtr_i_smax_md, 15, 14)
 static inline const char *
 max77779_bvim_bvim_sts_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " bvim_osc=%x",
@@ -7535,7 +7535,7 @@ MAX77779_BFF(max77779_bvim_bvim_sts_stop_sts_vioaok, 15, 15)
 static inline const char *
 max77779_bvim_bvim_rs_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " rsc=%x",
@@ -7579,7 +7579,7 @@ MAX77779_BFF(max77779_bvim_bvim_rs_spr_15_13, 15, 13)
 static inline const char *
 max77779_bvim_page_ctrl_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " BVIM_DATA_PAGE=%x",
@@ -7611,7 +7611,7 @@ MAX77779_BFF(max77779_bvim_page_ctrl_bvim_data_page, 1, 0)
 static inline const char *
 max77779_sp_page_ctrl_cstr(char *buff, size_t len, int val)
 {
-#ifdef CONFIG_SCNPRINTF_DEBUG
+#if IS_ENABLED(CONFIG_SCNPRINTF_DEBUG)
 	int i = 0;
 
 	i += scnprintf(&buff[i], len - i, " SP_DATA_PAGE=%x",

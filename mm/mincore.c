@@ -18,6 +18,7 @@
 #include <linux/shmem_fs.h>
 #include <linux/hugetlb.h>
 #include <linux/pgtable.h>
+#include <linux/page_size_compat.h>
 
 #include <linux/uaccess.h>
 #include "swap.h"
@@ -33,7 +34,7 @@ static int mincore_hugetlb(pte_t *pte, unsigned long hmask, unsigned long addr,
 	 * Hugepages under user process are always in RAM and never
 	 * swapped out, but theoretically it needs to be checked.
 	 */
-	present = pte && !huge_pte_none_mostly(huge_ptep_get(pte));
+	present = pte && !huge_pte_none_mostly(huge_ptep_get(walk->mm, addr, pte));
 	for (; addr != end; vec++, addr += PAGE_SIZE)
 		*vec = present;
 	walk->private = vec;
@@ -52,7 +53,7 @@ static int mincore_hugetlb(pte_t *pte, unsigned long hmask, unsigned long addr,
 static unsigned char mincore_page(struct address_space *mapping, pgoff_t index)
 {
 	unsigned char present = 0;
-	struct page *page;
+	struct folio *folio;
 
 	/*
 	 * When tmpfs swaps out a page from a file, any process mapping that
@@ -60,10 +61,10 @@ static unsigned char mincore_page(struct address_space *mapping, pgoff_t index)
 	 * any other file mapping (ie. marked !present and faulted in with
 	 * tmpfs's .fault). So swapped out tmpfs mappings are tested here.
 	 */
-	page = find_get_incore_page(mapping, index);
-	if (page) {
-		present = PageUptodate(page);
-		put_page(page);
+	folio = filemap_get_incore_folio(mapping, index);
+	if (!IS_ERR(folio)) {
+		present = folio_test_uptodate(folio);
+		folio_put(folio);
 	}
 
 	return present;
@@ -113,14 +114,13 @@ static int mincore_pte_range(pmd_t *pmd, unsigned long addr, unsigned long end,
 		goto out;
 	}
 
-	if (pmd_trans_unstable(pmd)) {
-		__mincore_unmapped_range(addr, end, vma, vec);
-		goto out;
-	}
-
 	ptep = pte_offset_map_lock(walk->mm, pmd, addr, &ptl);
+	if (!ptep) {
+		walk->action = ACTION_AGAIN;
+		return 0;
+	}
 	for (; addr != end; ptep++, addr += PAGE_SIZE) {
-		pte_t pte = *ptep;
+		pte_t pte = ptep_get(ptep);
 
 		/* We need to do cache lookup too for pte markers */
 		if (pte_none_mostly(pte))
@@ -140,7 +140,7 @@ static int mincore_pte_range(pmd_t *pmd, unsigned long addr, unsigned long end,
 			} else {
 #ifdef CONFIG_SWAP
 				*vec = mincore_page(swap_address_space(entry),
-						    swp_offset(entry));
+						    swap_cache_index(entry));
 #else
 				WARN_ON(1);
 				*vec = 1;
@@ -168,7 +168,7 @@ static inline bool can_do_mincore(struct vm_area_struct *vma)
 	 * for writing; otherwise we'd be including shared non-exclusive
 	 * mappings, which opens a side channel.
 	 */
-	return inode_owner_or_capable(&init_user_ns,
+	return inode_owner_or_capable(&nop_mnt_idmap,
 				      file_inode(vma->vm_file)) ||
 	       file_permission(vma->vm_file, MAY_WRITE) == 0;
 }
@@ -191,8 +191,8 @@ static long do_mincore(unsigned long addr, unsigned long pages, unsigned char *v
 	unsigned long end;
 	int err;
 
-	vma = find_vma(current->mm, addr);
-	if (!vma || addr < vma->vm_start)
+	vma = vma_lookup(current->mm, addr);
+	if (!vma)
 		return -ENOMEM;
 	end = min(vma->vm_end, addr + (pages << PAGE_SHIFT));
 	if (!can_do_mincore(vma)) {
@@ -204,6 +204,20 @@ static long do_mincore(unsigned long addr, unsigned long pages, unsigned char *v
 	if (err < 0)
 		return err;
 	return (end - addr) >> PAGE_SHIFT;
+}
+
+static inline void __collapse_mincore_result(unsigned char *src_vec,
+					     unsigned char *res_vec,
+					     unsigned long pages,
+					     unsigned long nr_subpages)
+{
+	unsigned long i;
+
+	if (nr_subpages == 1)
+		return;
+
+	for (i = 0; i < pages; i++)
+		res_vec[i / nr_subpages] |= src_vec[i];
 }
 
 /*
@@ -236,11 +250,13 @@ SYSCALL_DEFINE3(mincore, unsigned long, start, size_t, len,
 	long retval;
 	unsigned long pages;
 	unsigned char *tmp;
+	unsigned char *res;
+	unsigned long nr_subpages = __PAGE_SIZE / PAGE_SIZE;
 
 	start = untagged_addr(start);
 
 	/* Check the start address: needs to be page-aligned.. */
-	if (start & ~PAGE_MASK)
+	if (start & ~__PAGE_MASK)
 		return -EINVAL;
 
 	/* ..and we need to be passed a valid user-space range */
@@ -251,12 +267,21 @@ SYSCALL_DEFINE3(mincore, unsigned long, start, size_t, len,
 	pages = len >> PAGE_SHIFT;
 	pages += (offset_in_page(len)) != 0;
 
-	if (!access_ok(vec, pages))
+	if (!access_ok(vec, pages / nr_subpages))
 		return -EFAULT;
 
 	tmp = (void *) __get_free_page(GFP_USER);
 	if (!tmp)
 		return -EAGAIN;
+
+	if (unlikely(nr_subpages > 1)) {
+		res = (void *) __get_free_page(GFP_USER|__GFP_ZERO);
+		if (!res) {
+			free_page((unsigned long) tmp);
+			return -EAGAIN;
+		}
+	} else
+		res = tmp;
 
 	retval = 0;
 	while (pages) {
@@ -270,15 +295,28 @@ SYSCALL_DEFINE3(mincore, unsigned long, start, size_t, len,
 
 		if (retval <= 0)
 			break;
-		if (copy_to_user(vec, tmp, retval)) {
+
+		__collapse_mincore_result(tmp, res, retval, nr_subpages);
+
+		if (copy_to_user(vec, res, retval / nr_subpages)) {
 			retval = -EFAULT;
 			break;
 		}
+
+		/*
+		 * If emulating the page size, clear the old results, to avoid
+		 * corrupting the next __collapse_mincore_result()
+		 */
+		if (nr_subpages > 1)
+			memset(res, 0, retval / nr_subpages);
+
 		pages -= retval;
-		vec += retval;
+		vec += retval / nr_subpages;
 		start += retval << PAGE_SHIFT;
 		retval = 0;
 	}
+	if (unlikely(nr_subpages > 1))
+		free_page((unsigned long) res);
 	free_page((unsigned long) tmp);
 	return retval;
 }

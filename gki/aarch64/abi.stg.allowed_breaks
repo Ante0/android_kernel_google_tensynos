@@ -1,0 +1,269 @@
+# How to use this file: http://go/approve-abi-break
+
+type 'struct cfs_rq' changed
+  member 'unsigned int h_nr_queued' was removed
+  member 'union { struct { union { unsigned int h_nr_queued; unsigned int h_nr_running; }; }; struct { unsigned int __kabi_renamedh_nr_queued; }; union { }; }' was added
+
+2 function symbol(s) removed
+  'int __traceiter_android_vh_f2fs_printk(void*, struct f2fs_sb_info*, struct va_format*, int, bool)'
+  'int __traceiter_f2fs_submit_folio_write(void*, struct folio*, struct f2fs_io_info*)'
+
+2 variable symbol(s) removed
+  'struct tracepoint __tracepoint_android_vh_f2fs_printk'
+  'struct tracepoint __tracepoint_f2fs_submit_folio_write'
+
+type 'struct drm_bridge' changed
+  member 'union { bool support_hdcp; unsigned char __kabi_ignored0; }' was added
+
+type 'struct drm_framebuffer' changed
+  member 'union { unsigned int internal_flags; unsigned char __kabi_ignored0; }' was added
+
+type 'struct pkvm_module_ops' changed
+  member 'u64 __kabi_reserved1' was removed
+  member 'union { int(* register_guest_trng_ops)(const struct pkvm_module_trng_ops*); struct { u64 __kabi_reserved1; }; union { }; }' was added
+
+type 'enum iio_chan_type' changed
+  enumerator 'IIO_ATTENTION' (39) was added
+
+type 'struct cgroup' changed
+  member 'u64 __kabi_reserved_backport1' was removed
+  member 'union { struct cgroup_kmi_ext_info* kmi_ext_info; struct { u64 __kabi_reserved_backport1; }; union { }; }' was added
+
+type 'struct bindings::bindings_raw::cgroup' changed
+  member 'u64 __kabi_reserved_backport1' was removed
+  member 'union bindings::bindings_raw::cgroup__bindgen_ty_1 __bindgen_anon_1' was added
+
+type 'struct usb_device' changed
+  member 'u64 __kabi_reserved1' was removed
+  member 'u64 __kabi_reserved2' was removed
+  member 'union { unsigned int offload_at_suspend:1; struct { u64 __kabi_reserved1; }; union { }; }' was added
+  member 'union { int offload_usage; struct { u64 __kabi_reserved2; }; union { }; }' was added
+
+2 function symbol(s) removed
+  'int __traceiter_android_vh_f2fs_printk(void*, struct f2fs_sb_info*, struct va_format*, int, bool)'
+  'int __traceiter_f2fs_submit_folio_write(void*, struct folio*, struct f2fs_io_info*)'
+
+2 variable symbol(s) removed
+  'struct tracepoint __tracepoint_android_vh_f2fs_printk'
+  'struct tracepoint __tracepoint_f2fs_submit_folio_write'
+
+type 'struct readahead_control' changed
+  member 'union { bool dropbehind; unsigned char __kabi_ignored1; }' was added
+
+type 'struct bindings::bindings_raw::readahead_control' changed
+  member 'union bindings::bindings_raw::readahead_control__bindgen_ty_1 __bindgen_anon_1' was added
+
+type 'struct kvm_iommu_ops' changed
+  member 'u64 __kabi_reserved1' was removed
+  member 'union { int(* iotlb_sync_map)(struct kvm_hyp_iommu_domain*, unsigned long, size_t); struct { u64 __kabi_reserved1; }; union { }; }' was added
+
+type 'struct io_kiocb' changed
+  member 'struct hlist_node hash_node' was removed
+  member 'union { struct hlist_node hash_node; struct callback_head callback_head; }' was added
+
+type 'struct pkvm_module_ops' changed
+  member 'u64 __kabi_reserved2' was removed
+  member 'u64 __kabi_reserved3' was removed
+  member 'union { int(* map_module_pages)(u64, void*, u64, enum kvm_pgtable_prot, bool); struct { u64 __kabi_reserved2; }; union { }; }' was added
+  member 'union { int(* unmap_module_pages)(u64, void*, u64); struct { u64 __kabi_reserved3; }; union { }; }' was added
+
+type 'struct usb_request' changed
+  member 'u64 __kabi_reserved1' was removed
+  member 'union { struct usb_ep* ep; struct { u64 __kabi_reserved1; }; union { }; }' was added
+
+type 'struct inet_connection_sock' changed
+  member changed from 'struct { __u8 pending; __u8 quick; __u8 pingpong; __u8 retry; __u32 ato:8; __u32 lrcv_flowlabel:20; __u32 unused:4; unsigned long timeout; __u32 lrcvtime; __u16 last_seg_size; __u16 rcv_mss; } icsk_ack' to 'struct { __u8 pending; __u8 quick; __u8 pingpong; __u8 retry; __u32 ato:8; __u32 lrcv_flowlabel:20; __u32 dst_quick_ack:1; __u32 unused:3; unsigned long timeout; __u32 lrcvtime; __u16 last_seg_size; __u16 rcv_mss; } icsk_ack'
+    type changed from 'struct { __u8 pending; __u8 quick; __u8 pingpong; __u8 retry; __u32 ato:8; __u32 lrcv_flowlabel:20; __u32 unused:4; unsigned long timeout; __u32 lrcvtime; __u16 last_seg_size; __u16 rcv_mss; }' to 'struct { __u8 pending; __u8 quick; __u8 pingpong; __u8 retry; __u32 ato:8; __u32 lrcv_flowlabel:20; __u32 dst_quick_ack:1; __u32 unused:3; unsigned long timeout; __u32 lrcvtime; __u16 last_seg_size; __u16 rcv_mss; }'
+      member '__u32 dst_quick_ack:1' was added
+      member changed from '__u32 unused:4' to '__u32 unused:3'
+        offset changed from 60 to 61
+        bit-field size changed from 4 to 3
+
+type 'struct kvm_iommu_ops' changed
+  member 'u64 __kabi_reserved2' was removed
+  member 'u64 __kabi_reserved3' was removed
+  member 'u64 __kabi_reserved4' was removed
+  member 'u64 __kabi_reserved5' was removed
+  member 'union { int(* attach_dev_nested)(struct kvm_hyp_iommu*, struct kvm_hyp_iommu_domain*, struct kvm_hyp_iommu_domain*, u32, u32, unsigned long, void*, size_t); struct { u64 __kabi_reserved2; }; union { }; }' was added
+  member 'union { int(* detach_dev_nested)(struct kvm_hyp_iommu*, struct kvm_hyp_iommu_domain*, struct kvm_hyp_iommu_domain*, u32, u32); struct { u64 __kabi_reserved3; }; union { }; }' was added
+  member 'union { void(* iotlb_inv_nested_domain)(struct kvm_hyp_iommu_domain*, unsigned long, size_t, size_t, bool); struct { u64 __kabi_reserved4; }; union { }; }' was added
+  member 'union { int(* nested_cfg_sync)(struct kvm_hyp_iommu*, void*, size_t); struct { u64 __kabi_reserved5; }; union { }; }' was added
+
+type 'struct io_ring_ctx' changed
+  member changed from 'struct { struct llist_head work_llist; unsigned long check_cq; atomic_t cq_wait_nr; atomic_t cq_timeouts; struct wait_queue_head cq_wait; }' to 'struct { struct llist_head work_llist; unsigned long check_cq; atomic_t cq_wait_nr; atomic_t cq_timeouts; struct wait_queue_head cq_wait; union { struct llist_head retry_llist; unsigned char __kabi_ignored8; }; }'
+    type changed from 'struct { struct llist_head work_llist; unsigned long check_cq; atomic_t cq_wait_nr; atomic_t cq_timeouts; struct wait_queue_head cq_wait; }' to 'struct { struct llist_head work_llist; unsigned long check_cq; atomic_t cq_wait_nr; atomic_t cq_timeouts; struct wait_queue_head cq_wait; union { struct llist_head retry_llist; unsigned char __kabi_ignored8; }; }'
+      member 'union { struct llist_head retry_llist; unsigned char __kabi_ignored8; }' was added
+
+type 'struct pkvm_module_ops' changed
+  member 'u64 __kabi_reserved4' was removed
+  member 'union { int(* request_hyp_alloc)(); struct { u64 __kabi_reserved4; }; union { }; }' was added
+
+variable symbol changed from 'u64 vendor_data_pad[64]' to 'u64 vendor_data_pad[128]'
+  type changed from 'u64[64]' to 'u64[128]'
+    number of elements changed from 64 to 128
+
+type 'struct mm_struct' changed
+  member changed from 'struct { struct { atomic_t mm_count; }; struct maple_tree mm_mt; unsigned long mmap_base; unsigned long mmap_legacy_base; unsigned long task_size; pgd_t* pgd; atomic_t membarrier_state; atomic_t mm_users; atomic_long_t pgtables_bytes; int map_count; spinlock_t page_table_lock; struct rw_semaphore mmap_lock; struct list_head mmlist; struct rcuwait vma_writer_wait; seqcount_t mm_lock_seq; unsigned long hiwater_rss; unsigned long hiwater_vm; unsigned long total_vm; unsigned long locked_vm; atomic64_t pinned_vm; unsigned long data_vm; unsigned long exec_vm; unsigned long stack_vm; unsigned long def_flags; seqcount_t write_protect_seq; spinlock_t arg_lock; unsigned long start_code; unsigned long end_code; unsigned long start_data; unsigned long end_data; unsigned long start_brk; unsigned long brk; unsigned long start_stack; unsigned long arg_start; unsigned long arg_end; unsigned long env_start; unsigned long env_end; unsigned long saved_auxv[50]; struct percpu_counter rss_stat[4]; struct linux_binfmt* binfmt; mm_context_t context; unsigned long flags; spinlock_t ioctx_lock; struct kioctx_table* ioctx_table; struct task_struct* owner; struct user_namespace* user_ns; struct file* exe_file; struct mmu_notifier_subscriptions* notifier_subscriptions; atomic_t tlb_flush_pending; atomic_t tlb_flush_batched; struct uprobes_state uprobes_state; struct work_struct async_put_work; struct { struct list_head list; unsigned long bitmap; struct mem_cgroup* memcg; } lru_gen; u64 __kabi_reserved1; }' to 'struct { struct { atomic_t mm_count; }; struct maple_tree mm_mt; unsigned long mmap_base; unsigned long mmap_legacy_base; unsigned long task_size; pgd_t* pgd; atomic_t membarrier_state; atomic_t mm_users; atomic_long_t pgtables_bytes; int map_count; spinlock_t page_table_lock; struct rw_semaphore mmap_lock; struct list_head mmlist; struct rcuwait vma_writer_wait; seqcount_t mm_lock_seq; unsigned long hiwater_rss; unsigned long hiwater_vm; unsigned long total_vm; unsigned long locked_vm; atomic64_t pinned_vm; unsigned long data_vm; unsigned long exec_vm; unsigned long stack_vm; unsigned long def_flags; seqcount_t write_protect_seq; spinlock_t arg_lock; unsigned long start_code; unsigned long end_code; unsigned long start_data; unsigned long end_data; unsigned long start_brk; unsigned long brk; unsigned long start_stack; unsigned long arg_start; unsigned long arg_end; unsigned long env_start; unsigned long env_end; unsigned long saved_auxv[50]; struct percpu_counter rss_stat[4]; struct linux_binfmt* binfmt; mm_context_t context; unsigned long flags; spinlock_t ioctx_lock; struct kioctx_table* ioctx_table; struct task_struct* owner; struct user_namespace* user_ns; struct file* exe_file; struct mmu_notifier_subscriptions* notifier_subscriptions; atomic_t tlb_flush_pending; atomic_t tlb_flush_batched; struct uprobes_state uprobes_state; struct work_struct async_put_work; struct { struct list_head list; unsigned long bitmap; struct mem_cgroup* memcg; } lru_gen; union { struct task_dma_buf_info* dmabuf_info; struct { u64 __kabi_reserved1; }; union { }; }; }'
+    type changed from 'struct { struct { atomic_t mm_count; }; struct maple_tree mm_mt; unsigned long mmap_base; unsigned long mmap_legacy_base; unsigned long task_size; pgd_t* pgd; atomic_t membarrier_state; atomic_t mm_users; atomic_long_t pgtables_bytes; int map_count; spinlock_t page_table_lock; struct rw_semaphore mmap_lock; struct list_head mmlist; struct rcuwait vma_writer_wait; seqcount_t mm_lock_seq; unsigned long hiwater_rss; unsigned long hiwater_vm; unsigned long total_vm; unsigned long locked_vm; atomic64_t pinned_vm; unsigned long data_vm; unsigned long exec_vm; unsigned long stack_vm; unsigned long def_flags; seqcount_t write_protect_seq; spinlock_t arg_lock; unsigned long start_code; unsigned long end_code; unsigned long start_data; unsigned long end_data; unsigned long start_brk; unsigned long brk; unsigned long start_stack; unsigned long arg_start; unsigned long arg_end; unsigned long env_start; unsigned long env_end; unsigned long saved_auxv[50]; struct percpu_counter rss_stat[4]; struct linux_binfmt* binfmt; mm_context_t context; unsigned long flags; spinlock_t ioctx_lock; struct kioctx_table* ioctx_table; struct task_struct* owner; struct user_namespace* user_ns; struct file* exe_file; struct mmu_notifier_subscriptions* notifier_subscriptions; atomic_t tlb_flush_pending; atomic_t tlb_flush_batched; struct uprobes_state uprobes_state; struct work_struct async_put_work; struct { struct list_head list; unsigned long bitmap; struct mem_cgroup* memcg; } lru_gen; u64 __kabi_reserved1; }' to 'struct { struct { atomic_t mm_count; }; struct maple_tree mm_mt; unsigned long mmap_base; unsigned long mmap_legacy_base; unsigned long task_size; pgd_t* pgd; atomic_t membarrier_state; atomic_t mm_users; atomic_long_t pgtables_bytes; int map_count; spinlock_t page_table_lock; struct rw_semaphore mmap_lock; struct list_head mmlist; struct rcuwait vma_writer_wait; seqcount_t mm_lock_seq; unsigned long hiwater_rss; unsigned long hiwater_vm; unsigned long total_vm; unsigned long locked_vm; atomic64_t pinned_vm; unsigned long data_vm; unsigned long exec_vm; unsigned long stack_vm; unsigned long def_flags; seqcount_t write_protect_seq; spinlock_t arg_lock; unsigned long start_code; unsigned long end_code; unsigned long start_data; unsigned long end_data; unsigned long start_brk; unsigned long brk; unsigned long start_stack; unsigned long arg_start; unsigned long arg_end; unsigned long env_start; unsigned long env_end; unsigned long saved_auxv[50]; struct percpu_counter rss_stat[4]; struct linux_binfmt* binfmt; mm_context_t context; unsigned long flags; spinlock_t ioctx_lock; struct kioctx_table* ioctx_table; struct task_struct* owner; struct user_namespace* user_ns; struct file* exe_file; struct mmu_notifier_subscriptions* notifier_subscriptions; atomic_t tlb_flush_pending; atomic_t tlb_flush_batched; struct uprobes_state uprobes_state; struct work_struct async_put_work; struct { struct list_head list; unsigned long bitmap; struct mem_cgroup* memcg; } lru_gen; union { struct task_dma_buf_info* dmabuf_info; struct { u64 __kabi_reserved1; }; union { }; }; }'
+      member 'u64 __kabi_reserved1' was removed
+      member 'union { struct task_dma_buf_info* dmabuf_info; struct { u64 __kabi_reserved1; }; union { }; }' was added
+
+type 'struct task_struct' changed
+  member 'u64 __kabi_reserved1' was removed
+  member 'union { struct task_dma_buf_info* dmabuf_info; struct { u64 __kabi_reserved1; }; union { }; }' was added
+
+type 'struct dma_buf' changed
+  member 'u64 __kabi_reserved_backport1' was removed
+  member 'union { atomic64_t nr_task_refs; struct { u64 __kabi_reserved_backport1; }; union { }; }' was added
+
+type 'struct files_struct' changed
+  member 'union { struct task_dma_buf_info* dmabuf_info; unsigned char __kabi_ignored1; }' was added
+
+type 'struct bindings::bindings_raw::mm_struct__bindgen_ty_1' changed
+  member 'u64 __kabi_reserved1' was removed
+  member 'union bindings::bindings_raw::mm_struct__bindgen_ty_1__bindgen_ty_3 __bindgen_anon_2' was added
+
+type 'struct bindings::bindings_raw::task_struct' changed
+  member 'u64 __kabi_reserved1' was removed
+  member 'union bindings::bindings_raw::task_struct__bindgen_ty_1 __bindgen_anon_1' was added
+
+type 'struct bindings::bindings_raw::files_struct' changed
+  member 'union bindings::bindings_raw::files_struct__bindgen_ty_1 __bindgen_anon_1' was added
+  member changed from 'u32 __bindgen_padding_0[8]' to 'u32 __bindgen_padding_0[6]'
+    offset changed from 768 to 832
+    type changed from 'u32[8]' to 'u32[6]'
+      number of elements changed from 8 to 6
+
+type 'struct rb_thread_layout' changed
+  member 'u64 __kabi_reserved_backport0' was removed
+  member 'union { size_t task; struct { u64 __kabi_reserved_backport0; }; union { }; }' was added
+
+type 'struct pkvm_module_ops' changed
+  member 'u64 __kabi_reserved5' was removed
+  member 'union { int(* device_register_power_lock)(u64, void*, int(*)(void*, bool)); struct { u64 __kabi_reserved5; }; union { }; }' was added
+
+variable symbol changed from 'u64 vendor_data_pad[128]' to 'u64 vendor_data_pad[160]'
+  type changed from 'u64[128]' to 'u64[160]'
+    number of elements changed from 128 to 160
+
+type 'struct usb_device' changed
+  member 'union { unsigned int offload_at_suspend:1; struct { u64 __kabi_reserved1; }; union { }; }' was removed
+  member 'union { struct { unsigned int offload_at_suspend:1; unsigned int offload_pm_locked:1; }; struct { u64 __kabi_reserved1; }; union { }; }' was added
+
+type 'struct task_struct' changed
+  member 'u64 __kabi_reserved2' was removed
+  member 'union { cpumask_var_t cpumask_sme_dvmsync; struct { u64 __kabi_reserved2; }; union { }; }' was added
+
+type 'struct bindings::bindings_raw::task_struct' changed
+  member 'u64 __kabi_reserved2' was removed
+  member 'union bindings::bindings_raw::task_struct__bindgen_ty_2 __bindgen_anon_2' was added
+
+function symbol 'struct tegra_mc* devm_tegra_memory_controller_get(struct device*)' changed
+  CRC changed from 0x67b44ae8 to 0xcadf1a59
+
+function symbol 'int tegra_mc_get_carveout_info(struct tegra_mc*, unsigned int, phys_addr_t*, u64*)' changed
+  CRC changed from 0x340cdadc to 0xf6145143
+
+function symbol 'int tegra_mc_probe_device(struct tegra_mc*, struct device*)' changed
+  CRC changed from 0x16da55a to 0x54725c5b
+
+type 'struct tegra_mc' changed
+  byte size changed from 320 to 312
+  member 'int irq' was removed
+  10 members ('const struct tegra_mc_soc* soc' .. 'struct { struct dentry* root; } debugfs') changed
+    offset changed by -64
+
+type 'struct tegra_mc_soc' changed
+  byte size changed from 112 to 160
+  member 'u32 intmask' was removed
+  3 members ('u32 ch_intmask' .. 'bool has_addr_hi_reg') changed
+    offset changed by -32
+  member 'const struct tegra_mc_regs* regs' was added
+  member 'const irq_handler_t* handle_irq' was added
+  member 'unsigned int num_interrupts' was added
+  member 'unsigned int mc_addr_hi_mask' was added
+  member 'unsigned int mc_err_status_type_mask' was added
+  member 'const struct tegra_mc_intmask* intmasks' was added
+  member 'unsigned int num_intmasks' was added
+
+type 'struct tegra_mc_ops' changed
+  byte size changed from 40 to 32
+  member 'irqreturn_t(* handle_irq)(int, void*)' was removed
+  member 'int(* probe_device)(struct tegra_mc*, struct device*)' changed
+    offset changed by -64
+
+type 'struct bindings::bindings_raw::net' changed
+  byte size changed from 0 to 4160
+  member 'u8 _unused[0]' was removed
+  member 'struct bindings::bindings_raw::refcount_struct passive' was added
+  member 'struct bindings::bindings_raw::spinlock rules_mod_lock' was added
+  member 'u32 dev_base_seq' was added
+  member 'u32 ifindex' was added
+  member 'struct bindings::bindings_raw::spinlock nsid_lock' was added
+  member 'struct bindings::bindings_raw::atomic_t fnhe_genid' was added
+  member 'struct bindings::bindings_raw::list_head list' was added
+  member 'struct bindings::bindings_raw::list_head exit_list' was added
+  member 'struct bindings::bindings_raw::llist_node defer_free_list' was added
+  member 'struct bindings::bindings_raw::llist_node cleanup_list' was added
+  member 'struct bindings::bindings_raw::key_tag* key_domain' was added
+  member 'struct bindings::bindings_raw::user_namespace* user_ns' was added
+  member 'struct bindings::bindings_raw::ucounts* ucounts' was added
+  member 'struct bindings::bindings_raw::idr netns_ids' was added
+  member 'struct bindings::bindings_raw::ns_common ns' was added
+  member 'struct bindings::bindings_raw::ref_tracker_dir refcnt_tracker' was added
+  member 'struct bindings::bindings_raw::ref_tracker_dir notrefcnt_tracker' was added
+  member 'struct bindings::bindings_raw::list_head dev_base_head' was added
+  member 'struct bindings::bindings_raw::proc_dir_entry* proc_net' was added
+  member 'struct bindings::bindings_raw::proc_dir_entry* proc_net_stat' was added
+  member 'struct bindings::bindings_raw::ctl_table_set sysctls' was added
+  member 'struct bindings::bindings_raw::sock* rtnl' was added
+  member 'struct bindings::bindings_raw::sock* genl_sock' was added
+  member 'struct bindings::bindings_raw::uevent_sock* uevent_sock' was added
+  member 'struct bindings::bindings_raw::hlist_head* dev_name_head' was added
+  member 'struct bindings::bindings_raw::hlist_head* dev_index_head' was added
+  member 'struct bindings::bindings_raw::xarray dev_by_index' was added
+  member 'struct bindings::bindings_raw::raw_notifier_head netdev_chain' was added
+  member 'u32 hash_mix' was added
+  member 'struct bindings::bindings_raw::net_device* loopback_dev' was added
+  member 'struct bindings::bindings_raw::list_head rules_ops' was added
+  member 'struct bindings::bindings_raw::netns_core core' was added
+  member 'struct bindings::bindings_raw::netns_mib mib' was added
+  member 'struct bindings::bindings_raw::netns_packet packet' was added
+  member 'struct bindings::bindings_raw::netns_unix unx' was added
+  member 'struct bindings::bindings_raw::netns_nexthop nexthop' was added
+  member 'u64 __bindgen_padding_0[6]' was added
+  member 'struct bindings::bindings_raw::netns_ipv4 ipv4' was added
+  member 'struct bindings::bindings_raw::netns_ipv6 ipv6' was added
+  member 'struct bindings::bindings_raw::netns_ieee802154_lowpan ieee802154_lowpan' was added
+  member 'struct bindings::bindings_raw::netns_nf nf' was added
+  member 'struct bindings::bindings_raw::netns_ct ct' was added
+  member 'struct bindings::bindings_raw::sk_buff_head wext_nlevents' was added
+  member 'struct bindings::bindings_raw::net_generic* gen' was added
+  member 'struct bindings::bindings_raw::netns_bpf bpf' was added
+  member 'u64 __bindgen_padding_1[3]' was added
+  member 'struct bindings::bindings_raw::netns_xfrm xfrm' was added
+  member 'u64 net_cookie' was added
+  member 'struct bindings::bindings_raw::netns_can can' was added
+  member 'struct bindings::bindings_raw::netns_xdp xdp' was added
+  member 'struct bindings::bindings_raw::sock* diag_nlsk' was added
+
+type 'struct task_struct' changed
+  member 'u64 __kabi_reserved3' was removed
+  member 'union { struct { unsigned int user_dumpable:1; }; struct { u64 __kabi_reserved3; }; union { }; }' was added
+
+type 'struct bindings::bindings_raw::task_struct' changed
+  member 'u64 __kabi_reserved3' was removed
+  member 'union bindings::bindings_raw::task_struct__bindgen_ty_3 __bindgen_anon_3' was added
+
+type 'struct cfs_rq' changed
+  member 'u64 min_vruntime' was removed
+  member 'union { struct { union { u64 min_vruntime; u64 zero_vruntime; }; }; struct { u64 __kabi_renamedmin_vruntime; }; union { }; }' was added
+
+type 'struct task_struct' changed
+  member 'union { cpumask_var_t cpumask_sme_dvmsync; struct { u64 __kabi_reserved2; }; union { }; }' was removed
+  member 'union { u64 __donotuse_b448672457; struct { u64 __kabi_reserved2; }; union { }; }' was added
+
+type 'union bindings::bindings_raw::task_struct__bindgen_ty_2' changed
+  member 'struct bindings::bindings_raw::cpumask cpumask_sme_dvmsync[1]' was removed
+  member 'u64 __donotuse_b448672457' was added
+

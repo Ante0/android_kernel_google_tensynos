@@ -441,6 +441,16 @@ See also the examples in :ref:`control`.
       - n/a
       - A struct :c:type:`v4l2_area`, containing the width and the height
         of a rectangular area. Units depend on the use case.
+    * - ``V4L2_CTRL_TYPE_RECT``
+      - n/a
+      - n/a
+      - n/a
+      - A struct :c:type:`v4l2_rect`, containing a rectangle described by
+	the position of its top-left corner, the width and the height. Units
+	depend on the use case. Support for ``V4L2_CTRL_WHICH_MIN_VAL`` and
+	``V4L2_CTRL_WHICH_MAX_VAL`` is optional and depends on the
+	``V4L2_CTRL_FLAG_HAS_WHICH_MIN_MAX`` flag. See the documentation of
+	the specific control on how to interpret the minimum and maximum values.
     * - ``V4L2_CTRL_TYPE_H264_SPS``
       - n/a
       - n/a
@@ -525,6 +535,30 @@ See also the examples in :ref:`control`.
       - n/a
       - A struct :c:type:`v4l2_ctrl_vp9_frame`, containing VP9
 	frame decode parameters for stateless video decoders.
+    * - ``V4L2_CTRL_TYPE_AV1_SEQUENCE``
+      - n/a
+      - n/a
+      - n/a
+      - A struct :c:type:`v4l2_ctrl_av1_sequence`, containing AV1 Sequence OBU
+	decoding parameters for stateless video decoders.
+    * - ``V4L2_CTRL_TYPE_AV1_TILE_GROUP_ENTRY``
+      - n/a
+      - n/a
+      - n/a
+      - A struct :c:type:`v4l2_ctrl_av1_tile_group_entry`, containing AV1 Tile Group
+	OBU decoding parameters for stateless video decoders.
+    * - ``V4L2_CTRL_TYPE_AV1_FRAME``
+      - n/a
+      - n/a
+      - n/a
+      - A struct :c:type:`v4l2_ctrl_av1_frame`, containing AV1 Frame/Frame
+	Header OBU decoding parameters for stateless video decoders.
+    * - ``V4L2_CTRL_TYPE_AV1_FILM_GRAIN``
+      - n/a
+      - n/a
+      - n/a
+      - A struct :c:type:`v4l2_ctrl_av1_film_grain`, containing AV1 Film Grain
+        parameters for stateless video decoders.
 
 .. raw:: latex
 
@@ -633,6 +667,10 @@ See also the examples in :ref:`control`.
 	``dims[0]``. So setting the control with a differently sized
 	array will change the ``elems`` field when the control is
 	queried afterwards.
+    * - ``V4L2_CTRL_FLAG_HAS_WHICH_MIN_MAX``
+      - 0x1000
+      - This control supports getting minimum and maximum values using
+        vidioc_g_ext_ctrls with V4L2_CTRL_WHICH_MIN/MAX_VAL.
 
 Return Value
 ============

@@ -24,6 +24,15 @@ struct cmd_transaction_submit_ops {
 						   int error);
 };
 
+/* Operations to handle different versions of the dpm qos commands.  */
+struct cmd_dpm_qos_update_ops {
+	/* Size of the command coming in from user space. */
+	size_t cmd_size;
+	int (*fetch_num_qos_settings)(void *k_msg);
+	int (*populate_dpm_qos_info_from_cmd)(struct lwis_qos_setting *k_qos_setting,
+					      void *k_msg_raw, int idx);
+};
+
 /*
  *  lwis_ioctl_handler: Handle all IOCTL commands via the file descriptor.
  */

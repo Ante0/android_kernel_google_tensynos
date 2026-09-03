@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2024 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/mailbox/google,mba-gdmc-iface-test.yaml#
+$schema: http://devicetree.org/meta-schemas/base.yaml#
+
+title: Google MBA (MailBox Array) GDMC Interface Test
+
+maintainers:
+  - Lucas Wei <lucaswei@google.com>
+  - Subhash Jadavani <sjadavani@google.com>
+  - Swati Maroo <maroo@google.com>
+
+description:
+  The Google MailBox Array GDMC interface test provides capability to test the GDMC services APIs.
+  It exposes two different test scenarios, single threaded ping test using sync and async mode and
+  multi-threaded ping test using sync and async mode using the normal priority GDMC channels.
+
+properties:
+  compatible:
+    enum:
+      - google,mba-gdmc-iface-test
+
+  gdmc-iface:
+    description:
+      Reference to the GDMC node.
+    maxItems: 1
+
+required:
+  - compatible
+  - "gdmc-iface"
+
+additionalProperties: false
+
+examples:
+  - |
+	goog_mba_gdmc_iface_test: goog_mba_gdmc_iface_test {
+		compatible = "google,mba-gdmc-iface-test";
+		gdmc-iface = <&goog_mba_gdmc_iface>;
+	};

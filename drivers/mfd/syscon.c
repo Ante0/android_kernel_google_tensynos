@@ -22,6 +22,7 @@
 #include <linux/platform_data/syscon.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
+#include <linux/reset.h>
 #include <linux/mfd/syscon.h>
 #include <linux/slab.h>
 #include <trace/hooks/regmap.h>
@@ -34,6 +35,7 @@ static LIST_HEAD(syscon_list);
 struct syscon {
 	struct device_node *np;
 	struct regmap *regmap;
+	struct reset_control *reset;
 	struct list_head list;
 };
 
@@ -43,7 +45,7 @@ static const struct regmap_config syscon_regmap_config = {
 	.reg_stride = 4,
 };
 
-static struct syscon *of_syscon_register(struct device_node *np, bool check_clk)
+static struct syscon *of_syscon_register(struct device_node *np, bool check_res)
 {
 	struct clk *clk;
 	struct regmap *regmap;
@@ -52,6 +54,7 @@ static struct syscon *of_syscon_register(struct device_node *np, bool check_clk)
 	int ret;
 	struct regmap_config syscon_config = syscon_regmap_config;
 	struct resource res;
+	struct reset_control *reset;
 
 	WARN_ON(!mutex_is_locked(&syscon_list_lock));
 
@@ -118,7 +121,7 @@ static struct syscon *of_syscon_register(struct device_node *np, bool check_clk)
 		goto err_regmap;
 	}
 
-	if (check_clk) {
+	if (check_res) {
 		clk = of_clk_get(np, 0);
 		if (IS_ERR(clk)) {
 			ret = PTR_ERR(clk);
@@ -128,8 +131,18 @@ static struct syscon *of_syscon_register(struct device_node *np, bool check_clk)
 		} else {
 			ret = regmap_mmio_attach_clk(regmap, clk);
 			if (ret)
-				goto err_attach;
+				goto err_attach_clk;
 		}
+
+		reset = of_reset_control_get_optional_exclusive(np, NULL);
+		if (IS_ERR(reset)) {
+			ret = PTR_ERR(reset);
+			goto err_attach_clk;
+		}
+
+		ret = reset_control_deassert(reset);
+		if (ret)
+			goto err_reset;
 	}
 
 	trace_android_vh_regmap_update(&syscon_config, regmap);
@@ -140,7 +153,9 @@ static struct syscon *of_syscon_register(struct device_node *np, bool check_clk)
 
 	return_ptr(syscon);
 
-err_attach:
+err_reset:
+	reset_control_put(reset);
+err_attach_clk:
 	if (!IS_ERR(clk))
 		clk_put(clk);
 err_clk:
@@ -151,7 +166,7 @@ err_regmap:
 }
 
 static struct regmap *device_node_get_regmap(struct device_node *np,
-					     bool check_clk)
+					     bool check_res)
 {
 	struct syscon *entry, *syscon = NULL;
 
@@ -164,7 +179,7 @@ static struct regmap *device_node_get_regmap(struct device_node *np,
 		}
 
 	if (!syscon)
-		syscon = of_syscon_register(np, check_clk);
+		syscon = of_syscon_register(np, check_res);
 
 	mutex_unlock(&syscon_list_lock);
 

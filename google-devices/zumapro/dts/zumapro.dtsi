@@ -26,6 +26,7 @@
 #include "zuma/zuma-s2mpu.dtsi"
 #include "zuma/zuma-gsa.dtsi"
 #include "zumapro-gpu.dtsi"
+#include "zuma/zuma-iif.dtsi"
 #include "zumapro-tpu.dtsi"
 #include "zuma/zuma-gxp.dtsi"
 #include "zumapro-usi.dtsi"
@@ -88,7 +89,13 @@
 	};
 
 	chosen: chosen {
-		bootargs = "earlycon=exynos4210,mmio32,0x10870000 console=ttySAC0,115200n8 root=/dev/ram0 rw clocksource=arch_sys_counter androidboot.hardware=zumapro androidboot.hardware.platform=zumapro androidboot.debug_level=0x4948 clk_ignore_unused loop.max_part=7 loop.hw_queue_depth=31 coherent_pool=4M firmware_class.path=/vendor/firmware irqaffinity=0 androidboot.slot_suffix=_a androidboot.secure_boot=NONE sysrq_always_enabled no_console_suspend softlockup_panic=1 kasan_multi_shot kvm-arm.protected_modules=exynos-pd,pkvm_s2mpu-v9";
+		bootargs = "earlycon=exynos4210,mmio32,0x10870000 console=ttySAC0,115200n8 \
+root=/dev/ram0 rw clocksource=arch_sys_counter androidboot.hardware=zumapro \
+androidboot.hardware.platform=zumapro androidboot.debug_level=0x4948 clk_ignore_unused \
+loop.max_part=7 loop.hw_queue_depth=31 coherent_pool=4M firmware_class.path=/vendor/firmware \
+irqaffinity=0 androidboot.slot_suffix=_a androidboot.secure_boot=NONE no_console_suspend \
+softlockup_panic=1 kasan_multi_shot kvm-arm.protected_modules=exynos-pd,pkvm_s2mpu-v9,pkvm_smc \
+printk.debug_non_panic_cpus=1";
 	};
 
 	odm: odm {
@@ -313,11 +320,9 @@
 	};
 
 	pixel-reboot {
-		compatible = "google,pixel-reboot";
-		syscon = <&pmu_system_controller>;
-		reboot-cmd-offset = <0x0810>;
-		force-warm-reboot-on-thermal-shutdown;
+		compatible = "google,pixel-reboot-v2";
 	};
+
 	/* DMA */
 	amba: amba {
 		#address-cells = <2>;
@@ -714,16 +719,7 @@
 	eh: eh@16D00000 {
 		compatible = "google,eh";
 		reg = <0x0 0x16D00000 0x1000>;
-		interrupts = <GIC_SPI IRQ_EH_0_EH IRQ_TYPE_LEVEL_HIGH 0>,
-			     <GIC_SPI IRQ_EH_1_EH IRQ_TYPE_LEVEL_HIGH 0>,
-			     <GIC_SPI IRQ_EH_2_EH IRQ_TYPE_LEVEL_HIGH 0>,
-			     <GIC_SPI IRQ_EH_3_EH IRQ_TYPE_LEVEL_HIGH 0>,
-			     <GIC_SPI IRQ_EH_4_EH IRQ_TYPE_LEVEL_HIGH 0>,
-			     <GIC_SPI IRQ_EH_5_EH IRQ_TYPE_LEVEL_HIGH 0>,
-			     <GIC_SPI IRQ_EH_6_EH IRQ_TYPE_LEVEL_HIGH 0>,
-			     <GIC_SPI IRQ_EH_7_EH IRQ_TYPE_LEVEL_HIGH 0>,
-			     <GIC_SPI IRQ_EH_8_EH IRQ_TYPE_LEVEL_HIGH 0>,
-			     <GIC_SPI IRQ_EH_9_EH IRQ_TYPE_LEVEL_HIGH 0>;
+		interrupts = <GIC_SPI IRQ_EH_0_EH IRQ_TYPE_LEVEL_HIGH 0>;
 		clocks = <&clock DOUT_CLK_EH_NOCP>;
 		clock-names = "eh-clock";
 		power-domains = <&pd_eh>;
@@ -861,6 +857,8 @@
 				pmu_events {
 					l2-cachemiss-ev = <0x17>;
 					l3-cachemiss-ev = <0xA2>;
+					mem-rd-inst-ev = <0x66>;
+					mem-wr-inst-ev = <0x67>;
 				};
 				amu_events {
 					inst-ev = <0x0008>;
@@ -873,6 +871,8 @@
 				pmu_events {
 					l2-cachemiss-ev = <0x17>;
 					l3-cachemiss-ev = <0xA2>;
+					mem-rd-inst-ev = <0x66>;
+					mem-wr-inst-ev = <0x67>;
 				};
 				amu_events {
 					inst-ev = <0x0008>;
@@ -885,6 +885,8 @@
 				pmu_events {
 					l2-cachemiss-ev = <0x17>;
 					l3-cachemiss-ev = <0xA2>;
+					mem-rd-inst-ev = <0x66>;
+					mem-wr-inst-ev = <0x67>;
 				};
 				amu_events {
 					inst-ev = <0x0008>;
@@ -897,6 +899,8 @@
 				pmu_events {
 					l2-cachemiss-ev = <0x17>;
 					l3-cachemiss-ev = <0xA2>;
+					mem-rd-inst-ev = <0x66>;
+					mem-wr-inst-ev = <0x67>;
 				};
 				amu_events {
 					inst-ev = <0x0008>;
@@ -909,6 +913,8 @@
 				pmu_events {
 					l2-cachemiss-ev = <0x17>;
 					l3-cachemiss-ev = <0x2A>;
+					mem-rd-inst-ev = <0x66>;
+					mem-wr-inst-ev = <0x67>;
 				};
 				amu_events {
 					inst-ev = <0x0008>;
@@ -921,6 +927,8 @@
 				pmu_events {
 					l2-cachemiss-ev = <0x17>;
 					l3-cachemiss-ev = <0x2A>;
+					mem-rd-inst-ev = <0x66>;
+					mem-wr-inst-ev = <0x67>;
 				};
 				amu_events {
 					inst-ev = <0x0008>;
@@ -933,6 +941,8 @@
 				pmu_events {
 					l2-cachemiss-ev = <0x17>;
 					l3-cachemiss-ev = <0x2A>;
+					mem-rd-inst-ev = <0x66>;
+					mem-wr-inst-ev = <0x67>;
 				};
 				amu_events {
 					inst-ev = <0x0008>;
@@ -945,6 +955,8 @@
 				pmu_events {
 					l2-cachemiss-ev = <0x17>;
 					l3-cachemiss-ev = <0x2A>;
+					mem-rd-inst-ev = <0x66>;
+					mem-wr-inst-ev = <0x67>;
 				};
 				amu_events {
 					inst-ev = <0x0008>;
@@ -1019,10 +1031,8 @@
 				 * mif_clk  int_clk
 				 *-----------------
 				 */
-				   3172000  1066000
-				   2730000   799000
-				   2288000   664000
-				   2028000   533000
+				   3744000   664000
+				   3172000   533000
 				   1716000   356000
 				   1539000   200000
 				   1352000   178000

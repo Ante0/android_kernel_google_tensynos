@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Battery charging thm2 overlay
+ *
+ * Copyright 2024 Google LLC
+ *
+ */
+
+&max77779_chg{
+	max77779,thm2_tz_name = "charging_therm";
+};
+

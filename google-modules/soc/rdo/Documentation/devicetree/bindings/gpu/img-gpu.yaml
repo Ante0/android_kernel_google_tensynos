@@ -1,0 +1,127 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) Copyright 2025 Google
+# LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/gpu/img-gpu.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: IMG GPU
+
+maintainers:
+  - Sean Callanan <spyffe@google.com>
+
+description: |
+  A IMG PowerVR GPU with custom DVFS configuration.
+
+properties:
+  compatible:
+    description:
+      Defines the platform/version of the GPU
+    anyOf:
+      - items:
+        - enum:
+           - img,gpu
+           - google,lga-gpu
+
+  reg:
+    description: AP-visible registers
+
+  reg-names:
+    description: readable names for AP-visible registers
+
+  interrupts:
+    description: rx interrupt, handled by MISR work queue
+
+  power-domains:
+    items:
+      - description: GPU power domain
+      - description: core logic power domain
+
+  memory-region:
+    items:
+      - description: FW reserved memory region
+
+  iommus:
+    items:
+      - description: SMMU 0
+      - description: SMMU 1
+
+  iommu-idmapped:
+    description: identity-mapped (bypass) MMU
+    type: boolean
+
+  dvfs-helper-domain-name:
+    description: Helper that provides OPPs
+    $ref: /schemas/types.yaml#/definitions/string
+
+  init-frequency-hz:
+    description: initial frequency (determined by HW)
+
+  config:
+    type: object
+    properties:
+      power:
+        type: object
+        properties:
+          enable-firmware-managed-spu-power:
+            description: 1 sets bEnableRDPowIsland
+          enable-active-power-management:
+            description: 1 sets bEnableActivePM
+          active-power-management-latency-ms:
+            description: idle time before disabling core logic
+          sswrp-autosuspend-latency-ms:
+            description: idle time before disabling the whole SSWRP
+        additionalProperties: false
+      dvfs:
+        type: object
+        properties:
+          pdvfs-com-host:
+            description: 1 means PDVFS triggers an AP IRQ to set GPU frequency
+        additionalProperties: false
+
+additionalProperties: false
+
+examples:
+  - |
+    gpu: gpu0@34800000 {
+        compatible = "google,lga-gpu", "img,gpu";
+        reg = <0x0 0x34f00000 0x0 0x100000>,
+              <0x0 0x34813000 0x0 0xc>,
+              <0x0 0x34e08000 0x0 0x1000>,
+              <0x0 0x34900200 0x0 0x200>,
+              <0x0 0x34901200 0x0 0x200>,
+              <0x0 0x34902200 0x0 0x200>,
+              <0x0 0x34e40000 0x0 0x48>,
+              <0x0 0x34ea0000 0x0 0x4000>;
+        reg-names = "rgx",
+                "pfsm",
+                "req_pbha_lut",
+                "ra_lut_0",
+                "ra_lut_1",
+                "ra_lut_2",
+                "mba_glue",
+                "mba_client";
+        interrupts = <GIC_SPI 130 IRQ_TYPE_LEVEL_HIGH 0>;
+        power-domains = <&sswrp_gpu_pd>, <&gpu_core_logic_pd>;
+        clocks = <&gpu_pf_state>;
+        clock-names = "gpu_pf_state";
+        iommus = <&gpu_smmu 0x0>,
+             <&gpu_smmu 0x1>;
+        iommu-idmapped;
+        dvfs-helper-domain-name = "gpu";
+        init-frequency-hz = <300000000>;
+        cooling-min-state = <0>;
+        cooling-max-state = <15>;
+        #cooling-cells = <2>;
+        memory-region = <&gpu_fw_reserved>;
+        pt_id = "gpu_p0";
+        iif-device = <&iif>;
+        config {
+            power {
+                enable-firmware-managed-spu-power = <1>;
+                enable-active-power-management = <1>;
+                active-power-management-latency-ms = <1>;
+                sswrp-autosuspend-latency-ms = <18>;
+            };
+        };
+    };

@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_VOLATILE_DEBUG_UNLOCK
+	tristate "Google Volatile Debug Unlock"
+	help
+	  Volatile Debug Unlock is a kernel driver that offers its
+	  interface through sysfs files, and it enables interaction
+	  with the VDU hardware for authentication and status queries.
+	  It facilitates device information retrieval, authentication
+	  flow support, and status checks, and it is used to establish
+	  and manage VDU sessions.
+
+config GOOGLE_VOLATILE_DEBUG_UNLOCK_TEST
+	tristate "KUnit test for Google VDU driver" if !KUNIT_ALL_TESTS
+	default KUNIT_ALL_TESTS
+	depends on ARCH_GOOGLE
+	depends on KUNIT
+	help
+	  This option enables the KUnit test module for the Google VDU
+	  driver. The tests verify the functionality of directive parsing
+	  and error handling logic.
+
+	  If unsure, say N.

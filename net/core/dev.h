@@ -3,12 +3,12 @@
 #define _NET_CORE_DEV_H
 
 #include <linux/types.h>
+#include <linux/rwsem.h>
+#include <linux/netdevice.h>
 
 struct net;
-struct net_device;
-struct netdev_bpf;
-struct netdev_phys_item_id;
 struct netlink_ext_ack;
+struct cpumask;
 
 /* Random bits of netdevice that don't need to be exposed */
 #define FLOW_LIMIT_HISTORY	(1 << 7)  /* must be ^2 and !overflow buckets */
@@ -22,6 +22,8 @@ struct sd_flow_limit {
 
 extern int netdev_flow_limit_table_len;
 
+struct napi_struct *netdev_napi_by_id(struct net *net, unsigned int napi_id);
+
 #ifdef CONFIG_PROC_FS
 int __init dev_proc_init(void);
 #else
@@ -29,7 +31,6 @@ int __init dev_proc_init(void);
 #endif
 
 void linkwatch_init_dev(struct net_device *dev);
-void linkwatch_forget_dev(struct net_device *dev);
 void linkwatch_run_queue(void);
 
 void dev_addr_flush(struct net_device *dev);
@@ -37,14 +38,12 @@ int dev_addr_init(struct net_device *dev);
 void dev_addr_check(struct net_device *dev);
 
 /* sysctls not referred to from outside net/core/ */
-extern int		netdev_budget;
-extern unsigned int	netdev_budget_usecs;
-extern unsigned int	sysctl_skb_defer_max;
-extern int		netdev_tstamp_prequeue;
 extern int		netdev_unregister_timeout_secs;
 extern int		weight_p;
 extern int		dev_weight_rx_bias;
 extern int		dev_weight_tx_bias;
+
+extern struct rw_semaphore dev_addr_sem;
 
 /* rtnl helpers */
 extern struct list_head net_todo_list;
@@ -56,6 +55,7 @@ struct netdev_name_node {
 	struct list_head list;
 	struct net_device *dev;
 	const char *name;
+	struct rcu_head rcu;
 };
 
 int netdev_get_name(struct net *net, char *name, int ifindex);
@@ -94,11 +94,20 @@ int dev_change_carrier(struct net_device *dev, bool new_carrier);
 
 void __dev_set_rx_mode(struct net_device *dev);
 
+void __dev_notify_flags(struct net_device *dev, unsigned int old_flags,
+			unsigned int gchanges, u32 portid,
+			const struct nlmsghdr *nlh);
+
+void unregister_netdevice_many_notify(struct list_head *head,
+				      u32 portid, const struct nlmsghdr *nlh);
+
 static inline void netif_set_gso_max_size(struct net_device *dev,
 					  unsigned int size)
 {
 	/* dev->gso_max_size is read locklessly from sk_setup_caps() */
 	WRITE_ONCE(dev->gso_max_size, size);
+	if (size <= GSO_LEGACY_MAX_SIZE)
+		WRITE_ONCE(dev->gso_ipv4_max_size, size);
 }
 
 static inline void netif_set_gso_max_segs(struct net_device *dev,
@@ -113,6 +122,48 @@ static inline void netif_set_gro_max_size(struct net_device *dev,
 {
 	/* This pairs with the READ_ONCE() in skb_gro_receive() */
 	WRITE_ONCE(dev->gro_max_size, size);
+	if (size <= GRO_LEGACY_MAX_SIZE)
+		WRITE_ONCE(dev->gro_ipv4_max_size, size);
 }
+
+static inline void netif_set_gso_ipv4_max_size(struct net_device *dev,
+					       unsigned int size)
+{
+	/* dev->gso_ipv4_max_size is read locklessly from sk_setup_caps() */
+	WRITE_ONCE(dev->gso_ipv4_max_size, size);
+}
+
+static inline void netif_set_gro_ipv4_max_size(struct net_device *dev,
+					       unsigned int size)
+{
+	/* This pairs with the READ_ONCE() in skb_gro_receive() */
+	WRITE_ONCE(dev->gro_ipv4_max_size, size);
+}
+
+int rps_cpumask_housekeeping(struct cpumask *mask);
+
+#if defined(CONFIG_DEBUG_NET) && defined(CONFIG_BPF_SYSCALL)
+void xdp_do_check_flushed(struct napi_struct *napi);
+#else
+static inline void xdp_do_check_flushed(struct napi_struct *napi) { }
+#endif
+
+/* Best effort check that NAPI is not idle (can't be scheduled to run) */
+static inline void napi_assert_will_not_race(const struct napi_struct *napi)
+{
+	/* uninitialized instance, can't race */
+	if (!napi->poll_list.next)
+		return;
+
+	/* SCHED bit is set on disabled instances */
+	WARN_ON(!test_bit(NAPI_STATE_SCHED, &napi->state));
+	WARN_ON(READ_ONCE(napi->list_owner) != -1);
+}
+
+void kick_defer_list_purge(struct softnet_data *sd, unsigned int cpu);
+
+int dev_set_hwtstamp_phylib(struct net_device *dev,
+			    struct kernel_hwtstamp_config *cfg,
+			    struct netlink_ext_ack *extack);
 
 #endif

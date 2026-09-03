@@ -1,0 +1,42 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Common Bluetooth device tree
+ *
+ * Copyright 2022 Google LLC
+ *
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,lga.h>
+
+&aoc_pinctrl {
+	bt_dev_wake: bt-dev-wake {
+		pins ="XAOC_GPIO1";
+		function = "aoc_cpm_eint";
+	};
+	bt_host_wake: bt-host-wake {
+		pins ="XAOC_GPIO2";
+		function = "aoc_cpm_eint";
+	};
+};
+
+&hsios_pinctrl {
+	timesync_: timesync {
+		pins ="XHSIOS_VSYNC4";
+		function = "hsios_gpio";
+	};
+};
+
+&odm {
+	btbcm: btbcm {
+				compatible = "goog,nitrous";
+				pinctrl-0 = <&bt_dev_wake>, <&bt_host_wake>;
+				pinctrl-names = "default";
+				host-wakeup-gpios = <&aoc_pinctrl XAOC_GPIO2 GPIO_ACTIVE_HIGH>;
+				device-wakeup-gpios = <&aoc_pinctrl XAOC_GPIO1 GPIO_ACTIVE_HIGH>;
+				timesync-gpios = <&hsios_pinctrl XHSIOS_VSYNC4 GPIO_ACTIVE_HIGH>;
+				shutdown-gpios = <&da9188_vgpio 19 GPIO_ACTIVE_HIGH>;
+				bt-ble-dbo-le-gpios = <&da9188_vgpio 20 GPIO_ACTIVE_HIGH>;
+				status = "okay";
+	};
+};

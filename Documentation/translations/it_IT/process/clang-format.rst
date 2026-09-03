@@ -1,6 +1,6 @@
 .. include:: ../disclaimer-ita.rst
 
-:Original: :ref:`Documentation/process/clang-format.rst <clangformat>`
+:Original: :ref:`Documentation/dev-tools/clang-format.rst <clangformat>`
 :Translator: Federico Vaga <federico.vaga@vaga.pv.it>
 
 .. _it_clangformat:
@@ -40,7 +40,7 @@ Linux più popolari. Cercate ``clang-format`` nel vostro repositorio.
 Altrimenti, potete scaricare una versione pre-generata dei binari di LLVM/clang
 oppure generarlo dai codici sorgenti:
 
-    http://releases.llvm.org/download.html
+    https://releases.llvm.org/download.html
 
 Troverete più informazioni ai seguenti indirizzi:
 

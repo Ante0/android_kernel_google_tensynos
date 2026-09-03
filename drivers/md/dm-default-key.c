@@ -65,9 +65,11 @@ lookup_cipher(const char *cipher_string)
 static void default_key_dtr(struct dm_target *ti)
 {
 	struct default_key_c *dkc = ti->private;
+	struct blk_crypto_key *blk_key = &dkc->key;
 
 	if (dkc->dev) {
-		blk_crypto_evict_key(dkc->dev->bdev, &dkc->key);
+		if (blk_key->size > 0)
+			blk_crypto_evict_key(dkc->dev->bdev, blk_key);
 		dm_put_device(ti, dkc->dev);
 	}
 	kfree_sensitive(dkc->cipher_string);
@@ -215,6 +217,22 @@ static int default_key_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 	}
 	dkc->start = tmpll;
 
+	if (bdev_is_zoned(dkc->dev->bdev)) {
+		/*
+		 * All zone append writes to a zone of a zoned block device will
+		 * have the same BIO sector, the start of the zone. When the
+		 * cypher IV mode uses sector values, all data targeting a
+		 * zone will be encrypted using the first sector numbers of the
+		 * zone. This will not result in write errors but will
+		 * cause most reads to fail as reads will use the sector values
+		 * for the actual data locations, resulting in IV mismatch.
+		 * To avoid this problem, ask DM core to emulate zone append
+		 * operations with regular writes.
+		 */
+		DMDEBUG("Zone append operations will be emulated");
+		ti->emulate_zone_append = true;
+	}
+
 	/* optional arguments */
 	dkc->sector_size = SECTOR_SIZE;
 	if (argc > 5) {
@@ -248,6 +266,7 @@ static int default_key_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 	}
 
 	ti->num_flush_bios = 1;
+	ti->flush_bypasses_map = true;
 
 	err = 0;
 	goto out;
@@ -360,7 +379,7 @@ static int default_key_prepare_ioctl(struct dm_target *ti,
 
 	/* Only pass ioctls through if the device sizes match exactly. */
 	if (dkc->start != 0 ||
-	    ti->len != i_size_read(dev->bdev->bd_inode) >> SECTOR_SHIFT)
+	    ti->len != bdev_nr_sectors(dev->bdev))
 		return 1;
 	return 0;
 }
@@ -385,6 +404,7 @@ static void default_key_io_hints(struct dm_target *ti,
 	limits->physical_block_size =
 		max_t(unsigned int, limits->physical_block_size, sector_size);
 	limits->io_min = max_t(unsigned int, limits->io_min, sector_size);
+	limits->features |= BLK_FEAT_ORDERED_HWQ;
 }
 
 #ifdef CONFIG_BLK_DEV_ZONED

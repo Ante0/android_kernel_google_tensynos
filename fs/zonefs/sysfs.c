@@ -79,7 +79,7 @@ static const struct sysfs_ops zonefs_sysfs_attr_ops = {
 	.show	= zonefs_sysfs_attr_show,
 };
 
-static struct kobj_type zonefs_sb_ktype = {
+static const struct kobj_type zonefs_sb_ktype = {
 	.default_groups = zonefs_sysfs_groups,
 	.sysfs_ops	= &zonefs_sysfs_attr_ops,
 	.release	= zonefs_sysfs_sb_release,
@@ -92,6 +92,7 @@ int zonefs_sysfs_register(struct super_block *sb)
 	struct zonefs_sb_info *sbi = ZONEFS_SB(sb);
 	int ret;
 
+	super_set_sysfs_name_id(sb);
 	init_completion(&sbi->s_kobj_unregister);
 	ret = kobject_init_and_add(&sbi->s_kobj, &zonefs_sb_ktype,
 				   zonefs_sysfs_root, "%s", sb->s_id);

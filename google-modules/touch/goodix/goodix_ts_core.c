@@ -15,6 +15,7 @@
  *
  */
 #include <linux/fs.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #include <linux/uaccess.h>
@@ -2651,14 +2652,9 @@ static int goodix_ts_stage2_init(struct goodix_ts_core *cd)
 	size_t touch_frame_size =
 		misc->frame_data_addr - misc->touch_data_addr +
 		misc->frame_data_head_len + misc->fw_attr_len +
-		misc->fw_log_len +
-#if defined(CONFIG_SOC_ZUMA) && !defined(CONFIG_SOC_ZUMAPRO)
-		/* This only applies to Pixel 8 (shiba) */
-		misc->mutual_struct_len +
-#else
-		sizeof(struct goodix_mutual_data) + mutual_size +
-#endif
-		sizeof(struct goodix_self_sensing_data) + self_sensing_size;
+		misc->fw_log_len + sizeof(struct goodix_mutual_data) +
+		mutual_size + sizeof(struct goodix_self_sensing_data) +
+		self_sensing_size;
 #if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
 	struct gti_optional_configuration *options;
 #endif
@@ -3141,7 +3137,7 @@ err_out:
 	return ret;
 }
 
-static int goodix_ts_remove(struct platform_device *pdev)
+static void goodix_ts_remove(struct platform_device *pdev)
 {
 	struct goodix_ts_core *core_data = platform_get_drvdata(pdev);
 	struct goodix_ts_hw_ops *hw_ops = core_data->hw_ops;
@@ -3187,8 +3183,6 @@ static int goodix_ts_remove(struct platform_device *pdev)
 	goodix_set_pinctrl_state(core_data, PINCTRL_MODE_SUSPEND);
 	mutex_destroy(&core_data->gesture_data_lock);
 	mutex_destroy(&core_data->cmd_lock);
-
-	return 0;
 }
 
 #if IS_ENABLED(CONFIG_PM)
@@ -3226,14 +3220,14 @@ static int __init goodix_ts_core_init(void)
 	ts_info("Core layer init:%s", GOODIX_DRIVER_VERSION);
 	goodix_device_manager_init();
 
-#ifdef CONFIG_TOUCHSCREEN_GOODIX_BRL_SPI
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_GOODIX_BRL_SPI)
 	ret = goodix_spi_bus_init();
 	if (ret) {
 		ts_err("failed add spi bus driver");
 		return ret;
 	}
 #endif
-#ifdef CONFIG_TOUCHSCREEN_GOODIX_BRL_I2C
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_GOODIX_BRL_I2C)
 	ret = goodix_i2c_bus_init();
 	if (ret) {
 		ts_err("failed add i2c bus driver");
@@ -3248,10 +3242,10 @@ static void __exit goodix_ts_core_exit(void)
 {
 	ts_info("Core layer exit");
 	platform_driver_unregister(&goodix_ts_driver);
-#ifdef CONFIG_TOUCHSCREEN_GOODIX_BRL_SPI
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_GOODIX_BRL_SPI)
 	goodix_spi_bus_exit();
 #endif
-#ifdef CONFIG_TOUCHSCREEN_GOODIX_BRL_I2C
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_GOODIX_BRL_I2C)
 	goodix_i2c_bus_exit();
 #endif
 	goodix_device_manager_exit();

@@ -16,7 +16,7 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <net/mrp.h>
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 
 static unsigned int mrp_join_time __read_mostly = 200;
 module_param(mrp_join_time, uint, 0644);
@@ -26,6 +26,7 @@ static unsigned int mrp_periodic_time __read_mostly = 1000;
 module_param(mrp_periodic_time, uint, 0644);
 MODULE_PARM_DESC(mrp_periodic_time, "Periodic time in ms (default 1s)");
 
+MODULE_DESCRIPTION("IEEE 802.1Q Multiple Registration Protocol (MRP)");
 MODULE_LICENSE("GPL");
 
 static const u8
@@ -592,7 +593,7 @@ static void mrp_join_timer_arm(struct mrp_applicant *app)
 {
 	unsigned long delay;
 
-	delay = prandom_u32_max(msecs_to_jiffies(mrp_join_time));
+	delay = get_random_u32_below(msecs_to_jiffies(mrp_join_time));
 	mod_timer(&app->join_timer, jiffies + delay);
 }
 
@@ -911,8 +912,8 @@ void mrp_uninit_applicant(struct net_device *dev, struct mrp_application *appl)
 	/* Delete timer and generate a final TX event to flush out
 	 * all pending messages before the applicant is gone.
 	 */
-	del_timer_sync(&app->join_timer);
-	del_timer_sync(&app->periodic_timer);
+	timer_shutdown_sync(&app->join_timer);
+	timer_shutdown_sync(&app->periodic_timer);
 
 	spin_lock_bh(&app->lock);
 	mrp_mad_event(app, MRP_EVENT_TX);

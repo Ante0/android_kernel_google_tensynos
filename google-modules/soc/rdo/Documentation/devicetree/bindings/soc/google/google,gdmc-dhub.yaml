@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2024-2025 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/soc/google/google,gdmc-dhub.yaml#
+$schema: http://devicetree.org/meta-schemas/base.yaml#
+
+title: Google Debug and UART Hub driver
+
+maintainers:
+  - Mayank Rungta <mrungta@google.com>
+  - Daniel Kurtz <djkurtz@google.com>
+
+description: |
+  DHUB multiplexes UART data for multiple subsystems into a
+  single packetized data stream between device and host.
+  The driver allows configuring this UART channels through its sysfs.
+
+properties:
+  compatible:
+    oneOf:
+      - const: google,gdmc-dhub-gen1
+        description: For the first generation of the DHUB UART channels.
+      - const: google,gdmc-dhub-gen2
+        description: For the second generation of the DHUB UART channels.
+
+  gdmc-iface:
+    description:
+      A phandle to the `google,mba-gdmc-iface` device node. This establishes
+      the communication channel with the GDMC.
+
+required:
+  - compatible
+  - gdmc-iface
+
+additionalProperties: false
+
+examples:
+  - |
+    gdmc_dhub: gdmc_dhub {
+        compatible = "google,gdmc-dhub-gen1";
+        gdmc-iface = <&goog_mba_gdmc_iface>;
+    };

@@ -56,7 +56,7 @@ struct platform_device {
 extern int platform_device_register(struct platform_device *);
 extern void platform_device_unregister(struct platform_device *);
 
-extern struct bus_type platform_bus_type;
+extern const struct bus_type platform_bus_type;
 extern struct device platform_bus;
 
 extern struct resource *platform_get_resource(struct platform_device *,
@@ -67,6 +67,8 @@ extern struct resource *platform_get_mem_or_io(struct platform_device *,
 extern struct device *
 platform_find_device_by_driver(struct device *start,
 			       const struct device_driver *drv);
+
+#ifdef CONFIG_HAS_IOMEM
 extern void __iomem *
 devm_platform_get_and_ioremap_resource(struct platform_device *pdev,
 				unsigned int index, struct resource **res);
@@ -76,6 +78,32 @@ devm_platform_ioremap_resource(struct platform_device *pdev,
 extern void __iomem *
 devm_platform_ioremap_resource_byname(struct platform_device *pdev,
 				      const char *name);
+#else
+
+static inline void __iomem *
+devm_platform_get_and_ioremap_resource(struct platform_device *pdev,
+				unsigned int index, struct resource **res)
+{
+	return ERR_PTR(-EINVAL);
+}
+
+
+static inline void __iomem *
+devm_platform_ioremap_resource(struct platform_device *pdev,
+			       unsigned int index)
+{
+	return ERR_PTR(-EINVAL);
+}
+
+static inline void __iomem *
+devm_platform_ioremap_resource_byname(struct platform_device *pdev,
+				      const char *name)
+{
+	return ERR_PTR(-EINVAL);
+}
+
+#endif
+
 extern int platform_get_irq(struct platform_device *, unsigned int);
 extern int platform_get_irq_optional(struct platform_device *, unsigned int);
 extern int platform_irq_count(struct platform_device *);
@@ -215,15 +243,14 @@ struct platform_driver {
 	int (*probe)(struct platform_device *);
 
 	/*
-	 * Traditionally the remove callback returned an int which however is
-	 * ignored by the driver core. This led to wrong expectations by driver
-	 * authors who thought returning an error code was a valid error
-	 * handling strategy. To convert to a callback returning void, new
-	 * drivers should implement .remove_new() until the conversion it done
-	 * that eventually makes .remove() return void.
+	 * .remove_new() is a relic from a prototype conversion of .remove().
+	 * New drivers are supposed to implement .remove(). Once all drivers are
+	 * converted to not use .remove_new any more, it will be dropped.
 	 */
-	int (*remove)(struct platform_device *);
-	void (*remove_new)(struct platform_device *);
+	union {
+		void (*remove)(struct platform_device *);
+		void (*remove_new)(struct platform_device *);
+	};
 
 	void (*shutdown)(struct platform_device *);
 	int (*suspend)(struct platform_device *, pm_message_t state);
@@ -258,19 +285,8 @@ extern void platform_driver_unregister(struct platform_driver *);
 /* non-hotpluggable platform devices may use this so that probe() and
  * its support may live in __init sections, conserving runtime memory.
  */
-#if defined(MODULE) && defined(CONFIG_INTEGRATE_MODULES)
-/* Force deferred probing for all integrated modules */
-#define platform_driver_probe(_drv, _probe) \
-({						\
-	struct platform_driver *__drv = (_drv);	\
-						\
-	__drv->probe = (_probe);		\
-	platform_driver_register(__drv);	\
-})
-#else /* !MODULE || !CONFIG_INTEGRATE_MODULES */
 #define platform_driver_probe(drv, probe) \
 	__platform_driver_probe(drv, probe, THIS_MODULE)
-#endif /* MODULE && CONFIG_INTEGRATE_MODULES */
 extern int __platform_driver_probe(struct platform_driver *driver,
 		int (*probe)(struct platform_device *), struct module *module);
 

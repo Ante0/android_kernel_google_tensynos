@@ -227,7 +227,7 @@ static int locomokbd_probe(struct locomo_dev *dev)
 	struct input_dev *input_dev;
 	int i, err;
 
-	locomokbd = kzalloc(sizeof(struct locomokbd), GFP_KERNEL);
+	locomokbd = kzalloc(sizeof(*locomokbd), GFP_KERNEL);
 	input_dev = input_allocate_device();
 	if (!locomokbd || !input_dev) {
 		err = -ENOMEM;
@@ -310,7 +310,7 @@ static void locomokbd_remove(struct locomo_dev *dev)
 
 	free_irq(dev->irq[0], locomokbd);
 
-	del_timer_sync(&locomokbd->timer);
+	timer_shutdown_sync(&locomokbd->timer);
 
 	input_unregister_device(locomokbd->input);
 	locomo_set_drvdata(dev, NULL);

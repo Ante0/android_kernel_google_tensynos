@@ -59,7 +59,7 @@ static inline int gpsy_get_prop(struct power_supply *psy,
 		*err = ret;
 	if (ret < 0) {
 		pr_err("failed to get %s from '%s', ret=%d\n",
-		       prop_name, psy->desc->name, ret);
+		       prop_name, psy ? psy->desc->name : "NULL", ret);
 		return ret;
 	}
 

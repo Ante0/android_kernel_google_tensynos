@@ -14,6 +14,13 @@
 #include <linux/export.h>
 #include <linux/dma/dma-pl330.h>
 
+#if IS_ENABLED(CONFIG_DMADEVICES_DEBUG)
+#define DEBUG
+#endif
+#if IS_ENABLED(CONFIG_DMADEVICES_VDEBUG)
+#define VERBOSE_DEBUG
+#endif
+
 static unsigned long samsung_dmadev_request(enum dma_ch dma_ch,
 					    struct samsung_dma_req *param,
 					    struct device *dev, char *ch_name)

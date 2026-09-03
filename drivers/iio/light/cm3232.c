@@ -325,9 +325,9 @@ static const struct iio_info cm3232_info = {
 	.attrs			= &cm3232_attribute_group,
 };
 
-static int cm3232_probe(struct i2c_client *client,
-			const struct i2c_device_id *id)
+static int cm3232_probe(struct i2c_client *client)
 {
+	const struct i2c_device_id *id = i2c_client_get_device_id(client);
 	struct cm3232_chip *chip;
 	struct iio_dev *indio_dev;
 	int ret;
@@ -368,7 +368,7 @@ static void cm3232_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id cm3232_id[] = {
-	{"cm3232", 0},
+	{ "cm3232" },
 	{}
 };
 

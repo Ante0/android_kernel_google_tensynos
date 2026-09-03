@@ -69,19 +69,10 @@ struct bio_post_read_ctx {
 
 static void __read_end_io(struct bio *bio)
 {
-	struct page *page;
-	struct bio_vec *bv;
-	struct bvec_iter_all iter_all;
+	struct folio_iter fi;
 
-	bio_for_each_segment_all(bv, bio, iter_all) {
-		page = bv->bv_page;
-
-		if (bio->bi_status)
-			ClearPageUptodate(page);
-		else
-			SetPageUptodate(page);
-		unlock_page(page);
-	}
+	bio_for_each_folio_all(fi, bio)
+		folio_end_read(fi.folio, bio->bi_status == 0);
 	if (bio->bi_private)
 		mempool_free(bio->bi_private, bio_post_read_ctx_pool);
 	bio_put(bio);
@@ -219,7 +210,7 @@ static inline loff_t ext4_readpage_limit(struct inode *inode)
 }
 
 int ext4_mpage_readpages(struct inode *inode,
-		struct readahead_control *rac, struct page *page)
+		struct readahead_control *rac, struct folio *folio)
 {
 	struct bio *bio = NULL;
 	sector_t last_block_in_bio = 0;
@@ -231,7 +222,7 @@ int ext4_mpage_readpages(struct inode *inode,
 	sector_t block_in_file;
 	sector_t last_block;
 	sector_t last_block_in_file;
-	sector_t blocks[MAX_BUF_PER_PAGE];
+	sector_t first_block;
 	unsigned page_block;
 	struct block_device *bdev = inode->i_sb->s_bdev;
 	int length;
@@ -248,16 +239,15 @@ int ext4_mpage_readpages(struct inode *inode,
 		int fully_mapped = 1;
 		unsigned first_hole = blocks_per_page;
 
-		if (rac) {
-			page = readahead_page(rac);
-			prefetchw(&page->flags);
-		}
+		if (rac)
+			folio = readahead_folio(rac);
+		prefetchw(&folio->flags);
 
-		if (page_has_buffers(page))
+		if (folio_buffers(folio))
 			goto confused;
 
 		block_in_file = next_block =
-			(sector_t)page->index << (PAGE_SHIFT - blkbits);
+			(sector_t)folio->index << (PAGE_SHIFT - blkbits);
 		last_block = block_in_file + nr_pages * blocks_per_page;
 		last_block_in_file = (ext4_readpage_limit(inode) +
 				      blocksize - 1) >> blkbits;
@@ -274,6 +264,7 @@ int ext4_mpage_readpages(struct inode *inode,
 			unsigned map_offset = block_in_file - map.m_lblk;
 			unsigned last = map.m_len - map_offset;
 
+			first_block = map.m_pblk + map_offset;
 			for (relative_block = 0; ; relative_block++) {
 				if (relative_block == last) {
 					/* needed? */
@@ -282,8 +273,6 @@ int ext4_mpage_readpages(struct inode *inode,
 				}
 				if (page_block == blocks_per_page)
 					break;
-				blocks[page_block] = map.m_pblk + map_offset +
-					relative_block;
 				page_block++;
 				block_in_file++;
 			}
@@ -291,7 +280,7 @@ int ext4_mpage_readpages(struct inode *inode,
 
 		/*
 		 * Then do more ext4_map_blocks() calls until we are
-		 * done with this page.
+		 * done with this folio.
 		 */
 		while (page_block < blocks_per_page) {
 			if (block_in_file < last_block) {
@@ -300,10 +289,9 @@ int ext4_mpage_readpages(struct inode *inode,
 
 				if (ext4_map_blocks(NULL, inode, &map, 0) < 0) {
 				set_error_page:
-					SetPageError(page);
-					zero_user_segment(page, 0,
-							  PAGE_SIZE);
-					unlock_page(page);
+					folio_zero_segment(folio, 0,
+							  folio_size(folio));
+					folio_unlock(folio);
 					goto next_page;
 				}
 			}
@@ -319,7 +307,9 @@ int ext4_mpage_readpages(struct inode *inode,
 				goto confused;		/* hole -> non-hole */
 
 			/* Contiguous blocks? */
-			if (page_block && blocks[page_block-1] != map.m_pblk-1)
+			if (!page_block)
+				first_block = map.m_pblk;
+			else if (first_block + page_block != map.m_pblk)
 				goto confused;
 			for (relative_block = 0; ; relative_block++) {
 				if (relative_block == map.m_len) {
@@ -328,36 +318,34 @@ int ext4_mpage_readpages(struct inode *inode,
 					break;
 				} else if (page_block == blocks_per_page)
 					break;
-				blocks[page_block] = map.m_pblk+relative_block;
 				page_block++;
 				block_in_file++;
 			}
 		}
 		if (first_hole != blocks_per_page) {
-			zero_user_segment(page, first_hole << blkbits,
-					  PAGE_SIZE);
+			folio_zero_segment(folio, first_hole << blkbits,
+					  folio_size(folio));
 			if (first_hole == 0) {
-				if (ext4_need_verity(inode, page->index) &&
-				    !fsverity_verify_page(page))
+				if (ext4_need_verity(inode, folio->index) &&
+				    !fsverity_verify_folio(folio))
 					goto set_error_page;
-				SetPageUptodate(page);
-				unlock_page(page);
-				goto next_page;
+				folio_end_read(folio, true);
+				continue;
 			}
 		} else if (fully_mapped) {
-			SetPageMappedToDisk(page);
+			folio_set_mappedtodisk(folio);
 		}
 		if (fully_mapped && blocks_per_page == 1 &&
-		    !PageUptodate(page) && cleancache_get_page(page) == 0) {
-			SetPageUptodate(page);
+		    !folio_test_uptodate(folio) && cleancache_get_page(&folio->page) == 0) {
+			folio_mark_uptodate(folio);
 			goto confused;
 		}
 
 		/*
-		 * This page will go to BIO.  Do we need to send this
+		 * This folio will go to BIO.  Do we need to send this
 		 * BIO off first?
 		 */
-		if (bio && (last_block_in_bio != blocks[0] - 1 ||
+		if (bio && (last_block_in_bio != first_block - 1 ||
 			    !fscrypt_mergeable_bio(bio, inode, next_block))) {
 		submit_and_realloc:
 			submit_bio(bio);
@@ -372,15 +360,15 @@ int ext4_mpage_readpages(struct inode *inode,
 					REQ_OP_READ, GFP_KERNEL);
 			fscrypt_set_bio_crypt_ctx(bio, inode, next_block,
 						  GFP_KERNEL);
-			ext4_set_bio_post_read_ctx(bio, inode, page->index);
-			bio->bi_iter.bi_sector = blocks[0] << (blkbits - 9);
+			ext4_set_bio_post_read_ctx(bio, inode, folio->index);
+			bio->bi_iter.bi_sector = first_block << (blkbits - 9);
 			bio->bi_end_io = mpage_end_io;
 			if (rac)
 				bio->bi_opf |= REQ_RAHEAD;
 		}
 
 		length = first_hole << blkbits;
-		if (bio_add_page(bio, page, length, 0) < length)
+		if (!bio_add_folio(bio, folio, length, 0))
 			goto submit_and_realloc;
 
 		if (((map.m_flags & EXT4_MAP_BOUNDARY) &&
@@ -389,20 +377,19 @@ int ext4_mpage_readpages(struct inode *inode,
 			submit_bio(bio);
 			bio = NULL;
 		} else
-			last_block_in_bio = blocks[blocks_per_page - 1];
-		goto next_page;
+			last_block_in_bio = first_block + blocks_per_page - 1;
+		continue;
 	confused:
 		if (bio) {
 			submit_bio(bio);
 			bio = NULL;
 		}
-		if (!PageUptodate(page))
-			block_read_full_folio(page_folio(page), ext4_get_block);
+		if (!folio_test_uptodate(folio))
+			block_read_full_folio(folio, ext4_get_block);
 		else
-			unlock_page(page);
-	next_page:
-		if (rac)
-			put_page(page);
+			folio_unlock(folio);
+next_page:
+		; /* A label shall be followed by a statement until C23 */
 	}
 	if (bio)
 		submit_bio(bio);
@@ -411,9 +398,8 @@ int ext4_mpage_readpages(struct inode *inode,
 
 int __init ext4_init_post_read_processing(void)
 {
-	bio_post_read_ctx_cache =
-		kmem_cache_create("ext4_bio_post_read_ctx",
-				  sizeof(struct bio_post_read_ctx), 0, 0, NULL);
+	bio_post_read_ctx_cache = KMEM_CACHE(bio_post_read_ctx, SLAB_RECLAIM_ACCOUNT);
+
 	if (!bio_post_read_ctx_cache)
 		goto fail;
 	bio_post_read_ctx_pool =

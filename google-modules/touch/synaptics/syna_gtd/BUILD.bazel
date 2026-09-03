@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
 
 filegroup(
     name = "syna_touch.kconfig",
@@ -13,26 +18,44 @@ filegroup(
     ],
 )
 
-kernel_module(
-    name = "syna_touch",
-    srcs = glob([
-        "**/*.c",
+ddk_headers(
+    name = "headers",
+    hdrs = glob([
         "**/*.h",
-    ]) + [
-        "Kbuild",
-        "//private/google-modules/soc/gs:gs_soc_headers",
-        "//private/google-modules/touch/common:headers",
+    ]),
+    includes = [
+        ".",
+        "tcm",
     ],
-    outs = [
-        "syna_touch.ko",
+)
+
+ddk_module(
+    name = "syna_touch",
+    srcs = [
+        "syna_tcm2.c",
+        "syna_tcm2_cdev.c",
+        "syna_tcm2_platform_spi.c",
+        "syna_tcm2_sysfs.c",
+        "syna_tcm2_testing.c",
+        "tcm/synaptics_touchcom_core_v1.c",
+        "tcm/synaptics_touchcom_core_v2.c",
+        "tcm/synaptics_touchcom_func_base.c",
+        "tcm/synaptics_touchcom_func_reflash.c",
+        "tcm/synaptics_touchcom_func_reflash_tddi.c",
+        "tcm/synaptics_touchcom_func_touch.c",
     ],
+    out = "syna_touch.ko",
+    defconfig = "defconfig",
+    kconfig = "Kconfig",
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
     ],
     deps = [
-        "//private/google-modules/soc/gs:gs_soc_module",
-        "//private/google-modules/touch/common:touch.common",
+        ":headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/touch/common:ddk_headers",
+        "//private/google-modules/touch/common:goog_touch_interface",
     ],
 )

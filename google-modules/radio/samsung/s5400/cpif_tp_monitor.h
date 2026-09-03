@@ -85,6 +85,7 @@ struct cpif_tpmon {
 	u32 monitor_hold_msec;
 	u32 monitor_stop_mbps;
 	u32 current_speed;
+	u32 new_speed;
 
 	u32 boost_hold_msec;
 
@@ -100,6 +101,9 @@ struct cpif_tpmon {
 	atomic_t boost_active;
 	struct workqueue_struct *boost_wq;
 	struct delayed_work boost_dwork;
+
+	struct workqueue_struct *update_speed_wq;
+	struct work_struct update_speed_work;
 
 	struct cpif_rx_data rx_total;
 	struct cpif_rx_data rx_tcp;

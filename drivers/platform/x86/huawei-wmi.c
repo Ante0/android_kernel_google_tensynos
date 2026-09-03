@@ -63,7 +63,6 @@ struct huawei_wmi {
 	bool fn_lock_available;
 
 	struct huawei_wmi_debug debug;
-	struct input_dev *idev[2];
 	struct led_classdev cdev;
 	struct device *dev;
 
@@ -82,6 +81,10 @@ static const struct key_entry huawei_wmi_keymap[] = {
 	{ KE_KEY,    0x289, { KEY_WLAN } },
 	// Huawei |M| key
 	{ KE_KEY,    0x28a, { KEY_CONFIG } },
+	// HONOR YOYO key
+	{ KE_KEY,    0x28b, { KEY_NOTIFICATION_CENTER } },
+	// HONOR print screen
+	{ KE_KEY,    0x28e, { KEY_PRINT } },
 	// Keyboard backlit
 	{ KE_IGNORE, 0x293, { KEY_KBDILLUMTOGGLE } },
 	{ KE_IGNORE, 0x294, { KEY_KBDILLUMUP } },
@@ -311,7 +314,6 @@ static void huawei_wmi_leds_setup(struct device *dev)
 	huawei->cdev.max_brightness = 1;
 	huawei->cdev.brightness_set_blocking = &huawei_wmi_micmute_led_set;
 	huawei->cdev.default_trigger = "audio-micmute";
-	huawei->cdev.brightness = ledtrig_audio_get(LED_AUDIO_MICMUTE);
 	huawei->cdev.dev = dev;
 	huawei->cdev.flags = LED_CORE_SUSPENDRESUME;
 
@@ -325,12 +327,12 @@ static int huawei_wmi_battery_get(int *start, int *end)
 	u8 ret[0x100];
 	int err, i;
 
-	err = huawei_wmi_cmd(BATTERY_THRESH_GET, ret, 0x100);
+	err = huawei_wmi_cmd(BATTERY_THRESH_GET, ret, sizeof(ret));
 	if (err)
 		return err;
 
 	/* Find the last two non-zero values. Return status is ignored. */
-	i = 0xff;
+	i = ARRAY_SIZE(ret) - 1;
 	do {
 		if (start)
 			*start = ret[i-1];
@@ -381,7 +383,7 @@ static ssize_t charge_control_start_threshold_show(struct device *dev,
 	if (err)
 		return err;
 
-	return sprintf(buf, "%d\n", start);
+	return sysfs_emit(buf, "%d\n", start);
 }
 
 static ssize_t charge_control_end_threshold_show(struct device *dev,
@@ -394,7 +396,7 @@ static ssize_t charge_control_end_threshold_show(struct device *dev,
 	if (err)
 		return err;
 
-	return sprintf(buf, "%d\n", end);
+	return sysfs_emit(buf, "%d\n", end);
 }
 
 static ssize_t charge_control_thresholds_show(struct device *dev,
@@ -407,7 +409,7 @@ static ssize_t charge_control_thresholds_show(struct device *dev,
 	if (err)
 		return err;
 
-	return sprintf(buf, "%d %d\n", start, end);
+	return sysfs_emit(buf, "%d %d\n", start, end);
 }
 
 static ssize_t charge_control_start_threshold_store(struct device *dev,
@@ -470,7 +472,7 @@ static DEVICE_ATTR_RW(charge_control_start_threshold);
 static DEVICE_ATTR_RW(charge_control_end_threshold);
 static DEVICE_ATTR_RW(charge_control_thresholds);
 
-static int huawei_wmi_battery_add(struct power_supply *battery)
+static int huawei_wmi_battery_add(struct power_supply *battery, struct acpi_battery_hook *hook)
 {
 	int err = 0;
 
@@ -485,7 +487,7 @@ static int huawei_wmi_battery_add(struct power_supply *battery)
 	return err;
 }
 
-static int huawei_wmi_battery_remove(struct power_supply *battery)
+static int huawei_wmi_battery_remove(struct power_supply *battery, struct acpi_battery_hook *hook)
 {
 	device_remove_file(&battery->dev, &dev_attr_charge_control_start_threshold);
 	device_remove_file(&battery->dev, &dev_attr_charge_control_end_threshold);
@@ -564,7 +566,7 @@ static ssize_t fn_lock_state_show(struct device *dev,
 	if (err)
 		return err;
 
-	return sprintf(buf, "%d\n", on);
+	return sysfs_emit(buf, "%d\n", on);
 }
 
 static ssize_t fn_lock_state_store(struct device *dev,
@@ -736,53 +738,40 @@ static void huawei_wmi_process_key(struct input_dev *idev, int code)
 	sparse_keymap_report_entry(idev, key, 1, true);
 }
 
-static void huawei_wmi_input_notify(u32 value, void *context)
+static void huawei_wmi_input_notify(union acpi_object *obj, void *context)
 {
 	struct input_dev *idev = (struct input_dev *)context;
-	struct acpi_buffer response = { ACPI_ALLOCATE_BUFFER, NULL };
-	union acpi_object *obj;
-	acpi_status status;
 
-	status = wmi_get_event_data(value, &response);
-	if (ACPI_FAILURE(status)) {
-		dev_err(&idev->dev, "Unable to get event data\n");
-		return;
-	}
-
-	obj = (union acpi_object *)response.pointer;
 	if (obj && obj->type == ACPI_TYPE_INTEGER)
 		huawei_wmi_process_key(idev, obj->integer.value);
 	else
 		dev_err(&idev->dev, "Bad response type\n");
-
-	kfree(response.pointer);
 }
 
-static int huawei_wmi_input_setup(struct device *dev,
-		const char *guid,
-		struct input_dev **idev)
+static int huawei_wmi_input_setup(struct device *dev, const char *guid)
 {
+	struct input_dev *idev;
 	acpi_status status;
 	int err;
 
-	*idev = devm_input_allocate_device(dev);
-	if (!*idev)
+	idev = devm_input_allocate_device(dev);
+	if (!idev)
 		return -ENOMEM;
 
-	(*idev)->name = "Huawei WMI hotkeys";
-	(*idev)->phys = "wmi/input0";
-	(*idev)->id.bustype = BUS_HOST;
-	(*idev)->dev.parent = dev;
+	idev->name = "Huawei WMI hotkeys";
+	idev->phys = "wmi/input0";
+	idev->id.bustype = BUS_HOST;
+	idev->dev.parent = dev;
 
-	err = sparse_keymap_setup(*idev, huawei_wmi_keymap, NULL);
+	err = sparse_keymap_setup(idev, huawei_wmi_keymap, NULL);
 	if (err)
 		return err;
 
-	err = input_register_device(*idev);
+	err = input_register_device(idev);
 	if (err)
 		return err;
 
-	status = wmi_install_notify_handler(guid, huawei_wmi_input_notify, *idev);
+	status = wmi_install_notify_handler(guid, huawei_wmi_input_notify, idev);
 	if (ACPI_FAILURE(status))
 		return -EIO;
 
@@ -811,17 +800,14 @@ static int huawei_wmi_probe(struct platform_device *pdev)
 	huawei_wmi->dev = &pdev->dev;
 
 	while (*guid->guid_string) {
-		struct input_dev *idev = *huawei_wmi->idev;
-
 		if (wmi_has_guid(guid->guid_string)) {
-			err = huawei_wmi_input_setup(&pdev->dev, guid->guid_string, &idev);
+			err = huawei_wmi_input_setup(&pdev->dev, guid->guid_string);
 			if (err) {
 				dev_err(&pdev->dev, "Failed to setup input on %s\n", guid->guid_string);
 				return err;
 			}
 		}
 
-		idev++;
 		guid++;
 	}
 
@@ -837,7 +823,7 @@ static int huawei_wmi_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int huawei_wmi_remove(struct platform_device *pdev)
+static void huawei_wmi_remove(struct platform_device *pdev)
 {
 	const struct wmi_device_id *guid = huawei_wmi_events_id_table;
 
@@ -853,8 +839,6 @@ static int huawei_wmi_remove(struct platform_device *pdev)
 		huawei_wmi_battery_exit(&pdev->dev);
 		huawei_wmi_fn_lock_exit(&pdev->dev);
 	}
-
-	return 0;
 }
 
 static struct platform_driver huawei_wmi_driver = {
@@ -862,7 +846,7 @@ static struct platform_driver huawei_wmi_driver = {
 		.name = "huawei-wmi",
 	},
 	.probe = huawei_wmi_probe,
-	.remove = huawei_wmi_remove,
+	.remove_new = huawei_wmi_remove,
 };
 
 static __init int huawei_wmi_init(void)

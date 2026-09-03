@@ -216,6 +216,10 @@ int mlx5_ib_create_srq(struct ib_srq *ib_srq,
 		return -EINVAL;
 	}
 
+	err = mlx5_ib_dev_res_cq_init(dev);
+	if (err)
+		return err;
+
 	mutex_init(&srq->mutex);
 	spin_lock_init(&srq->lock);
 	srq->msrq.max    = roundup_pow_of_two(init_attr->attr.max_wr + 1);
@@ -450,7 +454,7 @@ int mlx5_ib_post_srq_recv(struct ib_srq *ibsrq, const struct ib_recv_wr *wr,
 
 		if (i < srq->msrq.max_avail_gather) {
 			scat[i].byte_count = 0;
-			scat[i].lkey       = cpu_to_be32(MLX5_INVALID_LKEY);
+			scat[i].lkey = dev->mkeys.terminate_scatter_list_mkey;
 			scat[i].addr       = 0;
 		}
 	}

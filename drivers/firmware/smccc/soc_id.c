@@ -8,9 +8,11 @@
 #include <linux/arm-smccc.h>
 #include <linux/bitfield.h>
 #include <linux/device.h>
+#include <linux/init.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include <linux/string.h>
 #include <linux/sys_soc.h>
 
 #define SMCCC_SOC_ID_JEP106_BANK_IDX_MASK	GENMASK(30, 24)
@@ -32,31 +34,48 @@
 static struct soc_device *soc_dev;
 static struct soc_device_attribute *soc_dev_attr;
 
+/*
+ * Allow disabling SMCCC SoC ID registration via kernel cmdline.
+ * Example: add 'nosocid' to the command line to skip init.
+ */
+static bool smccc_socid_disabled;
+
+static int __init smccc_socid_disable_param(char *unused)
+{
+	smccc_socid_disabled = true;
+
+	return 0;
+}
+early_param("nosocid", smccc_socid_disable_param);
+
 static int __init smccc_soc_init(void)
 {
-	struct arm_smccc_res res;
 	int soc_id_rev, soc_id_version;
 	static char soc_id_str[20], soc_id_rev_str[12];
 	static char soc_id_jep106_id_str[12];
 
+	if (smccc_socid_disabled)
+		return 0;
+
 	if (arm_smccc_get_version() < ARM_SMCCC_VERSION_1_2)
 		return 0;
 
-	if (arm_smccc_1_1_get_conduit() == SMCCC_CONDUIT_NONE) {
-		pr_err("%s: invalid SMCCC conduit\n", __func__);
-		return -EOPNOTSUPP;
-	}
-
-	arm_smccc_1_1_invoke(ARM_SMCCC_ARCH_FEATURES_FUNC_ID,
-			     ARM_SMCCC_ARCH_SOC_ID, &res);
-
-	if ((int)res.a0 == SMCCC_RET_NOT_SUPPORTED) {
+	soc_id_version = arm_smccc_get_soc_id_version();
+	if (soc_id_version == SMCCC_RET_NOT_SUPPORTED) {
 		pr_info("ARCH_SOC_ID not implemented, skipping ....\n");
 		return 0;
 	}
 
-	soc_id_version = arm_smccc_get_version();
-	soc_id_rev = res.a0;
+	if (soc_id_version < 0) {
+		pr_err("Invalid SoC Version: %x\n", soc_id_version);
+		return -EINVAL;
+	}
+
+	soc_id_rev = arm_smccc_get_soc_id_revision();
+	if (soc_id_rev < 0) {
+		pr_err("Invalid SoC Revision: %x\n", soc_id_rev);
+		return -EINVAL;
+	}
 
 	soc_dev_attr = kzalloc(sizeof(*soc_dev_attr), GFP_KERNEL);
 	if (!soc_dev_attr)

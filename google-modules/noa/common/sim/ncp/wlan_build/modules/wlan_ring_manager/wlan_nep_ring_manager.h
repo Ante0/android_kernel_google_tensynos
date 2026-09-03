@@ -1,0 +1,1 @@
+../../../wlan_fw/modules/wlan_ring_manager/wlan_nep_ring_manager.h

@@ -21,6 +21,8 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 
+#include <soc/google/google-cdd.h>
+
 #include "aoc_alsa.h"
 #include "aoc_alsa_drv.h"
 #include "aoc_alsa_path.h"
@@ -36,9 +38,14 @@ struct be_path_cache port_array[PORT_MAX] = {
 };
 
 static const struct snd_soc_dai_ops be_dai_ops;
-static struct mutex path_mutex;
 
 static int aoc_compress_new(struct snd_soc_pcm_runtime *rtd, int num);
+
+static const struct snd_soc_dai_ops aoc_ep7_dai_ops = {
+	.compress_new = aoc_compress_new,
+};
+
+static struct mutex path_mutex;
 
 static const uint32_t rx_ep_list[] = {
 	IDX_EP2_RX,           /* low-latency-playback */
@@ -182,7 +189,7 @@ static struct snd_soc_dai_driver aoc_dai_drv[] = {
 			.channels_min = 1,
 			.channels_max = 2,
 		},
-		.compress_new = aoc_compress_new,
+		.ops = &aoc_ep7_dai_ops,
 		.name = "EP7 PB",
 		.id = IDX_EP7_RX,
 	},
@@ -956,6 +963,65 @@ static int aoc_capture_eps_trigger(struct aoc_chip *chip, int hw_id, bool on)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_GOOGLE_CRASH_DEBUG_DUMP)
+static uint32_t port_mapping[PORT_MAX] = {
+	[PORT_I2S_0_RX] = CCD_AUDIO_I2S,
+	[PORT_I2S_0_TX] = CCD_AUDIO_I2S,
+	[PORT_I2S_1_RX] = CCD_AUDIO_I2S,
+	[PORT_I2S_1_TX] = CCD_AUDIO_I2S,
+	[PORT_I2S_2_RX] = CCD_AUDIO_I2S,
+	[PORT_I2S_2_TX] = CCD_AUDIO_I2S,
+	[PORT_TDM_0_RX] = CCD_AUDIO_TDM_0,
+	[PORT_TDM_0_TX] = CCD_AUDIO_TDM_0,
+	[PORT_TDM_1_RX] = CCD_AUDIO_TDM_1,
+	[PORT_TDM_1_TX] = CCD_AUDIO_TDM_1,
+	[PORT_INTERNAL_MIC] = CCD_AUDIO_MIC,
+	[PORT_BT_RX] = CCD_AUDIO_BT,
+	[PORT_BT_TX] = CCD_AUDIO_BT,
+	[PORT_USB_RX] = CCD_AUDIO_USB,
+	[PORT_USB_TX] = CCD_AUDIO_USB,
+	[PORT_INCALL_RX] = CCD_AUDIO_INCALL,
+	[PORT_INCALL_TX] = CCD_AUDIO_INCALL,
+	[PORT_HAPTIC_RX] = CCD_AUDIO_HAPTIC,
+	[PORT_ERASER_TX] = CCD_AUDIO_ERASER,
+	[PORT_INTERNAL_MIC_US] = CCD_AUDIO_MIC,
+	[PORT_DP_DMA_RX] = CCD_AUDIO_DP,
+};
+
+void update_google_cdd_audio_stat_ext(struct aoc_chip *chip, uint32_t device, bool en)
+{
+	uint32_t audio_stat;
+
+	if (chip == NULL)
+		return;
+
+	audio_stat = chip->audio_stat;
+
+	if (en)
+		audio_stat |= device;
+	else
+		audio_stat &= ~device;
+
+	if (audio_stat == chip->audio_stat)
+		return;
+
+	pr_debug("%s: audio_stat update 0x%x ==> 0x%x\n", __func__, chip->audio_stat, audio_stat);
+	google_cdd_set_system_dev_stat(CDD_SYSTEM_DEVICE_AUDIO, audio_stat);
+	chip->audio_stat = audio_stat;
+}
+
+static void update_google_cdd_audio_stat(struct aoc_chip *chip, uint32_t hw_idx, bool en)
+{
+	if (hw_idx >= PORT_MAX)
+		return;
+
+	update_google_cdd_audio_stat_ext(chip, port_mapping[hw_idx], en);
+}
+#else
+inline void update_google_cdd_audio_stat_ext(struct aoc_chip *chip, uint32_t ccd_idx, bool en) {}
+static inline void update_google_cdd_audio_stat(struct aoc_chip *c, uint32_t idx, bool en) {}
+#endif
+
 static int be_prepare(struct snd_pcm_substream *stream, struct snd_soc_dai *dai)
 {
 	struct snd_soc_pcm_runtime *rtd = stream->private_data;
@@ -989,6 +1055,7 @@ static int be_prepare(struct snd_pcm_substream *stream, struct snd_soc_dai *dai)
 		break;
 	}
 	port_array[hw_idx].on = true;
+	update_google_cdd_audio_stat(chip, hw_idx, true);
 	mutex_unlock(&path_mutex);
 	return 0;
 }
@@ -1025,6 +1092,7 @@ static void be_shutdown(struct snd_pcm_substream *stream,
 		break;
 	}
 	port_array[hw_idx].on = false;
+	update_google_cdd_audio_stat(chip, hw_idx, false);
 	mutex_unlock(&path_mutex);
 }
 
@@ -1248,9 +1316,13 @@ static int aoc_path_put(uint32_t ep_id, uint32_t hw_id,
 		hw_idx, enable, chip);
 
 	mutex_lock(&path_mutex);
-
 	if (enable) {
 		set_bit(ep_idx, port_array[hw_idx].fe_put_mask);
+		if (hw_idx == PORT_USB_RX || hw_idx == PORT_USB_TX)
+			aoc_usb_setup_config(chip,
+					     bitmap_weight(port_array[hw_idx].fe_put_mask,
+							   IDX_FE_MAX),
+					     hw_id & AOC_TX ? 1 : 0);
 		mutex_lock(&chip->audio_mutex);
 		aoc_audio_path_open(chip, ep_id, hw_id, port_array[hw_idx].on);
 		mutex_unlock(&chip->audio_mutex);
@@ -1259,6 +1331,11 @@ static int aoc_path_put(uint32_t ep_id, uint32_t hw_id,
 		mutex_lock(&chip->audio_mutex);
 		aoc_audio_path_close(chip, ep_id, hw_id, port_array[hw_idx].on);
 		mutex_unlock(&chip->audio_mutex);
+		if (hw_idx == PORT_USB_RX || hw_idx == PORT_USB_TX)
+			aoc_usb_cleanup_config(chip,
+					       bitmap_weight(port_array[hw_idx].fe_put_mask,
+							     IDX_FE_MAX),
+					       hw_id & AOC_TX ? 1 : 0);
 	}
 
 	mutex_unlock(&path_mutex);
@@ -1272,50 +1349,6 @@ static int aoc_path_put(uint32_t ep_id, uint32_t hw_id,
 	}
 	return 0;
 }
-
-bool aoc_alsa_usb_capture_enabled(void)
-{
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(tx_ep_list); i++) {
-		struct snd_ctl_elem_value ucontrol;
-		int ret;
-
-		ret = aoc_path_get(tx_ep_list[i], USB_TX, NULL, &ucontrol);
-		if (ret) {
-			pr_err("%s failed ret %d\n", __func__, ret);
-			return false;
-		}
-
-		if (ucontrol.value.integer.value[0])
-			return true;
-	}
-
-	return false;
-}
-EXPORT_SYMBOL_GPL(aoc_alsa_usb_capture_enabled);
-
-bool aoc_alsa_usb_playback_enabled(void)
-{
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(rx_ep_list); i++) {
-		struct snd_ctl_elem_value ucontrol;
-		int ret;
-
-		ret = aoc_path_get(rx_ep_list[i], USB_RX, NULL, &ucontrol);
-		if (ret) {
-			pr_err("%s failed ret %d\n", __func__, ret);
-			return false;
-		}
-
-		if (ucontrol.value.integer.value[0])
-			return true;
-	}
-
-	return false;
-}
-EXPORT_SYMBOL_GPL(aoc_alsa_usb_playback_enabled);
 
 bool aoc_alsa_dp_playback_enabled(void)
 {

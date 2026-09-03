@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_POWERDASHBOARD
+	tristate "Google power dashboard"
+	depends on ARCH_GOOGLE
+	depends on GOOGLE_MBA_CPM_INTERFACE
+	help
+	  Enable support the powerdashboard driver
+	  in RDO.
+	  The driver will read the power related data for other
+	  driver usage or for userspace debugging.
+	  Select Y if you have such device.
+	  If unsure select "N".
+

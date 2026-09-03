@@ -351,7 +351,7 @@ err_data:
 	return ret;
 }
 
-static int gs_memlat_devfreq_remove(struct platform_device *pdev)
+static void gs_memlat_devfreq_remove(struct platform_device *pdev)
 {
 	struct exynos_devfreq_data *data = platform_get_drvdata(pdev);
 
@@ -364,8 +364,6 @@ static int gs_memlat_devfreq_remove(struct platform_device *pdev)
 	platform_set_drvdata(pdev, NULL);
 	mutex_destroy(&data->lock);
 	kfree(data);
-
-	return 0;
 }
 
 static struct platform_device_id gs_memlat_devfreq_driver_ids[] = {

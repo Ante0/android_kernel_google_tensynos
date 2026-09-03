@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2011 Red Hat, Inc.
  *
@@ -91,6 +92,7 @@ static void __add_holder(struct block_lock *lock, struct task_struct *task)
 static void __del_holder(struct block_lock *lock, struct task_struct *task)
 {
 	unsigned int h = __find_holder(lock, task);
+
 	lock->holders[h] = NULL;
 	put_task_struct(task);
 }
@@ -343,7 +345,7 @@ void *dm_block_data(struct dm_block *b)
 EXPORT_SYMBOL_GPL(dm_block_data);
 
 struct buffer_aux {
-	struct dm_block_validator *validator;
+	const struct dm_block_validator *validator;
 	int write_locked;
 
 #ifdef CONFIG_DM_DEBUG_BLOCK_MANAGER_LOCKING
@@ -354,6 +356,7 @@ struct buffer_aux {
 static void dm_block_manager_alloc_callback(struct dm_buffer *buf)
 {
 	struct buffer_aux *aux = dm_bufio_get_aux_data(buf);
+
 	aux->validator = NULL;
 	bl_init(&aux->lock);
 }
@@ -361,15 +364,18 @@ static void dm_block_manager_alloc_callback(struct dm_buffer *buf)
 static void dm_block_manager_write_callback(struct dm_buffer *buf)
 {
 	struct buffer_aux *aux = dm_bufio_get_aux_data(buf);
+
 	if (aux->validator) {
 		aux->validator->prepare_for_write(aux->validator, (struct dm_block *) buf,
 			 dm_bufio_get_block_size(dm_bufio_get_client(buf)));
 	}
 }
 
-/*----------------------------------------------------------------
+/*
+ * -------------------------------------------------------------
  * Public interface
- *--------------------------------------------------------------*/
+ *--------------------------------------------------------------
+ */
 struct dm_block_manager {
 	struct dm_bufio_client *bufio;
 	bool read_only:1;
@@ -435,10 +441,11 @@ dm_block_t dm_bm_nr_blocks(struct dm_block_manager *bm)
 static int dm_bm_validate_buffer(struct dm_block_manager *bm,
 				 struct dm_buffer *buf,
 				 struct buffer_aux *aux,
-				 struct dm_block_validator *v)
+				 const struct dm_block_validator *v)
 {
 	if (unlikely(!aux->validator)) {
 		int r;
+
 		if (!v)
 			return 0;
 		r = v->check(v, (struct dm_block *) buf, dm_bufio_get_block_size(bm->bufio));
@@ -460,7 +467,7 @@ static int dm_bm_validate_buffer(struct dm_block_manager *bm,
 	return 0;
 }
 int dm_bm_read_lock(struct dm_block_manager *bm, dm_block_t b,
-		    struct dm_block_validator *v,
+		    const struct dm_block_validator *v,
 		    struct dm_block **result)
 {
 	struct buffer_aux *aux;
@@ -493,7 +500,7 @@ int dm_bm_read_lock(struct dm_block_manager *bm, dm_block_t b,
 EXPORT_SYMBOL_GPL(dm_bm_read_lock);
 
 int dm_bm_write_lock(struct dm_block_manager *bm,
-		     dm_block_t b, struct dm_block_validator *v,
+		     dm_block_t b, const struct dm_block_validator *v,
 		     struct dm_block **result)
 {
 	struct buffer_aux *aux;
@@ -529,7 +536,7 @@ int dm_bm_write_lock(struct dm_block_manager *bm,
 EXPORT_SYMBOL_GPL(dm_bm_write_lock);
 
 int dm_bm_read_try_lock(struct dm_block_manager *bm,
-			dm_block_t b, struct dm_block_validator *v,
+			dm_block_t b, const struct dm_block_validator *v,
 			struct dm_block **result)
 {
 	struct buffer_aux *aux;
@@ -562,7 +569,7 @@ int dm_bm_read_try_lock(struct dm_block_manager *bm,
 }
 
 int dm_bm_write_lock_zero(struct dm_block_manager *bm,
-			  dm_block_t b, struct dm_block_validator *v,
+			  dm_block_t b, const struct dm_block_validator *v,
 			  struct dm_block **result)
 {
 	int r;
@@ -594,8 +601,7 @@ EXPORT_SYMBOL_GPL(dm_bm_write_lock_zero);
 
 void dm_bm_unlock(struct dm_block *b)
 {
-	struct buffer_aux *aux;
-	aux = dm_bufio_get_aux_data(to_buffer(b));
+	struct buffer_aux *aux = dm_bufio_get_aux_data(to_buffer(b));
 
 	if (aux->write_locked) {
 		dm_bufio_mark_buffer_dirty(to_buffer(b));
@@ -623,7 +629,7 @@ void dm_bm_prefetch(struct dm_block_manager *bm, dm_block_t b)
 
 bool dm_bm_is_read_only(struct dm_block_manager *bm)
 {
-	return (bm ? bm->read_only : true);
+	return bm ? bm->read_only : true;
 }
 EXPORT_SYMBOL_GPL(dm_bm_is_read_only);
 
@@ -650,7 +656,7 @@ EXPORT_SYMBOL_GPL(dm_bm_checksum);
 /*----------------------------------------------------------------*/
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Joe Thornber <dm-devel@redhat.com>");
+MODULE_AUTHOR("Joe Thornber <dm-devel@lists.linux.dev>");
 MODULE_DESCRIPTION("Immutable metadata library for dm");
 
 /*----------------------------------------------------------------*/

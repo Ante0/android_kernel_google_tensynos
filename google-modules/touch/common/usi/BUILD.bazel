@@ -1,32 +1,36 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
 
 filegroup(
-    name = "headers",
-    srcs = glob([
-        "**/*.h",
-    ]),
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/touch:__subpackages__",
-    ],
+    name = "kconfig",
+    srcs = ["Kconfig"],
 )
 
-kernel_module(
-    name = "touch.common.usi",
+ddk_module(
+    name = "goog_usi_stylus",
     srcs = glob([
-        "**/*.c",
         "**/*.h",
     ]) + [
-        "Kbuild",
+        "goog_usi_stylus.c",
     ],
-    outs = [
-        "goog_usi_stylus.ko",
+    out = "goog_usi_stylus.ko",
+    hdrs = glob([
+        "**/*.h",
+    ]),
+    includes = [
+        ".",
     ],
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/touch:__subpackages__",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
     ],
 )

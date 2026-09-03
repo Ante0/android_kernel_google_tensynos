@@ -1,0 +1,220 @@
+# SPDX-License-Identifier: GPL-2.0
+# Copyright 2023 Google LLC
+%YAML 1.2
+---
+
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google Wireless Charger Driver
+
+maintainers:
+  - Alice Sheng <alicesheng@google.com>
+  - Yihsiang Peng <yihsiangpeng@google.com>
+  - YiKai Peng <kenpeng@google.com>
+
+description: |
+  Wireless charging support of BPP/EPP/MPP protocol and integration with Google BMS system.
+
+properties:
+  compatible:
+      enum:
+      - renesas,ra9582
+      - cps,cps4041
+  reg:
+    description: i2c address of the charger.
+
+  irq-gpio:
+    description: Interrupt GPIO.
+    $ref: "types.yaml#/definitions/phandle"
+
+  ap5v-gpio:
+    description: GPIO to enable 5V supply to the WLC chip.
+    $ref: "types.yaml#/definitions/phandle"
+
+  vdden-gpio:
+    description: GPIO to enable vdd switch internally in WLC chip.
+    $ref: "types.yaml#/definitions/phandle"
+
+  mode-gpio:
+    description: GPIO to change the WLC mode. For example, BPP EPP MPP
+    $ref: "types.yaml#/definitions/phandle"
+
+  inhibit-gpio:
+    description: GPIO to disable the WLC chip.
+    $ref: "types.yaml#/definitions/phandle"
+
+  wcin_inlim_en-gpio:
+    description: GPIO to enable input current limiting based on load.
+    $ref: "types.yaml#/definitions/phandle"
+
+  google,high_soc_thresholds:
+    description: Battery percentage thresholds at which to start input current limiting based on load.
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  capdiv-regulator:
+    description: Regulator which controls a 2:1 divider placed on the output of WLC chip. It should
+      be set up such that "Fast" corresponds to dividing mode and "Normal" corresponds to bypass
+      mode.
+    $ref: "types.yaml#/definitions/phandle"
+
+  google,fg-power-supply:
+    description: Power supply which corresponds to the fuel gauge. Will be used to read the battery
+      percentage.
+    $ref: "types.yaml#/definitions/phandle"
+
+  google,bpp_fods:
+    description: FOD array to write to FOD registers during BPP mode.
+    $ref: /schemas/types.yaml#/definitions/uint8-array
+
+  google,wlc_tx_id:
+    description: Support reading tx_id of pixel stands
+    type: boolean
+
+  google,hda-tz-wlc:
+    description: This will enable 1 value for hda thermal zone upon any wireless charger going online,
+      to inform thermal to set temp target
+    type: boolean
+
+  google,project_id:
+    description: The project id defined in FW is used to identify whether it is correct
+    $ref: /schemas/types.yaml#/definitions/uint8
+
+  google,wlc_eoc_cloak:
+    description: enable cloak mode when Rx is online but not charging
+    $ref: boolean
+
+  bpp_mdis_pwr:
+    description: thermal table use for BPP charger
+    $ref: /schemas/types.yaml#/definitions/uint32-array
+
+  epp_mdis_pwr:
+    description: thermal table use for EPP charger
+    $ref: /schemas/types.yaml#/definitions/uint32-array
+
+  mpp_mdis_pwr:
+    description: thermal table use for MPP charger
+    $ref: /schemas/types.yaml#/definitions/uint32-array
+
+  google,has-mpp25-wlc-dc:
+    description: Support charge pump with 25W MPP
+    type: boolean
+
+  google,has-mpp15-wlc-dc:
+    description: Support charge pump with 15W MPP
+    type: boolean
+
+  mpp_eds_soc:
+    description: soc table of eds icl use for MPP charger
+    $ref: /schemas/types.yaml#/definitions/uint32-array
+
+  mpp_eds_icl:
+    description: icl table used to define the limits of icl during eds in accordance with the soc table above
+    $ref: /schemas/types.yaml#/definitions/uint32-array
+
+  google,wlc_mod_depth_max:
+    description: max depth for dynamic modulation
+    $ref: /schemas/types.yaml#/definitions/uint8
+
+  google,wlc_mod_soc:
+    description: soc level reached for activating dynamic modulation
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  google,support-mpp25:
+    description: enable mpp25 flow
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  google,dploss-volts:
+    description: dploss voltage table for deltap loss in mpp25
+
+  google,wlc_qispec:
+    description: supported qi version and mode
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  google,iop_vout_mfg:
+    description: The mfg-id of specific Tx that need to set different Vout
+    $ref: /schemas/types.yaml#/definitions/uint16-array
+
+  google,iop_vout_mv:
+    description: The Vout configure value for the Tx list in google,iop_vout_mfg
+    $ref: /schemas/types.yaml#/definitions/uint32-array
+
+  google,wlc_iop_bpp_vout_tolerance_mv:
+    description: The Vout tolerance threshold for check if need to decrease ICL for low-gain BPP chargers
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  google,charger-switch-skip-cloak:
+    description: whether to skip cloak mode when switching chargers
+    type: boolean
+
+  google,wlc-dc-xce-thresh:
+    description: the XCE threshold for WLC_DC
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  google,wlc-chg-configs:
+    description: phandle list of chg configs
+    $ref: /schemas/types.yaml#/definitions/phandle-array
+
+  child-node:
+    description: Child node which represents a charger config
+    properties:
+      target-power-mode:
+        description: MPP power mode that should be used for this charger
+        $ref: /schemas/types.yaml#/definitions/uint32
+        required: true
+      charger-type:
+        description: type of charger it is
+        $ref: /schemas/types.yaml#/definitions/uint32
+        required: true
+      mod-mode:
+        description: modulation mode that should be set for this charger
+        $ref: /schemas/types.yaml#/definitions/uint32
+        required: true
+      mod-change-timing:
+        description: configures when the modulation mode should be changed when using this charger
+        $ref: /schemas/types.yaml#/definitions/uint32
+        required: true
+      initial-current-ua:
+        description: initial current for this charger in uA
+        $ref: /schemas/types.yaml#/definitions/uint32
+        required: true
+      icl-step-size-ua:
+        description: ICL step size for this charger in uA
+        $ref: /schemas/types.yaml#/definitions/uint32
+        required: true
+      icl-rounding:
+        description: Configure the ICL rounding method for this charger
+        $ref: /schemas/types.yaml#/definitions/uint32
+        required: true
+      initial-voltage-uv:
+        description: Configure the initial voltage for this charger
+        $ref: /schemas/types.yaml#/definitions/uint32
+        required: true
+      max-voltage-uv:
+        description: Configure the max voltage the charger supports
+        $ref: /schemas/types.yaml#/definitions/uint32
+        required: true
+      mpp-mdis-name:
+        description: name of the property containing the mdis table for this charger
+        $def: /schemas/types.yaml#/definitions/string
+      use-auto-vout:
+        description: Configure whether the auto vout setting of wlc should be set when using this charger
+        type: boolean
+      mpp25-only:
+        description: Configure whether the charger should be only allowed for MPP25
+        type: boolean
+      exit-by-ept:
+        description: Configure whether the charger should be exited by sending EPT
+        type: boolean
+patternProperties:
+  "^mpp-mdis-[a-zA-Z0-9-]*":
+    description: thermal table used for a specific MPP charger by name
+    $ref: /schemas/types.yaml#/definitions/uint32-array
+
+required:
+  - compatible
+  - irq-gpio
+  - mode-gpio
+  - inhibit-gpio
+
+dependencies:
+  google,eoc_mw_thresholds: [ 'google,eoc_soc_thresholds' ]

@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+menuconfig ARCH_GOOGLE
+	bool "Google SoC platform"
+	depends on ARM64
+	help
+	  Say Y here to get to see options for platform support for
+	  Google SoC drivers. This option alone does not add any
+	  kernel code. If you say N, all options in this submenu will
+	  be skipped and disabled.
+
+if ARCH_GOOGLE
+
+config SOC_RDO
+	bool "SOC is RDO"
+	help
+	  Select Y if the SOC is Redondo.
+	  SOC is short for System on Chip
+	  RDO is short for Redondo.
+	  RDO kernel modules depend on this configuration.
+
+config SOC_LGA
+	bool "SOC is LGA"
+	help
+	  Select Y if the SOC is Laguna.
+	  SOC is short for System on Chip
+	  LGA is short for Laguna.
+	  LGA kernel modules depend on this configuration.
+
+config SOC_MBU
+	bool "SOC is MBU"
+	help
+	  Select Y if the SOC is Malibu.
+	  SOC is short for System on Chip
+	  MBU is short for Malibu.
+	  MBU kernel modules depend on this configuration.
+
+endif # ARCH_GOOGLE

@@ -9,9 +9,7 @@
 #include <linux/module.h>
 #include <trace/hooks/cgroup.h>
 
-extern void rvh_cgroup_force_kthread_migration_pixel_mod(void *data, struct task_struct *tsk,
-							 struct cgroup *dst_cgrp,
-							 bool *force_migration);
+#include "cgroup.h"
 
 static int vh_cgroup_init(void)
 {

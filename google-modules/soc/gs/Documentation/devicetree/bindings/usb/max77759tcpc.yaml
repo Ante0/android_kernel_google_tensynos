@@ -16,3 +16,14 @@ properties:
     description: Allow USB to vote to change BCL's BATOILO1/2 threshold
     type: boolean
 
+  goog,pmic-agpio-alert-config:
+    description: AGPIO pin can be configured as GPIO or Alert. This property
+      enables a workaround that configures agpio5 as alert. This may be required
+      during bringup when BMS stack is not up yet.
+    type: boolean
+
+  enable-otg-direct:
+    description: Enables reverse boost for IFPMIC directly from TCPC driver.
+      Typically used during bringup.
+    type: boolean
+

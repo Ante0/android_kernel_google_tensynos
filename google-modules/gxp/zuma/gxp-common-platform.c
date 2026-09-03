@@ -36,7 +36,6 @@
 #include "gxp-core-telemetry.h"
 #include "gxp-dci.h"
 #include "gxp-debug-dump.h"
-#include "gxp-dma-fence.h"
 #include "gxp-dma.h"
 #include "gxp-dmabuf.h"
 #include "gxp-domain-pool.h"
@@ -108,16 +107,13 @@ static struct platform_device gxp_sscd_dev = {
 static void gxp_common_platform_reg_sscd(void)
 {
 	/* Registers SSCD platform device */
-	if (gxp_debug_dump_is_enabled()) {
-		if (platform_device_register(&gxp_sscd_dev))
-			pr_err(GXP_NAME " Unable to register SSCD platform device\n");
-	}
+	if (platform_device_register(&gxp_sscd_dev))
+		pr_err(GXP_NAME " Unable to register SSCD platform device\n");
 }
 
 static void gxp_common_platform_unreg_sscd(void)
 {
-	if (gxp_debug_dump_is_enabled())
-		platform_device_unregister(&gxp_sscd_dev);
+	platform_device_unregister(&gxp_sscd_dev);
 }
 
 #else /* CONFIG_SUBSYSTEM_COREDUMP */
@@ -1302,7 +1298,7 @@ static int gxp_ioctl_trigger_debug_dump(struct gxp_client *client, __u32 __user 
 	if (!uid_eq(current_euid(), GLOBAL_ROOT_UID))
 		return -EPERM;
 
-	if (!gxp_debug_dump_is_enabled()) {
+	if (!gxp_debug_dump_is_enabled(gxp)) {
 		dev_err(gxp->dev, "Debug dump functionality is disabled\n");
 		return -EINVAL;
 	}
@@ -1347,28 +1343,40 @@ out_unlock_client_semaphore:
 }
 
 static int gxp_ioctl_create_sync_fence(struct gxp_client *client,
-				       struct gxp_create_sync_fence_data __user *datap)
+				       struct gxp_create_sync_fence_data __user *argp)
 {
 	struct gxp_dev *gxp = client->gxp;
-	struct gxp_create_sync_fence_data data;
-	int ret;
+	struct gxp_create_sync_fence_data ibuf;
+	struct gcip_dma_fence *gfence;
+	int fd;
 
-	if (copy_from_user(&data, (void __user *)datap, sizeof(data)))
+	if (copy_from_user(&ibuf, argp, sizeof(ibuf)))
 		return -EFAULT;
+
 	down_read(&client->semaphore);
 	if (client->vd) {
-		ret = gxp_dma_fence_create(gxp, client->vd, &data);
+		gfence = gcip_dma_fence_create(client->vd->gfence_mgr, ibuf.seqno,
+					       ibuf.timeline_name);
+		if (IS_ERR(gfence)) {
+			fd = PTR_ERR(gfence);
+		} else {
+			fd = gcip_dma_fence_install_fd(gfence);
+			gcip_dma_fence_put(gfence);
+		}
 	} else {
 		dev_warn(gxp->dev, "client creating sync fence has no VD");
-		ret = -EINVAL;
+		fd = -EINVAL;
 	}
 	up_read(&client->semaphore);
-	if (ret)
-		return ret;
+	if (fd < 0)
+		return fd;
 
-	if (copy_to_user((void __user *)datap, &data, sizeof(data)))
-		ret = -EFAULT;
-	return ret;
+	ibuf.fence = fd;
+
+	if (copy_to_user(argp, &ibuf, sizeof(ibuf)))
+		return -EFAULT;
+
+	return 0;
 }
 
 static int gxp_ioctl_signal_sync_fence(struct gxp_signal_sync_fence_data __user *datap)
@@ -1882,7 +1890,7 @@ static __init int gxp_fs_init(void)
 {
 	int ret;
 
-	gxp_class = class_create(THIS_MODULE, GXP_NAME);
+	gxp_class = class_create(GXP_NAME);
 	if (IS_ERR(gxp_class)) {
 		pr_err(GXP_NAME " error creating gxp class: %ld\n",
 		       PTR_ERR(gxp_class));
@@ -2042,19 +2050,12 @@ static int gxp_common_platform_probe(struct platform_device *pdev, struct gxp_de
 	if (ret)
 		dev_warn(dev, "Failed to init thermal driver: %d\n", ret);
 
-	gxp->gfence_mgr = gcip_dma_fence_manager_create(gxp->dev);
-	if (IS_ERR(gxp->gfence_mgr)) {
-		ret = PTR_ERR(gxp->gfence_mgr);
-		dev_err(dev, "Failed to init DMA fence manager: %d\n", ret);
-		goto err_thermal_destroy;
-	}
-
 	INIT_LIST_HEAD(&gxp->client_list);
 	mutex_init(&gxp->client_list_lock);
 	if (gxp->after_probe) {
 		ret = gxp->after_probe(gxp);
 		if (ret)
-			goto err_dma_fence_destroy;
+			goto err_thermal_destroy;
 	}
 
 #if IS_ENABLED(CONFIG_SUBSYSTEM_COREDUMP)
@@ -2078,8 +2079,6 @@ err_before_remove:
 	gxp_debug_dump_exit(gxp);
 	if (gxp->before_remove)
 		gxp->before_remove(gxp);
-err_dma_fence_destroy:
-	/* DMA fence manager creation doesn't need revert */
 err_thermal_destroy:
 	gxp_thermal_exit(gxp);
 	gxp_core_telemetry_exit(gxp);

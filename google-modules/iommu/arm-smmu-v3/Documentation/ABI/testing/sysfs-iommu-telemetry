@@ -1,0 +1,206 @@
+What:		/sys/kernel/iommu/devices
+What:		/sys/kernel/iommu/domains
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		The /sys/kernel/iommu/ directory contains information about IOMMU
+		telemetry. It has two subdirectories:
+
+		- devices: Holds information about each SMMU device.
+		- domains: Holds information about each IOMMU domain.
+
+What:		/sys/kernel/iommu/enable
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows status of IOMMU telemetry. The value can be either 0 or 1.
+
+What:		/sys/kernel/iommu/cur_s1_pgtable_usage
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows the current S1 pgtable usage in pages.
+
+What:		/sys/kernel/iommu/max_s1_pgtable_usage
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows the maximum S1 pgtable usage in pages, since boot.
+
+What:		/sys/kernel/iommu/failed_cookie_alloc_count
+Contact:	Wonbin Jin <wbjin@google.com>
+Description:
+		Shows the global total number of failed cookie allocations in
+		kvm_arm_smmu_alloc_cookie_sg since boot. Excludes cases where nents < 4.
+
+What:		/sys/kernel/iommu/domains/<domain_id>/mode
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows the mode of the IOMMU domain. The value can be either
+		"pKVM mode" or "non-pKVM mode".
+
+What:		/sys/kernel/iommu/domains/<domain_id>/type
+Contact:	Wonbin Jin <wbjin@google.com>
+Description:
+		Shows the translation type of the IOMMU domain.
+		The value can be "S1", "S2", or "Nested".
+
+What:		/sys/kernel/iommu/domains/<domain_id>/map_sg_count
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows the number of iommu_map_sg calls for this domain.
+
+What:		/sys/kernel/iommu/domains/<domain_id>/map_count
+Contact:	Wonbin Jin <wbjin@google.com>
+Description:
+		Shows the total count of page mapping calls executed for this
+		domain.
+
+What:		/sys/kernel/iommu/domains/<domain_id>/unmap_count
+Contact:	Wonbin Jin <wbjin@google.com>
+Description:
+		Shows the total count of page unmapping calls executed for this
+		domain.
+
+What:		/sys/kernel/iommu/domains/<domain_id>/avg_sg_list_len
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows the average scatterlist length for this domain.
+
+What:		/sys/kernel/iommu/domains/<domain_id>/smmu
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows the smmu to which the domain is attached to.
+
+What:		/sys/kernel/iommu/domains/<domain_id>/attached_devices
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows the devices and SIDs associated with this domain.
+
+What:		/sys/kernel/iommu/domains/<domain_id>/unaligned_64k_mappings
+What:		/sys/kernel/iommu/domains/<domain_id>/unaligned_2m_mappings
+What:		/sys/kernel/iommu/domains/<domain_id>/unaligned_32m_mappings
+What:		/sys/kernel/iommu/domains/<domain_id>/unaligned_512m_mappings
+What:		/sys/kernel/iommu/domains/<domain_id>/unaligned_1g_mappings
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		A non-zero count here means that the IOVA selection has missed
+		out on an opportunity to do huge mapping (1 level above block
+		mapping). Doing huge mapping improves TLB efficiency and hence
+		system performance.
+
+What:		/sys/kernel/iommu/domains/<domain_id>/iova_span
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows the total lifetime max IOVA requirement for the domain.
+		By default, all domains are working with 3 levels of page tables
+		in current version of ARM SMMUv3 driver. However, if some of the
+		domains total lifetime max IOVA requirement is well within 1GB
+		(in 4K page size case), they can work with 2 levels of page
+		tables and that is expected to bring runtime performance
+		benefits in doing page table walks. The unit is raw size in bytes.
+
+What:		/sys/kernel/iommu/stage2-idmap/num_s2_4K_mapping
+What:		/sys/kernel/iommu/stage2-idmap/num_s2_16K_mapping
+What:		/sys/kernel/iommu/stage2-idmap/num_s2_64K_mapping
+What:		/sys/kernel/iommu/stage2-idmap/num_s2_2M_mapping
+What:		/sys/kernel/iommu/stage2-idmap/num_s2_32M_mapping
+What:		/sys/kernel/iommu/stage2-idmap/num_s2_512M_mapping
+What:		/sys/kernel/iommu/stage2-idmap/num_s2_1G_mapping
+What:		/sys/kernel/iommu/stage2-idmap/num_s2_16G_mapping
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows the number of stage-2 mappings for a particular block size.
+
+What:		/sys/kernel/iommu/stage2-idmap/num_s2_tlb_invalidates
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows the number of stage-2 TLB invalidates.
+
+What:		/sys/kernel/iommu/stage2-idmap/prot_mem_usage
+Contact:	Wonbin Jin <wbjin@google.com>
+Description:
+		Shows the current memory in bytes that is not mapped for the host (i.e.
+		memory carved out from the host stage 2 identity mapping for pKVM and guest
+		VM).
+
+What:		/sys/kernel/iommu/stage2-idmap/peak_prot_mem_usage
+Contact:	Wonbin Jin <wbjin@google.com>
+Description:
+		Shows the peak memory in bytes that was not mapped for the host since boot.
+
+What:		/sys/kernel/iommu/stage2-idmap/s2_atomic_pool_alloc_reqs
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows total S2 page table allocation requests.
+
+What:		/sys/kernel/iommu/stage2-idmap/s2_atomic_pool_free_reqs
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows total S2 page table free requests.
+
+What:		/sys/kernel/iommu/stage2-idmap/s2_atomic_pool_pages_in_use
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows total S2 page tables in use at the moment
+
+What:		/sys/kernel/iommu/stage2-idmap/s2_atomic_pool_max_pages_used
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows maximum S2 page tables in use from the pool since boot
+
+What:		/sys/kernel/iommu/domains/<domain_id>/num_4K_mapping
+What:		/sys/kernel/iommu/domains/<domain_id>/num_16K_mapping
+What:		/sys/kernel/iommu/domains/<domain_id>/num_64K_mapping
+What:		/sys/kernel/iommu/domains/<domain_id>/num_2M_mapping
+What:		/sys/kernel/iommu/domains/<domain_id>/num_32M_mapping
+What:		/sys/kernel/iommu/domains/<domain_id>/num_512M_mapping
+What:		/sys/kernel/iommu/domains/<domain_id>/num_1G_mapping
+What:		/sys/kernel/iommu/domains/<domain_id>/num_16G_mapping
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows the number of stage-1 mappings for a particular block size
+		for this domain.
+
+What:		/sys/kernel/iommu/devices/<device_name>/device_id
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows the unique ID of the SMMU device.
+
+What:		/sys/kernel/iommu/devices/<device_name>/cmdq_sync_max_latency_us
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows the maximum latency of a command queue sync operation in
+		microseconds.
+
+What:		/sys/kernel/iommu/devices/<device_name>/cmdq_sync_avg_latency_us
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows the average latency of a command queue sync operation in
+		microseconds.
+
+What:		/sys/kernel/iommu/devices/<device_name>/cmdq_sync_count
+Contact:	Chintan Pandya <chintanpandya@google.com>
+Description:
+		Shows the number of command queue sync operations.
+
+What:		/sys/kernel/iommu/devices/<device_name>/evtq_bad_streamid_config_count
+What:		/sys/kernel/iommu/devices/<device_name>/evtq_ste_fetch_fault_count
+What:		/sys/kernel/iommu/devices/<device_name>/evtq_bad_ste_config_count
+What:		/sys/kernel/iommu/devices/<device_name>/evtq_stream_disabled_fault_count
+What:		/sys/kernel/iommu/devices/<device_name>/evtq_bad_substreamid_config_count
+What:		/sys/kernel/iommu/devices/<device_name>/evtq_cd_fetch_fault_count
+What:		/sys/kernel/iommu/devices/<device_name>/evtq_bad_cd_config_count
+What:		/sys/kernel/iommu/devices/<device_name>/evtq_translation_fault_count
+What:		/sys/kernel/iommu/devices/<device_name>/evtq_addr_size_fault_count
+What:		/sys/kernel/iommu/devices/<device_name>/evtq_access_fault_count
+What:		/sys/kernel/iommu/devices/<device_name>/evtq_permission_fault_count
+What:		/sys/kernel/iommu/devices/<device_name>/evtq_vms_fetch_fault_count
+What:		/sys/kernel/iommu/devices/<device_name>/evtq_unknown_fault_count
+Contact:	Wonbin Jin <wbjin@google.com>
+Description:
+		Shows the count of SMMU event queue faults of the corresponding type for
+		this device.
+
+What:		/sys/kernel/iommu/devices/<device_name>/gerror_sfm_count
+What:		/sys/kernel/iommu/devices/<device_name>/gerror_evtq_abt_count
+Contact:	Wonbin Jin <wbjin@google.com>
+Description:
+		Shows the count of SMMU global errors of the corresponding type for
+		this device.

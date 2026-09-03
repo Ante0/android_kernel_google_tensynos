@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Charging device tree entries specific to Stallion devices
+ *
+ * Copyright 2024 Google LLC
+ *
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+#define AP2EXTBOOST_EN(x)	&s2mpg15_gpio 4 x
+
+/ {
+	fragment@external_boost_regulator {
+		target-path = "/";
+		__overlay__ {
+			external_boost_regulator: external-boost-regulator {
+				compatible = "regulator-fixed";
+
+				gpio = <AP2EXTBOOST_EN(GPIO_ACTIVE_HIGH)>;
+				enable-active-high;
+
+				regulator-name = "bms-extbst-regulator";
+				regulator-min-microvolt = <5000000>;
+				regulator-max-microvolt = <5000000>;
+
+				off-on-delay-us = <1000>;
+			};
+		};
+	};
+};
+
+&hsi2c_10 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+
+	#include "zumapro-charge-pump-hl7132.dtsi"
+};
+
+&max77779_usecase {
+	max77779,extbst-supply = <&external_boost_regulator>;
+};

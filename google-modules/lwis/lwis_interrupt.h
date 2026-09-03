@@ -14,7 +14,7 @@
 #include <linux/platform_device.h>
 
 #define EVENT_INFO_HASH_BITS 8
-#define IRQ_FULL_NAME_LENGTH 32
+#define IRQ_FULL_NAME_LENGTH 128
 #define LEAF_NODE_HASH_BITS 8
 
 enum lwis_interrupt_types {
@@ -40,17 +40,13 @@ struct lwis_interrupt {
 	int irq;
 	/* IRQ name */
 	char name[IRQ_FULL_NAME_LENGTH];
-	/* Full name consists of both device and irq name */
-	char full_name[IRQ_FULL_NAME_LENGTH];
 	/* Device that owns this interrupt */
 	struct lwis_device *lwis_dev;
 	/* Spinlock to lock acccess to this struct */
 	spinlock_t lock;
 	/* Flag if the event info has been set */
 	bool has_events;
-	/* BID of the register space where the status/reset/mask for this ISR
-	 * can be accessed
-	 */
+	/* BID of the register space where the status/reset/mask for this ISR can be accessed */
 	int irq_reg_bid;
 	/* Offset of the source register */
 	int64_t irq_src_reg;
@@ -60,9 +56,7 @@ struct lwis_interrupt {
 	int64_t irq_mask_reg;
 	/* Offset of the overflow register */
 	int64_t irq_overflow_reg;
-	/* IRQ register access size, in case it is different from the bus
-	 * bitwidth
-	 */
+	/* IRQ register access size, in case it is different from the bus bitwidth */
 	int irq_reg_access_size;
 	/* If mask_reg actually disable the interrupts. */
 	bool mask_toggled;
@@ -118,7 +112,7 @@ void lwis_interrupt_list_free(struct lwis_interrupt_list *list);
 /*
  *  lwis_interrupt_init: Initialize the interrupt by index.
  */
-int lwis_interrupt_init(struct lwis_interrupt_list *list, int index, char *name);
+int lwis_interrupt_init(struct lwis_interrupt_list *list, int index, const char *name);
 
 /*
  *  lwis_interrupt_get: Register the interrupt by index.
@@ -131,7 +125,7 @@ int lwis_interrupt_get(struct lwis_interrupt_list *list, int index,
  *  lwis_interrupt_get_gpio_irq: Register the GPIO interrupt by index
  *  Returns: 0 if success, -ve if error
  */
-int lwis_interrupt_get_gpio_irq(struct lwis_interrupt_list *list, int index, char *name,
+int lwis_interrupt_get_gpio_irq(struct lwis_interrupt_list *list, int index, const char *name,
 				int gpio_irq, int32_t irq_gpios_types);
 
 /*

@@ -439,6 +439,8 @@ int mfc_alloc_codec_buffers(struct mfc_core_ctx *core_ctx)
 			return -ENOMEM;
 		}
 		core_ctx->codec_buffer_allocated = 1;
+		mfc_core_info("[MEMINFO] Codec buf size: %ld, addr: %#llx\n",
+			core_ctx->codec_buf.size, core_ctx->codec_buf.daddr);
 	} else if (ctx->codec_mode == MFC_REG_CODEC_MPEG2_DEC) {
 		core_ctx->codec_buffer_allocated = 1;
 	}
@@ -511,7 +513,7 @@ int mfc_alloc_scratch_buffer(struct mfc_core_ctx *core_ctx)
 		core_ctx->scratch_buffer_allocated = 1;
 	}
 
-	mfc_debug(2, "[MEMINFO] scratch buf ctx[%d] size: %ld, addr: 0x%08llx\n",
+	mfc_core_info("[MEMINFO] scratch buf ctx[%d] size: %ld, addr: 0x%08llx\n",
 			core_ctx->num, ctx->scratch_buf_size,
 			core_ctx->scratch_buf.daddr);
 
@@ -571,6 +573,7 @@ static int __mfc_alloc_enc_roi_buffer(struct mfc_core_ctx *core_ctx,
 {
 	struct mfc_core *core = core_ctx->core;
 	struct mfc_dev *dev = core->dev;
+	size_t old_size = roi_buf->size;
 
 	roi_buf->size = size;
 	roi_buf->buftype = MFCBUF_NORMAL;
@@ -580,8 +583,17 @@ static int __mfc_alloc_enc_roi_buffer(struct mfc_core_ctx *core_ctx,
 			mfc_err("[ROI] Allocating ROI buffer failed\n");
 			return -ENOMEM;
 		}
+	} else if (old_size < roi_buf->size) {
+		mfc_core_debug(2, "[MEMINFO][ROI] roi buf ctx[%d] size is changed %zu -> %zu, try reallocate\n",
+			core_ctx->num, old_size, roi_buf->size);
+		mfc_mem_special_buf_free(dev, roi_buf);
+		if (mfc_mem_special_buf_alloc(dev, roi_buf)) {
+			mfc_err("[ROI] Re-allocating ROI buffer failed\n");
+			return -ENOMEM;
+		}
 	}
-	mfc_core_debug(2, "[MEMINFO][ROI] roi buf ctx[%d] size: %ld, daddr: 0x%08llx, vaddr: 0x%p\n",
+
+	mfc_core_debug(2, "[MEMINFO][ROI] roi buf ctx[%d] size: %zu, daddr: 0x%08llx, vaddr: 0x%p\n",
 			core_ctx->num, roi_buf->size, roi_buf->daddr, roi_buf->vaddr);
 
 	memset(roi_buf->vaddr, 0, roi_buf->size);
@@ -869,7 +881,7 @@ int mfc_load_firmware(struct mfc_core *core, struct mfc_special_buf *fw_buf,
 	return 0;
 }
 
-int __mfc_request_load_firmware(struct mfc_core *core, struct mfc_special_buf *fw_buf)
+static int __mfc_request_load_firmware(struct mfc_core *core, struct mfc_special_buf *fw_buf)
 {
 	const struct firmware *fw_blob;
 	int ret;

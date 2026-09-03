@@ -26,7 +26,7 @@
 #endif
 
 /* avoid checking rx elecidle when access DBI */
-void exynos_pcie_rc_phy_check_rx_elecidle(void *phy_pcs_base_regs, int val, int ch_num)
+static void exynos_pcie_rc_phy_check_rx_elecidle(void *phy_pcs_base_regs, int val, int ch_num)
 {
 	/*
 	 * Todo: need guide
@@ -34,7 +34,7 @@ void exynos_pcie_rc_phy_check_rx_elecidle(void *phy_pcs_base_regs, int val, int 
 }
 
 /* PHY all power down */
-void exynos_pcie_rc_phy_all_pwrdn(struct exynos_pcie *exynos_pcie, int ch_num)
+static void exynos_pcie_rc_phy_all_pwrdn(struct exynos_pcie *exynos_pcie, int ch_num)
 {
 	void __iomem *phy_base_regs = exynos_pcie->phy_base;
 	void __iomem *phy_pcs_base_regs = exynos_pcie->phy_pcs_base;
@@ -73,7 +73,7 @@ void exynos_pcie_rc_phy_all_pwrdn(struct exynos_pcie *exynos_pcie, int ch_num)
 }
 
 /* PHY all power down clear */
-void exynos_pcie_rc_phy_all_pwrdn_clear(struct exynos_pcie *exynos_pcie, int ch_num)
+static void exynos_pcie_rc_phy_all_pwrdn_clear(struct exynos_pcie *exynos_pcie, int ch_num)
 {
 	void __iomem *phy_base_regs = exynos_pcie->phy_base;
 	void __iomem *phy_pcs_base_regs = exynos_pcie->phy_pcs_base;
@@ -130,7 +130,7 @@ static const struct pcie_reg reset_table[6] = {
 	{ 0x1054, 0x77 }
 };
 
-void exynos_pcie_rc_pcie_phy_config(struct exynos_pcie *exynos_pcie, int ch_num)
+static void exynos_pcie_rc_pcie_phy_config(struct exynos_pcie *exynos_pcie, int ch_num)
 {
 	void __iomem *elbi_base_regs = exynos_pcie->elbi_base;
 	void __iomem *phy_base_regs = exynos_pcie->phy_base;
@@ -426,9 +426,8 @@ void exynos_pcie_rc_pcie_phy_config(struct exynos_pcie *exynos_pcie, int ch_num)
 	/* interrupt_enable */
 	exynos_udbg_write(exynos_pcie, 0x1, 0xC108);
 }
-EXPORT_SYMBOL_GPL(exynos_pcie_rc_pcie_phy_config);
 
-int exynos_pcie_rc_eom(struct device *dev, void *phy_base_regs)
+static int exynos_pcie_rc_eom(struct device *dev, void *phy_base_regs)
 {
 	struct exynos_pcie *exynos_pcie = dev_get_drvdata(dev);
 	struct exynos_pcie_ops *pcie_ops = &exynos_pcie->exynos_pcie_ops;

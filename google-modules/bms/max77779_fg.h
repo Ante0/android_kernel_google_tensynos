@@ -33,9 +33,8 @@
 /* Config2: must not enable TAlert */
 #define MAX77779_FG_MODEL_VERSION_REG	MAX77779_FG_TAlrtTh
 
-#define MAX77779_FG_NDGB_ADDRESS 0x37
-
-#define MAX77779_FG_MAX_LOG_REGS	30
+#define MAX77779_FG_NDGB_ADDRESS_I2C 0x37
+#define MAX77779_FG_NDGB_ADDRESS_SPMI 0x7
 
 static const struct maxfg_reg max77779_fg[] = {
 	[MAXFG_TAG_avgc] = { ATOM_INIT_REG16(MAX77779_FG_AvgCurrent)},
@@ -86,6 +85,7 @@ static const struct maxfg_reg max77779_fg[] = {
 	[MAXFG_TAG_ichgterm] = { ATOM_INIT_REG16(MAX77779_FG_IChgTerm)},
 	[MAXFG_TAG_vempty] = { ATOM_INIT_REG16(MAX77779_FG_VEmpty)},
 	[MAXFG_TAG_sochold] = { ATOM_INIT_REG16(MAX77779_FG_SOCHold)},
+	[MAXFG_TAG_timer] = { ATOM_INIT_REG16(MAX77779_FG_Timer)},
 };
 
 static const struct maxfg_reg max77779_debug_fg[] = {
@@ -97,7 +97,8 @@ static const struct maxfg_reg max77779_debug_fg[] = {
 
 struct max77779_fg_chip {
 	struct device *dev;
-	struct i2c_client *secondary;
+	struct i2c_client *secondary_i2c;
+	struct spmi_device *secondary_spmi;
 	struct device *pmic_dev;
 
 	int irq;
@@ -132,7 +133,6 @@ struct max77779_fg_chip {
 	u16 designcap;
 
 	bool init_complete;
-	bool resume_complete;
 	bool irq_disabled;
 	u16 health_status;
 	int fake_capacity;
@@ -218,6 +218,14 @@ struct max77779_fg_chip {
 	struct maxfg_bypss_charglimt bypass_chargelimit;
 
 	bool present;
+};
+
+struct max77779_vdroop_snapshot {
+	int vnow;
+	int inow;
+	int soc;
+	int cycle_count;
+	int temperature;
 };
 
 /** ------------------------------------------------------------------------ */
@@ -358,7 +366,7 @@ int max77779_fg_register_write(const struct maxfg_regmap *regmap, unsigned int r
 int max77779_fg_nregister_write(const struct maxfg_regmap *map,
 				const struct maxfg_regmap *debug_map,
 				unsigned int reg, u16 value, bool verify);
-void *max77779_init_data(struct device *dev, struct device_node *batt_node,
+void *max77779_init_data(struct device *dev, const struct device_node *batt_node,
 			 struct maxfg_regmap *regmap, struct maxfg_regmap *debug_regmap);
 void max77779_free_data(struct max77779_model_data *model_data);
 

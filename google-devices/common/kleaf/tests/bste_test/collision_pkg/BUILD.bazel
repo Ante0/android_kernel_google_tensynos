@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+load("//private/devices/google/common/kleaf:bste.bzl", "bste_test_suite")
+
+package(default_visibility = ["//visibility:public"])
+
+bste_test_suite(
+    name = "dup_suite",
+    tags = ["manual"],
+    test_cases = ["dummy"],
+)

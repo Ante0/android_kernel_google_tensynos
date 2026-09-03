@@ -1,0 +1,124 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Samsung CP interface device tree source
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+#include "cp-s5400-sit.dtsi"
+
+/ {
+	fragment@modemif {
+		target-path = "/";
+		__overlay__ {
+			spmi_bb: s5910_bb {
+				compatible = "google,bitbang-spmi-controller";
+				status = "okay";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&cp_spmi_scl>, <&cp_spmi_sda>;
+
+				clk-gpio = <CP_SPMI_SCL(GPIO_ACTIVE_HIGH)>;
+				dat-gpio = <CP_SPMI_SDA(GPIO_ACTIVE_HIGH)>;
+
+				delay_us = <10>;
+
+				pmic: pmic@0 {
+					reg = <0x0 0>;
+					compatible = "google,cp-pmic-spmi";
+					warm_reset_seq =
+						/*  reg  val delay_ms */
+						< 0x675 0xa1 0>,
+						< 0x67d 0xbe 0>;
+					pmic-otp-reg = <0x030E>;
+				};
+
+				s5910: s5910@5 {
+					reg = <0x05 0>;
+					compatible = "google,s5910-spmi";
+
+					/*         ms   reg  val */
+					s5910,seq =
+						<   0 0x215 0x0f>,
+						<1000 0x20e 0x04>,
+						<   0 0x240 0x10>;
+
+					s5910,on_seq =
+						<   0 0x211 0x47>,
+						<   0 0x236 0x0e>,
+						<   0 0x215 0x7f>,
+						/* Mode control - 0x0: LPM off */
+						<   0 0x20e 0x00>;
+				};
+			};
+
+			cpif {
+				mif,name = "s5400";
+				pci_db_addr = <0x0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&ap2cp_pwr_on_1v2>,
+					<&ap2cp_nreset_l_1v2>,
+					<&ap2cp_wakeup_1v2>,
+					<&cp2ap_wakeup_1v2>,
+					<&ap2cp_dump_noti_1v2>,
+					<&ap2cp_active_1v2>,
+					<&cp2ap_active_1v2>,
+					<&ap2cp_wrstb_l_1v2>,
+					<&cp2ap_wrstbi_l_1v2>,
+					<&ap2cp_wreset_l_1v2>,
+					<&cp_ps_hold_1v2>,
+					<&ap2cp_partial_reset_l_1v2>;
+
+				/* Definition of GPIOs */
+				gpio_ap2cp_cp_pwr_on = <AP2CP_PWR_ON_1V2(GPIO_ACTIVE_LOW)>;
+				gpio_ap2cp_nreset_n = <AP2CP_NRESET_L_1V2(GPIO_ACTIVE_LOW)>;
+				gpio_ap2cp_wake_up = <AP2CP_WAKEUP_1V2(GPIO_ACTIVE_LOW)>;
+				gpio_cp2ap_wake_up = <CP2AP_WAKEUP_1V2(GPIO_ACTIVE_LOW)>;
+				gpio_ap2cp_dump_noti = <AP2CP_DUMP_NOTI_1V2(GPIO_ACTIVE_LOW)>;
+				gpio_ap2cp_pda_active = <AP2CP_ACTIVE_1V2(GPIO_ACTIVE_LOW)>;
+				gpio_cp2ap_phone_active = <CP2AP_ACTIVE_1V2(GPIO_ACTIVE_LOW)>;
+				gpio_ap2cp_cp_wrst_n = <AP2CP_WRSTB_L_1V2(GPIO_ACTIVE_LOW)>;
+				gpio_cp2ap_cp_wrst_n = <CP2AP_WRSTBI_L_1V2(GPIO_ACTIVE_LOW)>;
+				gpio_ap2cp_pm_wrst_n = <AP2CP_WRESET_L_1V2(GPIO_ACTIVE_LOW)>;
+				gpio_cp2ap_cp_ps_hold = <CP_PS_HOLD_1V2(GPIO_ACTIVE_LOW)>;
+				gpio_ap2cp_partial_rst_n = <AP2CP_PARTIAL_RESET_L_1V2(GPIO_ACTIVE_LOW)>;
+
+				/*
+				* The pad assignment of CP2AP_ACTIVE is not in PAD_ALIVE
+				* to be registered wake-up source. (Bug 152900487)
+				* CP2AP_ACTIVE is assigned to XEINT_17 for factor designs.
+				*/
+				mif,cp2ap_active_not_alive = <0>;
+
+				/* phandle used for shutdown calls to s5910 clk-buffer*/
+				google,clk-buffer = <&s5910>;
+
+				/* phandle used for CP pmic warm reset sequence */
+				google,cp-pmic-spmi = <&pmic>;
+
+				use-dynamic-link-spd;
+
+				mif_off_during_volte = <1>;
+			};
+		};
+	};
+};
+
+&pcie0 {
+	/* S5400 A0 is limited to 1 lane */
+	num-lanes = <1>;
+
+	/* S5400 expects to always skip link equalization */
+	google,skip-link-equalization;
+
+	/* to ensure consistent cache coherency */
+	dma-coherent;
+
+	/* to avoid EOT miss due to design bug exposed by higher backpressure */
+	google,posted-rx-q-data-credits = <0x51>;
+};
+

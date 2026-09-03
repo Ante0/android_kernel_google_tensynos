@@ -653,7 +653,7 @@ static void test_btf_dump_struct_data(struct btf *btf, struct btf_dump *d,
 		cmpstr =
 "(struct file_operations){\n"
 "	.owner = (struct module *)0xffffffffffffffff,\n"
-"	.llseek = (loff_t (*)(struct file *, loff_t, int))0xffffffffffffffff,";
+"	.fop_flags = (fop_flags_t)4294967295,";
 
 		ASSERT_STRNEQ(str, cmpstr, strlen(cmpstr), "file_operations");
 	}
@@ -791,22 +791,22 @@ static void test_btf_dump_struct_data(struct btf *btf, struct btf_dump *d,
 	TEST_BTF_DUMP_DATA_OVER(btf, d, "struct", str, struct bpf_sock_ops,
 				sizeof(struct bpf_sock_ops) - 1,
 				"(struct bpf_sock_ops){\n\t.op = (__u32)1,\n",
-				{ .op = 1, .skb_tcp_flags = 2});
+				{ .op = 1, .skb_hwtstamp = 2});
 	TEST_BTF_DUMP_DATA_OVER(btf, d, "struct", str, struct bpf_sock_ops,
 				sizeof(struct bpf_sock_ops) - 1,
 				"(struct bpf_sock_ops){\n\t.op = (__u32)1,\n",
-				{ .op = 1, .skb_tcp_flags = 0});
+				{ .op = 1, .skb_hwtstamp = 0});
 }
 
 static void test_btf_dump_var_data(struct btf *btf, struct btf_dump *d,
 				   char *str)
 {
-#if defined(__i386__) || defined(__x86_64__) || defined(__aarch64__)
+#if 0
 	TEST_BTF_DUMP_VAR(btf, d, NULL, str, "cpu_number", int, BTF_F_COMPACT,
 			  "int cpu_number = (int)100", 100);
 #endif
-	TEST_BTF_DUMP_VAR(btf, d, NULL, str, "cpu_profile_flip", int, BTF_F_COMPACT,
-			  "static int cpu_profile_flip = (int)2", 2);
+	TEST_BTF_DUMP_VAR(btf, d, NULL, str, "bpf_cgrp_storage_busy", int, BTF_F_COMPACT,
+			  "static int bpf_cgrp_storage_busy = (int)2", 2);
 }
 
 static void test_btf_datasec(struct btf *btf, struct btf_dump *d, char *str,

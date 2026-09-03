@@ -1,0 +1,27 @@
+import("//build_overrides/noa.gni")
+import("$dir_noa_packages/noa_common/sim/ncp/wlan_fw/wlan_service.gni")
+
+wlan_source_set("sta_table") {
+  public_deps = [ "$dir_wlan_fw/ext_svc" ]
+  sources = [
+    "$dir_wlan_fw/modules/sta_table/sta_table.cc",
+    "$dir_wlan_fw/modules/sta_table/sta_table.h",
+  ]
+  deps = [
+    "$dir_noa_common:core",
+    "$dir_wlan_fw/sys_if:common",
+    "$dir_wlan_fw/sys_if:noa_net",
+    "$dir_wlan_fw/sys_if:types",
+    "$dir_wlan_fw/wlan_log",
+  ]
+}
+
+wlan_test("sta_table_test") {
+  enable_if = current_os == "linux"
+  sources = [ "$dir_wlan_fw/modules/sta_table/sta_table_test.cc" ]
+  deps = [ ":sta_table" ]
+}
+
+wlan_test_group("tests") {
+  tests = [ ":sta_table_test" ]
+}

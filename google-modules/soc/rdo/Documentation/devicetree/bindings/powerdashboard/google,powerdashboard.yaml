@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) Copyright 2025 Google
+# LLC
+%YAML 1.2 --- $id: http://devicetree.org/schemas/pinctrl/google,pinctrl.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google PowerDashboard
+
+maintainers: - Konrad Korczynski <kkorczynski@google.com>
+
+description: Defines the powerdashboard configurations.
+
+properties:
+  compatible:
+    description:
+      Defines the platform/version of power controller.
+    values:
+      - "google,power-dashboard
+
+  mba-dest-channel:
+    description:
+      CPM mailbox channel
+
+  mboxes:
+    description:
+      Phandle reference to the CPM mailbox
+
+  sampling-rate-us:
+    description:
+      CPM read sampling period given in microseconds.
+
+required:
+  - compatible
+  - mboxes
+  - sampling-rate-us
+
+Example:
+	powerdashboard: powerdashboard {
+		compatible = "google,power-dashboard";
+		mba-dest-channel = <MBOX_DEST_CHAN_POWERDASHBOARD>;
+		mboxes = <&goog_mba_cpm_iface>;
+		sampling-rate-us = <100000>;
+	};
+
+

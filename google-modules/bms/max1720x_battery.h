@@ -43,7 +43,7 @@ int max1720x_get_voltage_now(struct i2c_client *client, int *iic_raw);
 int max17x0x_sw_reset(struct i2c_client *client);
 
 /* */
-#ifdef CONFIG_MAX1720X_REGLOG_LOG
+#if IS_ENABLED(CONFIG_MAX1720X_REGLOG_LOG)
 static inline void max17x0x_reglog_log(struct maxfg_reglog *reglog,
 				       unsigned int reg, u16 data, int rtn)
 {
@@ -85,7 +85,7 @@ enum max1720x_drift_algo_version {
 /* fix to capacity estimation */
 struct max1720x_drift_data {
 	u16 rsense;
-	u32 algo_ver;
+	enum max1720x_drift_algo_version algo_ver;
 
 	u16 design_capacity;
 	int cycle_band;

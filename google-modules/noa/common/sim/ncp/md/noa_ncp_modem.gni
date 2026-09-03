@@ -1,0 +1,9 @@
+import("//build_overrides/noa.gni")
+import("//build_overrides/pigweed.gni")
+
+declare_args() {
+  dir_noa_ncp_modem = "$dir_noa_packages/noa_common/sim/ncp/md"
+  dir_noa_ncp_modules = "$dir_noa_packages/noa_common/sim/ncp/md/modules_pw"
+  dir_noa_ncp_modules_iph = "$dir_noa_packages/noa_common/sim/ncp/md/modules_iph"
+  noa_modem_dynamic_switch_disabled = false
+}

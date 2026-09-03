@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_CPU_LPM_STATS
+	tristate "Google collect LPM stats"
+	help
+	  Enable support the collection of LPM stats for CPUs.
+	  The driver will read the latency related data for other
+	  driver usage or for userspace debugging.
+	  Select Y if you have such device.
+	  If unsure select "N".
+

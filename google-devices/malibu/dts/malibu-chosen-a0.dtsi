@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+/ {
+	chosen: chosen {
+	bootargs = "earlycon=uart8250,mmio32,0x3bdd6000 norandmaps ro loglevel=8 init=/init \
+console=ttyS0,12500000n8 google_8250.nr_uarts=4 androidboot.boot_devices=3c2d0000.ufs \
+printk.devkmsg=on firmware_class.path=/vendor/firmware fw_devlink=rpm \
+androidboot.hardware.platform=malibu arm64.nomte arm_smmu_v3_kvm.smc_s2=true \
+no_console_suspend arm64.nosme arm_si_l1_workaround_4311569 \
+kvm-arm.protected_modules=goog-mba-ctrl,pinctrl,mbfs_cpm_backend,power_controller,irq-gia-google,\
+arm_smmu_v3_kvm printk.debug_non_panic_cpus=1 loop.max_part=7 \
+drm.vblankoffdelay=1 \
+arm_smmu_v3_kvm.smmu_telemetry_enable=true fw_devlink.sync_state=timeout";
+	};
+};

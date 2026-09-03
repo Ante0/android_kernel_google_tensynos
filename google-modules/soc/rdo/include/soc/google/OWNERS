@@ -1,0 +1,4 @@
+per-file goog-chip-info* = lucaswei@google.com,ehyli@google.com,sjadavani@google.com
+per-file goog-mba-* = lucaswei@google.com,ehyli@google.com,sjadavani@google.com
+per-file goog_mba_* = lucaswei@google.com,ehyli@google.com,sjadavani@google.com
+per-file google_gtc.h = lucaswei@google.com,ehyli@google.com,sjadavani@google.com

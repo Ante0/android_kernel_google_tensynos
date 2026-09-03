@@ -5,6 +5,9 @@
  * Copyright (C) 2024 Google, LLC.
  */
 
+#pragma clang diagnostic ignored "-Wenum-conversion"
+#pragma clang diagnostic ignored "-Wswitch"
+
 #include <linux/err.h>
 #include <linux/version.h>
 #include <linux/init.h>
@@ -16,12 +19,14 @@
 #include <linux/i2c.h>
 #include <linux/regmap.h>
 #include <linux/rtc.h>
+
 #include <misc/gvotable.h>
+#include <misc/logbuffer.h>
 
 #include "hl7132_regs.h"
 #include "hl7132_charger.h"
 
-#if defined(CONFIG_OF)
+#if IS_ENABLED(CONFIG_OF)
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
 #endif /* CONFIG_OF */
@@ -30,7 +35,7 @@
 #define HL7132_VBATMIN_CHECK_T	1000	/* 1000ms */
 #define HL7132_CCMODE_CHECK1_T	5000	/* 10000ms -> 500ms */
 #define HL7132_CCMODE_CHECK2_T	5000	/* 5000ms */
-#define HL7132_CVMODE_CHECK_T	10000	/* 10000ms */
+#define HL7132_CVMODE_CHECK_T	2000	/* 2000ms */
 #define HL7132_ENABLE_DELAY_T	150	/* 150ms */
 #define HL7132_CVMODE_CHECK2_T	1000	/* 1000ms */
 
@@ -195,6 +200,8 @@ static int hl7132_hw_ping(struct hl7132_charger *hl7132)
 	return 0;
 }
 
+static int hl7132_set_vbat_reg(struct hl7132_charger *hl7132, unsigned int vbat_reg);
+
 /* HW integration guide section 4
  * call holding mutex_lock(&hl7132->lock)
  */
@@ -215,14 +222,15 @@ static int hl7132_hw_init(struct hl7132_charger *hl7132)
 	/* regmap_update_bits will always report a failure after soft reset,
 	 * so confirm that it succeeded by making sure HL7132_REG_CTRL_2 is back
 	 * to default after waiting for soft reset to complete - chip holds I2C
-	 * BUS for ~6ms after reset is triggered. Wait 100ms as per HW
+	 * BUS for ~6ms after reset is triggered. Wait 10ms as per HW
 	 * integration guide.
 	 */
 	msleep(hl7132->pdata->init_sleep);
 
 	ret = regmap_read(hl7132->regmap, HL7132_REG_CTRL_2, &reg_value);
-	msleep(20);
+	usleep_range(10000, 20000);
 	ret = regmap_read(hl7132->regmap, HL7132_REG_CTRL_2, &reg_value);
+
 	if (ret < 0) {
 		dev_err(hl7132->dev, "%s: Failed to read after soft reset\n",
 			__func__);
@@ -255,13 +263,11 @@ static int hl7132_hw_init(struct hl7132_charger *hl7132)
 	if (ret < 0)
 		return ret;
 
-	/* TODO discussing with HW
-	 * HW integration guide section 4.2.7 - set VIN_UV_SEL to 1
-	 */
-	//ret = regmap_update_bits(hl7132->regmap, HL7132_REG_CTRL_1,
-	//			 HL7132_BIT_VIN_UV_SEL, HL7132_BIT_VIN_UV_SEL);
-	//if (ret < 0)
-	//	return ret;
+	/* HW integration guide section 4.2.7 - set VIN_UV_SEL to 1 */
+	ret = regmap_update_bits(hl7132->regmap, HL7132_REG_CTRL_1,
+				 HL7132_BIT_VIN_UV_SEL, HL7132_BIT_VIN_UV_SEL);
+	if (ret < 0)
+		return ret;
 
 	/* HW integration guide section 4.2.3 - Disable IBAT OCP */
 	ret = regmap_update_bits(hl7132->regmap, HL7132_REG_IBAT_REG,
@@ -364,6 +370,12 @@ static int hl7132_hw_init(struct hl7132_charger *hl7132)
 
 	if (ret < 0)
 		return ret;
+
+	/* max_v float voltage */
+	ret = hl7132_set_vbat_reg(hl7132, hl7132->pdata->vbat_reg_dt);
+	if (ret < 0)
+		return ret;
+	hl7132->vfloat_reg = 0;
 
 	return 0;
 }
@@ -530,7 +542,7 @@ error:
 
 /* vbat_reg voltage (10 mV) resolution */
 static int hl7132_set_vbat_reg(struct hl7132_charger *hl7132,
-			      unsigned int vbat_reg)
+			       unsigned int vbat_reg)
 {
 	const int val = HL7132_VBAT_REG(vbat_reg);
 	int ret;
@@ -540,6 +552,16 @@ static int hl7132_set_vbat_reg(struct hl7132_charger *hl7132,
 	dev_info(hl7132->dev, "%s: vbat_reg=%u (%d)\n", __func__, vbat_reg, ret);
 
 	return ret;
+}
+
+static int hl7132_set_vbat(struct hl7132_charger *hl7132,
+			   unsigned int vbat_reg)
+{
+	hl7132->vfloat_reg = vbat_reg;
+
+	dev_info(hl7132->dev, "%s: vbat_reg=%u\n", __func__, vbat_reg);
+
+	return 0;
 }
 
 static int hl7132_set_input_current(struct hl7132_charger *hl7132,
@@ -923,15 +945,15 @@ static int hl7132_get_iin_original(struct hl7132_charger *hl7132, int *iin)
 
 static int hl7132_get_iin(struct hl7132_charger *hl7132, int *iin)
 {
-    int ret;
-    int temp;
+	int ret;
+	int temp;
 
-    ret = hl7132_get_iin_original(hl7132, &temp);
-    if (ret < 0)
-        return ret;
+	ret = hl7132_get_iin_original(hl7132, &temp);
+	if (ret < 0)
+		return ret;
 
-    *iin = temp * 2; /* 2:1 */
-    return 0;
+	*iin = temp * 2; /* 2:1 */
+	return 0;
 }
 
 static int hl7132_get_batt_info(struct hl7132_charger *hl7132, int info_type, int *info)
@@ -984,7 +1006,7 @@ static void hl7132_prlog_state(struct hl7132_charger *hl7132, const char *fn)
 static int hl7132_read_status(struct hl7132_charger *hl7132)
 {
 	unsigned int reg_val;
-	int ret;
+	int ret, vbat;
 
 	ret = regmap_read(hl7132->regmap, HL7132_REG_STATUS_A, &reg_val);
 	if (ret < 0)
@@ -999,11 +1021,16 @@ static int hl7132_read_status(struct hl7132_charger *hl7132)
 
 	reg_val = (reg_val & HL7132_BIT_REG_STS) >> MASK2SHIFT(HL7132_BIT_REG_STS);
 
+	ret = hl7132_get_batt_info(hl7132, BATT_VOLTAGE, &vbat);
+	if (ret)
+		return ret;
+
 	switch (reg_val) {
 	case REG_STS_NONE:
-		return STS_MODE_LOOP_INACTIVE; /* No regulation loop active */
-	case REG_STS_VBAT:
-		return STS_MODE_VFLT_LOOP; /* Battery voltage regulation */
+		if (vbat >= hl7132->vfloat_reg)
+			return STS_MODE_VFLT_LOOP; /* Battery voltage regulation */
+		else
+			return STS_MODE_LOOP_INACTIVE; /* No regulation loop active */
 	case REG_STS_IIN:
 		return STS_MODE_IIN_LOOP; /* Input current regulation */
 	case REG_STS_IBAT:
@@ -1014,8 +1041,6 @@ static int hl7132_read_status(struct hl7132_charger *hl7132)
 		return STS_MODE_UNKNOWN; /* Unknown or reserved state */
 	}
 }
-
-static int hl7132_const_charge_voltage(struct hl7132_charger *hl7132);
 
 static int hl7132_check_status(struct hl7132_charger *hl7132)
 {
@@ -1097,7 +1122,6 @@ static int hl7132_stop_charging(struct hl7132_charger *hl7132)
 
 	/* restore to config */
 	hl7132->pdata->iin_cfg = hl7132->pdata->iin_cfg_max;
-	hl7132->pdata->vbat_reg = hl7132->pdata->vbat_reg_dt;
 
 	/*
 	 * Clear charging configuration
@@ -1471,7 +1495,11 @@ static int hl7132_set_ta_current_comp2(struct hl7132_charger *hl7132)
 				iin_apdo = hl7132->iin_cc / PD_MSG_TA_CUR_STEP;
 				iin_apdo = iin_apdo * PD_MSG_TA_CUR_STEP;
 				/* in mV */
-				val = hl7132->ta_max_pwr / (iin_apdo / hl7132->chg_mode / 1000);
+				if (iin_apdo == 0) {
+					dev_warn(hl7132->dev, "Comp.: iin_apdo too low (0), stop comp\n");
+					return -EINVAL;
+				}
+				val = (hl7132->ta_max_pwr * 1000) / iin_apdo;
 				/* Adjust values with APDO resolution(20mV) */
 				val = val * 1000 / PD_MSG_TA_VOL_STEP;
 				val = val * PD_MSG_TA_VOL_STEP; /* uV */
@@ -1659,7 +1687,11 @@ static int hl7132_set_wired_dc(struct hl7132_charger *hl7132, int vbat)
 	val = hl7132->iin_cc / PD_MSG_TA_CUR_STEP;
 	iin_cc = val * PD_MSG_TA_CUR_STEP;
 
-	val = hl7132->ta_max_pwr / (iin_cc / hl7132->chg_mode  / 1000); /* mV */
+	if (iin_cc == 0) {
+		dev_warn(hl7132->dev, "%s: iin_cc is 0, cannot calc ta_max_pwr\n", __func__);
+		return -EINVAL;
+	}
+	val = (hl7132->ta_max_pwr * 1000) / iin_cc; /* mV */
 
 	/* Adjust values with APDO resolution(20mV) */
 	val = val * 1000 / PD_MSG_TA_VOL_STEP;
@@ -2060,6 +2092,8 @@ static int hl7132_set_new_cc_max(struct hl7132_charger *hl7132, int cc_max)
 	const int prev_cc_max = hl7132->cc_max;
 	int iin_max, ret = 0;
 
+	cc_max = (cc_max == GBMS_MSC_FCC_CHARGE_OFF) ? 0 : cc_max;
+
 	if (cc_max < 0) {
 		dev_dbg(hl7132->dev, "%s: ignore negative cc_max=%d\n", __func__,
 			cc_max);
@@ -2110,7 +2144,7 @@ static int hl7132_apply_new_vfloat(struct hl7132_charger *hl7132)
 		goto error_done;
 
 	/* actually change the hardware */
-	ret = hl7132_set_vbat_reg(hl7132, hl7132->new_vfloat);
+	ret = hl7132_set_vbat(hl7132, hl7132->new_vfloat);
 	if (ret < 0)
 		goto error_done;
 
@@ -2315,7 +2349,7 @@ static void hl7132_adjust_ccmode_wired(struct hl7132_charger *hl7132, int iin)
 	}
 }
 
-static int hl7132_vote_dc_avail(struct hl7132_charger *hl7132, int vote, int enable)
+static int hl7132_vote_dc_avail(struct hl7132_charger *hl7132, int vote)
 {
 	int ret = 0;
 
@@ -2323,16 +2357,17 @@ static int hl7132_vote_dc_avail(struct hl7132_charger *hl7132, int vote, int ena
 		hl7132->dc_avail = gvotable_election_get_handle(VOTABLE_DC_CHG_AVAIL);
 
 	if (hl7132->dc_avail) {
-		ret = gvotable_cast_int_vote(hl7132->dc_avail, REASON_DC_DRV, vote, enable);
+		ret = gvotable_cast_int_vote(hl7132->dc_avail, REASON_DC_DRV,
+					     GBMS_ALL_SEC_CHG_DISABLED, !vote);
 		if (ret < 0)
 			dev_err(hl7132->dev,
 				"Unable to cast vote for DC Chg avail (%d)\n",
 				ret);
 	}
 
-	logbuffer_prlog(hl7132, hl7132->charging_state == DC_STATE_ERROR ?
-			LOGLEVEL_INFO : LOGLEVEL_DEBUG,
-			"%s: Voting dc_avail when in error state", __func__);
+	if (hl7132->charging_state == DC_STATE_ERROR)
+		logbuffer_prlog(hl7132, LOGLEVEL_INFO,
+				"%s: Voting dc_avail when in error state", __func__);
 
 	return ret;
 }
@@ -2953,8 +2988,8 @@ static int hl7132_preset_dcmode(struct hl7132_charger *hl7132)
 				 __func__, hl7132->hw_init_retry_cnt,
 				 hl7132->pdata->max_init_retry);
 
+			hl7132_vote_dc_avail(hl7132, 0);
 			hl7132->charging_state = DC_STATE_ERROR;
-			hl7132_vote_dc_avail(hl7132, 0, 1);
 			ret = -EINVAL;
 			goto error;
 		} else {
@@ -2988,8 +3023,8 @@ static int hl7132_preset_dcmode(struct hl7132_charger *hl7132)
 
 	if (ret < 0) {
 		dev_err(hl7132->dev, "%s: No APDO to support 2:1\n", __func__);
+		hl7132_vote_dc_avail(hl7132, 0);
 		hl7132->charging_state = DC_STATE_ERROR;
-		hl7132_vote_dc_avail(hl7132, 0, 1);
 		goto error;
 	}
 
@@ -3038,7 +3073,7 @@ static int hl7132_preset_config(struct hl7132_charger *hl7132)
 		goto error;
 
 	/* HW integration guide section 5.4.3.b - set CV mode voltage */
-	ret = hl7132_set_vbat_reg(hl7132, hl7132->fv_uv);
+	ret = hl7132_set_vbat(hl7132, hl7132->fv_uv);
 	if (ret < 0)
 		goto error;
 
@@ -3093,8 +3128,8 @@ static int hl7132_check_active_state(struct hl7132_charger *hl7132)
 		/* try restarting only */
 		if (hl7132->retry_cnt >= HL7132_MAX_RETRY_CNT) {
 			dev_err(hl7132->dev, "%s: retry failed\n", __func__);
+			hl7132_vote_dc_avail(hl7132, 0);
 			hl7132->charging_state = DC_STATE_ERROR;
-			hl7132_vote_dc_avail(hl7132, 0, 1);
 			ret = -EINVAL;
 			goto exit_done;
 		}
@@ -3117,8 +3152,8 @@ static int hl7132_check_active_state(struct hl7132_charger *hl7132)
 	} else {
 		dev_err(hl7132->dev, "%s: Error! disabling hl7132: ret(%d)\n",
 			__func__, ret);
+		hl7132_vote_dc_avail(hl7132, 0);
 		hl7132->charging_state = DC_STATE_ERROR;
-		hl7132_vote_dc_avail(hl7132, 0, 1);
 	}
 
 exit_done:
@@ -3193,21 +3228,6 @@ static int hl7132_check_vbatmin(struct hl7132_charger *hl7132)
 
 	hl7132->charging_state = DC_STATE_CHECK_VBAT;
 
-	/* HW integration guide section 5.4.2 */
-	ret = regmap_read(hl7132->regmap, HL7132_REG_STATUS_A, &val);
-	if (ret < 0) {
-		dev_err(hl7132->dev, "%s: Failed to read STATUS_A\n", __func__);
-		goto error;
-	}
-
-	if (val & HL7132_BIT_VIN_UVLO_STS) {
-		dev_err(hl7132->dev,
-			"%s: USB not inserted, not starting charging\n",
-			__func__);
-		ret = -EINVAL;
-		goto error;
-	}
-
 	ret = regmap_read(hl7132->regmap, HL7132_REG_INT_STS_A, &val);
 	if (ret < 0) {
 		dev_err(hl7132->dev, "%s: Failed to read INT_STS_A\n", __func__);
@@ -3226,7 +3246,7 @@ static int hl7132_check_vbatmin(struct hl7132_charger *hl7132)
 	case STATE_CHG_STS_SHUTDOWN:
 		/* Exit 2:1 mode */
 		hl7132->charging_state = DC_STATE_NO_CHARGING;
-		hl7132_vote_dc_avail(hl7132, 0, 1);
+		hl7132_vote_dc_avail(hl7132, 0);
 		ret = -EINVAL;
 		break;
 	case STATE_CHG_STS_STANDBY:
@@ -3492,6 +3512,9 @@ skip_pps:
 
 	if (hl7132->ftm_mode)
 		hl7132->timer_period = 0;
+	else if ((hl7132->charging_state == DC_STATE_CV_MODE) ||
+		 (hl7132->charging_state == DC_STATE_START_CV))
+		hl7132->timer_period = HL7132_CVMODE_CHECK_T;
 	else
 		hl7132->timer_period = HL7132_PDMSG_WAIT_T;
 
@@ -3815,20 +3838,10 @@ static int get_const_charge_current(struct hl7132_charger *hl7132)
 /* Return the constant charge voltage programmed into the charger in uV. */
 static int hl7132_const_charge_voltage(struct hl7132_charger *hl7132)
 {
-	unsigned int reg_val;
-	int ret;
-
 	if (!hl7132->mains_online)
 		return -ENODATA;
 
-	/* Read VBAT_REG register */
-	ret = regmap_read(hl7132->regmap, HL7132_REG_VBAT_REG, &reg_val);
-	if (ret < 0)
-		return ret;
-
-	/* Extract VBAT_REG_TH bits and convert to uV */
-	reg_val = (reg_val & HL7132_BITS_VBAT_REG_TH);
-	return (reg_val * HL7132_VBAT_REG_STEP) + HL7132_VBAT_REG_OFFSET;
+	return hl7132->vfloat_reg;
 }
 
 /* index is the PPS source to use */
@@ -4018,7 +4031,7 @@ static int hl7132_mains_get_property(struct power_supply *psy,
 
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		/* return the output current - uA unit */
-		rc = hl7132_get_iin(hl7132, &val->intval);
+		rc = hl7132_get_iin_original(hl7132, &val->intval);
 		if (rc < 0)
 			dev_err(hl7132->dev, "Invalid IIN ADC (%d)\n", rc);
 		break;
@@ -4138,7 +4151,7 @@ static int hl7132_gbms_mains_set_property(struct power_supply *psy,
 		if (val->prop.intval) {
 			if (hl7132->charging_state == DC_STATE_ERROR)
 				hl7132->charging_state = DC_STATE_NO_CHARGING;
-			hl7132_vote_dc_avail(hl7132, 1, 1);
+			hl7132_vote_dc_avail(hl7132, 1);
 		}
 		break;
 
@@ -4190,7 +4203,7 @@ static int hl7132_gbms_mains_get_property(struct power_supply *psy,
 
 	case GBMS_PROP_CURRENT_NOW:
 		/* return the input current - uA unit */
-		ret = hl7132_get_iin_original(hl7132, &val->prop.intval);
+		ret = hl7132_get_iin(hl7132, &val->prop.intval);
 		if (ret < 0)
 			dev_err(hl7132->dev, "Invalid IIN ADC (%d)\n", ret);
 		break;
@@ -4260,7 +4273,7 @@ static struct gbms_desc hl7132_mains_desc = {
 	.forward		= true,
 };
 
-#if defined(CONFIG_OF)
+#if IS_ENABLED(CONFIG_OF)
 static int of_hl7132_dt(struct device *dev,
 			 struct hl7132_platform_data *pdata)
 {
@@ -4309,8 +4322,7 @@ static int of_hl7132_dt(struct device *dev,
 			 __func__);
 		pdata->vbat_reg_dt = HL7132_VBAT_REG_DFT;
 	}
-	pdata->vbat_reg = pdata->vbat_reg_dt;
-	dev_info(dev, "%s: hl7132,vbat_reg is %u\n", __func__, pdata->vbat_reg);
+	dev_info(dev, "%s: hl7132,vbat_reg is %u\n", __func__, pdata->vbat_reg_dt);
 
 	/* input topoff current */
 	ret = of_property_read_u32(np_hl7132, "hl7132,input-itopoff",
@@ -4397,10 +4409,10 @@ static int of_hl7132_dt(struct device *dev,
 }
 #endif /* CONFIG_OF */
 
-#ifdef CONFIG_THERMAL
-static int hl7132_usb_tz_read_temp(struct thermal_zone_device *tzd, int *temp)
+#if IS_ENABLED(CONFIG_THERMAL)
+static int hl7132_usb_tz_read_temp(struct thermal_zone_device *tz, int *temp)
 {
-	struct hl7132_charger *hl7132 = tzd->devdata;
+	struct hl7132_charger *hl7132 = thermal_zone_device_priv(tz);
 
 	if (!hl7132)
 		return -ENODEV;
@@ -4695,8 +4707,8 @@ static ssize_t chg_stats_store(struct device *dev, struct device_attribute *attr
 
 static DEVICE_ATTR_RW(chg_stats);
 
-static ssize_t dump_reg_show(struct device *dev, struct device_attribute *attr,
-			     char *buf)
+static ssize_t registers_dump_show(struct device *dev, struct device_attribute *attr,
+				   char *buf)
 {
 	struct hl7132_charger *hl7132 = dev_get_drvdata(dev);
 	u8 tmp[HL7132_MAX_REGISTER + 1];
@@ -4714,14 +4726,14 @@ static ssize_t dump_reg_show(struct device *dev, struct device_attribute *attr,
 	return len;
 }
 
-static DEVICE_ATTR_RO(dump_reg);
+static DEVICE_ATTR_RO(registers_dump);
 
 static int hl7132_create_fs_entries(struct hl7132_charger *chip)
 {
 
 	device_create_file(chip->dev, &dev_attr_sts_ab);
 	device_create_file(chip->dev, &dev_attr_chg_stats);
-	device_create_file(chip->dev, &dev_attr_dump_reg);
+	device_create_file(chip->dev, &dev_attr_registers_dump);
 
 	chip->debug_root = debugfs_create_dir("charger-hl7132", NULL);
 	if (IS_ERR_OR_NULL(chip->debug_root)) {
@@ -4769,8 +4781,7 @@ static int hl7132_create_fs_entries(struct hl7132_charger *chip)
 }
 
 
-static int hl7132_probe(struct i2c_client *client,
-			const struct i2c_device_id *id)
+static int hl7132_probe(struct i2c_client *client)
 {
 	static char *battery[] = { "hl7132-battery" };
 	struct power_supply_config mains_cfg = {};
@@ -4786,7 +4797,7 @@ static int hl7132_probe(struct i2c_client *client,
 	if (!hl7132_chg)
 		return -ENOMEM;
 
-#if defined(CONFIG_OF)
+#if IS_ENABLED(CONFIG_OF)
 	if (client->dev.of_node) {
 		pdata = devm_kzalloc(&client->dev,
 				     sizeof(struct hl7132_platform_data),
@@ -4868,7 +4879,7 @@ static int hl7132_probe(struct i2c_client *client,
 	}
 
 	// TODO testing
-	pdata->init_sleep = 1000;
+	pdata->init_sleep = 10;
 
 	ret = hl7132_hw_ping(hl7132_chg);
 	if (ret)
@@ -4907,16 +4918,19 @@ static int hl7132_probe(struct i2c_client *client,
 #if IS_ENABLED(CONFIG_THERMAL)
 	if (pdata->usb_tz_name) {
 		hl7132_chg->usb_tzd =
-			thermal_zone_device_register(pdata->usb_tz_name, 0, 0,
-						     hl7132_chg,
-						     &hl7132_usb_tzd_ops,
-						     NULL, 0, 0);
+			thermal_tripless_zone_device_register(pdata->usb_tz_name,
+							      hl7132_chg,
+							      &hl7132_usb_tzd_ops,
+							      NULL);
 		if (IS_ERR(hl7132_chg->usb_tzd)) {
 			hl7132_chg->usb_tzd = NULL;
 			ret = PTR_ERR(hl7132_chg->usb_tzd);
 			dev_err(dev,
 				"Couldn't register usb connector thermal zone ret=%d\n",
 				ret);
+		} else {
+			thermal_zone_device_update(hl7132_chg->usb_tzd, THERMAL_DEVICE_UP);
+			thermal_zone_device_enable(hl7132_chg->usb_tzd);
 		}
 	}
 #endif
@@ -4971,7 +4985,7 @@ static const struct i2c_device_id hl7132_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, hl7132_id);
 
-#if defined(CONFIG_OF)
+#if IS_ENABLED(CONFIG_OF)
 static struct of_device_id hl7132_i2c_dt_ids[] = {
 	{ .compatible = "hl,hl7132" },
 	{ },
@@ -4979,8 +4993,8 @@ static struct of_device_id hl7132_i2c_dt_ids[] = {
 MODULE_DEVICE_TABLE(of, hl7132_i2c_dt_ids);
 #endif /* CONFIG_OF */
 
-#if defined(CONFIG_PM)
-#ifdef CONFIG_RTC_HCTOSYS
+#if IS_ENABLED(CONFIG_PM)
+#if IS_ENABLED(CONFIG_RTC_HCTOSYS)
 static int get_current_time(unsigned long *now_tm_sec)
 {
 	struct rtc_time tm;
@@ -5067,7 +5081,7 @@ static int hl7132_resume(struct device *dev)
 	dev_dbg(hl7132->dev, "%s: update_timer\n", __func__);
 
 	/* Update the current timer */
-#ifdef CONFIG_RTC_HCTOSYS
+#if IS_ENABLED(CONFIG_RTC_HCTOSYS)
 	hl7132_check_and_update_charging_timer(hl7132);
 #else
 	if (hl7132->timer_id != TIMER_ID_NONE) {
@@ -5093,10 +5107,10 @@ const struct dev_pm_ops hl7132_pm_ops = {
 static struct i2c_driver hl7132_driver = {
 	.driver = {
 		.name = "hl7132",
-#if defined(CONFIG_OF)
+#if IS_ENABLED(CONFIG_OF)
 		.of_match_table = hl7132_i2c_dt_ids,
 #endif /* CONFIG_OF */
-#if defined(CONFIG_PM)
+#if IS_ENABLED(CONFIG_PM)
 		.pm = &hl7132_pm_ops,
 #endif
 	},

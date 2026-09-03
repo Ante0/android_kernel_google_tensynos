@@ -40,10 +40,6 @@ struct iova_domain {
 	struct iova_rcache	*rcaches;
 	struct hlist_node	cpuhp_dead;
 
-#if IS_ENABLED(CONFIG_IOVAD_VENDOR_HOOKS)
-	u64		val;
-#endif
-
 	ANDROID_VENDOR_DATA(1);
 };
 
@@ -70,6 +66,11 @@ static inline size_t iova_offset(struct iova_domain *iovad, dma_addr_t iova)
 static inline size_t iova_align(struct iova_domain *iovad, size_t size)
 {
 	return ALIGN(size, iovad->granule);
+}
+
+static inline size_t iova_align_down(struct iova_domain *iovad, size_t size)
+{
+	return ALIGN_DOWN(size, iovad->granule);
 }
 
 static inline dma_addr_t iova_dma_addr(struct iova_domain *iovad, struct iova *iova)

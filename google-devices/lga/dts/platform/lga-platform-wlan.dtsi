@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+
+&pcie1 {
+	pinctrl-0 = <&hsios_pcie1_perst>,
+		<&hsios_pcie1_clkreq_func>,
+		<&ap2wlan_reg_on_1v2>,
+		<&wlan2ap_host_wake_1v2>,
+		<&ap2wlan_dev_wake_1v2>;
+
+	num-lanes = <1>;
+	max-link-speed = <3>;
+	google,skip-link-equalization;
+	dma-coherent;
+
+	/* to avoid EOT miss due to design bug exposed by higher backpressure */
+	google,posted-rx-q-data-credits = <0x51>;
+
+	wlan {
+		compatible = "android,bcmdhd_wlan";
+		wl_reg_on = <AP2WLAN_REG_ON_1V2(GPIO_ACTIVE_LOW)>;
+		wl_host_wake = <WLAN2AP_HOST_WAKE_1V2(GPIO_ACTIVE_LOW)>;
+		wl_dev_wake = <AP2WLAN_DEV_WAKE_1V2(GPIO_ACTIVE_LOW)>;
+		ch-num = <1>;
+	};
+};

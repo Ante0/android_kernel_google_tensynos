@@ -85,4 +85,5 @@ EXPORT_SYMBOL_GPL(aoc_uwb_service_ready);
 module_init(aoc_uwb_service_init);
 module_exit(aoc_uwb_service_exit);
 
+MODULE_DESCRIPTION("Google AOC uwb driver");
 MODULE_LICENSE("GPL v2");

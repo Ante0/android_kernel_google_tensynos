@@ -1,0 +1,115 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_headers(
+    name = "headers",
+    hdrs = glob([
+        "*.h",
+    ]),
+    includes = ["."],
+    visibility = ["//visibility:private"],
+)
+
+ddk_module(
+    name = "pe26100_driver",
+    srcs = [
+        "pe26100_driver.c",
+    ],
+    out = "pe26100.ko",
+    defconfig = "defconfig",
+    kconfig = "Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms:bms_headers",
+        "//private/google-modules/bms:google-bms",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "pe26100-buck-charger",
+    srcs = [
+        "pe26100_buck_charger.c",
+    ],
+    out = "pe26100-buck-charger.ko",
+    defconfig = "defconfig",
+    kconfig = "Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":headers",
+        ":pe26100_driver",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms:bms_headers",
+        "//private/google-modules/bms:google-bms",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "pe26100-cp-charger",
+    srcs = [
+        "pe26100_cp_driver.c",
+        "pe26100_gbms_pps.c",
+    ],
+    out = "pe26100-cp-charger.ko",
+    defconfig = "defconfig",
+    kconfig = "Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":headers",
+        ":pe26100_driver",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms:bms_headers",
+        "//private/google-modules/bms:google-bms",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "pe26100-usecase",
+    srcs = [
+        "pe26100_usecase.c",
+    ],
+    out = "pe26100-usecase.ko",
+    defconfig = "defconfig",
+    kconfig = "Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":headers",
+        ":pe26100-buck-charger",
+        ":pe26100_driver",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms:bms_headers",
+        "//private/google-modules/bms:google-bms",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)

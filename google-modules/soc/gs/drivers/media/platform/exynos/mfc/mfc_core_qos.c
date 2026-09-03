@@ -862,7 +862,7 @@ void mfc_core_qos_off(struct mfc_core *core, struct mfc_ctx *ctx)
 	mutex_unlock(&core->qos_mutex);
 }
 
-void __mfc_core_qos_off_all(struct mfc_core *core)
+static void __mfc_core_qos_off_all(struct mfc_core *core)
 {
 	struct mfc_core_ctx *qos_core_ctx, *tmp_core_ctx;
 

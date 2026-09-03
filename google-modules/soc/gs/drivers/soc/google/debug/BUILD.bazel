@@ -1,0 +1,502 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+#  Debug
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "dss",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "dss.ko",
+    conditional_srcs = {
+        "CONFIG_DEBUG_SNAPSHOT": {
+            True: [
+                "cache.S",
+                "debug-snapshot-dpm.c",
+                "debug-snapshot-log.c",
+                "debug-snapshot-utils.c",
+                "debug-snapshot.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":pixel-suspend-diag",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "debug-snapshot-built",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "debug-snapshot-built.ko",
+    conditional_srcs = {
+        "CONFIG_DEBUG_SNAPSHOT_BUILT_IN": {
+            True: [
+                "debug-snapshot-built.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "debug-snapshot-sfrdump",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "debug-snapshot-sfrdump.ko",
+    conditional_srcs = {
+        "CONFIG_DEBUG_SNAPSHOT_SFRDUMP": {
+            True: [
+                "debug-snapshot-sfrdump.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "debug-snapshot-qd",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "debug-snapshot-qd.ko",
+    conditional_srcs = {
+        "CONFIG_DEBUG_SNAPSHOT_QUICKDUMP": {
+            True: [
+                "debug-snapshot-qd.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "debug-snapshot-debug-kinfo",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "debug-snapshot-debug-kinfo.ko",
+    conditional_srcs = {
+        "CONFIG_DEBUG_SNAPSHOT_DEBUG_KINFO": {
+            True: [
+                "debug-snapshot-debug-kinfo.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":dss",
+        ":pixel-suspend-diag",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "ehld",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "ehld.ko",
+    conditional_srcs = {
+        "CONFIG_EXYNOS_EHLD": {
+            True: [
+                "exynos-ehld-ipc.c",
+                "exynos-ehld.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":dss",
+        ":exynos-adv-tracer",
+        ":sjtag-driver",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-cpupm",
+        "//private/google-modules/soc/gs/drivers/soc/google:hardlockup-watchdog",
+        "//private/google-modules/soc/gs/drivers/soc/google/acpm:gs_acpm",
+    ],
+)
+
+ddk_module(
+    name = "exynos-debug-test",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "exynos-debug-test.ko",
+    conditional_srcs = {
+        "CONFIG_EXYNOS_DEBUG_TEST": {
+            True: [
+                "exynos-debug-test.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":dss",
+        ":pixel-debug-test",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "pixel-debug-test",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "pixel-debug-test.ko",
+    conditional_srcs = {
+        "CONFIG_PIXEL_DEBUG_TEST": {
+            True: [
+                "pixel-debug-test.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "itmon",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "itmon.ko",
+    conditional_srcs = {
+        "CONFIG_SOC_GS101": {
+            True: [
+                "gs101-itmon.c",
+            ],
+        },
+        "CONFIG_SOC_GS201": {
+            True: [
+                "gs201-itmon.c",
+            ],
+        },
+        "CONFIG_SOC_ZUMA": {
+            True: [
+                "zuma-itmon.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":dss",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-cpupm",
+    ],
+)
+
+ddk_module(
+    name = "bookerci",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "bookerci.ko",
+    conditional_srcs = {
+        "CONFIG_BOOKERCI": {
+            True: [
+                "bookerci.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "exynos-coresight",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "exynos-coresight.ko",
+    conditional_srcs = {
+        "CONFIG_EXYNOS_CORESIGHT": {
+            True: [
+                "exynos-coresight.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":dss",
+        ":sjtag-driver",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-pmu-if",
+    ],
+)
+
+ddk_module(
+    name = "exynos-ecc-handler",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "exynos-ecc-handler.ko",
+    conditional_srcs = {
+        "CONFIG_EXYNOS_ECC_HANDLER": {
+            True: [
+                "exynos-ecc-handler.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":dss",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "exynos-coresight-etm",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "exynos-coresight-etm.ko",
+    conditional_srcs = {
+        "CONFIG_SOC_ZUMA": {
+            True: [
+                "exynos-coresight-etm-zuma.c",
+            ],
+            False: [
+                "exynos-coresight-etm-whi.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":sjtag-driver",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "exynos-adv-tracer",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "exynos-adv-tracer.ko",
+    conditional_srcs = {
+        "CONFIG_EXYNOS_ADV_TRACER": {
+            True: [
+                "exynos-adv-tracer.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-pmu-if",
+    ],
+)
+
+ddk_module(
+    name = "exynos-adv-tracer-s2d",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "exynos-adv-tracer-s2d.ko",
+    conditional_srcs = {
+        "CONFIG_EXYNOS_ADV_TRACER_S2D": {
+            True: [
+                "exynos-adv-tracer-s2d.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":dss",
+        ":exynos-adv-tracer",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/input:keydebug",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-pmu-if",
+    ],
+)
+
+ddk_module(
+    name = "pixel-boot-metrics",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "pixel-boot-metrics.ko",
+    conditional_srcs = {
+        "CONFIG_PIXEL_BOOT_METRICS": {
+            True: [
+                "pixel-boot-metrics.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "pixel-suspend-diag",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "pixel-suspend-diag.ko",
+    conditional_srcs = {
+        "CONFIG_PIXEL_SUSPEND_DIAG": {
+            True: [
+                "pixel-suspend-diag.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "sjtag-driver",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "sjtag-driver.ko",
+    conditional_srcs = {
+        "CONFIG_GS_SJTAG": {
+            True: [
+                "sjtag-driver.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":dss",
+        ":exynos-adv-tracer",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/gsa:gsa_ko",
+    ],
+)
+
+ddk_module(
+    name = "etm2dram",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "etm2dram.ko",
+    conditional_srcs = {
+        "CONFIG_ETM2DRAM": {
+            True: [
+                "etm2dram.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":exynos-adv-tracer",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

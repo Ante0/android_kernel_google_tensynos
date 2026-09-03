@@ -237,7 +237,7 @@ static const struct dpu_fmt dpu_formats_list[] = {
 		.num_planes = 1,
 		.len_alpha = 0,
 		.cs = DPU_COLORSPACE_YUV420,
-        }, {
+	}, {
 		.name = "P010_AFBC",
 		.fmt = DRM_FORMAT_YUV420_10BIT,
 		.dma_fmt = IDMA_IMG_FORMAT_YUV420_P010,

@@ -1,0 +1,195 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# Pixel UFSHCD Makefile
+
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("//build/kernel/kleaf:hermetic_tools.bzl", "hermetic_genrule")
+load(
+    "//build/kernel/kleaf:kernel.bzl",
+    "ddk_library",
+    "ddk_module",
+    "ddk_prebuilt_module",
+)
+load("//private/devices/google/common/kleaf:select_files.bzl", "select_files")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "ufs-exynos-gs",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "ufs-exynos.c",
+        "ufs-exynos-crypto.c",
+        "ufs-exynos-dbg.c",
+        "ufs-pixel.c",
+    ],
+    out = "ufs-exynos-gs.ko",
+    conditional_srcs = {
+        "CONFIG_SCSI_UFS_CRYPTO": {
+            True: [
+                "ufs-pixel-crypto.c",
+            ],
+        },
+        "CONFIG_SCSI_UFS_CRYPTO_SW_KEYS_MODE": {
+            True: [
+                "ufs-exynos-swkeys.c",
+            ],
+        },
+        "CONFIG_SOC_GS101": {
+            True: [
+                "gs101/ufs-cal-if.c",
+            ],
+        },
+        "CONFIG_SOC_GS201": {
+            True: [
+                "gs201/ufs-cal-if.c",
+            ],
+        },
+        "CONFIG_SOC_ZUMA": {
+            True: [
+                "zuma/ufs-cal-if.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":ufs-pixel-fips140",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/misc/sbb-mux",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-cpupm",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-pmu-if",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos_pm_qos",
+        "//private/google-modules/soc/gs/drivers/soc/google/gsa:gsa_ko",
+    ],
+)
+
+ddk_library(
+    name = "ufs-pixel-fips_sha256",
+    srcs = [
+        "ufs-pixel-fips_sha256.c",
+        "ufs-pixel-fips_sha256.h",
+    ],
+    gcov = "never",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "BUILD_FIPS140_KO",
+    ],
+    support_ftrace = False,
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "ufs-pixel-fips140_raw",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "ufs-pixel-fips.c",
+        "ufs-pixel-fips140-refs.S",
+    ],
+    out = "ufs-pixel-fips140.ko",
+    gcov = "never",
+    kernel_build = "//private/devices/google/common:kernel",
+    support_ftrace = False,
+    deps = [
+        ":ufs-pixel-fips_sha256",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+cc_binary(
+    name = "ufs-pixel-fips_gen_hmac",
+    srcs = ["ufs-pixel-fips_gen_hmac.c"],
+    linkstatic = False,
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    deps = [
+        "//prebuilts/kernel-build-tools:imported_libs",
+    ],
+)
+
+select_files(
+    name = "ufs-pixel-fips140_raw_ko",
+    srcs = [":ufs-pixel-fips140_raw"],
+    include = ["**/*.ko"],
+)
+
+select_files(
+    name = "ufs-pixel-fips140_module_symvers",
+    srcs = [":ufs-pixel-fips140_raw"],
+    include = ["**/*Module.symvers"],
+)
+
+filegroup(
+    name = "ufs-pixel-fips140_modules_order",
+    srcs = [":ufs-pixel-fips140_raw"],
+    output_group = "modules.order",
+)
+
+hermetic_genrule(
+    name = "ufs-pixel-fips140_postprocessed",
+    srcs = [":ufs-pixel-fips140_raw_ko"],
+    outs = ["ufs-pixel-fips140_postprocessed/ufs-pixel-fips140.ko"],
+    cmd = """
+        set -e
+
+        # Copy the input to the output location to work on it
+        mkdir -p "$$(dirname "$@")"
+        cp -L "$(location :ufs-pixel-fips140_raw_ko)" "$@"
+
+        # Check if .init.rela.text exists. If not, create it from .rela.text and run the tool.
+        if ! llvm-readelf -SW "$@" | grep -Eo '\\.init\\.rela\\.text\\S*'; then
+            # Find the .rela.text section name (it might have a suffix)
+            RELA_SEC="$$(llvm-readelf -SW "$@" | grep -Eo '\\.rela\\.text\\S*' | head -n1)"
+
+            if [[ -n "$${RELA_SEC}" ]]; then
+                SECTION_DUMP="rela.text.dump"
+
+                # Dump the section
+                llvm-objcopy --dump-section "$${RELA_SEC}=$${SECTION_DUMP}" "$@"
+
+                # Add the section as .init.rela.text
+                llvm-objcopy \
+                        --add-section ".init.rela.text=$${SECTION_DUMP}" \
+                        --set-section-flags ".init.rela.text=alloc,readonly" \
+                        "$@"
+
+                # Clean up dump file
+                rm "$${SECTION_DUMP}"
+
+                # Run the HMAC generation tool
+                "$(location :ufs-pixel-fips_gen_hmac)" "$@" >/dev/null
+            fi
+        fi
+    """,
+    tools = [":ufs-pixel-fips_gen_hmac"],
+    use_cc_toolchain = True,
+)
+
+ddk_prebuilt_module(
+    name = "ufs-pixel-fips140",
+    src = ":ufs-pixel-fips140_postprocessed",
+    kernel_build = "//private/devices/google/common:kernel",
+    module_symvers = ":ufs-pixel-fips140_module_symvers",
+    modules_order = ":ufs-pixel-fips140_modules_order",
+)

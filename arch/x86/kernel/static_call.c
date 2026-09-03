@@ -43,6 +43,7 @@ extern void __static_call_return(void);
 
 asm (".global __static_call_return\n\t"
      ".type __static_call_return, @function\n\t"
+     ASM_FUNC_ALIGN "\n\t"
      "__static_call_return:\n\t"
      ANNOTATE_NOENDBR
      ANNOTATE_RETPOLINE_SAFE
@@ -62,6 +63,7 @@ static void __ref __static_call_transform(void *insn, enum insn_type type,
 
 	switch (type) {
 	case CALL:
+		func = callthunks_translate_call_dest(func);
 		code = text_gen_insn(CALL_INSN_OPCODE, insn, func);
 		if (func == &__static_call_return0) {
 			emulate = code;
@@ -88,8 +90,8 @@ static void __ref __static_call_transform(void *insn, enum insn_type type,
 	case JCC:
 		if (!func) {
 			func = __static_call_return;
-			if (cpu_feature_enabled(X86_FEATURE_RETHUNK))
-				func = __x86_return_thunk;
+			if (cpu_wants_rethunk())
+				func = x86_return_thunk;
 		}
 
 		buf[0] = 0x0f;
@@ -178,7 +180,7 @@ noinstr void __static_call_update_early(void *tramp, void *func)
 	sync_core();
 }
 
-#ifdef CONFIG_RETHUNK
+#ifdef CONFIG_MITIGATION_RETHUNK
 /*
  * This is called by apply_returns() to fix up static call trampolines,
  * specifically ARCH_DEFINE_STATIC_CALL_NULL_TRAMP which is recorded as

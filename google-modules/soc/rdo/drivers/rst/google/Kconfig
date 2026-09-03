@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config GOOGLE_CPM_RST
+	tristate "Google CPM reset driver"
+	depends on ARCH_GOOGLE
+	depends on GOOGLE_MBA_CPM_INTERFACE
+	select RESET_CONTROLLER
+	help
+	  This driver allows clients to configure Google SoC LPCM resets via
+	  CPM using the Linux reset controller APIs.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config GOOGLE_CPM_RST_TEST
+	tristate "Unit test for Google CPM reset driver"
+	depends on ARCH_GOOGLE
+	depends on KUNIT
+	help
+	  Add unit test for rst-cpm driver.
+	  Use kunit testing tools.
+	  Select Y if you have such device.
+	  If unsure select "N".
+

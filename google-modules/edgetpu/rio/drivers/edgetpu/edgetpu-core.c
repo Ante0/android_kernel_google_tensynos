@@ -24,9 +24,11 @@
 #include <linux/spinlock.h>
 #include <linux/types.h>
 #include <linux/uidgid.h>
+#include <linux/workqueue.h>
 
 #include <gcip/gcip-firmware.h>
 
+#include "edgetpu-client.h"
 #include "edgetpu-config.h"
 #include "edgetpu-debug.h"
 #include "edgetpu-device-group.h"
@@ -56,7 +58,6 @@ enum edgetpu_vma_type {
 	/* For VMA_LOG and VMA_TRACE, core id is stored in bits higher than VMA_TYPE_WIDTH. */
 	VMA_LOG,
 	VMA_TRACE,
-	VMA_HWTRACE,
 };
 
 /* type that combines enum edgetpu_vma_type and data in higher bits. */
@@ -74,8 +75,6 @@ struct edgetpu_vma_private {
 };
 
 static atomic_t dev_count = ATOMIC_INIT(-1);
-
-static atomic_t next_client_id = ATOMIC_INIT(0);
 
 static edgetpu_vma_flags_t mmap_vma_flag(unsigned long pgoff)
 {
@@ -104,14 +103,12 @@ static edgetpu_vma_flags_t mmap_vma_flag(unsigned long pgoff)
 	case EDGETPU_MMAP_TRACE3_BUFFER_OFFSET:
 		return VMA_DATA_SET(VMA_TRACE, 3);
 #endif /* EDGETPU_MAX_TELEMETRY_BUFFERS > 3 */
-	case EDGETPU_MMAP_HWTRACE_BUFFER_OFFSET:
-		return VMA_DATA_SET(VMA_HWTRACE, 0);
 	default:
 		return VMA_INVALID;
 	}
 }
 
-/* Map exported LOG/TRACE/HWTRACE buffers into user space. */
+/* Map exported LOG/TRACE buffers into user space. */
 int edgetpu_mmap(struct edgetpu_client *client, struct vm_area_struct *vma)
 {
 	struct edgetpu_dev *etdev = client->etdev;
@@ -135,10 +132,6 @@ int edgetpu_mmap(struct edgetpu_client *client, struct vm_area_struct *vma)
 			return -EINVAL;
 		return edgetpu_mmap_telemetry_buffer(etdev, &etdev->telemetry_trace[instance_id],
 						     vma);
-	case VMA_HWTRACE:
-		if (!edgetpu_telemetry_mapped(&etdev->telemetry_hwtrace))
-			return -ENOENT;
-		return edgetpu_mmap_telemetry_buffer(etdev, &etdev->telemetry_hwtrace, vma);
 	case VMA_INVALID:
 	default:
 		return -EINVAL;
@@ -255,6 +248,8 @@ int edgetpu_device_add(struct edgetpu_dev *etdev,
 		dev_err(etdev->dev, "failed to attach IOMMU: %d", ret);
 		goto remove_pm;
 	}
+	etdev->max_concurrent_clients =
+		min(edgetpu_mmu_get_max_attached_domains(etdev), EDGETPU_NUM_VCIDS);
 
 	edgetpu_usage_stats_init(etdev);
 
@@ -350,129 +345,6 @@ void edgetpu_device_remove(struct edgetpu_dev *etdev)
 	debugfs_remove_recursive(etdev->d_entry);
 	edgetpu_wakeup_source_destroy_all(etdev);
 	edgetpu_soc_exit(etdev);
-}
-
-void edgetpu_client_update_name(struct edgetpu_client *client, pid_t task_id)
-{
-	struct task_struct *tsk;
-
-	rcu_read_lock();
-	tsk = find_task_by_vpid(task_id);
-	if (tsk)
-		snprintf(client->name, sizeof(client->name), "%s.%u", tsk->comm, client->client_id);
-	else
-		snprintf(client->name, sizeof(client->name), "?.%u", client->client_id);
-	rcu_read_unlock();
-}
-
-struct edgetpu_client *edgetpu_client_add(struct edgetpu_dev_iface *etiface)
-{
-	struct edgetpu_client *client;
-	struct edgetpu_list_device_client *l = kmalloc(sizeof(*l), GFP_KERNEL);
-	struct edgetpu_dev *etdev = etiface->etdev;
-
-	if (!l)
-		return ERR_PTR(-ENOMEM);
-	client = kzalloc(sizeof(*client), GFP_KERNEL);
-	if (!client) {
-		kfree(l);
-		return ERR_PTR(-ENOMEM);
-	}
-	client->client_id = atomic_add_return(1, &next_client_id);
-	client->etdev = etdev;
-	edgetpu_wakelock_init(client);
-	client->pid = task_pid_nr(current);
-	client->tgid = task_tgid_nr(current);
-	edgetpu_client_update_name(client, client->tgid);
-	client->limited_pid = -1;
-	client->limited_tgid = -1;
-	client->etiface = etiface;
-	mutex_init(&client->group_lock);
-	/* equivalent to edgetpu_client_get() */
-	refcount_set(&client->count, 1);
-	client->perdie_events = 0;
-	mutex_init(&client->limited_interface_lock);
-	mutex_lock(&etdev->clients_lock);
-	l->client = client;
-	list_add_tail(&l->list, &etdev->clients);
-	mutex_unlock(&etdev->clients_lock);
-	edgetpu_eventlog_event(client->etdev, EVENTLOG_EVENT_CLIENT_CREATE, client);
-	return client;
-}
-
-struct edgetpu_client *edgetpu_client_get(struct edgetpu_client *client)
-{
-	WARN_ON_ONCE(!refcount_inc_not_zero(&client->count));
-	return client;
-}
-
-void edgetpu_client_put(struct edgetpu_client *client)
-{
-	if (!client)
-		return;
-	if (refcount_dec_and_test(&client->count))
-		kfree(client);
-}
-
-void edgetpu_client_remove(struct edgetpu_client *client)
-{
-	struct edgetpu_dev *etdev = client->etdev;
-	struct edgetpu_list_device_client *lc;
-	uint wakelock_count;
-
-	edgetpu_eventlog_event(client->etdev, EVENTLOG_EVENT_CLIENT_REMOVE, client);
-	mutex_lock(&client->group_lock);
-	/*
-	 * Safe to read wakelock->req_count here since req_count is only modified during
-	 * [acquire/release]_wakelock ioctl calls which cannot race with releasing client/fd.
-	 */
-	wakelock_count = client->wakelock.req_count;
-	/*
-	 * @wakelock_count = 0 means the device might be powered off. Mailbox(EXT/VII) is removed
-	 * when the group is released, so we need to ensure the device should not accessed to
-	 * prevent kernel panic on programming mailbox CSRs.
-	 */
-	if (!wakelock_count && client->group)
-		client->group->dev_inaccessible = true;
-
-	mutex_unlock(&client->group_lock);
-
-	mutex_lock(&etdev->clients_lock);
-	/* remove the client from the device list */
-	for_each_list_device_client(etdev, lc) {
-		if (lc->client == client) {
-			list_del(&lc->list);
-			kfree(lc);
-			break;
-		}
-	}
-	mutex_unlock(&etdev->clients_lock);
-	if (client->group)
-		edgetpu_device_group_disband(client);
-	/* Cleanup external mailbox/secure client stuff. */
-	edgetpu_ext_client_remove(client);
-
-	/* Clean up all the per die event fds registered by the client */
-	if (client->perdie_events &
-	    BIT(perdie_event_id_to_num(EDGETPU_PERDIE_EVENT_LOGS_AVAILABLE)))
-		edgetpu_telemetry_unset_event(etdev, etdev->telemetry_log);
-	if (client->perdie_events &
-	    BIT(perdie_event_id_to_num(EDGETPU_PERDIE_EVENT_TRACES_AVAILABLE)))
-		edgetpu_telemetry_unset_event(etdev, etdev->telemetry_trace);
-	if (client->perdie_events &
-	    BIT(perdie_event_id_to_num(EDGETPU_PERDIE_EVENT_HWTRACES_AVAILABLE)))
-		edgetpu_telemetry_unset_event(etdev, &etdev->telemetry_hwtrace);
-
-	/* Releases each acquired wake lock for this client. */
-	while (wakelock_count--)
-		edgetpu_pm_put(etdev);
-	edgetpu_wakelock_destroy(client);
-	edgetpu_client_put(client);
-}
-
-void edgetpu_client_trim_enable(struct edgetpu_client *client, u32 enable)
-{
-	client->trim_enabled = enable;
 }
 
 void edgetpu_handle_firmware_crash(struct edgetpu_dev *etdev, enum gcip_fw_crash_type crash_type)

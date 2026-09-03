@@ -12,9 +12,6 @@
 
 #include <qm357xx_fwpkg.h>
 
-int qm357xx_rom_b0_probe_device(struct qmrom_handle *handle);
-int qm357xx_rom_c0_probe_device(struct qmrom_handle *handle);
-
 int qm357xx_rom_write_cmd(struct qmrom_handle *handle, uint8_t cmd)
 {
 	handle->hstc->all = 0;

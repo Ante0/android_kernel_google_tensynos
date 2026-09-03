@@ -37,4 +37,26 @@
 	};
 };
 
+&max77759tcpc {
+	phy-orientation-sw;
+	ports {
+		port@2 {
+			switch_notification_source: endpoint {
+				remote-endpoint = <&switch_notification_sink>;
+			};
+		};
+	};
+};
+
+&usbdrd_phy0 {
+	orientation-switch;
+	ports {
+		port@0 {
+			switch_notification_sink: endpoint {
+				remote-endpoint = <&switch_notification_source>;
+			};
+		};
+	};
+};
+
 #include "max777x9-usbc-cooling-dev.dtsi"

@@ -1,0 +1,155 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * rango audio device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+&aoc {
+	aoc-board-cfg = "RG5";
+	aoc-board-id = <0x70603>;
+	aoc-board-rev = <0x10000>;
+	prevent-fw-load = <0x0>;
+};
+
+/* DP audio */
+&aoc_dp_nohost_drv {
+	status = "ok";
+};
+
+/* DP audio */
+&dai_fe_dp_dma_nohost_rx {
+	status = "ok";
+};
+
+/* DP audio */
+&dwc_dptx_audio {
+	status = "ok";
+};
+
+/* DP audio */
+&dai_be_dp_rx {
+	status = "ok";
+	codec {
+		sound-dai = <&dwc_dptx_audio>;
+	};
+};
+
+&dai_be_tdm0_rx {
+	codec {
+		sound-dai = <&cs35l43_1 0>,
+			<&cs35l43_2 0>;
+	};
+};
+
+&dai_be_tdm0_tx {
+	codec {
+		sound-dai = <&cs35l43_1 0>,
+			<&cs35l43_2 0>;
+	};
+};
+
+&aoc_snd_card {
+	clks {
+		sys {
+			sys@cs35l43_l {
+				comp = <&cs35l43_1>;
+				src = "BCLK";
+				/* clk id */
+				id = <0>;
+				/* clk source */
+				srcid = <0>;
+				/* in clk multiple */
+				in_mul = <1>;
+				/* out clk multiple */
+				out_mul = <1>;
+			};
+
+			sys@cs35l43_r {
+				comp = <&cs35l43_2>;
+				src = "BCLK";
+				/* clk id */
+				id = <0>;
+				/* clk source */
+				srcid = <0>;
+				/* in clk multiple */
+				in_mul = <1>;
+				/* out clk multiple */
+				out_mul = <1>;
+			};
+
+		};
+	};
+};
+
+&xaoc_spi1_sclk {
+	drive-strength = <1>;
+};
+
+&xaoc_spi1_miso {
+	drive-strength = <1>;
+};
+
+&xaoc_spi1_mosi {
+	drive-strength = <1>;
+};
+
+&cli18_int1_spi_cs1_cs2_gpio_func {
+	drive-strength = <1>;
+};
+
+&lsion_cli18_int1_spi {
+	cs35l43_1: cs35l43@0 {
+		#sound-dai-cells = <1>;
+		compatible = "cirrus,cs35l43";
+		spi-max-frequency = <10000000>;
+		reg = <0>;
+
+		status = "okay";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&ap2amp_reset_l_1v2 &amp2ap_irq_od_l_1v2>;
+
+		interrupt-parent = <&cpm_pinctrl>;
+		interrupts = <XCPM_SRC_OPT1 0 0>;
+
+		reset-gpios = <AP2AMP_RESET_L_1V2(GPIO_ACTIVE_HIGH)>;
+
+		VA-supply = <&buck_12s_reg>;
+		VP-supply = <&V_SYS_dummy>;
+
+		cirrus,bst-ipk-ma = <4000>;
+		cirrus,asp-sdout-hiz = <3>;
+		cirrus,gpio2-src-sel = <2>;
+		cirrus,tuning-has-prefix;
+		cirrus,hw-noise-gate-select = <63>;
+		cirrus,low-pwr-mode-standby;
+	};
+
+	cs35l43_2: cs35l43@1 {
+		#sound-dai-cells = <1>;
+		sound-name-prefix = "R";
+		compatible = "cirrus,cs35l43";
+		spi-max-frequency = <10000000>;
+		reg = <1>;
+
+		status = "okay";
+
+		interrupt-parent = <&cpm_pinctrl>;
+		interrupts = <XCPM_SRC_OPT1 0 0>;
+
+		reset-gpios = <AP2AMP_RESET_L_1V2(GPIO_ACTIVE_HIGH)>;
+
+		VA-supply = <&buck_12s_reg>;
+		VP-supply = <&V_SYS_dummy>;
+
+		cirrus,bst-ipk-ma = <4000>;
+		cirrus,asp-sdout-hiz = <3>;
+		cirrus,gpio2-src-sel = <2>;
+		cirrus,tuning-has-prefix;
+		cirrus,hw-noise-gate-select = <63>;
+		cirrus,low-pwr-mode-standby;
+	};
+
+};
+

@@ -1,0 +1,57 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Google LGA touch device tree source.
+ *
+ * Copyright 2024 Google Inc.
+ *
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+&spitouch {
+	status = "ok";
+
+	compatible = "synaptics,tcm-spi";
+	reg = <0>;
+	spi-max-frequency = <20000000>;
+	rx-sample-delay-ns = <25>;
+
+	synaptics,avdd-name = "avdd";
+	synaptics,vdd-name = "vdd";
+	synaptics,power-delay-ms = <200>;
+	synaptics,irq-gpio = <TS0_2_AOC_INT_L_1V2(GPIO_ACTIVE_LOW)>;
+	synaptics,irq-flags = <0x2008>; /* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
+	synaptics,irq-on-state = <0>;
+	synaptics,reset-gpio = <PMICS2TS0_RESET_L_1V2(GPIO_ACTIVE_LOW)>;
+	synaptics,reset-on-state = <0>;
+	synaptics,reset-active-ms = <1>;
+	synaptics,reset-delay-ms = <70>;
+	synaptics,spi-mode = <0>;
+	synaptics,spi-byte-delay-us = <0>;
+	synaptics,spi-block-delay-us = <0>;
+	synaptics,compression-threshold = <0>;
+	synaptics,firmware_names = "synaptics.img";
+
+	synaptics,avdd-power-on-delay-ms = <1>;
+	synaptics,avdd-power-off-delay-ms = <0>;
+	synaptics,vdd-power-on-delay-ms = <0>;
+	synaptics,vdd-power-off-delay-ms =  <1>;
+
+	synaptics,command-timeout-ms = <3000>;
+	synaptics,command-polling-ms = <20>;
+
+	/*
+	 * [0] Delay to poll the response
+	 * [1] Delay to poll the response in bootloader
+	 */
+	synaptics,command-turnaround-us = <50 100>;
+	synaptics,command-retry-us = <5000 10000>;
+	synaptics,fw-switch-delay-ms = <100>;
+
+	/*
+	 * [0] Delay to ERASE per page
+	 * [1] Delay to WRITE per block
+	 * [2] Delay to READ per word
+	 */
+	synaptics,flash-access-delay-us = <20000 50 10>;
+};

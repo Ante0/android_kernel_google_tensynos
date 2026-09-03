@@ -17,8 +17,9 @@
 #include "max77779.h"
 #include "max77779_pmic.h"
 
-#define MAX77779_SGPIO_CNFGx_MODE_INPUT		0b01
-#define MAX77779_SGPIO_CNFGx_MODE_OUTPUT	0b10
+#define MAX77779_SGPIO_CNFGx_MODE_INPUT			0b01
+#define MAX77779_SGPIO_CNFGx_MODE_OUTPUT_PUSH_PULL	0b10
+#define MAX77779_SGPIO_CNFGx_MODE_OUTPUT_OPEN_DRAIN	0b11
 
 /* DEBUG     */
 struct pin_state {
@@ -191,17 +192,37 @@ static int max77779_pinconf_set(struct pinctrl_dev *pctldev,
 		}
 		case PIN_CONFIG_OUTPUT:
 		case PIN_CONFIG_OUTPUT_ENABLE:
+		case PIN_CONFIG_DRIVE_PUSH_PULL:
 		{
 			const u8 reg = MAX77779_PMIC_GPIO_SGPIO_CNFG0 + pin;
 			const u8 mask = MAX77779_PMIC_GPIO_SGPIO_CNFG0_MODE_MASK |
 					MAX77779_PMIC_GPIO_SGPIO_CNFG0_DATA_MASK;
 			const u8 rval = _max77779_pmic_gpio_sgpio_cnfg0_data_set(reg, !!arg) |
 					_max77779_pmic_gpio_sgpio_cnfg0_mode_set(reg,
-						MAX77779_SGPIO_CNFGx_MODE_OUTPUT);
+						MAX77779_SGPIO_CNFGx_MODE_OUTPUT_PUSH_PULL);
 
 			err =  max77779_external_pmic_reg_update(info->core, reg, mask, rval);
 			break;
 		}
+		case PIN_CONFIG_DRIVE_OPEN_DRAIN:
+		{
+			const u8 reg = MAX77779_PMIC_GPIO_SGPIO_CNFG0 + pin;
+			const u8 mask = MAX77779_PMIC_GPIO_SGPIO_CNFG0_MODE_MASK |
+					MAX77779_PMIC_GPIO_SGPIO_CNFG0_DATA_MASK;
+			const u8 rval = _max77779_pmic_gpio_sgpio_cnfg0_data_set(reg, !!arg) |
+					_max77779_pmic_gpio_sgpio_cnfg0_mode_set(reg,
+						MAX77779_SGPIO_CNFGx_MODE_OUTPUT_OPEN_DRAIN);
+
+			err =  max77779_external_pmic_reg_update(info->core, reg, mask, rval);
+			break;
+		}
+		/*
+		 * gpiod library sets this
+		 * Lose or retain GPIO state on suspend or reset
+		 * State is retained in both cases so ignore
+		 */
+		case PIN_CONFIG_PERSIST_STATE:
+			break;
 		default:
 			err = -ENOTSUPP;
 		}
@@ -241,6 +262,7 @@ static struct pinctrl_desc max77779_pinctrl_desc = {
 	.pctlops = &max77779_pinctrl_ops,
 	.pmxops = &max77779_pinmux_ops,
 	.confops = &max77779_pinconf_ops,
+	.owner = THIS_MODULE,
 };
 
 static int max77779_pinctrl_probe(struct platform_device *pdev)
@@ -256,20 +278,31 @@ static int max77779_pinctrl_probe(struct platform_device *pdev)
 
 	info->dev = dev;
 	info->core = dev->parent;
-	mutex_init(&info->lock);
 	platform_set_drvdata(pdev, info);
 
-	info->pctl = devm_pinctrl_register(dev, &max77779_pinctrl_desc, info);
+	err = devm_pinctrl_register_and_init(dev, &max77779_pinctrl_desc, info, &info->pctl);
+	if (err < 0) {
+		dev_err(dev, "Failed to register pin_ctrl: %d\n", err);
+		return err;
+	}
+
+	err = pinctrl_enable(info->pctl);
+	if (err < 0) {
+		dev_err(dev, "Failed to enable pin_ctrl: %d\n", err);
+		return err;
+	}
+
 	err = max77779_external_pmic_reg_read(info->core, MAX77779_PMIC_GPIO_SGPIO_PD, &val);
 	if (!err)
-		dev_err(info->dev, "MAX77779_PMIC_GPIO_SGPIO_PD = %#02x\n", val);
+		dev_info(info->dev, "MAX77779_PMIC_GPIO_SGPIO_PD = %#02x\n", val);
+
+	mutex_init(&info->lock);
 
 	return 0;
 }
 
-static int max77779_pinctrl_remove(struct platform_device *pdev)
+static void max77779_pinctrl_remove(struct platform_device *pdev)
 {
-	return 0;
 }
 
 static const struct platform_device_id max77779_pinctrl_id[] = {
@@ -292,6 +325,7 @@ static struct platform_driver max77779_pinctrl_driver = {
 	.id_table = max77779_pinctrl_id,
 	.driver = {
 		.name = "max77779-pinctrl",
+		.owner = THIS_MODULE,
 #if IS_ENABLED(CONFIG_OF)
 		.of_match_table = max77779_pinctrl_match_table,
 #endif

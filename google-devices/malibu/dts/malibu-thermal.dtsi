@@ -1,0 +1,997 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+#include <dt-bindings/soc/google/google-thermal-def.h>
+
+/ {
+	ntc_thermal: ntc_thermal {
+		compatible = "google,ntc-thermal";
+		#thermal-sensor-cells = <1>;
+		filter-spurious-samples;
+		enable-hw-lpf;
+	};
+
+	thermal_uclamp: thermal_uclamp {
+		compatible = "google,thermal-uclamp";
+		google,cluster-cdev-map =
+			< &gelas_ll_0 HW_DT_CDEV_MIDLL >,
+			< &gelas_0    HW_DT_CDEV_MID >,
+			< &travis_0   HW_DT_CDEV_BIG >;
+	};
+
+	tmu_thermal: tmu_thermal {
+		compatible = "google,tmu-thermal";
+		#thermal-sensor-cells = <1>;
+	};
+
+	thermal_cpm_mbox: thermal_cpm_mbox {
+		compatible = "thermal-cpm-mbox";
+		mba-dest-channel = <MBOX_DEST_CHAN_THERMAL>;
+		mboxes = <&goog_mba_cpm_iface>;
+	};
+
+	thermal_devfreq_cdev {
+		compatible = "google,devfreq-tj-cdev";
+		thermal-hw-cdev-id = <HW_DT_CDEV_GPU>;
+		thermal-devfreq = <&gpu>;
+	};
+
+	tmu_thermal_stats: tmu_thermal_stats {
+		compatible = "google,tmu-stats";
+		group-name = "tmu";
+	};
+
+	thermal_pressure: thermal_pressure {
+		compatible = "google,thermal-pressure-tj";
+		group-name = "tmu";
+
+		active-polling-delay-ms = <100>;
+		passive-polling-delay-ms = <2500>;
+
+		cluster_config {
+			thermal-pressure-big {
+				first-cpu = <&travis_0>;
+				cdev-id = <HW_DT_CDEV_BIG>;
+			};
+			thermal-pressure-mid {
+				first-cpu = <&gelas_0>;
+				cdev-id = <HW_DT_CDEV_MID>;
+			};
+			thermal-pressure-midll {
+				first-cpu = <&gelas_ll_0>;
+				cdev-id = <HW_DT_CDEV_MIDLL>;
+			};
+		};
+	};
+
+	thermal_zones_malibu: thermal-zones {
+		big_thermal: BIG {
+			polling-delay = <0>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&tmu_thermal TZ_BIG>;
+
+			trips {
+				big_cold: big-cold {
+					temperature = <20000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				big_switch_on: big-switch-on {
+					temperature = <60000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				big_early_throttle: big-early_throttle {
+					temperature = <120000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				big_control_temp: big-control-temp {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				big_alert1: big-alert1 {
+					temperature = <97000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				big_sw_max_effort: big-sw-max-effort {
+					temperature = <107000>;
+					hysteresis = <2000>;
+					type = "active";
+				};
+				big_dfs: big-dfs {
+					temperature = <102000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				big_hot: big-hot {
+					temperature = <120000>;
+					hysteresis = <3000>;
+					type = "hot";
+				};
+			};
+
+			tmu {
+				polling-delay-on = <5>;
+
+				/* PI control param */
+				pi-enable;
+				k-po = <68>;
+				k-pu = <68>;
+				k-i = <50>;
+
+				/* early throttle param */
+				early-throttle-k-p = <50>;
+
+				/* gradual param */
+				irq-gradual-gain = <2>;
+				timer-gradual-gain = <1>;
+
+				/* hardlimit param */
+				hardlimit-enable;
+				hardlimit-via-pid-enable;
+
+				/* temp lut param */
+				temp-lut-enable;
+				temp-state-table =
+					//	temp	state
+					<	60	0
+						255	4 >;
+
+				/* Tj control offset - mC */
+				junction-offset = <0 (-10000) (-10000) (-10000) 5000 0 0 0>;
+			};
+		};
+
+		mid_thermal: MID {
+			polling-delay = <0>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&tmu_thermal TZ_MID>;
+
+			trips {
+				mid_cold: mid-cold {
+					temperature = <20000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				mid_switch_on: mid-switch-on {
+					temperature = <70000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				mid_early_throttle: mid-alert-1 {
+					temperature = <120000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				mid_control_temp: mid-control-temp {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				mid_alert1: mid-alert2 {
+					temperature = <100000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				mid_sw_max_effort: mid-sw-max-effort {
+					temperature = <110000>;
+					hysteresis = <2000>;
+					type = "active";
+				};
+				mid_dfs: mid-dfs {
+					temperature = <105000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				mid_hot: mid-hot {
+					temperature = <120000>;
+					hysteresis = <3000>;
+					type = "hot";
+				};
+			};
+
+			tmu {
+				polling-delay-on = <5>;
+
+				/* PI control param */
+				pi-enable;
+				k-po = <68>;
+				k-pu = <68>;
+				k-i = <50>;
+
+				/* early throttle param */
+				early-throttle-k-p = <50>;
+
+				/* gradual param */
+				irq-gradual-gain = <2>;
+				timer-gradual-gain = <1>;
+
+				/* hardlimit param */
+				hardlimit-enable;
+				hardlimit-via-pid-enable;
+
+				/* Tj control offset - mC */
+				junction-offset = <0 (-10000) (-10000) (-10000) 5000 0 0 0>;
+			};
+		};
+
+		midll_thermal: MIDLL {
+			polling-delay = <0>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&tmu_thermal TZ_MIDLL>;
+
+			trips {
+				midll_cold: midll-cold {
+					temperature = <20000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				midll_switch_on: midll-switch-on {
+					temperature = <70000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				midll_early_throttle: midll-alert-1 {
+					temperature = <120000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				midll_control_temp: midll-control-temp {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				midll_alert1: midll-alert2 {
+					temperature = <100000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				midll_sw_max_effort: midll-sw-max-effort {
+					temperature = <110000>;
+					hysteresis = <2000>;
+					type = "active";
+				};
+				midll_dfs: midll-dfs {
+					temperature = <105000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				midll_hot: midll-hot {
+					temperature = <120000>;
+					hysteresis = <3000>;
+					type = "hot";
+				};
+			};
+
+			tmu {
+				polling-delay-on = <5>;
+
+				/* PI control param */
+				pi-enable;
+				k-po = <36>;
+				k-pu = <36>;
+				k-i = <58>;
+
+				/* early throttle param */
+				early-throttle-k-p = <50>;
+
+				/* gradual param */
+				irq-gradual-gain = <2>;
+				timer-gradual-gain = <1>;
+
+				/* hardlimit param */
+				hardlimit-enable;
+				hardlimit-via-pid-enable;
+
+				/* Tj control offset - mC */
+				junction-offset = <0 (-10000) (-10000) (-10000) 5000 0 0 0>;
+			};
+		};
+
+		cme_thermal: CME {
+			polling-delay = <0>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&tmu_thermal TZ_CME>;
+
+			trips {
+				cme_cold: cme-cold {
+					temperature = <20000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				cme_switch_on: cme-switch-on {
+					temperature = <70000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				cme_early_throttle: cme-alert-1 {
+					temperature = <120000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				cme_control_temp: cme-control-temp {
+					temperature = <90000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				cme_alert1: cme-alert2 {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				cme_sw_max_effort: cme-sw-max-effort {
+					temperature = <110000>;
+					hysteresis = <2000>;
+					type = "active";
+				};
+				cme_dfs: cme-dfs {
+					temperature = <105000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				cme_hot: cme-hot {
+					temperature = <120000>;
+					hysteresis = <3000>;
+					type = "hot";
+				};
+			};
+
+			tmu {
+				polling-delay-on = <25>;
+
+				/* PI control param */
+				/* early throttle param */
+				/* gradual param */
+				/* hardlimit param */
+
+				/* Tj control offset - mC */
+			};
+		};
+
+		dsu_thermal: DSU {
+			polling-delay = <0>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&tmu_thermal TZ_DSU>;
+
+			trips {
+				dsu_cold: dsu-cold {
+					temperature = <20000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				dsu_switch_on: dsu-switch-on {
+					temperature = <70000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				dsu_early_throttle: dsu-alert-1 {
+					temperature = <120000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				dsu_control_temp: dsu-control-temp {
+					temperature = <90000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				dsu_alert1: dsu-alert2 {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				dsu_sw_max_effort: dsu-sw-max-effort {
+					temperature = <110000>;
+					hysteresis = <2000>;
+					type = "active";
+				};
+				dsu_dfs: dsu-dfs {
+					temperature = <105000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				dsu_hot: dsu-hot {
+					temperature = <120000>;
+					hysteresis = <3000>;
+					type = "hot";
+				};
+			};
+
+			tmu {
+				polling-delay-on = <25>;
+
+				/* PI control param */
+				/* early throttle param */
+				/* gradual param */
+				/* hardlimit param */
+
+				/* Tj control offset - mC */
+			};
+		};
+
+		gpu_thermal: GPU {
+			polling-delay = <0>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&tmu_thermal TZ_GPU>;
+
+			trips {
+				gpu_cold: gpu-cold {
+					temperature = <20000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				gpu_switch_on: gpu-switch-on {
+					temperature = <70000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				gpu_alert1: gpu-alert1 {
+					temperature = <120000>;
+					hysteresis = <4000>;
+					type = "passive";
+				};
+				gpu_control_temp: gpu-control-temp {
+					temperature = <90000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				gpu_alert2: gpu-alert2 {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				gpu_sw_max_effort: gpu-sw-max-effort {
+					temperature = <110000>;
+					hysteresis = <2000>;
+					type = "active";
+				};
+				gpu_dfs: gpu-dfs {
+					temperature = <105000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				gpu_hot: gpu-hot {
+					temperature = <120000>;
+					hysteresis = <3000>;
+					type = "hot";
+				};
+			};
+
+			tmu {
+				polling-delay-on = <25>;
+
+				/* PI control param */
+				pi-enable;
+				k-po = <60>;
+				k-pu = <60>;
+				k-i = <50>;
+
+				/* early throttle param */
+				/* early throttle gov disabled */
+				early-throttle-k-p = <50>;
+
+				/* gradual param */
+				/* gradual gov disabled */
+				irq-gradual-gain = <2>;
+				timer-gradual-gain = <1>;
+
+				/* Tj control offset - mC */
+				junction-offset = <0 (-10000) (-10000) (-10000) 0 0 0 0>; // mC
+			};
+		};
+
+		tpu_thermal: TPU {
+			polling-delay = <0>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&tmu_thermal TZ_TPU>;
+
+			trips {
+				tpu_cold: tpu-cold {
+					temperature = <20000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				tpu_switch_on: tpu-switch-on {
+					temperature = <70000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				tpu_alert1: tpu-alert1 {
+					temperature = <120000>;
+					hysteresis = <4000>;
+					type = "passive";
+				};
+				tpu_control_temp: tpu-control-temp {
+					temperature = <90000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				tpu_alert2: tpu-alert2 {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				tpu_sw_max_effort: tpu-sw-max-effort {
+					temperature = <110000>;
+					hysteresis = <2000>;
+					type = "active";
+				};
+				tpu_dfs: tpu-dfs {
+					temperature = <105000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				tpu_hot: tpu-hot {
+					temperature = <120000>;
+					hysteresis = <3000>;
+					type = "hot";
+				};
+			};
+
+			tmu {
+				polling-delay-on = <25>;
+
+				/* PI control param */
+				pi-enable;
+				k-po = <60>;
+				k-pu = <60>;
+				k-i = <50>;
+
+				/* early throttle param */
+				/* early throttle gov disabled */
+
+				/* gradual param */
+				/* gradual gov disabled */
+
+				/* hardlimit param */
+
+				/* Tj control offset - mC */
+				junction-offset = <0 (-10000) (-10000) (-10000) 0 0 0 0>; // mC
+			};
+		};
+
+		aur_thermal: AUR {
+			polling-delay = <0>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&tmu_thermal TZ_AUR>;
+
+			trips {
+				aur_cold: aur-cold {
+					temperature = <20000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				aur_switch_on: aur-switch-on {
+					temperature = <70000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				aur_alert1: aur-alert1 {
+					temperature = <120000>;
+					hysteresis = <4000>;
+					type = "passive";
+				};
+				aur_control_temp: aur-control-temp {
+					temperature = <90000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				aur_alert2: aur-alert2 {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				aur_sw_max_effort: aur-sw-max-effort {
+					temperature = <110000>;
+					hysteresis = <2000>;
+					type = "active";
+				};
+				aur_dfs: aur-dfs {
+					temperature = <105000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				aur_hot: aur-hot {
+					temperature = <120000>;
+					hysteresis = <3000>;
+					type = "hot";
+				};
+			};
+
+			tmu {
+				polling-delay-on = <100>;
+
+				/* PI control param */
+				/* early throttle param */
+				/* hardlimit param */
+				/* gradual param */
+				/* Tj control offset - mC */
+				junction-offset = <0 (-10000) (-10000) (-10000) 0 0 0 0>; // mC
+			};
+		};
+
+		ispfe_thermal: ISPFE {
+			polling-delay = <0>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&tmu_thermal TZ_ISPFE>;
+
+			trips {
+				ispfe_alert0: ispfe-alert0 {
+					temperature = <20000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				ispfe_alert1: ispfe-alert1 {
+					temperature = <70000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				ispfe_alert2: ispfe-alert2 {
+					temperature = <120000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				ispfe_alert3: ispfe-alert3 {
+					temperature = <90000>;
+					hysteresis = <4000>;
+					type = "passive";
+				};
+				ispfe_alert4: ispfe-alert4 {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				ispfe_alert5: ispfe-alert5 {
+					temperature = <105000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				ispfe_alert6: ispfe-alert6 {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				ispfe_hot: ispfe-hot {
+					temperature = <120000>;
+					hysteresis = <3000>;
+					type = "hot";
+				};
+			};
+
+			tmu {
+				polling-delay-on = <25>;
+
+				/* PI control param */
+				/* early throttle param */
+				/* hardlimit param */
+
+				/* gradual param */
+
+				/* Tj control offset - mC */
+			};
+		};
+
+		ispbe_thermal: ISPBE {
+			polling-delay = <0>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&tmu_thermal TZ_ISPBE>;
+
+			trips {
+				ispbe_alert0: ispbe-alert0 {
+					temperature = <20000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				ispbe_alert1: ispbe-alert1 {
+					temperature = <70000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				ispbe_alert2: ispbe-alert2 {
+					temperature = <120000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				ispbe_alert3: ispbe-alert3 {
+					temperature = <90000>;
+					hysteresis = <4000>;
+					type = "passive";
+				};
+				ispbe_alert4: ispbe-alert4 {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				ispbe_alert5: ispbe-alert5 {
+					temperature = <105000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				ispbe_alert6: ispbe-alert6 {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				ispbe_hot: ispbe-hot {
+					temperature = <120000>;
+					hysteresis = <3000>;
+					type = "hot";
+				};
+			};
+
+			tmu {
+				polling-delay-on = <25>;
+
+				/* PI control param */
+				/* early throttle param */
+				/* hardlimit param */
+
+				/* gradual param */
+
+				/* Tj control offset - mC */
+			};
+		};
+
+		c3p_thermal: C3P {
+			status = "disabled";
+
+			polling-delay = <0>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&tmu_thermal TZ_C3P>;
+
+			trips {
+				c3p_alert0: c3p-alert0 {
+					temperature = <20000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				c3p_alert1: c3p-alert1 {
+					temperature = <70000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				c3p_alert2: c3p-alert2 {
+					temperature = <120000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				c3p_alert3: c3p-alert3 {
+					temperature = <90000>;
+					hysteresis = <4000>;
+					type = "passive";
+				};
+				c3p_alert4: c3p-alert4 {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				c3p_alert5: c3p-alert5 {
+					temperature = <105000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				c3p_alert6: c3p-alert6 {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				c3p_hot: c3p-hot {
+					temperature = <120000>;
+					hysteresis = <3000>;
+					type = "hot";
+				};
+			};
+
+			tmu {
+				polling-delay-on = <100>;
+
+				/* PI control param */
+				/* early throttle param */
+				/* hardlimit param */
+				/* gradual param */
+
+				/* Tj control offset - mC */
+			};
+		};
+
+		mem_thermal: MEMSS {
+			status = "disabled";
+
+			polling-delay = <0>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&tmu_thermal TZ_MEM>;
+
+			trips {
+				mem_alert0: mem-alert0 {
+					temperature = <20000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				mem_alert1: mem-alert1 {
+					temperature = <70000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				mem_alert2: mem-alert2 {
+					temperature = <120000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				mem_alert3: mem-alert3 {
+					temperature = <90000>;
+					hysteresis = <4000>;
+					type = "passive";
+				};
+				mem_alert4: mem-alert4 {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				mem_alert5: mem-alert5 {
+					temperature = <105000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				mem_alert6: mem-alert6 {
+					temperature = <95000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				mem_hot: mem-hot {
+					temperature = <120000>;
+					hysteresis = <3000>;
+					type = "hot";
+				};
+			};
+
+			tmu {
+				polling-delay-on = <100>;
+
+				/* PI control param */
+				/* early throttle param */
+				/* gradual param */
+				/* hardlimit param */
+
+				/* Tj control offset - mC */
+			};
+		};
+
+		aoss_thermal: AOSS {
+			polling-delay = <0>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&tmu_thermal TZ_AOSS>;
+
+			trips {
+				aoss_cold: aoss-cold {
+					temperature = <12000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+				aoss_alert1: aoss-alert1 {
+					temperature = <70000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				aoss_alert2: aoss-alert2 {
+					temperature = <90000>;
+					hysteresis = <5000>;
+					type = "passive";
+				};
+				aoss_alert3: aoss-alert3 {
+					temperature = <95000>;
+					hysteresis = <4000>;
+					type = "passive";
+				};
+				aoss_alert4: aoss-alert4 {
+					temperature = <98000>;
+					hysteresis = <98000>;
+					type = "passive";
+				};
+				aoss_alert5: aoss-alert5 {
+					temperature = <102000>;
+					hysteresis = <102000>;
+					type = "passive";
+				};
+				aoss_alert6: aoss-alert6 {
+					temperature = <105000>;
+					hysteresis = <105000>;
+					type = "passive";
+				};
+				aoss_hot: aoss-hot {
+					temperature = <115000>;
+					hysteresis = <3000>;
+					type = "hot";
+				};
+			};
+
+			tmu {
+				polling-delay-on = <25>;
+
+				/* PI control param */
+				/* early throttle param */
+				/* gradual param */
+				/* hardlimit param */
+
+				/* Tj control offset - mC */
+			};
+		};
+
+	};
+
+	powercap_tree: powercap-tree {
+		compatible = "google,powercap-tree";
+
+		package {
+			google,node-type = <GPOWERCAP_NODE_VIRTUAL>;
+
+			powercap_soc: soc {
+				google,node-type = <GPOWERCAP_NODE_VIRTUAL_WEIGHTS>;
+				power-distribution-weights = "cpu_gpu_tpu", "5",
+								"aurora", "1";
+
+				cpu_gpu_tpu {
+					google,node-type = <GPOWERCAP_NODE_VIRTUAL_WEIGHTS>;
+					power-distribution-weights = "cpu_cluster", "3",
+									"gpu", "1",
+									"tpu", "1";
+
+					cpu_cluster {
+						google,node-type = <GPOWERCAP_NODE_VIRTUAL_WEIGHTS>;
+						power-distribution-weights = "cpufreq-cpu0", "1",
+										"cpufreq-cpu2", "1",
+										"cpufreq-cpu6", "1";
+
+						midll-cluster {
+							google,node-type = <GPOWERCAP_NODE_CPU>;
+							google,device-phandle = <&gelas_ll_0>;
+							google,cdev-id = <HW_DT_CDEV_MIDLL>;
+							odpm-rail-name = "S13M_VDD_CPU0";
+							polling-interval-ms = <0>;
+						};
+
+						mid-cluster {
+							google,node-type = <GPOWERCAP_NODE_CPU>;
+							google,device-phandle = <&gelas_0>;
+							google,cdev-id = <HW_DT_CDEV_MID>;
+							odpm-rail-name = "S3M_VDD_CPU1";
+							polling-interval-ms = <0>;
+						};
+
+						powercap_big_cluster: big-cluster {
+							google,node-type = <GPOWERCAP_NODE_CPU>;
+							google,device-phandle = <&travis_0>;
+							google,cdev-id = <HW_DT_CDEV_BIG>;
+							odpm-rail-name = "S2M_VDD_CPU2";
+							polling-interval-ms = <0>;
+						};
+					};
+
+					gpu {
+						google,node-type = <GPOWERCAP_NODE_DEVFREQ>;
+						google,device-phandle = <&gpu>;
+						google,cdev-id = <HW_DT_CDEV_GPU>;
+						odpm-rail-name = "S2S_VDD_GPU";
+						polling-interval-ms = <0>;
+					};
+
+					tpu {
+						google,node-type = <GPOWERCAP_NODE_DEVFREQ>;
+						google,device-phandle = <&edgetpu>;
+						google,cdev-id = <HW_DT_CDEV_TPU>;
+						odpm-rail-name = "S7M_VDD_TPU";
+						polling-interval-ms = <0>;
+					};
+				};
+
+				aur {
+					google,node-type = <GPOWERCAP_NODE_DEVFREQ>;
+					google,device-phandle = <&gxp>;
+					google,cdev-id = <HW_DT_CDEV_AUR>;
+					odpm-rail-name = "S4M_VDD_AUR";
+					polling-interval-ms = <0>;
+				};
+			};
+		};
+	};
+};

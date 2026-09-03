@@ -21,7 +21,7 @@
 #include <linux/configfs.h>
 #include <linux/usb/composite.h>
 
-#include "../configfs.h"
+#include "drivers/usb/gadget/configfs.h"
 #include "u_serial.h"
 
 #define MAX_INST_NAME_LEN		40
@@ -324,55 +324,6 @@ dm_unbind(struct usb_configuration *c, struct usb_function *f)
 	pr_debug("usb: %s\n", __func__);
 }
 
-/*
- * dm_bind_config - add a generic serial function to a configuration
- * @c: the configuration to support the serial instance
- * @port_num: /dev/ttyGS* port this interface will use
- * Context: single threaded during gadget setup
- *
- * Returns zero on success, else negative errno.
- *
- * Caller must have called @gserial_setup() with enough ports to
- * handle all the ones it binds.  Caller is also responsible
- * for calling @gserial_cleanup() before module unload.
- */
-int dm_bind_config(struct usb_configuration *c, u8 port_num)
-{
-	struct f_dm	*dm;
-	int		status;
-
-	/* REVISIT might want instance-specific strings to help
-	 * distinguish instances ...
-	 */
-
-	/* maybe allocate device-global string ID */
-	if (dm_string_defs[F_DM_IDX].id == 0) {
-		status = usb_string_id(c->cdev);
-		if (status < 0)
-			return status;
-		dm_string_defs[F_DM_IDX].id = status;
-	}
-
-	/* allocate and initialize one new instance */
-	dm = kzalloc(sizeof(*dm), GFP_KERNEL);
-	if (!dm)
-		return -ENOMEM;
-
-	dm->port_num = DM_PORT_NUM;
-
-	dm->port.func.name = "dm";
-	dm->port.func.strings = dm_strings;
-	dm->port.func.bind = dm_bind;
-	dm->port.func.unbind = dm_unbind;
-	dm->port.func.set_alt = dm_set_alt;
-	dm->port.func.disable = dm_disable;
-
-	status = usb_add_function(c, &dm->port.func);
-	if (status)
-		kfree(dm);
-	return status;
-}
-
 static struct dm_instance *to_dm_instance(struct config_item *item)
 {
 	return container_of(to_config_group(item), struct dm_instance,
@@ -429,7 +380,7 @@ static void dm_free_inst(struct usb_function_instance *fi)
 	kfree(fi_dm);
 }
 
-struct usb_function_instance *alloc_inst_dm(bool dm_config)
+static struct usb_function_instance *alloc_inst_dm(bool dm_config)
 {
 	struct dm_instance *fi_dm;
 	int ret;
@@ -451,7 +402,6 @@ struct usb_function_instance *alloc_inst_dm(bool dm_config)
 
 	return  &fi_dm->func_inst;
 }
-EXPORT_SYMBOL_GPL(alloc_inst_dm);
 
 static struct usb_function_instance *dm_alloc_inst(void)
 {
@@ -465,7 +415,7 @@ static void dm_free(struct usb_function *f)
 	kfree(dm);
 }
 
-struct usb_function *function_alloc_dm(struct usb_function_instance *fi, bool dm_config)
+static struct usb_function *function_alloc_dm(struct usb_function_instance *fi, bool dm_config)
 {
 	struct dm_instance *fi_dm = to_fi_dm(fi);
 	struct f_dm	*dm;
@@ -493,7 +443,6 @@ struct usb_function *function_alloc_dm(struct usb_function_instance *fi, bool dm
 
 	return &dm->port.func;
 }
-EXPORT_SYMBOL_GPL(function_alloc_dm);
 
 static struct usb_function *dm_alloc(struct usb_function_instance *fi)
 {

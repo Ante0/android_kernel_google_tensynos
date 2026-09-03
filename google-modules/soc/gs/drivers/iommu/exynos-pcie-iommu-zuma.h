@@ -657,8 +657,8 @@ static inline struct exynos_iovmm *exynos_get_iovmm(struct device *dev)
 	return NULL;
 }
 
-struct exynos_vm_region *find_iovm_region(struct exynos_iovmm *vmm,
-					  dma_addr_t iova)
+static inline struct exynos_vm_region *find_iovm_region(struct exynos_iovmm *vmm,
+							dma_addr_t iova)
 {
 	return NULL;
 }
@@ -670,5 +670,8 @@ static inline struct exynos_iovmm *exynos_create_single_iovmm(const char *name,
 	return NULL;
 }
 #endif /* CONFIG_EXYNOS_IOVMM */
+
+void pcie_iommu_tlb_invalidate_all(int hsi_block_num);
+int pcie_sysmmu_add_fault_handler(struct notifier_block *pcie_sysmmu_nb, int hsi_block_num);
 
 #endif /* _EXYNOS_PCIE_IOMMU_ZUMA_H_ */

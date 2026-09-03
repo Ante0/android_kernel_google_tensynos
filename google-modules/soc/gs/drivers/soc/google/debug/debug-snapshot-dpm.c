@@ -4,6 +4,7 @@
  *		http://www.samsung.com
  */
 
+#include <linux/cleanup.h>
 #include <linux/kernel.h>
 #include <linux/version.h>
 #include <linux/io.h>
@@ -44,73 +45,16 @@ bool dbg_snapshot_get_enabled_debug_kinfo(void)
 }
 EXPORT_SYMBOL(dbg_snapshot_get_enabled_debug_kinfo);
 
-void dbg_snapshot_do_dpm(struct pt_regs *regs)
-{
-	unsigned int esr = read_sysreg(esr_el1);
-	unsigned int val = 0;
-	unsigned int policy = GO_DEFAULT_ID;
-
-	/* check dpm */
-	if (!dss_dpm.enabled || !dss_dpm.enabled_debug || dss_dpm.dump_mode_none)
-		return;
-
-	switch (ESR_ELx_EC(esr)) {
-	case ESR_ELx_EC_DABT_CUR:
-		val = esr & 63;
-		if ((val >= 4 && val <= 7) ||	/* translation fault */
-	   			(val >= 9 && val <= 11) || /* page fault */
-	   			(val >= 12 && val <= 15))	/* page fault */
-			policy = GO_DEFAULT_ID;
-		else
-			policy = dss_dpm.p_el1_da;
-		break;
-	case ESR_ELx_EC_IABT_CUR:
-		policy = dss_dpm.p_el1_ia;
-		break;
-	case ESR_ELx_EC_SYS64:
-		policy = dss_dpm.p_el1_undef;
-		break;
-	case ESR_ELx_EC_SP_ALIGN:
-		policy = dss_dpm.p_el1_sp_pc;
-		break;
-	case ESR_ELx_EC_PC_ALIGN:
-		policy = dss_dpm.p_el1_sp_pc;
-		break;
-	case ESR_ELx_EC_UNKNOWN:
-		policy = dss_dpm.p_el1_undef;
-		break;
-	case ESR_ELx_EC_SOFTSTP_LOW:
-	case ESR_ELx_EC_SOFTSTP_CUR:
-	case ESR_ELx_EC_BREAKPT_LOW:
-	case ESR_ELx_EC_BREAKPT_CUR:
-	case ESR_ELx_EC_WATCHPT_LOW:
-	case ESR_ELx_EC_WATCHPT_CUR:
-	case ESR_ELx_EC_BRK64:
-		policy = GO_DEFAULT_ID;
-		break;
-	default:
-		policy = dss_dpm.p_el1_serror;
-		break;
-	}
-
-	if (policy && policy != GO_DEFAULT_ID) {
-		if (dss_dpm.pre_log) {
-			pr_emerg("pc : %pS\n", (void *)regs->pc);
-			pr_emerg("lr : %pS\n", (void *)regs->regs[30]);
-		}
-		dbg_snapshot_do_dpm_policy(policy, dpm_policy[policy]);
-	}
-}
-EXPORT_SYMBOL_GPL(dbg_snapshot_do_dpm);
-
 static void dbg_snapshot_dt_scan_dpm_feature(struct device_node *node)
 {
-	struct device_node *item;
+	struct device_node *item __free(device_node);
 	unsigned int val;
 
 	dss_dpm.enabled_debug = false;
 	dss_dpm.dump_mode = NONE_DUMP;
 
+	/* balance of_node_put() in of_find_node_by_name() */
+	of_node_get(node);
 	item = of_find_node_by_name(node, "dump-mode");
 	if (!item) {
 		pr_info("dpm: No such ramdump node, [dump-mode] disabled\n");
@@ -137,13 +81,19 @@ static void dbg_snapshot_dt_scan_dpm_feature(struct device_node *node)
 		pr_info("dpm: file-support of dump-mode is %sabled\n",
 			val ? "en" : "dis");
 	}
+	of_node_put(item);
 
+	/* balance of_node_put() in of_find_node_by_name() */
+	of_node_get(node);
 	item = of_find_node_by_name(node, "event");
 	if (!item) {
 		pr_warn("dpm: No such methods of kernel event\n");
 		goto exit_dss;
 	}
+	of_node_put(item);
 
+	/* balance of_node_put() in of_find_node_by_name() */
+	of_node_get(node);
 	item = of_find_node_by_name(node, "debug-kinfo");
 	if (!item) {
 		pr_info("dpm: No such debug-kinfo node, [debug-kinfo] disabled\n");
@@ -163,9 +113,11 @@ exit_dss:
 
 static void dbg_snapshot_dt_scan_dpm_policy(struct device_node *node)
 {
-	struct device_node *item;
+	struct device_node *item __free(device_node);
 	unsigned int val;
 
+	/* balance of_node_put() in of_find_node_by_name() */
+	of_node_get(node);
 	item = of_find_node_by_name(node, "exception");
 	if (!item) {
 		pr_info("dpm: No such exception node, nothing to [policy]\n");
@@ -248,21 +200,29 @@ int dbg_snapshot_dt_scan_dpm(void)
 	}
 
 	/* feature setting */
+	/* balance of_node_put() in of_find_node_by_name() */
+	of_node_get(root);
 	next = of_find_node_by_name(root, DPM_F);
 	if (!next) {
 		pr_warn("dpm: No such features of debug policy\n");
 	} else {
 		pr_warn("dpm: found features of debug policy\n");
 		dbg_snapshot_dt_scan_dpm_feature(next);
+		of_node_put(next);
 	}
 
 	/* policy setting */
+	/*
+	 * root will be released due to of_node_put() in
+	 * of_find_node_by_name()
+	 */
 	next = of_find_node_by_name(root, DPM_P);
 	if (!next) {
 		pr_warn("dpm: No such policy of debug policy\n");
 	} else {
 		pr_warn("dpm: found policy of debug policy\n");
 		dbg_snapshot_dt_scan_dpm_policy(next);
+		of_node_put(next);
 	}
 
 	return 0;

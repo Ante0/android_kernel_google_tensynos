@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * kodiak device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+/dts-v1/;
+/plugin/;
+
+/* define board-specific  GPIO macros before other devicetrees */
+#include "malibu-kodiak-pinctrl.dtsi"
+#include "malibu-dabears-common.dtsi"
+#include "malibu-dabears-evt-pinctrl.dtsi"
+#include "malibu-kodiak-lsio.dtsi"
+#include "malibu-kodiak-common.dtsi"
+#include "malibu-dabears-camera-pmic.dtsi"
+#include "malibu-kodiak-camera.dtsi"
+#include "malibu-kodiak-dvt1-battery.dtsi"
+#include "malibu-kodiak-dvt1-charging.dtsi"
+#include "google-base/platform/malibu-wcharger-cps4041-nofwupdate.dtsi"
+
+/ {
+	board_id = <0x80405>;
+	board_rev = <0x010000>;
+	fragment@boardbase {
+		target-path = "/";
+		__overlay__ {
+			model = "KODIAK PVT 1.0 based on MALIBU";
+			compatible = "google,malibu-kodiak", "google,malibu";
+		};
+	};
+};
+

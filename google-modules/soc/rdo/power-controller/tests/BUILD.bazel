@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+"""Build rules and test targets for SoC power controller testing."""
+
+load(
+    "//private/devices/google/common/kleaf:bste.bzl",
+    "bste_cc_binary",
+    "bste_test_suite",
+)
+load(
+    ":power-domain/platform/mbu/mbu_pd_defs.bzl",
+    "MBU_PD_CC_BINARY_SRCS",
+    "MBU_PD_TEST_CASES",
+    "MBU_PD_TEST_SUITE_SRCS",
+)
+
+bste_cc_binary(
+    name = "pd_test_runner",
+    srcs = [
+        "power-domain/pd_control.c",
+        "power-domain/pd_control.h",
+        "power-domain/pd_defs.h",
+        "power-domain/pd_test_runner.c",
+    ] + select({
+        "//private/devices/google/common:soc_is_malibu": MBU_PD_CC_BINARY_SRCS,
+    }),
+)
+
+bste_test_suite(
+    name = "power_controller_power_domain_tests",
+    srcs = select({
+        "//private/devices/google/common:soc_is_malibu": MBU_PD_TEST_SUITE_SRCS,
+    }),
+    data = [
+        ":pd_test_runner",
+    ],
+    test_cases = select({
+        "//private/devices/google/common:soc_is_malibu": MBU_PD_TEST_CASES,
+    }),
+)
+
+# Centralized platform aggregator groups
+filegroup(
+    name = "mbu_test_suites",
+    srcs = [
+        ":power_controller_power_domain_tests",
+    ],
+    visibility = ["//private/devices/google:__subpackages__"],
+)

@@ -15,6 +15,9 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#pragma clang diagnostic ignored "-Wenum-conversion"
+#pragma clang diagnostic ignored "-Wswitch"
+
 #include <linux/debugfs.h>
 #include <linux/kernel.h>
 #include <linux/printk.h>
@@ -26,6 +29,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/interrupt.h>
+#include <misc/gvotable.h>
 #include "gbms_power_supply.h"
 #include "google_bms.h"
 #include "google_psy.h"
@@ -68,7 +72,7 @@ struct dock_drv {
 	u32 icl_ramp_ua;
 	u32 icl_ramp_delay_ms;
 	int online;
-	int pogo_ovp_en;
+	struct gpio_desc *pogo_ovp_en;
 	int voltage_max;		/* > 10.5V mean Ext1 else > 5V mean Ext2. */
 	int detect_retries;
 	struct wakeup_source *detect_ws;
@@ -170,7 +174,7 @@ static int dock_has_dc_in(struct dock_drv *dock)
 	int ret;
 
 	if (!dock->dc_psy) {
-		dock->dc_psy = power_supply_get_by_name("dc");
+		dock->dc_psy = power_supply_get_by_name(GOOGLE_WLCIN_MAINS_NAME);
 		if (!dock->dc_psy)
 			return -EINVAL;
 	}
@@ -356,17 +360,13 @@ out:
 static int google_dock_parse_dt(struct device *dev,
 				struct dock_drv *dock)
 {
-	int ret = 0;
-	struct device_node *node = dev->of_node;
-
 	/* POGO_OVP_EN */
-	ret = of_get_named_gpio(node, "google,pogo_ovp_en", 0);
-	dock->pogo_ovp_en = ret;
-	if (ret < 0)
-		dev_warn(dev, "unable to read google,pogo_ovp_en from dt: %d\n",
-			 ret);
+	dock->pogo_ovp_en = devm_gpiod_get(dev, "google,pogo_ovp_en", GPIOD_ASIS);
+	if (IS_ERR(dock->pogo_ovp_en))
+		dev_warn(dev, "unable to read google,pogo_ovp_en from dt: %ld\n",
+			 PTR_ERR(dock->pogo_ovp_en));
 	else
-		dev_info(dev, "POGO_OVP_EN gpio:%d", dock->pogo_ovp_en);
+		dev_info(dev, "POGO_OVP_EN gpio:%d", desc_to_gpio(dock->pogo_ovp_en));
 
 	return 0;
 }
@@ -663,8 +663,8 @@ static int google_dock_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	if (dock->pogo_ovp_en >= 0)
-		gpio_direction_output(dock->pogo_ovp_en, 1);
+	if (!IS_ERR_OR_NULL(dock->pogo_ovp_en))
+		gpiod_direction_output(dock->pogo_ovp_en, 1);
 
 	schedule_delayed_work(&dock->init_work,
 			      msecs_to_jiffies(DOCK_DELAY_INIT_MS));
@@ -674,12 +674,12 @@ static int google_dock_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int google_dock_remove(struct platform_device *pdev)
+static void google_dock_remove(struct platform_device *pdev)
 {
 	struct dock_drv *dock = platform_get_drvdata(pdev);
 
 	if (!dock)
-		return 0;
+		return;
 
 	power_supply_unreg_notifier(&dock->nb);
 	cancel_delayed_work(&dock->init_work);
@@ -688,8 +688,6 @@ static int google_dock_remove(struct platform_device *pdev)
 	alarm_try_to_cancel(&dock->icl_ramp_alarm);
 	cancel_delayed_work(&dock->detect_work);
 	wakeup_source_unregister(dock->detect_ws);
-
-	return 0;
 }
 
 static void google_dock_shutdown(struct platform_device *pdev)

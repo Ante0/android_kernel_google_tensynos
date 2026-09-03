@@ -2255,7 +2255,7 @@ static int ect_dump_init(void)
 			return -ENOMEM;
 	}
 
-	ect_class = class_create(THIS_MODULE, "ect");
+	ect_class = class_create("ect");
 	if (IS_ERR(ect_class)) {
 		pr_err("%s: couldn't create class\n", __FILE__);
 		return PTR_ERR(ect_class);
@@ -2721,6 +2721,7 @@ static int exynos_ect_probe(struct platform_device *pdev)
 
 	rmem_np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	rmem = of_reserved_mem_lookup(rmem_np);
+	of_node_put(rmem_np);
 	if (!rmem) {
 		dev_err(&pdev->dev, "failed to acquire memory region\n");
 			return 0;

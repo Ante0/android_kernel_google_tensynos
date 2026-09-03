@@ -15,11 +15,11 @@
 /**
  * gsa_load_aoc_fw_image() - load specified AOC firmware image
  * @gsa: pointer to GSA &struct device
- * @img_hdr: dma address of AOC image meta information
+ * @img_meta: dma address of AOC image meta information
  * @img_body: physical address of AOC image body
  *
  * This routine authenticates, locks and loads AOC firmware image specified by
- * @img_hdr/@img_body parameters.
+ * @img_meta/@img_body parameters.
  *
  * The AOC firmware image consists of two parts: a header (always 4K in size)
  * containing image meta information (including authentication parameters and
@@ -44,6 +44,41 @@
 int gsa_load_aoc_fw_image(struct device *gsa,
 			  dma_addr_t img_meta,
 			  phys_addr_t img_body);
+
+/**
+ * gsa_load_aoc_fw_image_pq() - load specified AOC firmware image
+ * @gsa: pointer to GSA &struct device
+ * @img_meta: dma address of AOC image meta information
+ * @img_body: physical address of AOC image body
+ * @body_len: length of the image body
+ *
+ * This routine authenticates, locks and loads AOC firmware image specified by
+ * @img_meta/@img_body parameters with support for post quantum authentication.
+ *
+ * The AOC firmware image consists of two parts: a header (always 20K in size)
+ * containing image meta information (including authentication parameters and
+ * loading instructions) and image body which contains firmware itself. The
+ * image header must be loaded into memory region allocated by calling
+ * dma_alloc_coherent() for GSA device. This memory chunk can be discarded
+ * after gsa_load_aoc_fw_image() call is complete. Firmware image body should
+ * be loaded into physically contiguous memory region with base address matching
+ * the AOC load address specified within AOC image header. This buffer becomes
+ * inaccessible for duration of this call and remains inaccessible after if load
+ * operation is successful.
+ *
+ * In general, the following sequence should happen:
+ *   - GSA copies in the image header then authenticates and validates it
+ *   - GSA locks down memory region containing firmware body making it
+ *     inaccessible by outside world
+ *   - GSA authenticates image firmware and if successful
+ *   - GSA configure and prepare it for execution
+ *
+ * Return: 0 on success, negative error otherwise
+ */
+int gsa_load_aoc_fw_image_pq(struct device *gsa,
+			  dma_addr_t img_meta,
+			  phys_addr_t img_body,
+			  size_t body_len);
 
 /**
  * gsa_unload_aoc_fw_image() - unlocks and unloads AOC firmware image

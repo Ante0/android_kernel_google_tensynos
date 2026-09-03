@@ -1,14 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * directory.c
  *
  * PURPOSE
  *	Directory related functions
  *
- * COPYRIGHT
- *	This file is distributed under the terms of the GNU General Public
- *	License (GPL). Copies of the GPL can be obtained from:
- *		ftp://prep.ai.mit.edu/pub/gnu/GPL
- *	Each contributing author retains all rights to their own work.
  */
 
 #include "udfdecl.h"
@@ -34,7 +30,7 @@ static int udf_verify_fi(struct udf_fileident_iter *iter)
 	len = udf_dir_entry_len(&iter->fi);
 	if (le16_to_cpu(iter->fi.lengthOfImpUse) & 3) {
 		udf_err(iter->dir->i_sb,
-			"directory (ino %lu) has entry at pos %llu with unaligned lenght of impUse field\n",
+			"directory (ino %lu) has entry at pos %llu with unaligned length of impUse field\n",
 			iter->dir->i_ino, (unsigned long long)iter->pos);
 		return -EFSCORRUPTED;
 	}
@@ -71,8 +67,9 @@ static int udf_verify_fi(struct udf_fileident_iter *iter)
 static int udf_copy_fi(struct udf_fileident_iter *iter)
 {
 	struct udf_inode_info *iinfo = UDF_I(iter->dir);
-	int blksize = 1 << iter->dir->i_blkbits;
-	int err, off, len, nameoff;
+	u32 blksize = 1 << iter->dir->i_blkbits;
+	u32 off, len, nameoff;
+	int err;
 
 	/* Skip copying when we are at EOF */
 	if (iter->pos >= iter->dir->i_size) {
@@ -98,7 +95,7 @@ static int udf_copy_fi(struct udf_fileident_iter *iter)
 	}
 
 	off = iter->pos & (blksize - 1);
-	len = min_t(int, sizeof(struct fileIdentDesc), blksize - off);
+	len = min_t(u32, sizeof(struct fileIdentDesc), blksize - off);
 	memcpy(&iter->fi, iter->bh[0]->b_data + off, len);
 	if (len < sizeof(struct fileIdentDesc))
 		memcpy((char *)(&iter->fi) + len, iter->bh[1]->b_data,
@@ -141,7 +138,7 @@ static void udf_readahead_dir(struct udf_fileident_iter *iter)
 	for (i = 0; i < ralen; i++) {
 		blk = udf_get_lb_pblock(iter->dir->i_sb, &iter->eloc,
 					iter->loffset + i);
-		tmp = udf_tgetblk(iter->dir->i_sb, blk);
+		tmp = sb_getblk(iter->dir->i_sb, blk);
 		if (tmp && !buffer_uptodate(tmp) && !buffer_locked(tmp))
 			bha[num++] = tmp;
 		else
@@ -160,7 +157,7 @@ static struct buffer_head *udf_fiiter_bread_blk(struct udf_fileident_iter *iter)
 
 	udf_readahead_dir(iter);
 	blk = udf_get_lb_pblock(iter->dir->i_sb, &iter->eloc, iter->loffset);
-	return udf_tread(iter->dir->i_sb, blk);
+	return sb_bread(iter->dir->i_sb, blk);
 }
 
 /*
@@ -169,13 +166,19 @@ static struct buffer_head *udf_fiiter_bread_blk(struct udf_fileident_iter *iter)
  */
 static int udf_fiiter_advance_blk(struct udf_fileident_iter *iter)
 {
+	int8_t etype = -1;
+	int err = 0;
+
 	iter->loffset++;
 	if (iter->loffset < DIV_ROUND_UP(iter->elen, 1<<iter->dir->i_blkbits))
 		return 0;
 
 	iter->loffset = 0;
-	if (udf_next_aext(iter->dir, &iter->epos, &iter->eloc, &iter->elen, 1)
-			!= (EXT_RECORDED_ALLOCATED >> 30)) {
+	err = udf_next_aext(iter->dir, &iter->epos, &iter->eloc,
+			    &iter->elen, &etype, 1);
+	if (err < 0)
+		return err;
+	else if (err == 0 || etype != (EXT_RECORDED_ALLOCATED >> 30)) {
 		if (iter->pos == iter->dir->i_size) {
 			iter->elen = 0;
 			return 0;
@@ -217,7 +220,9 @@ static int udf_fiiter_load_bhs(struct udf_fileident_iter *iter)
 	/* Need to fetch next block to get name? */
 	if (off + udf_dir_entry_len(fi) > blksize) {
 fetch_next:
-		udf_fiiter_advance_blk(iter);
+		err = udf_fiiter_advance_blk(iter);
+		if (err)
+			goto out_brelse;
 		iter->bh[1] = udf_fiiter_bread_blk(iter);
 		if (!iter->bh[1]) {
 			err = -ENOMEM;
@@ -241,6 +246,7 @@ int udf_fiiter_init(struct udf_fileident_iter *iter, struct inode *dir,
 {
 	struct udf_inode_info *iinfo = UDF_I(dir);
 	int err = 0;
+	int8_t etype;
 
 	iter->dir = dir;
 	iter->bh[0] = iter->bh[1] = NULL;
@@ -260,9 +266,9 @@ int udf_fiiter_init(struct udf_fileident_iter *iter, struct inode *dir,
 		goto out;
 	}
 
-	if (inode_bmap(dir, iter->pos >> dir->i_blkbits, &iter->epos,
-		       &iter->eloc, &iter->elen, &iter->loffset) !=
-	    (EXT_RECORDED_ALLOCATED >> 30)) {
+	err = inode_bmap(dir, iter->pos >> dir->i_blkbits, &iter->epos,
+			 &iter->eloc, &iter->elen, &iter->loffset, &etype);
+	if (err <= 0 || etype != (EXT_RECORDED_ALLOCATED >> 30)) {
 		if (pos == dir->i_size)
 			return 0;
 		udf_err(dir->i_sb,
@@ -299,7 +305,9 @@ int udf_fiiter_advance(struct udf_fileident_iter *iter)
 				iter->bh[0] = iter->bh[1];
 				iter->bh[1] = NULL;
 			} else {
-				udf_fiiter_advance_blk(iter);
+				err = udf_fiiter_advance_blk(iter);
+				if (err < 0)
+					return err;
 			}
 		}
 		err = udf_fiiter_load_bhs(iter);
@@ -370,6 +378,8 @@ static void udf_copy_fi_to_bufs(char *buf1, int len1, char *buf2, int len2,
 	int fioff = off;
 	int crcoff = off + sizeof(struct tag);
 	unsigned int crclen = udf_dir_entry_len(fi) - sizeof(struct tag);
+	char zeros[UDF_NAME_PAD] = {};
+	int endoff = off + udf_dir_entry_len(fi);
 
 	udf_copy_to_bufs(buf1, len1, buf2, len2, off, fi,
 			 sizeof(struct fileIdentDesc));
@@ -378,9 +388,13 @@ static void udf_copy_fi_to_bufs(char *buf1, int len1, char *buf2, int len2,
 		udf_copy_to_bufs(buf1, len1, buf2, len2, off, impuse,
 				 le16_to_cpu(fi->lengthOfImpUse));
 	off += le16_to_cpu(fi->lengthOfImpUse);
-	if (name)
+	if (name) {
 		udf_copy_to_bufs(buf1, len1, buf2, len2, off, name,
 				 fi->lengthFileIdent);
+		off += fi->lengthFileIdent;
+		udf_copy_to_bufs(buf1, len1, buf2, len2, off, zeros,
+				 endoff - off);
+	}
 
 	crc = udf_crc_fi_bufs(buf1, len1, buf2, len2, crcoff, crclen);
 	fi->descTag.descCRC = cpu_to_le16(crc);
@@ -450,6 +464,7 @@ int udf_fiiter_append_blk(struct udf_fileident_iter *iter)
 	sector_t block;
 	uint32_t old_elen = iter->elen;
 	int err;
+	int8_t etype;
 
 	if (WARN_ON_ONCE(iinfo->i_alloc_type == ICBTAG_FLAG_AD_IN_ICB))
 		return -EINVAL;
@@ -464,8 +479,9 @@ int udf_fiiter_append_blk(struct udf_fileident_iter *iter)
 		udf_fiiter_update_elen(iter, old_elen);
 		return err;
 	}
-	if (inode_bmap(iter->dir, block, &iter->epos, &iter->eloc, &iter->elen,
-		       &iter->loffset) != (EXT_RECORDED_ALLOCATED >> 30)) {
+	err = inode_bmap(iter->dir, block, &iter->epos, &iter->eloc, &iter->elen,
+		   &iter->loffset, &etype);
+	if (err <= 0 || etype != (EXT_RECORDED_ALLOCATED >> 30)) {
 		udf_err(iter->dir->i_sb,
 			"block %llu not allocated in directory (ino %lu)\n",
 			(unsigned long long)block, iter->dir->i_ino);

@@ -92,5 +92,8 @@ int qm357xx_rom_write_size_cmd(struct qmrom_handle *handle, uint8_t cmd,
 			       uint16_t data_size, const char *data);
 int qm357xx_rom_write_size_cmd32(struct qmrom_handle *handle, uint32_t cmd,
 				 uint16_t data_size, const char *data);
+int qm357xx_rom_probe_device(struct qmrom_handle *handle);
+int qm357xx_rom_b0_probe_device(struct qmrom_handle *handle);
+int qm357xx_rom_c0_probe_device(struct qmrom_handle *handle);
 
 #endif /* __QM357XX_ROM_H__ */

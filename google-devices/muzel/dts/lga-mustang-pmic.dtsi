@@ -1,0 +1,683 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Mustang pmic device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+&buck_1m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "S1M_VDD_AMB";
+	google,subsystem-name = "AMB";
+	google,monitor-only;
+};
+
+&buck_2m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1300000>;
+	google,schematic-name = "S2M_VDD_CPU2";
+	google,subsystem-name = "CPU(BIG)";
+	google,monitor-only;
+};
+
+&buck_3m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1300000>;
+	google,schematic-name = "S3M_VDD_CPU1";
+	google,subsystem-name = "CPU(MID)";
+	google,monitor-only;
+};
+
+&buck_4m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "S4M_VDD_CPU";
+	google,subsystem-name = "CPU(LITTLE)";
+	google,monitor-only;
+};
+
+&buck_5m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1300000>;
+	google,schematic-name = "S5M_VDD_AUR";
+	google,subsystem-name = "AUR";
+	google,monitor-only;
+};
+
+&buck_6m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "S6M_LLDO1";
+	google,subsystem-name = "LDO";
+	google,monitor-only;
+	regulator-always-on;
+};
+
+&buck_7m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1300000>;
+	google,schematic-name = "S7M_VDD_TPU";
+	google,subsystem-name = "TPU";
+	google,monitor-only;
+};
+
+&buck_8m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "S8M_LLDO2";
+	google,subsystem-name = "LDO";
+	google,monitor-only;
+	regulator-always-on;
+};
+
+&buck_9m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "S9M_VDD_TPU_M";
+	google,subsystem-name = "TPU";
+	google,monitor-only;
+};
+
+&buck_10m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "S10M_VDD_AOC";
+	google,subsystem-name = "AOC";
+	google,monitor-only;
+	regulator-always-on;
+};
+
+&buck_11m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "S11M_VDD_CPU_M";
+	google,subsystem-name = "CPU(LITTLE)";
+	google,monitor-only;
+};
+
+&buck_12m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "S12M_VDD_CPU1_M";
+	google,subsystem-name = "CPU(MID)";
+	google,monitor-only;
+};
+
+&buck_13m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "S13M_VDD_CPU2_M";
+	google,subsystem-name = "CPU(BIG)";
+	google,monitor-only;
+};
+
+&ldo_1m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "L1M_ALIVE";
+	google,subsystem-name = "ALIVE";
+	google,monitor-only;
+	regulator-always-on;
+};
+
+&ldo_2m_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	google,schematic-name = "L2M_ALIVE";
+	google,subsystem-name = "ALIVE";
+	google,monitor-only;
+	regulator-always-on;
+};
+
+&ldo_3m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "L3M_VDD_AOC_M";
+	google,subsystem-name = "AOC";
+	google,monitor-only;
+	regulator-always-on;
+};
+
+&ldo_4m_reg {
+	regulator-min-microvolt = <1200000>;
+	regulator-max-microvolt = <1200000>;
+	google,schematic-name = "L4M_BT_AON";
+	google,subsystem-name = "BT";
+	google,monitor-only;
+};
+
+&ldo_5m_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	google,schematic-name = "L5M_S5910_AON";
+	google,subsystem-name = "DCXO";
+	google,monitor-only;
+};
+
+&ldo_6m_reg {
+	regulator-min-microvolt = <1200000>;
+	regulator-max-microvolt = <1200000>;
+	google,schematic-name = "L6M_HSI";
+	google,subsystem-name = "HSI";
+	google,monitor-only;
+};
+
+&ldo_7m_reg {
+	/* Note:ldo_7m is current sink, not design to output voltage */
+	regulator-min-microvolt = <600000>;
+	regulator-max-microvolt = <1200000>;
+	google,schematic-name = "L7M_SOC_GPIO";
+	google,subsystem-name = "GPIO";
+	google,monitor-only;
+	regulator-always-on;
+};
+
+&ldo_8m_reg {
+	regulator-min-microvolt = <750000>;
+	regulator-max-microvolt = <750000>;
+	google,schematic-name = "L8M_EUSB";
+	google,subsystem-name = "EUSB";
+	google,monitor-only;
+};
+
+&ldo_9m_reg {
+	regulator-min-microvolt = <1200000>;
+	regulator-max-microvolt = <1200000>;
+	google,schematic-name = "L9M_EUSB";
+	google,subsystem-name = "EUSB";
+	google,monitor-only;
+};
+
+&ldo_10m_reg {
+	regulator-min-microvolt = <1200000>;
+	regulator-max-microvolt = <1200000>;
+	google,schematic-name = "L10M_SOC_GPIO";
+	google,subsystem-name = "GPIO";
+	regulator-always-on;
+};
+
+&ldo_11m_reg {
+	regulator-min-microvolt = <1200000>;
+	regulator-max-microvolt = <1200000>;
+	// b/322895117 reset pull up src for eusb repeater
+	google,schematic-name = "L11M_NFC_UWB";
+	google,subsystem-name = "NFC_UWB";
+	regulator-always-on;
+};
+
+&ldo_12m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "L12M_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_13m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "L13M_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_14m_reg {
+	regulator-min-microvolt = <1500000>;
+	regulator-max-microvolt = <3400000>;
+	google,schematic-name = "L14M_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_15m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "L15M_VDD_AMB_M";
+	google,subsystem-name = "AMB";
+	google,monitor-only;
+	regulator-always-on;
+};
+
+&ldo_16m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "L16M_VDD_SLC_M";
+	google,subsystem-name = "SLC";
+	google,monitor-only;
+};
+
+&ldo_17m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "L17M_VDD_AUR_M";
+	google,subsystem-name = "AUR";
+	google,monitor-only;
+};
+
+&ldo_18m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "L18M_PCIE_HSION";
+	google,subsystem-name = "PCIE";
+	google,monitor-only;
+};
+
+&ldo_19m_reg {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	google,schematic-name = "L19M_EUSB";
+	google,subsystem-name = "EUSB";
+};
+
+&ldo_20m_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	google,schematic-name = "L20M_DMIC1";
+	google,subsystem-name = "DMIC";
+	google,monitor-only;
+};
+
+&ldo_21m_reg {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	google,schematic-name = "L21M_GSC";
+	google,subsystem-name = "GSC";
+	google,monitor-only;
+	regulator-always-on;
+};
+
+&ldo_22m_reg {
+	regulator-min-microvolt = <750000>;
+	regulator-max-microvolt = <750000>;
+	google,schematic-name = "L22M_VDD_PCIE";
+	google,subsystem-name = "PCIE";
+	google,monitor-only;
+};
+
+&ldo_23m_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	google,schematic-name = "L23M_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_24m_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	google,schematic-name = "L24M_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_25m_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	google,schematic-name = "L25M_AVDD_OTP";
+	google,subsystem-name = "OTP";
+	google,monitor-only;
+};
+
+&ldo_26m_reg {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	google,schematic-name = "L26M_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_27m_reg {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	google,schematic-name = "L27M_LDAF";
+	google,subsystem-name = "LDAF";
+};
+
+&ldo_28m_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "L28M_VDD_HSION";
+	google,subsystem-name = "HSION";
+	google,monitor-only;
+};
+
+
+&buck_1s_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1300000>;
+	google,schematic-name = "S1S_VDD_MM";
+	google,subsystem-name = "Multimedia";
+	google,monitor-only;
+};
+
+&buck_2s_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1300000>;
+	google,schematic-name = "S2S_VDD_GPU";
+	google,subsystem-name = "GPU";
+	google,monitor-only;
+};
+
+&buck_3s_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "S3S_LLDO1";
+	google,subsystem-name = "LDO";
+	google,monitor-only;
+};
+
+&buck_4s_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "S4S_VDD2H_MEM";
+	google,subsystem-name = "DDR";
+	google,monitor-only;
+	regulator-always-on;
+};
+
+&buck_5s_reg {
+	regulator-min-microvolt = <270000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "S5S_VDDQ_MEM";
+	google,subsystem-name = "DDR";
+	google,monitor-only;
+};
+
+&buck_6s_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "S6S_LLDO2";
+	google,subsystem-name = "LDO";
+	google,monitor-only;
+	regulator-always-on;
+};
+
+&buck_7s_reg {
+	regulator-min-microvolt = <1500000>;
+	regulator-max-microvolt = <3300000>;
+	google,schematic-name = "S7S_MLDO";
+	google,subsystem-name = "LDO";
+	google,monitor-only;
+	regulator-always-on;
+};
+
+&buck_8s_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "S8S_VDD_GMC";
+	google,subsystem-name = "GMC";
+	google,monitor-only;
+};
+
+&buck_9s_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1300000>;
+	google,schematic-name = "S9S_VDD_INFRA";
+	google,subsystem-name = "INFRA";
+	google,monitor-only;
+};
+
+&buck_10s_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1300000>;
+	google,schematic-name = "S10S_VDD_INFRA_MM_GPU_M";
+	google,subsystem-name = "MIX";
+	google,monitor-only;
+};
+
+&buck_11s_reg {
+	regulator-min-microvolt = <2500000>;
+	regulator-max-microvolt = <2500000>;
+	google,schematic-name = "S11S_UFS_VCC";
+	google,subsystem-name = "UFS";
+};
+
+&buck_12s_reg {
+	regulator-min-microvolt = <1850000>;
+	regulator-max-microvolt = <1850000>;
+	google,schematic-name = "S12S";
+	google,subsystem-name = "MIX";
+	regulator-always-on;
+};
+
+&buck_13s_reg {
+	regulator-min-microvolt = <1200000>;
+	regulator-max-microvolt = <1200000>;
+	google,schematic-name = "S13S_UFS_VCCQ";
+	google,subsystem-name = "UFS";
+	regulator-always-on;
+};
+
+&buck_boost_reg {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3600000>;
+	google,schematic-name = "BB_HLDO";
+	google,subsystem-name = "BB";
+	google,monitor-only;
+	regulator-always-on;
+};
+
+&ldo_1s_reg {
+	regulator-min-microvolt = <750000>;
+	regulator-max-microvolt = <750000>;
+	/* TODO(b/330624645): Request dynamically*/
+	regulator-always-on;
+	google,schematic-name = "L1S_PLL_HSIO";
+	google,subsystem-name = "HSIO";
+	google,monitor-only;
+};
+
+&ldo_2s_reg {
+	regulator-min-microvolt = <750000>;
+	regulator-max-microvolt = <750000>;
+	google,schematic-name = "L2S_CSI";
+	google,subsystem-name = "CSI";
+	google,monitor-only;
+};
+
+&ldo_3s_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	google,schematic-name = "L3S_UDFPS";
+	google,subsystem-name = "UDFPS";
+	regulator-always-on;
+};
+
+&ldo_4s_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	google,schematic-name = "L4S_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_5s_reg {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	google,schematic-name = "L5S_SENSORS";
+	google,subsystem-name = "Sensors";
+};
+
+&ldo_6s_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "L6S_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_7s_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	google,schematic-name = "L7S_SENSORS";
+	google,subsystem-name = "Sensors";
+};
+
+&ldo_8s_reg {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	google,schematic-name = "L8S_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_9s_reg {
+	regulator-min-microvolt = <1200000>;
+	regulator-max-microvolt = <1200000>;
+	google,schematic-name = "L9S_SPARE";
+	google,subsystem-name = "Spare";
+	regulator-allow-bypass;
+	google,monitor-only;
+};
+
+&ldo_10s_reg {
+	regulator-min-microvolt = <1200000>;
+	regulator-max-microvolt = <1200000>;
+	google,schematic-name = "L10S_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_11s_reg {
+	regulator-min-microvolt = <1200000>;
+	regulator-max-microvolt = <1200000>;
+	google,schematic-name = "L11S_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_12s_reg {
+	regulator-min-microvolt = <1200000>;
+	regulator-max-microvolt = <1200000>;
+	google,schematic-name = "L12S_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_13s_reg {
+	regulator-min-microvolt = <1200000>;
+	regulator-max-microvolt = <1200000>;
+	google,schematic-name = "L13S_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_14s_reg {
+	regulator-min-microvolt = <1200000>;
+	regulator-max-microvolt = <1200000>;
+	google,schematic-name = "L14S_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_15s_reg {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	google,schematic-name = "L15S_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_16s_reg {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+	google,schematic-name = "L16S_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_17s_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	google,schematic-name = "L17S_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_18s_reg {
+	regulator-min-microvolt = <3100000>;
+	regulator-max-microvolt = <3100000>;
+	google,schematic-name = "L18S_DISP_VCI";
+	google,subsystem-name = "Display";
+};
+
+&ldo_19s_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	google,schematic-name = "L19S_DMIC3";
+	google,subsystem-name = "DMIC";
+	google,monitor-only;
+};
+
+&ldo_20s_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	google,schematic-name = "L20S_DMIC2";
+	google,subsystem-name = "DMIC";
+	google,monitor-only;
+};
+
+&ldo_21s_reg {
+	regulator-min-microvolt = <920000>;
+	regulator-max-microvolt = <920000>;
+	google,schematic-name = "L21S_VDD2L_MEM";
+	google,subsystem-name = "DDR";
+	google,monitor-only;
+	regulator-always-on;
+};
+
+&ldo_22s_reg {
+	regulator-min-microvolt = <1850000>;
+	regulator-max-microvolt = <1850000>;
+	google,schematic-name = "L22S_CAMIO";
+	google,subsystem-name = "Camera";
+};
+
+&ldo_23s_reg {
+	regulator-min-microvolt = <450000>;
+	regulator-max-microvolt = <1400000>;
+	google,schematic-name = "L23S_PLL_DDRPHY";
+	google,subsystem-name = "DDR";
+	google,monitor-only;
+};
+
+&ldo_24s_reg {
+	regulator-min-microvolt = <1200000>;
+	regulator-max-microvolt = <1200000>;
+	/* TODO(b/330624645): Request dynamically*/
+	regulator-always-on;
+	google,schematic-name = "L24S_HSI";
+	google,subsystem-name = "HSI";
+	google,monitor-only;
+};
+
+&ldo_25s_reg {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	google,schematic-name = "L25S_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};
+
+&ldo_26s_reg {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	google,schematic-name = "L26S_TS_AVDD";
+	google,subsystem-name = "TS";
+};
+
+&ldo_27s_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	google,schematic-name = "L27S_TS_DVDD";
+	google,subsystem-name = "TS";
+};
+
+&ldo_28s_reg {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	google,schematic-name = "L28S_SPARE";
+	google,subsystem-name = "Spare";
+	google,monitor-only;
+};

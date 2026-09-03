@@ -64,7 +64,7 @@ bool gxp_eventfd_signal(struct gxp_eventfd *eventfd)
 
 	ret = gxp_eventfd_get(eventfd);
 	if (ret)
-		eventfd_signal(eventfd->ctx, 1);
+		eventfd_signal(eventfd->ctx);
 
 	gxp_eventfd_put(eventfd);
 

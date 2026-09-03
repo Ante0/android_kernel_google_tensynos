@@ -8,6 +8,8 @@
 
 #include <linux/mm.h>
 
+#include "filemap.h"
+
 DECLARE_PER_CPU(unsigned long, pgcache_miss);
 DECLARE_PER_CPU(unsigned long, pgcache_hit);
 

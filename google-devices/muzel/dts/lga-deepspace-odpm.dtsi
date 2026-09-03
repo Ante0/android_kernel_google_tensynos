@@ -1,0 +1,55 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Deepspace power regulator adjusment device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+// ODPM
+&m_ext1_rail {
+	google,schematic-name = "VSYS_PWR_VBATT";
+	google,subsystem-name = "Battery";
+	google,shunt-res-uohm = <2000>;
+};
+
+&m_ext2_rail {
+	google,schematic-name = "VSYS_PWR_DISPLAY";
+	google,subsystem-name = "Display";
+	google,shunt-res-uohm = <10000>;
+};
+
+&m_ext3_rail {
+	google,schematic-name = "VSYS_PWR_CAMERA";
+	google,subsystem-name = "Camera";
+	google,shunt-res-uohm = <10000>;
+};
+
+&m_ext4_rail {
+	google,schematic-name = "VSYS_PWR_RFFE";
+	google,subsystem-name = "Cellular";
+	google,shunt-res-uohm = <5000>;
+};
+
+&s_ext5_rail {
+	google,schematic-name = "VSYS_PWR_IFPMIC";
+	google,subsystem-name = "IFPMIC";
+	google,shunt-res-uohm = <2000>;
+};
+
+&s_ext6_rail {
+	google,schematic-name = "VSYS_PWR_MODEM";
+	google,subsystem-name = "Modem";
+	google,shunt-res-uohm = <5000>;
+};
+
+&s_ext7_rail {
+	google,schematic-name = "VSYS_PWR_WLAN_BT";
+	google,subsystem-name = "WLAN_BT";
+	google,shunt-res-uohm = <10000>;
+};
+
+&s_ext8_rail {
+	google,schematic-name = "VSYS_PWR_MMWAVE";
+	google,subsystem-name = "MMWAVE";
+	google,shunt-res-uohm = <10000>;
+};

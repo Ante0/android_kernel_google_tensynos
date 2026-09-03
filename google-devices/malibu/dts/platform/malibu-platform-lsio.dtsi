@@ -1,0 +1,210 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/*
+ * Platform level low speed interfaces configuration
+ *
+ * Copyright 2025 Google LLC
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,mbu.h>
+#include <dt-bindings/lpcm/reset_mbu.h>
+#include <dt-bindings/dma/google,gpdma.h>
+#include <dt-bindings/dma/google,gpdma-mbu.h>
+
+/*
+ * UARTs
+ * Bluetooth
+ */
+&aoss_pg_uart0 {
+	pinctrl-0 = <&xaoss_amb_uart0_rxd>, <&xaoss_amb_uart0_txd>,
+		    <&xaoss_amb_uart0_rtsn>, <&xaoss_amb_uart0_ctsn>;
+	pinctrl-1 = <&xaoss_amb_uart0_rxd_sleep>, <&xaoss_amb_uart0_txd_sleep>,
+		    <&xaoss_amb_uart0_rtsn_sleep>, <&xaoss_amb_uart0_ctsn_sleep>;
+	aoc-ssr-capable;
+	google,uart-logging;
+	status = "okay";
+};
+
+/*
+ * Console
+ */
+&lsios_uart3 {
+	clocks = <&lsio_s_uart_3_clk>,
+			<&lsio_s_uart_3_cfg_clk>;
+	clock-names = "baudclk", "apb_pclk";
+	resets = <&lsio_s_resets RST_LSIO_S_UART_3_PERI_CFG_CLK>;
+	reset-names = "s_rst_n";
+	power-domains = <&lsio_s_cli_gpio_pd>;
+	pinctrl-0 = <&lsios_uart3_func>;
+	pinctrl-1 = <&lsios_uart3_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+/* Haptics, NFC */
+&lsioe_i2c3 {
+	clock-frequency = <1000000>;
+	i2c-sda-falling-time-ns = <100>;
+	i2c-scl-falling-time-ns = <100>;
+
+	pinctrl-0 = <&xlsioe_i23c8_scl>, <&xlsioe_i23c8_sda>;
+	pinctrl-1 = <&xlsioe_i23c8_scl_sleep>, <&xlsioe_i23c8_sda_sleep>;
+
+	status = "okay";
+};
+
+/* WA before all projects IO were ready */
+/* Camera FCAM (CSIC) */
+&xlsioe_i23c6_scl {
+	function = "lsioe_i2c";
+};
+&xlsioe_i23c6_sda {
+	function = "lsioe_i2c";
+};
+/* Camera RUWCAM (CSIA) */
+&xlsioe_i23c7_scl {
+	function = "lsioe_i2c";
+};
+&xlsioe_i23c7_sda {
+	function = "lsioe_i2c";
+};
+/* Camera RCAM (CSIB) */
+&xlsios_i23c2_scl {
+	function = "lsios_i2c2";
+};
+&xlsios_i23c2_sda {
+	function = "lsios_i2c2";
+};
+
+/*
+ * I2C/I3C buses
+ * Camera FCAM (CSIC)
+ */
+&lsioe_i2c1 {
+	clock-frequency = <1000000>;
+	i2c-sda-falling-time-ns = <100>;
+	i2c-scl-falling-time-ns = <100>;
+
+	hybrid-busy-wait-mode;
+	external-power-control;
+
+	pinctrl-0 = <&xlsioe_i23c6_scl>, <&xlsioe_i23c6_sda>;
+	pinctrl-1 = <&xlsioe_i23c6_scl_sleep>, <&xlsioe_i23c6_sda_sleep>;
+
+	status = "okay";
+};
+&lsioe_i3c1 {
+	ibi-capable;
+
+	external-power-control;
+
+	hybrid-busy-wait-mode;
+
+	pinctrl-0 = <&xlsioe_i23c6_scl>, <&xlsioe_i23c6_sda>;
+	pinctrl-1 = <&xlsioe_i23c6_scl_sleep>, <&xlsioe_i23c6_sda_sleep>;
+
+	status = "disabled";
+};
+
+/*
+ * I2C/I3C buses
+ * Camera RUWCAM (CSIA)
+ */
+&lsioe_i2c2 {
+	clock-frequency = <1000000>;
+	i2c-sda-falling-time-ns = <100>;
+	i2c-scl-falling-time-ns = <100>;
+
+	hybrid-busy-wait-mode;
+	external-power-control;
+
+	pinctrl-0 = <&xlsioe_i23c7_scl>, <&xlsioe_i23c7_sda>;
+	pinctrl-1 = <&xlsioe_i23c7_scl_sleep>, <&xlsioe_i23c7_sda_sleep>;
+
+	status = "okay";
+};
+&lsioe_i3c2 {
+	ibi-capable;
+
+	external-power-control;
+
+	hybrid-busy-wait-mode;
+
+	pinctrl-0 = <&xlsioe_i23c7_scl>, <&xlsioe_i23c7_sda>;
+	pinctrl-1 = <&xlsioe_i23c7_scl_sleep>, <&xlsioe_i23c7_sda_sleep>;
+
+	status = "disabled";
+};
+
+/*
+ * I2C/I3C buses
+ * Camera RCAM (CSIB)
+ */
+&lsios_i2c2 {
+	clock-frequency = <1000000>;
+	i2c-sda-falling-time-ns = <100>;
+	i2c-scl-falling-time-ns = <100>;
+
+	external-power-control;
+
+	pinctrl-0 = <&xlsios_i23c2_scl>, <&xlsios_i23c2_sda>;
+	pinctrl-1 = <&xlsios_i23c2_scl_sleep>, <&xlsios_i23c2_sda_sleep>;
+
+	status = "okay";
+};
+&lsios_i3c2 {
+	ibi-capable;
+
+	external-power-control;
+
+	hybrid-busy-wait-mode;
+
+	pinctrl-0 = <&xlsios_i23c2_scl>, <&xlsios_i23c2_sda>;
+	pinctrl-1 = <&xlsios_i23c2_scl_sleep>, <&xlsios_i23c2_sda_sleep>;
+
+	status = "disabled";
+};
+
+/* Camera NORTH */
+&lsioe_i2c0 {
+	clock-frequency = <400000>;
+
+	pinctrl-0 = <&xlsioe_i23c5_scl>, <&xlsioe_i23c5_sda>;
+	pinctrl-1 = <&xlsioe_i23c5_scl_sleep>, <&xlsioe_i23c5_sda_sleep>;
+
+	status = "okay";
+};
+
+/* Audio */
+&aoss_pg_i3c0 {
+	pinctrl-0 = <&xaoss_amb_spi2_sclk>, <&xaoss_amb_spi2_mosi>;
+	pinctrl-1 = <&xaoss_amb_spi2_sclk_sleep>, <&xaoss_amb_spi2_mosi_sleep>;
+	aoc-ssr-capable;
+	status = "disabled";
+};
+
+/*
+ * SPI buses
+ * ESE
+ */
+&lsios_spi2 {
+	pinctrl-0 = <&xlsios_spiu2_sclk_rtsn>, <&xlsios_spiu2_mosi_txd>,
+		    <&xlsios_spiu2_miso_rxd>, <&xlsios_spiu2_csn_ctsn_av31>;
+	pinctrl-1 = <&xlsios_spiu2_sclk_rtsn_sleep>, <&xlsios_spiu2_mosi_txd_sleep>,
+		    <&xlsios_spiu2_miso_rxd_sleep>, <&xlsios_spiu2_csn_ctsn_av31_sleep>;
+
+	status = "disabled";
+};
+
+/* Outer touch */
+&aoss_pg_spi2 {
+	dmas = <&gpdma1 GPDMA_TX_ROUTE AMBSS_SPI3_DMA_TX_REQ>,
+	       <&gpdma1 GPDMA_RX_ROUTE AMBSS_SPI3_DMA_RX_REQ>;
+	dma-names = "tx", "rx";
+
+	pinctrl-0 = <&xaoss_amb_spi3_sclk>, <&xaoss_amb_spi3_mosi>,
+		    <&xaoss_amb_spi3_miso>, <&xaoss_amb_spi3_csn_e12>;
+	pinctrl-1 = <&xaoss_amb_spi3_sclk_sleep>, <&xaoss_amb_spi3_mosi_sleep>,
+		    <&xaoss_amb_spi3_miso_sleep>, <&xaoss_amb_spi3_csn_e12_sleep>;
+	aoc-ssr-capable;
+	status = "okay";
+};

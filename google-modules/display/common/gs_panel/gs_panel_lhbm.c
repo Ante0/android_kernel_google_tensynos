@@ -271,7 +271,7 @@ static void local_hbm_post_work(struct kthread_work *work)
 	PANEL_ATRACE_END(__func__);
 }
 
-void gs_panel_init_lhbm(struct gs_panel *ctx)
+int gs_panel_init_lhbm(struct gs_panel *ctx)
 {
 	struct device *dev = ctx->dev;
 	struct gs_local_hbm_work_data *work_data = &ctx->lhbm.work_data;
@@ -280,23 +280,30 @@ void gs_panel_init_lhbm(struct gs_panel *ctx)
 	ctx->lhbm.requested_state = GLOCAL_HBM_DISABLED;
 	ctx->lhbm.effective_state = GLOCAL_HBM_DISABLED;
 	work_data->wq = create_singlethread_workqueue("hbm_workq");
-	if (!work_data->wq)
+	if (!work_data->wq) {
 		dev_err(dev, "failed to create hbm workq!\n");
-	else
-		INIT_DELAYED_WORK(&work_data->timeout_work, local_hbm_timeout_work);
+		return -EAGAIN;
+	}
+	INIT_DELAYED_WORK(&work_data->timeout_work, local_hbm_timeout_work);
 
 	if (gs_is_local_hbm_post_enabling_supported(ctx)) {
+		struct sched_param param = {
+			.sched_priority = 2, // MAX_RT_PRIO - 1,
+		};
+
 		kthread_init_worker(&work_data->worker);
 		work_data->thread =
 			kthread_run(kthread_worker_fn, &work_data->worker, "lhbm_kthread");
-		if (IS_ERR(work_data->thread))
+		if (IS_ERR(work_data->thread)) {
 			dev_err(dev, "failed to run display lhbm kthread\n");
-		else {
-			struct sched_param param = {
-				.sched_priority = 2, // MAX_RT_PRIO - 1,
-			};
-			sched_setscheduler_nocheck(work_data->thread, SCHED_FIFO, &param);
-			kthread_init_work(&work_data->post_work, local_hbm_post_work);
+			/* clean up already-started work */
+			cancel_delayed_work_sync(&work_data->timeout_work);
+			destroy_workqueue(work_data->wq);
+			return -EAGAIN;
 		}
+		sched_setscheduler_nocheck(work_data->thread, SCHED_FIFO, &param);
+		kthread_init_work(&work_data->post_work, local_hbm_post_work);
 	}
+
+	return 0;
 }

@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module")
 
-package(
-    default_visibility = [
-        "//private/devices/google:__subpackages__",
-    ],
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
 )
 
 _PANEL_LOCAL_DEFINES = [
@@ -36,7 +40,7 @@ ddk_module(
     local_defines = _PANEL_LOCAL_DEFINES,
     deps = [
         ":common_headers",
-        "//private/google-modules/display/common/gs_panel",
+        "//private/google-modules/display/common/gs_panel:gs-panel",
     ],
 )
 
@@ -50,7 +54,7 @@ ddk_module(
     local_defines = _PANEL_LOCAL_DEFINES,
     deps = [
         ":common_headers",
-        "//private/google-modules/display/common/gs_panel",
+        "//private/google-modules/display/common/gs_panel:gs-panel",
     ],
 )
 
@@ -64,6 +68,6 @@ ddk_module(
     local_defines = _PANEL_LOCAL_DEFINES,
     deps = [
         ":common_headers",
-        "//private/google-modules/display/common/gs_panel",
+        "//private/google-modules/display/common/gs_panel:gs-panel",
     ],
 )

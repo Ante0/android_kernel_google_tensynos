@@ -1,0 +1,116 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * T900 CP device tree source
+ *
+ * Copyright 2025 Google, LLC
+ *
+*/
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interconnect/google,mbu.h>
+
+/ {
+	fragment@modemif {
+		target-path = "/";
+		__overlay__ {
+
+			radio_google_data: radio-google-data {
+				aoc_sram_addr = <0x0 0x0A80C000>;
+				aoc_sram_size = <0x3000>;
+
+				/* Enable Google Crash Dump Debug feature */
+				cdd_enable;
+
+				/* Enable MD2AP Wakeup Monitor feature */
+				wakemon_enable;
+
+				/* Enable SoC QoS DDR bandwidth vote feature */
+				soc_qos_enable;
+
+				/* Hysteresis (ms) */
+				soc-qos-target-delay = <2048>;
+
+				/* Virtual channel */
+				soc-qos-vote-vc = <0>;
+
+				/* RX QoS Parameters (Mbps / MB/s) */
+				soc-qos-rx-threshold-high = <4000>;
+				soc-qos-rx-threshold-low = <1000>;
+				soc-qos-rx-vote-high = <4300>;
+				soc-qos-rx-vote-low = <0>;
+
+				/* TX QoS Parameters (Mbps / MB/s) */
+				soc-qos-tx-threshold-high = <600>;
+				soc-qos-tx-threshold-low = <400>;
+				soc-qos-tx-vote-high = <4300>;
+				soc-qos-tx-vote-low = <0>;
+
+				/* Enable the LRO size limit feature */
+				lro_size_limit_enable;
+
+				dpmaif-affinity {
+					google,target-cpu-num = <7>;
+
+					conf0 {
+						speed = <0x0 0x0>;
+						napi-aff = /bits/ 8 <2 3 0>;
+						steer-aff = /bits/ 8 <4 5 1>;
+						reload-aff = /bits/ 8 <0x3F 0x3F>;
+						doorbell-aff = /bits/ 8 <0x3F>;
+					};
+
+					conf1 {
+						speed = <0x0 250>;
+						napi-aff = /bits/ 8 <2 3 0>;
+						steer-aff = /bits/ 8 <4 5 1>;
+						reload-aff = /bits/ 8 <0x40 0x7F>;
+						doorbell-aff = /bits/ 8 <0x4F>;
+					};
+				};
+			};
+
+			timesync_eap {
+				compatible = "mediatek,timesync";
+				status = "okay";
+			};
+
+		};
+	};
+};
+
+&pcie0_port0 {
+	#address-cells = <3>;
+	#size-cells = <2>;
+	modem@0 {
+		compatible = "pci14c3,0900", "pciclass,0d40";
+		reg = <0x0000 0x0 0x0 0x0 0x0>;
+
+		fake-supply; /* to fool pwrctrl parsing code */
+
+		pinctrl-names = "init", "default", "idle";
+		pinctrl-0 = <&ap2cppmic_md_en_1v2>,
+			<&ap2cppmic_rstb_l_1v2>,
+			<&cp2aoss_reboot_int_l_1v2>,
+			<&cppmic2aoss_faultb_l_1v2>,
+			<&ap2cp_mddump_1v2>,
+			<&ap2cp_apawake_flg_1v2>,
+			<&ap2cp_aee_reboot_h_1v2>;
+		pinctrl-1 = <&xgdmc_uart_modem_rxd>,
+			<&xgdmc_uart_modem_txd>,
+			<&cp2aoss_pcie_pewake_l_1v2>;
+		pinctrl-2 = <&xgdmc_uart_modem_rxd_sleep>,
+			<&xgdmc_uart_modem_txd_sleep>,
+			<&cp2aoss_pcie_pewake_l_1v2_sleep>;
+
+		pmic-en-gpios       = <AP2CPPMIC_MD_EN_1V2(GPIO_ACTIVE_HIGH)>;
+		pmic-reset-gpios    = <AP2CPPMIC_RSTB_L_1V2((GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN))>;
+		reboot-int-b-gpios  = <CP2AOSS_REBOOT_INT_L_1V2(GPIO_ACTIVE_HIGH)>;
+		pmic-faultb-gpios   = <CPPMIC2AOSS_FAULTB_L_1V2(GPIO_ACTIVE_HIGH)>;
+		mddump-gpios        = <AP2CP_MDDUMP_1V2(GPIO_ACTIVE_HIGH)>;
+		pe-wake-gpios       = <CP2AOSS_PCIE_PEWAKE_L_1V2(GPIO_ACTIVE_HIGH)>;
+		aee-reboot-h-gpios  = <AP2CP_AEE_REBOOT_H_1V2(GPIO_ACTIVE_HIGH)>;
+		ap2cp-apawake-gpios = <AP2CP_APAWAKE_FLG_1V2(GPIO_ACTIVE_HIGH)>;
+
+		interconnects = <&icc_gmc SSWRP_PCIE_0 &icc_gmc GMC>;
+		interconnect-names = "sswrp-pcie-0";
+	};
+};

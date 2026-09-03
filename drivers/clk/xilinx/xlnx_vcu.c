@@ -15,7 +15,7 @@
 #include <linux/mfd/syscon.h>
 #include <linux/mfd/syscon/xlnx-vcu.h>
 #include <linux/module.h>
-#include <linux/of_platform.h>
+#include <linux/mod_devicetable.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 
@@ -68,7 +68,7 @@ struct xvcu_device {
 	struct clk_hw_onecell_data *clk_data;
 };
 
-static struct regmap_config vcu_settings_regmap_config = {
+static const struct regmap_config vcu_settings_regmap_config = {
 	.name = "regmap",
 	.reg_bits = 32,
 	.val_bits = 32,
@@ -587,8 +587,8 @@ static void xvcu_unregister_clock_provider(struct xvcu_device *xvcu)
 		xvcu_clk_hw_unregister_leaf(hws[CLK_XVCU_ENC_MCU]);
 	if (!IS_ERR_OR_NULL(hws[CLK_XVCU_ENC_CORE]))
 		xvcu_clk_hw_unregister_leaf(hws[CLK_XVCU_ENC_CORE]);
-
-	clk_hw_unregister_fixed_factor(xvcu->pll_post);
+	if (!IS_ERR_OR_NULL(xvcu->pll_post))
+		clk_hw_unregister_fixed_factor(xvcu->pll_post);
 }
 
 /**
@@ -702,13 +702,11 @@ error_clk_provider:
  * Return:	Returns 0 on success
  *		Negative error code otherwise
  */
-static int xvcu_remove(struct platform_device *pdev)
+static void xvcu_remove(struct platform_device *pdev)
 {
 	struct xvcu_device *xvcu;
 
 	xvcu = platform_get_drvdata(pdev);
-	if (!xvcu)
-		return -ENODEV;
 
 	xvcu_unregister_clock_provider(xvcu);
 
@@ -716,8 +714,6 @@ static int xvcu_remove(struct platform_device *pdev)
 	regmap_write(xvcu->logicore_reg_ba, VCU_GASKET_INIT, 0);
 
 	clk_disable_unprepare(xvcu->aclk);
-
-	return 0;
 }
 
 static const struct of_device_id xvcu_of_id_table[] = {

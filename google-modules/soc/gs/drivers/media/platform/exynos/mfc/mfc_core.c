@@ -10,6 +10,7 @@
  * (at your option) any later version.
  */
 
+#include <linux/cleanup.h>
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/platform_device.h>
@@ -79,7 +80,7 @@ static struct platform_device mfc_core_sscd_dev = {
 };
 #endif
 
-void mfc_core_butler_worker(struct work_struct *work)
+static void mfc_core_butler_worker(struct work_struct *work)
 {
 	struct mfc_core *core;
 
@@ -89,10 +90,12 @@ void mfc_core_butler_worker(struct work_struct *work)
 }
 
 static int __mfc_core_parse_mfc_qos_platdata(struct device_node *np,
-		char *node_name, struct mfc_qos *qosdata, struct mfc_core *core)
+		const char *node_name, struct mfc_qos *qosdata, struct mfc_core *core)
 {
-	struct device_node *np_qos;
+	struct device_node *np_qos __free(device_node);
 
+	/* balance of_node_put() in of_find_node_by_name() */
+	of_node_get(np);
 	np_qos = of_find_node_by_name(np, node_name);
 	if (!np_qos) {
 		dev_err(core->device, "%s: could not find mfc_qos_platdata node\n",
@@ -126,9 +129,11 @@ static int __mfc_core_parse_mfc_qos_platdata(struct device_node *np,
 	return 0;
 }
 
-int mfc_core_sysmmu_fault_handler(struct iommu_fault *fault, void *param)
+static int mfc_core_sysmmu_fault_handler(struct iommu_domain *domain,
+					 struct device *device, unsigned long iova,
+					 int flags, void *token)
 {
-	struct mfc_core *core = (struct mfc_core *)param;
+	struct mfc_core *core = token;
 	unsigned int trans_info, fault_status;
 	int ret;
 	struct mfc_dev *dev = core->dev;
@@ -194,11 +199,11 @@ int mfc_core_sysmmu_fault_handler(struct iommu_fault *fault, void *param)
 			core->logging_data->fault_trans_info = MFC_MMU1_READL(trans_info);
 		}
 	}
-	core->logging_data->fault_addr = (unsigned int)(fault->event.addr);
+	core->logging_data->fault_addr = iova;
 
 	snprintf(core->crash_info, MFC_CRASH_INFO_LEN,
-		"MFC-%d SysMMU PAGE FAULT at %#010llx (AxID: %#x), fault_status: %#x\n",
-		core->id, fault->event.addr,
+		"MFC-%d SysMMU PAGE FAULT at %#010lx (AxID: %#x), fault_status: %#x\n",
+		core->id, iova,
 		core->logging_data->fault_trans_info, core->logging_data->fault_status);
 	mfc_core_err("%s", core->crash_info);
 	MFC_TRACE_CORE("%s", core->crash_info);
@@ -224,7 +229,7 @@ int mfc_core_sysmmu_fault_handler(struct iommu_fault *fault, void *param)
 static int __mfc_core_parse_dt(struct device_node *np, struct mfc_core *core)
 {
 	struct mfc_core_platdata *pdata = core->core_pdata;
-	struct device_node *np_qos;
+	struct device_node *np_qos __free(device_node) = NULL;
 	char node_name[50];
 	int i;
 
@@ -285,6 +290,8 @@ static int __mfc_core_parse_dt(struct device_node *np, struct mfc_core *core)
 	/* performance boost mode */
 	pdata->qos_boost_table = devm_kzalloc(core->device,
 			sizeof(struct mfc_qos_boost), GFP_KERNEL);
+	/* balance of_node_put() in of_find_node_by_name() */
+	of_node_get(np);
 	np_qos = of_find_node_by_name(np, "mfc_perf_boost_table");
 	if (!np_qos) {
 		dev_err(core->device, "[QoS][BOOST] could not find mfc_perf_boost_table node\n");
@@ -324,11 +331,11 @@ static int __mfc_core_register_resource(struct platform_device *pdev,
 		struct mfc_core *core)
 {
 	struct device_node *np = core->device->of_node;
-	struct device_node *iommu;
+	struct device_node *iommu __free(device_node) = NULL;
 	struct device_node *hwfc;
 	struct device_node *votf;
 #if IS_ENABLED(CONFIG_SLC_PARTITION_MANAGER)
-	struct device_node *ssmt = NULL;
+	struct device_node *ssmt __free(device_node) = NULL;
 	struct device_node *sysreg = NULL;
 #endif
 	struct resource *res;
@@ -375,6 +382,7 @@ static int __mfc_core_register_resource(struct platform_device *pdev,
 	hwfc = of_get_child_by_name(np, "hwfc");
 	if (hwfc) {
 		core->hwfc_base = of_iomap(hwfc, 0);
+		of_node_put(hwfc);
 		if (core->hwfc_base == NULL) {
 			core->has_hwfc = 0;
 			dev_err(&pdev->dev, "failed to iomap hwfc address region\n");
@@ -387,6 +395,7 @@ static int __mfc_core_register_resource(struct platform_device *pdev,
 	votf = of_get_child_by_name(np, "votf");
 	if (votf) {
 		core->votf_base = of_iomap(votf, 0);
+		of_node_put(votf);
 		if (core->votf_base == NULL) {
 			core->has_mfc_votf = 0;
 			dev_err(&pdev->dev, "failed to iomap votf address region\n");
@@ -422,6 +431,7 @@ static int __mfc_core_register_resource(struct platform_device *pdev,
 	}
 
 	core->sysreg_base = of_iomap(sysreg, 0);
+	of_node_put(sysreg);
 	if (core->sysreg_base == NULL) {
 		dev_err(&pdev->dev, "failed to ioremap sysreg address region\n");
 		goto err_ioremap_sysreg;
@@ -580,6 +590,7 @@ static int __mfc_core_sysevent_desc_init(struct platform_device *pdev, struct mf
 /* MFC probe function */
 static int mfc_core_probe(struct platform_device *pdev)
 {
+	struct iommu_domain *domain;
 	struct mfc_core *core;
 	struct mfc_dev *dev;
 	int ret = -ENOENT;
@@ -703,13 +714,10 @@ static int mfc_core_probe(struct platform_device *pdev)
 				core->core_pdata->encoder_qos_table[i].name,
 				core->core_pdata->encoder_qos_table[i].bts_scen_idx);
 
-	ret = iommu_register_device_fault_handler(core->device,
-			mfc_core_sysmmu_fault_handler, core);
-	if (ret) {
-		dev_err(&pdev->dev, "failed to register sysmmu fault handler %d\n", ret);
-		ret = -EPROBE_DEFER;
-		goto err_sysmmu_fault_handler;
-	}
+	domain = iommu_get_domain_for_dev(&pdev->dev);
+	if (domain)
+		iommu_set_fault_handler(domain, mfc_core_sysmmu_fault_handler,
+					core);
 
 #if IS_ENABLED(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION)
 	/* allocate Secure-DVA region */
@@ -774,8 +782,6 @@ err_alloc_debug:
 #if IS_ENABLED(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION)
 	mfc_mem_special_buf_free(dev, &core->drm_fw_buf);
 #endif
-	iommu_unregister_device_fault_handler(&pdev->dev);
-err_sysmmu_fault_handler:
 	destroy_workqueue(core->butler_wq);
 err_butler_wq:
 	if (timer_pending(&core->mfc_idle_timer))
@@ -813,7 +819,7 @@ err_pm:
 }
 
 /* Remove the driver */
-static int mfc_core_remove(struct platform_device *pdev)
+static void mfc_core_remove(struct platform_device *pdev)
 {
 	struct mfc_core *core = platform_get_drvdata(pdev);
 
@@ -824,7 +830,6 @@ static int mfc_core_remove(struct platform_device *pdev)
 #ifdef CONFIG_MFC_USE_COREDUMP
 	platform_device_unregister(&mfc_core_sscd_dev);
 #endif
-	iommu_unregister_device_fault_handler(&pdev->dev);
 	if (timer_pending(&core->meerkat_timer))
 		del_timer(&core->meerkat_timer);
 	flush_workqueue(core->meerkat_wq);
@@ -857,7 +862,6 @@ static int mfc_core_remove(struct platform_device *pdev)
 #endif
 
 	dev_dbg(&pdev->dev, "%s--\n", __func__);
-	return 0;
 }
 
 static void mfc_core_shutdown(struct platform_device *pdev)

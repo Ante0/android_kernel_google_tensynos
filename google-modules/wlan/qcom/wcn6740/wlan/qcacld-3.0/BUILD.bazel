@@ -1,0 +1,1421 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "qcacld_headers",
+    hdrs = glob([
+        "**/*.h",
+    ]),
+    includes = [
+        "components/action_oui/core/inc",
+        "components/action_oui/dispatcher/inc",
+        "components/blacklist_mgr/core/inc",
+        "components/blacklist_mgr/dispatcher/inc",
+        "components/cfg",
+        "components/cmn_services/interface_mgr/inc",
+        "components/cmn_services/logging/inc",
+        "components/cmn_services/policy_mgr/inc",
+        "components/cmn_services/policy_mgr/src",
+        "components/coex/core/inc",
+        "components/coex/dispatcher/inc",
+        "components/cp_stats/dispatcher/inc",
+        "components/disa/core/inc",
+        "components/disa/dispatcher/inc",
+        "components/dsc/inc",
+        "components/dsc/src",
+        "components/dsc/test",
+        "components/ftm_time_sync/core/inc",
+        "components/ftm_time_sync/dispatcher/inc",
+        "components/fw_offload/core/inc",
+        "components/fw_offload/dispatcher/inc",
+        "components/interop_issues_ap/core/inc",
+        "components/interop_issues_ap/dispatcher/inc",
+        "components/ipa/core/inc",
+        "components/ipa/dispatcher/inc",
+        "components/mlme/core/inc",
+        "components/mlme/dispatcher/inc",
+        "components/nan/core/inc",
+        "components/nan/core/src",
+        "components/nan/dispatcher/inc",
+        "components/ocb/core/inc",
+        "components/ocb/dispatcher/inc",
+        "components/p2p/dispatcher/inc",
+        "components/pkt_capture/core/inc",
+        "components/pkt_capture/dispatcher/inc",
+        "components/pmo/core/inc",
+        "components/pmo/core/src",
+        "components/pmo/dispatcher/inc",
+        "components/pmo/dispatcher/src",
+        "components/son/core/inc",
+        "components/son/dispatcher/inc",
+        "components/target_if/action_oui/inc",
+        "components/target_if/blacklist_mgr/inc",
+        "components/target_if/coex/inc",
+        "components/target_if/connection_mgr/inc",
+        "components/target_if/disa/inc",
+        "components/target_if/fw_offload/inc",
+        "components/target_if/interop_issues_ap/inc",
+        "components/target_if/nan/inc",
+        "components/target_if/p2p/inc",
+        "components/target_if/pkt_capture/inc",
+        "components/target_if/pmo/inc",
+        "components/target_if/pmo/src",
+        "components/target_if/son/inc",
+        "components/target_if/tdls/inc",
+        "components/target_if/twt/inc",
+        "components/target_if/wfa_config/inc",
+        "components/tdls/core/src",
+        "components/tdls/dispatcher/inc",
+        "components/umac",
+        "components/umac/mlme/connection_mgr/core/src",
+        "components/umac/mlme/connection_mgr/dispatcher/inc",
+        "components/umac/mlme/connection_mgr/utf/inc",
+        "components/umac/mlme/mlo_mgr/inc",
+        "components/umac/mlme/wfa_config/dispatcher/inc",
+        "components/umac/twt/dispatcher/inc",
+        "components/wmi/inc",
+        "configs",
+        "core/bmi/inc",
+        "core/cds/inc",
+        "core/cds/src",
+        "core/dp/htt",
+        "core/dp/ol/inc",
+        "core/dp/txrx",
+        "core/dp/txrx3.0",
+        "core/hdd/inc",
+        "core/hdd/src",
+        "core/mac/inc",
+        "core/mac/src",
+        "core/mac/src/dph",
+        "core/mac/src/include",
+        "core/mac/src/pe/include",
+        "core/mac/src/pe/lim",
+        "core/mac/src/pe/nan",
+        "core/mac/src/sys/common/inc",
+        "core/mac/src/sys/legacy/src/platform/inc",
+        "core/mac/src/sys/legacy/src/system/inc",
+        "core/mac/src/sys/legacy/src/utils/inc",
+        "core/pld/inc",
+        "core/pld/src",
+        "core/sap/inc",
+        "core/sap/src",
+        "core/sme/inc",
+        "core/sme/src",
+        "core/sme/src/csr",
+        "core/wma/inc",
+        "core/wma/src",
+        "os_if/coex/inc",
+        "os_if/cp_stats/inc",
+        "os_if/fw_offload/inc",
+        "os_if/interop_issues_ap/inc",
+        "os_if/nan/inc",
+        "os_if/p2p/inc",
+        "os_if/pkt_capture/inc",
+        "os_if/son/inc",
+        "os_if/sync/inc",
+        "os_if/sync/src",
+        "os_if/tdls/inc",
+        "os_if/twt/inc",
+        "uapi/linux",
+    ],
+)
+
+# ddk_module qcacld-3.0
+ddk_module(
+    name = "qcacld-3.0",
+    srcs = [
+        "components/cmn_services/interface_mgr/src/wlan_if_mgr_roam.c",
+        "components/cmn_services/interface_mgr/src/wlan_if_mgr_sap.c",
+        "components/cmn_services/interface_mgr/src/wlan_if_mgr_sta.c",
+        "components/cmn_services/policy_mgr/src/wlan_policy_mgr_action.c",
+        "components/cmn_services/policy_mgr/src/wlan_policy_mgr_core.c",
+        "components/cmn_services/policy_mgr/src/wlan_policy_mgr_get_set_utils.c",
+        "components/cmn_services/policy_mgr/src/wlan_policy_mgr_init_deinit.c",
+        "components/cmn_services/policy_mgr/src/wlan_policy_mgr_pcl.c",
+        "components/cmn_services/policy_mgr/src/wlan_policy_mgr_ucfg.c",
+        "components/dsc/src/__wlan_dsc.c",
+        "components/dsc/src/wlan_dsc_driver.c",
+        "components/dsc/src/wlan_dsc_psoc.c",
+        "components/dsc/src/wlan_dsc_vdev.c",
+        "components/mlme/core/src/wlan_mlme_main.c",
+        "components/mlme/core/src/wlan_mlme_vdev_mgr_interface.c",
+        "components/mlme/dispatcher/src/wlan_mlme_api.c",
+        "components/mlme/dispatcher/src/wlan_mlme_ucfg_api.c",
+        "components/p2p/core/src/wlan_p2p_main.c",
+        "components/p2p/core/src/wlan_p2p_off_chan_tx.c",
+        "components/p2p/core/src/wlan_p2p_roc.c",
+        "components/p2p/dispatcher/src/wlan_p2p_api.c",
+        "components/p2p/dispatcher/src/wlan_p2p_cfg.c",
+        "components/p2p/dispatcher/src/wlan_p2p_tgt_api.c",
+        "components/p2p/dispatcher/src/wlan_p2p_ucfg_api.c",
+        "components/target_if/connection_mgr/src/target_if_cm_roam_offload.c",
+        "components/target_if/p2p/src/target_if_p2p.c",
+        "components/target_if/wfa_config/src/target_if_wfa_testcmd.c",
+        "components/umac/mlme/connection_mgr/core/src/wlan_cm_roam_offload.c",
+        "components/umac/mlme/connection_mgr/core/src/wlan_cm_vdev_connect.c",
+        "components/umac/mlme/connection_mgr/core/src/wlan_cm_vdev_disconnect.c",
+        "components/umac/mlme/connection_mgr/dispatcher/src/wlan_cm_roam_api.c",
+        "components/umac/mlme/connection_mgr/dispatcher/src/wlan_cm_roam_ucfg_api.c",
+        "components/umac/mlme/connection_mgr/dispatcher/src/wlan_cm_tgt_if_tx_api.c",
+        "components/umac/mlme/wfa_config/dispatcher/src/wlan_wfa_tgt_if_tx_api.c",
+        "core/cds/src/cds_api.c",
+        "core/cds/src/cds_packet.c",
+        "core/cds/src/cds_reg_service.c",
+        "core/cds/src/cds_regdomain.c",
+        "core/cds/src/cds_sched.c",
+        "core/cds/src/cds_utils.c",
+        "core/hdd/src/wlan_hdd_assoc.c",
+        "core/hdd/src/wlan_hdd_cfg.c",
+        "core/hdd/src/wlan_hdd_cfg80211.c",
+        "core/hdd/src/wlan_hdd_cm_connect.c",
+        "core/hdd/src/wlan_hdd_cm_disconnect.c",
+        "core/hdd/src/wlan_hdd_data_stall_detection.c",
+        "core/hdd/src/wlan_hdd_driver_ops.c",
+        "core/hdd/src/wlan_hdd_ftm.c",
+        "core/hdd/src/wlan_hdd_hostapd.c",
+        "core/hdd/src/wlan_hdd_ioctl.c",
+        "core/hdd/src/wlan_hdd_main.c",
+        "core/hdd/src/wlan_hdd_object_manager.c",
+        "core/hdd/src/wlan_hdd_oemdata.c",
+        "core/hdd/src/wlan_hdd_p2p.c",
+        "core/hdd/src/wlan_hdd_power.c",
+        "core/hdd/src/wlan_hdd_regulatory.c",
+        "core/hdd/src/wlan_hdd_scan.c",
+        "core/hdd/src/wlan_hdd_softap_tx_rx.c",
+        "core/hdd/src/wlan_hdd_sta_info.c",
+        "core/hdd/src/wlan_hdd_stats.c",
+        "core/hdd/src/wlan_hdd_trace.c",
+        "core/hdd/src/wlan_hdd_tx_rx.c",
+        "core/hdd/src/wlan_hdd_wmm.c",
+        "core/hdd/src/wlan_hdd_wowl.c",
+        "core/mac/src/dph/dph_hash_table.c",
+        "core/mac/src/pe/lim/lim_admit_control.c",
+        "core/mac/src/pe/lim/lim_aid_mgmt.c",
+        "core/mac/src/pe/lim/lim_api.c",
+        "core/mac/src/pe/lim/lim_assoc_utils.c",
+        "core/mac/src/pe/lim/lim_ft.c",
+        "core/mac/src/pe/lim/lim_link_monitoring_algo.c",
+        "core/mac/src/pe/lim/lim_process_action_frame.c",
+        "core/mac/src/pe/lim/lim_process_assoc_req_frame.c",
+        "core/mac/src/pe/lim/lim_process_assoc_rsp_frame.c",
+        "core/mac/src/pe/lim/lim_process_auth_frame.c",
+        "core/mac/src/pe/lim/lim_process_beacon_frame.c",
+        "core/mac/src/pe/lim/lim_process_cfg_updates.c",
+        "core/mac/src/pe/lim/lim_process_deauth_frame.c",
+        "core/mac/src/pe/lim/lim_process_disassoc_frame.c",
+        "core/mac/src/pe/lim/lim_process_message_queue.c",
+        "core/mac/src/pe/lim/lim_process_mlm_req_messages.c",
+        "core/mac/src/pe/lim/lim_process_mlm_rsp_messages.c",
+        "core/mac/src/pe/lim/lim_process_probe_req_frame.c",
+        "core/mac/src/pe/lim/lim_process_probe_rsp_frame.c",
+        "core/mac/src/pe/lim/lim_process_sme_req_messages.c",
+        "core/mac/src/pe/lim/lim_prop_exts_utils.c",
+        "core/mac/src/pe/lim/lim_scan_result_utils.c",
+        "core/mac/src/pe/lim/lim_security_utils.c",
+        "core/mac/src/pe/lim/lim_send_management_frames.c",
+        "core/mac/src/pe/lim/lim_send_messages.c",
+        "core/mac/src/pe/lim/lim_send_sme_rsp_messages.c",
+        "core/mac/src/pe/lim/lim_session.c",
+        "core/mac/src/pe/lim/lim_session_utils.c",
+        "core/mac/src/pe/lim/lim_sme_req_utils.c",
+        "core/mac/src/pe/lim/lim_timer_utils.c",
+        "core/mac/src/pe/lim/lim_trace.c",
+        "core/mac/src/pe/lim/lim_utils.c",
+        "core/mac/src/pe/rrm/rrm_api.c",
+        "core/mac/src/pe/sch/sch_api.c",
+        "core/mac/src/pe/sch/sch_beacon_gen.c",
+        "core/mac/src/pe/sch/sch_beacon_process.c",
+        "core/mac/src/pe/sch/sch_message.c",
+        "core/mac/src/sys/common/src/wlan_qct_sys.c",
+        "core/mac/src/sys/legacy/src/platform/src/sys_wrapper.c",
+        "core/mac/src/sys/legacy/src/system/src/mac_init_api.c",
+        "core/mac/src/sys/legacy/src/system/src/sys_entry_func.c",
+        "core/mac/src/sys/legacy/src/utils/src/dot11f.c",
+        "core/mac/src/sys/legacy/src/utils/src/mac_trace.c",
+        "core/mac/src/sys/legacy/src/utils/src/parser_api.c",
+        "core/mac/src/sys/legacy/src/utils/src/utils_parser.c",
+        "core/pld/src/pld_common.c",
+        "core/sap/src/sap_api_link_cntl.c",
+        "core/sap/src/sap_ch_select.c",
+        "core/sap/src/sap_fsm.c",
+        "core/sap/src/sap_module.c",
+        "core/sme/src/common/sme_api.c",
+        "core/sme/src/common/sme_power_save.c",
+        "core/sme/src/common/sme_trace.c",
+        "core/sme/src/csr/csr_api_roam.c",
+        "core/sme/src/csr/csr_api_scan.c",
+        "core/sme/src/csr/csr_cmd_process.c",
+        "core/sme/src/csr/csr_link_list.c",
+        "core/sme/src/csr/csr_util.c",
+        "core/sme/src/qos/sme_qos.c",
+        "core/sme/src/rrm/sme_rrm.c",
+        "core/wma/src/wlan_qct_wma_legacy.c",
+        "core/wma/src/wma_data.c",
+        "core/wma/src/wma_dev_if.c",
+        "core/wma/src/wma_features.c",
+        "core/wma/src/wma_main.c",
+        "core/wma/src/wma_mgmt.c",
+        "core/wma/src/wma_power.c",
+        "core/wma/src/wma_scan_roam.c",
+        "core/wma/src/wma_utils.c",
+        "os_if/p2p/src/wlan_cfg80211_p2p.c",
+        "os_if/sync/src/osif_driver_sync.c",
+        "os_if/sync/src/osif_psoc_sync.c",
+        "os_if/sync/src/osif_sync.c",
+        "os_if/sync/src/osif_vdev_sync.c",
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:qcacmn_fixed_srcs",
+    ],
+    out = "wlan.ko",
+    conditional_srcs = {
+        "CONFIG_CONVERGED_P2P_ENABLE": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:converged_p2p_enable_srcs",
+            ],
+        },
+        "CONFIG_CRYPTO_COMPONENT": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:crypto_component_srcs",
+            ],
+        },
+        "CONFIG_REMOVE_PKT_LOG": {
+            False: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:remove_pkt_log_srcs",
+                "core/hdd/src/wlan_hdd_sysfs_pktlog.c",
+            ],
+        },
+        "CONFIG_FEATURE_BUS_BANDWIDTH_MGR": {
+            True: [
+                "core/hdd/src/wlan_hdd_bus_bandwidth.c",
+            ],
+        },
+        "CONFIG_QCACLD_WLAN_CONNECTIVITY_LOGGING": {
+            True: [
+                "core/hdd/src/wlan_hdd_connectivity_logging.c",
+                "components/cmn_services/logging/src/wlan_connectivity_logging.c",
+            ],
+        },
+        "CONFIG_FEATURE_BLACKLIST_MGR": {
+            True: [
+                "components/blacklist_mgr/core/src/wlan_blm_main.c",
+                "components/blacklist_mgr/core/src/wlan_blm_core.c",
+                "components/blacklist_mgr/dispatcher/src/wlan_blm_ucfg_api.c",
+                "components/blacklist_mgr/dispatcher/src/wlan_blm_tgt_api.c",
+                "components/target_if/blacklist_mgr/src/target_if_blm.c",
+            ],
+        },
+        "CONFIG_BAND_6GHZ": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:band_6ghz_srcs",
+            ],
+        },
+        "CONFIG_BERYLLIUM": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:beryllium_srcs",
+            ],
+        },
+        "CONFIG_CM_UTF_ENABLE": {
+            True: [
+                "components/umac/mlme/connection_mgr/utf/src/cm_utf.c",
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:cm_utf_enable_srcs",
+            ],
+        },
+        "CONFIG_QCA6490_HEADERS_DEF": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:qca6490_headers_def_srcs",
+            ],
+        },
+        "CONFIG_CP_STATS": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:cp_stats_srcs",
+                "components/cp_stats/dispatcher/src/wlan_cp_stats_mc_tgt_api.c",
+                "components/cp_stats/dispatcher/src/wlan_cp_stats_mc_ucfg_api.c",
+                "components/target_if/cp_stats/src/target_if_mc_cp_stats.c",
+                "components/wmi/src/wmi_unified_mc_cp_stats_api.c",
+                "components/wmi/src/wmi_unified_mc_cp_stats_tlv.c",
+                "os_if/cp_stats/src/wlan_cfg80211_mc_cp_stats.c",
+            ],
+        },
+        "CONFIG_DCS": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:dcs_srcs",
+                "core/hdd/src/wlan_hdd_dcs.c",
+            ],
+        },
+        "CONFIG_DIRECT_BUF_RX_ENABLE": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:direct_buf_rx_enable_srcs",
+            ],
+        },
+        "CONFIG_DP_HW_TX_DELAY_STATS_ENABLE": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_dp_tx_delay_stats.c",
+            ],
+        },
+        "CONFIG_DP_PKT_ADD_TIMESTAMP": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_add_timestamp.c",
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:dp_pkt_add_timestamp_srcs",
+            ],
+        },
+        "CONFIG_DP_SWLM": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_swlm.c",
+            ],
+        },
+        "CONFIG_DSC_TEST": {
+            True: [
+                "components/dsc/test/wlan_dsc_test.c",
+            ],
+        },
+        "CONFIG_FEATURE_ACTIVE_TOS": {
+            True: [
+                "core/hdd/src/wlan_hdd_active_tos.c",
+            ],
+        },
+        "CONFIG_FEATURE_BSS_TRANSITION": {
+            True: [
+                "core/hdd/src/wlan_hdd_bss_transition.c",
+            ],
+        },
+        "CONFIG_FEATURE_COEX": {
+            True: [
+                "components/coex/core/src/wlan_coex_main.c",
+                "components/coex/dispatcher/src/wlan_coex_tgt_api.c",
+                "components/coex/dispatcher/src/wlan_coex_ucfg_api.c",
+                "components/coex/dispatcher/src/wlan_coex_utils_api.c",
+                "components/target_if/coex/src/target_if_coex.c",
+                "os_if/coex/src/wlan_cfg80211_coex.c",
+            ],
+        },
+        "CONFIG_FEATURE_CONCURRENCY_MATRIX": {
+            True: [
+                "core/hdd/src/wlan_hdd_concurrency_matrix.c",
+            ],
+        },
+        "CONFIG_FEATURE_EPPING": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:feature_epping_srcs",
+            ],
+        },
+        "CONFIG_FEATURE_FW_LOG_PARSING": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:feature_fw_log_parsing_srcs",
+            ],
+        },
+        "CONFIG_FEATURE_GPIO_CFG": {
+            True: [
+                "core/hdd/src/wlan_hdd_gpio.c",
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:feature_gpio_cfg_srcs",
+            ],
+        },
+        "CONFIG_FEATURE_HTC_CREDIT_HISTORY": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:feature_htc_credit_history_srcs",
+            ],
+        },
+        "CONFIG_FEATURE_INTEROP_ISSUES_AP": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:feature_interop_issues_ap_srcs",
+                "components/interop_issues_ap/core/src/wlan_interop_issues_ap_api.c",
+                "components/interop_issues_ap/dispatcher/src/wlan_interop_issues_ap_tgt_api.c",
+                "components/interop_issues_ap/dispatcher/src/wlan_interop_issues_ap_ucfg_api.c",
+                "components/target_if/interop_issues_ap/src/target_if_interop_issues_ap.c",
+                "os_if/interop_issues_ap/src/wlan_cfg80211_interop_issues_ap.c",
+            ],
+        },
+        "CONFIG_FEATURE_MEC": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:feature_mec_srcs",
+            ],
+        },
+        "CONFIG_FEATURE_MEMDUMP_ENABLE": {
+            True: [
+                "core/hdd/src/wlan_hdd_memdump.c",
+            ],
+        },
+        "CONFIG_FEATURE_MONITOR_MODE_SUPPORT": {
+            True: [
+                "core/hdd/src/wlan_hdd_rx_monitor.c",
+            ],
+        },
+        "CONFIG_FEATURE_MOTION_DETECTION": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_motion_detection.c",
+            ],
+        },
+        "CONFIG_FEATURE_OTA_TEST": {
+            True: [
+                "core/hdd/src/wlan_hdd_ota_test.c",
+            ],
+        },
+        "CONFIG_FEATURE_P2P_LISTEN_OFFLOAD": {
+            True: [
+                "core/hdd/src/wlan_hdd_p2p_listen_offload.c",
+            ],
+        },
+        "CONFIG_FEATURE_RSSI_MONITOR": {
+            True: [
+                "core/hdd/src/wlan_hdd_rssi_monitor.c",
+            ],
+        },
+        "CONFIG_FEATURE_SAP_COND_CHAN_SWITCH": {
+            True: [
+                "core/hdd/src/wlan_hdd_sap_cond_chan_switch.c",
+            ],
+        },
+        "CONFIG_FEATURE_SAR_LIMITS": {
+            True: [
+                "core/hdd/src/wlan_hdd_sar_limits.c",
+            ],
+        },
+        "CONFIG_FEATURE_STATION_INFO": {
+            True: [
+                "core/hdd/src/wlan_hdd_station_info.c",
+            ],
+        },
+        "CONFIG_FEATURE_TX_POWER": {
+            True: [
+                "core/hdd/src/wlan_hdd_tx_power.c",
+            ],
+        },
+        "CONFIG_FEATURE_UNIT_TEST_SUSPEND": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:feature_unit_test_suspend_srcs",
+                #TODO: need separate flag for sysfs
+                "core/hdd/src/wlan_hdd_sysfs_suspend_resume.c",
+            ],
+        },
+        "CONFIG_FEATURE_VDEV_OPS_WAKELOCK": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:feature_vdev_ops_wakelock_srcs",
+            ],
+        },
+        "CONFIG_FEATURE_WLAN_CH_AVOID_EXT": {
+            True: [
+                "core/hdd/src/wlan_hdd_avoid_freq_ext.c",
+            ],
+        },
+        "CONFIG_FEATURE_WLAN_EXTSCAN": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:feature_wlan_extscan_srcs",
+                "core/hdd/src/wlan_hdd_ext_scan.c",
+            ],
+        },
+        "CONFIG_FEATURE_WLAN_TIME_SYNC_FTM": {
+            True: [
+                "components/ftm_time_sync/core/src/ftm_time_sync_main.c",
+                "components/ftm_time_sync/dispatcher/src/ftm_time_sync_ucfg_api.c",
+                "components/ftm_time_sync/dispatcher/src/wlan_ftm_time_sync_tgt_api.c",
+                "components/target_if/ftm_time_sync/src/target_if_ftm_time_sync.c",
+                "core/hdd/src/wlan_hdd_ftm_time_sync.c",
+            ],
+        },
+        "CONFIG_FW_THERMAL_THROTTLE": {
+            True: [
+                "core/hdd/src/wlan_hdd_thermal.c",
+            ],
+        },
+        "CONFIG_HIF_IPCI": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:hif_ipci_srcs",
+            ],
+        },
+        "CONFIG_HIF_PCI": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:hif_pci_srcs",
+                "core/pld/src/pld_pcie.c",
+            ],
+        },
+        "CONFIG_HIF_SDIO": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:hif_sdio_srcs",
+            ],
+        },
+        "CONFIG_HIF_SNOC": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:hif_snoc_srcs",
+            ],
+        },
+        "CONFIG_HIF_USB": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:hif_usb_srcs",
+                "core/pld/src/pld_usb.c",
+            ],
+        },
+        "CONFIG_HL_DP_SUPPORT": {
+            True: [
+                "core/dp/txrx/ol_tx_classify.c",
+                "core/dp/txrx/ol_tx_hl.c",
+                "core/dp/txrx/ol_tx_queue.c",
+                "core/dp/txrx/ol_tx_sched.c",
+            ],
+        },
+        "CONFIG_HOST_11D_SCAN": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:host_11d_scan_srcs",
+            ],
+        },
+        "CONFIG_IPA_OFFLOAD": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:ipa_offload_srcs",
+                "core/hdd/src/wlan_hdd_ipa.c",
+                # need a separate flag for sysfs
+                "core/hdd/src/wlan_hdd_sysfs_ipa.c",
+            ],
+        },
+        "CONFIG_IPCIE_FW_SIM": {
+            True: [
+                "core/pld/src/pld_pcie_fw_sim.c",
+            ],
+        },
+        "CONFIG_LEAK_DETECTION": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:leak_detection_srcs",
+            ],
+        },
+        "CONFIG_LFR_SUBNET_DETECTION": {
+            True: [
+                "core/hdd/src/wlan_hdd_subnet_detect.c",
+            ],
+        },
+        "CONFIG_LINUX_QCMBR": {
+            # need CONFIG_QCA_WIFI_FTM=y
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:linux_qcmber_srcs",
+            ],
+        },
+        "CONFIG_LITHIUM": {
+            True: [
+                "core/dp/txrx3.0/dp_txrx.c",
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:lithium_srcs",
+            ],
+        },
+        "CONFIG_LL_DP_LEGACY_SUPPORT": {
+            True: [
+                "core/dp/htt/htt_rx_ll.c",
+                "core/dp/txrx/ol_tx_ll.c",
+            ],
+        },
+        "CONFIG_OCB_UT_FRAMEWORK": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:ocb_ut_framework_srcs",
+            ],
+        },
+        "CONFIG_PCIE_FW_SIM": {
+            True: [
+                "core/pld/src/pld_pcie_fw_sim.c",
+            ],
+        },
+        "CONFIG_PKTLOG_LEGACY": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:ptklog_legacy_srcs",
+            ],
+            False: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:feature_ptklog_en_non_legacy_srcs",
+            ],
+        },
+        "CONFIG_PKT_LOG": {
+            #TODO: Currently this is CONFIG_REMOVE_PKT_LOG but expect it to change
+            #      Also need a separate config for sysfs
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:pkt_log_srcs",
+                "core/hdd/src/wlan_hdd_sysfs_pktlog.c",
+            ],
+        },
+        "CONFIG_PLD_IPCI_ICNSS_FLAG": {
+            True: [
+                "core/pld/src/pld_ipci.c",
+            ],
+        },
+        "CONFIG_PLD_SNOC_ICNSS_FLAG": {
+            True: [
+                "core/pld/src/pld_snoc.c",
+            ],
+        },
+        "CONFIG_POWER_MANAGEMENT_OFFLOAD": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:power_management_offload_srcs",
+                "components/pmo/core/src/wlan_pmo_apf.c",
+                "components/pmo/core/src/wlan_pmo_arp.c",
+                "components/pmo/core/src/wlan_pmo_gtk.c",
+                "components/pmo/core/src/wlan_pmo_hw_filter.c",
+                "components/pmo/core/src/wlan_pmo_lphb.c",
+                "components/pmo/core/src/wlan_pmo_main.c",
+                "components/pmo/core/src/wlan_pmo_mc_addr_filtering.c",
+                "components/pmo/core/src/wlan_pmo_static_config.c",
+                "components/pmo/core/src/wlan_pmo_suspend_resume.c",
+                "components/pmo/core/src/wlan_pmo_wow.c",
+                "components/pmo/dispatcher/src/wlan_pmo_obj_mgmt_api.c",
+                "components/pmo/dispatcher/src/wlan_pmo_tgt_arp.c",
+                "components/pmo/dispatcher/src/wlan_pmo_tgt_gtk.c",
+                "components/pmo/dispatcher/src/wlan_pmo_tgt_hw_filter.c",
+                "components/pmo/dispatcher/src/wlan_pmo_tgt_lphb.c",
+                "components/pmo/dispatcher/src/wlan_pmo_tgt_mc_addr_filtering.c",
+                "components/pmo/dispatcher/src/wlan_pmo_tgt_static_config.c",
+                "components/pmo/dispatcher/src/wlan_pmo_tgt_suspend_resume.c",
+                "components/pmo/dispatcher/src/wlan_pmo_tgt_wow.c",
+                "components/pmo/dispatcher/src/wlan_pmo_ucfg_api.c",
+                "components/target_if/pmo/src/target_if_pmo_arp.c",
+                "components/target_if/pmo/src/target_if_pmo_gtk.c",
+                "components/target_if/pmo/src/target_if_pmo_hw_filter.c",
+                "components/target_if/pmo/src/target_if_pmo_lphb.c",
+                "components/target_if/pmo/src/target_if_pmo_main.c",
+                "components/target_if/pmo/src/target_if_pmo_mc_addr_filtering.c",
+                "components/target_if/pmo/src/target_if_pmo_static_config.c",
+                "components/target_if/pmo/src/target_if_pmo_suspend_resume.c",
+                "components/target_if/pmo/src/target_if_pmo_wow.c",
+            ],
+        },
+        "CONFIG_QCACLD_FEATURE_APF": {
+            True: [
+                "core/hdd/src/wlan_hdd_apf.c",
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:qcacld_feature_apf_srcs",
+            ],
+        },
+        "CONFIG_QCACLD_FEATURE_BTC_CHAIN_MODE": {
+            True: [
+                "core/hdd/src/wlan_hdd_btc_chain_mode.c",
+            ],
+        },
+        "CONFIG_QCACLD_FEATURE_COEX_CONFIG": {
+            True: [
+                "core/hdd/src/wlan_hdd_coex_config.c",
+            ],
+        },
+        "CONFIG_QCACLD_FEATURE_FW_STATE": {
+            True: [
+                "core/hdd/src/wlan_hdd_fw_state.c",
+                "core/wma/src/wma_fw_state.c",
+            ],
+        },
+        "CONFIG_QCACLD_FEATURE_GREEN_AP": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:feature_green_ap_srcs",
+                "core/hdd/src/wlan_hdd_green_ap.c",
+            ],
+        },
+        "CONFIG_QCACLD_FEATURE_HW_CAPABILITY": {
+            True: [
+                "core/hdd/src/wlan_hdd_hw_capability.c",
+            ],
+        },
+        "CONFIG_QCACLD_FEATURE_MPTA_HELPER": {
+            True: [
+                "core/hdd/src/wlan_hdd_mpta_helper.c",
+            ],
+        },
+        "CONFIG_QCACLD_FEATURE_NAN": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:qcacld_feature_nan_srcs",
+                "components/nan/core/src/nan_api.c",
+                "components/nan/core/src/nan_main.c",
+                "components/nan/dispatcher/src/cfg_nan.c",
+                "components/nan/dispatcher/src/nan_ucfg_api.c",
+                "components/target_if/nan/src/target_if_nan.c",
+                "core/hdd/src/wlan_hdd_nan.c",
+                "core/hdd/src/wlan_hdd_nan_datapath.c",
+                "core/mac/src/pe/nan/nan_datapath.c",
+                "core/sme/src/nan/nan_datapath_api.c",
+                "core/wma/src/wma_nan_datapath.c",
+                "os_if/nan/src/os_if_nan.c",
+            ],
+        },
+        "CONFIG_QCACLD_FEATURE_SON": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:qcacld_feature_son_srcs",
+                "components/son/dispatcher/src/son_api.c",
+                "components/son/dispatcher/src/son_ucfg_api.c",
+                "core/hdd/src/wlan_hdd_son.c",
+                "os_if/son/src/os_if_son.c",
+            ],
+        },
+        "CONFIG_QCACLD_WLAN_CONNECTIVITY_DIAG_EVENT": {
+            True: [
+                "core/hdd/src/wlan_hdd_connectivity_logging.c",
+                "components/cmn_services/logging/src/wlan_connectivity_logging.c",
+            ],
+        },
+        "CONFIG_QCACLD_WLAN_CONNECTIVITY_DIAG_LOGGING": {
+            True: [
+                "core/hdd/src/wlan_hdd_connectivity_logging.c",
+                "components/cmn_services/logging/src/wlan_connectivity_logging.c",
+            ],
+        },
+        "CONFIG_QCACLD_WLAN_LFR2": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:qcacld_wlan_lfr2_srcs",
+                "components/umac/mlme/connection_mgr/core/src/wlan_cm_host_roam_preauth.c",
+                "components/umac/mlme/connection_mgr/core/src/wlan_cm_host_util.c",
+                "core/mac/src/pe/lim/lim_ft_preauth.c",
+                "core/mac/src/pe/lim/lim_process_mlm_host_roam.c",
+                "core/mac/src/pe/lim/lim_reassoc_utils.c",
+                "core/mac/src/pe/lim/lim_roam_timer_utils.c",
+                "core/mac/src/pe/lim/lim_send_frames_host_roam.c",
+            ],
+        },
+        "CONFIG_QCACLD_WLAN_LFR3": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:qcacld_wlan_lfr3_srcs",
+                "components/target_if/connection_mgr/src/target_if_cm_roam_event.c",
+                "components/umac/mlme/connection_mgr/core/src/wlan_cm_roam_fw_sync.c",
+                "components/umac/mlme/connection_mgr/core/src/wlan_cm_roam_offload_event.c",
+            ],
+        },
+        "CONFIG_QCA_SUPPORT_TX_THROTTLE_LEGACY": {
+            True: [
+                "core/dp/txrx/ol_tx_throttle.c",
+            ],
+        },
+        "CONFIG_QCA_WIFI_FTM": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:qca_wifi_ftm_srcs",
+            ],
+        },
+        "CONFIG_NL80211_TESTMODE": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:nl80211_testmode_srcs",
+            ],
+        },
+        "CONFIG_QCA_WIFI_SDIO": {
+            True: [
+                "core/pld/src/pld_sdio.c",
+            ],
+        },
+        "CONFIG_QCOM_TDLS": {
+            True: [
+                "components/target_if/tdls/src/target_if_tdls.c",
+                "components/tdls/core/src/wlan_tdls_cmds_process.c",
+                "components/tdls/core/src/wlan_tdls_ct.c",
+                "components/tdls/core/src/wlan_tdls_main.c",
+                "components/tdls/core/src/wlan_tdls_mgmt.c",
+                "components/tdls/core/src/wlan_tdls_peer.c",
+                "components/tdls/dispatcher/src/wlan_tdls_api.c",
+                "components/tdls/dispatcher/src/wlan_tdls_cfg.c",
+                "components/tdls/dispatcher/src/wlan_tdls_tgt_api.c",
+                "components/tdls/dispatcher/src/wlan_tdls_ucfg_api.c",
+                "components/tdls/dispatcher/src/wlan_tdls_utils_api.c",
+                "core/hdd/src/wlan_hdd_tdls.c",
+                "core/mac/src/pe/lim/lim_process_tdls.c",
+                "os_if/tdls/src/wlan_cfg80211_tdls.c",
+            ],
+        },
+        "CONFIG_QDF_TEST": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:qdf_test_srcs",
+            ],
+        },
+        "CONFIG_RHINE": {
+            True: [
+                # TODO: how to handle Kbuild logic
+                #ifneq (y,$(filter y,$(CONFIG_LITHIUM) $(CONFIG_BERYLLIUM) $(CONFIG_RHINE)))
+                #ifeq (y,$(filter y,$(CONFIG_LITHIUM) $(CONFIG_BERYLLIUM) $(CONFIG_RHINE)))
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:sm_rhine_srcs",
+            ],
+        },
+        "CONFIG_RX_FISA": {
+            True: [
+                "core/dp/txrx3.0/dp_fisa_rx.c",
+                "core/dp/txrx3.0/dp_rx_fst.c",
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:rx_fisa_srcs",
+            ],
+        },
+        "CONFIG_SMP": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:smp_srcs",
+            ],
+        },
+        "CONFIG_SM_ENG_HIST": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:sm_eng_hist_srcs",
+            ],
+        },
+        "CONFIG_SNOC_FW_SIM": {
+            True: [
+                "core/pld/src/pld_snoc_fw_sim.c",
+            ],
+        },
+        "CONFIG_UNIT_TEST": {
+            True: [
+                "core/hdd/src/wlan_hdd_unit_test.c",
+            ],
+        },
+        "CONFIG_WDI_EVENT_ENABLE": {
+            True: [
+                "core/dp/txrx/ol_txrx_event.c",
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wdi_event_enable_srcs",
+            ],
+        },
+        "CONFIG_WIFI_MONITOR_SUPPORT": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wifi_monitor_support_srcs",
+            ],
+        },
+        "CONFIG_WIFI_MONITOR_SUPPORT_Y_WLAN_TX_MON_2_0": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wifi_monitor_support_y_wlan_tx_mon_2_0_srcs",
+            ],
+        },
+        "CONFIG_WIFI_POS_CONVERGED": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wifi_pos_converged_srcs",
+            ],
+        },
+        "CONFIG_WLAN_BCN_RECV_FEATURE": {
+            True: [
+                "core/hdd/src/wlan_hdd_bcn_recv.c",
+            ],
+        },
+        "CONFIG_WLAN_BMISS": {
+            # need CONFIG_WLAN_BMISS=y
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_bmiss.c",
+            ],
+        },
+        "CONFIG_WLAN_BOOTUP_MARKER": {
+            True: [
+                "core/hdd/src/wlan_hdd_bootup_marker.c",
+            ],
+        },
+        "CONFIG_WLAN_CFR_ADRASTEA": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_cfr_adrastea_srcs",
+            ],
+        },
+        "CONFIG_WLAN_CFR_DBR": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_cfr_dbr_srcs",
+            ],
+        },
+        "CONFIG_WLAN_CFR_ENABLE": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_cfr_enable_srcs",
+                "core/hdd/src/wlan_hdd_cfr.c",
+            ],
+        },
+        "CONFIG_WLAN_CONV_SPECTRAL_ENABLE": {
+            True: [
+                "core/hdd/src/wlan_hdd_spectralscan.c",
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_conv_spectral_enable_srcs",
+            ],
+        },
+        "CONFIG_WLAN_DEBUGFS": {
+            True: [
+                "core/hdd/src/wlan_hdd_debugfs.c",
+                "core/hdd/src/wlan_hdd_debugfs_config.c",
+                "core/hdd/src/wlan_hdd_debugfs_csr.c",
+                "core/hdd/src/wlan_hdd_debugfs_offload.c",
+                "core/hdd/src/wlan_hdd_debugfs_roam.c",
+                "core/hdd/src/wlan_hdd_debugfs_unit_test.c",
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_debugfs_srcs",
+            ],
+        },
+        "CONFIG_WLAN_DEBUG_CRASH_INJECT": {
+            # need CONFIG_WLAN_SYSFS=y
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_crash_inject.c",
+            ],
+        },
+        "CONFIG_WLAN_DFS_MASTER_ENABLE": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_dfs_master_enable_srcs",
+            ],
+        },
+        "CONFIG_WLAN_DIAG_VERSION": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_diag_version_srcs",
+            ],
+        },
+        "CONFIG_WLAN_DL_MODES": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_dl_modes.c",
+            ],
+        },
+        "CONFIG_WLAN_DUMP_IN_PROGRESS": {
+            # need CONFIG_WLAN_SYSFS=y
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_dump_in_progress.c",
+            ],
+        },
+        "CONFIG_WLAN_ENABLE_GPIO_WAKEUP": {
+            True: [
+                "core/hdd/src/wlan_hdd_gpio_wakeup.c",
+            ],
+        },
+        "CONFIG_WLAN_ENH_CFR_ENABLE": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_enh_cfr_enable_srcs",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_11AX": {
+            True: [
+                "core/hdd/src/wlan_hdd_he.c",
+                "core/wma/src/wma_he.c",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_11BE": {
+            True: [
+                "core/hdd/src/wlan_hdd_eht.c",
+                "core/wma/src/wma_eht.c",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_11BE_MLO": {
+            True: [
+                "core/hdd/src/wlan_hdd_mlo.c",
+                "core/mac/src/pe/lim/lim_mlo.c",
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_feature_11be_mlo_srcs",
+                "components/umac/mlme/mlo_mgr/src/wlan_mlo_mgr_roam.c",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_ACTION_OUI": {
+            True: [
+                "components/action_oui/core/src/wlan_action_oui_main.c",
+                "components/action_oui/core/src/wlan_action_oui_parse.c",
+                "components/action_oui/dispatcher/src/wlan_action_oui_tgt_api.c",
+                "components/action_oui/dispatcher/src/wlan_action_oui_ucfg_api.c",
+                "components/target_if/action_oui/src/target_if_action_oui.c",
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_feature_action_oui_srcs",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_DFS_OFFLOAD": {
+            # Need CONFIG_WLAN_DFS_MASTER_ENABLE=y
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_feature_dfs_offload_enable_srcs",
+            ],
+            False: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_feature_dfs_offload_disable_srcs",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_DISA": {
+            True: [
+                "components/disa/core/src/wlan_disa_main.c",
+                "components/disa/dispatcher/src/wlan_disa_obj_mgmt_api.c",
+                "components/disa/dispatcher/src/wlan_disa_tgt_api.c",
+                "components/disa/dispatcher/src/wlan_disa_ucfg_api.c",
+                "components/target_if/disa/src/target_if_disa.c",
+                "core/hdd/src/wlan_hdd_disa.c",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_DP_RX_THREADS": {
+            True: [
+                "core/dp/txrx3.0/dp_rx_thread.c",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_DSRC": {
+            True: [
+                "components/ocb/core/src/wlan_ocb_main.c",
+                "components/ocb/dispatcher/src/wlan_ocb_tgt_api.c",
+                "components/ocb/dispatcher/src/wlan_ocb_ucfg_api.c",
+                "components/target_if/ocb/src/target_if_ocb.c",
+                "core/hdd/src/wlan_hdd_ocb.c",
+                "core/wma/src/wma_ocb.c",
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:feature_dsrc_srcs",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_FILS": {
+            True: [
+                "core/mac/src/pe/lim/lim_process_fils.c",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_FIPS": {
+            True: [
+                "core/hdd/src/wlan_hdd_fips.c",
+                "core/wma/src/wma_fips_api.c",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_ICMP_OFFLOAD": {
+            True: [
+                "components/pmo/core/src/wlan_pmo_icmp.c",
+                "components/pmo/dispatcher/src/wlan_pmo_tgt_icmp.c",
+                # Need CONFIG_POWER_MANAGEMENT_OFFLOAD=y
+                "components/target_if/pmo/src/target_if_pmo_icmp.c",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_LINK_LAYER_STATS": {
+            # Need CONFIG_WLAN_DEBUGFS=y
+            True: [
+                "core/hdd/src/wlan_hdd_debugfs_llstat.c",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_LPSS": {
+            True: [
+                "core/hdd/src/wlan_hdd_lpass.c",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_MDNS_OFFLOAD": {
+            True: [
+                "core/hdd/src/wlan_hdd_mdns_offload.c",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_MEDIUM_ASSESS": {
+            True: [
+                "core/hdd/src/wlan_hdd_medium_assess.c",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_MIB_STATS": {
+            # Need CONFIG_WLAN_DEBUGFS=y
+            True: [
+                "core/hdd/src/wlan_hdd_debugfs_mibstat.c",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_PACKET_FILTERING": {
+            True: [
+                "core/hdd/src/wlan_hdd_packet_filter.c",
+                # need CONFIG_POWER_MANAGEMENT_OFFLOAD=y
+                "components/pmo/core/src/wlan_pmo_pkt_filter.c",
+                "components/pmo/dispatcher/src/wlan_pmo_tgt_pkt_filter.c",
+                "components/target_if/pmo/src/target_if_pmo_pkt_filter.c",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_PERIODIC_STA_STATS": {
+            True: [
+                "core/hdd/src/wlan_hdd_periodic_sta_stats.c",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_PKT_CAPTURE": {
+            True: [
+                "components/pkt_capture/core/src/wlan_pkt_capture_data_txrx.c",
+                "components/pkt_capture/core/src/wlan_pkt_capture_main.c",
+                "components/pkt_capture/core/src/wlan_pkt_capture_mgmt_txrx.c",
+                "components/pkt_capture/core/src/wlan_pkt_capture_mon_thread.c",
+                "components/pkt_capture/dispatcher/src/wlan_pkt_capture_tgt_api.c",
+                "components/pkt_capture/dispatcher/src/wlan_pkt_capture_ucfg_api.c",
+                "components/target_if/pkt_capture/src/target_if_pkt_capture.c",
+                "os_if/pkt_capture/src/os_if_pkt_capture.c",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_RX_BUFFER_POOL": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_feature_rx_buffer_pool_srcs",
+            ],
+        },
+        "CONFIG_WLAN_FEATURE_TWT": {
+            True: [
+                "core/hdd/src/wlan_hdd_twt.c",
+                "components/mlme/core/src/wlan_mlme_twt_api.c",
+                "components/mlme/dispatcher/src/wlan_mlme_twt_ucfg_api.c",
+                "core/wma/src/wma_twt.c",
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_feature_twt_srcs",
+            ],
+        },
+        "CONFIG_WLAN_TWT_CONVERGED": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_twt_converged_srcs",
+                "components/target_if/twt/src/target_if_ext_twt_cmd.c",
+                "components/target_if/twt/src/target_if_ext_twt_evt.c",
+                "components/umac/twt/core/src/wlan_twt_cfg.c",
+                "components/umac/twt/core/src/wlan_twt_main.c",
+                "components/umac/twt/dispatcher/src/wlan_twt_cfg_ext_api.c",
+                "components/umac/twt/dispatcher/src/wlan_twt_tgt_if_ext_rx_api.c",
+                "components/umac/twt/dispatcher/src/wlan_twt_tgt_if_ext_tx_api.c",
+                "components/umac/twt/dispatcher/src/wlan_twt_ucfg_ext_api.c",
+                "os_if/twt/src/osif_twt_ext_req.c",
+                "os_if/twt/src/osif_twt_ext_rsp.c",
+                "os_if/twt/src/osif_twt_ext_util.c",
+            ],
+        },
+        "CONFIG_WLAN_FREQ_LIST": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_get_freq_for_pwr.c",
+            ],
+        },
+        "CONFIG_WLAN_FW_OFFLOAD": {
+            True: [
+                "components/fw_offload/core/src/wlan_fw_offload_main.c",
+                "components/fw_offload/dispatcher/src/wlan_fwol_tgt_api.c",
+                "components/fw_offload/dispatcher/src/wlan_fwol_ucfg_api.c",
+                "components/target_if/fw_offload/src/target_if_fwol.c",
+                "os_if/fw_offload/src/os_if_fwol.c",
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_fw_offload_srcs",
+            ],
+        },
+        "CONFIG_WLAN_GTX_BW_MASK": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_gtx_bw_mask.c",
+            ],
+        },
+        "CONFIG_WLAN_HANG_EVENT": {
+            True: [
+                "core/hdd/src/wlan_hdd_hang_event.c",
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_hange_event_srcs",
+            ],
+        },
+        "CONFIG_WLAN_LRO": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_lro_srcs",
+                "core/hdd/src/wlan_hdd_lro.c",
+            ],
+        },
+        "CONFIG_WLAN_MWS_INFO_DEBUGFS": {
+            True: [
+                "core/hdd/src/wlan_hdd_debugfs_coex.c",
+                "core/wma/src/wma_coex.c",
+            ],
+        },
+        "CONFIG_WLAN_NAPI": {
+            True: [
+                "core/hdd/src/wlan_hdd_napi.c",
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_napi_srcs",
+            ],
+        },
+        "CONFIG_WLAN_NS_OFFLOAD": {
+            True: [
+                "components/pmo/core/src/wlan_pmo_ns.c",
+                "components/pmo/dispatcher/src/wlan_pmo_tgt_ns.c",
+                # need CONFIG_POWER_MANAGEMENT_OFFLOAD=y
+                "components/target_if/pmo/src/target_if_pmo_ns.c",
+            ],
+        },
+        "CONFIG_WLAN_NUD_TRACKING": {
+            True: [
+                "core/hdd/src/wlan_hdd_nud_tracking.c",
+            ],
+        },
+        "CONFIG_WLAN_OBJMGR_DEBUG": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_objmgr_srcs",
+            ],
+        },
+        "CONFIG_WLAN_REASSOC": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_reassoc.c",
+            ],
+        },
+        "CONFIG_WLAN_SCAN_DISABLE": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_scan_disable.c",
+            ],
+        },
+        "CONFIG_WLAN_STREAMFS": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_streamfs_srcs",
+            ],
+        },
+        "CONFIG_WLAN_SYNC_TSF": {
+            True: [
+                "core/hdd/src/wlan_hdd_tsf.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs.c",
+                "core/hdd/src/wlan_hdd_sysfs_unit_test.c",
+                "core/hdd/src/wlan_hdd_sysfs_modify_acl.c",
+                "core/hdd/src/wlan_hdd_sysfs_policy_mgr.c",
+                "core/hdd/src/wlan_hdd_sysfs_dp_aggregation.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_CHANNEL": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_channel.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_CONNECT_INFO": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_connect_info.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_DCM": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_dcm.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_DP_STATS": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_txrx_stats_console.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_DP_TRACE": {
+            # need CONFIG_WLAN_SYSFS=y
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_dp_trace.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_FW_MODE_CFG": {
+            # need CONFIG_WLAN_SYSFS=y
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_fw_mode_config.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_HE_BSS_COLOR": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_he_bss_color.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_MEM_STATS": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_mem_stats.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_MONITOR_MODE_CHANNEL": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_monitor_mode_channel.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_RADAR": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_radar.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_RANGE_EXT": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_range_ext.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_RTS_CTS": {
+            # need CONFIG_WLAN_SYSFS=y
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_rts_cts.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_SCAN_CFG": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_scan_config.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_STATS": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_stats.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_STA_INFO": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_sta_info.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_TDLS_PEERS": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_tdls_peers.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_TEMPERATURE": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_temperature.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_TX_STBC": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_tx_stbc.c",
+            ],
+        },
+        "CONFIG_WLAN_SYSFS_WLAN_DBG": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_wlan_dbg.c",
+            ],
+        },
+        "CONFIG_WLAN_THERMAL_CFG": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_thermal_cfg.c",
+            ],
+        },
+        "CONFIG_WLAN_TRACEPOINTS": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_tracepoints_srcs",
+            ],
+        },
+        "CONFIG_WLAN_TXRX_FW_STATS": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_txrx_fw_stats.c",
+            ],
+        },
+        "CONFIG_WLAN_TXRX_FW_ST_RST": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_txrx_fw_st_rst.c",
+            ],
+        },
+        "CONFIG_WLAN_TXRX_STATS": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_txrx_stats.c",
+            ],
+        },
+        "CONFIG_WLAN_TX_FLOW_CONTROL_LEGACY": {
+            True: [
+                "core/dp/txrx/ol_txrx_legacy_flow_control.c",
+            ],
+        },
+        "CONFIG_WLAN_TX_FLOW_CONTROL_V2": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_tx_flow_contorl_v2_srcs",
+            ],
+        },
+        "CONFIG_WLAN_WBUFF": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wlan_wbuff_srcs",
+            ],
+        },
+        "CONFIG_WLAN_WEXT_SUPPORT_ENABLE": {
+            True: [
+                "core/hdd/src/wlan_hdd_hostapd_wext.c",
+                "core/hdd/src/wlan_hdd_wext.c",
+            ],
+        },
+        "CONFIG_WLAN_WOWL_ADD_PTRN": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_wowl_add_ptrn.c",
+            ],
+        },
+        "CONFIG_WLAN_WOWL_DEL_PTRN": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_wowl_del_ptrn.c",
+            ],
+        },
+        "CONFIG_WLAN_WOW_ITO": {
+            True: [
+                "core/hdd/src/wlan_hdd_sysfs_wow_ito.c",
+            ],
+        },
+        "CONFIG_WMI_BCN_OFFLOAD": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wmi_bcn_offload_srcs",
+            ],
+        },
+        "CONFIG_WMI_CONCURRENCY_SUPPORT": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wmi_concurrency_support_srcs",
+            ],
+        },
+        "CONFIG_WMI_ROAM_SUPPORT": {
+            True: [
+                "components/wmi/src/wmi_unified_roam_api.c",
+                "components/wmi/src/wmi_unified_roam_tlv.c",
+            ],
+        },
+        "CONFIG_WMI_STA_SUPPORT": {
+            True: [
+                "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:wmi_sta_support_srcs",
+            ],
+        },
+    },
+    copts = [
+        "-includeconfig_to_feature.h",
+        "-includedefault_config.h",
+    ],
+    defconfig = "configs/default_defconfig",
+    kconfig = "Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":qcacld_headers",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/wlan/qcom/wcn6740/cnss2:cnss2_cnss2",
+        "//private/google-modules/wlan/qcom/wcn6740/cnss2:cnss2_cnss_nl",
+        "//private/google-modules/wlan/qcom/wcn6740/cnss2:cnss2_cnss_plat_ipc_qmi_svc",
+        "//private/google-modules/wlan/qcom/wcn6740/cnss2:cnss2_cnss_prealloc",
+        "//private/google-modules/wlan/qcom/wcn6740/cnss2:cnss2_cnss_utils",
+        "//private/google-modules/wlan/qcom/wcn6740/cnss2:cnss2_headers",
+        "//private/google-modules/wlan/qcom/wcn6740/cnss2:cnss2_mhi",
+        "//private/google-modules/wlan/qcom/wcn6740/cnss2:cnss2_qmi",
+        "//private/google-modules/wlan/qcom/wcn6740/cnss2:cnss2_qrtr_mhi",
+        "//private/google-modules/wlan/qcom/wcn6740/cnss2:cnss2_qrtr_qrtr",
+        "//private/google-modules/wlan/qcom/wcn6740/cnss2:cnss2_wlan_firmware_service",
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/fw-api:fw-api_headers",
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0/cmn:qcacmn_headers",
+    ],
+)

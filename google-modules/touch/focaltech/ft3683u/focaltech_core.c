@@ -180,10 +180,11 @@ void fts_tp_state_recovery(struct fts_ts_data *ts_data)
 int fts_reset_proc(int hdelayms)
 {
     FTS_DEBUG("tp reset");
-    
+
+    /* Notify FW to discharge before reset to prevent power from VDD6 to flow into AVDD */
     fts_write_reg(0xB6, 1);
     msleep(20);
-    
+
     gpio_direction_output(fts_data->pdata->reset_gpio, 0);
     /* The minimum reset duration is 1 ms. */
     msleep(1);
@@ -858,12 +859,6 @@ static void fts_update_abnormal_reset(struct fts_ts_data *data,
           return;
     }
 
-    /* Used for debugging HW reset failure issue. Need to cleanup if not used in the future */
-    if (new_status->B0_b0_abnormal_reset != 0) {
-      FTS_INFO("0xB2: %02X, %02X, %02X, %02X, %02X", new_status->data[0], new_status->data[1],
-               new_status->data[2], new_status->data[3], new_status->data[4]);
-    }
-
     // Clear reset flag
     fts_write_reg(FTS_REG_CLR_RESET, 0x01);
 }
@@ -872,20 +867,38 @@ static void fts_update_setting_status(struct fts_ts_data *data,
 {
     bool changed = false;
     struct fw_status_ts *current_status = &data->current_host_status;
+#if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
+    struct gti_fw_status_data gti_status_data = { 0 };
+#endif // IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
 
     if (current_status->B0_b3_water_state != new_status->B0_b3_water_state) {
       current_status->B0_b3_water_state = new_status->B0_b3_water_state;
       changed = true;
+#if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
+      goog_notify_fw_status_changed(data->gti,
+          current_status->B0_b3_water_state ? GTI_FW_STATUS_WATER_ENTER : GTI_FW_STATUS_WATER_EXIT,
+          &gti_status_data);
+#endif // IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
     }
 
     if (current_status->B0_b4_grip_status != new_status->B0_b4_grip_status) {
       current_status->B0_b4_grip_status = new_status->B0_b4_grip_status;
       changed = true;
+#if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
+      goog_notify_fw_status_changed(data->gti,
+          current_status->B0_b4_grip_status ? GTI_FW_STATUS_GRIP_ENTER : GTI_FW_STATUS_GRIP_EXIT,
+          &gti_status_data);
+#endif // IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
     }
 
     if (current_status->B0_b5_palm_status != new_status->B0_b5_palm_status) {
       current_status->B0_b5_palm_status = new_status->B0_b5_palm_status;
       changed = true;
+#if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
+      goog_notify_fw_status_changed(data->gti,
+          current_status->B0_b5_palm_status ? GTI_FW_STATUS_PALM_ENTER : GTI_FW_STATUS_PALM_EXIT,
+          &gti_status_data);
+#endif // IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
     }
 
     if (current_status->B2_b3_v_sync_status != new_status->B2_b3_v_sync_status) {
@@ -2011,9 +2024,6 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
     int ret = 0;
     int pdata_size = sizeof(struct fts_ts_platform_data);
 
-    int reset_retry_count = 0;
-    int max_reset_retry_count = 3;
-
     FTS_FUNC_ENTER();
     ts_data->driver_probed = false;
     FTS_INFO("%s", FTS_DRIVER_VERSION);
@@ -2096,25 +2106,14 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 #endif
 
 #if (!FTS_CHIP_IDC)
-    for (reset_retry_count = 0; reset_retry_count < max_reset_retry_count; reset_retry_count++) {
-	    fts_reset_proc(FTS_RESET_INTERVAL);
-	    ret = fts_get_ic_information(ts_data);
-	    if (!ret)
-		    break;
-	    FTS_WARN("Failed to get IC information after reset, ret: %d, retry_count: %d", ret,
-		     reset_retry_count);
-    }
-    if (ret) {
-	    FTS_ERROR("not focal IC, unregister driver");
-	    goto err_power_init;
-    }
-#else
+    fts_reset_proc(FTS_RESET_INTERVAL);
+#endif
+
     ret = fts_get_ic_information(ts_data);
     if (ret) {
         FTS_ERROR("not focal IC, unregister driver");
         goto err_power_init;
     }
-#endif
 
     ret = fts_create_apk_debug_channel(ts_data);
     if (ret) {

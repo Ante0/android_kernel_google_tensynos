@@ -10,7 +10,7 @@
 	idt,has_wlc_dc = <0>;
 	google,gpp_enhanced;
 	google,gpp_dcicl_ua = <1500000>;
-	google,wcin_inlim_en = <&max77779_gpio 0 GPIO_ACTIVE_HIGH>;
+	google,wcin_inlim_en-gpios = <&max77779_gpio 0 GPIO_ACTIVE_HIGH>;
 	/* RTX */
 	idt,has_rtx_gpio;
 	/* BPP ICL */

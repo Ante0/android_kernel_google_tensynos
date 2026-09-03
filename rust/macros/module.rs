@@ -1,8 +1,26 @@
 // SPDX-License-Identifier: GPL-2.0
 
 use crate::helpers::*;
-use proc_macro::{token_stream, Literal, TokenStream, TokenTree};
+use proc_macro::{token_stream, Delimiter, Literal, TokenStream, TokenTree};
 use std::fmt::Write;
+
+fn expect_string_array(it: &mut token_stream::IntoIter) -> Vec<String> {
+    let group = expect_group(it);
+    assert_eq!(group.delimiter(), Delimiter::Bracket);
+    let mut values = Vec::new();
+    let mut it = group.stream().into_iter();
+
+    while let Some(val) = try_string(&mut it) {
+        assert!(val.is_ascii(), "Expected ASCII string");
+        values.push(val);
+        match it.next() {
+            Some(TokenTree::Punct(punct)) => assert_eq!(punct.as_char(), ','),
+            None => break,
+            _ => panic!("Expected ',' or end of array"),
+        }
+    }
+    values
+}
 
 struct ModInfoBuilder<'a> {
     module: &'a str,
@@ -30,7 +48,7 @@ impl<'a> ModInfoBuilder<'a> {
             )
         } else {
             // Loadable modules' modinfo strings go as-is.
-            format!("{field}={content}\0", field = field, content = content)
+            format!("{field}={content}\0")
         };
 
         write!(
@@ -39,7 +57,7 @@ impl<'a> ModInfoBuilder<'a> {
                 {cfg}
                 #[doc(hidden)]
                 #[link_section = \".modinfo\"]
-                #[used]
+                #[used(compiler)]
                 pub static __{module}_{counter}: [u8; {length}] = *{string};
             ",
             cfg = if builtin {
@@ -78,15 +96,25 @@ struct ModuleInfo {
     name: String,
     author: Option<String>,
     description: Option<String>,
-    alias: Option<String>,
+    alias: Option<Vec<String>>,
+    firmware: Option<Vec<String>>,
+    imports_ns: Option<Vec<String>>,
 }
 
 impl ModuleInfo {
     fn parse(it: &mut token_stream::IntoIter) -> Self {
         let mut info = ModuleInfo::default();
 
-        const EXPECTED_KEYS: &[&str] =
-            &["type", "name", "author", "description", "license", "alias"];
+        const EXPECTED_KEYS: &[&str] = &[
+            "type",
+            "name",
+            "author",
+            "description",
+            "license",
+            "alias",
+            "firmware",
+            "imports_ns",
+        ];
         const REQUIRED_KEYS: &[&str] = &["type", "name", "license"];
         let mut seen_keys = Vec::new();
 
@@ -98,25 +126,21 @@ impl ModuleInfo {
             };
 
             if seen_keys.contains(&key) {
-                panic!(
-                    "Duplicated key \"{}\". Keys can only be specified once.",
-                    key
-                );
+                panic!("Duplicated key \"{key}\". Keys can only be specified once.");
             }
 
             assert_eq!(expect_punct(it), ':');
 
             match key.as_str() {
                 "type" => info.type_ = expect_ident(it),
-                "name" => info.name = expect_byte_string(it),
-                "author" => info.author = Some(expect_byte_string(it)),
-                "description" => info.description = Some(expect_byte_string(it)),
-                "license" => info.license = expect_byte_string(it),
-                "alias" => info.alias = Some(expect_byte_string(it)),
-                _ => panic!(
-                    "Unknown key \"{}\". Valid keys are: {:?}.",
-                    key, EXPECTED_KEYS
-                ),
+                "name" => info.name = expect_string_ascii(it),
+                "author" => info.author = Some(expect_string(it)),
+                "description" => info.description = Some(expect_string(it)),
+                "license" => info.license = expect_string_ascii(it),
+                "alias" => info.alias = Some(expect_string_array(it)),
+                "firmware" => info.firmware = Some(expect_string_array(it)),
+                "imports_ns" => info.imports_ns = Some(expect_string_array(it)),
+                _ => panic!("Unknown key \"{key}\". Valid keys are: {EXPECTED_KEYS:?}."),
             }
 
             assert_eq!(expect_punct(it), ',');
@@ -128,7 +152,7 @@ impl ModuleInfo {
 
         for key in REQUIRED_KEYS {
             if !seen_keys.iter().any(|e| e == key) {
-                panic!("Missing required key \"{}\".", key);
+                panic!("Missing required key \"{key}\".");
             }
         }
 
@@ -140,10 +164,7 @@ impl ModuleInfo {
         }
 
         if seen_keys != ordered_keys {
-            panic!(
-                "Keys are not ordered as expected. Order them like: {:?}.",
-                ordered_keys
-            );
+            panic!("Keys are not ordered as expected. Order them like: {ordered_keys:?}.");
         }
 
         info
@@ -163,8 +184,20 @@ pub(crate) fn module(ts: TokenStream) -> TokenStream {
         modinfo.emit("description", &description);
     }
     modinfo.emit("license", &info.license);
-    if let Some(alias) = info.alias {
-        modinfo.emit("alias", &alias);
+    if let Some(aliases) = info.alias {
+        for alias in aliases {
+            modinfo.emit("alias", &alias);
+        }
+    }
+    if let Some(firmware) = info.firmware {
+        for fw in firmware {
+            modinfo.emit("firmware", &fw);
+        }
+    }
+    if let Some(imports) = info.imports_ns {
+        for ns in imports {
+            modinfo.emit("import_ns", &ns);
+        }
     }
 
     // Built-in modules also export the `file` modinfo string.
@@ -184,7 +217,7 @@ pub(crate) fn module(ts: TokenStream) -> TokenStream {
             #[cfg(MODULE)]
             static THIS_MODULE: kernel::ThisModule = unsafe {{
                 extern \"C\" {{
-                    static __this_module: core::cell::UnsafeCell<kernel::bindings::module>;
+                    static __this_module: kernel::types::Opaque<kernel::bindings::module>;
                 }}
 
                 kernel::ThisModule::from_ptr(__this_module.get())
@@ -205,7 +238,7 @@ pub(crate) fn module(ts: TokenStream) -> TokenStream {
                     // key or a new section. For the moment, keep it simple.
                     #[cfg(MODULE)]
                     #[doc(hidden)]
-                    #[used]
+                    #[used(compiler)]
                     static __IS_RUST_MODULE: () = ();
 
                     static mut __MOD: Option<{type_}> = None;
@@ -219,12 +252,18 @@ pub(crate) fn module(ts: TokenStream) -> TokenStream {
                     #[doc(hidden)]
                     #[no_mangle]
                     #[link_section = \".init.text\"]
-                    pub unsafe extern \"C\" fn init_module() -> core::ffi::c_int {{
+                    pub unsafe extern \"C\" fn init_module() -> kernel::ffi::c_int {{
                         // SAFETY: This function is inaccessible to the outside due to the double
                         // module wrapping it. It is called exactly once by the C side via its
                         // unique name.
                         unsafe {{ __init() }}
                     }}
+
+                    #[cfg(MODULE)]
+                    #[doc(hidden)]
+                    #[used(compiler)]
+                    #[link_section = \".init.data\"]
+                    static __UNIQUE_ID___addressable_init_module: unsafe extern \"C\" fn() -> i32 = init_module;
 
                     #[cfg(MODULE)]
                     #[doc(hidden)]
@@ -240,14 +279,20 @@ pub(crate) fn module(ts: TokenStream) -> TokenStream {
                         unsafe {{ __exit() }}
                     }}
 
+                    #[cfg(MODULE)]
+                    #[doc(hidden)]
+                    #[used(compiler)]
+                    #[link_section = \".exit.data\"]
+                    static __UNIQUE_ID___addressable_cleanup_module: extern \"C\" fn() = cleanup_module;
+
                     // Built-in modules are initialized through an initcall pointer
                     // and the identifiers need to be unique.
                     #[cfg(not(MODULE))]
                     #[cfg(not(CONFIG_HAVE_ARCH_PREL32_RELOCATIONS))]
                     #[doc(hidden)]
                     #[link_section = \"{initcall_section}\"]
-                    #[used]
-                    pub static __{name}_initcall: extern \"C\" fn() -> core::ffi::c_int = __{name}_init;
+                    #[used(compiler)]
+                    pub static __{name}_initcall: extern \"C\" fn() -> kernel::ffi::c_int = __{name}_init;
 
                     #[cfg(not(MODULE))]
                     #[cfg(CONFIG_HAVE_ARCH_PREL32_RELOCATIONS)]
@@ -262,7 +307,7 @@ pub(crate) fn module(ts: TokenStream) -> TokenStream {
                     #[cfg(not(MODULE))]
                     #[doc(hidden)]
                     #[no_mangle]
-                    pub extern \"C\" fn __{name}_init() -> core::ffi::c_int {{
+                    pub extern \"C\" fn __{name}_init() -> kernel::ffi::c_int {{
                         // SAFETY: This function is inaccessible to the outside due to the double
                         // module wrapping it. It is called exactly once by the C side via its
                         // placement above in the initcall section.
@@ -285,7 +330,7 @@ pub(crate) fn module(ts: TokenStream) -> TokenStream {
                     /// # Safety
                     ///
                     /// This function must only be called once.
-                    unsafe fn __init() -> core::ffi::c_int {{
+                    unsafe fn __init() -> kernel::ffi::c_int {{
                         match <{type_} as kernel::Module>::init(&super::super::THIS_MODULE) {{
                             Ok(m) => {{
                                 // SAFETY: No data race, since `__MOD` can only be accessed by this

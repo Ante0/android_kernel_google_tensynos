@@ -156,7 +156,7 @@ static int parse_log_sources_response(struct log_layer *layer, uint8_t *data,
 			const char *error_msg = "log name error";
 			pr_err("qm35: log module name bigger than allocated buffer: current_len = %d bytes\n",
 			       current_len);
-			strlcpy(layer->log_modules[idx].name, error_msg,
+			strscpy(layer->log_modules[idx].name, error_msg,
 				sizeof(layer->log_modules[idx].name));
 		} else
 			strcpy(layer->log_modules[idx].name, (char *)data);

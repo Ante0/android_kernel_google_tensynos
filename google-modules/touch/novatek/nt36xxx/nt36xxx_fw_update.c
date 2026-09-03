@@ -21,7 +21,7 @@
 #include <linux/gpio.h>
 
 #include "nt36xxx.h"
-#if SPI_FLASH
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)
 
 #if BOOT_UPDATE_FIRMWARE
 
@@ -1289,4 +1289,4 @@ void Boot_Update_Firmware(struct work_struct *work)
 	mutex_unlock(&ts->lock);
 }
 #endif /* BOOT_UPDATE_FIRMWARE */
-#endif /* !SPI_FLASH*/
+#endif /* IS_ENABLED(CONFIG_TOUCHSCREEN_SPI_FLASH)*/

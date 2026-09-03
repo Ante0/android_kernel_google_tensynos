@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+label_flag(
+    name = "metrics_collection",
+    build_setting_default = ":metrics_collection_disabled",
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "metrics_collection.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "metrics_collection_disabled",
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "headers",
+    hdrs = [
+        "include/metrics_collection.h",
+        "metrics_collection_internal.h",
+    ],
+    includes = [
+        "include",
+    ],
+    visibility = [
+        # keep sorted
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "metrics_collection_enabled",
+    srcs = [
+        "mcf_modem.c",
+        "mcf_pcie.c",
+        "metrics_collection_core.c",
+    ],
+    out = "metrics_collection.ko",
+    hdrs = [
+        "include/metrics_collection.h",
+    ],
+    includes = ["include"],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
+    ],
+)

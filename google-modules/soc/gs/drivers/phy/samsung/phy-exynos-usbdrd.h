@@ -8,6 +8,8 @@
 #ifndef __PHY_EXYNOS_USBDRD_H__
 #define __PHY_EXYNOS_USBDRD_H__
 
+#include <linux/usb/typec_mux.h>
+
 #include <soc/google/exynos-pd_hsi0.h>
 
 #include "phy-samsung-usb-cal.h"
@@ -210,9 +212,6 @@ struct exynos_usbdrd_phy {
 	u32 phy_port;
 	u32 reverse_phy_port;
 	spinlock_t lock; /* protect phy setting */
-	struct extcon_dev *edev;
-	struct notifier_block usb_nb;
-	struct notifier_block usb_host_nb;
 	struct device *s2mpu;
 
 	/* eom related parameters */
@@ -221,14 +220,8 @@ struct exynos_usbdrd_phy {
 	int fail_cnt;
 
 	u32 use_default_tune_val;
+
+	struct typec_switch_dev *typec_switch;
 };
-
-
-void __iomem *phy_exynos_usbdp_get_address(void);
-
-#if IS_ENABLED(CONFIG_PHY_EXYNOS_EUSB_REPEATER)
-extern int eusb_repeater_power_on(void);
-extern int eusb_repeater_power_off(void);
-#endif
 
 #endif	/* __PHY_EXYNOS_USBDRD_H__ */

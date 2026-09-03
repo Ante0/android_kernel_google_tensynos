@@ -18,6 +18,8 @@ struct lwis_allocator_block {
 	struct lwis_allocator_block *next;
 	struct lwis_allocator_block *prev;
 	struct hlist_node node;
+	size_t req_size;
+	bool in_use;
 };
 
 struct lwis_allocator_block_pool {
@@ -55,9 +57,53 @@ int lwis_allocator_init(struct lwis_device *lwis_dev);
 void lwis_allocator_release(struct lwis_device *lwis_dev);
 
 /*
+ *  lwis_allocator_purge_pools_locked: Forcefully purge all empty cached blocks in all pools
+ */
+void lwis_allocator_purge_pools_locked(struct lwis_device *lwis_dev);
+
+/*
+ *  lwis_allocator_destroy: Destroy the recycling memory allocator
+ *  and its resources
+ */
+void lwis_allocator_destroy(struct lwis_device *lwis_dev);
+
+/*
  *  lwis_allocator_allocate: Allocate a block from the recycling memory allocator
  */
 void *lwis_allocator_allocate(struct lwis_device *lwis_dev, size_t size, gfp_t gfp_flags);
+
+static inline void *lwis_allocator_zallocate(struct lwis_device *lwis_dev, size_t size,
+					     gfp_t gfp_flags)
+{
+	return lwis_allocator_allocate(lwis_dev, size, gfp_flags | __GFP_ZERO);
+}
+
+/*
+ *  lwis_allocator_calloc: Allocate an array from the recycling memory allocator
+ */
+void *lwis_allocator_calloc(struct lwis_device *lwis_dev, size_t n, size_t size, gfp_t gfp_flags);
+
+/*
+ *  lwis_allocator_array: Allocate an array from the recycling memory allocator without zeroing
+ */
+void *lwis_allocator_array(struct lwis_device *lwis_dev, size_t n, size_t size, gfp_t gfp_flags);
+
+/*
+ *  lwis_allocator_realloc: Reallocate a block from the recycling memory allocator
+ */
+void *lwis_allocator_realloc(struct lwis_device *lwis_dev, void *ptr, size_t new_size,
+			     gfp_t gfp_flags);
+
+/*
+ *  lwis_allocator_memdup: Duplicate a memory region using the recycling memory allocator
+ */
+void *lwis_allocator_memdup(struct lwis_device *lwis_dev, const void *src, size_t len,
+			    gfp_t gfp_flags);
+
+/*
+ *  lwis_allocator_strdup: Duplicate a string using the recycling memory allocator
+ */
+char *lwis_allocator_strdup(struct lwis_device *lwis_dev, const char *s, gfp_t gfp_flags);
 
 /*
  *  lwis_allocator_free: Free a block to the recycling memory allocator

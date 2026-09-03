@@ -1,0 +1,144 @@
+================================================================================
+				README
+
+ Copyright (c) 2024 Google LLC.
+
+ Author: Henry Yen <henryyen@google.com>
+================================================================================
+
+
+
+=======================
+Overview
+=======================
+This kernel module provides a software architecture designed to verify the
+interaction between APC Linux and NOA functionality in a GEM5 fullsoc mode
+simulation environment. It simulates common use cases to ensure proper
+software and hardware behavior, focusing on efficient and accurate validation
+of NOA features.
+
+
+=======================
+Design Considerations
+=======================
+The architecture is guided by two key principles:
+
+  (1) Abstraction and Reusability:
+	Common logic related to network interface verification (Wi-Fi, modem,
+	etc.) is extracted from vendor drivers and standardized into a unified
+	framework. This promotes flexibility for different technologies.
+
+  (2) Leveraging Existing Code:
+	The architecture maximizes the reuse of existing data structures and
+	APIs from the existing Linux NOA driver to effectively verify the NOA
+	software.
+
+
+=======================
+Architecture
+=======================
+Based on the existing Linux NOA driver, the architecture is layered as follows:
+
++--------------------------------------------+
+|               Test Framework               |
++--------------------------------------------+
+|            Common Network Layer            |
++------------------------+-------------------+
+|    Mock Vendor Driver  |  Buffer Manager   |
++------------------------+-------------------+
+|       Device Abstraction Layer (DAL)       |
++--------------------------------------------+
+|          Existing Linux NOA Driver         |
++--------------------------------------------+
+
+
+=======================
+Common Network Layer
+=======================
+This layer abstracts common behaviors from various vendor drivers and
+standardizes them into a unified framework, allowing vendor drivers to focus on
+their specific hardware interactions. It handles generic network-related tasks
+and provides a consistent interface for the Linux NOA driver, regardless of the
+underlying vendor driver, promoting flexibility and reducing development effort
+when switching between different network technologies.
+
+
+=======================
+Buffer Manager
+=======================
+Buffer manager pre-allocates a pool of data buffers and utilizes a linked list
+to track available buffers, dynamically adding or removing them based on
+allocation and release requests. It employs a hash table to accelerate data
+buffer lookup by token ID, further improving verification efficiency.
+
+
+=======================
+Mock Vendor Driver
+=======================
+A simplified vendor driver tailored for NOA verification. It excludes
+unnecessary complexities (like PHY layer handshakes and Wi-Fi protocols)
+that are not relevant to the core verification goals. Vendor driver should
+be integrated with the DAL layer to provide the Linux NOA driver with the
+necessary information for further operation.
+
+
+=======================
+Device Abstraction Layer (DAL)
+=======================
+DAL acts as an intermediary between the Mock vendor driver and the Linux NOA
+driver,decoupling them and enhancing software flexibility. It handles
+communication and data conversion between the two drivers, avoiding direct
+dependencies on their internal data structures or APIs.
+
+
+========================
+Repository Structure
+========================
+.
+├── buffer					---> Buffer Manager
+│   ├── manager.c
+│   └── manager.h
+├── core
+│   ├── init.c
+│   └── print.h
+├── dal						---> Device Abstraction Layer
+│   ├── dal_wlan.c
+│   ├── dal_wlan.h
+│   └── google_plat.h
+├── drivers					---> Mock Vendor Driver
+│   ├── modem
+│   └── wlan
+│       ├── debugfs.c
+│       ├── device.c
+│       ├── format.h
+│       ├── interface.c
+│       ├── interface.h
+│       ├── main.c
+│       ├── mcu.c
+│       ├── mcu.h
+│       ├── ring.c
+│       └── ring.h
+├── net						---> Common Network Layer
+│   ├── debugfs.c
+│   ├── framework.c
+│   ├── netdev.c
+│   ├── netdev.h
+│   └── platform.h
+├── README
+└── unittest					---> Test Framework
+    ├── checker.c
+    ├── framework.c
+    ├── generator.c
+    └── platform.h
+
+
+========================
+Building and Running
+========================
+T.B.D
+
+
+========================
+DEBUGFS COMMANDS
+========================
+T.B.D

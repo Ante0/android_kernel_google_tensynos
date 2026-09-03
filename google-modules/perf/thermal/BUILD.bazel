@@ -1,0 +1,465 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# thermal modules configuration
+
+load(
+    "@kleaf//build/kernel/kleaf:kernel.bzl",
+    "ddk_config",
+    "ddk_module",
+    "kernel_module_group",
+)
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_config(
+    name = "test_config",
+    defconfig = "test/kunit_defconfig",
+    kconfigs = ["test/Kconfig"],
+    kernel_build = "//private/devices/google/common:kernel",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/thermal:google_thermal_cpm_mbox",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/sched:vh_sched",
+    ],
+)
+
+ddk_config(
+    name = "uclamp_test_config",
+    defconfig = "test/uclamp_test_defconfig",
+    kconfigs = ["test/Kconfig"],
+    kernel_build = "//private/devices/google/common:kernel",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/thermal:google_thermal_cpm_mbox",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/sched:vh_sched",
+    ],
+)
+
+ddk_module(
+    name = "google_thermal_sensor",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "thermal.c",
+        "utils/thermal_msg_helper.c",
+        "utils/thermal_ntc_helper.c",
+        "utils/thermal_sm_helper.c",
+        "utils/thermal_tmu_debugfs_helper.c",
+        "utils/thermal_tmu_helper.c",
+        "utils/thermal_zone_helper.c",
+    ],
+    out = "google_thermal_sensor.ko",
+    includes = [
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/thermal:google_thermal_cpm_mbox",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/metrics:pixel_metrics",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/thermal:vh_thermal",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "google_thermal_cpm_mbox",
+    srcs = [
+        "include/thermal_cpm_mbox_helper.h",
+        "include/thermal_cpm_mbox_helper_internal.h",
+        "include/thermal_cpm_mbox_mock.h",
+        "thermal_cpm_mbox.c",
+        "utils/thermal_cpm_mbox_helper.c",
+        "utils/thermal_cpm_mbox_helper_internal.c",
+    ],
+    out = "google_thermal_cpm_mbox.ko",
+    hdrs = [
+        "include/thermal_cpm_mbox.h",
+    ],
+    includes = [
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-cpm-iface",
+    ],
+)
+
+ddk_module(
+    name = "google_powercap",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "google_powercap_cpu.c",
+        "google_powercap_devfreq.c",
+        "google_powercap_tree.c",
+        "utils/cdev_cpufreq_helper.c",
+        "utils/cdev_devfreq_helper.c",
+        "utils/cdev_helper_mock.c",
+        "utils/google_powercap_cpu_helper.c",
+        "utils/google_powercap_devfreq_helper.c",
+        "utils/google_powercap_helper.c",
+        "utils/google_powercap_stats.c",
+        "utils/google_thermal_odpm_helper.c",
+        "utils/powercap_voltage_match_algo.c",
+        "utils/powercap_weights_algo.c",
+        "utils/thermal_msg_helper.c",
+    ],
+    out = "google_powercap.ko",
+    includes = [
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/thermal:google_thermal_cpm_mbox",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/odpm:google_odpm",
+        "//private/google-modules/soc/rdo/odpm:headers",
+    ],
+)
+
+ddk_module(
+    name = "google_devfreq_tj_cdev",
+    srcs = glob([
+        "include/*.h",
+    ]) + [
+        "devfreq_tj_cdev.c",
+        "utils/cdev_devfreq_helper.c",
+        "utils/cdev_helper_mock.c",
+        "utils/devfreq_tj_cdev_helper.c",
+        "utils/thermal_msg_helper.c",
+    ],
+    out = "google_devfreq_tj_cdev.ko",
+    includes = [
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/thermal:google_thermal_cpm_mbox",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "google_thermal_sensor_stats",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "thermal_stats.c",
+        "utils/thermal_msg_helper.c",
+        "utils/thermal_sm_helper.c",
+        "utils/thermal_stats_helper.c",
+    ],
+    out = "google_thermal_sensor_stats.ko",
+    includes = [
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/thermal:google_thermal_cpm_mbox",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/metrics:pixel_metrics",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:google_gtc",
+    ],
+)
+
+ddk_module(
+    name = "google_thermal_pressure_tj",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "thermal_pressure_tj.c",
+        "utils/cdev_cpufreq_helper.c",
+        "utils/cdev_helper_mock.c",
+        "utils/thermal_msg_helper.c",
+        "utils/thermal_sm_helper.c",
+    ],
+    out = "google_thermal_pressure_tj.ko",
+    includes = [
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/thermal:google_thermal_cpm_mbox",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "devfreq_tj_cdev_test",
+    srcs = glob([
+        "include/*.h",
+    ]) + [
+        "test/devfreq_tj_cdev_helper_test.c",
+        "utils/devfreq_tj_cdev_helper.c",
+    ],
+    out = "devfreq_tj_cdev_test.ko",
+    config = ":test_config",
+    includes = [
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/thermal:google_devfreq_tj_cdev",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "google_thermal_uclamp",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "google_uclamp_cdev.c",
+        "utils/cdev_cpufreq_helper.c",
+        "utils/cdev_helper_mock.c",
+        "utils/google_uclamp_cdev_helper.c",
+        "utils/thermal_msg_helper.c",
+    ],
+    out = "google_thermal_uclamp.ko",
+    includes = [
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/thermal:google_thermal_cpm_mbox",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/sched:vh_sched",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "google_uclamp_cdev_test",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "test/google_uclamp_cdev_helper_test.c",
+        "utils/cdev_cpufreq_helper.c",
+        "utils/cdev_helper_mock.c",
+        "utils/google_uclamp_cdev_helper.c",
+        "utils/thermal_msg_helper.c",
+    ],
+    out = "google_uclamp_cdev_test.ko",
+    config = ":uclamp_test_config",
+    includes = [
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/thermal:google_thermal_cpm_mbox",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/sched:vh_sched",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "thermal_sensor_stats_test",
+    srcs = glob([
+        "include/*.h",
+    ]) + [
+        "test/thermal_stats_helper_tests.c",
+        "utils/thermal_stats_helper.c",
+    ],
+    out = "thermal_stats_test.ko",
+    config = ":test_config",
+    includes = [
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/thermal:google_thermal_cpm_mbox",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/metrics:pixel_metrics",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:google_gtc",
+    ],
+)
+
+ddk_module(
+    name = "thermal_helper_test",
+    srcs = glob([
+        "include/*.h",
+    ]) + [
+        "test/thermal_msg_helper_tests.c",
+        "test/thermal_ntc_helper_tests.c",
+        "test/thermal_sm_helper_tests.c",
+        "test/thermal_tmu_helper_tests.c",
+        "test/thermal_zone_helper_tests.c",
+        "utils/thermal_msg_helper.c",
+        "utils/thermal_ntc_helper.c",
+        "utils/thermal_sm_helper.c",
+        "utils/thermal_tmu_debugfs_helper.c",
+        "utils/thermal_tmu_helper.c",
+        "utils/thermal_zone_helper.c",
+    ],
+    out = "thermal_helper_test.ko",
+    config = ":test_config",
+    includes = [
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/thermal:google_thermal_cpm_mbox",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel/thermal:vh_thermal",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "cdev_helper_test",
+    srcs = glob([
+        "include/*.h",
+    ]) + [
+        "test/cdev_helper_tests.c",
+        "utils/cdev_cpufreq_helper.c",
+        "utils/cdev_devfreq_helper.c",
+        "utils/cdev_helper_mock.c",
+        "utils/thermal_msg_helper.c",
+    ],
+    out = "cdev_helper_test.ko",
+    defconfig = "test/cdev_helper_defconfig",
+    includes = [
+        "include",
+    ],
+    kconfig = "test/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/thermal:google_thermal_cpm_mbox",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "powercap_test",
+    srcs = glob([
+        "include/*.h",
+    ]) + [
+        "google_powercap_cpu.c",
+        "google_powercap_devfreq.c",
+        "test/powercap_helper_tests.c",
+        "utils/cdev_cpufreq_helper.c",
+        "utils/cdev_devfreq_helper.c",
+        "utils/cdev_helper_mock.c",
+        "utils/google_powercap_cpu_helper.c",
+        "utils/google_powercap_devfreq_helper.c",
+        "utils/google_powercap_helper.c",
+        "utils/google_powercap_stats.c",
+        "utils/google_thermal_odpm_helper.c",
+        "utils/powercap_voltage_match_algo.c",
+        "utils/powercap_weights_algo.c",
+        "utils/thermal_msg_helper.c",
+    ],
+    out = "powercap_test.ko",
+    defconfig = "test/powercap_defconfig",
+    includes = [
+        "include",
+    ],
+    kconfig = "test/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/thermal:google_thermal_cpm_mbox",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/odpm:google_odpm",
+        "//private/google-modules/soc/rdo/odpm:headers",
+    ],
+)
+
+ddk_module(
+    name = "thermal_mbox_test",
+    srcs = [
+        "include/thermal_cpm_mbox.h",
+        "include/thermal_cpm_mbox_helper.h",
+        "include/thermal_cpm_mbox_helper_internal.h",
+        "include/thermal_cpm_mbox_mock.h",
+        "test/thermal_cpm_mbox_tests.c",
+        "utils/thermal_cpm_mbox_helper.c",
+        "utils/thermal_cpm_mbox_helper_internal.c",
+    ],
+    out = "thermal_cpm_mbox_test.ko",
+    config = ":test_config",
+    includes = [
+        "include",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/thermal:google_thermal_cpm_mbox",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-cpm-iface",
+    ],
+)
+
+kernel_module_group(
+    name = "thermal",
+    srcs = [
+        ":google_devfreq_tj_cdev",
+        ":google_powercap",
+        ":google_thermal_cpm_mbox",
+        ":google_thermal_pressure_tj",
+        ":google_thermal_sensor",
+        ":google_thermal_sensor_stats",
+        ":google_thermal_uclamp",
+    ],
+)
+
+kernel_module_group(
+    name = "thermal_tests",
+    srcs = [
+        ":cdev_helper_test",
+        ":devfreq_tj_cdev_test",
+        ":google_uclamp_cdev_test",
+        ":powercap_test",
+        ":thermal_helper_test",
+        ":thermal_mbox_test",
+        ":thermal_sensor_stats_test",
+    ],
+)
+
+exports_files([
+    "Kconfig",
+])

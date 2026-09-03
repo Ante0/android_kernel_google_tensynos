@@ -16,6 +16,9 @@
 
 #define TK4B_DDIC_ID_LEN 8
 #define TK4B_DIMMING_FRAME 32
+#define TK4B_LUMINANCE_READS_PER_DBV 4
+#define TK4B_LUMINANCE_READ_LONG_LEN 18
+#define TK4B_LUMINANCE_READ_SHORT_LEN 14
 
 #define MIPI_DSI_FREQ_MBPS_DEFAULT 756
 #define MIPI_DSI_FREQ_MBPS_ALTERNATIVE 776
@@ -24,6 +27,17 @@
 #define HEIGHT_MM 145
 
 #define PROJECT "TK4B"
+
+/**
+ * struct tk4b_luminance_read_config
+ *
+ * This struct maintains
+ */
+struct tk4b_luminance_read_config {
+	int dbv_idx;
+	int freq_irc_idx;
+	bool done;
+};
 
 /**
  * struct tk4b_panel - panel specific runtime info
@@ -36,6 +50,8 @@ struct tk4b_panel {
 	struct gs_panel base;
 	/** @is_hbm2_enabled: indicates panel is running in HBM mode 2 */
 	bool is_hbm2_enabled;
+	enum color_data_type cal_read_type;
+	struct tk4b_luminance_read_config luminance_read_config;
 };
 
 #define to_spanel(ctx) container_of(ctx, struct tk4b_panel, base)
@@ -392,16 +408,16 @@ static void tk4b_update_irc(struct gs_panel *ctx,
 		if (vrefresh == 120) {
 			GS_DCS_BUF_ADD_CMD(dev, 0x2F, 0x00);
 			GS_DCS_BUF_ADD_CMD(dev, MIPI_DCS_SET_GAMMA_CURVE, 0x02);
-			if (ctx->panel_rev < PANEL_REV_PVT) {
+			if (ctx->panel_rev_id.id < PANEL_REVID_PVT) {
 				GS_DCS_BUF_ADD_CMD(dev, 0xF0, 0x55, 0xAA, 0x52, 0x08, 0x00);
 				GS_DCS_BUF_ADD_CMD(dev, 0x6F, 0x03);
-				if (ctx->panel_rev < PANEL_REV_EVT1)
+				if (ctx->panel_rev_id.id < PANEL_REVID_EVT1)
 					GS_DCS_BUF_ADD_CMD(dev, 0xC0, 0x32);
 				else
 					GS_DCS_BUF_ADD_CMD(dev, 0xC0, 0x40);
 			}
 		} else {
-			if (ctx->panel_rev < PANEL_REV_EVT1) {
+			if (ctx->panel_rev_id.id < PANEL_REVID_EVT1) {
 				GS_DCS_BUF_ADD_CMD(dev, 0x2F, 0x30);
 				GS_DCS_BUF_ADD_CMD(dev, 0xF0, 0x55, 0xAA, 0x52, 0x08, 0x00);
 				GS_DCS_BUF_ADD_CMD(dev, 0x6F, 0xB0);
@@ -424,16 +440,16 @@ static void tk4b_update_irc(struct gs_panel *ctx,
 		if (vrefresh == 120) {
 			GS_DCS_BUF_ADD_CMD(dev, 0x2F, 0x00);
 			GS_DCS_BUF_ADD_CMD(dev, MIPI_DCS_SET_GAMMA_CURVE, 0x00);
-			if (ctx->panel_rev < PANEL_REV_PVT) {
+			if (ctx->panel_rev_id.id < PANEL_REVID_PVT) {
 				GS_DCS_BUF_ADD_CMD(dev, 0xF0, 0x55, 0xAA, 0x52, 0x08, 0x00);
 				GS_DCS_BUF_ADD_CMD(dev, 0x6F, 0x03);
-				if (ctx->panel_rev < PANEL_REV_EVT1)
+				if (ctx->panel_rev_id.id < PANEL_REVID_EVT1)
 					GS_DCS_BUF_ADD_CMD(dev, 0xC0, 0x30);
 				else
 					GS_DCS_BUF_ADD_CMD(dev, 0xC0, 0x10);
 			}
 		} else {
-			if (ctx->panel_rev < PANEL_REV_EVT1) {
+			if (ctx->panel_rev_id.id < PANEL_REVID_EVT1) {
 				GS_DCS_BUF_ADD_CMD(dev, 0x2F, 0x30);
 				GS_DCS_BUF_ADD_CMD(dev, 0xF0, 0x55, 0xAA, 0x52, 0x08, 0x00);
 				GS_DCS_BUF_ADD_CMD(dev, 0x6F, 0xB0);
@@ -785,7 +801,7 @@ static void tk4b_get_panel_rev(struct gs_panel *ctx, u32 id)
 	gs_panel_get_panel_rev(ctx, main | sub);
 }
 
-static int tk4b_read_id(struct gs_panel *ctx)
+static int tk4b_read_serial(struct gs_panel *ctx)
 {
 	struct device *dev = ctx->dev;
 	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
@@ -801,10 +817,195 @@ static int tk4b_read_id(struct gs_panel *ctx)
 		ret = 0;
 	}
 
-	bin2hex(ctx->panel_id, buf, TK4B_DDIC_ID_LEN);
+	bin2hex(ctx->panel_serial_number, buf, TK4B_DDIC_ID_LEN);
 done:
 	GS_DCS_WRITE_CMD(dev, 0xFF, 0xAA, 0x55, 0xA5, 0x00);
 	return ret;
+}
+
+static ssize_t tk4b_read_cie_data(struct gs_panel *ctx, char *buf, size_t buf_len)
+{
+	struct device *dev = ctx->dev;
+	struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	const u8 white_cie_read_len = 12;
+	const u8 color_cie_read_len = 36;
+	int read_ret = -1;
+	size_t buf_idx = 0;
+
+	if (white_cie_read_len + color_cie_read_len > buf_len)
+		return -EINVAL;
+
+	PANEL_ATRACE_BEGIN(__func__);
+	/* White cx,cy,z read */
+	GS_DCS_WRITE_CMD(dev, 0xFF, 0xAA, 0x55, 0xA5, 0x81);
+	read_ret = mipi_dsi_dcs_read(dsi, 0xAC, buf, white_cie_read_len);
+	if (read_ret != white_cie_read_len)
+		goto err;
+	buf_idx += read_ret;
+
+	/* RGB cx,cy,z read */
+	GS_DCS_WRITE_CMD(dev, 0xF0, 0x55, 0xAA, 0x52, 0x08, 0x03);
+	read_ret = mipi_dsi_dcs_read(dsi, 0xE0, buf + buf_idx, color_cie_read_len);
+	if (read_ret != color_cie_read_len)
+		goto err;
+	buf_idx += read_ret;
+
+	PANEL_ATRACE_END(__func__);
+	dev_dbg(dev, "%s: read color CIE (%zuB)\n", __func__, buf_idx);
+	return buf_idx;
+err:
+	PANEL_ATRACE_END(__func__);
+	dev_warn(dev, "%s: Unable to read DDIC CIE data (%d)\n", __func__, read_ret);
+	return -EINVAL;
+}
+
+static int tk4b_set_next_luminance_read(struct gs_panel *ctx, bool reset)
+{
+	struct tk4b_luminance_read_config *read_config = &to_spanel(ctx)->luminance_read_config;
+
+	if (reset) {
+		read_config->freq_irc_idx = 0;
+		read_config->done = false;
+	} else {
+		read_config->freq_irc_idx++;
+		if (read_config->freq_irc_idx == TK4B_LUMINANCE_READS_PER_DBV) {
+			read_config->freq_irc_idx = 0;
+			read_config->done = true;
+		}
+	}
+
+	dev_dbg(ctx->dev, "%s: next luminance read: DBV %d freq idx %d", __func__,
+		read_config->dbv_idx, read_config->freq_irc_idx);
+	return 0;
+}
+
+static ssize_t tk4b_read_reg_with_retries(struct device *dev, u8 cmd, char *buf, size_t len)
+{
+	struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	const u8 max_retries = 20;
+	const char zeroes[TK4B_LUMINANCE_READ_LONG_LEN] = { 0 };
+	ssize_t read_ret = -1;
+	u8 tries = 0;
+
+	while (tries < max_retries) {
+		read_ret = mipi_dsi_dcs_read(dsi, cmd, buf, len);
+		if (read_ret != (ssize_t)len) {
+			dev_warn(dev, "Unable to read DDIC id (%zd) on read %d for RGB 0x%02X\n",
+				 read_ret, tries, cmd);
+			return -1;
+		}
+		usleep_range(2000, 2200);
+
+		/* Workaround for flake */
+		if (memcmp(buf, zeroes, len) != 0)
+			break;
+		tries++;
+	}
+
+	if (tries == max_retries) {
+		dev_warn(dev, "Unable to read DDIC after %d tries for RGB 0x%02X\n", tries, cmd);
+		return -1;
+	}
+
+	if (tries > 0)
+		dev_info(dev, "Had to retry flaky DDIC read %d times for RGB 0x%02X\n", tries, cmd);
+	return read_ret;
+}
+
+static ssize_t tk4b_read_luminance_data_once(struct gs_panel *ctx, char *buf, size_t buf_start)
+{
+	struct device *dev = ctx->dev;
+	struct tk4b_luminance_read_config *read_config = &to_spanel(ctx)->luminance_read_config;
+
+	const u8 rgb_channel_select_base = 0xB0, rgb_channel_select_max = 0xB8;
+	const u8 gamma_prefix_table[] = { 0, 1, 2, 4 };
+	const u8 gamma_suffix_table[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0xB };
+
+	u8 dbv_gamma_select;
+	size_t buf_idx = buf_start;
+
+	if (read_config->freq_irc_idx > TK4B_LUMINANCE_READS_PER_DBV ||
+	    read_config->dbv_idx >
+		    ctx->desc->calibration_desc->color_cal[COLOR_DATA_TYPE_LUMINANCE].max_option) {
+		dev_err(dev, "luminance read config invalid, attempted to read %d idx %d\n",
+			read_config->dbv_idx, read_config->freq_irc_idx);
+		goto err;
+	}
+
+	PANEL_ATRACE_BEGIN(__func__);
+	dbv_gamma_select = (gamma_prefix_table[read_config->freq_irc_idx] << 4) |
+			   (gamma_suffix_table[read_config->dbv_idx] & 0x0F);
+	GS_DCS_BUF_ADD_CMD(dev, 0xF0, 0x55, 0xAA, 0x52, 0x08, 0x02);
+	GS_DCS_BUF_ADD_CMD_AND_FLUSH(dev, 0xBF, dbv_gamma_select);
+
+	for (u8 rgb_select = rgb_channel_select_base; rgb_select <= rgb_channel_select_max;
+	     rgb_select++) {
+		/* Shorter reads on 0xB2, 0xB5, 0xB8 */
+		size_t read_len = rgb_select % 3 == 1 ? TK4B_LUMINANCE_READ_SHORT_LEN :
+							TK4B_LUMINANCE_READ_LONG_LEN;
+		if (tk4b_read_reg_with_retries(dev, rgb_select, buf + buf_idx, read_len) !=
+		    read_len)
+			goto err;
+		buf_idx += read_len;
+	}
+
+	PANEL_ATRACE_END(__func__);
+	dev_info(dev, "%s: TK4B luminance read for %zuB from 0x%02X\n", __func__,
+		 buf_idx - buf_start, dbv_gamma_select);
+	return buf_idx;
+err:
+	PANEL_ATRACE_END(__func__);
+	return -EINVAL;
+}
+
+static ssize_t tk4b_read_luminance_data(struct gs_panel *ctx, char *buf, size_t buf_len)
+{
+	struct tk4b_luminance_read_config *read_config = &to_spanel(ctx)->luminance_read_config;
+	ssize_t buf_filled = 0;
+
+	if (read_config->done)
+		tk4b_set_next_luminance_read(ctx, true);
+
+	while (!read_config->done && buf_filled < buf_len) {
+		buf_filled = tk4b_read_luminance_data_once(ctx, buf, buf_filled);
+		tk4b_set_next_luminance_read(ctx, false);
+		if (buf_filled < 0) /* error */
+			read_config->done = true;
+	}
+	return buf_filled;
+}
+
+static ssize_t tk4b_get_color_data(struct gs_panel *ctx, char *buf, size_t buf_len)
+{
+	struct tk4b_panel *spanel = to_spanel(ctx);
+
+	if (spanel->cal_read_type >= COLOR_DATA_TYPE_MAX ||
+	    !ctx->desc->calibration_desc->color_cal[spanel->cal_read_type].en)
+		return -EOPNOTSUPP;
+
+	if (buf_len < ctx->desc->calibration_desc->color_cal[spanel->cal_read_type].data_size)
+		return -EINVAL;
+
+	if (spanel->cal_read_type == COLOR_DATA_TYPE_CIE)
+		return tk4b_read_cie_data(ctx, buf, buf_len);
+	else if (spanel->cal_read_type == COLOR_DATA_TYPE_LUMINANCE)
+		return tk4b_read_luminance_data(ctx, buf, buf_len);
+	else
+		return -EINVAL;
+}
+
+static int tk4b_set_color_data_config(struct gs_panel *ctx, enum color_data_type read_type,
+				      int option)
+{
+	struct tk4b_panel *spanel = to_spanel(ctx);
+
+	spanel->cal_read_type = read_type;
+	if (read_type == COLOR_DATA_TYPE_LUMINANCE) {
+		spanel->luminance_read_config.dbv_idx = option;
+		tk4b_set_next_luminance_read(ctx, true);
+	}
+
+	return 0;
 }
 
 static const struct gs_display_underrun_param underrun_param = {
@@ -815,7 +1016,7 @@ static const struct gs_display_underrun_param underrun_param = {
 /* Truncate 8-bit signed value to 6-bit signed value */
 #define TO_6BIT_SIGNED(v) ((v) & 0x3F)
 
-static const struct drm_dsc_config tk4b_dsc_cfg = {
+static struct drm_dsc_config tk4b_dsc_cfg = {
 	.line_buf_depth = 9,
 	.bits_per_component = 8,
 	.convert_rgb = true,
@@ -891,7 +1092,7 @@ static const struct gs_panel_mode_array tk4b_modes = {
 	.modes = {
 		{
 			.mode = {
-				.name = "1080x2424@60:60",
+				.name = "1080x2424x60@60",
 				DRM_MODE_TIMING(60, 1080, 32, 12, 16, 2424, 12, 4, 15),
 				/* aligned to bootloader setting */
 				.type = DRM_MODE_TYPE_PREFERRED,
@@ -913,7 +1114,7 @@ static const struct gs_panel_mode_array tk4b_modes = {
 		},
 		{
 			.mode = {
-				.name = "1080x2424@120:120",
+				.name = "1080x2424x120@120",
 				DRM_MODE_TIMING(120, 1080, 32, 12, 16, 2424, 12, 4, 15),
 				.width_mm = WIDTH_MM,
 				.height_mm = HEIGHT_MM,
@@ -939,7 +1140,7 @@ static const struct gs_panel_mode_array tk4b_lp_modes = {
 	.modes = {
 		{
 			.mode = {
-				.name = "1080x2424@30:30",
+				.name = "1080x2424x30@30",
 				DRM_MODE_TIMING(30, 1080, 32, 12, 16, 2424, 12, 4, 15),
 				.type = DRM_MODE_TYPE_DRIVER,
 				.width_mm = WIDTH_MM,
@@ -993,6 +1194,7 @@ static int tk4b_panel_probe(struct mipi_dsi_device *dsi)
 		return -ENOMEM;
 
 	spanel->is_hbm2_enabled = false;
+	spanel->cal_read_type = COLOR_DATA_TYPE_MAX;
 	return gs_dsi_panel_common_init(dsi, &spanel->base);
 }
 
@@ -1012,6 +1214,7 @@ static const struct gs_panel_funcs tk4b_gs_funcs = {
 	.set_lp_mode = gs_panel_set_lp_mode_helper,
 	.set_nolp_mode = tk4b_set_nolp_mode,
 	.set_binned_lp = gs_panel_set_binned_lp_helper,
+	.set_vddd_voltage = gs_panel_set_vddd_optional_gpio_helper,
 	.set_hbm_mode = tk4b_set_hbm_mode,
 	.set_dimming = tk4b_set_dimming,
 	.is_mode_seamless = gs_panel_is_mode_seamless_helper,
@@ -1022,10 +1225,12 @@ static const struct gs_panel_funcs tk4b_gs_funcs = {
 	.get_te2_edges = gs_panel_get_te2_edges_helper,
 	.set_te2_edges = gs_panel_set_te2_edges_helper,
 	.update_te2 = tk4b_update_te2,
-	.read_id = tk4b_read_id,
+	.read_serial = tk4b_read_serial,
 	.atomic_check = tk4b_atomic_check,
 	.pre_update_ffc = tk4b_pre_update_ffc,
 	.update_ffc = tk4b_update_ffc,
+	.get_color_data = tk4b_get_color_data,
+	.set_color_data_config = tk4b_set_color_data_config,
 };
 
 static const struct gs_brightness_configuration tk4b_btr_configs[] = {
@@ -1084,11 +1289,29 @@ static struct gs_panel_reg_ctrl_desc tk4b_reg_ctrl_desc = {
 	},
 };
 
+static struct gs_panel_calibration_desc tk4b_calibration_desc = {
+	.color_cal = {
+		{
+			.en = true,
+			.data_size = 48,
+			.min_option = 0,
+			.max_option = 0,
+		},
+		{
+			.en = true,
+			.data_size = 600,
+			.min_option = 0,
+			.max_option = 10,
+		},
+	},
+};
+
 static struct gs_panel_desc gs_tk4b = {
 	.data_lane_cnt = 4,
 	/* supported HDR format bitmask : 1(DOLBY_VISION), 2(HDR10), 3(HLG) */
 	.hdr_formats = BIT(2) | BIT(3),
 	.brightness_desc = &tk4b_brightness_desc,
+	.calibration_desc = &tk4b_calibration_desc,
 	.modes = &tk4b_modes,
 	.off_cmdset = &tk4b_off_cmdset,
 	.lp_modes = &tk4b_lp_modes,
@@ -1100,7 +1323,7 @@ static struct gs_panel_desc gs_tk4b = {
 	.panel_func = &tk4b_drm_funcs,
 	.gs_panel_func = &tk4b_gs_funcs,
 	.default_dsi_hs_clk_mbps = MIPI_DSI_FREQ_MBPS_DEFAULT,
-	.reset_timing_ms = {1, 1, 20},
+	.reset_timing_ms = { 1, 1, 20 },
 	.refresh_on_lp = true,
 };
 
@@ -1109,7 +1332,8 @@ static int tk4b_panel_config(struct gs_panel *ctx)
 	gs_panel_model_init(ctx, PROJECT, 0);
 
 	return gs_panel_update_brightness_desc(&tk4b_brightness_desc, tk4b_btr_configs,
-						ARRAY_SIZE(tk4b_btr_configs), ctx->panel_rev);
+					       ARRAY_SIZE(tk4b_btr_configs),
+					       ctx->panel_rev_bitmask);
 }
 
 static const struct of_device_id gs_panel_of_match[] = {

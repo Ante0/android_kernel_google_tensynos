@@ -1,0 +1,41 @@
+import("//build_overrides/noa.gni")
+import("$dir_noa_packages/noa_common/sim/ncp/wlan_fw/wlan_service.gni")
+
+wlan_source_set("wlan_nep_buffer_pool") {
+  public = [
+    "$dir_wlan_fw/modules/wlan_nep_buffer_pool/wlan_nep_buffer_pool.h",
+    "$dir_wlan_fw/modules/wlan_nep_buffer_pool/wlan_nep_tx_buffer_pool.h",
+  ]
+  sources = [
+    "$dir_wlan_fw/modules/wlan_nep_buffer_pool/wlan_nep_buffer_pool.cc",
+    "$dir_wlan_fw/modules/wlan_nep_buffer_pool/wlan_nep_tx_buffer_pool.cc",
+  ]
+  deps = [
+    "$dir_noa_common:core",
+    "$dir_wlan_fw:wlan_cast",
+    "$dir_wlan_fw/sys_if:mailbox",
+    "$dir_wlan_fw/sys_if:memory",
+    "$dir_wlan_fw/wlan_log",
+  ]
+  public_deps = [
+    "$dir_noa_common:ring",
+    "$dir_wlan_fw/sys_if:common",
+    "$dir_wlan_fw/sys_if:types",
+  ]
+}
+
+wlan_test("wlan_nep_buffer_pool_test") {
+  enable_if = current_os == "linux"
+  sources = [
+    "$dir_wlan_fw/modules/wlan_nep_buffer_pool/wlan_nep_tx_buffer_pool_test.cc",
+  ]
+  deps = [
+    ":wlan_nep_buffer_pool",
+    "$dir_wlan_fw:wlan_cast",
+    "$dir_wlan_fw/wlan_log",
+  ]
+}
+
+wlan_test_group("tests") {
+  tests = [ ":wlan_nep_buffer_pool_test" ]
+}

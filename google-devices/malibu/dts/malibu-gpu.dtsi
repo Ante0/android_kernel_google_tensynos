@@ -1,0 +1,82 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/mbu-gic.h>
+#include <dt-bindings/gpu/google,mbu.h>
+
+/ {
+	gpu_pf_state: gpu_pf_state@34809000 {
+		compatible = "google,mbu-gpu-pf-state";
+		reg = <0x0 0x34812000 0x0 0xc>,  // Non Secure PFSM block
+		      <0x0 0xeb61500 0x0 0x28>; // APC_GPU_CSRS block for Fabric votes
+		reg-names = "pfsm-ns",
+		            "fabric_vote";
+		#clock-cells = <0>;
+		dvfs-helper-domain-name = "gpu";
+		pf_state_rates =
+		/*	FABHBW votes	MEMSS votes	GMC votes */
+		<	           0	          0	        0>,  //1286000000
+		<	           1	          1	        1>,  //1190000000
+		<	           2	          1	        2>,  //1094000000
+		<	           3	          2	        3>,  //1017000000
+		<	           3	          2	        4>,  //940000000
+		<	           3	          3	        5>,  //883000000
+		<	           4	          3	        6>,  //825000000
+		<	           4	          4	        7>,  //748000000
+		<	           4	          4	        8>,  //691000000
+		<	           5	          5	        9>,  //614000000
+		<	           5	          5	       10>,  //556000000
+		<	           6	          6	       11>,  //499000000
+		<	           7	          7	       13>,  //460000000
+		<	           7	          7	       13>,  //300000000
+		<	           7	          7	       13>;  //150000000
+		power-domains = <&sswrp_gpu_pd>;
+	};
+
+	sswrp_gpu: sswrp_gpu@34800000 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x34800000 0x800000>;
+
+		gpu: gpu0@700000 {
+			compatible = "google,mbu-gpu", "img,gpu";
+			reg = <0x700000 0x100000>,   // RGX
+			      <0x640000 0x54>,       // MBA 'glue' interface
+			      <0x6a0000 0x4000>;     // MBA client CSRs
+			reg-names = "rgx",
+			            "mba_glue",
+			            "mba_client";
+			interrupts = <GIC_SPI SSWRP_GPU_GPU_AP_INTR_GPU_IRQ_0 IRQ_TYPE_LEVEL_HIGH
+				      0>;
+			clocks = <&gpu_pf_state>;
+			clock-names = "gpu_pf_state";
+			power-domains = <&sswrp_gpu_pd>, <&gpu_core_logic_pd>;
+			memory-region = <&gpu_fw_reserved>;
+			iommus = <&gpu_smmu 0x0>,
+			         <&gpu_smmu 0x1>;
+			iommu-idmapped;
+			dvfs-helper-domain-name = "gpu";
+			init-frequency-hz = <300000000>;
+			/* Inter-IP fences */
+			iif-device = <&iif>;
+			config {
+				power {
+					/* Sets bEnableRDPowIsland */
+					enable-firmware-managed-spu-power = <1>;
+					/* Sets bEnableActivePM */
+					enable-active-power-management = <1>;
+					/* Sets ui32ActivePMLatencyms */
+					active-power-management-latency-ms = <1>;
+					sswrp-autosuspend-latency-ms = <18>;
+				};
+				dvfs {
+					pdvfs-com-host = <1>;
+				};
+			};
+			vote_manager {
+				soft_min_freq = <460000000>;
+			};
+		};
+	};
+};

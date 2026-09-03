@@ -50,30 +50,17 @@ Contact:	"George Lee" <geolee@google.com>
 Description:
 		SUBSYSTEM can be selected from smpl_lvl, ocp_cpu1_lvl, ocp_cpu2_lvl, ocp_tpu_lvl,
 		soft_ocp_cpu1_lvl, soft_ocp_cpu2_lvl, soft_ocp_tpu_lvl, ocp_gpu_lvl,
-		soft_ocp_gpu_lvl.
-		The reported value is the readback of the corresponding threshold.
-
-What:		/sys/devices/virtual/pmic/mitigation/triggered_rel/<SUBSYSTEM>
-Date:		Aug, 2025
-Contact:	"Jasmine Cha" <chajasmine@google.com>
-	        "Sam Ou" <samou@google.com>
-Description:
-		SUBSYSTEM can be selected from uvlo1_rel, uvlo2_rel, dvfs_rel.
-		The reported value is the readback of the corresponding threshold.
-
-What:		/sys/devices/virtual/pmic/mitigation/triggered_det/<SUBSYSTEM>
-Date:		Mar, 2025
-Contact:	"Jasmine Cha" <chajasmine@google.com>
-Description:
-		SUBSYSTEM can be selected from uvlo1_det, uvlo2_det, smpl_det.
+		soft_ocp_gpu_lvl, batoilo1_lvl, batoilo1_usb_lvl, batoilo1_wlc_lvl,
+		batoilo2_lvl, batoilo2_usb_lvl, batoilo2_wlc_lvl, uvlo1_lvl, uvlo2_lvl,
+		batoilo1_otg_lvl, batoilo2_otg_lvl.
 		The reported value is the readback of the corresponding threshold.
 
 What:		/sys/devices/virtual/pmic/mitigation/clock_div/<SUBSYSTEM>
 Date:		May, 2023
 Contact:	"George Lee" <geolee@google.com>
 Description:
-		SUBSYSTEM can be selected from cpu0_clk_div, cpu1_clk_div, cpu2_clk_div,
-		aur_clk_div, tpu_clk_div, gpu_clk_div.
+		SUBSYSTEM can be selected from clk_CPU0_div, clk_CPU1_div, clk_CPU2_div,
+		clk_AUR_div, clk_TPU_div, clk_GPU_div.
 		The reported value is the readback of the corresponding register.  If the core
 		is powered down, reported value is "off".
 
@@ -81,8 +68,8 @@ What:		/sys/devices/virtual/pmic/mitigation/clock_stats/<SUBSYSTEM>
 Date:		May, 2023
 Contact:	"George Lee" <geolee@google.com>
 Description:
-		SUBSYSTEM can be selected from cpu0_clk_stats, cpu1_clk_stats, cpu2_clk_stats,
-		aur_clk_stats, tpu_clk_stats, gpu_clk_stats.
+		SUBSYSTEM can be selected from clk_CPU0_stats, clk_CPU1_stats, clk_CPU2_stats,
+		clk_AUR_stats, clk_TPU_stats, clk_GPU_stats.
 		The reported value is the readback of the corresponding register.  If the core
 		is powered down, reported value is "off".
 
@@ -90,12 +77,42 @@ What:		/sys/devices/virtual/pmic/mitigation/clock_ratio/<SUBSYSTEM>
 Date:		May, 2023
 Contact:	"George Lee" <geolee@google.com>
 Description:
-		SUBSYSTEM can be selected from cpu0_clk_ratio, cpu1_heavy_clk_ratio,
-		cpu2_heavy_clk_ratio, tpu_heavy_clk_ratio, gpu_heavy_clk_ratio,
-		cpu1_light_clk_ratio, cpu2_light_clk_ratio, tpu_light_clk_ratio,
-		gpu_light_clk_ratio.
+		SUBSYSTEM can be selected from clk_CPU0_light_ratio, clk_CPU1_heavy_ratio,
+		clk_CPU2_heavy_ratio, clk_TPU_heavy_clk_ratio, clk_GPU_heavy_ratio,
+		clk_AUR_heavy_ratio, clk_CPU1_light_ratio, clk_CPU2_light_ratio,
+		clk_TPU_light_ratio, clk_GPU_light_ratio.
 		The reported value is the readback of the corresponding register.  If the core
 		is powered down, reported value is "off".
+
+What:		/sys/devices/virtual/pmic/mitigation/mitigation_res_en/<SUBSYSTEM>
+Date:		Mar, 2025
+Contact:	"George Lee" <geolee@google.com>
+		"Allen Jiang" <alljiang@google.com>
+Description:
+		SUBSYSTEM can be selected from mitigation_CPU0_res_en, mitigation_CPU1A_res_en,
+		mitigation_CPU1B_res_en, mitigation_CPU2_res_en, mitigation_GPU_res_en,
+		mitigation_TPU_res_en, mitigation_AUR_res_en.
+		The reported value is the readback of the corresponding register.
+
+What:		/sys/devices/virtual/pmic/mitigation/mitigation_res_hyst/<SUBSYSTEM>
+Date:		Mar, 2025
+Contact:	"George Lee" <geolee@google.com>
+		"Allen Jiang" <alljiang@google.com>
+Description:
+		SUBSYSTEM can be selected from mitigation_CPU0_res_hyst, mitigation_CPU1A_res_hyst,
+		mitigation_CPU1B_res_hyst, mitigation_CPU2_res_hyst, mitigation_GPU_res_hyst,
+		mitigation_TPU_res_hyst, mitigation_AUR_res_hyst.
+		The reported value is the readback of the corresponding register.
+
+What:		/sys/devices/virtual/pmic/mitigation/mitigation_res_type/<SUBSYSTEM>
+Date:		Mar, 2025
+Contact:	"George Lee" <geolee@google.com>
+		"Allen Jiang" <alljiang@google.com>
+Description:
+		SUBSYSTEM can be selected from mitigation_CPU0_res_type, mitigation_CPU1A_res_type,
+		mitigation_CPU1B_res_type, mitigation_CPU2_res_type, mitigation_GPU_res_type,
+		mitigation_TPU_res_type, mitigation_AUR_res_type.
+		The reported value is the readback of the corresponding register.
 
 What:		/sys/devices/virtual/pmic/mitigation/last_triggered_count/<SUBSYSTEM>
 Date:		May, 2023
@@ -147,11 +164,18 @@ Description:
 		IDX can be selected from 1 or 2.
 		The reported value is the last offsrc of sub core regulator.
 
-What:		/sys/devices/virtual/pmic/mitigation/instruction/enable_mitigation
-Date:		May, 2023
+What:		/sys/devices/virtual/pmic/mitigation/instruction/sw_enable_mitigation
+Date:		Mar, 2025
 Contact:	"George Lee" <geolee@google.com>
 Description:
-		The reported value indicates if brownout mitigation is enabled.
+		The reported value indicates if software brownout mitigation is enabled.
+		1 means enabled; 0 means disabled.
+
+What:		/sys/devices/virtual/pmic/mitigation/instruction/hw_enable_mitigation
+Date:		Mar, 2025
+Contact:	"George Lee" <geolee@google.com>
+Description:
+		The reported value indicates if hardware brownout mitigation is enabled.
 		1 means enabled; 0 means disabled.
 
 What:		/sys/devices/virtual/pmic/mitigation/instruction/enable_rffe_mitigation
@@ -270,12 +294,11 @@ Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
 Description:
 		Number of cycles uvlo2 is asserted in latest uvlo2 event.
 
-What:		/sys/devices/virtual/pmic/mitigation/instruction/dvfs_ramp_enable
-Date:		Aug, 2025
-Contact:	"Sam Ou" <samou@google.com>
+What:		/sys/devices/virtual/pmic/mitigation/instruction/bcl_version
+Date:		Mar, 2025
+Contact:	"Jasmine Cha" <chajasmine@google.com>
 Description:
-		The DVFS release ramp enable flag.
-		1 means enabled; 0 means disabled.
+		Version of BCL driver.
 
 What:		/sys/devices/virtual/pmic/mitigation/qos/<SUBSYSTEM>
 Date:		May, 2023
@@ -368,3 +391,214 @@ Description:
 		PMIC can be one of following:
 		main, sub
 		The reported value is module_id of each odpm channels.
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/uvlo_dur
+Date:		Aug, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		uvlo_dur: duration in us between pre-uvlo and core pmic uvlo
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/pre_uvlo_hit_cnt_m
+Date:		Aug, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		number of times m pmic observed pre-uvlo event
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/pre_uvlo_hit_cnt_s
+Date:		Aug, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		number of times s pmic observed pre-uvlo event
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/pre_ocp_cpu1_bckup
+Date:		Aug, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		Status of pre_ocp for cpu1 upon recent brownout. Bit 0 assertion represents lowest
+		comparator assertion, until bit 4 which represents the highest comparator value.
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/pre_ocp_cpu2_bckup
+Date:		Aug, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		Status of pre_ocp for cpu2 upon recent brownout. Bit 0 assertion represents lowest
+		comparator assertion, until bit 4 which represents the highest comparator value.
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/pre_ocp_gpu_bckup
+Date:		Aug, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		Status of pre_ocp for gpu upon recent brownout. Bit 0 assertion represents lowest
+		comparator assertion, until bit 4 which represents the highest comparator value.
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/pre_ocp_tpu_bckup
+Date:		Aug, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		Status of pre_ocp for tpu upon recent brownout. Bit 0 assertion represents lowest
+		comparator assertion, until bit 4 which represents the highest comparator value.
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/odpm_irq_stat_<CH>_<PMIC>_bckup
+Date:		Aug, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		Status of odpm irq upon a brownout event for the channel CH and pmic PMIC.
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/odpm_irq_stat_cpu1_bckup
+Date:		Aug, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		Status of odpm irq upon a brownout event for the cpu1 channel.
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/odpm_irq_stat_cpu2_bckup
+Date:		Aug, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		Status of odpm irq upon a brownout event for the cpu2 channel.
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/odpm_irq_stat_tpu_bckup
+Date:		Aug, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		Status of odpm irq upon a brownout event for the tpu channel.
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/odpm_irq_stat_gpu_bckup
+Date:		Aug, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		Status of odpm irq upon a brownout event for the gpu channel.
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/sys_evt_addr
+Date:		Nov, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		Address for readout for sys_evt.
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/sys_evt_pmic
+Date:		Nov, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		PMIC selection for readout for sys_evt. 0 for main, 1 for sub.
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/sys_evt_data
+Date:		Nov, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		Data read out for sys_evt.
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/sys_evt_main
+Date:		Apr, 2025
+Contact:	"Sam Ou" <samou@google.com>
+		"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+Description:
+		Cached SYS_EVENT from core main pmic while driver probed
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/sys_evt_sub
+Date:		Apr, 2025
+Contact:	"Sam Ou" <samou@google.com>
+		"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+Description:
+		Cached SYS_EVENT from core sub pmic while driver probed
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/cpm_cached_sys_evt_main
+Date:		May, 2025
+Contact:	"Sam Ou" <samou@google.com>
+		"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+Description:
+		Cached SYS_EVENT from core main pmic while cpm start-up
+
+What:		/sys/devices/virtual/pmic/mitigation/sys_evt/cpm_cached_sys_evt_sub
+Date:		May, 2025
+Contact:	"Sam Ou" <samou@google.com>
+		"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+		"George Lee" <geolee@google.com>
+Description:
+		Cached SYS_EVENT from core sub pmic while cpm start-up
+
+What:		/sys/devices/virtual/pmic/mitigation/trigger_timeout/ocp_batfet_timeout
+Date:		Oct, 2024
+Contact:	"Allen Jiang" <alljiang@google.com>
+		"Maggie Cheng" <maggiecheng@google.com>
+Description:
+		The reported value is the VDROOP2 OCP batfet timer threshold in milliseconds.
+
+What:		/sys/devices/virtual/pmic/mitigation/trigger_timeout/ocp_batfet_timeout_enable
+Date:		Oct, 2024
+Contact:	"Allen Jiang" <alljiang@google.com>
+		"Maggie Cheng" <maggiecheng@google.com>
+Description:
+		The reported value indicates if the VDROOP2 OCP batfet timer is enabled.
+		1 means enabled; 0 means disabled.
+
+What:		/sys/devices/virtual/pmic/mitigation/dyn_clk_div_en/<CPUCL>_dyn_clk_div_en
+Date:		Jun, 2025
+Contact:	"Maggie Cheng" <maggiecheng@google.com>
+Description:
+		CPUCL can be selected from CPU1A, CPU1B, CPU2
+		The reported value indicates if the dynamic clock division is enabled.
+		1 means enabled; 0 means disabled.
+
+What:		/sys/devices/virtual/pmic/mitigation/dyn_clk_div_ratio/<CPUCL>_dyn_clk_div_ratio
+Date:		Jun, 2025
+Contact:	"Maggie Cheng" <maggiecheng@google.com>
+Description:
+		CPUCL can be selected from CPU1A, CPU1B, CPU2
+		The reported value is the readback of the clock division ratio for each oplv gap.
+
+What:		/sys/devices/virtual/pmic/mitigation/dyn_clk_div_thresh/<CPUCL>_dyn_clk_div_thresh
+Date:		Jun, 2025
+Contact:	"Maggie Cheng" <maggiecheng@google.com>
+Description:
+		CPUCL can be selected from CPU1A, CPU1B, CPU2
+		The reported value is the readback of the oplv threshold for each loading gap.
+
+What:		/sys/devices/virtual/pmic/mitigation/debounce_time/<IRQ>_DET
+Date:		Jul, 2025
+Contact:	"Sam Ou" <samou@google.com>
+Description:
+		The detect deglitch time of the interrupts.
+
+What:		/sys/devices/virtual/pmic/mitigation/debounce_time/<IRQ>_REL
+Date:		Jul, 2025
+Contact:	"Sam Ou" <samou@google.com>
+Description:
+		The detect release time of the interrupts.
+
+What:		/sys/devices/virtual/pmic/mitigation/userspace/throttle_state
+Date:		Aug, 2025
+Contact:	"Sam Ou" <samou@google.com>
+Description:
+		The throttling state level control from userspace.

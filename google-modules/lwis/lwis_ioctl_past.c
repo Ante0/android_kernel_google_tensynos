@@ -48,6 +48,11 @@ static void populate_transaction_info_from_cmd_v6(void *_cmd,
 	k_transaction->info.id = cmd->info.id;
 	k_transaction->info.current_trigger_event_counter = cmd->info.current_trigger_event_counter;
 	k_transaction->info.submission_timestamp_ns = cmd->info.submission_timestamp_ns;
+
+	k_transaction->info.num_device_io_entries = 0;
+	k_transaction->info.device_io_entries = NULL;
+	k_transaction->info.skip_device_io_entries_if_powered_off = false;
+	k_transaction->device_io_fps = NULL;
 }
 
 static void populate_cmd_v6_info_from_transaction(void *_cmd,
@@ -64,6 +69,8 @@ static void populate_cmd_v6_info_from_transaction(void *_cmd,
 	cmd->info.create_completion_fence_fd = k_transaction->info.create_completion_fence_fd;
 	cmd->info.create_completion_fence_signal_fd =
 		k_transaction->info.create_completion_fence_signal_fd;
+	cmd->info.num_io_entries = k_transaction->info.num_io_entries;
+	cmd->info.io_entries = (void *)k_transaction->info.io_entries;
 	cmd->info.run_in_event_context = k_transaction->info.run_in_event_context;
 	cmd->info.reserved = k_transaction->info.reserved;
 	cmd->info.emit_success_event_id = k_transaction->info.emit_success_event_id;
@@ -92,15 +99,15 @@ static void populate_cmd_v6_info_from_transaction(void *_cmd,
 }
 
 struct cmd_transaction_submit_ops transaction_cmd_v6_ops = {
-	.cmd_size = sizeof(struct lwis_cmd_transaction_info),
+	.cmd_size = sizeof(struct lwis_cmd_transaction_info_v6),
 	.populate_transaction_info_from_cmd = populate_transaction_info_from_cmd_v6,
 	.populate_cmd_info_from_transaction = populate_cmd_v6_info_from_transaction,
 };
 
-static void populate_transaction_info_from_cmd_v5(void *_cmd,
+static void populate_transaction_info_from_cmd_v7(void *_cmd,
 						  struct lwis_transaction *k_transaction)
 {
-	struct lwis_cmd_transaction_info_v5 *cmd = _cmd;
+	struct lwis_cmd_transaction_info_v7 *cmd = _cmd;
 
 	k_transaction->info.trigger_event_id = cmd->info.trigger_event_id;
 	k_transaction->info.trigger_event_counter = cmd->info.trigger_event_counter;
@@ -109,6 +116,8 @@ static void populate_transaction_info_from_cmd_v5(void *_cmd,
 	memcpy(&k_transaction->info.trigger_condition, &cmd->info.trigger_condition,
 	       sizeof(struct lwis_transaction_trigger_condition));
 	k_transaction->info.create_completion_fence_fd = cmd->info.create_completion_fence_fd;
+	k_transaction->info.create_completion_fence_signal_fd =
+		cmd->info.create_completion_fence_signal_fd;
 	k_transaction->info.num_io_entries = cmd->info.num_io_entries;
 	k_transaction->info.io_entries = (void *)cmd->info.io_entries;
 	k_transaction->info.run_in_event_context = cmd->info.run_in_event_context;
@@ -134,12 +143,19 @@ static void populate_transaction_info_from_cmd_v5(void *_cmd,
 	k_transaction->info.id = cmd->info.id;
 	k_transaction->info.current_trigger_event_counter = cmd->info.current_trigger_event_counter;
 	k_transaction->info.submission_timestamp_ns = cmd->info.submission_timestamp_ns;
+
+	k_transaction->info.minimum_trigger_delay_ns = cmd->info.minimum_trigger_delay_ns;
+
+	k_transaction->info.num_device_io_entries = 0;
+	k_transaction->info.device_io_entries = NULL;
+	k_transaction->info.skip_device_io_entries_if_powered_off = false;
+	k_transaction->device_io_fps = NULL;
 }
 
-static void populate_cmd_v5_info_from_transaction(void *_cmd,
+static void populate_cmd_v7_info_from_transaction(void *_cmd,
 						  struct lwis_transaction *k_transaction, int error)
 {
-	struct lwis_cmd_transaction_info_v5 *cmd = _cmd;
+	struct lwis_cmd_transaction_info_v7 *cmd = _cmd;
 
 	cmd->info.trigger_event_id = k_transaction->info.trigger_event_id;
 	cmd->info.trigger_event_counter = k_transaction->info.trigger_event_counter;
@@ -148,6 +164,10 @@ static void populate_cmd_v5_info_from_transaction(void *_cmd,
 	memcpy(&cmd->info.trigger_condition, &k_transaction->info.trigger_condition,
 	       sizeof(struct lwis_transaction_trigger_condition));
 	cmd->info.create_completion_fence_fd = k_transaction->info.create_completion_fence_fd;
+	cmd->info.create_completion_fence_signal_fd =
+		k_transaction->info.create_completion_fence_signal_fd;
+	cmd->info.num_io_entries = k_transaction->info.num_io_entries;
+	cmd->info.io_entries = (void *)k_transaction->info.io_entries;
 	cmd->info.run_in_event_context = k_transaction->info.run_in_event_context;
 	cmd->info.reserved = k_transaction->info.reserved;
 	cmd->info.emit_success_event_id = k_transaction->info.emit_success_event_id;
@@ -171,125 +191,64 @@ static void populate_cmd_v5_info_from_transaction(void *_cmd,
 	cmd->info.current_trigger_event_counter = k_transaction->info.current_trigger_event_counter;
 	cmd->info.submission_timestamp_ns = k_transaction->info.submission_timestamp_ns;
 
+	cmd->info.minimum_trigger_delay_ns = k_transaction->info.minimum_trigger_delay_ns;
+
 	if (error != 0)
 		cmd->info.id = LWIS_ID_INVALID;
 }
 
-struct cmd_transaction_submit_ops transaction_cmd_v5_ops = {
-	.cmd_size = sizeof(struct lwis_cmd_transaction_info),
-	.populate_transaction_info_from_cmd = populate_transaction_info_from_cmd_v5,
-	.populate_cmd_info_from_transaction = populate_cmd_v5_info_from_transaction,
+struct cmd_transaction_submit_ops transaction_cmd_v7_ops = {
+	.cmd_size = sizeof(struct lwis_cmd_transaction_info_v7),
+	.populate_transaction_info_from_cmd = populate_transaction_info_from_cmd_v7,
+	.populate_cmd_info_from_transaction = populate_cmd_v7_info_from_transaction,
 };
 
-static void populate_transaction_info_from_cmd_v4(void *_cmd,
-						  struct lwis_transaction *k_transaction)
+static int fetch_num_qos_settings_v4(void *k_msg)
 {
-	struct lwis_cmd_transaction_info_v4 *k_info_v4 = _cmd;
-	int i;
-
-	k_transaction->info.trigger_event_id = k_info_v4->info.trigger_event_id;
-	k_transaction->info.trigger_event_counter = k_info_v4->info.trigger_event_counter;
-	k_transaction->info.num_io_entries = k_info_v4->info.num_io_entries;
-	k_transaction->info.io_entries = k_info_v4->info.io_entries;
-	k_transaction->info.run_in_event_context = k_info_v4->info.run_in_event_context;
-	k_transaction->info.reserved = k_info_v4->info.reserved;
-	k_transaction->info.emit_success_event_id = k_info_v4->info.emit_success_event_id;
-	k_transaction->info.emit_error_event_id = k_info_v4->info.emit_error_event_id;
-	k_transaction->info.is_level_triggered = k_info_v4->info.is_level_triggered;
-	k_transaction->info.id = k_info_v4->info.id;
-	k_transaction->info.current_trigger_event_counter =
-		k_info_v4->info.current_trigger_event_counter;
-	k_transaction->info.submission_timestamp_ns = k_info_v4->info.submission_timestamp_ns;
-	k_transaction->info.trigger_condition.num_nodes =
-		k_info_v4->info.trigger_condition.num_nodes;
-	k_transaction->info.trigger_condition.operator_type =
-		k_info_v4->info.trigger_condition.operator_type;
-
-	for (i = 0; i < k_info_v4->info.trigger_condition.num_nodes; i++) {
-		k_transaction->info.trigger_condition.trigger_nodes[i].type =
-			k_info_v4->info.trigger_condition.trigger_nodes[i].type;
-		if (k_info_v4->info.trigger_condition.trigger_nodes[i].type == LWIS_TRIGGER_EVENT) {
-			k_transaction->info.trigger_condition.trigger_nodes[i].event.id =
-				k_info_v4->info.trigger_condition.trigger_nodes[i].event.id;
-			k_transaction->info.trigger_condition.trigger_nodes[i]
-				.event.precondition_fence_fd =
-				k_info_v4->info.trigger_condition.trigger_nodes[i]
-					.event.precondition_fence_fd;
-			k_transaction->info.trigger_condition.trigger_nodes[i].event.counter =
-				k_info_v4->info.trigger_condition.trigger_nodes[i].event.counter;
-		} else {
-			/* LWIS_TRIGGER_FENCE or LWIS_TRIGGER_FENCE_PLACEHOLDER */
-			k_transaction->info.trigger_condition.trigger_nodes[i].fence_fd =
-				k_info_v4->info.trigger_condition.trigger_nodes[i].fence_fd;
-		}
-	}
-	k_transaction->info.create_completion_fence_fd = k_info_v4->info.completion_fence_fd;
-
-	k_transaction->info.is_high_priority_transaction =
-		k_info_v4->info.is_high_priority_transaction;
-	memcpy(k_transaction->info.transaction_name, k_info_v4->info.transaction_name,
-	       sizeof(k_transaction->info.transaction_name));
-
-	k_transaction->info.num_nested_transactions = k_info_v4->info.num_nested_transactions;
-	memcpy(k_transaction->info.nested_transaction_ids, k_info_v4->info.nested_transaction_ids,
-	       sizeof(k_transaction->info.nested_transaction_ids));
-
-	k_transaction->info.num_completion_fences = 0;
+	return ((struct lwis_cmd_dpm_qos_update_v4 *)k_msg)->reqs.num_settings;
 }
 
-static void populate_cmd_v4_info_from_transaction(void *_cmd,
-						  struct lwis_transaction *k_transaction, int error)
+static int populate_dpm_qos_info_from_cmd_v4(struct lwis_qos_setting *k_qos_setting,
+					     void *k_msg_raw, int idx)
 {
-	struct lwis_cmd_transaction_info_v4 *k_info_v4 = _cmd;
-	struct lwis_transaction_info_v4 *info_v4 = &k_info_v4->info;
-	struct lwis_transaction_info *info = &k_transaction->info;
-	int i;
+	struct lwis_cmd_dpm_qos_update_v4 *cmd = k_msg_raw;
+	struct lwis_qos_setting_v4 *k_qos_setting_ptr = &cmd->reqs.qos_settings[idx];
 
-	info_v4->trigger_event_id = info->trigger_event_id;
-	info_v4->trigger_event_counter = info->trigger_event_counter;
-	info_v4->run_in_event_context = info->run_in_event_context;
-	info_v4->reserved = info->reserved;
-	info_v4->emit_success_event_id = info->emit_success_event_id;
-	info_v4->emit_error_event_id = info->emit_error_event_id;
-	info_v4->is_level_triggered = info->is_level_triggered;
-	info_v4->id = info->id;
-	info_v4->current_trigger_event_counter = info->current_trigger_event_counter;
-	info_v4->submission_timestamp_ns = info->submission_timestamp_ns;
-	info_v4->trigger_condition.num_nodes = info->trigger_condition.num_nodes;
-	info_v4->trigger_condition.operator_type = info->trigger_condition.operator_type;
+	if (copy_from_user((void *)k_qos_setting, (void __user *)k_qos_setting_ptr,
+			   sizeof(struct lwis_qos_setting_v4)))
+		return -EFAULT;
 
-	for (i = 0; i < info->trigger_condition.num_nodes; i++) {
-		info_v4->trigger_condition.trigger_nodes[i].type =
-			info->trigger_condition.trigger_nodes[i].type;
-		if (info->trigger_condition.trigger_nodes[i].type == LWIS_TRIGGER_EVENT) {
-			info_v4->trigger_condition.trigger_nodes[i].event.id =
-				info->trigger_condition.trigger_nodes[i].event.id;
-			info_v4->trigger_condition.trigger_nodes[i].event.precondition_fence_fd =
-				info->trigger_condition.trigger_nodes[i].event.precondition_fence_fd;
-			info_v4->trigger_condition.trigger_nodes[i].event.counter =
-				info->trigger_condition.trigger_nodes[i].event.counter;
-		} else {
-			/* LWIS_TRIGGER_FENCE or LWIS_TRIGGER_FENCE_PLACEHOLDER */
-			info_v4->trigger_condition.trigger_nodes[i].fence_fd =
-				info->trigger_condition.trigger_nodes[i].fence_fd;
-		}
-	}
-
-	info_v4->completion_fence_fd = info->create_completion_fence_fd;
-	info_v4->is_high_priority_transaction = info->is_high_priority_transaction;
-	memcpy(info_v4->transaction_name, info->transaction_name,
-	       sizeof(info_v4->transaction_name));
-
-	info_v4->num_nested_transactions = info->num_nested_transactions;
-	memcpy(info_v4->nested_transaction_ids, info->nested_transaction_ids,
-	       sizeof(info_v4->nested_transaction_ids));
-
-	if (error != 0)
-		info_v4->id = LWIS_ID_INVALID;
+	return 0;
 }
 
-struct cmd_transaction_submit_ops transaction_cmd_v4_ops = {
-	.cmd_size = sizeof(struct lwis_cmd_transaction_info_v4),
-	.populate_transaction_info_from_cmd = populate_transaction_info_from_cmd_v4,
-	.populate_cmd_info_from_transaction = populate_cmd_v4_info_from_transaction,
+const struct cmd_dpm_qos_update_ops cmd_dpm_qos_v4_ops = {
+	.cmd_size = sizeof(struct lwis_cmd_dpm_qos_update_v4),
+	.fetch_num_qos_settings = fetch_num_qos_settings_v4,
+	.populate_dpm_qos_info_from_cmd = populate_dpm_qos_info_from_cmd_v4,
+};
+
+static int fetch_num_qos_settings_v3(void *k_msg)
+{
+	return ((struct lwis_cmd_dpm_qos_update_v3 *)k_msg)->reqs.num_settings;
+}
+
+static int populate_dpm_qos_info_from_cmd_v3(struct lwis_qos_setting *k_qos_setting,
+					     void *k_msg_raw, int idx)
+{
+	struct lwis_cmd_dpm_qos_update_v3 *cmd = k_msg_raw;
+	struct lwis_qos_setting_v3 *k_qos_setting_ptr = &cmd->reqs.qos_settings[idx];
+
+	if (copy_from_user((void *)k_qos_setting, (void __user *)k_qos_setting_ptr,
+			   sizeof(struct lwis_qos_setting_v3)))
+		return -EFAULT;
+
+	k_qos_setting->qos_voting_entity = 0;
+
+	return 0;
+}
+
+const struct cmd_dpm_qos_update_ops cmd_dpm_qos_v3_ops = {
+	.cmd_size = sizeof(struct lwis_cmd_dpm_qos_update_v3),
+	.fetch_num_qos_settings = fetch_num_qos_settings_v3,
+	.populate_dpm_qos_info_from_cmd = populate_dpm_qos_info_from_cmd_v3,
 };

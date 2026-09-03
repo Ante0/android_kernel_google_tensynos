@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Battery device tree entries specific to Kodiak Proto0
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+
+&max77779_fg {
+	maxim,fg-data {
+		#include "malibu-kodiak-battery-data.dtsi"
+	};
+};
+
+&google_battery {
+	google,chg-battery-capacity = <4902>;
+
+	google,chg-cv-limits = <4100000 4200000 4250000 4300000 4350000 4400000 4530000>;
+	google,chg-temp-limits = <0 100 200 300 420 460 480 550>;
+	google,chg-cc-limits = <
+		 50   50   50   50   30   30    0
+		 70   70   70   70   30   30   30
+		180  150  150  150  150   50   50
+		180  150  150  150  150   50   50
+		150  150  150  150  150   50   50
+		 50   50   50   50    0    0    0
+		 30   30    0    0    0    0    0
+	>;
+
+	google,chg-topoff-limits = <245 245 245 490 980 980 0>;
+	google,skip-first-cv;
+	google,vbatt-crit-deadline-sec = <120>;
+
+	google,ttf-temp-idx = <2>;
+	google,ttf-adapter = <4500>;
+	google,ttf-soc-table = < 39 72 80 94  97 100>;
+	google,ttf-elap-table = <23 26 44 77 106 167>;
+	google,ttf-tier-table = <0 45 80>;
+	google,ttf-report-max-ratio = <0>;
+
+	/* Virtual temperature compensation co-efficients y = t + (m * i * i) + c */
+	google,vt-comp-m = <96>; /* 0.0096 */
+	google,vt-comp-c = <298>; /* 0.2984 */
+};

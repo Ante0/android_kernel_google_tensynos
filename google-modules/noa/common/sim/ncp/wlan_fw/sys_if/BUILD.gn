@@ -1,0 +1,194 @@
+import("//build_overrides/noa.gni")
+import("$dir_noa_packages/noa_common/sim/ncp/wlan_fw/wlan_service.gni")
+
+wlan_source_set("interrupt") {
+  public = [
+    "$dir_wlan_fw/sys_if/interrupt/sys_if_interrupt.h",
+    "$dir_wlan_fw/sys_if/interrupt/sys_if_interrupt_pw.h",
+  ]
+  sources = [ "$dir_wlan_fw/sys_if/interrupt/sys_if_interrupt_pw.cc" ]
+  public_deps = [
+    ":common",
+    ":memory",
+    ":types",
+    ":memory",
+    "$dir_noa_common:headers",
+    "$dir_noa_drivers/wlan:wlan_endpoint",
+    "$dir_noa_modules/interrupt",
+    "$dir_pw_assert",
+    "$dir_pw_toolchain:no_destructor",
+  ]
+}
+
+wlan_test("interrupt_test") {
+  # These tests are currently unsupported in the device unit test
+  # environment due to limited memory resources.
+  enable_if = current_os == "linux" &&
+              pw_unit_test_BACKEND == "$dir_pigweed/pw_unit_test:googletest"
+  sources = [ "$dir_wlan_fw/sys_if/interrupt/sys_if_interrupt_pw_test.cc" ]
+  deps = [
+    ":interrupt",
+    "$dir_noa_modules/interrupt",
+    "$dir_noa_modules/mock:mock_system_clock",
+  ]
+}
+
+wlan_source_set("log") {
+  public = [ "$dir_wlan_fw/sys_if/log/sys_if_log.h" ]
+  public_deps = [
+    ":common",
+    ":memory",
+    ":types",
+    "$dir_pw_chrono:system_clock",
+    "$dir_pw_hex_dump:pw_hex_dump",
+    "$dir_pw_log",
+  ]
+}
+
+wlan_source_set("log_test_lib") {
+  public = [ "$dir_wlan_fw/sys_if/log/sys_if_log_test_lib.h" ]
+  deps = [
+    "$dir_pw_log_basic",
+    "$dir_pw_sys_io",
+    "$dir_pw_toolchain:no_destructor",
+  ]
+  sources = [ "$dir_wlan_fw/sys_if/log/sys_if_log_test_lib_pw_log_basic.cc" ]
+}
+
+wlan_test("log_test") {
+  # These tests are currently unsupported in the device unit test
+  # environment due to limited memory resources.
+  enable_if = current_os == "linux" && current_os == "linux"
+  deps = [
+    ":log",
+    ":log_test_lib",
+  ]
+  defines = [ "PW_LOG_LEVEL=PW_LOG_LEVEL_DEBUG" ]
+  sources = [ "$dir_wlan_fw/sys_if/log/sys_if_log_test.cc" ]
+}
+
+wlan_source_set("io") {
+  public = [ "$dir_wlan_fw/sys_if/io/sys_if_io.h" ]
+  deps = [ "//common:headers" ]
+  sources = [ "$dir_wlan_fw/sys_if/io/sys_if_io_pw.cc" ]
+  public_deps = [
+    ":common",
+    ":types",
+  ]
+}
+
+wlan_test("io_test") {
+  # These tests are currently unsupported in the device unit test
+  # environment due to limited memory resources.
+  enable_if = current_os == "linux" && current_os == "linux"
+  deps = [
+    ":io",
+    "//common:headers",
+  ]
+  sources = [ "$dir_wlan_fw/sys_if/io/sys_if_io_pw_test.cc" ]
+}
+
+wlan_source_set("mailbox") {
+  public = [
+    "$dir_wlan_fw/sys_if/mailbox/sys_if_mailbox.h",
+    "$dir_wlan_fw/sys_if/mailbox/sys_if_mailbox_pw.h",
+  ]
+  sources = [ "$dir_wlan_fw/sys_if/mailbox/sys_if_mailbox_pw.cc" ]
+  deps = [
+    "$dir_noa_common:headers",
+    "$dir_noa_modules/notifier:notifier_mailbox",
+    "$dir_pw_assert",
+    "$dir_pw_function",
+    "$dir_pw_log",
+  ]
+  public_deps = [
+    ":common",
+    ":types",
+    "$dir_noa_modules/interrupt",
+  ]
+}
+
+wlan_test("mailbox_test") {
+  # These tests are currently unsupported in the device unit test
+  # environment due to limited memory resources.
+  enable_if = current_os == "linux" &&
+              pw_unit_test_BACKEND == "$dir_pigweed/pw_unit_test:googletest"
+  sources = [ "$dir_wlan_fw/sys_if/mailbox/sys_if_mailbox_pw_test.cc" ]
+  deps = [
+    ":mailbox",
+    "$dir_noa_modules/notifier:notifier_mailbox",
+    "$dir_pw_function",
+    "$dir_pw_log",
+  ]
+}
+
+wlan_source_set("memory") {
+  public = [ "$dir_wlan_fw/sys_if/memory/sys_if_memory.h" ]
+  sources = [ "$dir_wlan_fw/sys_if/memory/sys_if_memory_pw.cc" ]
+  public_deps = [ "$dir_wlan_fw:noa_desc" ]
+  deps = [
+    ":common",
+    ":types",
+    "$dir_noa_drivers/arch:arch",
+    "$dir_noa_modules/buffer_mgmt:buffer_mgmt",
+  ]
+}
+
+wlan_source_set("assert") {
+  public = [ "$dir_wlan_fw/sys_if/assert/sys_if_assert.h" ]
+  deps = [ "$dir_pw_assert" ]
+}
+
+wlan_source_set("common") {
+  public = [ "$dir_wlan_fw/sys_if/common.h" ]
+  public_deps = [
+    "$dir_noa_apps/noa/common:headers",
+    "$dir_noa_common:ring_id",
+    "$dir_noa_modules/linux_port:completion",
+    "$dir_noa_modules/linux_port:container_of",
+    "$dir_noa_modules/linux_port:device",
+    "$dir_noa_modules/linux_port:dma-mapping",
+    "$dir_noa_modules/linux_port:interrupt",
+    "$dir_noa_modules/linux_port:list",
+    "$dir_noa_modules/linux_port:spinlock",
+    "$dir_noa_modules/linux_port:tasklet",
+    "$dir_noa_modules/net:headers",
+    "$dir_noa_services/ring_service:ring_manager",
+  ]
+}
+
+wlan_source_set("noa_net") {
+  public = [ "$dir_wlan_fw/sys_if/noa_net/noa_net.h" ]
+  sources = [ "$dir_wlan_fw/sys_if/noa_net/noa_net_pw.cc" ]
+  public_deps = [
+    ":common",
+    ":types",
+    "$dir_noa_modules/net:headers",
+  ]
+}
+
+wlan_source_set("types") {
+  public = [ "$dir_wlan_fw/sys_if/types/types.h" ]
+}
+
+wlan_source_set("workqueue") {
+  public = [ "$dir_wlan_fw/sys_if/workqueue/sys_if_workqueue.h" ]
+  sources = [ "$dir_wlan_fw/sys_if/workqueue/sys_if_workqueue_pw.cc" ]
+  public_deps = [
+    ":types",
+    "$dir_noa_modules/linux_port:workqueue",
+  ]
+  deps = [
+    "$dir_pw_chrono:system_clock",
+    "$dir_pw_log",
+  ]
+}
+
+wlan_test_group("tests") {
+  tests = [
+    ":interrupt_test",
+    ":io_test",
+    ":mailbox_test",
+    ":log_test",
+  ]
+}

@@ -532,7 +532,7 @@ static int exynos_cpuhp_probe(struct platform_device *pdev)
 		pr_err("Failed to create sysfs for CPUHP\n");
 
 	/* Link CPUHP sysfs to /sys/devices/system/cpu/cpuhp */
-	if (sysfs_create_link(&cpu_subsys.dev_root->kobj,
+	if (sysfs_create_link(&bus_get_dev_root(&cpu_subsys)->kobj,
 			      &pdev->dev.kobj, "cpuhp"))
 		pr_err("Failed to link CPUHP sysfs to cpuctrl\n");
 

@@ -7,7 +7,6 @@
 
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM lwis
-#define NOTRACE
 
 #if !defined(_TRACE_LWIS_H_) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_LWIS_H_
@@ -28,7 +27,7 @@ TRACE_EVENT(tracing_mark_write,
 	    TP_STRUCT__entry(LWIS_DEVICE_NAME_ENTRY __field(char, type) __field(int, pid)
 				     __string(func_name, func_name) __field(int64_t, value)),
 	    TP_fast_assign(LWIS_DEVICE_NAME_ASSIGN; __entry->type = type; __entry->pid = pid;
-			   __assign_str(func_name, func_name); __entry->value = value;),
+			   __assign_str(func_name); __entry->value = value;),
 	    TP_printk("%c|%d|lwis-%s:%s|%lld", __entry->type, __entry->pid, LWIS_TRACE_DEVICE_NAME,
 		      __get_str(func_name), __entry->value));
 

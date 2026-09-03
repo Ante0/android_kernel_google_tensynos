@@ -31,13 +31,26 @@
 #define RT6160_TSDSTAT_MASK	BIT(1)
 #define RT6160_PGSTAT_MASK	BIT(0)
 
-#define RT6160_VENDOR_ID	0xA8
+#define RT6160_VENDOR_ID	0xA0
+#define RT6166_VENDOR_ID	0xB0
 #define RT6160_VOUT_MINUV	2025000
 #define RT6160_VOUT_MAXUV	5200000
+#define RT6166_VOUT_MINUV	1800000
+#define RT6166_VOUT_MAXUV	4975000
 #define RT6160_VOUT_STPUV	25000
 #define RT6160_N_VOUTS		((RT6160_VOUT_MAXUV - RT6160_VOUT_MINUV) / RT6160_VOUT_STPUV + 1)
 
 #define RT6160_I2CRDY_TIMEUS	100
+
+/*
+ *  REGULATOR_MODE_INVALID (0x0): Don't override regulator mode
+ *  REGULATOR_MODE_FAST (0x1): Force enable FPWM mode
+ *  REGULATOR_MODE_NORMAL (0x2): Force enable PFM mode
+ */
+static int force_mode = REGULATOR_MODE_INVALID;
+module_param(force_mode, int, 0644);
+MODULE_PARM_DESC(force_mode,
+		"Force the regulator to operate in the specific mode, overriding the set mode");
 
 struct rt6160_priv {
 	struct device *dev;
@@ -94,10 +107,33 @@ static int rt6160_is_enabled(struct regulator_dev *rdev)
 	return priv->enable_state ? 1 : 0;
 }
 
+static unsigned int rt6160_of_map_mode(unsigned int mode)
+{
+	switch (mode) {
+	case RT6160_MODE_FPWM:
+		return REGULATOR_MODE_FAST;
+	case RT6160_MODE_AUTO:
+		return REGULATOR_MODE_NORMAL;
+	}
+
+	return REGULATOR_MODE_INVALID;
+}
+
+static bool rt6160_is_mode_valid(unsigned int mode)
+{
+	return (mode == REGULATOR_MODE_NORMAL) || (mode == REGULATOR_MODE_FAST);
+}
+
 static int rt6160_set_mode(struct regulator_dev *rdev, unsigned int mode)
 {
 	struct rt6160_priv *priv = rdev_get_drvdata(rdev);
+	unsigned int mode_override = force_mode;
 	unsigned int mode_val;
+
+	if (rt6160_is_mode_valid(mode_override)) {
+		mode = mode_override;
+		dev_info(priv->dev, "force regulator set mode into %d\n", mode_override);
+	}
 
 	switch (mode) {
 	case REGULATOR_MODE_FAST:
@@ -189,18 +225,6 @@ static const struct regulator_ops rt6160_regulator_ops = {
 	.set_suspend_voltage = rt6160_set_suspend_voltage,
 	.get_error_flags = rt6160_get_error_flags,
 };
-
-static unsigned int rt6160_of_map_mode(unsigned int mode)
-{
-	switch (mode) {
-	case RT6160_MODE_FPWM:
-		return REGULATOR_MODE_FAST;
-	case RT6160_MODE_AUTO:
-		return REGULATOR_MODE_NORMAL;
-	}
-
-	return REGULATOR_MODE_INVALID;
-}
 
 static bool rt6160_is_accessible_reg(struct device *dev, unsigned int reg)
 {
@@ -312,6 +336,15 @@ static int rt6160_probe(struct i2c_client *i2c)
 	if (ret)
 		return ret;
 
+	switch (devid & RT6160_VID_MASK) {
+	case RT6166_VENDOR_ID:
+	case RT6160_VENDOR_ID:
+		break;
+	default:
+		dev_err(&i2c->dev, "VID not correct [0x%02x]\n", devid);
+		return -ENODEV;
+	}
+
 	/* Use for get driver data */
 	i2c_set_clientdata(i2c, priv);
 	dev_info(&i2c->dev, "VID = [0x%02x]\n", devid);
@@ -321,7 +354,10 @@ static int rt6160_probe(struct i2c_client *i2c)
 	priv->desc.name = "rt6160-buckboost";
 	priv->desc.type = REGULATOR_VOLTAGE;
 	priv->desc.owner = THIS_MODULE;
-	priv->desc.min_uV = RT6160_VOUT_MINUV;
+	if ((priv->devid & RT6160_VID_MASK) == RT6160_VENDOR_ID)
+		priv->desc.min_uV = RT6160_VOUT_MINUV;
+	else
+		priv->desc.min_uV = RT6166_VOUT_MINUV;
 	priv->desc.uV_step = RT6160_VOUT_STPUV;
 	if (vsel_active_low)
 		priv->desc.vsel_reg = RT6160_REG_VSELL;
@@ -353,12 +389,6 @@ static int rt6160_probe(struct i2c_client *i2c)
 		return PTR_ERR(rdev);
 	}
 
-	ret = rt6160_disable(rdev);
-	if (ret) {
-		dev_err(&i2c->dev, "Failed to disable regulator on probe completion\n");
-		return ret;
-	}
-
 	return 0;
 }
 
@@ -373,7 +403,7 @@ static struct i2c_driver rt6160_driver = {
 		.name = "rt6160",
 		.of_match_table = rt6160_of_match_table,
 	},
-	.probe_new = rt6160_probe,
+	.probe = rt6160_probe,
 };
 module_i2c_driver(rt6160_driver);
 

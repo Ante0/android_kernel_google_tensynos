@@ -1,30 +1,47 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+# the Novatek NT36xxx touchscreen driver.
 
-kernel_module(
-    name = "nt36xxx",
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "nvt_touch",
     srcs = glob([
-        "**/*.c",
         "**/*.h",
     ]) + [
-        "Kbuild",
-        "//private/google-modules/display/samsung:headers",
-        "//private/google-modules/soc/gs:gs_soc_headers",
-        "//private/google-modules/touch/common:headers",
-        "//private/google-modules/touch/common/usi:headers",
+        "nt36xxx.c",
+        "nt36xxx_ext_api.c",
+        "nt36xxx_ext_proc.c",
+        "nt36xxx_ext_usi.c",
+        "nt36xxx_fw_update.c",
+        "nt36xxx_fw_update_gcm.c",
+        "nt36xxx_mp_ctrlram.c",
     ],
-    outs = [
-        "nvt_touch.ko",
-    ],
+    out = "nvt_touch.ko",
+    conditional_srcs = {
+        "CONFIG_SOC_GOOGLE": {
+            True: [
+                "nt36xxx_goog.c",
+            ],
+        },
+    },
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+        "NVT_TS_PANEL_BRIDGE",
     ],
     deps = [
-        "//private/google-modules/soc/gs:gs_soc_module",
-        "//private/google-modules/touch/common:touch.common",
-        "//private/google-modules/touch/common/usi:touch.common.usi",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/samsung:headers",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel:systrace",
+        "//private/google-modules/touch/common:ddk_headers",
+        "//private/google-modules/touch/common:goog_touch_interface",
+        "//private/google-modules/touch/common/usi:goog_usi_stylus",
     ],
 )

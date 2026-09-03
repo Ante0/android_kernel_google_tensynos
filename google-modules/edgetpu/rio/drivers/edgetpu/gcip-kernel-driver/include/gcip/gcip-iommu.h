@@ -175,6 +175,8 @@ struct gcip_iommu_domain {
 	bool default_domain;
 	struct gcip_iommu_domain_space space;
 	ioasid_t pasid; /* Only valid if attached */
+	/* attach_handle for iopf that maps pasid to our iommu_domain */
+	struct iommu_attach_handle attach_handle;
 };
 
 /*

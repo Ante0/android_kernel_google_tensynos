@@ -17,6 +17,9 @@ void cp_shmem_release_region(u32 cp, u32 idx);
 void cp_shmem_release_rmem(u32 cp, u32 idx, u32 headroom);
 unsigned long cp_shmem_get_base(u32 cp, u32 idx);
 u32 cp_shmem_get_size(u32 cp, u32 idx);
+unsigned long cp_rmem_get_base(u32 idx);
+u32 cp_rmem_get_size(u32 idx);
+int cp_rmem_get_count(void);
 
 /* Legacy functions */
 unsigned long shm_get_msi_base(void);

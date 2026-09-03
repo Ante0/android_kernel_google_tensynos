@@ -1,0 +1,347 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+# headers for cnss2_qrtr_/cnss2_qmi_helpers/cnss2_mhi 'include'.
+ddk_headers(
+    name = "cnss2_kernel_headers",
+    hdrs = glob([
+        "include/linux/*.h",
+    ]),
+    includes = ["include"],
+    linux_includes = ["include"],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn7760/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+# headerss for cnss2 'inc'.
+ddk_headers(
+    name = "wlan-platform-headers",
+    hdrs = glob([
+        "inc/*.h",
+    ]),
+    includes = ["inc"],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn7760/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+# headers in 'cnss2'
+ddk_headers(
+    name = "wlan-platform-private-headers",
+    hdrs = glob([
+        "cnss2/*.h",
+        "cnss_utils/*.h",
+    ]),
+    includes = [
+        "cnss2",
+        "cnss_utils",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn7760/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+# ddk_module cnss2_qrtr_qrtr
+ddk_module(
+    name = "cnss2_qrtr_qrtr",
+    srcs = [
+        "qrtr/af_qrtr.c",
+        "qrtr/ns.c",
+        "qrtr/qrtr.h",
+    ],
+    out = "qrtr.ko",
+    defconfig = "qrtr/defconfig",
+    kconfig = "qrtr/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":cnss2_kernel_headers",
+    ],
+)
+
+# ddk_module cnss2_qrtr_mhi
+ddk_module(
+    name = "cnss2_qrtr_mhi",
+    srcs = [
+        "qrtr/mhi.c",
+        "qrtr/qrtr.h",
+    ],
+    out = "qrtr-mhi.ko",
+    defconfig = "qrtr/defconfig",
+    kconfig = "qrtr/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":cnss2_kernel_headers",
+        ":cnss2_mhi_host",
+        ":cnss2_qrtr_qrtr",
+    ],
+)
+
+# ddk_module cnss2_qmi_helpers
+ddk_module(
+    name = "cnss2_qmi_helpers",
+    srcs = [
+        "qmi_helpers/qmi_encdec.c",
+        "qmi_helpers/qmi_interface.c",
+    ],
+    out = "qmi_helpers.ko",
+    defconfig = "qmi_helpers/defconfig",
+    kconfig = "qmi_helpers/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":cnss2_kernel_headers",
+    ],
+)
+
+# ddk_module cnss2_mhi_host
+ddk_module(
+    name = "cnss2_mhi_host",
+    srcs = [
+        # do not sort
+        "mhi/common.h",
+        "mhi/host/internal.h",
+        "mhi/host/boot.c",
+        "mhi/host/init.c",
+        "mhi/host/main.c",
+        "mhi/host/misc.h",
+        "mhi/host/pm.c",
+        "mhi/host/trace.h",
+    ],
+    out = "mhi.ko",
+    # conditional source depend on flag in defconfig
+    conditional_srcs = {
+        "CONFIG_MHI_BUS_MISC": {
+            True: [
+                # do not sort
+                "mhi/host/misc.c",
+            ],
+        },
+        "CONFIG_MHI_BUS_DEBUG": {
+            True: [
+                # do not sort
+                "mhi/host/debugfs.c",
+            ],
+        },
+    },
+    copts = [
+        "-Wno-missing-prototypes",
+    ],
+    defconfig = "mhi/host/defconfig",
+    kconfig = "mhi/host/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":cnss2_kernel_headers",
+    ],
+)
+
+# ddk_module cnss2_cnss2
+ddk_module(
+    name = "cnss2_cnss2",
+    srcs = [
+        "cnss2/bus.c",
+        "cnss2/coexistence_service_v01.c",
+        "cnss2/debug.c",
+        "cnss2/genl.c",
+        "cnss2/main.c",
+        "cnss2/pci.c",
+        "cnss2/pci_qcom_google.c",
+        "cnss2/power.c",
+        "cnss2/qmi.c",
+    ] + glob([
+        "cnss2/*.h",
+        "cnss_utils/*.h",
+    ]),
+    out = "cnss2.ko",
+    # CONFIG_PCI_MSM not defined by Google. just keep for consist.
+    conditional_srcs = {
+        "CONFIG_PCI_MSM": {
+            True: [
+                "cnss2/pci_qcom.c",
+            ],
+        },
+        "CONFIG_QCOM_RAMDUMP": {
+            True: [
+                "cnss2/qcom_ramdump.c",
+            ],
+        },
+    },
+    copts = [
+        "-Wno-missing-prototypes",
+    ],
+    defconfig = "cnss2/sun_consolidate_defconfig",
+    kconfig = "cnss2/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":cnss2_cnss_nl",
+        ":cnss2_cnss_plat_ipc_qmi_svc",
+        ":cnss2_cnss_prealloc",
+        ":cnss2_cnss_utils",
+        ":cnss2_kernel_headers",
+        ":cnss2_mhi_host",
+        ":cnss2_qmi_helpers",
+        ":cnss2_qrtr_mhi",
+        ":cnss2_qrtr_qrtr",
+        ":cnss2_wlan_firmware_service",
+        ":wlan-platform-headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/pci:google-pcie",
+    ],
+)
+
+# ddk_module cnss2_cnss_nl
+ddk_module(
+    name = "cnss2_cnss_nl",
+    srcs = [
+        "cnss_genl/cnss_nl.c",
+    ],
+    out = "cnss_nl.ko",
+    defconfig = "cnss_genl/sun_consolidate_defconfig",
+    kconfig = "cnss_genl/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":wlan-platform-headers",
+    ],
+)
+
+# ddk_module cnss2_cnss_prealloc
+ddk_module(
+    name = "cnss2_cnss_prealloc",
+    srcs = [
+        "cnss_prealloc/cnss_prealloc.c",
+    ] + glob([
+        "cnss_utils/*.h",
+    ]),
+    out = "cnss_prealloc.ko",
+    defconfig = "cnss_prealloc/sun_consolidate_defconfig",
+    includes = ["cnss_utils"],
+    kconfig = "cnss_prealloc/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":wlan-platform-headers",
+    ],
+)
+
+# ddk_module cnss2_cnss_utils
+
+ddk_module(
+    name = "cnss2_cnss_utils",
+    srcs = [
+        "cnss_utils/cnss_utils.c",
+    ] + glob([
+        "cnss_utils/*.h",
+    ]),
+    out = "cnss_utils.ko",
+    defconfig = "cnss_utils/sun_consolidate_defconfig",
+    includes = ["cnss_utils"],
+    kconfig = "cnss_utils/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":wlan-platform-headers",
+    ],
+)
+
+# ddk_module cnss2_wlan_firmware_service
+
+ddk_module(
+    name = "cnss2_wlan_firmware_service",
+    srcs = [
+        "cnss_utils/device_management_service_v01.c",
+        "cnss_utils/ip_multimedia_subsystem_private_service_v01.c",
+        "cnss_utils/wlan_firmware_service_v01.c",
+    ] + glob([
+        "cnss_utils/*.h",
+    ]),
+    out = "wlan_firmware_service.ko",
+    defconfig = "cnss_utils/sun_consolidate_defconfig",
+    includes = ["cnss_utils"],
+    kconfig = "cnss_utils/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":cnss2_kernel_headers",
+        ":cnss2_qmi_helpers",
+        ":wlan-platform-headers",
+    ],
+)
+
+# ddk_module cnss2_cnss_plat_ipc_qmi_svc
+ddk_module(
+    name = "cnss2_cnss_plat_ipc_qmi_svc",
+    srcs = [
+        "cnss_utils/cnss_plat_ipc_qmi.c",
+        "cnss_utils/cnss_plat_ipc_service_v01.c",
+    ] + glob([
+        "cnss_utils/*.h",
+    ]),
+    out = "cnss_plat_ipc_qmi_svc.ko",
+    defconfig = "cnss_utils/sun_consolidate_defconfig",
+    includes = ["cnss_utils"],
+    kconfig = "cnss_utils/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":cnss2_kernel_headers",
+        ":cnss2_qmi_helpers",
+        ":wlan-platform-headers",
+    ],
+)
+
+# ddk_module google_wlan_mac
+ddk_module(
+    name = "google_wlan_mac",
+    srcs = [
+        "wlan_mac/google_wlan_mac.c",
+    ],
+    out = "google_wlan_mac.ko",
+    defconfig = "wlan_mac/defconfig",
+    kconfig = "wlan_mac/Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":cnss2_cnss_utils",
+        ":cnss2_kernel_headers",
+        ":wlan-platform-headers",
+    ],
+)

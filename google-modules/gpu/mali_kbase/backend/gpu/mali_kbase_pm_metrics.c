@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2011-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2011-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -44,8 +44,6 @@
 
 /* To get the GPU_UTIL_counter value in nano seconds unit */
 #define GPU_UTIL_SCALING_FACTOR ((u64)1E9)
-/* To get the GPU_ACTIVE value in nano seconds unit */
-#define GPU_ACTIVE_SCALING_FACTOR ((u64)1E9)
 
 #if IS_ENABLED(CONFIG_SOC_ZUMA)
 // To mitigate GPU_ACTIVE vs GPU_ITER_ACTIVE differences
@@ -145,8 +143,13 @@ int kbasep_pm_metrics_init(struct kbase_device *kbdev)
 	spin_lock_init(&kbdev->pm.backend.metrics.lock);
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
+#if KERNEL_VERSION(6, 15, 0) <= LINUX_VERSION_CODE
+	hrtimer_setup(&kbdev->pm.backend.metrics.timer, dvfs_callback, CLOCK_MONOTONIC,
+		      HRTIMER_MODE_REL);
+#else
 	hrtimer_init(&kbdev->pm.backend.metrics.timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	kbdev->pm.backend.metrics.timer.function = dvfs_callback;
+#endif
 	kbdev->pm.backend.metrics.initialized = true;
 	atomic_set(&kbdev->pm.backend.metrics.timer_state, TIMER_OFF);
 	kbase_pm_metrics_start(kbdev);
@@ -199,9 +202,17 @@ static bool kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 	 */
 	err = kbase_ipa_control_query(
 		kbdev, kbdev->pm.backend.metrics.ipa_control_client, counters,
-		IPA_NUM_PERF_COUNTERS, &protected_time, &now);
+		IPA_NUM_PERF_COUNTERS, &protected_time);
 	gpu_iter_active_counter = counters[0];
 	mcu_active_counter = counters[1];
+
+	/* Read the timestamp after reading the GPU_UTIL counter value.
+	 * This ensures the time gap between the 2 reads is consistent for
+	 * a meaningful comparison between the increment of GPU_UTIL and
+	 * elapsed time. The lock taken inside kbase_ipa_control_query()
+	 * function can cause lot of variation.
+	 */
+	now = ktime_get_raw();
 
 	if (err) {
 		dev_err(kbdev->dev,
@@ -210,7 +221,7 @@ static bool kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 	} else {
 		u64 diff_ns;
 		s64 diff_ns_signed;
-		u32 ns_time;
+		u64 ns_time;
 		ktime_t diff = ktime_sub(now, kbdev->pm.backend.metrics.time_period_start);
 
 		diff_ns_signed = ktime_to_ns(diff);
@@ -270,7 +281,7 @@ static bool kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 		}
 #endif
 		/* Calculate time difference in units of 256ns */
-		ns_time = (u32)(diff_ns >> KBASE_PM_TIME_SHIFT);
+		ns_time = diff_ns >> KBASE_PM_TIME_SHIFT;
 
 		/* Add protected_time to gpu_iter_active_counter so that time in
 		 * protected mode is included in the apparent GPU active time,
@@ -295,8 +306,8 @@ static bool kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 		/* Ensure the following equations don't go wrong if ns_time is
 		 * slightly larger than gpu_iter_active_counter somehow
 		 */
-		gpu_iter_active_counter = MIN(gpu_iter_active_counter, ns_time);
-		mcu_active_counter = MIN(mcu_active_counter, ns_time);
+		gpu_iter_active_counter = min(gpu_iter_active_counter, ns_time);
+		mcu_active_counter = min(mcu_active_counter, ns_time);
 
 		kbdev->pm.backend.metrics.values.time_busy += gpu_iter_active_counter;
 
@@ -357,7 +368,8 @@ void kbase_pm_get_dvfs_action(struct kbase_device *kbdev)
 
 	kbase_pm_get_dvfs_metrics(kbdev, &kbdev->pm.backend.metrics.dvfs_last, diff);
 
-	utilisation = (100 * diff->time_busy) / max(diff->time_busy + diff->time_idle, 1u);
+	utilisation =
+		div64_u64(100 * diff->time_busy, max(diff->time_busy + diff->time_idle, 1ull));
 
 #if IS_ENABLED(CONFIG_SOC_ZUMA)
 	if (utilisation > GPU_UTIL_MIN) {

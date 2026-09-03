@@ -98,11 +98,8 @@ static struct pcmcia_low_level sa11x0_cf_ops = {
 int __init pcmcia_collie_init(struct device *dev);
 
 static int (*sa11x0_pcmcia_legacy_hw_init[])(struct device *dev) = {
-#if defined(CONFIG_SA1100_H3100) || defined(CONFIG_SA1100_H3600)
+#ifdef CONFIG_SA1100_H3600
 	pcmcia_h3600_init,
-#endif
-#ifdef CONFIG_SA1100_SIMPAD
-	pcmcia_simpad_init,
 #endif
 #ifdef CONFIG_SA1100_COLLIE
        pcmcia_collie_init,
@@ -161,20 +158,18 @@ static int sa11x0_drv_pcmcia_probe(struct platform_device *pdev)
 	return sa11xx_drv_pcmcia_add_one(skt);
 }
 
-static int sa11x0_drv_pcmcia_remove(struct platform_device *dev)
+static void sa11x0_drv_pcmcia_remove(struct platform_device *dev)
 {
 	struct soc_pcmcia_socket *skt;
 
 	if (dev->id == -1) {
 		sa11x0_drv_pcmcia_legacy_remove(dev);
-		return 0;
+		return;
 	}
 
 	skt = platform_get_drvdata(dev);
 
 	soc_pcmcia_remove_one(skt);
-
-	return 0;
 }
 
 static struct platform_driver sa11x0_pcmcia_driver = {
@@ -182,7 +177,7 @@ static struct platform_driver sa11x0_pcmcia_driver = {
 		.name		= "sa11x0-pcmcia",
 	},
 	.probe		= sa11x0_drv_pcmcia_probe,
-	.remove		= sa11x0_drv_pcmcia_remove,
+	.remove_new	= sa11x0_drv_pcmcia_remove,
 };
 
 /* sa11x0_pcmcia_init()

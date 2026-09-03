@@ -1,0 +1,56 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * camera PMIC device tree for deepspace
+ *
+ * Copyright 2024 Google LLC.
+ *
+ */
+
+ // ODPM
+&m_ext1_rail {
+	google,schematic-name = "VSYS_PWR_WLAN_BT";
+	google,subsystem-name = "WLAN_BT";
+	google,shunt-res-uohm = <10000>;
+};
+
+&m_ext2_rail {
+	google,schematic-name = "VSYS_PWR_VBATT";
+	google,subsystem-name = "Battery";
+	google,shunt-res-uohm = <2000>;
+};
+
+&m_ext3_rail {
+	google,schematic-name = "VSYS_PWR_CAM_G1";
+	google,subsystem-name = "Camera";
+	google,shunt-res-uohm = <5000>;
+};
+
+&m_ext4_rail {
+	google,schematic-name = "VSYS_PWR_CAM_G2";
+	google,subsystem-name = "Camera";
+	google,shunt-res-uohm = <5000>;
+};
+
+&s_ext5_rail {
+	google,schematic-name = "VSYS_PWR_RFFE";
+	google,subsystem-name = "Cellular";
+	google,shunt-res-uohm = <5000>;
+};
+
+&s_ext6_rail {
+	google,schematic-name = "VSYS_PWR_MODEM";
+	google,subsystem-name = "Modem";
+	google,shunt-res-uohm = <5000>;
+};
+
+&s_ext7_rail {
+	google,schematic-name = "VSYS_PWR_DISP_G1";
+	google,subsystem-name = "Display";
+	google,shunt-res-uohm = <10000>;
+};
+
+&s_ext8_rail {
+	google,schematic-name = "VSYS_PWR_DISP_G2";
+	google,subsystem-name = "Display";
+	google,shunt-res-uohm = <10000>;
+};

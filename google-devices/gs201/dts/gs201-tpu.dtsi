@@ -28,6 +28,7 @@
 		/* TODO(b/195608852): Enable coherency */
 		iommus = <&sysmmu_tpu>;
 		samsung,iommu-group = <&iommu_group_tpu>;
+		pasid-num-bits = <3>;
 		status = "okay";
 		memory-region = <&tpu_fw_reserved>, <&tpu_fw_ctx_reserved>;
 		edgetpu,shareability = <0x1cc20000>;

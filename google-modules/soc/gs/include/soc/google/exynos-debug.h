@@ -12,7 +12,7 @@ extern int s3c2410wdt_set_emergency_reset(unsigned int timeout, int index);
 extern int s3c2410wdt_keepalive_emergency(bool reset, int index, int sec);
 extern void s3c2410wdt_reset_confirm(unsigned long mtime, int index);
 extern int s3c2410wdt_keepalive_common(void);
-extern void s3c2410wdt_print_schedstat(char *loglevel);
+extern void s3c2410wdt_print_schedstat(const char *loglevel);
 #else
 #define s3c2410wdt_set_emergency_stop(a)		(-1)
 #define s3c2410wdt_set_emergency_reset(a, b)		do { } while (0)

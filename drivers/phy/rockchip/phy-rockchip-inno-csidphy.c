@@ -87,10 +87,11 @@ struct dphy_reg {
 	u32 offset;
 	u32 mask;
 	u32 shift;
+	u8 valid;
 };
 
 #define PHY_REG(_offset, _width, _shift) \
-	{ .offset = _offset, .mask = BIT(_width) - 1, .shift = _shift, }
+	{ .offset = _offset, .mask = BIT(_width) - 1, .shift = _shift, .valid = 1, }
 
 static const struct dphy_reg rk1808_grf_dphy_regs[] = {
 	[GRF_DPHY_CSIPHY_FORCERXMODE] = PHY_REG(RK1808_GRF_PD_VI_CON_OFFSET, 4, 0),
@@ -145,7 +146,7 @@ static inline void write_grf_reg(struct rockchip_inno_csidphy *priv,
 	const struct dphy_drv_data *drv_data = priv->drv_data;
 	const struct dphy_reg *reg = &drv_data->grf_regs[index];
 
-	if (reg->offset)
+	if (reg->valid)
 		regmap_write(priv->grf, reg->offset,
 			     HIWORD_UPDATE(value, reg->mask, reg->shift));
 }
@@ -459,13 +460,11 @@ static int rockchip_inno_csidphy_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int rockchip_inno_csidphy_remove(struct platform_device *pdev)
+static void rockchip_inno_csidphy_remove(struct platform_device *pdev)
 {
 	struct rockchip_inno_csidphy *priv = platform_get_drvdata(pdev);
 
 	pm_runtime_disable(priv->dev);
-
-	return 0;
 }
 
 static struct platform_driver rockchip_inno_csidphy_driver = {
@@ -474,7 +473,7 @@ static struct platform_driver rockchip_inno_csidphy_driver = {
 		.of_match_table = rockchip_inno_csidphy_match_id,
 	},
 	.probe = rockchip_inno_csidphy_probe,
-	.remove = rockchip_inno_csidphy_remove,
+	.remove_new = rockchip_inno_csidphy_remove,
 };
 
 module_platform_driver(rockchip_inno_csidphy_driver);

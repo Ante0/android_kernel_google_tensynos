@@ -6,7 +6,10 @@
  *
  */
 
+#pragma clang diagnostic ignored "-Wenum-conversion"
+#pragma clang diagnostic ignored "-Wswitch"
 
+#include <linux/cleanup.h>
 #include <linux/err.h>
 #include <linux/init.h>
 #include <linux/version.h>
@@ -15,8 +18,15 @@
 #include <linux/of_device.h>
 #include <linux/regmap.h>
 
+#include <misc/logbuffer.h>
+
 #include "pca9468_regs.h"
 #include "pca9468_charger.h"
+
+/* Logging ----------------------------------------------------------------- */
+
+int debug_printk_prlog = LOGLEVEL_INFO;
+int debug_no_logbuffer = 0;
 
 /* DC PPS integration ------------------------------------------------------ */
 
@@ -28,17 +38,19 @@ static struct device_node *pca9468_find_config(struct device_node * node)
 
 	if (!node)
 		return node;
+
 	temp = of_parse_phandle(node, "pca9468,google_cpm", 0);
 	if (temp)
-		node = temp;
-	return node;
+		return temp;
+
+	return of_node_get(node);
 }
 
 int pca9468_probe_pps(struct pca9468_charger *pca9468_chg)
 {
 	const char *tmp_name = NULL;
 	bool pps_available = false;
-	struct device_node *node;
+	struct device_node *node __free(device_node);
 	int ret;
 
 	node = pca9468_find_config(pca9468_chg->dev->of_node);
@@ -116,7 +128,7 @@ int pca9468_usbpd_setup(struct pca9468_charger *pca9468)
 
 		pca9468->pd = tcpm_psy;
 	} else if (pca9468->tcpm_phandle) {
-		struct device_node *node;
+		struct device_node *node __free(device_node);
 
 		node = pca9468_find_config(pca9468->dev->of_node);
 		if (!node)

@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2025 Google LLC
+%YAML 1.2
+---
+
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: pe26100 charge pump charger driver
+
+maintainers:
+  - Prasanna Prapancham <dtokazaki@google.com>
+
+description: |
+  pe26100 charge pump driver. MFD child of pe26100_driver
+
+properties:
+  # A dictionary of DT properties for this binding schema
+  compatible:
+    enum:
+      - pe26100-cp-charger
+
+  debug_level:
+    description: adjust debug logging level
+
+  no_logbuffer:
+    description: disable/enable the logbuffer
+
+  iin_max_offset:
+    description: cc_max offset
+
+  iin_cc_comp_offset_low:
+    description: IIN CC compensation for reduction
+
+  iin_cc_comp_offset_high:
+    description: IIN CC compensation for increase
+
+  apply_offsets:
+    description: apply cc_max
+
+  pps_index:
+    description: set PPS index
+
+  ftm_mode:
+    description: Forces FTM mode
+
+required:
+  - compatible

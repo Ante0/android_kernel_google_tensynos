@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config GOOGLE_THERMAL
+	tristate "Google thermal drvier"
+	depends on ARCH_GOOGLE
+	depends on THERMAL
+	depends on GOOGLE_MBA_CPM_INTERFACE
+	help
+	  Enable support the thermal driver
+	  in RDO.
+	  Select Y if you have such device.
+

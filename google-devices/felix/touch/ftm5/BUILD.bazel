@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google/felix:__subpackages__",
+])
+
+filegroup(
+    name = "ftm5.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+)
+
+ddk_module(
+    name = "ftm5",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "fts.c",
+        "fts_lib/ftsCompensation.c",
+        "fts_lib/ftsCore.c",
+        "fts_lib/ftsError.c",
+        "fts_lib/ftsFlash.c",
+        "fts_lib/ftsFrame.c",
+        "fts_lib/ftsGesture.c",
+        "fts_lib/ftsIO.c",
+        "fts_lib/ftsTest.c",
+        "fts_lib/ftsTime.c",
+        "fts_lib/ftsTool.c",
+        "fts_proc.c",
+    ],
+    out = "ftm5.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/samsung:headers",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/touch/common:ddk_headers",
+        "//private/google-modules/touch/common:goog_touch_interface",
+    ],
+)

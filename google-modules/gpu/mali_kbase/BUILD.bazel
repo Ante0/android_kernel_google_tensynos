@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
+#
+# (C) COPYRIGHT 2025-2026 ARM Limited. All rights reserved.
+#
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
 # Foundation, and any use by you of this program is subject to the terms
@@ -12,51 +16,272 @@
 # along with this program; if not, you can access it online at
 # http://www.gnu.org/licenses/gpl-2.0.html.
 #
-# SPDX-License-Identifier: GPL-2.0
+#
 
 load(
-    "//build/kernel/kleaf:kernel.bzl",
-    "kernel_module",
+    "@kleaf//build/kernel/kleaf:kernel.bzl",
+    "ddk_headers",
+    "ddk_module",
 )
+load("//private/google-modules/gpu/mali_kbase/config:cflags.bzl", "CFLAGS_MODULE", "COPTS_KBASE", "COPTS_PIXEL")
 
-_midgard_modules = [
-    "mali_kbase.ko",
-    "tests/kutf/mali_kutf.ko",
-    "tests/mali_kutf_clk_rate_trace/kernel/mali_kutf_clk_rate_trace_test_portal.ko",
-]
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
 
-kernel_module(
-    name = "mali_kbase",
-    srcs = glob([
-        "**/*.c",
-        "**/*.h",
-        "**/*Kbuild",
-        "**/*Makefile",
-    ]) + [
+ddk_headers(
+    name = "mali_kernel_headers",
+    hdrs = [
+        ":midgard_headers",
+        "//common:all_headers_aarch64",
         "//private/google-modules/gpu/common:headers",
         "//private/google-modules/power/mitigation:headers",
-        "//private/google-modules/soc/gs:gs_soc_headers",
+        "//private/google-modules/soc/gs:headers",
     ],
-    outs = _midgard_modules,
-    kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
-    ],
-    deps = [
-        "//private/google-modules/gpu/mali_pixel",
-        "//private/google-modules/power/mitigation:bcl",
-        "//private/google-modules/soc/gs:gs_soc_module",
-    ],
+)
+
+ddk_headers(
+    name = "midgard_headers",
+    hdrs = glob(["**/*.h"]),
+    includes = [
+        ".",
+        "backend/gpu",
+        "context",
+        "csf",
+        "csf/ipa_control",
+        "debug",
+        "debug/backend",
+        "device",
+        "gpu",
+        "hw_access",
+        "hw_access/regmap",
+        "hwcnt",
+        "hwcnt/backend",
+        "ipa",
+        "ipa/backend",
+        "mmu",
+        "mmu/backend",
+        "thirdparty",
+        "tl",
+    ] + select({
+        "//conditions:default": ["platform/devicetree"],
+        "//private/google-modules/gpu/mali_kbase/config:mali_platform_name_meson": ["platform/meson"],
+        "//private/google-modules/gpu/mali_kbase/config:mali_platform_name_vexpress": ["platform/vexpress"],
+        "//private/google-modules/gpu/mali_kbase/config:mali_platform_name_vexpress_1xv7_a57": ["platform/vexpress_1xv7_a57"],
+        "//private/google-modules/gpu/mali_kbase/config:mali_platform_name_vexpress_6xvirtex7_10mhz": ["platform/vexpress_6xvirtex7_10mhz"],
+        "//private/google-modules/gpu/mali_kbase/config:mali_platform_name_pixel": ["platform/pixel"],
+    }),
 )
 
 filegroup(
-    name = "midgard_kconfig.cloudripper",
-    srcs = glob([
-        "**/*Kconfig",
-    ]),
-    visibility = [
-        "//common:__pkg__",
-        "//common-modules/mali:__subpackages__",
+    name = "midgard_kconfig",
+    srcs = [
+        "Kconfig",
+    ] + select({
+        "//private/google-modules/gpu/mali_kbase/config:mali_kutf": ["//private/google-modules/gpu/mali_kbase/tests:kutf_kconfig"],
+        "//conditions:default": [],
+    }) + select({
+        "//private/google-modules/gpu/mali_kbase/config:mali_platform_name_pixel": ["platform/pixel/Kconfig"],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "pixel_mali_srcs",
+    srcs = select({
+        "//private/google-modules/gpu/mali_kbase/config:mali_platform_name_pixel": [
+            "platform/pixel/pixel_gpu.c",
+            "platform/pixel/pixel_gpu_itmon.c",
+            "platform/pixel/pixel_gpu_power.c",
+            "platform/pixel/pixel_gpu_uevent.c",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "//private/google-modules/gpu/mali_kbase/config:pixel_and_midgard_dvfs": [
+            "platform/pixel/pixel_gpu_debug.c",
+            "platform/pixel/pixel_gpu_dvfs.c",
+            "platform/pixel/pixel_gpu_dvfs_governor.c",
+            "platform/pixel/pixel_gpu_dvfs_metrics.c",
+            "platform/pixel/pixel_gpu_sysfs.c",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "//private/google-modules/gpu/mali_kbase/config:mali_pixel_gpu_qos": ["platform/pixel/pixel_gpu_dvfs_qos.c"],
+        "//conditions:default": [],
+    }) + select({
+        "//private/google-modules/gpu/mali_kbase/config:mali_pixel_gpu_thermal": ["platform/pixel/pixel_gpu_tmu.c"],
+        "//conditions:default": [],
+    }) + select({
+        "//private/google-modules/gpu/mali_kbase/config:mali_pixel_gpu_slc": ["platform/pixel/pixel_gpu_slc.c"],
+        "//conditions:default": [],
+    }) + select({
+        "//private/google-modules/gpu/mali_kbase/config:mali_pixel_gpu_sscd": ["platform/pixel/pixel_gpu_sscd.c"],
+        "//conditions:default": [],
+    }),
+)
+
+ddk_module(
+    name = "mali_kbase_driver",
+    srcs = glob(
+        ["*.c"],
+        exclude = [
+            "mali_kbase_pbha_debugfs.c",
+            "mali_kbase_fence_ops.c",
+            "mali_kbase_sync_file.c",
+            "mali_kbase_sync_common.c",
+            "mali_power_gpu_work_period_trace.c",
+            "mali_kbase_gpu_metrics.c",
+            "mali_kbase_moduleprops.c",
+            "mali_kbase_power_debugfs.c",
+            "mali_kbase_regs_dump_debugfs.c",
+            "mali_kbase_fpga_sysctl.c",
+            "mali_kbase_vinstr.c",
+        ],
+    ) + glob(
+        ["backend/gpu/*.c"],
+        exclude = [
+            "backend/gpu/mali_kbase_pm_always_on_demand.c",
+            "backend/gpu/mali_kbase_devfreq.c",
+            "backend/gpu/mali_kbase_model_linux.c",
+            "backend/gpu/mali_kbase_model_dummy.c",
+        ],
+    ) + glob(
+        [
+            "context/*.c",
+            "context/backend/*.c",
+        ],
+    ) + glob(
+        [
+            "csf/*.c",
+            "csf/ipa_control/*.c",
+        ],
+        exclude = [
+            "csf/mali_kbase_csf_firmware_no_mali.c",
+            "csf/mali_kbase_csf_fw_io_no_mali.c",
+            "csf/mali_kbase_csf_firmware.c",
+            "csf/mali_kbase_csf_fw_io.c",
+            "csf/mali_kbase_debug_csf_fault.c",
+        ],
+    ) + glob(
+        [
+            "debug/*.c",
+            "debug/backend/*.c",
+        ],
+        exclude = [
+            "debug/backend/mali_kbase_debug_coresight_csf.c",
+        ],
+    ) + glob(
+        [
+            "device/*.c",
+            "device/backend/*.c",
+        ],
+    ) + glob(
+        [
+            "gpu/*.c",
+            "gpu/backend/*.c",
+        ],
+    ) + glob(
+        [
+            "hw_access/*.c",
+            "hw_access/regmap/*.c",
+        ],
+    ) + glob(
+        [
+            "hwcnt/*.c",
+            "hwcnt/backend/*.c",
+        ],
+    ) + glob(
+        [
+            "mmu/*.c",
+            "mmu/backend/*.c",
+        ],
+    ) + glob(
+        ["thirdparty/*.c"],
+    ) + glob(
+        [
+            "tl/*.c",
+            "tl/backend/*.c",
+        ],
+        exclude = [
+            "tl/mali_kbase_timeline_test.c",
+        ],
+    ) + [":pixel_mali_srcs"],
+    out = "mali_kbase.ko",
+    hdrs = [
+        ":mali_kernel_headers",
+    ],
+    conditional_srcs = {
+        "CONFIG_DEBUG_FS": {
+            True: [
+                "mali_kbase_pbha_debugfs.c",
+                "csf/mali_kbase_debug_csf_fault.c",
+                # "ipa/mali_kbase_ipa_debugfs.c",
+            ],
+        },
+        "CONFIG_SYNC_FILE": {
+            True: [
+                "mali_kbase_fence_ops.c",
+                "mali_kbase_sync_file.c",
+                "mali_kbase_sync_common.c",
+            ],
+        },
+        "CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD": {
+            True: [
+                "mali_power_gpu_work_period_trace.c",
+                "mali_kbase_gpu_metrics.c",
+            ],
+        },
+        "CONFIG_MALI_NO_MALI": {
+            True: [
+                "backend/gpu/mali_kbase_model_linux.c",
+                "backend/gpu/mali_kbase_model_dummy.c",
+                "csf/mali_kbase_csf_firmware_no_mali.c",
+                "csf/mali_kbase_csf_fw_io_no_mali.c",
+            ],
+            False: [
+                "csf/mali_kbase_csf_firmware.c",
+                "csf/mali_kbase_csf_fw_io.c",
+            ],
+        },
+        "CONFIG_MALI_REAL_HW": {
+            True: [
+                "hw_access/backend/mali_kbase_hw_access_real_hw.c",
+            ],
+            False: [
+                "hw_access/backend/mali_kbase_hw_access_model_linux.c",
+            ],
+        },
+        "CONFIG_MALI_DEVFREQ": {
+            True: [
+                "backend/gpu/mali_kbase_devfreq.c",
+                "ipa/mali_kbase_ipa_simple.c",
+                "ipa/mali_kbase_ipa.c",
+                "ipa/backend/mali_kbase_ipa_counter_csf.c",
+                "ipa/backend/mali_kbase_ipa_counter_common_csf.c",
+            ] + glob([
+                "ipa/*.h",
+                "ipa/backend/*.h",
+            ]),
+        },
+    },
+    copts = CFLAGS_MODULE + COPTS_KBASE + COPTS_PIXEL + ["-D__ANDROID_COMMON_KERNEL__=1"],
+    defconfig = "//private/google-modules/gpu/mali_kbase/config/fragment:kbase_defconfig",
+    kconfig = ":midgard_kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//private/google-modules/gpu/mali_pixel",
+        "//private/google-modules/power/mitigation:google_bcl",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/bts",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-pd",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-pmu-if",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos_pm_qos",
+        "//private/google-modules/soc/gs/drivers/soc/google/cal-if:cmupmucal",
+        "//private/google-modules/soc/gs/drivers/soc/google/debug:dss",
+        "//private/google-modules/soc/gs/drivers/soc/google/debug:itmon",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel:systrace",
+        "//private/google-modules/soc/gs/drivers/thermal/samsung:gpu_cooling",
+        "//private/google-modules/soc/gs/drivers/thermal/samsung:gs_thermal",
     ],
 )

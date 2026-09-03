@@ -1,0 +1,121 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+&ete0 {
+	status = "disabled";
+};
+
+&ete1 {
+	status = "disabled";
+};
+
+&ete2 {
+	status = "disabled";
+};
+
+&ete3 {
+	status = "disabled";
+};
+
+&ete4 {
+	status = "disabled";
+};
+
+&ete5 {
+	status = "disabled";
+};
+
+&ete6 {
+	status = "disabled";
+};
+
+&ete7 {
+	status = "disabled";
+};
+
+&cluster_combo_funnel {
+	status = "disabled";
+};
+
+&apc_funnel {
+	status = "disabled";
+};
+
+&apc_etf {
+	status = "disabled";
+};
+
+&dsp_etm {
+	status = "disabled";
+};
+
+&tpu_etm {
+	status = "disabled";
+};
+
+&sswrap_tpu_funnel {
+	status = "disabled";
+};
+
+&sswrap_tpu_etf {
+	status = "disabled";
+};
+
+&l3_funnel {
+	status = "disabled";
+};
+
+&l3_etf {
+	status = "disabled";
+};
+
+&l2_funnel {
+	status = "disabled";
+};
+
+&l2_etf {
+	status = "disabled";
+};
+
+&l1_funnel {
+	status = "disabled";
+};
+
+&l1_etf {
+	status = "disabled";
+};
+
+&stm {
+	status = "disabled";
+};
+
+&stm_funnel {
+	status = "disabled";
+};
+
+&gdmc_etm {
+	status = "disabled";
+};
+
+&l0_funnel {
+	status = "disabled";
+};
+
+&l0_etf {
+	status = "disabled";
+};
+
+&replicator {
+	status = "disabled";
+};
+
+&etr {
+	status = "disabled";
+};
+
+&ets {
+	status = "disabled";
+};
+
+&catu {
+	status = "disabled";
+};

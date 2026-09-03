@@ -18,6 +18,7 @@
 #include <linux/module.h>
 #include <linux/types.h>
 #include "nt36xxx.h"
+#include "nt36xxx_ext_usi.h"
 
 #define HID_DIAGNOSTIC_RETURN_SIZE	3
 #define DIAGNOSTIC_HOST_CMD		0x74

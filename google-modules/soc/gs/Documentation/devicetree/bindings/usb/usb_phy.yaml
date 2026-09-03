@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: (GPL-2.0 OR BSD-2-Clause)
+%YAML 1.2
+---
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: google-usb-phy driver device tree bindings
+
+maintainers:
+  - RD Babiera <rdbabiera@google.com>
+
+description:
+  The Google USB PHY driver manages PHY access for the USB and DPTX controllers.
+
+properties:
+  dp_tune_params:
+    description: |+
+      if present, uses the DP TX_EQ override registers belonging to PIPE message
+      bus instead of the hardware defaults when setting voltage swing and
+      preemphasis levels.
+    type: object
+    properties:
+      dp_tune_<rate>_vs_<vs>_pe_<pe>:
+        description: |+
+          Child node of dp_tune_params used to describe tuning values for a
+          rate, vs, and pe combination. <rate> is one of [rbr, hbr, hbr2, hbr3],
+          while <vs> and <pe> are in range [0,3] where vs + pe < 4.
+        properties:
+          tune_value:
+            description: |+
+              Array that defines main, pre, and post coefficients for the
+              parent property.
+            $ref: /schemas/types.yaml#/definitions/uint32-array
+            minItems: 3
+            maxItems: 3
+
+examples:
+  - |+
+    &usb_phy {
+      dp_tune_params {
+        dp_tune_rbr_vs_1_pe_1 {
+          tune_value = <30 0 5>;
+        };
+      };
+    };

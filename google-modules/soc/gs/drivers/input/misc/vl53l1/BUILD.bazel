@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "headers",
+    hdrs = glob([
+        "**/*.h",
+    ]),
+    includes = ["."],
+)
+
+ddk_module(
+    name = "stmvl53l1",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "stmvl53l1.ko",
+    conditional_srcs = {
+        "CONFIG_INPUT_STMVL53L1": {
+            True: [
+                "protected/src/vl53l1_dmax.c",
+                "protected/src/vl53l1_hist_algos_gen3.c",
+                "protected/src/vl53l1_hist_algos_gen4.c",
+                "protected/src/vl53l1_hist_core.c",
+                "protected/src/vl53l1_hist_funcs.c",
+                "protected/src/vl53l1_sigma_estimate.c",
+                "protected/src/vl53l1_xtalk.c",
+                "src/vl53l1_api.c",
+                "src/vl53l1_api_calibration.c",
+                "src/vl53l1_api_core.c",
+                "src/vl53l1_api_debug.c",
+                "src/vl53l1_api_preset_modes.c",
+                "src/vl53l1_api_strings.c",
+                "src/vl53l1_core.c",
+                "src/vl53l1_core_support.c",
+                "src/vl53l1_error_strings.c",
+                "src/vl53l1_nvm.c",
+                "src/vl53l1_nvm_debug.c",
+                "src/vl53l1_register_funcs.c",
+                "src/vl53l1_silicon_core.c",
+                "src/vl53l1_wait.c",
+                "src/vl53l1_zone_presets.c",
+                "stmvl53l1_i2c.c",
+                "stmvl53l1_log.c",
+                "stmvl53l1_module-i2c.c",
+                "stmvl53l1_module.c",
+                "vl53l1_platform_ipp.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)

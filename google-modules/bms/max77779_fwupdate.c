@@ -5,6 +5,7 @@
  * MAX77779 firmware updater
  */
 
+#include <linux/cleanup.h>
 #include <linux/i2c.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -16,6 +17,9 @@
 #include <linux/regmap.h>
 #include <linux/debugfs.h>
 
+#include <misc/gvotable.h>
+#include <misc/logbuffer.h>
+
 #include "google_bms.h"
 #include "max77779_regs.h"
 #include "max77779.h"
@@ -25,7 +29,7 @@
 #define MAX77779_FIRMWARE_BINARY_PREFIX "batt_fw_adi_79"
 #define MAX77779_REASON_FIRMWARE        "FW_UPDATE"
 
-#define FW_UPDATE_RETRY_CPU_RESET             100
+#define FW_UPDATE_RETRY_CPU_RESET             40
 #define FW_UPDATE_RETRY_FW_UPDATE             1000
 #define FW_UPDATE_RETRY_RISCV_REBOOT          20
 #define FW_UPDATE_RETRY_ONCE                  1
@@ -295,7 +299,6 @@ static inline int max77779_schedule_update(struct max77779_fwupdate* fwu)
 static int max77779_fwupdate_init(struct max77779_fwupdate *fwu)
 {
 	struct device* dev = fwu->dev;
-	struct device_node *dn;
 	int val = 0;
 
 	if (!dev)
@@ -335,6 +338,8 @@ static int max77779_fwupdate_init(struct max77779_fwupdate *fwu)
 	}
 
 	if (!fwu->batt) {
+		struct device_node *dn __free(device_node);
+
 		dn = of_parse_phandle(dev->of_node, "google,battery", 0);
 		if (!dn)
 			return -ENXIO;
@@ -1039,6 +1044,7 @@ static inline int perform_firmware_update(struct max77779_fwupdate *fwu, const c
 	u32 written = 0;
 	enum gbms_fwupdate_max77779_err_code err_code = FWU_MAX77779_ERR_NONE;
 	int ret, ret_st;
+	int retry = 2;
 	struct max77779_fwupdate_stats stats_backup;
 
 	/* if previous update is not completed yet, stop at here */
@@ -1070,7 +1076,13 @@ static inline int perform_firmware_update(struct max77779_fwupdate *fwu, const c
 		goto perform_firmware_update_cleanup;
 	}
 
-	ret = max77779_fwl_write(fwu, data, 0, count, &written);
+	do {
+		retry--;
+		written = 0;
+
+		ret = max77779_fwl_write(fwu, data, 0, count, &written);
+	} while (ret && retry > 0);
+
 	if (ret || written != count) {
 		err_code = FWU_MAX77779_ERR_DATA_TRANSFER;
 		goto perform_firmware_update_cleanup;
@@ -1161,23 +1173,13 @@ firmware_update_work_cleanup:
 static inline bool max77779_can_charge(struct device* chg)
 {
 	struct max77779_chgr_data *data = dev_get_drvdata(chg);
-	int ret;
-	uint8_t chg_detail;
+	int ret, chg_enabled;
 
-	ret = max77779_external_chg_reg_read(chg, MAX77779_CHG_DETAILS_00, &chg_detail);
-	if (ret)
-		return false;
+	ret = max77779_get_charge_enabled(data, &chg_enabled);
+	if (ret < 0)
+		return ret;
 
-	/* check usb: 0x0 or 0x1 means VBUS is invalid */
-	if (_max77779_chg_details_00_chgin_dtls_get(chg_detail) >= 2 && !data->chgin_input_suspend)
-		return true;
-
-	/* check wireless: 0x0 or 0x1 means VWCIN is invalid */
-	if ((_max77779_chg_details_00_wcin_dtls_get(chg_detail) >= 2 && !data->wcin_input_suspend)
-	    || data->wlc_spoof)
-		return true;
-
-	return false;
+	return chg_enabled;
 }
 
 /*
@@ -1556,11 +1558,11 @@ static int max77779_fwupdate_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int max77779_fwupdate_remove(struct platform_device *pdev)
+static void max77779_fwupdate_remove(struct platform_device *pdev)
 {
 	struct max77779_fwupdate *fwu = platform_get_drvdata(pdev);
 	if (!fwu)
-		return 0;
+		return;
 
 	if (fwu->lb) {
 		logbuffer_unregister(fwu->lb);
@@ -1577,8 +1579,6 @@ static int max77779_fwupdate_remove(struct platform_device *pdev)
 
 	if (fwu->de)
 		debugfs_remove(fwu->de);
-
-	return 0;
 }
 
 static const struct of_device_id max77779_fwupdate_of_match[] = {

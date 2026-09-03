@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config EXAMPLE_FOO
+	tristate "Example Foo Driver"
+	help
+	  This is an example foo driver that demonstrates Kleaf DDK capabilities.
+	  It shows how to structure a driver, export APIs, and integrate
+	  Device Tree bindings.
+
+	  If unsure, say N.
+
+config EXAMPLE_BAR
+	tristate "Example Bar Driver"
+	help
+	  This is an example bar driver that depends on the foo driver.
+	  It demonstrates inter-module dependencies and how to handle
+	  optional dependencies using inline stubs when foo is disabled.
+
+	  If unsure, say N.

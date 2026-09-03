@@ -385,13 +385,12 @@ static const struct dvb_tuner_ops vidtv_tuner_ops = {
 };
 
 static const struct i2c_device_id vidtv_tuner_i2c_id_table[] = {
-	{"dvb_vidtv_tuner", 0},
+	{ "dvb_vidtv_tuner" },
 	{}
 };
 MODULE_DEVICE_TABLE(i2c, vidtv_tuner_i2c_id_table);
 
-static int vidtv_tuner_i2c_probe(struct i2c_client *client,
-				 const struct i2c_device_id *id)
+static int vidtv_tuner_i2c_probe(struct i2c_client *client)
 {
 	struct vidtv_tuner_config *config = client->dev.platform_data;
 	struct dvb_frontend *fe           = config->fe;

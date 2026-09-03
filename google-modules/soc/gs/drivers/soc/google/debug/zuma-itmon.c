@@ -998,9 +998,9 @@ static const struct of_device_id itmon_dt_match[] = {
 };
 MODULE_DEVICE_TABLE(of, itmon_dt_match);
 
-struct itmon_nodeinfo *itmon_get_nodeinfo_by_group(struct itmon_dev *itmon,
-						   struct itmon_nodegroup *group,
-						   const char *name)
+static struct itmon_nodeinfo *itmon_get_nodeinfo_by_group(struct itmon_dev *itmon,
+							  struct itmon_nodegroup *group,
+							  const char *name)
 {
 	struct itmon_nodeinfo *node = group->nodeinfo;
 	int i;
@@ -1012,9 +1012,9 @@ struct itmon_nodeinfo *itmon_get_nodeinfo_by_group(struct itmon_dev *itmon,
 	return NULL;
 }
 
-struct itmon_nodeinfo *itmon_get_nodeinfo(struct itmon_dev *itmon,
-					  struct itmon_nodegroup *group,
-					  const char *name)
+static struct itmon_nodeinfo *itmon_get_nodeinfo(struct itmon_dev *itmon,
+						 struct itmon_nodegroup *group,
+						 const char *name)
 {
 	struct itmon_platdata *pdata = itmon->pdata;
 	struct itmon_nodeinfo *node = NULL;
@@ -1037,9 +1037,9 @@ struct itmon_nodeinfo *itmon_get_nodeinfo(struct itmon_dev *itmon,
 	return NULL;
 }
 
-struct itmon_nodeinfo *itmon_get_nodeinfo_group_by_eid(struct itmon_dev *itmon,
-						       struct itmon_nodegroup *group,
-						       u32 err_id)
+static struct itmon_nodeinfo *itmon_get_nodeinfo_group_by_eid(struct itmon_dev *itmon,
+							      struct itmon_nodegroup *group,
+							      u32 err_id)
 {
 	struct itmon_nodeinfo *node = group->nodeinfo;
 	int i;
@@ -1052,9 +1052,9 @@ struct itmon_nodeinfo *itmon_get_nodeinfo_group_by_eid(struct itmon_dev *itmon,
 	return NULL;
 }
 
-struct itmon_nodeinfo *itmon_get_nodeinfo_by_eid(struct itmon_dev *itmon,
-						 struct itmon_nodegroup *group,
-						 int path_type, u32 err_id)
+static struct itmon_nodeinfo *itmon_get_nodeinfo_by_eid(struct itmon_dev *itmon,
+							struct itmon_nodegroup *group,
+							int path_type, u32 err_id)
 {
 	struct itmon_platdata *pdata = itmon->pdata;
 	struct itmon_nodeinfo *node = NULL;
@@ -1075,9 +1075,8 @@ struct itmon_nodeinfo *itmon_get_nodeinfo_by_eid(struct itmon_dev *itmon,
 	return NULL;
 }
 
-struct itmon_nodeinfo *itmon_get_nodeinfo_group_by_tmout_offset(struct itmon_dev *itmon,
-								struct itmon_nodegroup *group,
-								u32 tmout_offset)
+static struct itmon_nodeinfo *itmon_get_nodeinfo_group_by_tmout_offset(
+		struct itmon_dev *itmon, struct itmon_nodegroup *group, u32 tmout_offset)
 {
 	struct itmon_nodeinfo *node = group->nodeinfo;
 	int i;
@@ -1085,27 +1084,6 @@ struct itmon_nodeinfo *itmon_get_nodeinfo_group_by_tmout_offset(struct itmon_dev
 	for (i = 0; i < group->nodesize; i++) {
 		if (node[i].tmout_offset == tmout_offset)
 			return &node[i];
-	}
-
-	return NULL;
-}
-
-struct itmon_nodeinfo *itmon_get_nodeinfo_by_tmout_offset(struct itmon_dev *itmon,
-							  struct itmon_nodegroup *group,
-							  u32 tmout_offset)
-{
-	struct itmon_platdata *pdata = itmon->pdata;
-	struct itmon_nodeinfo *node = NULL;
-	int i;
-
-	if (group)
-		return itmon_get_nodeinfo_group_by_tmout_offset(itmon, group, tmout_offset);
-
-	for (i = 0; i < pdata->num_nodegroup; i++) {
-		group = &pdata->nodegroup[i];
-		node = itmon_get_nodeinfo_group_by_tmout_offset(itmon, group, tmout_offset);
-		if (node)
-			return node;
 	}
 
 	return NULL;
@@ -1536,41 +1514,6 @@ static void itmon_set_nodepolicy(struct itmon_dev *itmon,
 		itmon_enable_nodepolicy(itmon, node);
 }
 
-int itmon_en_by_name(const char *name, bool en)
-{
-	struct itmon_nodeinfo *node;
-	struct itmon_nodegroup *group;
-
-	if (!g_itmon)
-		return -ENODEV;
-
-	node = itmon_get_nodeinfo(g_itmon, NULL, name);
-	if (!node) {
-		log_dev_err(g_itmon->dev, "%s node is not found\n", name);
-		return -ENODEV;
-	}
-
-	group = node->group;
-	if (!group) {
-		log_dev_err(g_itmon->dev, "%s node's group is  not found\n", name);
-		return -ENODEV;
-	}
-
-	if (group->pd_support && !group->pd_status) {
-		log_dev_err(g_itmon->dev, "%p group - %p node NOT pd on\n",
-			group, node);
-		return -EIO;
-	}
-
-	itmon_en_err_report(g_itmon, group, node, en);
-	itmon_en_prt_chk(g_itmon, group, node, en);
-	if (node->type == S_NODE)
-		itmon_en_timeout(g_itmon, group, node, en);
-
-	return 0;
-}
-EXPORT_SYMBOL(itmon_en_by_name);
-
 static void itmon_en_global(struct itmon_dev *itmon,
 			    struct itmon_nodegroup *group,
 			    int int_en,
@@ -1628,54 +1571,6 @@ static void itmon_init(struct itmon_dev *itmon, bool en)
 
 	pdata->en = en;
 	log_dev_info(itmon->dev, "itmon %sabled\n", pdata->en ? "en" : "dis");
-}
-
-void itmon_pd_sync(const char *pd_name, bool en)
-{
-	struct itmon_dev *itmon = g_itmon;
-	struct itmon_platdata *pdata = itmon->pdata;
-	struct itmon_nodegroup *group;
-	int i;
-
-	if (!itmon || !pdata->probed)
-		return;
-
-	for (i = 0; i < pdata->num_nodegroup; i++) {
-		group = &pdata->nodegroup[i];
-		if (group->pd_support && !strncmp(pd_name, group->pd_name, strlen(pd_name))) {
-			log_dev_dbg(itmon->dev, "%s: pd_name:%s enabled:%x, pd_status:%x\n",
-				    __func__, pd_name, en, group->pd_status);
-			if (group->pd_status != en) {
-				if (en) {
-					itmon_en_global(itmon, group, en, en, en, en, en);
-					if (!pdata->def_en)
-						itmon_init_by_group(itmon, group, en);
-				}
-				group->pd_status = en;
-			}
-		}
-	}
-}
-EXPORT_SYMBOL(itmon_pd_sync);
-
-void itmon_en(bool en)
-{
-	if (g_itmon)
-		itmon_init(g_itmon, en);
-}
-EXPORT_SYMBOL(itmon_en);
-
-int itmon_get_dpm_policy(struct itmon_dev *itmon)
-{
-	struct itmon_platdata *pdata = itmon->pdata;
-	int i, policy = -1;
-
-	for (i = 0; i < TYPE_MAX; i++) {
-		if (pdata->policy[i].error && pdata->policy[i].policy > policy)
-			policy = pdata->policy[i].policy;
-	}
-
-	return policy;
 }
 
 static void itmon_dump_dpm_policy(struct itmon_dev *itmon)
@@ -2649,10 +2544,9 @@ static int itmon_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int itmon_remove(struct platform_device *pdev)
+static void itmon_remove(struct platform_device *pdev)
 {
 	platform_set_drvdata(pdev, NULL);
-	return 0;
 }
 
 #ifdef CONFIG_PM_SLEEP

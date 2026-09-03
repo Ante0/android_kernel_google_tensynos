@@ -266,6 +266,7 @@ static void hdmi_active_area(struct sti_hdmi *hdmi)
  */
 static void hdmi_config(struct sti_hdmi *hdmi)
 {
+	struct drm_connector *connector = hdmi->drm_connector;
 	u32 conf;
 
 	DRM_DEBUG_DRIVER("\n");
@@ -275,7 +276,7 @@ static void hdmi_config(struct sti_hdmi *hdmi)
 
 	/* Select encryption type and the framing mode */
 	conf |= HDMI_CFG_ESS_NOT_OESS;
-	if (hdmi->hdmi_monitor)
+	if (connector->display_info.is_hdmi)
 		conf |= HDMI_CFG_HDMI_NOT_DVI;
 
 	/* Set Hsync polarity */
@@ -973,28 +974,32 @@ static const struct drm_bridge_funcs sti_hdmi_bridge_funcs = {
 
 static int sti_hdmi_connector_get_modes(struct drm_connector *connector)
 {
+	const struct drm_display_info *info = &connector->display_info;
 	struct sti_hdmi_connector *hdmi_connector
 		= to_sti_hdmi_connector(connector);
 	struct sti_hdmi *hdmi = hdmi_connector->hdmi;
-	struct edid *edid;
+	const struct drm_edid *drm_edid;
 	int count;
 
 	DRM_DEBUG_DRIVER("\n");
 
-	edid = drm_get_edid(connector, hdmi->ddc_adapt);
-	if (!edid)
+	drm_edid = drm_edid_read(connector);
+
+	drm_edid_connector_update(connector, drm_edid);
+
+	cec_notifier_set_phys_addr(hdmi->notifier,
+				   connector->display_info.source_physical_address);
+
+	if (!drm_edid)
 		goto fail;
 
-	hdmi->hdmi_monitor = drm_detect_hdmi_monitor(edid);
+	count = drm_edid_connector_add_modes(connector);
+
 	DRM_DEBUG_KMS("%s : %dx%d cm\n",
-		      (hdmi->hdmi_monitor ? "hdmi monitor" : "dvi monitor"),
-		      edid->width_cm, edid->height_cm);
-	cec_notifier_set_phys_addr_from_edid(hdmi->notifier, edid);
+		      info->is_hdmi ? "hdmi monitor" : "dvi monitor",
+		      info->width_mm / 10, info->height_mm / 10);
 
-	count = drm_add_edid_modes(connector, edid);
-	drm_connector_update_edid_property(connector, edid);
-
-	kfree(edid);
+	drm_edid_free(drm_edid);
 	return count;
 
 fail:
@@ -1220,7 +1225,9 @@ static int hdmi_audio_get_eld(struct device *dev, void *data, uint8_t *buf, size
 	struct drm_connector *connector = hdmi->drm_connector;
 
 	DRM_DEBUG_DRIVER("\n");
+	mutex_lock(&connector->eld_mutex);
 	memcpy(buf, connector->eld, min(sizeof(connector->eld), len));
+	mutex_unlock(&connector->eld_mutex);
 
 	return 0;
 }
@@ -1471,7 +1478,7 @@ static int sti_hdmi_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int sti_hdmi_remove(struct platform_device *pdev)
+static void sti_hdmi_remove(struct platform_device *pdev)
 {
 	struct sti_hdmi *hdmi = dev_get_drvdata(&pdev->dev);
 
@@ -1479,18 +1486,15 @@ static int sti_hdmi_remove(struct platform_device *pdev)
 	if (hdmi->audio_pdev)
 		platform_device_unregister(hdmi->audio_pdev);
 	component_del(&pdev->dev, &sti_hdmi_ops);
-
-	return 0;
 }
 
 struct platform_driver sti_hdmi_driver = {
 	.driver = {
 		.name = "sti-hdmi",
-		.owner = THIS_MODULE,
 		.of_match_table = hdmi_of_match,
 	},
 	.probe = sti_hdmi_probe,
-	.remove = sti_hdmi_remove,
+	.remove_new = sti_hdmi_remove,
 };
 
 MODULE_AUTHOR("Benjamin Gaignard <benjamin.gaignard@st.com>");

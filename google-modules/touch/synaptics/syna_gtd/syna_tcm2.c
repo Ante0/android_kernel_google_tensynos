@@ -2,7 +2,7 @@
 /*
  * Synaptics TouchCom touchscreen driver
  *
- * Copyright (C) 2017-2020 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2024 Synaptics Incorporated. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@
  * DOLLARS.
  */
 
-/*
+/**
  * @file syna_tcm2.c
  *
  * This file implements the Synaptics device driver running under Linux kernel
@@ -44,25 +44,26 @@
 #include "synaptics_touchcom_func_base.h"
 #include "synaptics_touchcom_func_touch.h"
 #ifdef STARTUP_REFLASH
-#ifdef HAS_ROMBOOT_REFLASH_FEATURE
-#include "synaptics_touchcom_func_romboot.h"
-#else
+#ifdef HAS_TDDI_REFLASH_FEATURE
+#include "synaptics_touchcom_func_reflash_tddi.h"
+#endif
+#ifdef HAS_REFLASH_FEATURE
 #include "synaptics_touchcom_func_reflash.h"
 #endif
 #endif
+#ifdef HAS_SYSFS_INTERFACE
+#include "syna_tcm2_sysfs.h"
+#endif
+
+#include <linux/pinctrl/consumer.h>
 
 static irqreturn_t syna_dev_interrupt_thread(int irq, void *data);
 static irqreturn_t syna_dev_isr(int irq, void *handle);
 static void syna_dev_release_irq(struct syna_tcm *tcm);
 static void syna_dev_restore_feature_setting(struct syna_tcm *tcm, unsigned int delay_ms_resp);
 
-/*
- * @section: USE_CUSTOM_TOUCH_REPORT_CONFIG
- *           Open if willing to set up the format of touch report.
- *           The custom_touch_format[] array can be used to describe the
- *           customized report format.
- */
 #ifdef USE_CUSTOM_TOUCH_REPORT_CONFIG
+/** An example of the format of custom touch configuration  */
 static unsigned char custom_touch_format[] = {
 	/* entity code */                    /* bits */
 #ifdef ENABLE_WAKEUP_GESTURE
@@ -79,101 +80,218 @@ static unsigned char custom_touch_format[] = {
 };
 #endif
 
-/*
- * @section: RESET_ON_RESUME_DELAY_MS
- *           The delayed time to issue a reset on resume state.
- *           This configuration depends on RESET_ON_RESUME.
- */
+
+#ifdef STARTUP_REFLASH
+/** The delayed time to start fw update at startup */
+#define STARTUP_REFLASH_DELAY_TIME_MS (200)
+#endif
+
 #ifdef RESET_ON_RESUME
+/** The delayed time before issuing a reset if reset on resume is required */
 #define RESET_ON_RESUME_DELAY_MS (100)
 #endif
 
 #define FW_UPDATE_DELAY_MS(erase, write) ((erase << 16) | write)
 
-/*
- * @section: POWER_ALIVE_AT_SUSPEND
- *           indicate that the power is still alive even at
- *           system suspend.
- *           otherwise, there is no power supplied when system
- *           is going to suspend stage.
- */
-#define POWER_ALIVE_AT_SUSPEND
-
-/*
- * @section: global variables for an active drm panel
- *           in order to register display notifier
- */
-#ifdef USE_DRM_PANEL_NOTIFIER
-	struct drm_panel *active_panel;
-#endif
-
 #if IS_ENABLED(CONFIG_PM) || IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
 static const struct dev_pm_ops syna_dev_pm_ops;
 #endif
 
-/*
- * syna_dev_enable_lowpwr_gesture()
- *
- * Enable or disable the low power gesture mode.
- * Furthermore, set up the wake-up irq.
+
+
+/**
+ * @brief  Restore the device and driver information to buffer
  *
  * @param
- *    [ in] tcm: tcm driver handle
- *    [ in] en:  '1' to enable low power gesture mode; '0' to disable
+ *    [ in] tcm: the driver handle
+ *    [out] buf:  string buffer for the firmware and the driver information
+ *    [ in] buf_size: size of the buf
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-static int syna_dev_enable_lowpwr_gesture(struct syna_tcm *tcm, bool en)
+ssize_t syna_get_fw_info(struct syna_tcm *tcm, char *buf, size_t buf_size)
 {
-	int retval = 0;
-	struct syna_hw_attn_data *attn = &tcm->hw_if->bdata_attn;
+	int retval;
+	int i;
+	unsigned int count;
+	struct tcm_dev *tcm_dev;
 
-	if (!tcm->lpwg_enabled)
-		return 0;
+	tcm_dev = tcm->tcm_dev;
 
-	if (attn->irq_id == 0)
-		return 0;
+	count = 0;
 
-	if (en) {
-		if (!tcm->irq_wake) {
-			enable_irq_wake(attn->irq_id);
-			tcm->irq_wake = true;
-		}
+	retval = scnprintf(buf, buf_size - count,
+			"Driver version:     %d.%s\n",
+			SYNAPTICS_TCM_DRIVER_VERSION,
+			SYNAPTICS_TCM_DRIVER_SUBVER);
+	if (retval < 0)
+		goto exit;
 
-		/* enable wakeup gesture mode
-		 *
-		 * the wakeup gesture control may result from by finger event;
-		 * therefore, it's better to use ATTN driven mode here
-		 */
-		retval = syna_tcm_set_dynamic_config(tcm->tcm_dev,
-				DC_ENABLE_WAKEUP_GESTURE_MODE,
-				1,
-				RESP_IN_ATTN);
-		if (retval < 0) {
-			LOGE("Fail to enable wakeup gesture via DC command\n");
-			return retval;
-		}
-	} else {
-		if (tcm->irq_wake) {
-			disable_irq_wake(attn->irq_id);
-			tcm->irq_wake = false;
-		}
+	buf += retval;
+	count += retval;
 
-		/* disable wakeup gesture mode
-		 *
-		 * the wakeup gesture control may result from by finger event;
-		 * therefore, it's better to use ATTN driven mode here
-		 */
-		retval = syna_tcm_set_dynamic_config(tcm->tcm_dev,
-				DC_ENABLE_WAKEUP_GESTURE_MODE,
-				0,
-				RESP_IN_ATTN);
-		if (retval < 0) {
-			LOGE("Fail to disable wakeup gesture via DC command\n");
-			return retval;
-		}
+	retval = scnprintf(buf, buf_size - count,
+			"Core lib version:   %d.%02d\n\n",
+			(unsigned char)(SYNA_TCM_CORE_LIB_VERSION >> 8),
+			(unsigned char)SYNA_TCM_CORE_LIB_VERSION);
+	if (retval < 0)
+		goto exit;
+
+	buf += retval;
+	count += retval;
+
+	if (!tcm->is_connected) {
+		retval = scnprintf(buf, buf_size - count,
+				"Device is NOT connected\n");
+		count += retval;
+		retval = count;
+		goto exit;
 	}
+
+	if (tcm->pwr_state == BARE_MODE) {
+		retval = count;
+		goto exit;
+	}
+
+	retval = scnprintf(buf, buf_size - count,
+			"TouchComm version:  %d\n", tcm_dev->id_info.version);
+	if (retval < 0)
+		goto exit;
+
+	buf += retval;
+	count += retval;
+
+	switch (tcm_dev->id_info.mode) {
+	case MODE_APPLICATION_FIRMWARE:
+		retval = scnprintf(buf, buf_size - count,
+				"Firmware mode:      Application Firmware, 0x%02x\n",
+				tcm_dev->id_info.mode);
+		if (retval < 0)
+			goto exit;
+		break;
+	case MODE_BOOTLOADER:
+		retval = scnprintf(buf, buf_size - count,
+				"Firmware mode:      Bootloader, 0x%02x\n",
+				tcm_dev->id_info.mode);
+		if (retval < 0)
+			goto exit;
+		break;
+	case MODE_ROMBOOTLOADER:
+		retval = scnprintf(buf, buf_size - count,
+				"Firmware mode:      Rom Bootloader, 0x%02x\n",
+				tcm_dev->id_info.mode);
+		if (retval < 0)
+			goto exit;
+		break;
+	default:
+		retval = scnprintf(buf, buf_size - count,
+				"Firmware mode:      Mode 0x%02x\n",
+				tcm_dev->id_info.mode);
+		if (retval < 0)
+			goto exit;
+		break;
+	}
+	buf += retval;
+	count += retval;
+
+	retval = scnprintf(buf, buf_size - count,
+			"Part number:        %*pE",
+			(int)sizeof(tcm_dev->id_info.part_number), tcm_dev->id_info.part_number);
+	if (retval < 0)
+		goto exit;
+
+	buf += retval;
+	count += retval;
+
+	retval = scnprintf(buf, buf_size - count, "\n");
+	if (retval < 0)
+		goto exit;
+
+	buf += retval;
+	count += retval;
+
+	retval = scnprintf(buf, buf_size - count,
+			"Packrat number:     %d\n\n", tcm_dev->packrat_number);
+	if (retval < 0)
+		goto exit;
+
+	buf += retval;
+	count += retval;
+
+	if (tcm_dev->id_info.mode != MODE_APPLICATION_FIRMWARE) {
+		retval = count;
+		goto exit;
+	}
+
+	retval = scnprintf(buf, buf_size - count, "Config ID:          ");
+	if (retval < 0)
+		goto exit;
+
+	buf += retval;
+	count += retval;
+
+	for (i = 0; i < MAX_SIZE_CONFIG_ID; i++) {
+		retval = scnprintf(buf, buf_size - count,
+			"0x%2x ", tcm_dev->config_id[i]);
+		if (retval < 0)
+			goto exit;
+		buf += retval;
+		count += retval;
+	}
+
+	retval = scnprintf(buf, buf_size - count, "\n");
+	if (retval < 0)
+		goto exit;
+
+	buf += retval;
+	count += retval;
+
+	retval = scnprintf(buf, buf_size - count,
+		"Max X & Y:          %d, %d\n", tcm_dev->max_x, tcm_dev->max_y);
+	if (retval < 0)
+		goto exit;
+
+	buf += retval;
+	count += retval;
+
+	retval = scnprintf(buf, buf_size - count,
+		"Num of objects:     %d\n", tcm_dev->max_objects);
+	if (retval < 0)
+		goto exit;
+
+	buf += retval;
+	count += retval;
+
+	retval = scnprintf(buf, buf_size - count,
+		"Num of cols & rows: %d, %d\n", tcm_dev->cols, tcm_dev->rows);
+	if (retval < 0)
+		goto exit;
+
+	buf += retval;
+	count += retval;
+
+	retval = snprintf(buf, buf_size - count,
+		"Max. Read Size:     %d bytes\n", tcm_dev->max_rd_size);
+	if (retval < 0)
+		goto exit;
+
+	buf += retval;
+	count += retval;
+
+	retval = snprintf(buf, buf_size - count,
+		"Max. Write Size:    %d bytes\n", tcm_dev->max_wr_size);
+	if (retval < 0)
+		goto exit;
+
+	buf += retval;
+	count += retval;
+
+	retval = count;
+
+exit:
+	if (retval < 0)
+		LOGE("Failed to get firmware info");
 
 	return retval;
 }
@@ -187,6 +305,23 @@ static int gti_default_handler(void *private_data, enum gti_cmd_type cmd_type,
 	return -EOPNOTSUPP;
 }
 
+static int ping(void *private_data, struct gti_ping_cmd *cmd)
+{
+	struct syna_tcm *tcm = private_data;
+	int retval = 0;
+
+	if (!tcm || !tcm->tcm_dev)
+		return -ENODEV;
+
+	retval = syna_tcm_identify(tcm->tcm_dev, &tcm->tcm_dev->id_info, CMD_RESPONSE_IN_POLLING);
+	if (retval < 0) {
+		LOGE("Fail to get identification\n");
+		return retval;
+	}
+
+	return 0;
+}
+
 static int get_fw_version(void *private_data, struct gti_fw_version_cmd *cmd)
 {
 	struct syna_tcm *tcm = private_data;
@@ -196,13 +331,13 @@ static int get_fw_version(void *private_data, struct gti_fw_version_cmd *cmd)
 	if (!tcm || !tcm->tcm_dev)
 		return -ENODEV;
 
-	retval = syna_tcm_identify(tcm->tcm_dev, &tcm->tcm_dev->id_info);
+	retval = syna_tcm_identify(tcm->tcm_dev, &tcm->tcm_dev->id_info, CMD_RESPONSE_IN_POLLING);
 	if (retval < 0) {
 		LOGE("Fail to get identification\n");
 		return retval;
 	}
 
-	retval = syna_tcm_get_app_info(tcm->tcm_dev, &tcm->tcm_dev->app_info);
+	retval = syna_tcm_get_app_info(tcm->tcm_dev, &tcm->tcm_dev->app_info, CMD_RESPONSE_IN_POLLING);
 	if (retval < 0) {
 		LOGE("Fail to get application info\n");
 		return retval;
@@ -225,8 +360,12 @@ static int get_irq_mode(void *private_data, struct gti_irq_cmd *cmd)
 static int set_irq_mode(void *private_data, struct gti_irq_cmd *cmd)
 {
 	struct syna_tcm *tcm = private_data;
-
-	return tcm->hw_if->ops_enable_irq(tcm->hw_if, cmd->setting == GTI_IRQ_MODE_ENABLE);
+	int retval = tcm->hw_if->hw_platform.ops_enable_attn(&tcm->hw_if->hw_platform,
+			cmd->setting == GTI_IRQ_MODE_ENABLE);
+	if (retval < 0)
+		return retval;
+	else
+		return 0;
 }
 
 static int set_reset(void *private_data, struct gti_reset_cmd *cmd)
@@ -241,8 +380,8 @@ static int set_reset(void *private_data, struct gti_reset_cmd *cmd)
 	if (cmd->setting == GTI_RESET_MODE_HW || cmd->setting == GTI_RESET_MODE_AUTO) {
 		tcm->hw_if->ops_hw_reset(tcm->hw_if);
 	} else if (cmd->setting == GTI_RESET_MODE_SW) {
-		syna_tcm_reset(tcm->tcm_dev);
-		syna_dev_restore_feature_setting(tcm, RESP_IN_ATTN);
+		syna_tcm_reset(tcm->tcm_dev, CMD_RESPONSE_IN_POLLING);
+		syna_dev_restore_feature_setting(tcm, CMD_RESPONSE_IN_ATTN);
 	} else {
 		return -EOPNOTSUPP;
 	}
@@ -278,7 +417,7 @@ static int syna_set_coord_filter_enabled(void *private_data, struct gti_coord_fi
 		syna_tcm_set_dynamic_config(tcm->tcm_dev,
 			DC_COORD_FILTER,
 			tcm->coord_filter_enable,
-			RESP_IN_POLLING);
+			CMD_RESPONSE_IN_POLLING);
 	}
 
 	return 0;
@@ -291,12 +430,12 @@ static int syna_get_coord_filter_enabled(void *private_data, struct gti_coord_fi
 	int retval;
 
 	if (goog_pm_wake_get_locks(tcm->gti) == 0 || tcm->pwr_state != PWR_ON) {
-		LOGI("Connot get coordinte filter because touch is off");
+		LOGI("Connot get coordinate filter because touch is off");
 		return -EPERM;
 	}
 
 	retval = syna_tcm_get_dynamic_config(tcm->tcm_dev, DC_COORD_FILTER,
-			&coord_filter_enabled, RESP_IN_POLLING);
+			&coord_filter_enabled, CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to read coordinate filter, retval:%d.", retval);
 		return -EIO;
@@ -323,7 +462,7 @@ static void syna_set_coord_filter_work(struct work_struct *work)
 	syna_tcm_set_dynamic_config(tcm->tcm_dev,
 			DC_COORD_FILTER,
 			tcm->coord_filter_enable,
-			RESP_IN_ATTN);
+			CMD_RESPONSE_IN_ATTN);
 
 	goog_pm_wake_unlock_nosync(tcm->gti, GTI_PM_WAKELOCK_TYPE_VENDOR_REQUEST);
 }
@@ -347,7 +486,7 @@ static int syna_set_palm_mode(void *private_data, struct gti_palm_cmd *cmd)
 		syna_tcm_set_dynamic_config(tcm->tcm_dev,
 			DC_ENABLE_PALM_REJECTION,
 			tcm->enable_fw_palm & 0x01,
-			RESP_IN_POLLING);
+			CMD_RESPONSE_IN_POLLING);
 	}
 
 	return 0;
@@ -365,7 +504,7 @@ static int syna_get_palm_mode(void *private_data, struct gti_palm_cmd *cmd)
 	}
 
 	retval = syna_tcm_get_dynamic_config(tcm->tcm_dev, DC_ENABLE_PALM_REJECTION,
-			&palm_mode, RESP_IN_POLLING);
+			&palm_mode, CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to read palm mode.");
 		return retval;
@@ -392,7 +531,7 @@ static void syna_set_palm_mode_work(struct work_struct *work)
 	syna_tcm_set_dynamic_config(tcm->tcm_dev,
 			DC_ENABLE_PALM_REJECTION,
 			tcm->enable_fw_palm & 0x01,
-			RESP_IN_ATTN);
+			CMD_RESPONSE_IN_ATTN);
 
 	goog_pm_wake_unlock_nosync(tcm->gti, GTI_PM_WAKELOCK_TYPE_VENDOR_REQUEST);
 }
@@ -416,7 +555,7 @@ static int syna_set_grip_mode(void *private_data, struct gti_grip_cmd *cmd)
 		syna_tcm_set_dynamic_config(tcm->tcm_dev,
 			DC_ENABLE_GRIP_SUPPRESSION,
 			tcm->enable_fw_grip & 0x01,
-			RESP_IN_POLLING);
+			CMD_RESPONSE_IN_POLLING);
 	}
 
 	return 0;
@@ -434,7 +573,7 @@ static int syna_get_grip_mode(void *private_data, struct gti_grip_cmd *cmd)
 	}
 
 	retval = syna_tcm_get_dynamic_config(tcm->tcm_dev, DC_ENABLE_GRIP_SUPPRESSION,
-			&grip_mode, RESP_IN_POLLING);
+			&grip_mode, CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to read grip mode.");
 		return retval;
@@ -461,7 +600,7 @@ static void syna_set_grip_mode_work(struct work_struct *work)
 	syna_tcm_set_dynamic_config(tcm->tcm_dev,
 			DC_ENABLE_GRIP_SUPPRESSION,
 			tcm->enable_fw_grip & 0x01,
-			RESP_IN_ATTN);
+			CMD_RESPONSE_IN_ATTN);
 
 	goog_pm_wake_unlock_nosync(tcm->gti, GTI_PM_WAKELOCK_TYPE_VENDOR_REQUEST);
 }
@@ -469,6 +608,8 @@ static void syna_set_grip_mode_work(struct work_struct *work)
 static int syna_set_heatmap_enabled(void *private_data, struct gti_heatmap_cmd *cmd)
 {
 	struct syna_tcm *tcm = private_data;
+	int heatmap_report_mode = tcm->hw_if-> metadata_enabled ?
+			HEATMAP_MODE_COMBINED_WITH_METADATA : HEATMAP_MODE_COMBINED;
 
 	if (goog_pm_wake_get_locks(tcm->gti) == 0 || tcm->pwr_state != PWR_ON) {
 		LOGI("Connot set heatmap mode because touch is off");
@@ -476,7 +617,7 @@ static int syna_set_heatmap_enabled(void *private_data, struct gti_heatmap_cmd *
 	}
 
 	tcm->heatmap_mode = cmd->setting == GTI_HEATMAP_ENABLE ?
-			HEATMAP_MODE_COMBINED : HEATMAP_MODE_COORD;
+			heatmap_report_mode : HEATMAP_MODE_COORD;
 
 	if (tcm->hw_if->bdata_attn.irq_enabled) {
 		queue_work(tcm->event_wq, &tcm->set_heatmap_enabled_work);
@@ -485,7 +626,7 @@ static int syna_set_heatmap_enabled(void *private_data, struct gti_heatmap_cmd *
 		syna_tcm_set_dynamic_config(tcm->tcm_dev,
 			DC_HEATMAP_MODE,
 			tcm->heatmap_mode,
-			RESP_IN_POLLING);
+			CMD_RESPONSE_IN_POLLING);
 	}
 
 	return 0;
@@ -507,7 +648,7 @@ static void syna_set_heatmap_enabled_work(struct work_struct *work)
 	syna_tcm_set_dynamic_config(tcm->tcm_dev,
 			DC_HEATMAP_MODE,
 			tcm->heatmap_mode,
-			RESP_IN_ATTN);
+			CMD_RESPONSE_IN_ATTN);
 
 	goog_pm_wake_unlock_nosync(tcm->gti, GTI_PM_WAKELOCK_TYPE_VENDOR_REQUEST);
 }
@@ -551,7 +692,7 @@ static int syna_set_scan_mode(void *private_data, struct gti_scan_cmd *cmd)
 	retval = syna_tcm_set_dynamic_config(tcm->tcm_dev,
 			DC_ENABLE_WAKEUP_GESTURE_MODE,
 			gesture_mode,
-			RESP_IN_ATTN);
+			CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to set wakeup gesture mode via DC command, retval:%d\n", retval);
 		retval = -EIO;
@@ -561,7 +702,7 @@ static int syna_set_scan_mode(void *private_data, struct gti_scan_cmd *cmd)
 	retval = syna_tcm_set_dynamic_config(tcm->tcm_dev,
 			DC_DISABLE_DOZE,
 			doze_enable ? 0 : 1,
-			RESP_IN_ATTN);
+			CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to set DC_DISABLE_DOZE, retval:%d\n", retval);
 		retval = -EIO;
@@ -571,7 +712,7 @@ static int syna_set_scan_mode(void *private_data, struct gti_scan_cmd *cmd)
 	retval = syna_tcm_set_dynamic_config(tcm->tcm_dev,
 			DC_FORCE_DOZE_MODE,
 			doze_enable ? 1 : 0,
-			RESP_IN_ATTN);
+			CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to set DC_FORCE_DOZE_MODE, retval:%d\n", retval);
 		retval = -EIO;
@@ -594,7 +735,7 @@ static int syna_get_scan_mode(void *private_data, struct gti_scan_cmd *cmd)
 	}
 
 	retval = syna_tcm_get_dynamic_config(tcm->tcm_dev, DC_TOUCH_SCAN_MODE,
-			&scan_mode, RESP_IN_POLLING);
+			&scan_mode, CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to read scan mode, retval:%d", retval);
 		return -EIO;
@@ -631,30 +772,32 @@ static int syna_set_sensing_mode(void *private_data, struct gti_sensing_cmd *cmd
 	struct syna_tcm *tcm = private_data;
 	int retval = 0;
 
-	retval = goog_pm_wake_lock(tcm->gti, GTI_PM_WAKELOCK_TYPE_VENDOR_REQUEST, true);
-	if (retval < 0) {
-		LOGE("Failed to obtain wake lock, ret = %d", retval);
-		return retval;
+	if (goog_pm_wake_get_locks(tcm->gti) == 0 || tcm->pwr_state != PWR_ON) {
+		LOGI("Connot set sensing mode because touch is off");
+		return -EPERM;
 	}
 
-	if (cmd->setting == GTI_SENSING_MODE_DISABLE) {
-		retval = syna_tcm_sleep(tcm->tcm_dev, true);
-		if (retval < 0) {
-			LOGE("Failed enter deep sleep mode, ret:%d", retval);
-			retval = -EIO;
-		}
-	} else if (cmd->setting == GTI_SENSING_MODE_ENABLE) {
-		retval = syna_tcm_sleep(tcm->tcm_dev, false);
-		if (retval < 0) {
-			LOGE("Failed exit deep sleep mode, ret:%d", retval);
-			retval = -EIO;
-		}
+	if (tcm->hw_if->bdata_attn.irq_enabled) {
+		queue_work(tcm->event_wq, &tcm->set_sensing_mode_work);
 	} else {
-		LOGE("Invalid sensing mode %d", cmd->setting);
-		retval = -EINVAL;
+		if (cmd->setting == GTI_SENSING_MODE_DISABLE) {
+			retval = syna_tcm_sleep(tcm->tcm_dev, true, CMD_RESPONSE_IN_POLLING);
+			if (retval < 0) {
+				LOGE("Failed enter deep sleep mode, ret:%d", retval);
+				retval = -EIO;
+			}
+		} else if (cmd->setting == GTI_SENSING_MODE_ENABLE) {
+			retval = syna_tcm_sleep(tcm->tcm_dev, false, CMD_RESPONSE_IN_POLLING);
+			if (retval < 0) {
+				LOGE("Failed exit deep sleep mode, ret:%d", retval);
+				retval = -EIO;
+			}
+		} else {
+			LOGE("Invalid sensing mode %d", cmd->setting);
+			retval = -EINVAL;
+		}
 	}
 
-	goog_pm_wake_unlock_nosync(tcm->gti, GTI_PM_WAKELOCK_TYPE_VENDOR_REQUEST);
 	return retval;
 }
 
@@ -670,7 +813,7 @@ static int syna_get_sensing_mode(void *private_data, struct gti_sensing_cmd *cmd
 	}
 
 	retval = syna_tcm_get_dynamic_config(tcm->tcm_dev, DC_TOUCH_SCAN_MODE,
-			&scan_mode, RESP_IN_POLLING);
+			&scan_mode, CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to read sensing mode, retval:%d", retval);
 		return -EIO;
@@ -695,6 +838,34 @@ static int syna_get_sensing_mode(void *private_data, struct gti_sensing_cmd *cmd
 	return retval;
 }
 
+static void syna_set_sensing_mode_work(struct work_struct *work)
+{
+	struct syna_tcm *tcm = container_of(work, struct syna_tcm, set_sensing_mode_work);
+	int retval = 0;
+
+	retval = goog_pm_wake_lock(tcm->gti, GTI_PM_WAKELOCK_TYPE_VENDOR_REQUEST, true);
+	if (retval) {
+		LOGE("Failed to obtain wake lock, ret = %d", retval);
+		return;
+	}
+
+	LOGI("Set sensing mode %d.\n", tcm->gti->cmd.sensing_cmd.setting);
+
+	if (tcm->gti->cmd.sensing_cmd.setting == GTI_SENSING_MODE_DISABLE) {
+		retval = syna_tcm_sleep(tcm->tcm_dev, true, CMD_RESPONSE_IN_ATTN);
+		if (retval < 0)
+			LOGE("Failed enter deep sleep mode, ret:%d", retval);
+	} else if (tcm->gti->cmd.sensing_cmd.setting == GTI_SENSING_MODE_ENABLE) {
+		retval = syna_tcm_sleep(tcm->tcm_dev, false, CMD_RESPONSE_IN_ATTN);
+		if (retval < 0)
+			LOGE("Failed exit deep sleep mode, ret:%d", retval);
+	} else {
+		LOGE("Invalid sensing mode %d", tcm->gti->cmd.sensing_cmd.setting);
+	}
+
+	goog_pm_wake_unlock_nosync(tcm->gti, GTI_PM_WAKELOCK_TYPE_VENDOR_REQUEST);
+}
+
 static int syna_set_screen_protector_mode(void *private_data,
 		struct gti_screen_protector_mode_cmd *cmd)
 {
@@ -715,7 +886,7 @@ static int syna_set_screen_protector_mode(void *private_data,
 		syna_tcm_set_dynamic_config(tcm->tcm_dev,
 				DC_HIGH_SENSITIVITY_MODE,
 				tcm->high_sensitivity_mode,
-				RESP_IN_POLLING);
+				CMD_RESPONSE_IN_POLLING);
 	}
 
 	return 0;
@@ -734,7 +905,7 @@ static int syna_get_screen_protector_mode(void *private_data,
 	}
 
 	retval = syna_tcm_get_dynamic_config(tcm->tcm_dev, DC_HIGH_SENSITIVITY_MODE,
-			&screen_protector_mode, RESP_IN_POLLING);
+			&screen_protector_mode, CMD_RESPONSE_IN_ATTN);
 	if (retval < 0) {
 		LOGE("Fail to read screen protector mode.");
 		return retval;
@@ -762,7 +933,7 @@ static void syna_set_screen_protector_mode_work(struct work_struct *work)
 	syna_tcm_set_dynamic_config(tcm->tcm_dev,
 			DC_HIGH_SENSITIVITY_MODE,
 			tcm->high_sensitivity_mode,
-			RESP_IN_ATTN);
+			CMD_RESPONSE_IN_ATTN);
 
 	goog_pm_wake_unlock_nosync(tcm->gti, GTI_PM_WAKELOCK_TYPE_VENDOR_REQUEST);
 }
@@ -799,19 +970,30 @@ static int syna_set_gesture_type(struct syna_tcm *tcm, u8 gesture_type)
 {
 	int retval = 0;
 	unsigned short set_gesture_type = 0;
+	int heatmap_mode = tcm->hw_if-> metadata_enabled ?
+			HEATMAP_MODE_COMBINED_WITH_METADATA : HEATMAP_MODE_COMBINED;
+
 
 	if (gesture_type == GTI_GESTURE_DISABLE) {
 		retval = syna_tcm_set_dynamic_config(tcm->tcm_dev,
 				DC_ENABLE_WAKEUP_GESTURE_MODE,
 				0,
-				RESP_IN_POLLING);
+				CMD_RESPONSE_IN_ATTN);
 		if (retval)
 			goto exit;
 
 		retval = syna_tcm_set_dynamic_config(tcm->tcm_dev,
 				DC_HEATMAP_MODE,
-				HEATMAP_MODE_COMBINED,
-				RESP_IN_POLLING);
+				heatmap_mode,
+				CMD_RESPONSE_IN_ATTN);
+
+		/* Disable REPORT_TOUCH for normal mode. */
+		if (tcm->gti && goog_check_late_sense_on_enabled(tcm->gti)) {
+			retval = syna_tcm_enable_report(tcm->tcm_dev, REPORT_TOUCH,
+					false, CMD_RESPONSE_IN_ATTN);
+			if (retval < 0)
+				LOGE("Fail to disable report %d\n", REPORT_TOUCH);
+		}
 	} else {
 		if (gesture_type == GTI_GESTURE_STTW) {
 			set_gesture_type = GESTURE_TYPE_STTW;
@@ -820,29 +1002,37 @@ static int syna_set_gesture_type(struct syna_tcm *tcm, u8 gesture_type)
 		} else if (gesture_type == GTI_GESTURE_STTW_AND_LPTW) {
 			set_gesture_type = GESTURE_TYPE_STTW_AND_LPTW;
 		} else {
-			LOGE("Unsuppoted gesture type %d", gesture_type);
+			LOGE("Unsupported gesture type %d", gesture_type);
 			retval = -EINVAL;
 			goto exit;
+		}
+
+		/* Enable REPORT_TOUCH for gesture mode. */
+		if (tcm->gti && goog_check_late_sense_on_enabled(tcm->gti)) {
+			retval = syna_tcm_enable_report(tcm->tcm_dev, REPORT_TOUCH,
+					true, CMD_RESPONSE_IN_ATTN);
+			if (retval < 0)
+				LOGE("Fail to enable report %d\n", REPORT_TOUCH);
 		}
 
 		retval = syna_tcm_set_dynamic_config(tcm->tcm_dev,
 				DC_ENABLE_WAKEUP_GESTURE_MODE,
 				1,
-				RESP_IN_POLLING);
+				CMD_RESPONSE_IN_ATTN);
 		if (retval)
 			goto exit;
 
 		retval = syna_tcm_set_dynamic_config(tcm->tcm_dev,
 				DC_GESTURE_TYPE,
 				set_gesture_type,
-				RESP_IN_POLLING);
+				CMD_RESPONSE_IN_ATTN);
 		if (retval)
 			goto exit;
 
 		retval = syna_tcm_set_dynamic_config(tcm->tcm_dev,
 				DC_HEATMAP_MODE,
 				HEATMAP_MODE_COORD,
-				RESP_IN_POLLING);
+				CMD_RESPONSE_IN_ATTN);
 	}
 
 exit:
@@ -865,7 +1055,7 @@ static int syna_set_gesture_config(void *private_data, struct gti_gesture_config
 				retval = syna_tcm_set_dynamic_config(tcm->tcm_dev,
 						syna_gesture_dc_list[i],
 						cmd->params[i],
-						RESP_IN_POLLING);
+						CMD_RESPONSE_IN_ATTN);
 			}
 
 			if (retval)
@@ -893,10 +1083,16 @@ static int syna_set_continuous_report(void *private_data, struct gti_continuous_
 	} else {
 		LOGI("%s continuous report.\n",
 				tcm->set_continuously_report ? "Enable" : "Disable");
+		if (cmd->support_fw_auto_control) {
+			syna_tcm_set_dynamic_config(tcm->tcm_dev,
+					DC_HOST_CONTINUOUSLY_REPORT,
+					1,
+					CMD_RESPONSE_IN_POLLING);
+		}
 		syna_tcm_set_dynamic_config(tcm->tcm_dev,
 				DC_CONTINUOUSLY_REPORT,
 				tcm->set_continuously_report,
-				RESP_IN_POLLING);
+				CMD_RESPONSE_IN_POLLING);
 	}
 
 	return 0;
@@ -915,10 +1111,18 @@ static void syna_set_continuous_report_work(struct work_struct *work)
 
 	/* Send command to update continuous report state */
 	LOGD("%s continuous report.\n", tcm->set_continuously_report ? "Enable" : "Disable");
+
+	if (tcm->gti->cmd.continuous_report_cmd.support_fw_auto_control) {
+		syna_tcm_set_dynamic_config(tcm->tcm_dev,
+				DC_HOST_CONTINUOUSLY_REPORT,
+				1,
+				CMD_RESPONSE_IN_ATTN);
+	}
+
 	syna_tcm_set_dynamic_config(tcm->tcm_dev,
 			DC_CONTINUOUSLY_REPORT,
 			tcm->set_continuously_report,
-			RESP_IN_ATTN);
+			CMD_RESPONSE_IN_ATTN);
 
 	goog_pm_wake_unlock_nosync(tcm->gti, GTI_PM_WAKELOCK_TYPE_VENDOR_REQUEST);
 }
@@ -958,10 +1162,10 @@ static int syna_get_mutual_sensor_data(void *private_data, struct gti_sensor_dat
 
 	reinit_completion(&tcm->raw_data_completion);
 
-	syna_tcm_set_dynamic_config(tcm->tcm_dev, DC_DISABLE_DOZE, 1, RESP_IN_ATTN);
+	syna_tcm_set_dynamic_config(tcm->tcm_dev, DC_DISABLE_DOZE, 1, CMD_RESPONSE_IN_ATTN);
 
 	tcm->raw_data_report_code = report_code;
-	syna_tcm_enable_report(tcm->tcm_dev, tcm->raw_data_report_code, true, RESP_IN_ATTN);
+	syna_tcm_enable_report(tcm->tcm_dev, tcm->raw_data_report_code, true, CMD_RESPONSE_IN_ATTN);
 
 	if (wait_for_completion_timeout(&tcm->raw_data_completion, msecs_to_jiffies(500)) == 0) {
 		LOGE("Wait for sensor data %#x timeout.", cmd->type);
@@ -981,8 +1185,8 @@ static int syna_get_mutual_sensor_data(void *private_data, struct gti_sensor_dat
 	cmd->buffer = (u8 *)tcm->mutual_data_manual;
 	cmd->size = rows * cols * sizeof(u16);
 exit:
-	syna_tcm_set_dynamic_config(tcm->tcm_dev, DC_DISABLE_DOZE, 0, RESP_IN_ATTN);
-	syna_tcm_enable_report(tcm->tcm_dev, tcm->raw_data_report_code, false, RESP_IN_ATTN);
+	syna_tcm_set_dynamic_config(tcm->tcm_dev, DC_DISABLE_DOZE, 0, CMD_RESPONSE_IN_ATTN);
+	syna_tcm_enable_report(tcm->tcm_dev, tcm->raw_data_report_code, false, CMD_RESPONSE_IN_ATTN);
 
 	return ret;
 }
@@ -1022,10 +1226,10 @@ static int syna_get_self_sensor_data(void *private_data, struct gti_sensor_data_
 
 	reinit_completion(&tcm->raw_data_completion);
 
-	syna_tcm_set_dynamic_config(tcm->tcm_dev, DC_DISABLE_DOZE, 1, RESP_IN_ATTN);
+	syna_tcm_set_dynamic_config(tcm->tcm_dev, DC_DISABLE_DOZE, 1, CMD_RESPONSE_IN_ATTN);
 
 	tcm->raw_data_report_code = report_code;
-	syna_tcm_enable_report(tcm->tcm_dev, tcm->raw_data_report_code, true, RESP_IN_ATTN);
+	syna_tcm_enable_report(tcm->tcm_dev, tcm->raw_data_report_code, true, CMD_RESPONSE_IN_ATTN);
 
 	if (wait_for_completion_timeout(&tcm->raw_data_completion, msecs_to_jiffies(500)) == 0) {
 		LOGE("Wait for sensor data %#x timeout.", cmd->type);
@@ -1044,9 +1248,62 @@ static int syna_get_self_sensor_data(void *private_data, struct gti_sensor_data_
 	cmd->buffer = (u8 *)tcm->self_data_manual;
 	cmd->size = (rows + cols) * sizeof(u16);
 exit:
-	syna_tcm_set_dynamic_config(tcm->tcm_dev, DC_DISABLE_DOZE, 0, RESP_IN_ATTN);
-	syna_tcm_enable_report(tcm->tcm_dev, tcm->raw_data_report_code, false, RESP_IN_ATTN);
+	syna_tcm_set_dynamic_config(tcm->tcm_dev, DC_DISABLE_DOZE, 0, CMD_RESPONSE_IN_ATTN);
+	syna_tcm_enable_report(tcm->tcm_dev, tcm->raw_data_report_code, false, CMD_RESPONSE_IN_ATTN);
 
+	return ret;
+}
+
+static int syna_set_report_rate(void *private_data, struct gti_report_rate_cmd *cmd)
+{
+	struct syna_tcm *tcm = private_data;
+	u16 config = 0;
+	int ret = 0;
+
+	if (goog_pm_wake_get_locks(tcm->gti) == 0 || tcm->pwr_state != PWR_ON) {
+		LOGI("Connot set report rate because touch is off");
+		return -EPERM;
+	}
+
+	switch (cmd->setting) {
+	case 120:
+		config = 1;
+		LOGI("Set low report rate");
+		break;
+	case 240:
+		config = 0;
+		LOGI("Set high report rate");
+		break;
+	default:
+		LOGE("Invalid report rate %d", cmd->setting);
+		return -EINVAL;
+	}
+
+	ret = syna_tcm_set_dynamic_config(tcm->tcm_dev, DC_REPORT_RATE_SWITCH, config,
+					  CMD_RESPONSE_IN_ATTN);
+
+	return ret;
+}
+
+static int syna_get_report_rate(void *private_data, struct gti_report_rate_cmd *cmd)
+{
+	struct syna_tcm *tcm = private_data;
+	int ret = 0;
+	u16 config = 0;
+
+	if (goog_pm_wake_get_locks(tcm->gti) == 0 || tcm->pwr_state != PWR_ON) {
+		LOGI("Connot get report rate because touch is off");
+		return -EPERM;
+	}
+
+	ret = syna_tcm_get_dynamic_config(tcm->tcm_dev, DC_REPORT_RATE_SWITCH, &config,
+					  CMD_RESPONSE_IN_ATTN);
+	if (ret < 0 || (config != 0 && config != 1)) {
+		LOGE("Fail to read report rate, ret: %d, config: %u", ret, config);
+		return -EINVAL;
+	}
+
+	cmd->setting = config == 0 ? 240 : 120;
 	return ret;
 }
 
@@ -1094,7 +1351,7 @@ static int syna_dev_ptflib_decoder(struct syna_tcm *tcm, const u16 *in_array,
 	return out_array_size;
 }
 
-static void syna_parse_heatmap(struct syna_tcm *tcm, unsigned char *heatmap_data,
+static void syna_parse_heatmap(struct syna_tcm *tcm, const unsigned char *heatmap_data,
 		unsigned short heatmap_data_size)
 {
 	int i, j;
@@ -1102,7 +1359,7 @@ static void syna_parse_heatmap(struct syna_tcm *tcm, unsigned char *heatmap_data
 	unsigned int rows = tcm->tcm_dev->rows;
 	unsigned int cols = tcm->tcm_dev->cols;
 
-	temp_buffer = kcalloc(cols * rows, sizeof(u_int16_t), GFP_KERNEL);
+	temp_buffer = syna_pal_mem_alloc(cols * rows, sizeof(u_int16_t));
 	if (!temp_buffer) {
 		LOGE("Failed to allocate temp_buffer");
 		return;
@@ -1129,7 +1386,7 @@ static void syna_parse_heatmap(struct syna_tcm *tcm, unsigned char *heatmap_data
 			tcm->mutual_data[rows * i + j] = temp_buffer[cols * j + i];
 	}
 
-	kfree(temp_buffer);
+	syna_pal_mem_free(temp_buffer);
 }
 
 static void syna_gti_init(struct syna_tcm *tcm)
@@ -1176,10 +1433,12 @@ static void syna_gti_init(struct syna_tcm *tcm)
 	INIT_WORK(&tcm->set_heatmap_enabled_work, syna_set_heatmap_enabled_work);
 	INIT_WORK(&tcm->set_screen_protector_mode_work, syna_set_screen_protector_mode_work);
 	INIT_WORK(&tcm->set_continuous_report_work, syna_set_continuous_report_work);
+	INIT_WORK(&tcm->set_sensing_mode_work, syna_set_sensing_mode_work);
 
 	pdev->dev.of_node = pdev->dev.parent->of_node;
 	options = devm_kzalloc(&pdev->dev, sizeof(struct gti_optional_configuration), GFP_KERNEL);
 
+	options->ping = ping;
 	options->get_fw_version = get_fw_version;
 	options->get_irq_mode = get_irq_mode;
 	options->set_irq_mode = set_irq_mode;
@@ -1203,6 +1462,8 @@ static void syna_gti_init(struct syna_tcm *tcm)
 	options->set_continuous_report = syna_set_continuous_report;
 	options->get_mutual_sensor_data = syna_get_mutual_sensor_data;
 	options->get_self_sensor_data = syna_get_self_sensor_data;
+	options->get_report_rate = syna_get_report_rate;
+	options->set_report_rate = syna_set_report_rate;
 
 	tcm->gti = goog_touch_interface_probe(
 		tcm, &pdev->dev, tcm->input_dev, gti_default_handler, options);
@@ -1225,7 +1486,7 @@ static void syna_gti_init(struct syna_tcm *tcm)
 	else
 		attn->irq_enabled = true;
 
-	syna_dev_restore_feature_setting(tcm, RESP_IN_ATTN);
+	syna_dev_restore_feature_setting(tcm, CMD_RESPONSE_IN_ATTN);
 }
 
 static void syna_notify_fw_status(struct syna_tcm *tcm, struct custom_fw_status *status)
@@ -1259,33 +1520,29 @@ static void syna_notify_fw_status(struct syna_tcm *tcm, struct custom_fw_status 
 }
 #endif
 
-/*
- * syna_dev_restore_feature_setting()
- *
- * Restore the feature settings after the device resume.
+/**
+ * @brief  Restore the feature settings after the device resume.
  *
  * @param
  *    [ in] tcm: tcm driver handle
  *    [ in] delay_ms_resp: delay time for response reading.
  *                         a positive value presents the time for polling;
- *                         or, set '0' or 'RESP_IN_ATTN' for ATTN driven
+ *                         or, set '0' or 'CMD_RESPONSE_IN_ATTN' for ATTN driven
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static void syna_dev_restore_feature_setting(struct syna_tcm *tcm, unsigned int delay_ms_resp)
 {
 #if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
 	struct gti_fw_status_data gti_status_data = { 0 };
 	struct custom_fw_status status = { 0 };
+	unsigned char heatmap_report_mode = REPORT_TOUCH_AND_HEATMAP;
 #endif
-
 	LOGI("Restore touch feature settings.");
 
-#if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
-	syna_notify_fw_status(tcm, &status);
-	goog_notify_fw_status_changed(tcm->gti, GTI_FW_STATUS_RESET, &gti_status_data);
-#endif
+	tcm->has_sync_lost = false;
+	tcm->has_sync_lost_last = false;
 
 	if (tcm->hw_if->compression_threshold != 0) {
 		syna_tcm_set_dynamic_config(tcm->tcm_dev,
@@ -1307,107 +1564,112 @@ static void syna_dev_restore_feature_setting(struct syna_tcm *tcm, unsigned int 
 				tcm->hw_if->grip_border_threshold,
 				delay_ms_resp);
 	}
+
+#if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
+	if (tcm->gti && goog_check_late_sense_on_enabled(tcm->gti)) {
+		heatmap_report_mode = tcm->hw_if-> metadata_enabled ?
+				REPORT_TOUCH_AND_HEATMAP_WITH_METADATA : REPORT_TOUCH_AND_HEATMAP;
+		syna_tcm_enable_report(tcm->tcm_dev, heatmap_report_mode, true, delay_ms_resp);
+		syna_tcm_enable_report(tcm->tcm_dev, REPORT_FW_STATUS, true, delay_ms_resp);
+	}
+
+	syna_notify_fw_status(tcm, &status);
+	goog_notify_fw_status_changed(tcm->gti, GTI_FW_STATUS_RESET, &gti_status_data);
+	tcm->raw_timestamp_sensing = 0;
+#endif
 }
 
 #if defined(ENABLE_HELPER)
 static void syna_dev_get_reset_reason(struct syna_tcm *tcm)
 {
 	int retval;
+	unsigned short reason;
 	struct tcm_boot_info boot_info;
+	struct syna_hw_interface *hw_if;
+	struct syna_hw_attn_data *attn;
+	unsigned int switch_delay;
+	unsigned int resp_handling;
 
-	retval = syna_tcm_switch_fw_mode(tcm->tcm_dev,
-			MODE_BOOTLOADER,
-			FW_MODE_SWITCH_DELAY_MS);
-	if (retval < 0) {
-		LOGE("Fail to enter bootloader mode\n");
-		goto exit;
+	if (!tcm)
+		return;
+
+	hw_if = tcm->hw_if;
+	attn = &hw_if->bdata_attn;
+	if (attn && (attn->irq_id) && (attn->irq_enabled)) {
+		switch_delay = CMD_RESPONSE_IN_ATTN;
+		resp_handling = CMD_RESPONSE_IN_ATTN;
+	} else {
+		switch_delay = hw_if->product.default_fw_switch_delay_ms;
+		resp_handling = tcm->tcm_dev->msg_data.command_polling_time;
 	}
 
-	retval = syna_tcm_get_boot_info(tcm->tcm_dev, &boot_info);
-	if (retval < 0) {
-		LOGE("Fail to get boot info");
-		goto exit;
-	}
+	/* S3916TG supports the firmware reset reason command. */
+	if (strncmp(tcm->tcm_dev->id_info.part_number, "S3916", 5) == 0) {
+		retval = syna_tcm_get_dynamic_config(tcm->tcm_dev, DC_FW_RESET_REASON,
+				&reason, resp_handling);
+		if (retval < 0)
+			LOGE("Fail to read DC_FW_RESET_REASON.");
+		else
+			LOGI("Reset reason %#x", reason);
+	} else {
+		retval = syna_tcm_switch_fw_mode(tcm->tcm_dev,
+				MODE_BOOTLOADER,
+				switch_delay);
+		if (retval < 0) {
+			LOGE("Fail to enter bootloader mode\n");
+			goto exit;
+		}
 
-	LOGI("Boot info: %*ph", (int) sizeof(struct tcm_boot_info), (unsigned char*) &boot_info);
+		retval = syna_tcm_get_boot_info(tcm->tcm_dev, &boot_info, resp_handling);
+		if (retval < 0) {
+			LOGE("Fail to get boot info");
+			goto exit;
+		}
+
+		LOGI("Boot info: %*ph", (int) sizeof(struct tcm_boot_info),
+				(unsigned char*) &boot_info);
 
 exit:
-	retval = syna_tcm_switch_fw_mode(tcm->tcm_dev,
-			MODE_APPLICATION_FIRMWARE,
-			FW_MODE_SWITCH_DELAY_MS);
-	if (retval < 0)
-		LOGE("Fail to go back to application firmware\n");
-}
-
-/*
- * syna_dev_reset_detected_cb()
- *
- * Callback to assign a task to event workqueue.
- *
- * Please be noted that this function will be invoked in ISR so don't
- * issue another touchcomm command here.
- *
- * @param
- *    [ in] callback_data: pointer to caller data
- *
- * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
- */
-static void syna_dev_reset_detected_cb(void *callback_data)
-{
-	struct syna_tcm *tcm = (struct syna_tcm *)callback_data;
-
-#ifdef RESET_ON_RESUME
-	if (tcm->pwr_state != PWR_ON)
-		return;
-#endif
-
-	if (ATOMIC_GET(tcm->helper.task) == HELP_NONE) {
-		ATOMIC_SET(tcm->helper.task, HELP_RESET_DETECTED);
-
-		queue_work(tcm->event_wq, &tcm->helper.work);
+		retval = syna_tcm_switch_fw_mode(tcm->tcm_dev,
+				MODE_APPLICATION_FIRMWARE,
+				switch_delay);
+		if (retval < 0)
+			LOGE("Fail to go back to application firmware\n");
 	}
 }
-/*
- * syna_dev_helper_work()
- *
- * According to the given task, perform the delayed work
- *
+
+/**
+ * @brief  Example of the helper work.
+ *         Helper could run on the other context and send the secondary command to device.
  * @param
  *    [ in] work: data for work used
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static void syna_dev_helper_work(struct work_struct *work)
 {
 	unsigned char task;
-	int retval;
 	struct syna_tcm_helper *helper =
 			container_of(work, struct syna_tcm_helper, work);
 	struct syna_tcm *tcm =
 			container_of(helper, struct syna_tcm, helper);
 
-	if (tcm->pwr_state != PWR_ON) {
-		LOGI("Touch is already off.");
-		goto exit;
-	}
-
 #if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
-	retval = goog_pm_wake_lock(tcm->gti, GTI_PM_WAKELOCK_TYPE_VENDOR_REQUEST, true);
+	int retval = goog_pm_wake_lock(tcm->gti, GTI_PM_WAKELOCK_TYPE_VENDOR_REQUEST, true);
 	if (retval) {
 		LOGI("%s: Failed to obtain wake lock, ret = %d", __func__, retval);
 		goto exit;
 	}
-	syna_dev_get_reset_reason(tcm);
 #endif
+	syna_dev_get_reset_reason(tcm);
 
 	task = ATOMIC_GET(helper->task);
 
 	switch (task) {
 	case HELP_RESET_DETECTED:
-		LOGI("Reset caught (device mode:0x%x)\n", tcm->tcm_dev->dev_mode);
-		syna_dev_restore_feature_setting(tcm, RESP_IN_ATTN);
+		LOGD("Reset caught (device mode:0x%x)\n", tcm->tcm_dev->dev_mode);
+		syna_dev_restore_feature_setting(tcm, CMD_RESPONSE_IN_ATTN);
 		break;
 	default:
 		break;
@@ -1415,24 +1677,59 @@ static void syna_dev_helper_work(struct work_struct *work)
 
 #if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
 	goog_pm_wake_unlock_nosync(tcm->gti, GTI_PM_WAKELOCK_TYPE_VENDOR_REQUEST);
-#endif
 
 exit:
+#endif
 	ATOMIC_SET(helper->task, HELP_NONE);
 }
 #endif
+/**
+ * @brief  Example to process the report resulted by the unexpected reset.
+ *
+ * @param
+ *    [ in]    code:          the code of current touch entity
+ *    [ in]    report:        touch report given
+ *    [ in]    report_size:   size of given touch report
+ *    [ in]    callback_data: private data being passed to the callback function
+ *
+ * @return
+ *    0 or positive value in case of success, a negative value otherwise.
+ */
+static int syna_dev_process_unexpected_reset(const unsigned char code,
+	const unsigned char *report, unsigned int report_size,
+	void *callback_data)
+{
+	struct syna_tcm *tcm = (struct syna_tcm *)callback_data;
 
+	if (!tcm) {
+		LOGE("Invalid data to process\n");
+		return -EINVAL;
+	}
+
+	if (tcm->pwr_state != PWR_ON) {
+		LOGI("Touch is already off.");
+		return 0;
+	}
+
+	LOGN("Device has been reset, may be the spontaneous reset\n");
+
+#if defined(ENABLE_HELPER)
+	if (ATOMIC_GET(tcm->helper.task) == HELP_NONE) {
+		ATOMIC_SET(tcm->helper.task, HELP_RESET_DETECTED);
+		queue_work(tcm->event_wq, &tcm->helper.work);
+	}
+#endif
+
+	return 0;
+}
 #ifdef ENABLE_CUSTOM_TOUCH_ENTITY
-/*
- * syna_dev_parse_custom_touch_data_cb()
+/**
+ * @brief  Callback to parse the custom or non-standard touch entity from the
+ *         touch report.
  *
- * Callback to parse the custom or non-standard touch entity from the
- * touch report.
- *
- * Please be noted that this function will be invoked in ISR so don't
- * issue another touchcomm command here.
- * If really needed, please assign a task to helper thread.
- *
+ *         Please be noted that this function will be invoked in ISR so don't
+ *         issue another touchcomm command here.
+ *         If really needed, please assign a task to helper thread.
  * @param
  *    [ in]    code:          the code of current touch entity
  *    [ in]    config:        the report configuration stored
@@ -1445,18 +1742,20 @@ exit:
  *    [ in]    callback_data: pointer to caller data passed to callback function
  *
  * @return
- *    on success, 0 or positive value; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_dev_parse_custom_touch_data_cb(const unsigned char code,
-		const unsigned char *config, unsigned int *config_offset,
-		const unsigned char *report, unsigned int *report_offset,
-		unsigned int report_size, void *callback_data)
+	const unsigned char *config, unsigned int *config_offset,
+	const unsigned char *report, unsigned int *report_offset,
+	unsigned int report_size, void *callback_data)
 {
 	struct syna_tcm *tcm = (struct syna_tcm *)callback_data;
 	struct tcm_touch_data_blob *touch_data;
 	struct tcm_objects_data_blob *object_data;
 	unsigned int data;
 	unsigned int bits;
+	int i, count;
+	char print_buf[128] = {0};
 
 	touch_data = &tcm->tp_data;
 	object_data = touch_data->object_data;
@@ -1488,6 +1787,30 @@ static int syna_dev_parse_custom_touch_data_cb(const unsigned char code,
 		object_data[touch_data->obji].custom_data[CUSTOM_DATA_MINOR] = data;
 		*report_offset += bits;
 		return bits;
+	case TOUCH_ENTITY_SYNC_LOST_STATE:
+		bits = config[(*config_offset)++];
+		syna_tcm_get_touch_data(report, report_size,
+				*report_offset, bits, &data);
+
+		tcm->has_sync_lost_last = tcm->has_sync_lost;
+		tcm->has_sync_lost = (data == 1);
+		*report_offset += bits;
+		return bits;
+	case TOUCH_ENTITY_METADATA:
+		bits = config[(*config_offset)++];
+		count = 0;
+		for (i = 0; i < (bits / 16); i++) {
+			syna_tcm_get_touch_data(report, report_size,
+					*report_offset, 16, &data);
+			*report_offset += 16;
+			count += scnprintf(&print_buf[count], sizeof(print_buf) - count,
+					"%u ", data);
+
+		}
+		count += scnprintf(&print_buf[count], sizeof(print_buf) - count, "\n");
+		if (tcm->abnormal_gesture_reported)
+			LOGI("metadata=%s", &print_buf[0]);
+		return bits;
 	default:
 		LOGW("Unknown touch config code (idx:%d 0x%02x)\n",
 			*config_offset, code);
@@ -1499,7 +1822,7 @@ static int syna_dev_parse_custom_touch_data_cb(const unsigned char code,
 #endif
 
 #if defined(ENABLE_WAKEUP_GESTURE)
-/*
+/**
  * syna_dev_parse_custom_gesture_cb()
  *
  * Callback to parse the custom or non-standard gesture data from the
@@ -1553,10 +1876,12 @@ static int syna_dev_parse_custom_gesture_cb(const unsigned char code,
 		case GESTURE_NONE:
 			break;
 		case GESTURE_SINGLE_TAP:
-			LOGD("Gesture single tap detected\n");
+			LOGI("Gesture single tap detected\n");
+			tcm->abnormal_gesture_reported = true;
 			break;
 		case GESTURE_LONG_PRESS:
-			LOGD("Gesture long press detected\n");
+			LOGI("Gesture long press detected\n");
+			tcm->abnormal_gesture_reported = true;
 			break;
 		default:
 			LOGW("Unknown gesture id %d\n", data);
@@ -1625,17 +1950,14 @@ static int syna_dev_parse_custom_gesture_cb(const unsigned char code,
 	return bits;
 }
 #endif
-
-/*
- * syna_tcm_free_input_events()
- *
- * Clear all relevant touched events.
+/**
+ * @brief  Release all relevant touched events.
  *
  * @param
  *    [ in] tcm: the driver handle
  *
  * @return
- *    none.
+ *    void.
  */
 #if !IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
 static void syna_dev_free_input_events(struct syna_tcm *tcm)
@@ -1668,19 +1990,16 @@ static void syna_dev_free_input_events(struct syna_tcm *tcm)
 }
 #endif
 
-/*
- * syna_dev_report_input_events()
+/**
+ * @brief  Report touched events to the input subsystem.
  *
- * Report touched events to the input subsystem.
- *
- * After syna_tcm_get_event_data() function and the touched data is ready,
- * this function can be called to report an input event.
- *
+ *         Assuming that touched data including touch_data_blob and
+ *         objects_data_blob are ready.
  * @param
  *    [ in] tcm: the driver handle
  *
  * @return
- *    none.
+ *    void.
  */
 static void syna_dev_report_input_events(struct syna_tcm *tcm)
 {
@@ -1696,7 +2015,6 @@ static void syna_dev_report_input_events(struct syna_tcm *tcm)
 	int wx;
 	int wy;
 #endif
-
 	unsigned int status;
 	unsigned int touch_count;
 	struct input_dev *input_dev = tcm->input_dev;
@@ -1740,6 +2058,10 @@ static void syna_dev_report_input_events(struct syna_tcm *tcm)
 		goto exit;
 
 #if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
+	LOGD("touch_data->timestamp=%u", touch_data->timestamp);
+	tcm->timestamp_sensing += (touch_data->timestamp - tcm->raw_timestamp_sensing) * 1000;
+	tcm->raw_timestamp_sensing = touch_data->timestamp;
+	goog_input_set_sensing_timestamp(tcm->gti, input_dev, tcm->timestamp_sensing);
 	goog_input_set_timestamp(tcm->gti, input_dev, tcm->timestamp);
 #endif
 
@@ -1887,7 +2209,16 @@ static void syna_dev_report_input_events(struct syna_tcm *tcm)
 	input_set_timestamp(input_dev, tcm->timestamp);
 	input_sync(input_dev);
 #endif
+
 	tcm->touch_count = touch_count;
+
+	/*
+	 * Print the warning log if
+	 * 1. the last frame is synced but current frame is not, and
+	 * 2. finger exists since last frame.
+	 */
+	if (!tcm->has_sync_lost_last && tcm->has_sync_lost && (tcm->touch_count > 0))
+		LOGW("Touch sync lost, finger count = %d", touch_count);
 
 exit:
 #if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
@@ -1896,18 +2227,179 @@ exit:
 	syna_pal_mutex_unlock(&tcm->tp_event_mutex);
 #endif
 }
+/**
+ * @brief  Process the received events.
+ *
+ * @param
+ *    [ in]    code:          the code of given report type
+ *    [ in]    report:        report data given
+ *    [ in]    report_size:   size of the given report
+ *    [ in]    callback_data: private data being passed to the callback function
+ *
+ * @return
+ *    on success, 0 or positive value; otherwise, negative value on error.
+ */
+static int syna_dev_process_events(const unsigned char code,
+	const unsigned char *report, unsigned int report_size,
+	void *callback_data)
+{
+	int retval, i;
+	struct syna_tcm *tcm = (struct syna_tcm *)callback_data;
+	int size_raw_data;
+	struct tcm_dev *tcm_dev = tcm->tcm_dev;
+	struct custom_fw_status *status;
+	unsigned char *touch_data = 0;
+	unsigned short touch_data_size = 0;
+	unsigned char *heatmap_data_start = 0;
+	unsigned char *heatmap_data = 0;
+	unsigned short heatmap_data_size = 0;
+	static const int size_simdata = 64;
+	tcm->abnormal_gesture_reported = false;
 
-/*
- * syna_dev_create_input_device()
- *
- * Allocate an input device and set up relevant parameters to the
- * input subsystem.
- *
+	if (!tcm) {
+		LOGE("Invalid callback data\n");
+		return -EINVAL;
+	}
+
+	/* not report to input device subsystem if the cdev interface is in used */
+	if ((tcm->char_dev_ref_count > 0) && !tcm->concurrent_reporting)
+		return 0;
+
+	if (code == REPORT_TOUCH) {
+		/* parse touch report once received */
+		retval = syna_tcm_parse_touch_report(tcm->tcm_dev,
+				(unsigned char *)report,
+				report_size,
+				&tcm->tp_data);
+		if (retval < 0) {
+			LOGE("Fail to parse touch report\n");
+			return retval;
+		}
+
+		/* report the touch event to system */
+		syna_dev_report_input_events(tcm);
+	} else if (code == tcm->raw_data_report_code) {
+		size_raw_data = tcm_dev->rows * tcm_dev->cols + tcm_dev->rows + tcm_dev->cols;
+		if (!tcm->raw_data_buffer) {
+			tcm->raw_data_buffer = syna_pal_mem_alloc(size_raw_data, sizeof(u16));
+			if (!tcm->raw_data_buffer) {
+				LOGE("Allocate raw_data_buffer failed\n");
+				return -ENOMEM;
+			}
+		}
+		if (report_size == sizeof(u16) * size_raw_data) {
+			syna_pal_mutex_lock(&tcm->raw_data_mutex);
+			memcpy(tcm->raw_data_buffer, report, report_size);
+			syna_pal_mutex_unlock(&tcm->raw_data_mutex);
+			complete_all(&tcm->raw_data_completion);
+		} else {
+			LOGE("Raw data length: %d is incorrect.\n", report_size);
+		}
+	}
+
+	/* handling the particular report data */
+	switch (code) {
+	case REPORT_HEAT_MAP:
+		LOGD("Heat map data received, size:%d\n", report_size);
+#if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
+		syna_parse_heatmap(tcm, report, report_size);
+#endif
+		break;
+	case REPORT_HEAT_MAP_WITH_METADATA:
+		LOGD("Heat map data received, size:%d\n", report_size - size_simdata);
+#if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
+		syna_parse_heatmap(tcm, &report[size_simdata], report_size - size_simdata);
+#endif
+		break;
+	case REPORT_FW_STATUS:
+		/* for 'fw status' ($c2) report,
+		 * report size shall be 2-byte only; the
+		 */
+		status = (struct custom_fw_status *)&report[0];
+		LOGI("Status: moisture:%d noise:%d freq-change:%d, grip:%d, palm:%d, fast relax:%d\n",
+			status->b0_moisture, status->b1_noise_state,
+			status->b2_freq_hopping, status->b3_grip, status->b4_palm, status->b5_fast_relaxation);
+#if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
+		syna_notify_fw_status(tcm, status);
+#endif
+		break;
+	case REPORT_TOUCH_AND_HEATMAP:
+		/* touch data */
+		touch_data_size = (report[1] << 8) | report[0];
+		touch_data = (unsigned char *)&report[2];
+
+		retval = syna_tcm_parse_touch_report(tcm->tcm_dev,
+				touch_data,
+				touch_data_size,
+				&tcm->tp_data);
+		if (retval < 0) {
+			LOGE("Fail to parse touch report\n");
+			return retval;
+		}
+		/* forward the touch event to system */
+		syna_dev_report_input_events(tcm);
+
+		/* heatmap data */
+		heatmap_data_start = touch_data + touch_data_size;
+		heatmap_data_size = (heatmap_data_start[1] << 8) | heatmap_data_start[0];
+		heatmap_data = touch_data + touch_data_size + 2;
+		LOGD("$c5 Heat map data received, size:%d\n", heatmap_data_size);
+#if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
+		syna_parse_heatmap(tcm, heatmap_data, heatmap_data_size);
+#endif
+		break;
+	case REPORT_TOUCH_AND_HEATMAP_WITH_METADATA:
+		/* touch data */
+		touch_data_size = (report[1] << 8) | report[0];
+		touch_data = (unsigned char *)&report[2];
+
+		retval = syna_tcm_parse_touch_report(tcm->tcm_dev,
+				touch_data,
+				touch_data_size,
+				&tcm->tp_data);
+		if (retval < 0) {
+			LOGE("Fail to parse touch report\n");
+			return retval;
+		}
+		/* forward the touch event to system */
+		syna_dev_report_input_events(tcm);
+
+		/* heatmap data */
+		heatmap_data_start = touch_data + touch_data_size;
+		heatmap_data_size = (heatmap_data_start[1] << 8) | heatmap_data_start[0];
+		heatmap_data = touch_data + touch_data_size + 2;
+		heatmap_data_size -= size_simdata;
+		LOGD("$%2X Heat map data received, size:%d\n",
+			REPORT_TOUCH_AND_HEATMAP_WITH_METADATA, heatmap_data_size);
+
+		if (tcm->abnormal_gesture_reported) {
+			for (i = 0; i < size_simdata; i+=30)
+				LOGI("simdata:%*phN", min(30, size_simdata - i), heatmap_data + i);
+		}
+
+		if (tcm->sysfs_debug_simulation_data) {
+			for (i = 0; i < report_size; i+=30)
+				LOGI("%*phN", min(30, report_size - i), report + i);
+		}
+
+#if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
+		syna_parse_heatmap(tcm, &heatmap_data[size_simdata], heatmap_data_size);
+#endif
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+/**
+ * @brief  Allocate an input device and set up relevant parameters to the
+ *         input subsystem.
  * @param
  *    [ in] tcm: the driver handle
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_dev_create_input_device(struct syna_tcm *tcm)
 {
@@ -1953,28 +2445,20 @@ static int syna_dev_create_input_device(struct syna_tcm *tcm)
 	input_set_capability(input_dev, EV_KEY, KEY_WAKEUP);
 #endif
 
-	input_set_abs_params(input_dev,
-			ABS_MT_POSITION_X, 0, tcm_dev->max_x, 0, 0);
-	input_set_abs_params(input_dev,
-			ABS_MT_POSITION_Y, 0, tcm_dev->max_y, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_POSITION_X, 0, tcm_dev->max_x, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_POSITION_Y, 0, tcm_dev->max_y, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_PRESSURE, 0, 255, 0, 0);
 
-	input_mt_init_slots(input_dev, tcm_dev->max_objects,
-			INPUT_MT_DIRECT);
+	input_mt_init_slots(input_dev, tcm_dev->max_objects, INPUT_MT_DIRECT);
 
 #ifdef REPORT_TOUCH_WIDTH
-	input_set_abs_params(input_dev,
-			ABS_MT_TOUCH_MAJOR, 0, tcm_dev->max_x, 0, 0);
-	input_set_abs_params(input_dev,
-			ABS_MT_TOUCH_MINOR, 0, tcm_dev->max_y, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, 0, tcm_dev->max_x, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_TOUCH_MINOR, 0, tcm_dev->max_y, 0, 0);
 #ifdef ENABLE_CUSTOM_TOUCH_ENTITY
-	input_set_abs_params(input_dev,
-			ABS_MT_ORIENTATION, -4096, 4096, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_ORIENTATION, -4096, 4096, 0, 0);
 #endif
 #endif
-
-	input_set_abs_params(input_dev, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER,
-			MT_TOOL_PALM, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER, MT_TOOL_PALM, 0, 0);
 
 	tcm->input_dev_params.max_x = tcm_dev->max_x;
 	tcm->input_dev_params.max_y = tcm_dev->max_y;
@@ -1992,17 +2476,14 @@ static int syna_dev_create_input_device(struct syna_tcm *tcm)
 
 	return 0;
 }
-
-/*
- * syna_dev_release_input_device()
- *
- * Release an input device allocated previously.
+/**
+ * @brief  Release the input device allocated previously.
  *
  * @param
  *    [ in] tcm: the driver handle
  *
  * @return
- *    none.
+ *    void.
  */
 static void syna_dev_release_input_device(struct syna_tcm *tcm)
 {
@@ -2013,57 +2494,50 @@ static void syna_dev_release_input_device(struct syna_tcm *tcm)
 
 	tcm->input_dev = NULL;
 }
-
-/*
- * syna_dev_check_input_params()
- *
- * Check if any of the input parameters registered to the input subsystem
- * has changed.
+/**
+ * @brief  Check whether it's need to register the new input device
+ *         if any of parameters has changed.
  *
  * @param
  *    [ in] tcm: the driver handle
  *
  * @return
- *    positive value to indicate mismatching parameters; otherwise, return 0.
+ *    true if parameters are mismatched, false otherwise.
  */
-static int syna_dev_check_input_params(struct syna_tcm *tcm)
+static bool syna_dev_check_input_params(struct syna_tcm *tcm)
 {
 	struct tcm_dev *tcm_dev = tcm->tcm_dev;
 
 	if (tcm_dev->max_x == 0 && tcm_dev->max_y == 0)
-		return 0;
+		return false;
 
 	if (tcm->input_dev_params.max_x != tcm_dev->max_x)
-		return 1;
+		return true;
 
 	if (tcm->input_dev_params.max_y != tcm_dev->max_y)
-		return 1;
+		return true;
 
 	if (tcm->input_dev_params.max_objects != tcm_dev->max_objects)
-		return 1;
+		return true;
 
 	if (tcm_dev->max_objects > MAX_NUM_OBJECTS) {
 		LOGW("Out of max num objects defined, in app_info: %d\n",
 			tcm_dev->max_objects);
-		return 0;
+		return false;
 	}
 
-	LOGN("Input parameters unchanged\n");
-
-	return 0;
+	LOGN("Input parameters non-changed\n");
+	return false;
 }
 
-/*
- * syna_dev_set_up_input_device()
- *
- * Set up input device to the input subsystem by confirming the supported
- * parameters and creating the device.
+/**
+ * @brief  Set up input device to the input subsystem.
  *
  * @param
  *    [ in] tcm: the driver handle
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 in case of success, a negative value otherwise.
  */
 static int syna_dev_set_up_input_device(struct syna_tcm *tcm)
 {
@@ -2084,8 +2558,7 @@ static int syna_dev_set_up_input_device(struct syna_tcm *tcm)
 	syna_pal_mutex_lock(&tcm->tp_event_mutex);
 #endif
 
-	retval = syna_dev_check_input_params(tcm);
-	if (retval == 0)
+	if (!syna_dev_check_input_params(tcm))
 		goto exit;
 
 	if (tcm->input_dev != NULL)
@@ -2108,42 +2581,45 @@ exit:
 	return retval;
 }
 
-static irqreturn_t syna_dev_isr(int irq, void *handle)
+/**
+ * @brief  Interrupt handling routine (top-half).
+ *
+ *         Function is called when the interrupt is asserted.
+ *         The purposes of this handler is to store the timestamp of assertion.
+ * @param
+ *    [ in] irq:  interrupt line
+ *    [ in] data: private data being passed to the handler function
+ *
+ * @return
+ *    0 or positive value in case of success, a negative value otherwise.
+ */
+static irqreturn_t syna_dev_isr(int irq, void *data)
 {
-	struct syna_tcm *tcm = handle;
+	struct syna_tcm *tcm = data;
 
 	tcm->timestamp = ktime_get();
 
 	return IRQ_WAKE_THREAD;
 }
 
-/*
- * syna_dev_interrupt_thread()
+/**
+ * @brief  Interrupt handling routine.
  *
- * This is the function to be called when the interrupt is asserted.
- * The purposes of this handler is to read events generated by device and
- * retrieve all enqueued messages until ATTN is no longer asserted.
- *
+ *         Function is called when the interrupt is asserted.
+ *         The purposes of this handler is to read out an event generated by device.
  * @param
  *    [ in] irq:  interrupt line
  *    [ in] data: private data being passed to the handler function
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static irqreturn_t syna_dev_interrupt_thread(int irq, void *data)
 {
 	int retval;
 	unsigned char code = 0;
-	struct syna_tcm *tcm = data;
-	struct custom_fw_status *status;
+	struct syna_tcm *tcm = (struct syna_tcm *)data;
 	struct syna_hw_attn_data *attn = &tcm->hw_if->bdata_attn;
-	struct tcm_dev *tcm_dev = tcm->tcm_dev;
-	unsigned char *touch_data = 0;
-	unsigned short touch_data_size = 0;
-	unsigned char *heatmap_data_start = 0;
-	unsigned char *heatmap_data = 0;
-	unsigned short heatmap_data_size = 0;
 
 	if (unlikely(gpio_get_value(attn->irq_gpio) != attn->irq_on_state))
 		goto exit;
@@ -2153,133 +2629,24 @@ static irqreturn_t syna_dev_interrupt_thread(int irq, void *data)
 	/* retrieve the original report date generated by firmware */
 	retval = syna_tcm_get_event_data(tcm->tcm_dev,
 			&code,
-			&tcm->event_data);
+			NULL);
 	if (retval < 0) {
 		LOGE("Fail to get event data\n");
 		goto exit;
-	}
-
-	tcm->is_attn_asserted = true;
-
-#ifdef ENABLE_EXTERNAL_FRAME_PROCESS
-	if (tcm->report_to_queue[code] == EFP_ENABLE) {
-		syna_tcm_buf_lock(&tcm->tcm_dev->external_buf);
-		syna_cdev_update_report_queue(tcm, code,
-		    &tcm->tcm_dev->external_buf);
-		syna_tcm_buf_unlock(&tcm->tcm_dev->external_buf);
-#ifndef REPORT_CONCURRENTLY
-		goto exit;
-#endif
-	}
-#endif
-	/* report input event only when receiving a touch report */
-	if (code == REPORT_TOUCH) {
-		/* parse touch report once received */
-		retval = syna_tcm_parse_touch_report(tcm->tcm_dev,
-				tcm->event_data.buf,
-				tcm->event_data.data_length,
-				&tcm->tp_data);
-		if (retval < 0) {
-			LOGE("Fail to parse touch report\n");
-			goto exit;
-		}
-
-		/* forward the touch event to system */
-		syna_dev_report_input_events(tcm);
-	} else if (code == tcm->raw_data_report_code) {
-		if (!tcm->raw_data_buffer) {
-			tcm->raw_data_buffer = kmalloc(
-					       sizeof(u16) * (tcm_dev->rows * tcm_dev->cols +
-							      tcm_dev->rows + tcm_dev->cols),
-					       GFP_KERNEL);
-			if (!tcm->raw_data_buffer) {
-				LOGE("Allocate raw_data_buffer failed\n");
-				goto exit;
-			}
-		}
-		if (tcm->event_data.data_length == sizeof(u16) * (tcm_dev->rows * tcm_dev->cols +
-								  tcm_dev->rows + tcm_dev->cols)) {
-			syna_pal_mutex_lock(&tcm->raw_data_mutex);
-			memcpy(tcm->raw_data_buffer, tcm->event_data.buf,
-			       tcm->event_data.data_length);
-			syna_pal_mutex_unlock(&tcm->raw_data_mutex);
-			complete_all(&tcm->raw_data_completion);
-		} else {
-			LOGE("Raw data length: %d is incorrect.\n", tcm->event_data.data_length);
-		}
-	}
-
-	/* handling the particular report data */
-	switch (code) {
-	case REPORT_HEAT_MAP:
-		/* for 'heat map' ($c3) report,
-		 * report data has been stored at tcm->event_data.buf;
-		 * while, tcm->event_data.data_length is the size of data
-		 */
-		LOGD("Heat map data received, size:%d\n",
-			tcm->event_data.data_length);
-		break;
-	case REPORT_TOUCH_AND_HEATMAP:
-		/* parse $c5 report containing touch and heatmap data */
-
-		/* touch data */
-		touch_data_size = (tcm->event_data.buf[1] << 8) | tcm->event_data.buf[0];
-		touch_data = tcm->event_data.buf + 2;
-
-		retval = syna_tcm_parse_touch_report(tcm->tcm_dev,
-				touch_data,
-				touch_data_size,
-				&tcm->tp_data);
-		if (retval < 0) {
-			LOGE("Fail to parse touch report\n");
-			goto exit;
-		}
-		/* forward the touch event to system */
-		syna_dev_report_input_events(tcm);
-
-		/* heatmap data */
-		heatmap_data_start = touch_data + touch_data_size;
-		heatmap_data_size = (heatmap_data_start[1] << 8) | heatmap_data_start[0];
-		heatmap_data = touch_data + touch_data_size + 2;
-
-		syna_parse_heatmap(tcm, heatmap_data, heatmap_data_size);
-
-		LOGD("$c5 Heat map data received, size:%d\n", heatmap_data_size);
-
-		break;
-	case REPORT_FW_STATUS:
-		/* for 'fw status' ($c2) report,
-		 * report size shall be 2-byte only; the
-		 */
-		status = (struct custom_fw_status *)&tcm->event_data.buf[0];
-		LOGI("Status: moisture:%d noise:%d freq-change:%d, grip:%d, palm:%d, "
-			"fast relax:%d\n",
-			status->b0_moisture, status->b1_noise_state,
-			status->b2_freq_hopping, status->b3_grip, status->b4_palm,
-			status->b5_fast_relaxation);
-#if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
-		syna_notify_fw_status(tcm, status);
-#endif
-
-		break;
-	default:
-		break;
 	}
 
 exit:
 	return IRQ_HANDLED;
 }
 
-/*
- * syna_dev_request_irq()
- *
- * Allocate an interrupt line and register the ISR handler
+/**
+ * @brief  Request interrupt line and register the interrupt handling routine.
  *
  * @param
  *    [ in] tcm: the driver handle
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_dev_request_irq(struct syna_tcm *tcm)
 {
@@ -2332,19 +2699,18 @@ exit:
 	return retval;
 }
 
-/*
- * syna_dev_release_irq()
- *
- * Release an interrupt line allocated previously
+/**
+ * @brief  Release an interrupt line allocated previously
  *
  * @param
  *    [ in] tcm: the driver handle
  *
  * @return
- *    none.
+ *    void.
  */
 static void syna_dev_release_irq(struct syna_tcm *tcm)
 {
+	struct tcm_hw_platform *hw = &tcm->hw_if->hw_platform;
 	struct syna_hw_attn_data *attn = &tcm->hw_if->bdata_attn;
 #ifdef DEV_MANAGED_API
 	struct device *dev = syna_request_managed_device();
@@ -2358,14 +2724,8 @@ static void syna_dev_release_irq(struct syna_tcm *tcm)
 	if (attn->irq_id <= 0)
 		return;
 
-#if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
-	syna_pal_mutex_lock(&attn->irq_en_mutex);
-	disable_irq(attn->irq_id);
-	syna_pal_mutex_unlock(&attn->irq_en_mutex);
-#else
-	if (tcm->hw_if->ops_enable_irq)
-		tcm->hw_if->ops_enable_irq(tcm->hw_if, false);
-#endif
+	if (hw->ops_enable_attn)
+		hw->ops_enable_attn(hw, false);
 
 #ifdef DEV_MANAGED_API
 #if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
@@ -2386,25 +2746,91 @@ static void syna_dev_release_irq(struct syna_tcm *tcm)
 	LOGI("Interrupt handler released\n");
 }
 
-/*
- * syna_dev_set_up_app_fw()
- *
- * Implement the essential steps for the initialization including the
- * preparation of app info and the configuration of touch report.
- *
- * This function should be called whenever the device initially powers
- * up, resets, or firmware update.
- *
+static int syna_dev_register_dispatcher(struct syna_tcm *tcm)
+{
+	int retval = 0;
+
+	if (!tcm)
+		return -EINVAL;
+
+	/* register the handling function for touch reports */
+	retval = syna_tcm_set_report_dispatcher(tcm->tcm_dev,
+			REPORT_TOUCH, syna_dev_process_events, (void *)tcm);
+	if (retval < 0)
+		LOGE("Fail to register the touch report handling function\n");
+
+	/* register the handling function for custom reports */
+	retval = syna_tcm_set_report_dispatcher(tcm->tcm_dev,
+			REPORT_DELTA, syna_dev_process_events, (void *)tcm);
+	if (retval < 0)
+		LOGE("Fail to register the delta report handling function\n");
+
+	retval = syna_tcm_set_report_dispatcher(tcm->tcm_dev,
+			REPORT_RAW, syna_dev_process_events, (void *)tcm);
+	if (retval < 0)
+		LOGE("Fail to register the raw report handling function\n");
+
+	retval = syna_tcm_set_report_dispatcher(tcm->tcm_dev,
+			REPORT_BASELINE, syna_dev_process_events, (void *)tcm);
+	if (retval < 0)
+		LOGE("Fail to register the baseline report handling function\n");
+
+	retval = syna_tcm_set_report_dispatcher(tcm->tcm_dev,
+			REPORT_FW_STATUS, syna_dev_process_events, (void *)tcm);
+	if (retval < 0)
+		LOGE("Fail to register the report 0x%02X handling function\n", REPORT_FW_STATUS);
+	retval = syna_tcm_set_report_dispatcher(tcm->tcm_dev,
+			REPORT_HEAT_MAP, syna_dev_process_events, (void *)tcm);
+	if (retval < 0)
+		LOGE("Fail to register the report 0x%02X handling function\n", REPORT_HEAT_MAP);
+	retval = syna_tcm_set_report_dispatcher(tcm->tcm_dev,
+			REPORT_TOUCH_AND_HEATMAP, syna_dev_process_events, (void *)tcm);
+	if (retval < 0) {
+		LOGE("Fail to register the report 0x%02X handling function\n",
+				REPORT_TOUCH_AND_HEATMAP);
+	}
+	retval = syna_tcm_set_report_dispatcher(tcm->tcm_dev,
+			REPORT_HEAT_MAP_WITH_METADATA, syna_dev_process_events, (void *)tcm);
+	if (retval < 0) {
+		LOGE("Fail to register the report 0x%02X handling function\n",
+				REPORT_HEAT_MAP_WITH_METADATA);
+	}
+	retval = syna_tcm_set_report_dispatcher(tcm->tcm_dev,
+			REPORT_TOUCH_AND_HEATMAP_WITH_METADATA,
+			syna_dev_process_events, (void *)tcm);
+	if (retval < 0) {
+		LOGE("Fail to register the report 0x%02X handling function\n",
+				REPORT_TOUCH_AND_HEATMAP_WITH_METADATA);
+	}
+
+	return retval;
+}
+
+/**
+ * @brief  Initialization including the preparation of app info and the
+ *         configuration of touch report.
  * @param
  *    [ in] tcm: tcm driver handle
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_dev_set_up_app_fw(struct syna_tcm *tcm)
 {
 	int retval = 0;
-	struct tcm_dev *tcm_dev = tcm->tcm_dev;
+	struct tcm_dev *tcm_dev;
+	struct syna_hw_attn_data *attn;
+	unsigned int resp_handling;
+
+	if (!tcm)
+		return -EINVAL;
+
+	tcm_dev = tcm->tcm_dev;
+	attn = &tcm->hw_if->bdata_attn;
+	if (attn && (attn->irq_id) && (attn->irq_enabled))
+		resp_handling = CMD_RESPONSE_IN_ATTN;
+	else
+		resp_handling = tcm_dev->msg_data.command_polling_time;
 
 	if (IS_NOT_APP_FW_MODE(tcm_dev->dev_mode)) {
 		LOGN("Application firmware not running, current mode: %02x\n",
@@ -2413,24 +2839,25 @@ static int syna_dev_set_up_app_fw(struct syna_tcm *tcm)
 	}
 
 	/* collect app info containing most of sensor information */
-	retval = syna_tcm_get_app_info(tcm_dev, &tcm_dev->app_info);
+	retval = syna_tcm_get_app_info(tcm_dev, &tcm_dev->app_info, resp_handling);
 	if (retval < 0) {
 		LOGE("Fail to get application info\n");
 		return retval;
 	}
 
-	/* set up the format of touch report */
 #ifdef USE_CUSTOM_TOUCH_REPORT_CONFIG
+	/* set up the format of touch report */
 	retval = syna_tcm_set_touch_report_config(tcm_dev,
 			custom_touch_format,
-			(unsigned int)sizeof(custom_touch_format));
+			(unsigned int)sizeof(custom_touch_format),
+			resp_handling);
 	if (retval < 0) {
 		LOGE("Fail to setup the custom touch report format\n");
 		return retval;
 	}
 #endif
 	/* preserve the format of touch report */
-	retval = syna_tcm_preserve_touch_report_config(tcm_dev);
+	retval = syna_tcm_preserve_touch_report_config(tcm_dev, resp_handling);
 	if (retval < 0) {
 		LOGE("Fail to preserve touch report config\n");
 		return retval;
@@ -2460,18 +2887,14 @@ static int syna_dev_set_up_app_fw(struct syna_tcm *tcm)
 }
 
 #ifdef STARTUP_REFLASH
-/*
- * syna_dev_reflash_startup_work()
- *
- * Perform firmware update during system startup.
- * Function is available when the 'STARTUP_REFLASH' configuration
- * is enabled.
+/**
+ * @brief  Example to perform firmware update at the system startup.
  *
  * @param
  *    [ in] work: handle of work structure
  *
  * @return
- *    none.
+ *    void.
  */
 static void syna_dev_reflash_startup_work(struct work_struct *work)
 {
@@ -2486,6 +2909,7 @@ static void syna_dev_reflash_startup_work(struct work_struct *work)
 	const unsigned char *fw_image = NULL;
 	const char *suffix_fw_name = NULL;
 	unsigned int fw_image_size;
+	unsigned char orig_mode;
 
 	delayed_work = container_of(work, struct delayed_work, work);
 	tcm = container_of(delayed_work, struct syna_tcm, reflash_work);
@@ -2493,15 +2917,17 @@ static void syna_dev_reflash_startup_work(struct work_struct *work)
 	tcm_dev = tcm->tcm_dev;
 	np = tcm->pdev->dev.parent->of_node;
 
+	orig_mode = tcm_dev->dev_mode;
+
 	pm_stay_awake(&tcm->pdev->dev);
 
 	/* Use CPU mode for the firmware update because it cannot fit the 4 bytes alignment.*/
 #if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE) && IS_ENABLED(CONFIG_SPI_S3C64XX_GS)
 	if (goog_check_spi_dma_enabled(tcm->hw_if->pdev) && tcm->hw_if->s3c64xx_sci) {
-		tcm->hw_if->ops_disable_irq_sync(tcm->hw_if);
+		tcm->hw_if->hw_platform.ops_disable_attn_sync(&tcm->hw_if->hw_platform);
 		tcm->hw_if->dma_mode = 0;
 		tcm->hw_if->s3c64xx_sci->dma_mode = CPU_MODE;
-		tcm->hw_if->ops_enable_irq(tcm->hw_if, true);
+		tcm->hw_if->hw_platform.ops_enable_attn(&tcm->hw_if->hw_platform, true);
 	}
 #endif
 
@@ -2519,7 +2945,17 @@ static void syna_dev_reflash_startup_work(struct work_struct *work)
 			}
 		}
 	}
-	LOGI("Firmware name %s for %s", tcm->hw_if->fw_name, tcm_dev->id_info.part_number);
+
+	if (syna_pal_str_len(tcm->hw_if->fw_name) == 0)
+		scnprintf(tcm->hw_if->fw_name, sizeof(tcm->hw_if->fw_name), "%s", FW_IMAGE_NAME);
+
+	LOGI("Firmware name %s for %*pE", tcm->hw_if->fw_name,
+			(int)sizeof(tcm_dev->id_info.part_number), tcm_dev->id_info.part_number);
+
+	/* for 3916TG, the erase time may be longer */
+	if (strncmp(tcm_dev->id_info.part_number, "S3916TG", 7) == 0) {
+		syna_tcm_config_timings(tcm_dev, NULL, 10000, TIMINGS_CMD_TIMEOUT);
+	}
 
 	/* get firmware image */
 	retval = request_firmware(&fw_entry,
@@ -2539,24 +2975,24 @@ static void syna_dev_reflash_startup_work(struct work_struct *work)
 	LOGD("Firmware image size = %d\n", fw_image_size);
 
 	/* perform fw update */
-#ifdef MULTICHIP_DUT_REFLASH
-	/* do firmware update for the multichip-based device */
-	retval = syna_tcm_romboot_do_multichip_reflash(tcm_dev,
+#ifdef TDDI_PRODUCTS
+	retval = syna_tcm_tddi_do_fw_update(tcm_dev,
 			fw_image,
 			fw_image_size,
-			RESP_IN_ATTN,
-			tcm->force_reflash);
+			CMD_RESPONSE_IN_ATTN,
+			tcm->force_reflash,
+			tcm->is_tddi_multichip);
 #else
 	/* do firmware update for the common device */
 	retval = syna_tcm_do_fw_update(tcm_dev,
 			fw_image,
 			fw_image_size,
-			FW_UPDATE_DELAY_MS(200, 20),
+			CMD_RESPONSE_IN_ATTN,
 			tcm->force_reflash);
 #endif
 	/* Restore DMA mode */
 #if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE) && IS_ENABLED(CONFIG_SPI_S3C64XX_GS)
-	tcm->hw_if->ops_disable_irq_sync(tcm->hw_if);
+	tcm->hw_if->hw_platform.ops_disable_attn_sync(&tcm->hw_if->hw_platform);
 	if (goog_check_spi_dma_enabled(tcm->hw_if->pdev) && tcm->hw_if->s3c64xx_sci) {
 		tcm->hw_if->dma_mode = 1;
 		tcm->hw_if->s3c64xx_sci->dma_mode = DMA_MODE;
@@ -2566,7 +3002,7 @@ static void syna_dev_reflash_startup_work(struct work_struct *work)
 	 * was enabled.
 	 */
 	msleep(300);
-	tcm->hw_if->ops_enable_irq(tcm->hw_if, true);
+	tcm->hw_if->hw_platform.ops_enable_attn(&tcm->hw_if->hw_platform, true);
 #endif
 	if (retval < 0) {
 		LOGE("Fail to do reflash, reflash_count = %d\n", tcm->reflash_count);
@@ -2585,6 +3021,9 @@ static void syna_dev_reflash_startup_work(struct work_struct *work)
 		goto exit;
 	}
 
+	if (IS_APP_FW_MODE(tcm_dev->dev_mode) && (orig_mode != tcm_dev->dev_mode))
+		syna_dev_register_dispatcher(tcm);
+
 	/* ensure the settings of input device
 	 * if needed, re-create a new input device
 	 */
@@ -2595,7 +3034,9 @@ static void syna_dev_reflash_startup_work(struct work_struct *work)
 	}
 
 skip_fw_update:
+#if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
 	syna_gti_init(tcm);
+#endif
 exit:
 	fw_image = NULL;
 
@@ -2604,41 +3045,107 @@ exit:
 		fw_entry = NULL;
 	}
 
+	syna_tcm_config_timings(tcm_dev, NULL,
+		tcm->hw_if->product.default_cmd_timeout_ms,
+		TIMINGS_CMD_TIMEOUT);
+
 	pm_relax(&tcm->pdev->dev);
 }
 #endif
-#if defined(POWER_ALIVE_AT_SUSPEND) && !defined(RESET_ON_RESUME)
-/*
- * syna_dev_enter_normal_sensing()
+#if defined(LOW_POWER_MODE)
+/**
+ * @brief  Enable or disable the low power gesture mode.
  *
- * Helper to enter normal sensing mode
+ * @param
+ *    [ in] tcm:           tcm driver handle
+ *    [ in] en:            '1' to enable low power gesture mode; '0' to disable
+ *    [ in] resp_handling: set up the handling of response to command
+ *
+ * @return
+ *    0 or positive value in case of success, a negative value otherwise.
+ */
+static int syna_dev_enable_lowpwr_gesture(struct syna_tcm *tcm, bool en,
+	unsigned int resp_handling)
+{
+	int retval = 0;
+	unsigned short config;
+	struct syna_hw_attn_data *attn;
+
+	if (!tcm)
+		return -EINVAL;
+
+	attn = &tcm->hw_if->bdata_attn;
+
+	if (!tcm->lpwg_enabled)
+		return 0;
+
+	if (en) {
+		if (!tcm->irq_wake) {
+			enable_irq_wake(attn->irq_id);
+			tcm->irq_wake = true;
+		}
+		config = 1;
+	} else {
+		if (tcm->irq_wake) {
+			disable_irq_wake(attn->irq_id);
+			tcm->irq_wake = false;
+		}
+		config = 0;
+	}
+
+	retval = syna_tcm_set_dynamic_config(tcm->tcm_dev,
+			DC_ENABLE_WAKEUP_GESTURE_MODE,
+			config,
+			resp_handling);
+	if (retval < 0) {
+		LOGE("Fail to %s wakeup gesture via dynamic config command\n",
+			(en) ? "enable" : "disable");
+		return retval;
+	}
+
+	return retval;
+}
+#endif
+#if defined(LOW_POWER_MODE) && !defined(RESET_ON_RESUME)
+/**
+ * @brief  Enter normal sensing mode
  *
  * @param
  *    [ in] tcm: tcm driver handle
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_dev_enter_normal_sensing(struct syna_tcm *tcm)
 {
 	int retval = 0;
-#ifdef GOOG_INT2_FEATURE
-	unsigned short enable;
-#endif
+	struct syna_hw_attn_data *attn;
+	struct tcm_dev *tcm_dev;
+	unsigned int resp_handling;
 
 	if (!tcm)
 		return -EINVAL;
 
-	/* bring out of sleep mode. */
-	retval = syna_tcm_sleep(tcm->tcm_dev, false);
-	if (retval < 0) {
-		LOGE("Fail to exit deep sleep\n");
-		return retval;
+	tcm_dev = tcm->tcm_dev;
+	attn = &tcm->hw_if->bdata_attn;
+	if ((attn->irq_id) && (attn->irq_enabled))
+		resp_handling = CMD_RESPONSE_IN_ATTN;
+	else
+		resp_handling = tcm_dev->msg_data.command_polling_time;
+
+
+	if (!tcm->gti || !goog_check_late_sense_on_enabled(tcm->gti)) {
+		/* bring out of sleep mode. */
+		retval = syna_tcm_sleep(tcm->tcm_dev, false, resp_handling);
+		if (retval < 0) {
+			LOGE("Fail to exit deep sleep\n");
+			return retval;
+		}
 	}
 
 	/* disable low power gesture mode, if needed */
 	if (tcm->lpwg_enabled) {
-		retval = syna_dev_enable_lowpwr_gesture(tcm, false);
+		retval = syna_dev_enable_lowpwr_gesture(tcm, false, resp_handling);
 		if (retval < 0) {
 			LOGE("Fail to disable low power gesture mode\n");
 			return retval;
@@ -2646,54 +3153,53 @@ static int syna_dev_enter_normal_sensing(struct syna_tcm *tcm)
 	}
 
 #ifdef GOOG_INT2_FEATURE
-	retval = syna_tcm_get_dynamic_config(tcm->tcm_dev,
-				DC_ENABLE_WAKEUP_GESTURE_MODE,
-				&enable,
-				RESP_IN_POLLING);
+	tcm->tcm_dev->msg_data.enable_response_log = true;
+	retval = syna_tcm_set_dynamic_config(tcm->tcm_dev,
+			DC_ENABLE_WAKEUP_GESTURE_MODE,
+			0,
+			resp_handling);
+	tcm->tcm_dev->msg_data.enable_response_log = false;
 	if (retval < 0) {
-		LOGE("Fail to get low power gesture mode\n");
+		LOGE("Fail to exit low power gesture mode\n");
 		return retval;
 	}
-
-	if (enable) {
-		retval = syna_tcm_set_dynamic_config(tcm->tcm_dev,
-				DC_ENABLE_WAKEUP_GESTURE_MODE,
-				0,
-				RESP_IN_POLLING);
-		if (retval < 0) {
-			LOGE("Fail to exit low power gesture mode\n");
-			return retval;
-		}
-		LOGI("Exit gesture mode.");
-	}
-
+	LOGI("Exit gesture mode.");
 #endif
+
 	return 0;
 }
 #endif
-#ifdef POWER_ALIVE_AT_SUSPEND
-/*
- * syna_dev_enter_lowpwr_sensing()
- *
- * Helper to enter power-saved sensing mode, that
- * may be the lower power gesture mode or deep sleep mode.
- *
+#ifdef LOW_POWER_MODE
+/**
+ * @brief  Enter low-power saving mode, either the lower power gesture
+ *         mode or deep sleep mode.
  * @param
  *    [ in] tcm: tcm driver handle
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_dev_enter_lowpwr_sensing(struct syna_tcm *tcm)
 {
 	int retval = 0;
+	struct syna_hw_attn_data *attn;
+	struct tcm_dev *tcm_dev;
+	unsigned int resp_handling;
 
 	if (!tcm)
 		return -EINVAL;
 
+	tcm_dev = tcm->tcm_dev;
+	attn = &tcm->hw_if->bdata_attn;
+	/* */
+	if ((attn->irq_id) && (attn->irq_enabled))
+		resp_handling = CMD_RESPONSE_IN_ATTN;
+	else
+		resp_handling = tcm_dev->msg_data.command_polling_time;
+
 	/* enable low power gesture mode, if needed */
 	if (tcm->lpwg_enabled) {
-		retval = syna_dev_enable_lowpwr_gesture(tcm, true);
+		retval = syna_dev_enable_lowpwr_gesture(tcm, true, resp_handling);
 		if (retval < 0) {
 			LOGE("Fail to disable low power gesture mode\n");
 			return retval;
@@ -2701,7 +3207,7 @@ static int syna_dev_enter_lowpwr_sensing(struct syna_tcm *tcm)
 	} else {
 	/* enter sleep mode for non-LPWG cases */
 		if (!tcm->slept_in_early_suspend) {
-			retval = syna_tcm_sleep(tcm->tcm_dev, true);
+			retval = syna_tcm_sleep(tcm->tcm_dev, true, resp_handling);
 			if (retval < 0) {
 				LOGE("Fail to enter deep sleep\n");
 				return retval;
@@ -2710,6 +3216,61 @@ static int syna_dev_enter_lowpwr_sensing(struct syna_tcm *tcm)
 	}
 
 	return 0;
+}
+
+/**
+ * @brief  Check whether the touch is in normal scan mode. If not, retry to enter
+ *         normal scan mode.
+ * @param
+ *    [ in] tcm: tcm driver handle
+ */
+static void syna_check_normal_scan_mode(struct syna_tcm *tcm, unsigned int resp_handling)
+{
+	int ret = 0;
+	int retry = 0;
+	unsigned short scan_mode;
+
+	while (retry++ < 3) {
+		ret = syna_tcm_get_dynamic_config(tcm->tcm_dev,
+				DC_TOUCH_SCAN_MODE,
+				&scan_mode,
+				resp_handling);
+		if(ret < 0) {
+			LOGE("Failed to get DC_TOUCH_SCAN_MODE ret: %d", ret);
+			msleep(20);
+			continue;
+		}
+
+		LOGI("DC_TOUCH_SCAN_MODE is %u", scan_mode);
+
+		switch (scan_mode) {
+		case SCAN_NORMAL_IDLE:
+		case SCAN_NORMAL_ACTIVE:
+			return;
+		case SCAN_SLEEP:
+			ret = syna_tcm_sleep(tcm->tcm_dev, false, resp_handling);
+			fallthrough;
+		case SCAN_LPWG_IDLE:
+		case SCAN_LPWG_ACTIVE:
+			tcm->tcm_dev->msg_data.enable_response_log = true;
+			ret = syna_tcm_set_dynamic_config(tcm->tcm_dev,
+					DC_ENABLE_WAKEUP_GESTURE_MODE,
+					0,
+					resp_handling);
+			tcm->tcm_dev->msg_data.enable_response_log = false;
+			break;
+		default:
+			LOGE("Invalid scan mode %d", scan_mode);
+			ret = -EINVAL;
+			break;
+		}
+		msleep(20);
+	}
+
+	if (scan_mode != SCAN_NORMAL_IDLE && scan_mode != SCAN_NORMAL_ACTIVE) {
+		LOGW("Trigger reset for unexpected scan_mode %d!", scan_mode);
+		tcm->hw_if->ops_hw_reset(tcm->hw_if);
+	}
 }
 #endif
 
@@ -2740,239 +3301,16 @@ static int syna_pinctrl_configure(struct syna_tcm *tcm, bool enable)
 	return 0;
 }
 
-/*
- * syna_dev_resume()
- *
- * Resume from the suspend state.
- * If RESET_ON_RESUME is defined, a reset is issued to the touch controller.
- * Otherwise, the touch controller is brought out of sleep mode.
- *
- * @param
- *    [ in] dev: an instance of device
- *
- * @return
- *    on success, 0; otherwise, negative value on error.
- */
-static int syna_dev_resume(struct device *dev)
-{
-	int retval = 0;
-	struct syna_tcm *tcm = dev_get_drvdata(dev);
-	struct syna_hw_interface *hw_if = tcm->hw_if;
-	bool irq_enabled = true;
-#if defined(RESET_ON_RESUME) || defined(POWER_ALIVE_AT_SUSPEND)
-	unsigned char status;
-#endif
-
-	/* exit directly if device isn't in suspend state */
-	if (tcm->pwr_state == PWR_ON)
-		return 0;
-
-	LOGI("Prepare to resume device\n");
-
-	syna_pinctrl_configure(tcm, true);
-
-#if !IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
-	/* clear all input events  */
-	syna_dev_free_input_events(tcm);
-#endif
-
-#ifdef RESET_ON_RESUME
-	LOGI("Do reset on resume\n");
-
-	for (retry = 0; retry < 3; retry++) {
-		if (hw_if->ops_hw_reset) {
-			hw_if->ops_hw_reset(hw_if);
-			retval = syna_tcm_get_event_data(tcm->tcm_dev,
-				&status, NULL);
-			if ((retval < 0) || (status != REPORT_IDENTIFY)) {
-				LOGE("Fail to complete hw reset, ret = %d, status = %d\n",
-				     retval, status);
-				continue;
-			}
-			break;
-		} else {
-			retval = syna_tcm_reset(tcm->tcm_dev);
-			if (retval < 0) {
-				LOGE("Fail to do sw reset, ret = %d\n", retval);
-				continue;
-			}
-			break;
-		}
-	}
-	if (retval < 0 || (hw_if->ops_hw_reset && (status != REPORT_IDENTIFY))) {
-		goto exit;
-	}
-#else
-#ifdef POWER_ALIVE_AT_SUSPEND
-	/* enter normal power mode */
-	retval = syna_dev_enter_normal_sensing(tcm);
-	if (retval < 0) {
-		LOGE("Fail to enter normal power mode, trigger reset to recover\n");
-		tcm->pwr_state = PWR_ON;
-		if (hw_if->ops_hw_reset) {
-			hw_if->ops_hw_reset(hw_if);
-			retval = syna_tcm_get_event_data(tcm->tcm_dev, &status, NULL);
-			if ((retval < 0) || (status != REPORT_IDENTIFY)) {
-				LOGE("Fail to complete hw reset, ret = %d, status = %d\n",
-						retval, status);
-			}
-		} else {
-			retval = syna_tcm_reset(tcm->tcm_dev);
-			if (retval < 0)
-				LOGE("Fail to do sw reset, ret = %d\n", retval);
-		}
-		/* The settings will be done by syna_dev_helper_work if reset is triggered. */
-		goto exit;
-	}
-#endif
-#ifndef GOOG_INT2_FEATURE
-	retval = syna_tcm_rezero(tcm->tcm_dev);
-	if (retval < 0) {
-		LOGE("Fail to rezero\n");
-		goto exit;
-	}
-#endif
-#endif
-	tcm->pwr_state = PWR_ON;
-
-	LOGI("Prepare to set up application firmware\n");
-
-	/* set up app firmware */
-	retval = syna_dev_set_up_app_fw(tcm);
-	if (retval < 0) {
-		LOGE("Fail to set up app firmware on resume\n");
-		goto exit;
-	}
-
-	syna_dev_restore_feature_setting(tcm, RESP_IN_POLLING);
-
-	retval = 0;
-
-	LOGI("Device resumed (pwr_state:%d)\n", tcm->pwr_state);
-exit:
-	/* set irq back to active mode if not enabled yet */
-	irq_enabled = (!hw_if->bdata_attn.irq_enabled);
-
-	/* enable irq */
-	if (irq_enabled && (hw_if->ops_enable_irq))
-		hw_if->ops_enable_irq(hw_if, true);
-
-	tcm->slept_in_early_suspend = false;
-
-	return retval;
-}
-
-/*
- * syna_dev_suspend()
- *
- * Put device into suspend state.
- * Enter either the lower power gesture mode or sleep mode.
- *
- * @param
- *    [ in] dev: an instance of device
- *
- * @return
- *    on success, 0; otherwise, negative value on error.
- */
-static int syna_dev_suspend(struct device *dev)
-{
-#ifdef POWER_ALIVE_AT_SUSPEND
-	int retval, retry;
-#endif
-	struct syna_tcm *tcm = dev_get_drvdata(dev);
-	struct syna_hw_interface *hw_if = tcm->hw_if;
-	bool irq_disabled = true;
-	unsigned char status;
-
-	/* exit directly if device is already in suspend state */
-	if (tcm->pwr_state != PWR_ON)
-		return 0;
-
-#ifdef POWER_ALIVE_AT_SUSPEND
-	tcm->pwr_state = LOW_PWR;
-#endif
-
-	LOGI("Prepare to suspend device\n");
-
-#if !IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
-	/* clear all input events  */
-	syna_dev_free_input_events(tcm);
-#endif
-	/* once lpwg is enabled, irq should be alive.
-	 * otherwise, disable irq in suspend.
-	 */
-	irq_disabled = (!tcm->lpwg_enabled);
-
-	/* disable irq */
-	if (irq_disabled && (hw_if->ops_enable_irq))
-		hw_if->ops_enable_irq(hw_if, false);
-
-#ifdef POWER_ALIVE_AT_SUSPEND
-#ifdef GOOG_INT2_FEATURE
-	LOGI("Do reset on suspend\n");
-
-	for (retry = 0; retry < 3; retry++) {
-		if (hw_if->ops_hw_reset) {
-			hw_if->ops_hw_reset(hw_if);
-			retval = syna_tcm_get_event_data(tcm->tcm_dev,
-				&status, NULL);
-			if ((retval < 0) || (status != REPORT_IDENTIFY)) {
-				LOGE("Fail to complete hw reset, ret = %d, status = %d\n",
-				     retval, status);
-				continue;
-			}
-			break;
-		} else {
-			retval = syna_tcm_reset(tcm->tcm_dev);
-			if (retval < 0) {
-				LOGE("Fail to do sw reset, ret = %d\n", retval);
-				continue;
-			}
-			break;
-		}
-	}
-#endif
-
-	/* enter power saved mode if power is not off */
-	retval = syna_dev_enter_lowpwr_sensing(tcm);
-	if (retval < 0) {
-		LOGE("Fail to enter suspended power mode, reset and retry.\n");
-		if (hw_if->ops_hw_reset) {
-			hw_if->ops_hw_reset(hw_if);
-			retval = syna_tcm_get_event_data(tcm->tcm_dev,
-				&status, NULL);
-			if ((retval < 0) || (status != REPORT_IDENTIFY)) {
-				LOGE("Fail to complete hw reset, ret = %d, status = %d\n",
-				     retval, status);
-			}
-		}
-		retval = syna_dev_enter_lowpwr_sensing(tcm);
-		if (retval < 0)
-			LOGE("Fail to enter suspended power mode after reset.\n");
-	}
-#else
-	tcm->pwr_state = PWR_OFF;
-#endif
-
-	syna_pinctrl_configure(tcm, false);
-
-	LOGI("Device suspended (pwr_state:%d)\n", tcm->pwr_state);
-
-	return 0;
-}
-
 #if defined(ENABLE_DISP_NOTIFIER)
-/*
- * syna_dev_early_suspend()
- *
- * If having early suspend support, enter the sleep mode for
- * non-lpwg cases.
+#if defined(USE_FB)
+/**
+ * @brief  Receive the early suspend event from the display.
  *
  * @param
- *    [ in] dev: an instance of device
+ *    [ in] dev: pointer to device
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_dev_early_suspend(struct device *dev)
 {
@@ -2995,30 +3333,23 @@ static int syna_dev_early_suspend(struct device *dev)
 
 	return 0;
 }
-/*
- * syna_dev_fb_notifier_cb()
- *
- * Listen the display screen on/off event and perform the corresponding
- * actions.
+/**
+ * @brief  Catch the screen on/off event from display.
  *
  * @param
- *    [ in] nb:     instance of notifier_block
+ *    [ in] nb:     pointer to notifier_block
  *    [ in] action: fb action
- *    [ in] data:   fb event data
+ *    [ in] data:   private data for callback
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-static int syna_dev_fb_notifier_cb(struct notifier_block *nb,
-		unsigned long action, void *data)
+static int syna_dev_disp_notifier_cb(struct notifier_block *nb,
+	unsigned long action, void *data)
 {
 	int retval;
 	int transition;
-#if defined(USE_DRM_PANEL_NOTIFIER)
-	struct drm_panel_notifier *evdata = data;
-#else
 	struct fb_event *evdata = data;
-#endif
 	struct syna_tcm *tcm = container_of(nb, struct syna_tcm, fb_notifier);
 	int time = 0;
 	int disp_blank_powerdown;
@@ -3031,17 +3362,10 @@ static int syna_dev_fb_notifier_cb(struct notifier_block *nb,
 
 	retval = 0;
 
-#if defined(USE_DRM_PANEL_NOTIFIER)
-	disp_blank_powerdown = DRM_PANEL_BLANK_POWERDOWN;
-	disp_early_event_blank = DRM_PANEL_EARLY_EVENT_BLANK;
-	disp_blank = DRM_PANEL_EVENT_BLANK;
-	disp_blank_unblank = DRM_PANEL_BLANK_UNBLANK;
-#else
 	disp_blank_powerdown = FB_BLANK_POWERDOWN;
 	disp_early_event_blank = FB_EARLY_EVENT_BLANK;
 	disp_blank = FB_EVENT_BLANK;
 	disp_blank_unblank = FB_BLANK_UNBLANK;
-#endif
 
 	transition = *(int *)evdata->data;
 
@@ -3064,17 +3388,17 @@ static int syna_dev_fb_notifier_cb(struct notifier_block *nb,
 		retval = syna_dev_early_suspend(&tcm->pdev->dev);
 	} else if (action == disp_blank) {
 		if (transition == disp_blank_powerdown) {
-			retval = syna_dev_suspend(&tcm->pdev->dev);
+			retval = tcm->dev_suspend(&tcm->pdev->dev);
 			tcm->fb_ready = 0;
 		} else if (transition == disp_blank_unblank) {
 #ifndef RESUME_EARLY_UNBLANK
-			retval = syna_dev_resume(&tcm->pdev->dev);
+			retval = tcm->dev_resume(&tcm->pdev->dev);
 			tcm->fb_ready++;
 #endif
 		} else if (action == disp_early_event_blank &&
 			transition == disp_blank_unblank) {
 #ifdef RESUME_EARLY_UNBLANK
-			retval = syna_dev_resume(&tcm->pdev->dev);
+			retval = tcm->dev_resume(&tcm->pdev->dev);
 			tcm->fb_ready++;
 #endif
 		}
@@ -3083,18 +3407,273 @@ static int syna_dev_fb_notifier_cb(struct notifier_block *nb,
 	return 0;
 }
 #endif
-
-/*
- * syna_dev_disconnect()
+#endif
+/**
+ * @brief  Resume from the suspend state.
  *
- * This function will power off the connected device.
- * Then, all the allocated resource will be released.
+ * @param
+ *    [ in] dev: pointer to device
+ *
+ * @return
+ *    0 or positive value in case of success, a negative value otherwise.
+ */
+static int syna_dev_resume(struct device *dev)
+{
+	int retval = 0;
+	struct syna_tcm *tcm = dev_get_drvdata(dev);
+	struct tcm_dev *tcm_dev;
+	struct syna_hw_interface *hw_if;
+	struct syna_hw_attn_data *attn;
+	unsigned int resp_handling;
+#ifdef RESET_ON_RESUME
+	int retry = 0;
+	unsigned char status;
+#endif
+
+	if (!tcm)
+		return -EINVAL;
+
+	tcm_dev = tcm->tcm_dev;
+	hw_if = tcm->hw_if;
+	attn = &hw_if->bdata_attn;
+	if (attn && (attn->irq_id) && (attn->irq_enabled))
+		resp_handling = CMD_RESPONSE_IN_ATTN;
+	else
+		resp_handling = tcm_dev->msg_data.command_polling_time;
+
+	/* exit directly if device isn't in suspend state */
+	if (tcm->pwr_state == PWR_ON)
+		return 0;
+
+	LOGI("Prepare to resume device\n");
+
+	syna_pinctrl_configure(tcm, true);
+
+#if !IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
+	/* clear all input events  */
+	syna_dev_free_input_events(tcm);
+#endif
+
+#ifdef RESET_ON_RESUME
+	LOGI("Do reset on resume\n");
+	syna_pal_sleep_ms(RESET_ON_RESUME_DELAY_MS);
+
+	for (retry = 0; retry < 3; retry++) {
+		if (hw_if->ops_hw_reset) {
+			hw_if->ops_hw_reset(hw_if);
+
+			/* manually read in the event after reset if attn is disabled */
+			if (!attn->irq_enabled) {
+				retval = syna_tcm_get_event_data(tcm->tcm_dev,
+					&status, NULL);
+				if ((retval < 0) || (status != REPORT_IDENTIFY)) {
+					LOGE("Fail to complete hw reset, ret = %d, status = %d\n",
+						retval, status);
+					continue;
+				}
+			}
+			break;
+		} else {
+			retval = syna_tcm_reset(tcm->tcm_dev, resp_handling);
+			if (retval < 0) {
+				LOGE("Fail to do sw reset, ret = %d\n", retval);
+				continue;
+			}
+			break;
+		}
+	}
+	if (retval < 0 || (hw_if->ops_hw_reset && (status != REPORT_IDENTIFY))) {
+		goto exit;
+	}
+#else
+#ifdef LOW_POWER_MODE
+	/* enter normal power mode */
+	retval = syna_dev_enter_normal_sensing(tcm);
+	if (retval < 0) {
+		LOGE("Fail to enter normal power mode\n");
+		goto exit;
+	}
+#endif
+#ifndef GOOG_INT2_FEATURE
+	retval = syna_tcm_rezero(tcm->tcm_dev, resp_handling);
+	if (retval < 0) {
+		LOGE("Fail to rezero\n");
+		goto exit;
+	}
+#endif
+#endif
+	tcm->pwr_state = PWR_ON;
+
+	LOGI("Prepare to set up application firmware\n");
+
+	/* set up app firmware */
+	retval = syna_dev_set_up_app_fw(tcm);
+	if (retval < 0) {
+		LOGE("Fail to set up app firmware on resume\n");
+		goto exit;
+	}
+
+	syna_dev_restore_feature_setting(tcm, resp_handling);
+
+	syna_check_normal_scan_mode(tcm, CMD_RESPONSE_IN_POLLING);
+
+	retval = 0;
+
+	LOGI("Device resumed (pwr_state:%d)\n", tcm->pwr_state);
+
+exit:
+	/* enable irq */
+	if ((!attn->irq_enabled) && (hw_if->hw_platform.ops_enable_attn))
+		hw_if->hw_platform.ops_enable_attn(&hw_if->hw_platform, true);
+
+	tcm->slept_in_early_suspend = false;
+
+	return retval;
+}
+/**
+ * @brief  Put device into suspend state, either the lower power gesture
+ *         mode or sleep mode.
+ * @param
+ *    [ in] dev: pointer to device
+ *
+ * @return
+ *    0 or positive value in case of success, a negative value otherwise.
+ */
+static int syna_dev_suspend(struct device *dev)
+{
+#if defined(LOW_POWER_MODE) && defined(GOOG_INT2_FEATURE)
+	int retval, retry;
+	unsigned char status;
+#endif
+	struct syna_tcm *tcm = dev_get_drvdata(dev);
+	struct syna_hw_interface *hw_if = tcm->hw_if;
+
+	/* exit directly if device is already in suspend state */
+	if (tcm->pwr_state != PWR_ON)
+		return 0;
+
+	LOGI("Prepare to suspend device\n");
+
+#if !IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
+	/* clear all input events  */
+	syna_dev_free_input_events(tcm);
+#endif
+	/* once lpwg is enabled, irq should be alive.
+	 * otherwise, disable irq in suspend.
+	 */
+	if ((!tcm->lpwg_enabled) && (hw_if->hw_platform.ops_enable_attn))
+		hw_if->hw_platform.ops_enable_attn(&hw_if->hw_platform, false);
+
+#ifdef LOW_POWER_MODE
+	tcm->pwr_state = LOW_PWR;
+#ifdef GOOG_INT2_FEATURE
+	LOGI("Do reset on suspend\n");
+
+	for (retry = 0; retry < 3; retry++) {
+		if (hw_if->ops_hw_reset) {
+			hw_if->ops_hw_reset(hw_if);
+			retval = syna_tcm_get_event_data(tcm->tcm_dev,
+				&status, NULL);
+			if ((retval < 0) || (status != REPORT_IDENTIFY)) {
+				LOGE("Fail to complete hw reset, ret = %d, status = %d\n",
+				     retval, status);
+				continue;
+			}
+			break;
+		} else {
+			retval = syna_tcm_reset(tcm->tcm_dev, CMD_RESPONSE_IN_POLLING);
+			if (retval < 0) {
+				LOGE("Fail to do sw reset, ret = %d\n", retval);
+				continue;
+			}
+			break;
+		}
+	}
+#endif
+	/* enter power saved mode if power is not off */
+	if (syna_dev_enter_lowpwr_sensing(tcm) < 0) {
+		LOGE("Fail to enter power suspended mode\n");
+		return -EIO;
+	}
+#else
+	tcm->pwr_state = PWR_OFF;
+#endif
+
+	/* Enable REPORT_TOUCH for gesture mode. */
+	if (tcm->gti && goog_check_late_sense_on_enabled(tcm->gti)) {
+		retval = syna_tcm_enable_report(tcm->tcm_dev, REPORT_TOUCH, true,
+				CMD_RESPONSE_IN_POLLING);
+		if (retval < 0) {
+			LOGE("Fail to enable report %d\n", REPORT_TOUCH);
+		}
+	}
+
+	syna_tcm_clear_command_processing(tcm->tcm_dev);
+
+	syna_pinctrl_configure(tcm, false);
+
+	LOGI("Device suspended (pwr_state:%d)\n", tcm->pwr_state);
+
+	return 0;
+}
+/**
+ * @brief  Output the device information.
  *
  * @param
  *    [ in] tcm: the driver handle
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    void.
+ */
+static void syna_dev_show_info(struct syna_tcm *tcm)
+{
+	struct syna_hw_interface *hw_if = tcm->hw_if;
+	bool has_custom_tp_config = false;
+	bool startup_reflash_enabled = false;
+	bool rst_on_resume_enabled = false;
+	bool background_helper_enabled  = false;
+
+	if (!tcm->is_connected)
+		return;
+
+	LOGI("Config: max. write size(%d), max. read size(%d)\n",
+		tcm->tcm_dev->max_wr_size, tcm->tcm_dev->max_rd_size);
+
+#ifdef USE_CUSTOM_TOUCH_REPORT_CONFIG
+	has_custom_tp_config = true;
+#endif
+#ifdef STARTUP_REFLASH
+	startup_reflash_enabled = true;
+#endif
+#ifdef RESET_ON_RESUME
+	rst_on_resume_enabled = true;
+#endif
+#ifdef ENABLE_HELPER
+	background_helper_enabled = true;
+#endif
+
+#ifdef TDDI_PRODUCTS
+	LOGI("Config: touch/display devices, multichip(%s)\n",
+		(tcm->is_tddi_multichip) ? "yes" : "no");
+#endif
+	LOGI("Config: startup reflash(%s), hw reset(%s), rst on resume(%s)\n",
+		(startup_reflash_enabled) ? "yes" : "no",
+		(hw_if->ops_hw_reset) ? "yes" : "no",
+		(rst_on_resume_enabled) ? "yes" : "no");
+	LOGI("Config: lpwg mode(%s), custom tp config(%s) helper work(%s)\n",
+		(tcm->lpwg_enabled) ? "yes" : "no",
+		(has_custom_tp_config) ? "yes" : "no",
+		(background_helper_enabled) ? "yes" : "no");
+}
+
+/**
+ * @brief  Disconnect and power off the device.
+ *
+ * @param
+ *    [ in] tcm: the driver handle
+ *
+ * @return
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_dev_disconnect(struct syna_tcm *tcm)
 {
@@ -3131,11 +3710,10 @@ static int syna_dev_disconnect(struct syna_tcm *tcm)
 	tcm->input_dev_params.max_objects = 0;
 
 exit:
-#ifdef POWER_SEQUENCE_ON_CONNECT
 	/* power off */
 	if (hw_if->ops_power_on)
 		hw_if->ops_power_on(hw_if, false);
-#endif
+
 	tcm->pwr_state = PWR_OFF;
 	tcm->is_connected = false;
 
@@ -3144,17 +3722,14 @@ exit:
 	return 0;
 }
 
-/*
- * syna_dev_connect()
- *
- * This function will power on and identify the connected device.
- * At the end of function, the ISR will be registered as well.
+/**
+ * @brief  Connect and power on the device.
  *
  * @param
  *    [ in] tcm: the driver handle
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_dev_connect(struct syna_tcm *tcm)
 {
@@ -3171,53 +3746,44 @@ static int syna_dev_connect(struct syna_tcm *tcm)
 		LOGI("Device %s already connected\n", PLATFORM_DRIVER_NAME);
 		return 0;
 	}
-#ifdef POWER_SEQUENCE_ON_CONNECT
+
 	/* power on the connected device */
 	if (hw_if->ops_power_on) {
 		retval = hw_if->ops_power_on(hw_if, true);
 		if (retval < 0)
 			return -ENODEV;
+		if (hw_if->bdata_pwr.power_delay_ms > 0)
+			syna_pal_sleep_ms(hw_if->bdata_pwr.power_delay_ms);
 	}
-#endif
+
 #ifdef RESET_ON_CONNECT
 	/* perform a hardware reset */
 	if (hw_if->ops_hw_reset)
 		hw_if->ops_hw_reset(hw_if);
 #endif
-	/* detect which modes of touch controller is running
-	 *
-	 * this function will handle the startup packet once
-	 * powering on the ASIC
-	 */
-	retval = syna_tcm_detect_device(tcm->tcm_dev, 0, true);
+	/* detect which modes of touch controller is running */
+	retval = syna_tcm_detect_device(tcm->tcm_dev, PROTOCOL_DETECT_VERSION_1, false);
 	if (retval < 0) {
 		LOGE("Fail to detect the device\n");
+		retval = -EPROBE_DEFER;
 		goto err_detect_dev;
 	}
-	/* 'Bare' mode is a special software mode to bypass all
-	 * driver control for the specific user scenario
-	 */
+	/* 'Bare' mode is a special software mode to bypass all control from userspace */
 	if (tcm->pwr_state == BARE_MODE) {
 		LOGI("Device %s config into bare mode\n", PLATFORM_DRIVER_NAME);
 		tcm->is_connected = true;
 		return 0;
 	}
 
-#ifdef FORCE_CONNECTION
-	goto request_irq;
-#endif
-
-	switch (retval) {
-	case MODE_APPLICATION_FIRMWARE:
+	if (tcm_dev->dev_mode == MODE_APPLICATION_FIRMWARE) {
 		retval = syna_dev_set_up_app_fw(tcm);
 		if (retval < 0) {
 			LOGE("Fail to set up application firmware\n");
 
 			/* switch to bootloader mode when failed */
 			LOGI("Switch device to bootloader mode instead\n");
-			syna_tcm_switch_fw_mode(tcm_dev,
-					MODE_BOOTLOADER,
-					FW_MODE_SWITCH_DELAY_MS);
+			syna_tcm_switch_fw_mode(tcm_dev, MODE_BOOTLOADER,
+					tcm_dev->fw_mode_switching_time);
 		} else {
 			/* allocate and register to input device subsystem */
 			retval = syna_dev_set_up_input_device(tcm);
@@ -3225,84 +3791,156 @@ static int syna_dev_connect(struct syna_tcm *tcm)
 				LOGE("Fail to set up input device\n");
 				goto err_setup_input_dev;
 			}
-		}
 
-		break;
-	default:
-		LOGN("Application firmware not running, current mode: %02x\n",
-			retval);
-		break;
+			syna_dev_register_dispatcher(tcm);
+		}
+	} else {
+		LOGN("Application firmware not running, current mode: %02x\n", tcm_dev->dev_mode);
+
+		if (tcm_dev->dev_mode == MODE_BOOTLOADER) {
+			retval = syna_tcm_get_boot_info(tcm_dev, NULL, CMD_RESPONSE_IN_POLLING);
+			if (retval)
+				LOGI("Bootloader status: 0x%x\n", tcm_dev->boot_info.status);
+		}
 	}
 
-#ifdef FORCE_CONNECTION
-request_irq:
+	/* register the handling of report resulting from the unexpected reset */
+	retval = syna_tcm_set_report_dispatcher(tcm_dev,
+			REPORT_IDENTIFY, syna_dev_process_unexpected_reset, (void *)tcm);
+	if (retval < 0)
+		LOGE("Fail to register the handling function of unexpected reset\n");
+
+	/* register the interrupt handler */
+	retval = syna_dev_request_irq(tcm);
+	if (retval < 0) {
+		LOGE("Fail to request the interrupt line\n");
+		goto err_request_irq;
+	}
+
+	/* for the reference,
+	 * create a delayed work to perform fw update during the startup time
+	 */
+#ifdef STARTUP_REFLASH
+	tcm->force_reflash = false;
+	tcm->reflash_count = 0;
+	tcm->reflash_workqueue = create_singlethread_workqueue("syna_reflash");
+	INIT_DELAYED_WORK(&tcm->reflash_work, syna_dev_reflash_startup_work);
+	queue_delayed_work(tcm->reflash_workqueue, &tcm->reflash_work,
+			msecs_to_jiffies(STARTUP_REFLASH_DELAY_TIME_MS));
 #endif
-
-	LOGI("TCM packrat: %d\n", tcm->tcm_dev->packrat_number);
-	LOGI("Config: lpwg mode(%s), custom tp config(%s) helper work(%s)\n",
-		(tcm->lpwg_enabled) ? "yes" : "no",
-		(tcm->has_custom_tp_config) ? "yes" : "no",
-		(tcm->helper_enabled) ? "yes" : "no");
-	LOGI("Config: startup reflash(%s), hw reset(%s), rst on resume(%s)\n",
-		(tcm->startup_reflash_enabled) ? "yes" : "no",
-		(hw_if->ops_hw_reset) ? "yes" : "no",
-		(tcm->rst_on_resume_enabled) ? "yes" : "no");
-	LOGI("Config: max. write size(%d), max. read size(%d), irq ctrl(%s)\n",
-		tcm_dev->max_wr_size, tcm_dev->max_rd_size,
-		(hw_if->ops_enable_irq) ? "yes" : "no");
-
-	LOGI("Device %s connected\n", PLATFORM_DRIVER_NAME);
 
 	tcm->pwr_state = PWR_ON;
 	tcm->is_connected = true;
 
+	syna_dev_show_info(tcm);
+
+	LOGI("Device %s connected\n", PLATFORM_DRIVER_NAME);
+
 	return 0;
 
+err_request_irq:
+	/* unregister input device */
+	syna_dev_release_input_device(tcm);
 err_setup_input_dev:
 err_detect_dev:
-#ifdef POWER_SEQUENCE_ON_CONNECT
-	if (hw_if->ops_power_on)
-		hw_if->ops_power_on(hw_if, false);
-#endif
 	return retval;
 }
 
-#ifdef USE_DRM_PANEL_NOTIFIER
-static struct drm_panel *syna_dev_get_panel(struct device_node *np)
+#ifdef USE_DRM_BRIDGE
+/**
+ * @brief  To register a panel bridge based on DAM Bridge framework
+ */
+struct drm_connector *syna_dev_get_connector(struct drm_bridge *bridge)
 {
-	int i;
-	int count;
-	struct device_node *node;
-	struct drm_panel *panel;
+	struct drm_connector *connector;
+	struct drm_connector_list_iter conn_iter;
 
-	count = of_count_phandle_with_args(np, "panel", NULL);
-	if (count <= 0)
-		return NULL;
-
-	for (i = 0; i < count; i++) {
-		node = of_parse_phandle(np, "panel", i);
-		panel = of_drm_find_panel(node);
-		of_node_put(node);
-		if (!IS_ERR(panel)) {
-			LOGI("Find available panel\n");
-			return panel;
-		}
+	drm_connector_list_iter_begin(bridge->dev, &conn_iter);
+	drm_for_each_connector_iter(connector, &conn_iter) {
+		if (connector->encoder == bridge->encoder)
+			break;
 	}
+	drm_connector_list_iter_end(&conn_iter);
+	return connector;
+}
 
-	return NULL;
+static void syna_dev_panel_enable(struct drm_bridge *bridge)
+{
+	struct syna_tcm *tcm =
+			container_of(bridge, struct syna_tcm, panel_bridge);
+
+	LOGD("Panel bridge enabled (pwr_state:%d)\n", tcm->pwr_state);
+}
+
+static void syna_dev_panel_disable(struct drm_bridge *bridge)
+{
+	struct syna_tcm *tcm =
+			container_of(bridge, struct syna_tcm, panel_bridge);
+
+	LOGD("Panel bridge disabled (pwr_state:%d)\n", tcm->pwr_state);
+}
+
+static void syna_dev_panel_mode_set(struct drm_bridge *bridge,
+	const struct drm_display_mode *mode,
+	const struct drm_display_mode *adjusted_mode)
+{
+	struct syna_tcm *tcm =
+			container_of(bridge, struct syna_tcm, panel_bridge);
+
+	if (!tcm->connector || !tcm->connector->state) {
+		LOGI("Get bridge connector.\n");
+		tcm->connector = syna_dev_get_connector(bridge);
+	}
+	LOGD("Panel bridge mode set (pwr_state:%d)\n", tcm->pwr_state);
+}
+
+static const struct drm_bridge_funcs panel_bridge_ops = {
+	.enable = syna_dev_panel_enable,
+	.disable = syna_dev_panel_disable,
+	.mode_set = syna_dev_panel_mode_set,
+};
+
+static int syna_dev_register_panel(struct syna_tcm *tcm)
+{
+#ifdef CONFIG_OF
+	tcm->panel_bridge.of_node = tcm->pdev->dev.parent->of_node;
+#endif
+	tcm->panel_bridge.funcs = &panel_bridge_ops;
+	drm_bridge_add(&tcm->panel_bridge);
+
+	return 0;
+}
+
+static void syna_dev_unregister_panel(struct drm_bridge *bridge)
+{
+	struct drm_bridge *node;
+
+	drm_bridge_remove(bridge);
+
+	if (!bridge->dev) /* not attached */
+		return;
+
+	drm_modeset_lock(&bridge->dev->mode_config.connection_mutex, NULL);
+	list_for_each_entry(node, &bridge->encoder->bridge_chain, chain_node)
+		if (node == bridge) {
+			if (bridge->funcs->detach)
+				bridge->funcs->detach(bridge);
+			list_del(&bridge->chain_node);
+			break;
+		}
+	drm_modeset_unlock(&bridge->dev->mode_config.connection_mutex);
+	bridge->dev = NULL;
 }
 #endif
 
-/*
- * syna_dev_probe()
- *
- * Install the TouchComm device driver
+/**
+ * @brief  Probe of TouchComm device driver.
  *
  * @param
- *    [ in] pdev: an instance of platform device
+ *    [ in] pdev: pointer to platform device
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
 static int syna_dev_probe(struct platform_device *pdev)
 {
@@ -3310,9 +3948,7 @@ static int syna_dev_probe(struct platform_device *pdev)
 	struct syna_tcm *tcm = NULL;
 	struct tcm_dev *tcm_dev = NULL;
 	struct syna_hw_interface *hw_if = NULL;
-#if defined(USE_DRM_PANEL_NOTIFIER)
-	struct device *dev;
-#endif
+	struct tcm_timings timings;
 
 	hw_if = pdev->dev.platform_data;
 	if (!hw_if) {
@@ -3322,7 +3958,7 @@ static int syna_dev_probe(struct platform_device *pdev)
 
 	tcm = syna_pal_mem_alloc(1, sizeof(struct syna_tcm));
 	if (!tcm) {
-		LOGE("Fail to create the instance of syna_tcm\n");
+		LOGE("Fail to create the handle of syna_tcm\n");
 		return -ENOMEM;
 	}
 
@@ -3333,19 +3969,38 @@ static int syna_dev_probe(struct platform_device *pdev)
 		syna_pinctrl_configure(tcm, true);
 	}
 
-	/* allocate the TouchCom device handle
-	 * recommend to set polling mode here because isr is not registered yet
-	 */
-	retval = syna_tcm_allocate_device(&tcm_dev, hw_if, RESP_IN_POLLING);
+	/* allocate the TouchCom device handle */
+	retval = syna_tcm_allocate_device(&tcm_dev,
+		&hw_if->hw_platform, (void *)tcm);
 	if ((retval < 0) || (!tcm_dev)) {
 		LOGE("Fail to allocate TouchCom device handle\n");
-		goto err_allocate_cdev;
+		goto err_allocate_tcm;
 	}
 
 	tcm->tcm_dev = tcm_dev;
 	tcm->pdev = pdev;
 	tcm->hw_if = hw_if;
 
+	/* configure the timings for processing */
+	timings.cmd_timeout_ms = hw_if->product.default_cmd_timeout_ms;
+	timings.cmd_polling_ms = hw_if->product.default_cmd_polling_ms;
+	timings.cmd_turnaround_us[0] = hw_if->product.default_cmd_turnaround_us[0];
+	timings.cmd_turnaround_us[1] = hw_if->product.default_cmd_turnaround_us[1];
+	timings.cmd_retry_us[0] = hw_if->product.default_cmd_retry_us[0];
+	timings.cmd_retry_us[1] = hw_if->product.default_cmd_retry_us[1];
+	timings.flash_ops_delay_us[0] = hw_if->product.default_flash_delay_us[0];
+	timings.flash_ops_delay_us[1] = hw_if->product.default_flash_delay_us[1];
+	timings.flash_ops_delay_us[2] = hw_if->product.default_flash_delay_us[2];
+	timings.fw_switch_delay_ms = hw_if->product.default_fw_switch_delay_ms;
+	timings.reset_delay_ms = hw_if->bdata_rst.reset_delay_ms;
+
+	retval = syna_tcm_config_timings(tcm_dev, &timings, 0, TIMINGS_ALL);
+	if (retval < 0) {
+		LOGE("Fail to config the timings\n");
+		goto err_setup_timings;
+	}
+
+	/* basic initialization */
 	syna_tcm_buf_init(&tcm->event_data);
 
 #if !IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
@@ -3353,30 +4008,17 @@ static int syna_dev_probe(struct platform_device *pdev)
 #endif
 	syna_pal_mutex_alloc(&tcm->raw_data_mutex);
 
-#ifdef USE_CUSTOM_TOUCH_REPORT_CONFIG
-	tcm->has_custom_tp_config = true;
-#else
-	tcm->has_custom_tp_config = false;
-#endif
-#ifdef STARTUP_REFLASH
-	tcm->startup_reflash_enabled = true;
-#else
-	tcm->startup_reflash_enabled = false;
-#endif
-#ifdef RESET_ON_RESUME
-	tcm->rst_on_resume_enabled = true;
-#else
-	tcm->rst_on_resume_enabled = false;
-#endif
-#ifdef ENABLE_HELPER
-	tcm->helper_enabled = true;
-#else
-	tcm->helper_enabled = false;
-#endif
 #ifdef ENABLE_WAKEUP_GESTURE
 	tcm->lpwg_enabled = false;
 #else
 	tcm->lpwg_enabled = false;
+#endif
+#ifdef TDDI_PRODUCTS
+#ifdef IS_TDDI_MULTICHIP
+	tcm->is_tddi_multichip = true;
+#else
+	tcm->is_tddi_multichip = false;
+#endif
 #endif
 	tcm->irq_wake = false;
 
@@ -3397,39 +4039,30 @@ static int syna_dev_probe(struct platform_device *pdev)
 
 	tcm->event_wq = alloc_workqueue("syna_wq", WQ_UNBOUND |
 					WQ_HIGHPRI | WQ_CPU_INTENSIVE, 1);
-
 	if (!tcm->event_wq) {
 		LOGE("Cannot create work thread\n");
 		retval = -ENOMEM;
 		goto err_alloc_workqueue;
 	}
 
-#if defined(TCM_CONNECT_IN_PROBE)
 	/* connect to target device */
-	retval = tcm->dev_connect(tcm);
+	retval = syna_dev_connect(tcm);
 	if (retval < 0) {
 #ifdef FORCE_CONNECTION
-		LOGW("Device detection is failed somehow\n");
-		LOGW("Install driver anyway due to force connect\n");
+		LOGW("Failed on device detection\n");
+		LOGN("Install driver anyway due to the force connection\n");
 #else
 		LOGE("Fail to connect to the device\n");
-		retval = -EPROBE_DEFER;
 #if !IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
 		syna_pal_mutex_free(&tcm->tp_event_mutex);
 #endif
 		goto err_connect;
 #endif
 	}
-#endif
-
 	tcm->raw_data_report_code = 0;
 	init_completion(&tcm->raw_data_completion);
 	complete_all(&tcm->raw_data_completion);
 
-	tcm->enable_fw_grip = 0x02;
-	tcm->enable_fw_palm = 0x02;
-
-#ifdef HAS_SYSFS_INTERFACE
 	/* create the device file and register to char device classes */
 	retval = syna_cdev_create(tcm, pdev);
 	if (retval < 0) {
@@ -3439,29 +4072,33 @@ static int syna_dev_probe(struct platform_device *pdev)
 #endif
 		goto err_create_cdev;
 	}
+
+#ifdef HAS_SYSFS_INTERFACE
+	retval = syna_sysfs_create_dir(tcm, pdev);
+	if (retval < 0) {
+		LOGE("Fail to create sysfs dir\n");
+		retval = -ENOTDIR;
+		goto err_create_dir;
+	}
 #endif
 
+	tcm->enable_fw_grip = 0x02;
+	tcm->enable_fw_palm = 0x02;
+	syna_dev_restore_feature_setting(tcm, CMD_RESPONSE_IN_ATTN);
 #if defined(ENABLE_DISP_NOTIFIER)
-#if defined(USE_DRM_PANEL_NOTIFIER)
-	dev = syna_request_managed_device();
-	active_panel = syna_dev_get_panel(dev->of_node);
-	if (active_panel) {
-		tcm->fb_notifier.notifier_call = syna_dev_fb_notifier_cb;
-		retval = drm_panel_notifier_register(active_panel,
-				&tcm->fb_notifier);
-		if (retval < 0) {
-			LOGE("Fail to register FB notifier client\n");
-			goto err_create_cdev;
-		}
-	} else {
-		LOGE("No available drm panel\n");
+#if defined(USE_DRM_BRIDGE)
+	retval = syna_dev_register_panel(tcm);
+	if (retval < 0) {
+		LOGE("Fail to register panel bridge\n");
+		goto err_disp_notifier;
 	}
-#else
-	tcm->fb_notifier.notifier_call = syna_dev_fb_notifier_cb;
+#endif
+#if defined(USE_FB)
+	tcm->fb_notifier.notifier_call = syna_dev_disp_notifier_cb;
 	retval = fb_register_client(&tcm->fb_notifier);
 	if (retval < 0) {
 		LOGE("Fail to register FB notifier client\n");
-		goto err_create_cdev;
+		goto err_disp_notifier;
 	}
 #endif
 #endif
@@ -3469,29 +4106,6 @@ static int syna_dev_probe(struct platform_device *pdev)
 #if defined(ENABLE_HELPER)
 	ATOMIC_SET(tcm->helper.task, HELP_NONE);
 	INIT_WORK(&tcm->helper.work, syna_dev_helper_work);
-	/* set up custom touch data parsing method */
-	syna_tcm_set_reset_occurrence_callback(tcm_dev,
-			syna_dev_reset_detected_cb,
-			(void *)tcm);
-#endif
-
-	retval = syna_dev_request_irq(tcm);
-	if (retval < 0) {
-		LOGE("Fail to request the interrupt line\n");
-		goto err_request_irq;
-	}
-
-	/* for the reference,
-	 * create a delayed work to perform fw update during the startup time
-	 */
-#ifdef STARTUP_REFLASH
-	tcm->force_reflash = false;
-	tcm->reflash_count = 0;
-	tcm->reflash_workqueue =
-			create_singlethread_workqueue("syna_reflash");
-	INIT_DELAYED_WORK(&tcm->reflash_work, syna_dev_reflash_startup_work);
-	queue_delayed_work(tcm->reflash_workqueue, &tcm->reflash_work,
-			msecs_to_jiffies(STARTUP_REFLASH_DELAY_TIME_MS));
 #endif
 
 	LOGI("%s: TouchComm driver, %s ver.: %d.%s, installed\n",
@@ -3502,17 +4116,20 @@ static int syna_dev_probe(struct platform_device *pdev)
 
 	return 0;
 
-err_request_irq:
-#ifdef HAS_SYSFS_INTERFACE
-err_create_cdev:
-	syna_tcm_remove_device(tcm->tcm_dev);
+#if defined(ENABLE_DISP_NOTIFIER)
+#if defined(USE_DRM_BRIDGE) || defined(USE_FB)
+err_disp_notifier:
 #endif
-
-#if defined(TCM_CONNECT_IN_PROBE)
-	tcm->dev_disconnect(tcm);
+#endif
+#ifdef HAS_SYSFS_INTERFACE
+err_create_dir:
+	syna_cdev_remove(tcm);
+#endif
+err_create_cdev:
+	syna_dev_disconnect(tcm);
+#ifndef FORCE_CONNECTION
 err_connect:
 #endif
-
 	if (tcm->event_wq)
 		destroy_workqueue(tcm->event_wq);
 err_alloc_workqueue:
@@ -3520,31 +4137,32 @@ err_alloc_workqueue:
 #if !IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
 	syna_pal_mutex_free(&tcm->tp_event_mutex);
 #endif
-err_allocate_cdev:
+err_setup_timings:
+	syna_tcm_remove_device(tcm_dev);
+err_allocate_tcm:
 	syna_pal_mem_free((void *)tcm);
 
 	return retval;
 }
 
-/*
- * syna_dev_remove()
- *
- * Release all allocated resources and remove the TouchCom device handle
+/**
+ * @brief  Release all resources allocated previously.
  *
  * @param
- *    [ in] pdev: an instance of platform device
+ *    [ in] pdev: pointer to platform device
  *
  * @return
- *    on success, 0; otherwise, negative value on error.
+ *    0 or positive value in case of success, a negative value otherwise.
  */
-static int syna_dev_remove(struct platform_device *pdev)
+static void syna_dev_remove(struct platform_device *pdev)
 {
 	struct syna_tcm *tcm = platform_get_drvdata(pdev);
 
 	if (!tcm) {
 		LOGW("Invalid handle to remove\n");
-		return 0;
+		return;
 	}
+
 #if defined(ENABLE_HELPER)
 	cancel_work_sync(&tcm->helper.work);
 #endif
@@ -3560,22 +4178,21 @@ static int syna_dev_remove(struct platform_device *pdev)
 #endif
 
 #if defined(ENABLE_DISP_NOTIFIER)
-#if defined(USE_DRM_PANEL_NOTIFIER)
-	if (active_panel)
-		drm_panel_notifier_unregister(active_panel,
-				&tcm->fb_notifier);
+#if defined(USE_DRM_BRIDGE)
+	syna_dev_unregister_panel(&tcm->panel_bridge);
 #else
 	fb_unregister_client(&tcm->fb_notifier);
 #endif
 #endif
 
 #ifdef HAS_SYSFS_INTERFACE
+	syna_sysfs_remove_dir(tcm);
+#endif
 	/* remove the cdev and sysfs nodes */
 	syna_cdev_remove(tcm);
-#endif
 
 	/* check the connection status, and do disconnection */
-	if (tcm->dev_disconnect(tcm) < 0)
+	if (syna_dev_disconnect(tcm) < 0)
 		LOGE("Fail to do device disconnection\n");
 
 #if IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
@@ -3587,7 +4204,7 @@ static int syna_dev_remove(struct platform_device *pdev)
 		syna_pal_mem_free(tcm->userspace_app_info);
 
 	if (tcm->raw_data_buffer) {
-		kfree(tcm->raw_data_buffer);
+		syna_pal_mem_free(tcm->raw_data_buffer);
 		tcm->raw_data_buffer = NULL;
 	}
 
@@ -3602,13 +4219,9 @@ static int syna_dev_remove(struct platform_device *pdev)
 
 	/* release the device context */
 	syna_pal_mem_free((void *)tcm);
-
-	return 0;
 }
 
-/*
- * Declare a TouchComm platform device
- */
+/** Definitions of TouchComm platform device */
 #if IS_ENABLED(CONFIG_PM) || IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
 static const struct dev_pm_ops syna_dev_pm_ops = {
 #if !defined(ENABLE_DISP_NOTIFIER) || IS_ENABLED(CONFIG_GOOG_TOUCH_INTERFACE)
@@ -3631,19 +4244,11 @@ static struct platform_driver syna_dev_driver = {
 };
 
 
+
 /*
- * syna_dev_module_init()
- *
- * The entry function of the reference driver, which initialize the
- * lower-level bus and register a platform driver.
- *
- * @param
- *    void.
- *
- * @return
- *    0 if the driver registered and bound to a device,
- *    else returns a negative error code and with the driver not registered.
+ * Entry of the TouchComm device driver.
  */
+
 static int __init syna_dev_module_init(void)
 {
 	int retval;
@@ -3655,18 +4260,6 @@ static int __init syna_dev_module_init(void)
 	return platform_driver_register(&syna_dev_driver);
 }
 
-/*
- * syna_dev_module_exit()
- *
- * Function is called when un-installing the driver.
- * Remove the registered platform driver and the associated bus driver.
- *
- * @param
- *    void.
- *
- * @return
- *    none.
- */
 static void __exit syna_dev_module_exit(void)
 {
 	platform_driver_unregister(&syna_dev_driver);
@@ -3678,6 +4271,6 @@ module_init(syna_dev_module_init);
 module_exit(syna_dev_module_exit);
 
 MODULE_AUTHOR("Synaptics, Inc.");
-MODULE_DESCRIPTION("Synaptics TCM Touch Driver");
+MODULE_DESCRIPTION("Synaptics TouchComm Touch Driver");
 MODULE_LICENSE("GPL v2");
 

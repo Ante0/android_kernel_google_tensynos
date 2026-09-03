@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2022-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2022-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -22,8 +22,6 @@
 /**
  * DOC: Base kernel page migration implementation.
  */
-#include <linux/migrate.h>
-
 #include <mali_kbase.h>
 #include <mali_kbase_mem.h>
 #include <mali_kbase_mem_migrate.h>
@@ -42,8 +40,50 @@ module_param(kbase_page_migration_enabled, int, 0444);
 MODULE_PARM_DESC(kbase_page_migration_enabled,
 		 "Explicitly enable or disable page migration with 1 or 0 respectively.");
 
+#if MALI_UNIT_TEST
+static void (*page_migration_test_hook)
+	(enum kbase_page_migration_test_hook_point hook_point, struct page *old_page);
+
+void kbase_page_migration_set_test_hook(void (*hook)
+	(enum kbase_page_migration_test_hook_point hook_point, struct page *old_page))
+{
+	WRITE_ONCE(page_migration_test_hook, hook);
+}
+
+KBASE_EXPORT_TEST_API(kbase_page_migration_set_test_hook);
+
+void kbase_page_migration_test_hook(enum kbase_page_migration_test_hook_point hook_point,
+				    struct page *old_page)
+{
+	void (*hook)(enum kbase_page_migration_test_hook_point hook_point,
+		     struct page *old_page) = READ_ONCE(page_migration_test_hook);
+
+	if (hook)
+		hook(hook_point, old_page);
+}
+
+KBASE_EXPORT_TEST_API(kbase_page_migration_test_hook);
+#endif
+
+void kbase_clear_page_movable(struct page *p)
+{
+#if (KERNEL_VERSION(6, 17, 0) > LINUX_VERSION_CODE)
+	__ClearPageMovable(p);
+#endif
+}
+KBASE_EXPORT_TEST_API(kbase_clear_page_movable);
+
 #if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
-static const struct movable_operations movable_ops;
+void kbase_set_page_movable(struct page *p, const struct movable_operations *ops)
+{
+#if (KERNEL_VERSION(6, 17, 0) <= LINUX_VERSION_CODE)
+	__SetPageOffline(p);
+	SetPageMovableOps(p);
+	CSTD_UNUSED(ops);
+#else
+	__SetPageMovable(p, ops);
+#endif
+}
 #endif
 
 bool kbase_is_page_migration_enabled(void)
@@ -77,12 +117,13 @@ bool kbase_alloc_page_metadata(struct kbase_device *kbdev, struct page *p, dma_a
 	page_md->status = PAGE_STATUS_SET(page_md->status, (u8)ALLOCATE_IN_PROGRESS);
 	page_md->vmap_count = 0;
 	page_md->group_id = group_id;
+	kbase_clear_page_metadata_kctx_id(page_md);
 	spin_lock_init(&page_md->migrate_lock);
 	sema_init(&page_md->cpu_map_lock, 1);
 
 	lock_page(p);
 #if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
-	__SetPageMovable(p, &movable_ops);
+	kbase_set_page_movable(p, &movable_ops);
 	page_md->status = PAGE_MOVABLE_SET(page_md->status);
 #else
 	/* In some corner cases, the driver may attempt to allocate memory pages
@@ -157,7 +198,7 @@ static void kbase_free_pages_worker(struct work_struct *work)
 		lock_page(p);
 		page_md = kbase_page_private(p);
 		if (page_md && IS_PAGE_MOVABLE(page_md->status)) {
-			__ClearPageMovable(p);
+			kbase_clear_page_movable(p);
 			page_md->status = PAGE_MOVABLE_CLEAR(page_md->status);
 		}
 		kbase_free_page_metadata(kbdev, p, &group_id);
@@ -208,6 +249,11 @@ static int kbasep_migrate_page_pt_mapped(struct page *old_page, struct page *new
 
 	spin_lock(&page_md->migrate_lock);
 
+	if (PAGE_STATUS_GET(page_md->status) == FREE_PT_ISOLATED_IN_PROGRESS) {
+		ret = -EAGAIN;
+		goto early_exit;
+	}
+
 	if (WARN_ONCE(PAGE_STATUS_GET(page_md->status) != PT_MAPPED,
 		      "Page metadata status %d doesn't match expected value %d",
 		      PAGE_STATUS_GET(page_md->status), PT_MAPPED)) {
@@ -219,6 +265,8 @@ static int kbasep_migrate_page_pt_mapped(struct page *old_page, struct page *new
 	old_dma_addr = page_md->dma_addr;
 
 	spin_unlock(&page_md->migrate_lock);
+	kbase_page_migration_test_hook(KBASE_PM_TEST_HOOK_PT_MAPPED_AFTER_MD,
+				       old_page);
 
 	/* Defer the migration action if deferral condition exists */
 	if (kbase_mem_is_pmode_deferral_required(kbdev))
@@ -235,12 +283,12 @@ static int kbasep_migrate_page_pt_mapped(struct page *old_page, struct page *new
 
 	if (ret == 0) {
 		dma_unmap_page(kbdev->dev, old_dma_addr, PAGE_SIZE, DMA_BIDIRECTIONAL);
-		__ClearPageMovable(old_page);
+		kbase_clear_page_movable(old_page);
 		ClearPagePrivate(old_page);
 		put_page(old_page);
 
 #if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
-		__SetPageMovable(new_page, &movable_ops);
+		kbase_set_page_movable(new_page, &movable_ops);
 		spin_lock(&page_md->migrate_lock);
 		page_md->status = PAGE_MOVABLE_SET(page_md->status);
 		spin_unlock(&page_md->migrate_lock);
@@ -312,22 +360,22 @@ static int kbasep_migrate_page_allocated_mapped(struct page *old_page, struct pa
 	vpfn = page_md->data.mapped.vpfn;
 	filp = page_md->data.mapped.mmut->kctx->filp;
 
-	/* Take a reference on the mali device file because
-	 * we want to unmap the old physical range but only
-	 * after having synchronized with the VM fault() function
-	 */
-	get_file(filp);
-
 	spin_unlock(&page_md->migrate_lock);
+	kbase_page_migration_test_hook(KBASE_PM_TEST_HOOK_ALLOC_MAPPED_AFTER_MD,
+				       old_page);
 
 	/* Defer the migration action if deferral condition exists */
-	if (kbase_mem_is_pmode_deferral_required(kbdev))
-		return -EAGAIN;
+	if (kbase_mem_is_pmode_deferral_required(kbdev)) {
+		ret = -EAGAIN;
+		goto err_exit;
+	}
 
 	/* Create a new dma map for the new page */
 	new_dma_addr = dma_map_page(kbdev->dev, new_page, 0, PAGE_SIZE, DMA_BIDIRECTIONAL);
-	if (dma_mapping_error(kbdev->dev, new_dma_addr))
-		return -ENOMEM;
+	if (dma_mapping_error(kbdev->dev, new_dma_addr)) {
+		ret = -ENOMEM;
+		goto err_exit;
+	}
 
 	/* Synchronize with the VM fault() function and then
 	 * unmap the old physical range. After that, we can
@@ -337,7 +385,7 @@ static int kbasep_migrate_page_allocated_mapped(struct page *old_page, struct pa
 	down(&page_md->cpu_map_lock);
 	unmap_mapping_range(filp->f_inode->i_mapping,
 			    (loff_t)(vpfn / GPU_PAGES_PER_CPU_PAGE) << PAGE_SHIFT, PAGE_SIZE, 1);
-	fput(filp);
+
 	ret = kbase_mmu_migrate_data_page(as_tagged(page_to_phys(old_page)),
 					  as_tagged(page_to_phys(new_page)), old_dma_addr,
 					  new_dma_addr);
@@ -352,12 +400,12 @@ static int kbasep_migrate_page_allocated_mapped(struct page *old_page, struct pa
 
 		/* Clear PG_movable from the old page and release reference. */
 		ClearPagePrivate(old_page);
-		__ClearPageMovable(old_page);
+		kbase_clear_page_movable(old_page);
 		put_page(old_page);
 
 		/* Set PG_movable to the new page. */
 #if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
-		__SetPageMovable(new_page, &movable_ops);
+		kbase_set_page_movable(new_page, &movable_ops);
 		spin_lock(&page_md->migrate_lock);
 		page_md->status = PAGE_MOVABLE_SET(page_md->status);
 		spin_unlock(&page_md->migrate_lock);
@@ -372,6 +420,7 @@ static int kbasep_migrate_page_allocated_mapped(struct page *old_page, struct pa
 	} else
 		dma_unmap_page(kbdev->dev, new_dma_addr, PAGE_SIZE, DMA_BIDIRECTIONAL);
 
+err_exit:
 	return ret;
 
 early_exit:
@@ -386,6 +435,94 @@ int kbase_migrate_page_allocated_mapped(struct page *old_page, struct page *new_
 }
 KBASE_EXPORT_TEST_API(kbase_migrate_page_allocated_mapped);
 #endif
+
+static bool bump_up_active_file_ref_count(struct kbase_context *kctx)
+{
+	bool bumped_up = false;
+
+/* v4.9 - v6.6: f_count exists; v6.7+ use get_file_active(). */
+#if (KERNEL_VERSION(6, 7, 0) > LINUX_VERSION_CODE)
+	if (!atomic_long_inc_not_zero(&kctx->filp->f_count))
+		bumped_up = false;
+	else
+		bumped_up = true;
+#else
+	if (!get_file_active(&kctx->filp))
+		bumped_up = false;
+	else
+		bumped_up = true;
+#endif
+
+	return bumped_up;
+}
+
+/**
+ * block_kctx_destruction - Block kbase context destruction during page migration
+ *
+ * @kbdev: Pointer to kbase device.
+ * @kctx_id: Context id to look up in the device list.
+ * @blocked_kctx: Pointer to the blocked kbase context.
+ *
+ * Search the kbase context using kctx id from the kbase device list, @kctx_list_link.
+ * If found and the corresponding file isn't yet released, increase its reference count
+ * to block file release and kctx destruction.
+ * The found kctx is returned via @blocked_kctx. Later on allow_kctx_destruction()
+ * will decrease the reference count after page migration is done.
+ *
+ * If file release operation is racing with page migration and kctx is still in the list
+ * but the file reference count is zero or doesn't exist in the list return false to abort
+ * page migration. If the page is device level, abort page migration.
+ *
+ * Return: 0 if page migration can proceed
+ *         error code if page migration should abort or if page is device level
+ */
+static int block_kctx_destruction(struct kbase_device *kbdev, u32 kctx_id,
+				  struct kbase_context **blocked_kctx)
+{
+	struct kbase_context *kctx;
+	bool kctx_found_in_list = false;
+	int result = 0;
+
+	/* Abort page migration for device level page */
+	if (kctx_id == RESERVED_CONTEXT_ID)
+		return -EINVAL;
+
+	mutex_lock(&kbdev->kctx_list_lock);
+
+	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
+		if (kctx->id == kctx_id) {
+			kctx_found_in_list = true;
+			if (bump_up_active_file_ref_count(kctx))
+				*blocked_kctx = kctx;
+			else
+				result = -EINVAL;
+			break;
+		}
+	}
+
+	/* If kctx is in the device list and its ref. count is successfully increased
+	 * page migration can proceed. Otherwise abort page migration.
+	 */
+	if (!kctx_found_in_list)
+		result = -EINVAL;
+
+	mutex_unlock(&kbdev->kctx_list_lock);
+
+	return result;
+}
+
+/**
+ * allow_kctx_destruction - Allow kbase context destruction after page migration is done
+ *
+ * @kctx: Pointer to kbase context
+ *
+ * Decrease the kctx file reference count increased by block_kctx_destruction.
+ */
+static void allow_kctx_destruction(struct kbase_context *kctx)
+{
+	if (kctx)
+		fput(kctx->filp);
+}
 
 /**
  * kbase_page_isolate - Isolate a page for migration.
@@ -464,7 +601,7 @@ static bool kbase_page_isolate(struct page *p, isolate_mode_t mode)
 		break;
 	case NOT_MOVABLE:
 		/* Opportunistically clear the movable property for these pages */
-		__ClearPageMovable(p);
+		kbase_clear_page_movable(p);
 		page_md->status = PAGE_MOVABLE_CLEAR(page_md->status);
 		break;
 	default:
@@ -519,6 +656,8 @@ static bool kbase_page_isolate(struct page *p, isolate_mode_t mode)
  * Callback function for Linux to migrate the content of the old page to the
  * new page provided.
  * This callback is not registered if page migration is disabled.
+ * Block file release (context destruction) until migration is done.
+ * If file release is already started, abort migration.
  *
  * Return: 0 on success, error code otherwise.
  */
@@ -538,6 +677,7 @@ static int kbase_page_migrate(struct page *new_page, struct page *old_page, enum
 	bool status_not_movable = false;
 	struct kbase_page_metadata *page_md = kbase_page_private(old_page);
 	struct kbase_device *kbdev = NULL;
+	struct kbase_context *blocked_kctx = NULL;
 
 #if (KERNEL_VERSION(6, 0, 0) > LINUX_VERSION_CODE)
 	CSTD_UNUSED(mapping);
@@ -583,13 +723,15 @@ static int kbase_page_migrate(struct page *new_page, struct page *old_page, enum
 	}
 
 	spin_unlock(&page_md->migrate_lock);
+	kbase_page_migration_test_hook(KBASE_PM_TEST_HOOK_PAGE_MIGRATE_AFTER_STATUS,
+				       old_page);
 
 	if (status_mem_pool || status_free_isolated_in_progress ||
 	    status_free_pt_isolated_in_progress) {
 		struct kbase_mem_migrate *mem_migrate = &kbdev->mem_migrate;
 
 		kbase_free_page_metadata(kbdev, old_page, NULL);
-		__ClearPageMovable(old_page);
+		kbase_clear_page_movable(old_page);
 		put_page(old_page);
 
 		/* Just free new page to avoid lock contention. */
@@ -601,8 +743,12 @@ static int kbase_page_migrate(struct page *new_page, struct page *old_page, enum
 	} else if (status_not_movable) {
 		err = -EINVAL;
 	} else if (status_mapped) {
+		if (block_kctx_destruction(kbdev, page_md->data.mapped.kctx_id, &blocked_kctx))
+			return -EINVAL;
 		err = kbasep_migrate_page_allocated_mapped(old_page, new_page);
 	} else if (status_pt_mapped) {
+		if (block_kctx_destruction(kbdev, page_md->data.pt_mapped.kctx_id, &blocked_kctx))
+			return -EINVAL;
 		err = kbasep_migrate_page_pt_mapped(old_page, new_page);
 	}
 
@@ -612,9 +758,11 @@ static int kbase_page_migrate(struct page *new_page, struct page *old_page, enum
 	 * expect.
 	 */
 	if (err < 0 && err != -EAGAIN) {
-		__ClearPageMovable(old_page);
+		kbase_clear_page_movable(old_page);
 		page_md->status = PAGE_MOVABLE_CLEAR(page_md->status);
 	}
+
+	allow_kctx_destruction(blocked_kctx);
 
 	return err;
 }
@@ -688,7 +836,7 @@ static void kbase_page_putback(struct page *p)
 	 */
 	if (status_mem_pool || status_free_isolated_in_progress ||
 	    status_free_pt_isolated_in_progress) {
-		__ClearPageMovable(p);
+		kbase_clear_page_movable(p);
 		page_md->status = PAGE_MOVABLE_CLEAR(page_md->status);
 		if (!WARN_ON_ONCE(!kbdev)) {
 			struct kbase_mem_migrate *mem_migrate = &kbdev->mem_migrate;
@@ -700,11 +848,12 @@ static void kbase_page_putback(struct page *p)
 }
 
 #if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
-static const struct movable_operations movable_ops = {
+const struct movable_operations movable_ops = {
 	.isolate_page = kbase_page_isolate,
 	.migrate_page = kbase_page_migrate,
 	.putback_page = kbase_page_putback,
 };
+EXPORT_SYMBOL(movable_ops);
 #else
 static const struct address_space_operations kbase_address_space_ops = {
 	.isolate_page = kbase_page_isolate,
@@ -743,6 +892,14 @@ void kbase_mem_migrate_init(struct kbase_device *kbdev)
 {
 	struct kbase_mem_migrate *mem_migrate = &kbdev->mem_migrate;
 
+#ifdef CONFIG_MALI_PAGE_MIGRATION
+#ifdef __ANDROID_COMMON_KERNEL__
+	#error "Mali does not support page migration on Android"
+#endif /* __ANDROID_COMMON_KERNEL__ */
+
+	/* Issue a compile time message that the feature is for EXPERIMENTAL use only*/
+	 #pragma message("WARNING: Mali page migration feature is for EXPERIMENTAL use only")
+
 	/* Page migration should only be enabled if compaction is
 	 * enabled in the kernel otherwise pages cannot be marked as
 	 * movable.
@@ -763,10 +920,16 @@ void kbase_mem_migrate_init(struct kbase_device *kbdev)
 			if (kbase_page_migration_enabled)
 				static_branch_inc(&page_migration_static_key);
 		}
+
+		if (kbase_is_page_migration_enabled())
+			dev_warn(kbdev->dev,
+				"Mali page migration feature is for EXPERIMENTAL use only.");
+
 	} else if (kbase_page_migration_enabled) {
 		dev_warn(kbdev->dev,
 			 "No CONFIG_COMPACTION. 'page migration support enable' ignored.");
 	}
+#endif /* CONFIG_MALI_PAGE_MIGRATION */
 
 	spin_lock_init(&mem_migrate->free_pages_lock);
 	INIT_LIST_HEAD(&mem_migrate->free_pages_list);

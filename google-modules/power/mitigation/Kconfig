@@ -2,9 +2,25 @@
 
 config GOOGLE_BCL
 	tristate "Google Battery current limiter"
-	depends on SOC_GS101 || SOC_GS201 || SOC_ZUMA
+	depends on SOC_GS101 || SOC_GS201 || SOC_ZUMA || SOC_LGA || SOC_RDO || SOC_MBU
 	# GOOGLE_MODEMCTL is an optional dependency.
 	depends on GOOGLE_MODEMCTL || !GOOGLE_MODEMCTL
 	help
 	  This enables the monitoring and reporting of different types of system
 	  throttling as a result of battery current limiter.
+
+config GOOGLE_BCL_MAX77779
+	bool "Google BCL IF-PMIC MAX77779"
+	depends on GOOGLE_BCL
+	help
+	  This enables BCL support of the MAX77779. This allows the kernel to monitor
+	  and configure the IF-PMIC hazard detection. Select this configuration if
+	  this device uses the MAX77779.
+
+config GOOGLE_BCL_MAX77759
+	bool "Google BCL IF-PMIC MAX77759"
+	depends on GOOGLE_BCL
+	help
+	  This enables BCL support of the MAX77759. This allows the kernel to monitor
+	  and configure the IF-PMIC hazard detection. Select this configuration if
+	  this device uses the MAX77759.

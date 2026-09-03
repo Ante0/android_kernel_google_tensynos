@@ -18,6 +18,7 @@
 #include <video/mipi_display.h>
 
 #include "trace/dpu_trace.h"
+#include "trace/panel_trace.h"
 #include "panel/panel-samsung-drv.h"
 
 /**
@@ -2244,7 +2245,7 @@ static void hk3_get_pwr_vreg(struct exynos_panel *ctx, char *buf, size_t len)
 {
 	struct hk3_panel *spanel = to_spanel(ctx);
 
-	strlcpy(buf, spanel->hw_vreg, len);
+	strscpy(buf, spanel->hw_vreg, len);
 }
 
 static void hk3_refresh_ctrl(struct exynos_panel *ctx, u32 ctrl)

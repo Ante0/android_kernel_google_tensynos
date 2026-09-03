@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Charging device tree entries specific to Kodiak devices
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+
+&google_cpm {
+	google,wireless-default-ta-power-low = <26000000>; /* never use hybrid for wireless */
+};
+
+&ln8411_dc {
+	ln8411,higher-ocp;
+};

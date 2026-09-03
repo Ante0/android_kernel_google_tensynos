@@ -1,0 +1,10 @@
+import("//build_overrides/noa.gni")
+import("$dir_noa_packages/noa_common/sim/ncp/wlan_fw/wlan_service.gni")
+
+wlan_source_set("memory_map_header") {
+  public = [ "$dir_wlan_fw/modules/memory_map/memory_map.h" ]
+  public_deps = [
+    "$dir_noa_common:headers",
+    "$dir_wlan_fw/sys_if:types",
+  ]
+}

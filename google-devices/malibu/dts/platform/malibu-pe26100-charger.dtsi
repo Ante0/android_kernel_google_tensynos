@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Pe26100 Hybrid Buck + Charge Pump + Usecase Charger driver
+ * Intended to be included into the appropriate I2C bus.
+ *
+ * Copyright 2025 Google LLC
+ */
+ pe26100: pe26100@6a {
+	compatible = "pe26100";
+	reg = <0x6d>;
+	pe26100_buck_charger:pe26100_buck {
+		compatible = "pe26100-bc";
+
+		interrupt-controller;
+		#interrupt-cells = <1>;
+	};
+	pe26100_charge_pump:pe26100_cp {
+		compatible = "pe26100-cp";
+		pe26100_cp,psy_name = "pe26100-cp-mains";
+		pe26100_cp,input-itopoff = <500000>; /* 500mA */
+		pe26100,google_cpm = <&google_cpm>;
+	};
+	pe26100_usecase:pe26100_usecase {
+		compatible = "pe26100-usecase";
+
+		interrupt-parent = <&pe26100_buck_charger>;
+		interrupts = <0>;
+	};
+};

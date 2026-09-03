@@ -175,16 +175,17 @@ static irqreturn_t g2d_irq_handler(int irq, void *priv)
 	return IRQ_HANDLED;
 }
 
-static int g2d_fault_handler(struct iommu_fault *fault, void *data)
+static int g2d_fault_handler(struct iommu_domain *domain, struct device *dev,
+			     unsigned long iova, int flags, void *token)
 {
-	struct g2d_device *g2d_dev = data;
+	struct g2d_device *g2d_dev = token;
 	struct g2d_task *task;
 	int job_id = g2d_hw_get_current_task(g2d_dev);
-	unsigned long flags;
+	unsigned long irqflags;
 
-	spin_lock_irqsave(&g2d_dev->lock_task, flags);
+	spin_lock_irqsave(&g2d_dev->lock_task, irqflags);
 	task = g2d_get_active_task_from_id(g2d_dev, job_id);
-	spin_unlock_irqrestore(&g2d_dev->lock_task, flags);
+	spin_unlock_irqrestore(&g2d_dev->lock_task, irqflags);
 
 	g2d_dump_info(g2d_dev, task);
 
@@ -626,7 +627,7 @@ static int g2d_parse_dt(struct g2d_device *g2d_dev)
 
 #define MAX_ITMON_STRATTR 4
 
-bool g2d_itmon_check(struct g2d_device *g2d_dev, char *str_itmon, char *str_attr)
+static bool g2d_itmon_check(struct g2d_device *g2d_dev, char *str_itmon, char *str_attr)
 {
 	const char *name[MAX_ITMON_STRATTR];
 	int size, i;
@@ -648,7 +649,7 @@ bool g2d_itmon_check(struct g2d_device *g2d_dev, char *str_itmon, char *str_attr
 	return false;
 }
 
-int g2d_itmon_notifier(struct notifier_block *nb, unsigned long action, void *nb_data)
+static int g2d_itmon_notifier(struct notifier_block *nb, unsigned long action, void *nb_data)
 {
 	struct g2d_device *g2d_dev = container_of(nb, struct g2d_device, itmon_nb);
 	struct itmon_notifier *itmon_info = nb_data;
@@ -799,6 +800,7 @@ MODULE_DEVICE_TABLE(of, of_g2d_match);
 static int g2d_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *of_id;
+	struct iommu_domain *domain;
 	struct g2d_device *g2d_dev;
 	struct resource *res;
 	__u32 version;
@@ -842,10 +844,10 @@ static int g2d_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	/* it is okay if fault handler is not registered since it is just for debugging */
-	ret = iommu_register_device_fault_handler(&pdev->dev, g2d_fault_handler, g2d_dev);
-	if (ret)
-		perrdev(g2d_dev, "Failed to register IOMMU fault handler (%d)", ret);
+	domain = iommu_get_domain_for_dev(&pdev->dev);
+	if (domain)
+		/* Used just for logging. */
+		iommu_set_fault_handler(domain, g2d_fault_handler, g2d_dev);
 
 	ret = g2d_parse_dt(g2d_dev);
 	if (ret < 0)
@@ -949,8 +951,6 @@ err_misc:
 err:
 	pm_runtime_disable(&pdev->dev);
 err_dt:
-	iommu_unregister_device_fault_handler(&pdev->dev);
-
 	perrdev(g2d_dev, "Failed to probe FIMG2D");
 
 	return ret;
@@ -968,7 +968,7 @@ static void g2d_shutdown(struct platform_device *pdev)
 	g2d_stamp_task(NULL, G2D_STAMP_STATE_SHUTDOWN, 1);
 }
 
-static int g2d_remove(struct platform_device *pdev)
+static void g2d_remove(struct platform_device *pdev)
 {
 	struct g2d_device *g2d_dev = platform_get_drvdata(pdev);
 
@@ -982,8 +982,6 @@ static int g2d_remove(struct platform_device *pdev)
 	misc_deregister(&g2d_dev->misc[1]);
 
 	pm_runtime_disable(&pdev->dev);
-
-	return 0;
 }
 
 #ifdef CONFIG_PM

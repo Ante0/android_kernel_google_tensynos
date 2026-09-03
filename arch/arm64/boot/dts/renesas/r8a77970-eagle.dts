@@ -29,6 +29,15 @@
 		stdout-path = "serial0:115200n8";
 	};
 
+	d1p8: regulator-fixed {
+		compatible = "regulator-fixed";
+		regulator-name = "fixed-1.8V";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
 	d3p3: regulator-fixed {
 		compatible = "regulator-fixed";
 		regulator-name = "fixed-3.3V";
@@ -102,8 +111,7 @@
 			     "ethernet-phy-ieee802.3-c22";
 		rxc-skew-ps = <1500>;
 		reg = <0>;
-		interrupt-parent = <&gpio1>;
-		interrupts = <17 IRQ_TYPE_LEVEL_LOW>;
+		interrupts-extended = <&gpio1 17 IRQ_TYPE_LEVEL_LOW>;
 		reset-gpios = <&gpio1 16 GPIO_ACTIVE_LOW>;
 	};
 };
@@ -165,6 +173,12 @@
 		reg = <0x39>;
 		interrupt-parent = <&gpio1>;
 		interrupts = <20 IRQ_TYPE_LEVEL_LOW>;
+
+		avdd-supply = <&d1p8>;
+		dvdd-supply = <&d1p8>;
+		pvdd-supply = <&d1p8>;
+		dvdd-3v-supply = <&d3p3>;
+		bgvdd-supply = <&d1p8>;
 
 		adi,input-depth = <8>;
 		adi,input-colorspace = "rgb";
@@ -287,6 +301,9 @@
 };
 
 &pfc {
+	pinctrl-0 = <&scif_clk_pins>;
+	pinctrl-names = "default";
+
 	avb_pins: avb0 {
 		groups = "avb0_mdio", "avb0_rgmii", "avb0_txcrefclk";
 		function = "avb0";
@@ -315,6 +332,11 @@
 	scif0_pins: scif0 {
 		groups = "scif0_data";
 		function = "scif0";
+	};
+
+	scif_clk_pins: scif_clk {
+		groups = "scif_clk_b";
+		function = "scif_clk";
 	};
 };
 
@@ -390,4 +412,8 @@
 	pinctrl-names = "default";
 
 	status = "okay";
+};
+
+&scif_clk {
+	clock-frequency = <14745600>;
 };

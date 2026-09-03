@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google/tangorpro:__subpackages__",
+])
+
+ddk_module(
+    name = "panel-boe-ts110f5mlg0",
+    srcs = [
+        "panel-boe-ts110f5mlg0.c",
+    ],
+    out = "panel-boe-ts110f5mlg0.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common:ddk_headers",
+        "//private/google-modules/display/samsung:headers",
+        "//private/google-modules/display/samsung/panel:panel-samsung-drv",
+    ],
+)
+
+ddk_module(
+    name = "panel-csot-ppa957db2d",
+    srcs = [
+        "panel-csot-ppa957db2d.c",
+    ],
+    out = "panel-csot-ppa957db2d.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common:ddk_headers",
+        "//private/google-modules/display/samsung:headers",
+        "//private/google-modules/display/samsung/panel:panel-samsung-drv",
+    ],
+)

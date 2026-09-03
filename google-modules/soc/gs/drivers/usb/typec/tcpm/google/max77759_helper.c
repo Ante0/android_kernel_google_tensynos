@@ -4,9 +4,14 @@
  *
  * MAX77759 helper
  */
+#include <linux/delay.h>
+#include <linux/device.h>
+#include <linux/i2c.h>
 #include <linux/module.h>
 #include <linux/regmap.h>
-#include <linux/delay.h>
+#include <linux/spmi.h>
+
+#include "max77759_helper.h"
 
 #define I2C_RETRY 3
 #define I2C_RETRY_DELAY_USLEEP_MIN 1000
@@ -26,7 +31,7 @@
 	}								\
 									\
 	if (ret)							\
-		printk(KERN_ERR "MAX77759 i2c error:%d reg:%d\n",	\
+		pr_err("MAX77759 regmap op error:%d reg:%d\n",		\
 		       ret, reg);					\
 	return ret;							\
 }
@@ -85,6 +90,50 @@ int max77759_update_bits8(struct regmap *regmap, unsigned int reg, u8 mask,
 	MAX77759_UPDATE_BITS(8, regmap, reg, mask, val);
 }
 EXPORT_SYMBOL_GPL(max77759_update_bits8);
+
+struct max77759_plat *max777x9_get_drvdata(struct device *dev)
+{
+	struct max77759_plat *chip = NULL;
+	struct i2c_client *i2c_client_dev = NULL;
+	struct spmi_device *sdev = NULL;
+
+	i2c_client_dev = of_find_i2c_device_by_node(dev->of_node);
+	if (i2c_client_dev) {
+		chip = i2c_get_clientdata(i2c_client_dev);
+		put_device(&i2c_client_dev->dev);
+		goto done;
+	}
+
+	sdev = spmi_find_device_by_of_node(dev->of_node);
+	if (sdev) {
+		chip = spmi_device_get_drvdata(sdev);
+		put_device(&sdev->dev);
+	}
+
+done:
+	return chip;
+}
+EXPORT_SYMBOL_GPL(max777x9_get_drvdata);
+
+void max777x9_set_drvdata(struct device *dev, struct max77759_plat *chip)
+{
+	struct i2c_client *i2c_client_dev = NULL;
+	struct spmi_device *sdev = NULL;
+
+	i2c_client_dev = of_find_i2c_device_by_node(dev->of_node);
+	if (i2c_client_dev) {
+		i2c_set_clientdata(i2c_client_dev, chip);
+		put_device(&i2c_client_dev->dev);
+		return;
+	}
+
+	sdev = spmi_find_device_by_of_node(dev->of_node);
+	if (sdev) {
+		spmi_device_set_drvdata(sdev, chip);
+		put_device(&sdev->dev);
+	}
+}
+EXPORT_SYMBOL_GPL(max777x9_set_drvdata);
 
 MODULE_DESCRIPTION("MAX77759_HELPER Module");
 MODULE_AUTHOR("Badhri Jagan Sridharan <badhri@google.com>");

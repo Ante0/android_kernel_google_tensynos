@@ -5,11 +5,13 @@
 #include <perf/cpumap.h>
 
 #include "debug.h"
+#include "event.h"
 #include "evlist.h"
 #include "evsel.h"
 #include "thread_map.h"
 #include "tests.h"
 #include "util/mmap.h"
+#include "util/sample.h"
 #include <linux/err.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
@@ -50,7 +52,7 @@ static int test__basic_mmap(struct test_suite *test __maybe_unused, int subtest 
 		return -1;
 	}
 
-	cpus = perf_cpu_map__new(NULL);
+	cpus = perf_cpu_map__new_online_cpus();
 	if (cpus == NULL) {
 		pr_debug("perf_cpu_map__new\n");
 		goto out_free_threads;
@@ -282,7 +284,8 @@ static struct test_case tests__basic_mmap[] = {
 			 "permissions"),
 	TEST_CASE_REASON("User space counter reading of instructions",
 			 mmap_user_read_instr,
-#if defined(__i386__) || defined(__x86_64__) || defined(__aarch64__)
+#if defined(__i386__) || defined(__x86_64__) || defined(__aarch64__) || \
+			 (defined(__riscv) && __riscv_xlen == 64)
 			 "permissions"
 #else
 			 "unsupported"
@@ -290,7 +293,8 @@ static struct test_case tests__basic_mmap[] = {
 		),
 	TEST_CASE_REASON("User space counter reading of cycles",
 			 mmap_user_read_cycles,
-#if defined(__i386__) || defined(__x86_64__) || defined(__aarch64__)
+#if defined(__i386__) || defined(__x86_64__) || defined(__aarch64__) || \
+			 (defined(__riscv) && __riscv_xlen == 64)
 			 "permissions"
 #else
 			 "unsupported"

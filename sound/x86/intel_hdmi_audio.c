@@ -30,7 +30,8 @@
 #include <sound/control.h>
 #include <sound/jack.h>
 #include <drm/drm_edid.h>
-#include <drm/intel_lpe_audio.h>
+#include <drm/drm_eld.h>
+#include <drm/intel/intel_lpe_audio.h>
 #include "intel_hdmi_audio.h"
 
 #define INTEL_HDMI_AUDIO_SUSPEND_DELAY_MS  5000
@@ -1766,7 +1767,7 @@ static int __hdmi_lpe_audio_probe(struct platform_device *pdev)
 		/* setup private data which can be retrieved when required */
 		pcm->private_data = ctx;
 		pcm->info_flags = 0;
-		strscpy(pcm->name, card->shortname, strlen(card->shortname));
+		strscpy(pcm->name, card->shortname, sizeof(pcm->name));
 		/* setup the ops for playback */
 		snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &had_pcm_ops);
 

@@ -132,7 +132,7 @@ static unsigned long ebb_switch_in(bool ebb, struct cpu_hw_events *cpuhw)
 
 static inline void power_pmu_bhrb_enable(struct perf_event *event) {}
 static inline void power_pmu_bhrb_disable(struct perf_event *event) {}
-static void power_pmu_sched_task(struct perf_event_context *ctx, bool sched_in) {}
+static void power_pmu_sched_task(struct perf_event_pmu_context *pmu_ctx, bool sched_in) {}
 static inline void power_pmu_bhrb_read(struct perf_event *event, struct cpu_hw_events *cpuhw) {}
 static void pmao_restore_workaround(bool ebb) { }
 #endif /* CONFIG_PPC32 */
@@ -256,7 +256,7 @@ static bool regs_sipr(struct pt_regs *regs)
 
 static inline u32 perf_flags_from_msr(struct pt_regs *regs)
 {
-	if (regs->msr & MSR_PR)
+	if (user_mode(regs))
 		return PERF_RECORD_MISC_USER;
 	if ((regs->msr & MSR_HV) && freeze_events_kernel != MMCR0_FCHV)
 		return PERF_RECORD_MISC_HYPERVISOR;
@@ -266,30 +266,11 @@ static inline u32 perf_flags_from_msr(struct pt_regs *regs)
 static inline u32 perf_get_misc_flags(struct pt_regs *regs)
 {
 	bool use_siar = regs_use_siar(regs);
-	unsigned long mmcra = regs->dsisr;
-	int marked = mmcra & MMCRA_SAMPLE_ENABLE;
+	unsigned long siar;
+	unsigned long addr;
 
 	if (!use_siar)
 		return perf_flags_from_msr(regs);
-
-	/*
-	 * Check the address in SIAR to identify the
-	 * privilege levels since the SIER[MSR_HV, MSR_PR]
-	 * bits are not set for marked events in power10
-	 * DD1.
-	 */
-	if (marked && (ppmu->flags & PPMU_P10_DD1)) {
-		unsigned long siar = mfspr(SPRN_SIAR);
-		if (siar) {
-			if (is_kernel_addr(siar))
-				return PERF_RECORD_MISC_KERNEL;
-			return PERF_RECORD_MISC_USER;
-		} else {
-			if (is_kernel_addr(regs->nip))
-				return PERF_RECORD_MISC_KERNEL;
-			return PERF_RECORD_MISC_USER;
-		}
-	}
 
 	/*
 	 * If we don't have flags in MMCRA, rather than using
@@ -298,18 +279,30 @@ static inline u32 perf_get_misc_flags(struct pt_regs *regs)
 	 * results
 	 */
 	if (ppmu->flags & PPMU_NO_SIPR) {
-		unsigned long siar = mfspr(SPRN_SIAR);
+		siar = mfspr(SPRN_SIAR);
 		if (is_kernel_addr(siar))
 			return PERF_RECORD_MISC_KERNEL;
 		return PERF_RECORD_MISC_USER;
 	}
 
 	/* PR has priority over HV, so order below is important */
-	if (regs_sipr(regs))
-		return PERF_RECORD_MISC_USER;
-
-	if (regs_sihv(regs) && (freeze_events_kernel != MMCR0_FCHV))
+	if (regs_sipr(regs)) {
+		if (!(ppmu->flags & PPMU_P10))
+			return PERF_RECORD_MISC_USER;
+	} else if (regs_sihv(regs) && (freeze_events_kernel != MMCR0_FCHV))
 		return PERF_RECORD_MISC_HYPERVISOR;
+
+	/*
+	 * Check the address in SIAR to identify the
+	 * privilege levels since the SIER[MSR_HV, MSR_PR]
+	 * bits are not set correctly in power10 sometimes
+	 */
+	if (ppmu->flags & PPMU_P10) {
+		siar = mfspr(SPRN_SIAR);
+		addr = siar ? siar : regs->nip;
+		if (!is_kernel_addr(addr))
+			return PERF_RECORD_MISC_USER;
+	}
 
 	return PERF_RECORD_MISC_KERNEL;
 }
@@ -424,7 +417,7 @@ static void power_pmu_bhrb_enable(struct perf_event *event)
 		cpuhw->bhrb_context = event->ctx;
 	}
 	cpuhw->bhrb_users++;
-	perf_sched_cb_inc(event->ctx->pmu);
+	perf_sched_cb_inc(event->pmu);
 }
 
 static void power_pmu_bhrb_disable(struct perf_event *event)
@@ -436,7 +429,7 @@ static void power_pmu_bhrb_disable(struct perf_event *event)
 
 	WARN_ON_ONCE(!cpuhw->bhrb_users);
 	cpuhw->bhrb_users--;
-	perf_sched_cb_dec(event->ctx->pmu);
+	perf_sched_cb_dec(event->pmu);
 
 	if (!cpuhw->disabled && !cpuhw->bhrb_users) {
 		/* BHRB cannot be turned off when other
@@ -451,7 +444,7 @@ static void power_pmu_bhrb_disable(struct perf_event *event)
 /* Called from ctxsw to prevent one process's branch entries to
  * mingle with the other process's entries during context switch.
  */
-static void power_pmu_sched_task(struct perf_event_context *ctx, bool sched_in)
+static void power_pmu_sched_task(struct perf_event_pmu_context *pmu_ctx, bool sched_in)
 {
 	if (!ppmu->bhrb_nr)
 		return;
@@ -2332,8 +2325,7 @@ static void record_and_restart(struct perf_event *event, unsigned long val,
 			struct cpu_hw_events *cpuhw;
 			cpuhw = this_cpu_ptr(&cpu_hw_events);
 			power_pmu_bhrb_read(event, cpuhw);
-			data.br_stack = &cpuhw->bhrb_stack;
-			data.sample_flags |= PERF_SAMPLE_BRANCH_STACK;
+			perf_sample_save_brstack(&data, event, &cpuhw->bhrb_stack, NULL);
 		}
 
 		if (event->attr.sample_type & PERF_SAMPLE_DATA_SRC &&
@@ -2613,6 +2605,8 @@ static int __init init_ppc64_pmu(void)
 	else if (!init_power9_pmu())
 		return 0;
 	else if (!init_power10_pmu())
+		return 0;
+	else if (!init_power11_pmu())
 		return 0;
 	else if (!init_ppc970_pmu())
 		return 0;

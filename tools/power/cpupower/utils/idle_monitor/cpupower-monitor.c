@@ -35,7 +35,7 @@ static unsigned int avail_monitors;
 static char *progname;
 
 enum operation_mode_e { list = 1, show, show_all };
-static int mode;
+static enum operation_mode_e mode;
 static int interval = 1;
 static char *show_monitors_param;
 static struct cpupower_topology cpu_top;
@@ -459,9 +459,10 @@ int cmd_monitor(int argc, char **argv)
 			print_results(1, cpu);
 	}
 
-	for (num = 0; num < avail_monitors; num++)
-		monitors[num]->unregister();
-
+	for (num = 0; num < avail_monitors; num++) {
+		if (monitors[num]->unregister)
+			monitors[num]->unregister();
+	}
 	cpu_topology_release(cpu_top);
 	return 0;
 }

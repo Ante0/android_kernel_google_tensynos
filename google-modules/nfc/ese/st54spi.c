@@ -12,6 +12,7 @@
  * <arach.mohammed.brahim@st.com>
  */
 
+#include <linux/cleanup.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/ioctl.h>
@@ -27,6 +28,10 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/acpi.h>
+#include <linux/interrupt.h>
+#include <linux/irq.h>
+
+#include <linux/pinctrl/consumer.h>
 
 #include <linux/spi/spi.h>
 #include <linux/spi/spidev.h>
@@ -90,6 +95,23 @@ static DECLARE_BITMAP(minors, N_SPI_MINORS);
 	 SPI_LOOP | SPI_NO_CS | SPI_READY | SPI_TX_DUAL | SPI_TX_QUAD |        \
 	 SPI_RX_DUAL | SPI_RX_QUAD)
 
+/* Ignore state transition when it changes within debounce time */
+#define ST54SPI_POWER_STATE_DEBOUNCE 100
+/* The enum is used to index a pw_states array, the values matter here*/
+enum st54spi_power_state {
+	ST54SPI_IDLE,
+	ST54SPI_ACTIVE,
+	ST54SPI_POWER_STATE_MAX,
+};
+
+struct st54spi_sub_power_stats {
+	uint64_t count;
+	uint64_t duration;
+	uint64_t last_entry;
+	uint64_t last_exit;
+};
+
+
 struct st54spi_data {
 	dev_t devt;
 	spinlock_t spi_lock;
@@ -116,6 +138,27 @@ struct st54spi_data {
 	int sehal_needs_poweron;
 	int se_is_poweron;
 	struct pinctrl *pinctrl;
+
+	struct mutex sestate_mutex;
+	int irq_pw_stats_idle;
+	/* GPIO for SE_IO / SE_PWR_STATE */
+	struct gpio_desc *gpiod_se_state;
+	enum st54spi_power_state pw_current;
+	struct st54spi_sub_power_stats pw_states[ST54SPI_POWER_STATE_MAX];
+	struct workqueue_struct *st54spi_p_wq;
+	struct workqueue_struct *st54spi_p_delay_wq;
+	struct work_struct st54spi_p_work;
+	struct delayed_work st54spi_p_delay_work;
+
+	/* Power state shadow copies for reading */
+	enum st54spi_power_state c_pw_current;
+	struct st54spi_sub_power_stats c_pw_states[ST54SPI_POWER_STATE_MAX];
+	uint64_t c_current_time_ms;
+	uint64_t c_idle_duration;
+	uint64_t c_active_duration;
+
+	bool irq_pw_enabled;
+	spinlock_t irq_pw_enabled_lock;
 };
 
 #define POWER_MODE_NONE -1
@@ -133,7 +176,7 @@ MODULE_PARM_DESC(bufsiz, "data bytes in biggest supported SPI message");
 
 #define VERBOSE 0
 
-#define DRIVER_VERSION "2.3.0"
+#define DRIVER_VERSION "2.3.2"
 
 /*-------------------------------------------------------------------------*/
 
@@ -463,7 +506,8 @@ static void st54spi_power_on(struct st54spi_data *st54spi)
 		dev_info(&st54spi->spi->dev, "%s : st54 set nReset to Low\n",
 			 __func__);
 		usleep_range(3000, 4000);
-	} else if (st54spi->power_gpio_mode == POWER_MODE_ST54L) {
+	} else if (st54spi->power_gpio_mode == POWER_MODE_ST54L &&
+		   !IS_ERR(st54spi->gpiod_se_reset)) {
 		gpiod_set_value(st54spi->gpiod_se_reset, 0);
 		usleep_range(5000, 5500);
 		gpiod_set_value(st54spi->gpiod_se_reset, 1);
@@ -495,6 +539,8 @@ static void st54spi_power_set(struct st54spi_data *st54spi, int val)
 
 static int st54spi_power_get(struct st54spi_data *st54spi)
 {
+	if (IS_ERR(st54spi->gpiod_se_reset))
+		return 0;
 	return gpiod_get_value(st54spi->gpiod_se_reset);
 }
 
@@ -894,7 +940,6 @@ static const struct file_operations st54spi_fops = {
 	.compat_ioctl = st54spi_compat_ioctl,
 	.open = st54spi_open,
 	.release = st54spi_release,
-	.llseek = no_llseek,
 };
 
 /*-------------------------------------------------------------------------*/
@@ -951,14 +996,160 @@ static inline void st54spi_probe_acpi(struct spi_device *spi)
 
 /*-------------------------------------------------------------------------*/
 
+static void st54spi_disable_irq_pw(struct st54spi_data *pdata)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&pdata->irq_pw_enabled_lock, flags);
+	if (pdata->irq_pw_enabled) {
+		disable_irq_nosync(pdata->irq_pw_stats_idle);
+		pdata->irq_pw_enabled = false;
+	}
+	spin_unlock_irqrestore(&pdata->irq_pw_enabled_lock, flags);
+}
+
+static void st54spi_enable_irq_pw(struct st54spi_data *pdata)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&pdata->irq_pw_enabled_lock, flags);
+	if (!pdata->irq_pw_enabled) {
+		pdata->irq_pw_enabled = true;
+		enable_irq(pdata->irq_pw_stats_idle);
+	}
+	spin_unlock_irqrestore(&pdata->irq_pw_enabled_lock, flags);
+}
+
+static void st54spi_power_stats_switch(
+	struct st54spi_data *pdata, uint64_t current_time_ms,
+	enum st54spi_power_state old_state, enum st54spi_power_state new_state)
+{
+	mutex_lock(&pdata->sestate_mutex);
+	dev_dbg(&pdata->spi->dev,
+				"Switched from %d to %d: %llu\n",
+				old_state, new_state,
+				current_time_ms);
+	if (new_state == old_state) {
+		/* Common error due to rapid state transition */
+		dev_dbg(&pdata->spi->dev,
+				"Error: Switched from %d to %d: %llu\n",
+				old_state, new_state,
+				current_time_ms);
+	} else {
+		/* IDLE to ACTIVE or ACTIVE to IDLE */
+		pdata->pw_states[old_state].last_exit = current_time_ms;
+		pdata->pw_states[old_state].duration +=
+				pdata->pw_states[old_state].last_exit -
+				pdata->pw_states[old_state].last_entry;
+		pdata->pw_states[new_state].count++;
+		pdata->pw_current = new_state;
+		pdata->pw_states[new_state].last_entry = current_time_ms;
+	}
+	pdata->pw_current = new_state;
+	mutex_unlock(&pdata->sestate_mutex);
+}
+
+static void st54spi_power_stats_idle_signal(struct st54spi_data *pdata)
+{
+	bool is_active = (bool)gpiod_get_value(pdata->gpiod_se_state);
+
+	st54spi_power_stats_switch(pdata, ktime_to_ms(ktime_get_boottime()),
+		pdata->pw_current, is_active ? ST54SPI_ACTIVE : ST54SPI_IDLE);
+}
+
+static void st54spi_pwork_func(struct work_struct *work)
+{
+	struct st54spi_data *pdata =
+			container_of(work, struct st54spi_data, st54spi_p_work);
+
+	st54spi_power_stats_idle_signal(pdata);
+	queue_delayed_work(pdata->st54spi_p_delay_wq,
+			&(pdata->st54spi_p_delay_work),
+			msecs_to_jiffies(ST54SPI_POWER_STATE_DEBOUNCE));
+}
+
+static void st54spi_pwork_delay_func(struct work_struct *work)
+{
+	struct st54spi_data *pdata =
+		container_of(work, struct st54spi_data, st54spi_p_delay_work.work);
+
+	st54spi_power_stats_idle_signal(pdata);
+	st54spi_enable_irq_pw(pdata);
+}
+
+static irqreturn_t st54spi_dev_power_stats_handler(int irq, void *dev_data)
+{
+	struct st54spi_data *pdata = dev_data;
+
+	st54spi_disable_irq_pw(pdata);
+	queue_work(pdata->st54spi_p_wq, &(pdata->st54spi_p_work));
+	return IRQ_HANDLED;
+}
+
+
+static int st54spi_parse_ese_pwr_dt(struct device *dev, struct st54spi_data *pdata)
+{
+	int r = 0;
+
+	/* Optional for power monitor record */
+	pdata->gpiod_se_state =
+		devm_gpiod_get(dev, "ese_pwr_state", GPIOD_IN);
+	if (IS_ERR(pdata->gpiod_se_state)) {
+		/* return when se state not supported */
+		return r;
+	}
+	pdata->st54spi_p_wq =
+		create_workqueue("st54spi_pstate_work");
+	if (!pdata->st54spi_p_wq) {
+		dev_err(dev, "create_workqueue failed\n");
+		return -EINVAL;
+	}
+	pdata->st54spi_p_delay_wq =
+		create_workqueue("st54spi_pstate_delay_work");
+	if (!pdata->st54spi_p_delay_wq) {
+		dev_err(dev, "create_workqueue failed\n");
+		destroy_workqueue(pdata->st54spi_p_wq);
+		return -EINVAL;
+	}
+	mutex_init(&pdata->sestate_mutex);
+	INIT_WORK(&(pdata->st54spi_p_work),
+			st54spi_pwork_func);
+	INIT_DELAYED_WORK(&(pdata->st54spi_p_delay_work),
+			st54spi_pwork_delay_func);
+	/* Start the power stat in power mode idle */
+	pdata->pw_current = ST54SPI_IDLE;
+	pdata->irq_pw_stats_idle =
+			gpiod_to_irq(pdata->gpiod_se_state);
+	irq_set_irq_type(pdata->irq_pw_stats_idle,
+			IRQ_TYPE_EDGE_BOTH);
+	/* This next call requests an interrupt line */
+	r = devm_request_irq(dev, pdata->irq_pw_stats_idle,
+			st54spi_dev_power_stats_handler,
+			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
+			/* Interrupt on both edges */
+			"st54spi_dev_power_stats_handle",
+			pdata);
+	if (r) {
+		dev_err(dev, "devm_request_irq failed\n");
+		destroy_workqueue(pdata->st54spi_p_wq);
+		destroy_workqueue(pdata->st54spi_p_delay_wq);
+		return r;
+	}
+	pdata->irq_pw_enabled = true;
+	spin_lock_init(&pdata->irq_pw_enabled_lock);
+	return r;
+}
+
 static int st54spi_parse_dt(struct device *dev, struct st54spi_data *pdata)
 {
 	int r = 0;
-	struct device_node *np = dev->of_node;
 	const char *power_mode;
 
 #ifndef GKI_MODULE
+	struct device_node *np __free(device_node);
 	np = of_find_compatible_node(NULL, NULL, "st,st54spi");
+#else
+	struct device_node *np = dev->of_node;
 #endif
 
 	if (!np) {
@@ -968,76 +1159,224 @@ static int st54spi_parse_dt(struct device *dev, struct st54spi_data *pdata)
 	/* Read power mode. */
 	power_mode = of_get_property(np, "power_mode", NULL);
 	if (!power_mode) {
-		dev_info(dev, "%s: Default power mode: ST54J Combo\n",
-			 __FILE__);
+		dev_info(dev, "Default power mode: ST54J Combo\n");
 		pdata->power_gpio_mode = POWER_MODE_ST54J_COMBO;
 	} else if (!strcmp(power_mode, "ST54L")) {
-		dev_info(dev, "%s: Power mode: ST54L\n",
-			 __FILE__);
+		dev_info(dev, "Power mode: ST54L\n");
 		pdata->power_gpio_mode = POWER_MODE_ST54L;
 	} else if (!strcmp(power_mode, "ST54Jse")) {
-		dev_info(dev, "%s: Power mode: ST54J SE-only\n",
-			 __FILE__);
+		dev_info(dev, "Power mode: ST54J SE-only\n");
 		pdata->power_gpio_mode = POWER_MODE_ST54J;
 	} else if (!strcmp(power_mode, "ST54J")) {
-		dev_info(dev, "%s: Power mode: ST54J Combo\n",
-			 __FILE__);
+		dev_info(dev, "Power mode: ST54J Combo\n");
 		pdata->power_gpio_mode = POWER_MODE_ST54J_COMBO;
 	} else if (!strcmp(power_mode, "ST54H")) {
-		dev_info(dev, "%s: Power mode: ST54H\n", __FILE__);
+		dev_info(dev, "Power mode: ST54H\n");
 		pdata->power_gpio_mode = POWER_MODE_ST54H;
 	} else if (!strcmp(power_mode, "none")) {
-		dev_info(dev, "%s: Power mode: none\n", __FILE__);
+		dev_info(dev, "Power mode: none\n");
 		pdata->power_gpio_mode = POWER_MODE_NONE;
 	} else {
-		dev_err(dev, "%s: Power mode unknown: %s\n", __FILE__,
-			power_mode);
+		dev_err(dev, "Power mode unknown: %s\n", power_mode);
 		return -EFAULT;
 	}
 
 	/* Get the Gpio */
 	if (pdata->power_gpio_mode == POWER_MODE_ST54J_COMBO ||
-	    pdata->power_gpio_mode == POWER_MODE_ST54J ||
-	    pdata->power_gpio_mode == POWER_MODE_ST54L) {
-		if (pdata->power_gpio_mode == POWER_MODE_ST54L) {
-			pdata->gpiod_se_reset =
-				devm_gpiod_get(dev, "esereset", GPIOD_OUT_HIGH);
-		} else {
-			pdata->gpiod_se_reset =
-				devm_gpiod_get(dev, "esereset", GPIOD_OUT_LOW);
-		}
+	    pdata->power_gpio_mode == POWER_MODE_ST54J) {
+		pdata->pinctrl = NULL;
+		pdata->gpiod_se_reset =
+			devm_gpiod_get(dev, "esereset", GPIOD_OUT_LOW);
 		if (IS_ERR(pdata->gpiod_se_reset)) {
-			dev_err(dev,
-				"%s : Unable to request esereset %d\n",
-				__func__,
-				IS_ERR(pdata->gpiod_se_reset));
+			dev_err(dev, "Unable to request esereset\n");
 			return -ENODEV;
 		}
+	} else if (pdata->power_gpio_mode == POWER_MODE_ST54L) {
+		/* Optional esereset Gpio */
+		pdata->gpiod_se_reset =
+			devm_gpiod_get(dev, "esereset", GPIOD_OUT_HIGH);
+		/* Optional for power monitor record */
+		r = st54spi_parse_ese_pwr_dt(dev, pdata);
+		if (r) {
+			dev_err(dev, "st54spi_parse_ese_pwr_dt failed\n");
+			return r;
+		}
 	} else {
-		dev_err(dev, "%s: ST54H mode not supported", __FILE__);
+		dev_err(dev, "ST54H mode not supported");
 	}
-	if (pdata->power_gpio_mode == POWER_MODE_ST54L) {
-		/* Optional se_chip_en Gpio */
-		pdata->gpiod_se_chip_en =
-			devm_gpiod_get(dev, "ese_chip_enable", GPIOD_OUT_HIGH);
-		pdata->pinctrl = devm_pinctrl_get(dev);
-		if (IS_ERR(pdata->pinctrl)) {
-			dev_err(dev, "could not get pinctrl\n");
-			return -ENODEV;
-		}
-	} else {
+	/* Optional se_chip_en Gpio */
+	pdata->gpiod_se_chip_en =
+		devm_gpiod_get(dev, "ese_chip_enable", GPIOD_OUT_HIGH);
+	/* Optional pincrtl workaround */
+	pdata->pinctrl = devm_pinctrl_get(dev);
+	if (IS_ERR(pdata->pinctrl)) {
+		dev_dbg(dev, "[optional] no pinctrl\n");
 		pdata->pinctrl = NULL;
 	}
 	return r;
 }
+
+static uint64_t st54spi_power_duration(struct st54spi_data *pdata,
+				       enum st54spi_power_state pstate,
+				       uint64_t current_time_ms)
+{
+	return pdata->c_pw_current != pstate ?
+		pdata->c_pw_states[pstate].duration :
+		pdata->c_pw_states[pstate].duration +
+		(current_time_ms - pdata->c_pw_states[pstate].last_entry);
+}
+
+/* Show the number of idle state transition from cache */
+static ssize_t st54spi_power_idle_count_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct spi_device *spi = to_spi_device(dev);
+	struct st54spi_data *pdata = spi_get_drvdata(spi);
+
+	return sysfs_emit(buf, "%#llx\n", pdata->c_pw_states[ST54SPI_IDLE].count);
+}
+
+/* Show the total duration of the idle state from cache */
+static ssize_t st54spi_power_idle_duration_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct spi_device *spi = to_spi_device(dev);
+	struct st54spi_data *pdata = spi_get_drvdata(spi);
+
+	return sysfs_emit(buf, "%#llx\n", pdata->c_idle_duration);
+}
+
+/* Show the timestamp when entering the idle state from cache */
+static ssize_t st54spi_power_idle_entry_time_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct spi_device *spi = to_spi_device(dev);
+	struct st54spi_data *pdata = spi_get_drvdata(spi);
+
+	return sysfs_emit(buf, "%#llx\n",
+			pdata->c_pw_states[ST54SPI_IDLE].last_entry);
+}
+
+/* Show the timestamp when exiting the idle state from cache */
+static ssize_t st54spi_power_idle_exit_time_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct spi_device *spi = to_spi_device(dev);
+	struct st54spi_data *pdata = spi_get_drvdata(spi);
+
+	return sysfs_emit(buf, "%#llx\n",
+			pdata->c_pw_states[ST54SPI_IDLE].last_exit);
+}
+
+/* Show the number of active state transition from cache */
+static ssize_t st54spi_power_active_count_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct spi_device *spi = to_spi_device(dev);
+	struct st54spi_data *pdata = spi_get_drvdata(spi);
+
+	return sysfs_emit(buf, "%#llx\n",
+			pdata->c_pw_states[ST54SPI_ACTIVE].count);
+}
+
+/* Show the total duration of the active state from cache*/
+static ssize_t st54spi_power_active_duration_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct spi_device *spi = to_spi_device(dev);
+	struct st54spi_data *pdata = spi_get_drvdata(spi);
+
+	return sysfs_emit(buf, "%#llx\n", pdata->c_active_duration);
+}
+
+/* Show the timestamp from cache when entering the active state*/
+static ssize_t st54spi_power_active_entry_time_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct spi_device *spi = to_spi_device(dev);
+	struct st54spi_data *pdata = spi_get_drvdata(spi);
+
+	return sysfs_emit(buf, "%#llx\n",
+			pdata->c_pw_states[ST54SPI_ACTIVE].last_entry);
+}
+
+/* Show the timestamp from cache when exiting the active state*/
+static ssize_t st54spi_power_active_exit_time_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct spi_device *spi = to_spi_device(dev);
+	struct st54spi_data *pdata = spi_get_drvdata(spi);
+
+	return sysfs_emit(buf, "%#llx\n",
+			pdata->c_pw_states[ST54SPI_ACTIVE].last_exit);
+}
+
+/* Show the timestamp from cache when the power state was captured*/
+static ssize_t st54spi_power_snap_time_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct spi_device *spi = to_spi_device(dev);
+	struct st54spi_data *pdata = spi_get_drvdata(spi);
+
+	return sysfs_emit(buf, "%#llx\n", pdata->c_current_time_ms);
+}
+
+/* Take a snap shot of the latest power state to cache */
+static ssize_t st54spi_power_state_snap_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct spi_device *spi = to_spi_device(dev);
+	struct st54spi_data *pdata = spi_get_drvdata(spi);
+
+	mutex_lock(&pdata->sestate_mutex);
+	pdata->c_pw_current = pdata->pw_current;
+	memcpy(pdata->c_pw_states, pdata->pw_states,
+	       ST54SPI_POWER_STATE_MAX * sizeof(struct st54spi_sub_power_stats));
+	pdata->c_current_time_ms = ktime_to_ms(ktime_get_boottime());
+	pdata->c_idle_duration = st54spi_power_duration(pdata, ST54SPI_IDLE,
+					       pdata->c_current_time_ms);
+	pdata->c_active_duration = st54spi_power_duration(pdata, ST54SPI_ACTIVE,
+						    pdata->c_current_time_ms);
+	mutex_unlock(&pdata->sestate_mutex);
+	return sysfs_emit(buf, "%#llx\n", pdata->c_current_time_ms);
+}
+
+static DEVICE_ATTR_RO(st54spi_power_idle_count);
+static DEVICE_ATTR_RO(st54spi_power_idle_duration);
+static DEVICE_ATTR_RO(st54spi_power_idle_entry_time);
+static DEVICE_ATTR_RO(st54spi_power_idle_exit_time);
+static DEVICE_ATTR_RO(st54spi_power_active_count);
+static DEVICE_ATTR_RO(st54spi_power_active_duration);
+static DEVICE_ATTR_RO(st54spi_power_active_entry_time);
+static DEVICE_ATTR_RO(st54spi_power_active_exit_time);
+static DEVICE_ATTR_RO(st54spi_power_snap_time);
+static DEVICE_ATTR_RO(st54spi_power_state_snap);
+
+static struct attribute *st54spi_attrs[] = {
+	&dev_attr_st54spi_power_idle_count.attr,
+	&dev_attr_st54spi_power_idle_duration.attr,
+	&dev_attr_st54spi_power_idle_entry_time.attr,
+	&dev_attr_st54spi_power_idle_exit_time.attr,
+	&dev_attr_st54spi_power_active_count.attr,
+	&dev_attr_st54spi_power_active_duration.attr,
+	&dev_attr_st54spi_power_active_entry_time.attr,
+	&dev_attr_st54spi_power_active_exit_time.attr,
+	&dev_attr_st54spi_power_snap_time.attr,
+	&dev_attr_st54spi_power_state_snap.attr,
+	NULL,
+};
+
+static struct attribute_group st54spi_attr_grp = {
+	.attrs = st54spi_attrs,
+};
 
 static int st54spi_probe(struct spi_device *spi)
 {
 	struct st54spi_data *st54spi;
 	int status;
 	unsigned long minor;
-#ifdef ST54NFC_QCOM
 	struct device *dev = &spi->dev;
+#ifdef ST54NFC_QCOM
 	struct spi_geni_qcom_ctrl_data *spi_param;
 #endif /* ST54NFC_QCOM */
 
@@ -1052,7 +1391,7 @@ static int st54spi_probe(struct spi_device *spi)
 	dev_info(&spi->dev, "Loading st54spi driver, major: %d\n",
 		 st54spi_major);
 
-	st54spi_class = class_create(THIS_MODULE, "st54spi");
+	st54spi_class = class_create("st54spi");
 	if (IS_ERR(st54spi_class)) {
 		unregister_chrdev(st54spi_major, "st54spi");
 		return PTR_ERR(st54spi_class);
@@ -1127,10 +1466,22 @@ static int st54spi_probe(struct spi_device *spi)
 #endif
 	spi->bits_per_word = 8;
 
+	if (!IS_ERR(st54spi->gpiod_se_state) &&
+			sysfs_create_group(&dev->kobj, &st54spi_attr_grp)) {
+		dev_err(dev, "sysfs_create_group failed\n");
+		status = -ENODEV;
+	}
+
 	if (status == 0) {
 		spi_set_drvdata(spi, st54spi);
-		(void)st54spi_parse_dt(&spi->dev, st54spi);
-	} else {
+		status = st54spi_parse_dt(&spi->dev, st54spi);
+	}
+
+	if (status) {
+#ifdef GKI_MODULE
+		class_destroy(st54spi_class);
+		unregister_chrdev(st54spi_major, "st54spi");
+#endif
 		kfree(st54spi);
 	}
 
@@ -1162,20 +1513,43 @@ static void st54spi_remove(struct spi_device *spi)
 	mutex_unlock(&device_list_lock);
 }
 
+static int st54spi_suspend(struct device *device)
+{
+	/* Do nothing. */
+	return 0;
+}
+
+static int st54spi_resume(struct device *device)
+{
+	struct spi_device *spi = to_spi_device(device);
+	struct st54spi_data *pdata = spi_get_drvdata(spi);
+	bool is_active;
+
+	if (IS_ERR(pdata->gpiod_se_state))
+		return 0;
+	is_active = (bool)gpiod_get_value(pdata->gpiod_se_state);
+
+	if ((pdata->pw_current == ST54SPI_IDLE && is_active) ||
+	   (pdata->pw_current == ST54SPI_ACTIVE && !is_active)) {
+		/* Update the power state if current state not match */
+		queue_work(pdata->st54spi_p_wq, &(pdata->st54spi_p_work));
+	}
+	return 0;
+}
+
+static const struct dev_pm_ops st54spi_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(st54spi_suspend, st54spi_resume)
+};
+
 static struct spi_driver st54spi_spi_driver = {
 		.driver = {
 			.name = "st54spi",
 			.of_match_table = of_match_ptr(st54spi_dt_ids),
+			.pm = &st54spi_pm_ops,
 			.acpi_match_table = ACPI_PTR(st54spi_acpi_ids),
 		},
 		.probe = st54spi_probe,
 		.remove = st54spi_remove,
-
-		/* NOTE:  suspend/resume methods are not necessary here.
-		 * We don't do anything except pass the requests to/from
-		 * the underlying controller.  The refrigerator handles
-		 * most issues; the controller driver handles the rest.
-		 */
 };
 
 /*-------------------------------------------------------------------------*/
@@ -1187,7 +1561,7 @@ static int __init st54spi_init(void)
 {
 	int status;
 
-	pr_info("Loading st54spi driver\n");
+	pr_info("Loading st54spi driver version " DRIVER_VERSION "\n");
 
 	/* Claim our 256 reserved device numbers.  Then register a class
 	 * that will key udev/mdev to add/remove /dev nodes.  Last, register
@@ -1198,7 +1572,7 @@ static int __init st54spi_init(void)
 		__register_chrdev(0, 0, N_SPI_MINORS, "spi", &st54spi_fops);
 	pr_info("Loading st54spi driver, major: %d\n", st54spi_major);
 
-	st54spi_class = class_create(THIS_MODULE, "st54spi");
+	st54spi_class = class_create("st54spi");
 	if (IS_ERR(st54spi_class)) {
 		unregister_chrdev(st54spi_major,
 				  st54spi_spi_driver.driver.name);

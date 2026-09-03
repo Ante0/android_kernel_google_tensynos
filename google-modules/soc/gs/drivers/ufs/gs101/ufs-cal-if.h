@@ -18,8 +18,7 @@
 #define UFS_CAL_IF_VER 4
 #define UFS_CAL_IF_COMPAT_MMIO_VER 2
 
-#undef BIT
-#define BIT(a)	(1UL << (a))
+#include <linux/bits.h>
 
 struct uic_pwr_mode {
 	u8 lane;

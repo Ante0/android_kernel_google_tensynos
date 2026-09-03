@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: GPL-2.0
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+# TODO(b/343869732): It's here to support the legacy kernel modules. Remove it
+# once all dependent modules are switched to ddk modules.
+filegroup(
+    name = "headers",
+    srcs = [
+        "//private/google-modules/perf/core/google_pm_qos:headers",
+        "//private/google-modules/perf/infra/mbfs:headers",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules/power/mitigation:__pkg__",
+        "//private/google-modules/powervr:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "perf.kconfig",
+    srcs = glob([
+        "**/Kconfig",
+    ]) + [
+        "//private/google-modules/perf/core/gs_domain_idle:Kconfig",
+        "//private/google-modules/perf/core/gs_perf_mon:Kconfig",
+        "//private/google-modules/perf/core/irm_devfreq:Kconfig",
+        "//private/google-modules/perf/thermal:Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)

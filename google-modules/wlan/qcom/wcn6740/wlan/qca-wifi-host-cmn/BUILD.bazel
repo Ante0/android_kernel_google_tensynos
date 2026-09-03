@@ -1,0 +1,1317 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_headers")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_headers(
+    name = "qcacmn_headers",
+    hdrs = glob([
+        "**/*.h",
+    ]),
+    includes = [
+        "cfg/inc",
+        "dp/cmn_dp_api",
+        "dp/inc",
+        "dp/wifi3.0",
+        "dp/wifi3.0/monitor",
+        "dp/wifi3.0/monitor/1.0",
+        "ftm/core/src",
+        "ftm/dispatcher/inc",
+        "global_lmac_if/inc",
+        "gpio/core/inc",
+        "gpio/dispatcher/inc",
+        "hal/wifi3.0",
+        "hal/wifi3.0/li",
+        "hif/inc",
+        "hif/src",
+        "hif/src/ce",
+        "hif/src/dispatcher",
+        "hif/src/pcie",
+        "htc",
+        "init_deinit/dispatcher/inc",
+        "iot_sim/core",
+        "iot_sim/dispatcher/inc",
+        "ipa/core/inc",
+        "ipa/dispatcher/inc",
+        "os_if/linux",
+        "os_if/linux/crypto/inc",
+        "os_if/linux/ftm/inc",
+        "os_if/linux/gpio/inc",
+        "os_if/linux/mlme/inc",
+        "os_if/linux/scan/inc",
+        "os_if/linux/spectral/inc",
+        "os_if/linux/twt/inc",
+        "os_if/linux/wifi_pos/inc",
+        "qal/inc",
+        "qal/linux/src",
+        "qdf/inc",
+        "qdf/linux/src",
+        "qdf/test",
+        "scheduler/inc",
+        "spectral/core",
+        "spectral/dispatcher/inc",
+        "target_if/cfr/inc",
+        "target_if/core/inc",
+        "target_if/cp_stats/inc",
+        "target_if/crypto/inc",
+        "target_if/dcs/inc",
+        "target_if/dfs/inc",
+        "target_if/direct_buf_rx/inc",
+        "target_if/dispatcher/inc",
+        "target_if/dispatcher/src",
+        "target_if/dp/inc",
+        "target_if/ftm/inc",
+        "target_if/gpio",
+        "target_if/green_ap/inc",
+        "target_if/init_deinit/inc",
+        "target_if/mlme/psoc/inc",
+        "target_if/mlme/vdev_mgr/inc",
+        "target_if/regulatory/inc",
+        "target_if/scan/inc",
+        "target_if/spectral",
+        "target_if/twt/inc",
+        "target_if/wifi_pos/inc",
+        "umac",
+        "umac/cfr/core/inc",
+        "umac/cfr/dispatcher/inc",
+        "umac/cmn_services/cmn_defs/inc",
+        "umac/cmn_services/crypto/inc",
+        "umac/cmn_services/crypto/src",
+        "umac/cmn_services/inc",
+        "umac/cmn_services/interface_mgr/inc",
+        "umac/cmn_services/mgmt_txrx/dispatcher/inc",
+        "umac/cmn_services/obj_mgr/inc",
+        "umac/cmn_services/obj_mgr/src",
+        "umac/cmn_services/serialization/inc",
+        "umac/cmn_services/sm_engine/inc",
+        "umac/cmn_services/utils/inc",
+        "umac/cp_stats/dispatcher/inc",
+        "umac/dcs/dispatcher/inc",
+        "umac/dfs/dispatcher/inc",
+        "umac/global_umac_dispatcher/lmac_if/inc",
+        "umac/green_ap/dispatcher/inc",
+        "umac/mlme",
+        "umac/mlme/connection_mgr/dispatcher/inc",
+        "umac/mlme/mlme_objmgr/dispatcher/inc",
+        "umac/mlme/mlme_utils",
+        "umac/mlme/pdev_mgr/dispatcher/inc",
+        "umac/mlme/psoc_mgr/dispatcher/inc",
+        "umac/mlme/vdev_mgr/dispatcher/inc",
+        "umac/mlo_mgr/inc",
+        "umac/regulatory/dispatcher/inc",
+        "umac/scan/dispatcher/inc",
+        "umac/thermal/dispatcher/inc",
+        "umac/twt/dispatcher/inc",
+        "umac/wifi_pos/inc",
+        "utils/epping/inc",
+        "utils/fwlog",
+        "utils/host_diag_log/inc",
+        "utils/host_diag_log/src",
+        "utils/logging/inc",
+        "utils/nlink/inc",
+        "utils/pktlog/include",
+        "utils/ptt/inc",
+        "utils/sys",
+        "wbuff/inc",
+        "wlan_cfg",
+        "wmi/inc",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "feature_fw_log_parsing_srcs",
+    srcs = [
+        "utils/fwlog/dbglog_host.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "smp_srcs",
+    srcs = [
+        "qdf/linux/src/qdf_cpuhp.c",
+        "qdf/src/qdf_cpuhp.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "host_11d_scan_srcs",
+    srcs = [
+        "umac/regulatory/core/src/reg_host_11d.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "dp_pkt_add_timestamp_srcs",
+    srcs = [
+        "qdf/linux/src/qdf_pkt_add_timestamp.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "direct_buf_rx_enable_srcs",
+    srcs = [
+        "target_if/direct_buf_rx/src/target_if_direct_buf_rx_api.c",
+        "target_if/direct_buf_rx/src/target_if_direct_buf_rx_main.c",
+        "wmi/src/wmi_unified_dbr_api.c",
+        "wmi/src/wmi_unified_dbr_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "dcs_srcs",
+    srcs = [
+        "target_if/dcs/src/target_if_dcs.c",
+        "umac/dcs/core/src/wlan_dcs.c",
+        "umac/dcs/dispatcher/src/wlan_dcs_init_deinit_api.c",
+        "umac/dcs/dispatcher/src/wlan_dcs_tgt_api.c",
+        "umac/dcs/dispatcher/src/wlan_dcs_ucfg_api.c",
+        "wmi/src/wmi_unified_dcs_api.c",
+        "wmi/src/wmi_unified_dcs_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "cp_stats_srcs",
+    srcs = [
+        "target_if/cp_stats/src/target_if_cp_stats.c",
+        "umac/cp_stats/core/src/wlan_cp_stats_comp_handler.c",
+        "umac/cp_stats/core/src/wlan_cp_stats_obj_mgr_handler.c",
+        "umac/cp_stats/core/src/wlan_cp_stats_ol_api.c",
+        "umac/cp_stats/dispatcher/src/wlan_cp_stats_ucfg_api.c",
+        "umac/cp_stats/dispatcher/src/wlan_cp_stats_utils_api.c",
+        "wmi/src/wmi_unified_cp_stats_api.c",
+        "wmi/src/wmi_unified_cp_stats_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "feature_gpio_cfg_srcs",
+    srcs = [
+        "gpio/core/src/wlan_gpio_api.c",
+        "gpio/dispatcher/src/wlan_gpio_tgt_api.c",
+        "gpio/dispatcher/src/wlan_gpio_ucfg_api.c",
+        "os_if/linux/gpio/src/wlan_cfg80211_gpio.c",
+        "target_if/gpio/target_if_gpio.c",
+        "wmi/src/wmi_unified_gpio_api.c",
+        "wmi/src/wmi_unified_gpio_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "band_6ghz_srcs",
+    srcs = [
+        "umac/scan/core/src/wlan_scan_manager_6ghz.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "beryllium_srcs",
+    srcs = [
+        "dp/cmn_dp_api/dp_ratetable.c",
+        "dp/wifi3.0/be/dp_be.c",
+        "dp/wifi3.0/be/dp_be_rx.c",
+        "dp/wifi3.0/be/dp_be_tx.c",
+        "dp/wifi3.0/dp_arch_ops.c",
+        "dp/wifi3.0/dp_hist.c",
+        "dp/wifi3.0/dp_htt.c",
+        "dp/wifi3.0/dp_main.c",
+        "dp/wifi3.0/dp_peer.c",
+        "dp/wifi3.0/dp_reo.c",
+        "dp/wifi3.0/dp_rx.c",
+        "dp/wifi3.0/dp_rx_defrag.c",
+        "dp/wifi3.0/dp_rx_desc.c",
+        "dp/wifi3.0/dp_rx_err.c",
+        "dp/wifi3.0/dp_stats.c",
+        "dp/wifi3.0/dp_tx.c",
+        "dp/wifi3.0/dp_tx_desc.c",
+        "hal/wifi3.0/be/hal_be_generic_api.c",
+        "hal/wifi3.0/be/hal_be_reo.c",
+        "hal/wifi3.0/hal_reo.c",
+        "hal/wifi3.0/hal_srng.c",
+        "hif/src/ce/ce_service_srng.c",
+        "target_if/dp/src/target_if_dp.c",
+        "wlan_cfg/wlan_cfg.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "cm_utf_enable_srcs",
+    srcs = [
+        "umac/mlme/connection_mgr/utf/src/wlan_cm_utf_main.c",
+        "umac/mlme/connection_mgr/utf/src/wlan_cm_utf_scan.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "feature_mec_srcs",
+    srcs = [
+        "dp/wifi3.0/dp_txrx_wds.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "feature_interop_issues_ap_srcs",
+    srcs = [
+        "wmi/src/wmi_unified_interop_issues_ap_api.c",
+        "wmi/src/wmi_unified_interop_issues_ap_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "feature_epping_srcs",
+    srcs = [
+        "utils/epping/src/epping_helper.c",
+        "utils/epping/src/epping_main.c",
+        "utils/epping/src/epping_rx.c",
+        "utils/epping/src/epping_tx.c",
+        "utils/epping/src/epping_txrx.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "feature_htc_credit_history_srcs",
+    srcs = [
+        "htc/htc_credit_history.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "qca6490_headers_def_srcs",
+    srcs = [
+        "hal/wifi3.0/qca6490/hal_6490.c",
+        "hif/src/qca6490def.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "ptklog_legacy_srcs",
+    srcs = [
+        "utils/pktlog/pktlog_wifi2.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "feature_ptklog_en_non_legacy_srcs",
+    srcs = [
+        "utils/pktlog/pktlog_wifi3.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "pkt_log_srcs",
+    srcs = [
+        "utils/pktlog/linux_ac.c",
+        "utils/pktlog/pktlog_ac.c",
+        "utils/pktlog/pktlog_internal.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "ocb_ut_framework_srcs",
+    srcs = [
+        "wmi/src/wmi_unified_ocb_ut.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "linux_qcmber_srcs",
+    srcs = [
+        "os_if/linux/ftm/src/wlan_ioctl_ftm.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "lithium_srcs",
+    srcs = [
+        "dp/wifi3.0/dp_arch_ops.c",
+        "dp/wifi3.0/dp_hist.c",
+        "dp/wifi3.0/dp_htt.c",
+        "dp/wifi3.0/dp_main.c",
+        "dp/wifi3.0/dp_peer.c",
+        "dp/wifi3.0/dp_reo.c",
+        "dp/wifi3.0/dp_rx.c",
+        "dp/wifi3.0/dp_rx_defrag.c",
+        "dp/wifi3.0/dp_rx_desc.c",
+        "dp/wifi3.0/dp_rx_err.c",
+        "dp/wifi3.0/dp_stats.c",
+        "dp/wifi3.0/dp_tx.c",
+        "dp/wifi3.0/dp_tx_desc.c",
+        "dp/wifi3.0/li/dp_li.c",
+        "dp/wifi3.0/li/dp_li_rx.c",
+        "dp/wifi3.0/li/dp_li_tx.c",
+        "dp/wifi3.0/monitor/1.0/dp_mon_1.0.c",
+        "dp/wifi3.0/monitor/1.0/dp_mon_filter_1.0.c",
+        "dp/wifi3.0/monitor/1.0/dp_rx_mon_dest_1.0.c",
+        "dp/wifi3.0/monitor/1.0/dp_rx_mon_status_1.0.c",
+        "dp/wifi3.0/monitor/dp_mon.c",
+        "dp/wifi3.0/monitor/dp_mon_filter.c",
+        "dp/wifi3.0/monitor/dp_rx_mon.c",
+        "hal/wifi3.0/hal_reo.c",
+        "hal/wifi3.0/hal_srng.c",
+        "hal/wifi3.0/li/hal_li_generic_api.c",
+        "hal/wifi3.0/li/hal_li_reo.c",
+        "hif/src/ce/ce_service_srng.c",
+        "target_if/dp/src/target_if_dp.c",
+        "wlan_cfg/wlan_cfg.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "leak_detection_srcs",
+    srcs = [
+        "qdf/src/qdf_debug_domain.c",
+        "qdf/src/qdf_tracker.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "ipa_offload_srcs",
+    srcs = [
+        "dp/wifi3.0/dp_ipa.c",
+        "ipa/core/src/wlan_ipa_core.c",
+        "ipa/core/src/wlan_ipa_main.c",
+        "ipa/core/src/wlan_ipa_rm.c",
+        "ipa/core/src/wlan_ipa_stats.c",
+        "ipa/dispatcher/src/wlan_ipa_obj_mgmt_api.c",
+        "ipa/dispatcher/src/wlan_ipa_tgt_api.c",
+        "ipa/dispatcher/src/wlan_ipa_ucfg_api.c",
+        "qdf/linux/src/qdf_ipa.c",
+        "target_if/ipa/src/target_if_ipa.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "hif_ipci_srcs",
+    srcs = [
+        "hif/src/dispatcher/multibus_ipci.c",
+        "hif/src/ipcie/if_ipci.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "hif_pci_srcs",
+    srcs = [
+        "hif/src/dispatcher/multibus_pci.c",
+        "hif/src/pcie/if_pci.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "hif_sdio_srcs",
+    srcs = [
+        "hif/src/dispatcher/multibus_sdio.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "hif_snoc_srcs",
+    srcs = [
+        "hif/src/dispatcher/multibus_snoc.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "hif_usb_srcs",
+    srcs = [
+        "hif/src/dispatcher/multibus_usb.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "feature_unit_test_suspend_srcs",
+    srcs = [
+        "hif/src/hif_unit_test_suspend.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "feature_vdev_ops_wakelock_srcs",
+    srcs = [
+        "target_if/mlme/psoc/src/target_if_psoc_wake_lock.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "feature_wlan_extscan_srcs",
+    srcs = [
+        "umac/scan/dispatcher/src/wlan_extscan_api.c",
+        "wmi/src/wmi_unified_extscan_api.c",
+        "wmi/src/wmi_unified_extscan_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "rx_fisa_srcs",
+    srcs = [
+        "hal/wifi3.0/hal_rx_flow.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "sm_eng_hist_srcs",
+    srcs = [
+        "umac/cmn_services/sm_engine/src/wlan_sm_engine_dbg.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "sm_rhine_srcs",
+    srcs = [
+        "dp/cmn_dp_api/dp_ratetable.c",
+        "dp/wifi3.0/dp_arch_ops.c",
+        "dp/wifi3.0/dp_hist.c",
+        "dp/wifi3.0/dp_htt.c",
+        "dp/wifi3.0/dp_main.c",
+        "dp/wifi3.0/dp_peer.c",
+        "dp/wifi3.0/dp_rx.c",
+        "dp/wifi3.0/dp_rx_defrag.c",
+        "dp/wifi3.0/dp_rx_desc.c",
+        "dp/wifi3.0/dp_stats.c",
+        "dp/wifi3.0/dp_tx.c",
+        "dp/wifi3.0/dp_tx_desc.c",
+        "hal/wifi3.0/hal_reo.c",
+        "hal/wifi3.0/hal_srng.c",
+        "hif/src/ce/ce_service_legacy.c",
+        "hif/src/hif_main_legacy.c",
+        "target_if/dp/src/target_if_dp.c",
+        "wlan_cfg/wlan_cfg.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "qdf_test_srcs",
+    srcs = [
+        "qdf/test/qdf_delayed_work_test.c",
+        "qdf/test/qdf_hashtable_test.c",
+        "qdf/test/qdf_periodic_work_test.c",
+        "qdf/test/qdf_ptr_hash_test.c",
+        "qdf/test/qdf_slist_test.c",
+        "qdf/test/qdf_talloc_test.c",
+        "qdf/test/qdf_tracker_test.c",
+        "qdf/test/qdf_types_test.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "qca_wifi_ftm_srcs",
+    srcs = [
+        "ftm/core/src/wlan_ftm_svc.c",
+        "ftm/dispatcher/src/wlan_ftm_init_deinit.c",
+        "ftm/dispatcher/src/wlan_ftm_ucfg_api.c",
+        "target_if/ftm/src/target_if_ftm.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "nl80211_testmode_srcs",
+    srcs = [
+        "os_if/linux/ftm/src/wlan_cfg80211_ftm.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "qcacld_wlan_lfr2_srcs",
+    srcs = [
+        "umac/mlme/connection_mgr/core/src/wlan_cm_host_roam.c",
+        "umac/mlme/connection_mgr/core/src/wlan_cm_roam_util.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "qcacld_wlan_lfr3_srcs",
+    srcs = [
+        "umac/mlme/connection_mgr/core/src/wlan_cm_roam_util.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wdi_event_enable_srcs",
+    srcs = [
+        "dp/wifi3.0/dp_wdi_event.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wifi_monitor_support_srcs",
+    srcs = [
+        "dp/wifi3.0/monitor/1.0/dp_mon_1.0.c",
+        "dp/wifi3.0/monitor/1.0/dp_mon_filter_1.0.c",
+        "dp/wifi3.0/monitor/1.0/dp_rx_mon_dest_1.0.c",
+        "dp/wifi3.0/monitor/1.0/dp_rx_mon_status_1.0.c",
+        "dp/wifi3.0/monitor/dp_mon.c",
+        "dp/wifi3.0/monitor/dp_mon_filter.c",
+        "dp/wifi3.0/monitor/dp_rx_mon.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wifi_monitor_support_y_wlan_tx_mon_2_0_srcs",
+    srcs = [
+        "dp/wifi3.0/monitor/2.0/dp_mon_2.0.c",
+        "dp/wifi3.0/monitor/2.0/dp_mon_filter_2.0.c",
+        "dp/wifi3.0/monitor/2.0/dp_tx_mon_2.0.c",
+        "dp/wifi3.0/monitor/2.0/dp_tx_mon_status_2.0.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wifi_pos_converged_srcs",
+    srcs = [
+        "os_if/linux/wifi_pos/src/os_if_wifi_pos.c",
+        "target_if/wifi_pos/src/target_if_wifi_pos.c",
+        "umac/wifi_pos/src/wifi_pos_api.c",
+        "umac/wifi_pos/src/wifi_pos_main.c",
+        "umac/wifi_pos/src/wifi_pos_ucfg.c",
+        "umac/wifi_pos/src/wifi_pos_utils.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_cfr_adrastea_srcs",
+    srcs = [
+        "target_if/cfr/src/target_if_cfr_adrastea.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_cfr_dbr_srcs",
+    srcs = [
+        "target_if/cfr/src/target_if_cfr_dbr.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_cfr_enable_srcs",
+    srcs = [
+        "target_if/cfr/src/target_if_cfr.c",
+        "target_if/cfr/src/target_if_cfr_6490.c",
+        "umac/cfr/core/src/cfr_common.c",
+        "umac/cfr/dispatcher/src/wlan_cfr_tgt_api.c",
+        "umac/cfr/dispatcher/src/wlan_cfr_ucfg_api.c",
+        "umac/cfr/dispatcher/src/wlan_cfr_utils_api.c",
+        "wmi/src/wmi_unified_cfr_api.c",
+        "wmi/src/wmi_unified_cfr_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_conv_spectral_enable_srcs",
+    srcs = [
+        "os_if/linux/spectral/src/os_if_spectral_netlink.c",
+        "os_if/linux/spectral/src/wlan_cfg80211_spectral.c",
+        "spectral/core/spectral_common.c",
+        "spectral/core/spectral_offload.c",
+        "spectral/dispatcher/src/wlan_spectral_tgt_api.c",
+        "spectral/dispatcher/src/wlan_spectral_ucfg_api.c",
+        "spectral/dispatcher/src/wlan_spectral_utils_api.c",
+        "target_if/spectral/target_if_spectral.c",
+        "target_if/spectral/target_if_spectral_netlink.c",
+        "target_if/spectral/target_if_spectral_phyerr.c",
+        "target_if/spectral/target_if_spectral_sim.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_debugfs_srcs",
+    srcs = [
+        "qdf/linux/src/qdf_debugfs.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_dfs_master_enable_srcs",
+    srcs = [
+        "target_if/dfs/src/target_if_dfs.c",
+        "umac/dfs/core/src/misc/dfs.c",
+        "umac/dfs/core/src/misc/dfs_nol.c",
+        "umac/dfs/core/src/misc/dfs_process_radar_found_ind.c",
+        "umac/dfs/core/src/misc/dfs_random_chan_sel.c",
+        "umac/dfs/dispatcher/src/wlan_dfs_init_deinit_api.c",
+        "umac/dfs/dispatcher/src/wlan_dfs_lmac_api.c",
+        "umac/dfs/dispatcher/src/wlan_dfs_mlme_api.c",
+        "umac/dfs/dispatcher/src/wlan_dfs_tgt_api.c",
+        "umac/dfs/dispatcher/src/wlan_dfs_ucfg_api.c",
+        "umac/dfs/dispatcher/src/wlan_dfs_utils_api.c",
+        "wmi/src/wmi_unified_dfs_api.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_diag_version_srcs",
+    srcs = [
+        "utils/host_diag_log/src/host_diag_log.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_enh_cfr_enable_srcs",
+    srcs = [
+        "target_if/cfr/src/target_if_cfr_enh.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "feature_dsrc_srcs",
+    srcs = [
+        "wmi/src/wmi_unified_ocb_api.c",
+        "wmi/src/wmi_unified_ocb_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "power_management_offload_srcs",
+    srcs = [
+        "wmi/src/wmi_unified_pmo_api.c",
+        "wmi/src/wmi_unified_pmo_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "qcacld_feature_apf_srcs",
+    srcs = [
+        "wmi/src/wmi_unified_apf_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "feature_green_ap_srcs",
+    srcs = [
+        "target_if/green_ap/src/target_if_green_ap.c",
+        "umac/green_ap/core/src/wlan_green_ap_main.c",
+        "umac/green_ap/dispatcher/src/wlan_green_ap_api.c",
+        "umac/green_ap/dispatcher/src/wlan_green_ap_ucfg_api.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "qcacld_feature_nan_srcs",
+    srcs = [
+        "wmi/src/wmi_unified_nan_api.c",
+        "wmi/src/wmi_unified_nan_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "qcacld_feature_son_srcs",
+    srcs = [
+        "target_if/son/src/target_if_son.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_feature_11be_mlo_srcs",
+    srcs = [
+        "target_if/mlo_mgr/src/target_if_mlo_mgr.c",
+        "umac/mlo_mgr/src/utils_mlo.c",
+        "umac/mlo_mgr/src/wlan_mlo_mgr_aid.c",
+        "umac/mlo_mgr/src/wlan_mlo_mgr_ap.c",
+        "umac/mlo_mgr/src/wlan_mlo_mgr_cmn.c",
+        "umac/mlo_mgr/src/wlan_mlo_mgr_main.c",
+        "umac/mlo_mgr/src/wlan_mlo_mgr_msgq.c",
+        "umac/mlo_mgr/src/wlan_mlo_mgr_peer.c",
+        "umac/mlo_mgr/src/wlan_mlo_mgr_peer_list.c",
+        "umac/mlo_mgr/src/wlan_mlo_mgr_primary_umac.c",
+        "umac/mlo_mgr/src/wlan_mlo_mgr_sta.c",
+        "wmi/src/wmi_unified_11be_api.c",
+        "wmi/src/wmi_unified_11be_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_feature_action_oui_srcs",
+    srcs = [
+        "wmi/src/wmi_unified_action_oui_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_feature_dfs_offload_enable_srcs",
+    srcs = [
+        "target_if/dfs/src/target_if_dfs_full_offload.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_feature_dfs_offload_disable_srcs",
+    srcs = [
+        "target_if/dfs/src/target_if_dfs_partial_offload.c",
+        "umac/dfs/core/src/filtering/dfs_bindetects.c",
+        "umac/dfs/core/src/filtering/dfs_debug.c",
+        "umac/dfs/core/src/filtering/dfs_fcc_bin5.c",
+        "umac/dfs/core/src/filtering/dfs_init.c",
+        "umac/dfs/core/src/filtering/dfs_misc.c",
+        "umac/dfs/core/src/filtering/dfs_partial_offload_radar.c",
+        "umac/dfs/core/src/filtering/dfs_phyerr_tlv.c",
+        "umac/dfs/core/src/filtering/dfs_process_phyerr.c",
+        "umac/dfs/core/src/filtering/dfs_process_radarevent.c",
+        "umac/dfs/core/src/filtering/dfs_radar.c",
+        "umac/dfs/core/src/filtering/dfs_staggered.c",
+        "umac/dfs/core/src/misc/dfs_filter_init.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_feature_rx_buffer_pool_srcs",
+    srcs = [
+        "dp/wifi3.0/dp_rx_buffer_pool.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_twt_converged_srcs",
+    srcs = [
+        "os_if/linux/twt/src/osif_twt_req.c",
+        "os_if/linux/twt/src/osif_twt_rsp.c",
+        "target_if/twt/src/target_if_twt.c",
+        "target_if/twt/src/target_if_twt_cmd.c",
+        "target_if/twt/src/target_if_twt_evt.c",
+        "umac/twt/core/src/wlan_twt_common.c",
+        "umac/twt/core/src/wlan_twt_objmgr.c",
+        "umac/twt/dispatcher/src/wlan_twt_api.c",
+        "umac/twt/dispatcher/src/wlan_twt_tgt_if_rx_api.c",
+        "umac/twt/dispatcher/src/wlan_twt_tgt_if_tx_api.c",
+        "umac/twt/dispatcher/src/wlan_twt_ucfg_api.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_feature_twt_srcs",
+    srcs = [
+        "wmi/src/wmi_unified_twt_api.c",
+        "wmi/src/wmi_unified_twt_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_fw_offload_srcs",
+    srcs = [
+        "wmi/src/wmi_unified_fwol_api.c",
+        "wmi/src/wmi_unified_fwol_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_hange_event_srcs",
+    srcs = [
+        "htc/htc_hang_event.c",
+        "qdf/src/qdf_hang_event_notifier.c",
+        "qdf/src/qdf_notifier.c",
+        "wmi/src/wmi_hang_event.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_lro_srcs",
+    srcs = [
+        "qdf/linux/src/qdf_lro.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "feature_rx_buffer_recycle_srcs",
+    srcs = [
+        "dp/wifi3.0/dp_rx_buffer_pool.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_tx_flow_contorl_v2_srcs",
+    srcs = [
+        "dp/wifi3.0/dp_tx_flow_control.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_wbuff_srcs",
+    srcs = [
+        "wbuff/src/wbuff.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wmi_bcn_offload_srcs",
+    srcs = [
+        "wmi/src/wmi_unified_bcn_api.c",
+        "wmi/src/wmi_unified_bcn_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wmi_concurrency_support_srcs",
+    srcs = [
+        "wmi/src/wmi_unified_concurrency_api.c",
+        "wmi/src/wmi_unified_concurrency_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wmi_sta_support_srcs",
+    srcs = [
+        "wmi/src/wmi_unified_sta_api.c",
+        "wmi/src/wmi_unified_sta_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_tracepoints_srcs",
+    srcs = [
+        "qdf/linux/src/qdf_tracepoint.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_napi_srcs",
+    srcs = [
+        "hif/src/hif_irq_affinity.c",
+        "hif/src/hif_napi.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_objmgr_srcs",
+    srcs = [
+        "umac/cmn_services/obj_mgr/src/wlan_objmgr_debug.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "wlan_streamfs_srcs",
+    srcs = [
+        "qdf/linux/src/qdf_streamfs.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "remove_pkt_log_srcs",
+    srcs = [
+        "utils/pktlog/linux_ac.c",
+        "utils/pktlog/pktlog_ac.c",
+        "utils/pktlog/pktlog_internal.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "crypto_component_srcs",
+    srcs = [
+        "os_if/linux/crypto/src/wlan_cfg80211_crypto.c",
+        "target_if/crypto/src/target_if_crypto.c",
+        "umac/cmn_services/crypto/src/wlan_crypto_global_api.c",
+        "umac/cmn_services/crypto/src/wlan_crypto_main.c",
+        "umac/cmn_services/crypto/src/wlan_crypto_obj_mgr.c",
+        "umac/cmn_services/crypto/src/wlan_crypto_param_handling.c",
+        "umac/cmn_services/crypto/src/wlan_crypto_ucfg_api.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "converged_p2p_enable_srcs",
+    srcs = [
+        "wmi/src/wmi_unified_p2p_api.c",
+        "wmi/src/wmi_unified_p2p_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "qcacmn_fixed_srcs",
+    srcs = [
+        "cfg/src/cfg.c",
+        "global_lmac_if/src/wlan_global_lmac_if.c",
+        "hif/src/ath_procfs.c",
+        "hif/src/ce/ce_diag.c",
+        "hif/src/ce/ce_main.c",
+        "hif/src/ce/ce_service.c",
+        "hif/src/ce/ce_tasklet.c",
+        "hif/src/dispatcher/dummy.c",
+        "hif/src/dispatcher/multibus.c",
+        "hif/src/hif_exec.c",
+        "hif/src/hif_main.c",
+        "hif/src/hif_runtime_pm.c",
+        "hif/src/mp_dev.c",
+        "hif/src/regtable.c",
+        "htc/htc.c",
+        "htc/htc_recv.c",
+        "htc/htc_send.c",
+        "htc/htc_services.c",
+        "init_deinit/dispatcher/src/dispatcher_init_deinit.c",
+        "os_if/linux/crypto/src/wlan_nl_to_crypto_params.c",
+        "os_if/linux/mlme/src/osif_cm_connect_rsp.c",
+        "os_if/linux/mlme/src/osif_cm_disconnect_rsp.c",
+        "os_if/linux/mlme/src/osif_cm_req.c",
+        "os_if/linux/mlme/src/osif_cm_roam_rsp.c",
+        "os_if/linux/mlme/src/osif_cm_util.c",
+        "os_if/linux/mlme/src/osif_vdev_mgr_util.c",
+        "os_if/linux/scan/src/wlan_cfg80211_scan.c",
+        "os_if/linux/wlan_cfg80211.c",
+        "os_if/linux/wlan_osif_request_manager.c",
+        "qdf/linux/src/qdf_crypto.c",
+        "qdf/linux/src/qdf_defer.c",
+        "qdf/linux/src/qdf_delayed_work.c",
+        "qdf/linux/src/qdf_event.c",
+        "qdf/linux/src/qdf_file.c",
+        "qdf/linux/src/qdf_func_tracker.c",
+        "qdf/linux/src/qdf_idr.c",
+        "qdf/linux/src/qdf_list.c",
+        "qdf/linux/src/qdf_lock.c",
+        "qdf/linux/src/qdf_mc_timer.c",
+        "qdf/linux/src/qdf_mem.c",
+        "qdf/linux/src/qdf_nbuf.c",
+        "qdf/linux/src/qdf_nbuf_frag.c",
+        "qdf/linux/src/qdf_periodic_work.c",
+        "qdf/linux/src/qdf_status.c",
+        "qdf/linux/src/qdf_threads.c",
+        "qdf/linux/src/qdf_trace.c",
+        "qdf/src/qdf_flex_mem.c",
+        "qdf/src/qdf_parse.c",
+        "qdf/src/qdf_platform.c",
+        "qdf/src/qdf_str.c",
+        "qdf/src/qdf_talloc.c",
+        "qdf/src/qdf_types.c",
+        "scheduler/src/scheduler_api.c",
+        "scheduler/src/scheduler_core.c",
+        "target_if/core/src/target_if_main.c",
+        "target_if/init_deinit/src/init_cmd_api.c",
+        "target_if/init_deinit/src/init_deinit_lmac.c",
+        "target_if/init_deinit/src/init_event_handler.c",
+        "target_if/init_deinit/src/service_ready_util.c",
+        "target_if/mlme/psoc/src/target_if_psoc_timer_tx_ops.c",
+        "target_if/mlme/vdev_mgr/src/target_if_vdev_mgr_rx_ops.c",
+        "target_if/mlme/vdev_mgr/src/target_if_vdev_mgr_tx_ops.c",
+        "target_if/regulatory/src/target_if_reg.c",
+        "target_if/regulatory/src/target_if_reg_11d.c",
+        "target_if/regulatory/src/target_if_reg_lte.c",
+        "target_if/scan/src/target_if_scan.c",
+        "umac/cmn_services/interface_mgr/src/wlan_if_mgr_core.c",
+        "umac/cmn_services/interface_mgr/src/wlan_if_mgr_main.c",
+        "umac/cmn_services/mgmt_txrx/core/src/wlan_mgmt_txrx_main.c",
+        "umac/cmn_services/mgmt_txrx/dispatcher/src/wlan_mgmt_txrx_tgt_api.c",
+        "umac/cmn_services/mgmt_txrx/dispatcher/src/wlan_mgmt_txrx_utils_api.c",
+        "umac/cmn_services/obj_mgr/src/wlan_objmgr_global_obj.c",
+        "umac/cmn_services/obj_mgr/src/wlan_objmgr_pdev_obj.c",
+        "umac/cmn_services/obj_mgr/src/wlan_objmgr_peer_obj.c",
+        "umac/cmn_services/obj_mgr/src/wlan_objmgr_psoc_obj.c",
+        "umac/cmn_services/obj_mgr/src/wlan_objmgr_vdev_obj.c",
+        "umac/cmn_services/serialization/src/wlan_serialization_api.c",
+        "umac/cmn_services/serialization/src/wlan_serialization_internal.c",
+        "umac/cmn_services/serialization/src/wlan_serialization_legacy_api.c",
+        "umac/cmn_services/serialization/src/wlan_serialization_main.c",
+        "umac/cmn_services/serialization/src/wlan_serialization_non_scan.c",
+        "umac/cmn_services/serialization/src/wlan_serialization_queue.c",
+        "umac/cmn_services/serialization/src/wlan_serialization_rules.c",
+        "umac/cmn_services/serialization/src/wlan_serialization_scan.c",
+        "umac/cmn_services/serialization/src/wlan_serialization_utils.c",
+        "umac/cmn_services/sm_engine/src/wlan_sm_engine.c",
+        "umac/cmn_services/utils/src/wlan_utility.c",
+        "umac/global_umac_dispatcher/lmac_if/src/wlan_lmac_if.c",
+        "umac/mlme/connection_mgr/core/src/wlan_cm_bss_scoring.c",
+        "umac/mlme/connection_mgr/core/src/wlan_cm_connect.c",
+        "umac/mlme/connection_mgr/core/src/wlan_cm_connect_scan.c",
+        "umac/mlme/connection_mgr/core/src/wlan_cm_disconnect.c",
+        "umac/mlme/connection_mgr/core/src/wlan_cm_main.c",
+        "umac/mlme/connection_mgr/core/src/wlan_cm_roam_sm.c",
+        "umac/mlme/connection_mgr/core/src/wlan_cm_sm.c",
+        "umac/mlme/connection_mgr/core/src/wlan_cm_util.c",
+        "umac/mlme/connection_mgr/dispatcher/src/wlan_cm_api.c",
+        "umac/mlme/connection_mgr/dispatcher/src/wlan_cm_ucfg_api.c",
+        "umac/mlme/mlme_objmgr/dispatcher/src/wlan_cmn_mlme_main.c",
+        "umac/mlme/mlme_objmgr/dispatcher/src/wlan_pdev_mlme_main.c",
+        "umac/mlme/mlme_objmgr/dispatcher/src/wlan_psoc_mlme_main.c",
+        "umac/mlme/mlme_objmgr/dispatcher/src/wlan_vdev_mlme_main.c",
+        "umac/mlme/pdev_mgr/dispatcher/src/wlan_pdev_mlme_api.c",
+        "umac/mlme/psoc_mgr/dispatcher/src/wlan_psoc_mlme_api.c",
+        "umac/mlme/vdev_mgr/core/src/vdev_mgr_ops.c",
+        "umac/mlme/vdev_mgr/core/src/vdev_mlme_sm.c",
+        "umac/mlme/vdev_mgr/dispatcher/src/wlan_vdev_mgr_tgt_if_rx_api.c",
+        "umac/mlme/vdev_mgr/dispatcher/src/wlan_vdev_mgr_tgt_if_tx_api.c",
+        "umac/mlme/vdev_mgr/dispatcher/src/wlan_vdev_mgr_ucfg_api.c",
+        "umac/mlme/vdev_mgr/dispatcher/src/wlan_vdev_mgr_utils_api.c",
+        "umac/mlme/vdev_mgr/dispatcher/src/wlan_vdev_mlme_api.c",
+        "umac/regulatory/core/src/reg_build_chan_list.c",
+        "umac/regulatory/core/src/reg_callbacks.c",
+        "umac/regulatory/core/src/reg_db.c",
+        "umac/regulatory/core/src/reg_db_parser.c",
+        "umac/regulatory/core/src/reg_lte.c",
+        "umac/regulatory/core/src/reg_offload_11d_scan.c",
+        "umac/regulatory/core/src/reg_opclass.c",
+        "umac/regulatory/core/src/reg_priv_objs.c",
+        "umac/regulatory/core/src/reg_services_common.c",
+        "umac/regulatory/core/src/reg_utils.c",
+        "umac/regulatory/dispatcher/src/wlan_reg_services_api.c",
+        "umac/regulatory/dispatcher/src/wlan_reg_tgt_api.c",
+        "umac/regulatory/dispatcher/src/wlan_reg_ucfg_api.c",
+        "umac/scan/core/src/wlan_scan_11d.c",
+        "umac/scan/core/src/wlan_scan_cache_db.c",
+        "umac/scan/core/src/wlan_scan_filter.c",
+        "umac/scan/core/src/wlan_scan_main.c",
+        "umac/scan/core/src/wlan_scan_manager.c",
+        "umac/scan/dispatcher/src/wlan_scan_api.c",
+        "umac/scan/dispatcher/src/wlan_scan_tgt_api.c",
+        "umac/scan/dispatcher/src/wlan_scan_ucfg_api.c",
+        "umac/scan/dispatcher/src/wlan_scan_utils_api.c",
+        "utils/logging/src/wlan_logging_sock_svc.c",
+        "utils/logging/src/wlan_roam_debug.c",
+        "utils/nlink/src/wlan_nlink_srv.c",
+        "utils/ptt/src/wlan_ptt_sock_svc.c",
+        "wmi/src/wmi_tlv_helper.c",
+        "wmi/src/wmi_tlv_platform.c",
+        "wmi/src/wmi_unified.c",
+        "wmi/src/wmi_unified_api.c",
+        "wmi/src/wmi_unified_crypto_api.c",
+        "wmi/src/wmi_unified_reg_api.c",
+        "wmi/src/wmi_unified_tlv.c",
+        "wmi/src/wmi_unified_vdev_api.c",
+        "wmi/src/wmi_unified_vdev_tlv.c",
+    ],
+    visibility = [
+        "//private/google-modules/wlan/qcom/wcn6740/wlan/qcacld-3.0:__pkg__",
+    ],
+)

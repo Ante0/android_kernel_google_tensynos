@@ -14,34 +14,33 @@ struct max77759_usecase_data {
 	int to_uc;		/* usecase to transition to */
 	int is_a1;
 
-	int bst_on;		/* ext boost */
-	int bst_sel;		/* 5V or 7.5V */
-	int ext_bst_ctl;	/* MW VENDOR_EXTBST_CTRL */
-	int otg_enable;		/* enter/exit from OTG cases */
-	bool rx_otg_en;		/* enable WLC_RX -> WLC_RX + OTG case */
-	bool ext_otg_only;	/* use external OTG only */
-	int pogo_ovp_en;	/* pogo ovp */
-	int pogo_ovp_en_act_low;	/* pogo ovp flags */
-	int pogo_vout_en;	/* pogo 5V vout */
+	struct gpio_desc *bst_on;		/* ext boost */
+	struct gpio_desc *bst_sel;		/* 5V or 7.5V */
+	struct gpio_desc *ext_bst_ctl;		/* MW VENDOR_EXTBST_CTRL */
+	struct gpio_desc *otg_enable;		/* enter/exit from OTG cases */
+	bool rx_otg_en;				/* enable WLC_RX -> WLC_RX + OTG case */
+	bool ext_otg_only;			/* use external OTG only */
+	struct gpio_desc *pogo_ovp_en;		/* pogo ovp */
+	struct gpio_desc *pogo_vout_en;		/* pogo 5V vout */
 
-	int ls2_en;		/* OVP LS2, rtx case */
-	int sw_en;		/* OVP SW Enable, rtx+otg case */
-	int dc_sw_gpio;		/* WLC-DC switch enable */
+	struct gpio_desc *ls2_en;		/* OVP LS2, rtx case */
+	struct gpio_desc *sw_en;		/* OVP SW Enable, rtx+otg case */
+	struct gpio_desc *dc_sw_gpio;		/* WLC-DC switch enable */
 
-	int vin_is_valid;	/* MAX20339 STATUS1.vinvalid */
-	int lsw1_is_open;	/* MAX20339 STATUS2.lsw1open */
-	int lsw1_is_closed;	/* MAX20339 STATUS2.lsw1closed */
-	int ls1_en;		/* MAX20339 close LSW1 directly */
+	struct gpio_desc *vin_is_valid;		/* MAX20339 STATUS1.vinvalid */
+	struct gpio_desc *lsw1_is_open;		/* MAX20339 STATUS2.lsw1open */
+	struct gpio_desc *lsw1_is_closed;	/* MAX20339 STATUS2.lsw1closed */
+	struct gpio_desc *ls1_en;		/* MAX20339 close LSW1 directly */
 
 	bool chgr_on;		/* charge enabled/disabled on current usecase */
-	int wlc_en;		/* wlcrx/chgin coex */
-	int wlc_vbus_en;	/* b/202526678 */
-	int ext_bst_mode;	/* wlcrx+otg: b/175706836, TPS61372 P1.1+ */
-	int cpout_en;		/* wlcrx+otg: CPOUT enabled/disabled */
-	int wlc_spoof_gpio;	/* wlcrx thermal throttle */
-	int cpout_ctl;		/* wlcrx+otg: CPOUT level 5.3V or DFLT */
+	struct gpio_desc *wlc_en;		/* wlcrx/chgin coex */
+	struct gpio_desc *wlc_vbus_en;		/* b/202526678 */
+	struct gpio_desc *ext_bst_mode;		/* wlcrx+otg: b/175706836, TPS61372 P1.1+ */
+	struct gpio_desc *cpout_en;		/* wlcrx+otg: CPOUT enabled/disabled */
+	struct gpio_desc *wlc_spoof_gpio;	/* wlcrx thermal throttle */
+	struct gpio_desc *cpout_ctl;		/* wlcrx+otg: CPOUT level 5.3V or DFLT */
 
-	int cpout21_en;		/* wlctx: CPOUT 2:1 converter enable/disable */
+	struct gpio_desc *cpout21_en;		/* wlctx: CPOUT 2:1 converter enable/disable */
 
 	u8 otg_ilim;		/* TODO: TCPM to control this? */
 	u8 otg_vbyp;		/* TODO: TCPM to control this? */
@@ -100,7 +99,8 @@ extern int gs101_to_standby(struct max77759_usecase_data *uc_data, int use_case)
 extern int gs101_to_usecase(struct max77759_usecase_data *uc_data, int use_case);
 extern int gs101_force_standby(struct max77759_usecase_data *uc_data);
 extern bool gs101_setup_usecases(struct max77759_usecase_data *uc_data,
-				 struct device_node *node);
+				 struct device_node *node,
+				 struct device *dev);
 extern void gs101_dump_usecasase_config(struct max77759_usecase_data *uc_data);
 extern int max77759_otg_vbyp_mv_to_code(u8 *code, int vbyp);
 

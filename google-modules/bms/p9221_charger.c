@@ -5,21 +5,25 @@
  *
  */
 
+#pragma clang diagnostic ignored "-Wenum-conversion"
+#pragma clang diagnostic ignored "-Wswitch"
+
 #include <linux/device.h>
 #include <linux/crc8.h>
 #include <linux/pm.h>
-#include <linux/gpio.h>
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/pm_runtime.h>
 #include <linux/of.h>
-#include <linux/of_gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/gpio/driver.h>
 #include <linux/kernel.h>
 #include <linux/delay.h>
 #include <linux/alarmtimer.h>
+#include <misc/gvotable.h>
+#include <misc/logbuffer.h>
 #include "p9221_charger.h"
 #include "p9221-dt-bindings.h"
 #include "google_dc_pps.h"
@@ -80,13 +84,13 @@ enum wlc_chg_mode {
 	WLC_HPP_HV,
 };
 
-#define BCL_WLC 	"BCL_WLC"
-#define BCL_DEV_VOTER 	"BCL_DEV_VOTER"
+#define BCL_WLC		"BCL_WLC"
+#define BCL_DEV_VOTER	"BCL_DEV_VOTER"
 #define BCL_WLC_VOTE	0
 
 enum wlc_bcl_rtx_mode {
-       WLC_ENABLED_TX,
-       WLC_DISABLED_TX,
+	WLC_ENABLED_TX,
+	WLC_DISABLED_TX,
 };
 
 
@@ -110,10 +114,6 @@ static int check_hpp_fod_level(struct p9221_charger_data *charger, int dc_voltag
 
 static char *align_status_str[] = {
 	"...", "M2C", "OK", "-1"
-};
-
-static char *uevent_source_str[] = {
-	"WLC", "FAN", "RTX"
 };
 
 static size_t p9221_hex_str(u8 *data, size_t len, char *buf, size_t max_buf,
@@ -446,8 +446,8 @@ static void p9221_write_fod(struct p9221_charger_data *charger)
 		goto no_fod;
 
 	if (!charger->pdata->fod_num &&
-            !charger->pdata->fod_epp_num &&
-            !charger->pdata->fod_hpp_num)
+	    !charger->pdata->fod_epp_num &&
+	    !charger->pdata->fod_hpp_num)
 		goto no_fod;
 
 	/* Default to BPP FOD */
@@ -903,8 +903,8 @@ static int p9xxx_set_bypass_mode(struct p9221_charger_data *charger)
 
 static int p9221_reset_wlc_dc(struct p9221_charger_data *charger)
 {
-	const int dc_sw_gpio = charger->pdata->dc_switch_gpio;
-	const int extben_gpio = charger->pdata->ext_ben_gpio;
+	struct gpio_desc *dc_sw_gpio = charger->pdata->dc_switch_gpio;
+	struct gpio_desc *extben_gpio = charger->pdata->ext_ben_gpio;
 	int ret;
 
 	if (!charger->pdata->has_wlc_dc)
@@ -1190,7 +1190,7 @@ static void p9221_wcin_inlim(struct p9221_charger_data *charger)
 {
 	int msc_last;
 
-	if (charger->pdata->wcin_inlim_en_gpio < 0)
+	if (!charger->pdata->wcin_inlim_en_gpio)
 		return;
 
 	if (!charger->msc_last_votable)
@@ -1199,9 +1199,9 @@ static void p9221_wcin_inlim(struct p9221_charger_data *charger)
 	msc_last = gvotable_get_current_int_vote(charger->msc_last_votable);
 
 	if (charger->online && (msc_last == 1 || charger->last_capacity > 90) && !p9221_is_epp(charger))
-		gpio_set_value_cansleep(charger->pdata->wcin_inlim_en_gpio, true);
+		gpiod_set_value_cansleep(charger->pdata->wcin_inlim_en_gpio, true);
 	else
-		gpio_set_value_cansleep(charger->pdata->wcin_inlim_en_gpio, false);
+		gpiod_set_value_cansleep(charger->pdata->wcin_inlim_en_gpio, false);
 
 	dev_dbg(charger->dev, "wcin inlim check: online=%d, msc_last=%d, epp=%d\n",
 		 charger->online, msc_last, p9221_is_epp(charger));
@@ -1334,7 +1334,7 @@ static void p9221_align_timer_handler(struct timer_list *t)
 	p9221_uevent(charger, UEVENT_WLC);
 }
 
-#ifdef CONFIG_DC_RESET
+#if IS_ENABLED(CONFIG_DC_RESET)
 /*
  * Offline disables ->qien_gpio: this worker re-enable it P9221_DCIN_TIMEOUT_MS
  * ms later to make sure that the WLC IC goes through a full reset.
@@ -1380,9 +1380,9 @@ static void p9221_dcin_pon_work(struct work_struct *work)
 /* call with lock on mutex_lock(&charger->presence_check_lock) */
 static void p9221_control_wlc_via_gpio(struct p9221_charger_data *charger, int disable)
 {
-	int value = (!disable) ^ charger->pdata->wlc_en_act_low;
+	int value = (disable != 0 ? 0 : 1);
 
-	gpio_direction_output(charger->pdata->wlc_en, value);
+	gpiod_direction_output(charger->pdata->wlc_en, value);
 }
 
 /* call with lock on mutex_lock(&charger->presence_check_lock) */
@@ -1534,6 +1534,108 @@ static void p9221_power_mitigation_work(struct work_struct *work)
 			 "power_mitigate: power mitigation fail!\n");
 		charger->fod_cnt = 0;
 	}
+}
+
+static void google_wlc_usecase_setup_cb(void *d, enum gsu_usecases from_uc,
+					enum gsu_usecases to_uc)
+{
+	struct p9221_charger_data *charger = d;
+
+	dev_info(&charger->client->dev,
+		 "usecase setup notification:%s(%d)->%s(%d)",
+		 bms_usecase_to_str(from_uc), from_uc,
+		 bms_usecase_to_str(to_uc), to_uc);
+
+	if (to_uc != GSU_MODE_WLC_DC || !charger->chip_prop_mode_setup)
+		return;
+
+	charger->chip_prop_mode_setup(charger);
+}
+
+static void google_wlc_usecase_transition_cb(void *d, enum gsu_usecases from_uc,
+					enum gsu_usecases to_uc)
+{
+	struct p9221_charger_data *charger = d;
+	int ret;
+
+	dev_info(&charger->client->dev,
+		 "usecase transit notification:%s(%d)->%s(%d)",
+		 bms_usecase_to_str(from_uc), from_uc,
+		 bms_usecase_to_str(to_uc), to_uc);
+
+	if (to_uc != GSU_MODE_WLC_DC || !charger->chip_prop_mode_transition)
+		return;
+
+	ret = charger->chip_prop_mode_transition(charger);
+	set_renego_state(charger, P9XXX_AVAILABLE);
+	if (ret != 1) {
+		dev_err(charger->dev, "failed to enter HPP mode\n");
+		ret = p9221_reset_wlc_dc(charger);
+		if (ret < 0)
+			dev_err(&charger->client->dev, "%s: HPP not supported\n", __func__);
+		ret = p9221_set_hpp_dc_icl(charger, false);
+		if (ret < 0)
+			dev_warn(&charger->client->dev, "Cannot disable HPP_ICL (%d)\n", ret);
+		return;
+	}
+}
+
+static void google_wlc_usecase_cb(void *d, enum gsu_usecases from_uc, enum gsu_usecases to_uc)
+{
+	struct p9221_charger_data *charger = (struct p9221_charger_data *)d;
+	const bool wlc_not_charge = bms_usecase_is_uc_wireless(to_uc) &&
+				    !bms_usecase_is_uc_charging_enabled(to_uc);
+	struct gpio_desc *extben_gpio = charger->pdata->ext_ben_gpio;
+	int ret;
+
+	dev_info(&charger->client->dev,
+		 "usecase notification:%s(%d)->%s(%d), chg: %d, wc_rx: %d",
+		 bms_usecase_to_str(from_uc), from_uc,
+		 bms_usecase_to_str(to_uc), to_uc,
+		 bms_usecase_is_uc_charging_enabled(to_uc), wlc_not_charge);
+
+	gvotable_cast_long_vote(charger->dc_icl_votable,
+				"USECASE_VOTER",
+				USECASE_WLC_CHARGE_DISABLE_INLIM_LIMIT,
+				wlc_not_charge);
+
+	if (to_uc != GSU_MODE_WLC_DC)
+		return;
+	p9221_write_fod(charger);
+	charger->wlc_dc_enabled = true;
+	if (extben_gpio)
+		p9xxx_gpio_set_value(charger, extben_gpio, 1);
+	p9221_set_switch_reg(charger, true);
+	ret = p9xxx_chip_set_cmfet_reg(charger, charger->wlc_dc_comcap);
+	if (ret < 0 && ret != -EOPNOTSUPP)
+		dev_warn(&charger->client->dev, "Fail to set comm cap(%d)\n", ret);
+
+}
+
+static void google_wlc_register_usecase_work(struct work_struct *work)
+{
+	struct p9221_charger_data *charger = container_of(work,
+			struct p9221_charger_data, register_usecase_work.work);
+
+	struct bms_usecase_notify_cbs cbs;
+	int ret;
+
+	if (!charger->pdata->support_usecase_cb)
+		return;
+
+	cbs.uc_setup_cb = google_wlc_usecase_setup_cb;
+	cbs.uc_transition_cb = google_wlc_usecase_transition_cb;
+	cbs.uc_changed_cb = google_wlc_usecase_cb;
+
+	ret = bms_usecase_register_notifiers((void *)charger, cbs, WLC_VOTER);
+
+	if (ret == -EAGAIN) {
+		dev_err(charger->dev, "Reschedule register usecase notifier: %d\n", ret);
+		schedule_delayed_work(&charger->register_usecase_work,
+				      msecs_to_jiffies(NOTIFIER_REGISTER_RETRY_MS));
+		return;
+	}
+	dev_info(charger->dev, "Registered usecase notifier\n");
 }
 
 static void p9221_icl_stable_work(struct work_struct *work)
@@ -2063,7 +2165,7 @@ static int p9221_has_dc_in(struct p9221_charger_data *charger)
 	int ret;
 
 	if (!charger->dc_psy)
-		charger->dc_psy = power_supply_get_by_name("dc");
+		charger->dc_psy = power_supply_get_by_name(GOOGLE_WLCIN_MAINS_NAME);
 	if (!charger->dc_psy)
 		return -EINVAL;
 
@@ -2131,11 +2233,16 @@ static void p9221_stats_update_compatibility(struct p9221_charger_data *charger,
 	bool csi_low_power = charger->compatibility == COMPAT_FORCED_BPP ||
 			     charger->compatibility == COMPAT_NOT_SUPPORTED ||
 			     charger->compatibility == COMPAT_LOWPOWER;
+	int power_uw = CSI_POWER_UNKNOWN;
 
-	gvotable_cast_long_vote(charger->csi_status_votable,
-				"CSI_STATUS_ADA_WLC_POWER",
-				CSI_STATUS_Adapter_Power,
-				csi_low_power);
+	if (charger->compatibility == COMPAT_FORCED_BPP)
+		power_uw = 5000000;
+
+	gvotable_cast_compound_vote(charger->csi_status_votable,
+				    "CSI_STATUS_ADA_WLC_POWER",
+				    power_uw,
+				    CSI_STATUS_Adapter_Power,
+				    csi_low_power);
 }
 
 static int p9221_stats_update_state(struct p9221_charger_data *charger, u8 sys_mode)
@@ -2178,21 +2285,20 @@ static int p9221_stats_update_state(struct p9221_charger_data *charger, u8 sys_m
 static void p9221_update_head_stats(struct p9221_charger_data *charger)
 {
 	u32 vout_mv, iout_ma;
-	u32 wlc_freq = 0;
+	u32 wlc_freq;
 	int ret;
 
 	ret = charger->chip_get_op_freq(charger, &wlc_freq);
-	if (ret != 0)
-		wlc_freq = -1;
+	if (ret == 0)
+		charger->chg_data.of_freq = wlc_freq;
+	else
+		charger->chg_data.of_freq = -1;
 
-	charger->chg_data.of_freq = wlc_freq;
-
+	ret = 0;
 	if (charger->wlc_dc_enabled) {
 		ret = charger->chip_get_rx_ilim(charger, &iout_ma);
-		if (ret)
-			iout_ma = 0;
 	} else if (!charger->dc_icl_votable) {
-		iout_ma = 0;
+		ret = -EIO;
 	} else {
 		int iout_ua;
 
@@ -2200,22 +2306,27 @@ static void p9221_update_head_stats(struct p9221_charger_data *charger)
 		iout_ua =
 			gvotable_get_current_int_vote(charger->dc_icl_votable);
 		if (iout_ua < 0)
-			iout_ma = 0;
+			ret = -EAGAIN;
 		else
 			iout_ma = iout_ua / 1000;
 	}
-	charger->chg_data.cur_conf = iout_ma;
+	if (ret == 0)
+		charger->chg_data.cur_conf = iout_ma;
+	else
+		charger->chg_data.cur_conf = -1;
 
+	ret = 0;
 	if (charger->wlc_dc_enabled) {
 		vout_mv = charger->pdata->max_vout_mv;
 	} else if (p9221_ready_to_read(charger) < 0) {
-		vout_mv = 0;
+		ret = -EIO;
 	} else {
 		ret = charger->chip_get_vout_max(charger, &vout_mv);
-		if (ret)
-			vout_mv = 0;
 	}
-	charger->chg_data.volt_conf = vout_mv;
+	if (ret == 0)
+		charger->chg_data.volt_conf = vout_mv;
+	else
+		charger->chg_data.volt_conf = -1;
 }
 
 static void p9221_update_soc_stats(struct p9221_charger_data *charger,
@@ -2223,12 +2334,14 @@ static void p9221_update_soc_stats(struct p9221_charger_data *charger,
 {
 	const ktime_t now = get_boot_sec();
 	struct p9221_soc_data *soc_data;
-	u32 vrect_mv, iout_ma, cur_pout;
-	int ret, temp, interval_time = 0;
-	u32 wlc_freq = 0;
+	int vrect_mv, iout_ma, wlc_freq, temp;
+	u32 val, cur_pout;
+	int ret, interval_time = 0;
 
-	ret = charger->chip_get_op_freq(charger, &wlc_freq);
-	if (ret != 0)
+	ret = charger->chip_get_op_freq(charger, &val);
+	if (ret == 0)
+		wlc_freq = val;
+	else
 		wlc_freq = -1;
 
 	ret = charger->chip_get_die_temp(charger, &temp);
@@ -2237,24 +2350,33 @@ static void p9221_update_soc_stats(struct p9221_charger_data *charger,
 	else
 		temp = -1;
 
-	ret = charger->chip_get_vrect(charger, &vrect_mv);
-	if (ret != 0)
-		vrect_mv = 0;
+	ret = charger->chip_get_vrect(charger, &val);
+	if (ret == 0)
+		vrect_mv = val;
+	else
+		vrect_mv = -1;
 
-	ret = charger->chip_get_iout(charger, &iout_ma);
-	if (ret != 0)
-		iout_ma = 0;
+	ret = charger->chip_get_iout(charger, &val);
+	if (ret == 0)
+		iout_ma = val;
+	else
+		iout_ma = -1;
 
 	soc_data = &charger->chg_data.soc_data[cur_soc];
 
-	soc_data->vrect = vrect_mv;
-	soc_data->iout = iout_ma;
+	if (vrect_mv >= 0)
+		soc_data->vrect = vrect_mv;
+	if (iout_ma >= 0)
+		soc_data->iout = iout_ma;
 	soc_data->sys_mode = sys_mode;
 	soc_data->die_temp = temp;
 	soc_data->of_freq = wlc_freq;
 	soc_data->alignment = charger->alignment;
 
-	cur_pout = vrect_mv * iout_ma;
+	if (vrect_mv > 0 && iout_ma > 0)
+		cur_pout = vrect_mv * iout_ma;
+	else
+		cur_pout = 0;
 	if ((soc_data->pout_min == 0) || (soc_data->pout_min > cur_pout))
 		soc_data->pout_min = cur_pout;
 	if ((soc_data->pout_max == 0) || (soc_data->pout_max < cur_pout))
@@ -2410,6 +2532,7 @@ static int p9221_get_property(struct power_supply *psy,
 			val->intval = 0;
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
 		if (charger->wlc_dc_enabled) {
 			rc = charger->chip_get_rx_ilim(charger, &temp);
 			if (rc == 0)
@@ -2425,7 +2548,7 @@ static int p9221_get_property(struct power_supply *psy,
 						charger->dc_icl_votable);
 		}
 		break;
-#ifdef CONFIG_QC_COMPAT
+#if IS_ENABLED(CONFIG_QC_COMPAT)
 	case POWER_SUPPLY_PROP_AICL_DELAY:
 		val->intval = charger->aicl_delay_ms;
 		break;
@@ -2627,7 +2750,13 @@ static int p9221_set_hpp_dc_icl(struct p9221_charger_data *charger, bool enable)
 
 static void p9221_check_icl_stable(struct p9221_charger_data *charger)
 {
-	if (charger->online && charger->disconnect_total_count > 0) {
+	if (!charger->online)
+		return;
+
+	dev_info(charger->dev, "check icl stable: count=%d, time=%d\n",
+		 charger->disconnect_total_count, ICL_STABLE_TIME_MS);
+
+	if (charger->disconnect_total_count > 0) {
 		__pm_stay_awake(charger->icl_stable_ws);
 		schedule_delayed_work(&charger->icl_stable_work,
 				      msecs_to_jiffies(ICL_STABLE_TIME_MS));
@@ -2642,7 +2771,8 @@ static void p9221_check_icl_stable(struct p9221_charger_data *charger)
  */
 int p9221_set_auth_dc_icl(struct p9221_charger_data *charger, bool enable)
 {
-	int ret = 0, icl_ua;
+	int ret = 0, icl_ua, power_uw = CSI_POWER_UNKNOWN;
+	u32 vout_mv;
 
 	icl_ua = enable ? P9221_AUTH_DC_ICL_UA_500 : 0;
 
@@ -2663,6 +2793,7 @@ int p9221_set_auth_dc_icl(struct p9221_charger_data *charger, bool enable)
 	} else if (!enable && charger->auth_delay) {
 		dev_info(&charger->client->dev, "Disable Auth ICL (%d)\n", ret);
 		charger->auth_delay = false;
+		p9221_check_icl_stable(charger);
 		cancel_delayed_work(&charger->auth_dc_icl_work);
 		alarm_try_to_cancel(&charger->auth_dc_icl_alarm);
 	}
@@ -2679,14 +2810,17 @@ int p9221_set_auth_dc_icl(struct p9221_charger_data *charger, bool enable)
 	if (ret < 0)
 		goto exit;
 
+	if (!charger->chip_get_vout(charger, &vout_mv))
+		power_uw = (icl_ua / 1000) * vout_mv;
 	if (!charger->csi_status_votable)
 		charger->csi_status_votable =
 				gvotable_election_get_handle(VOTABLE_CSI_STATUS);
 	if (charger->csi_status_votable)
-		gvotable_cast_long_vote(charger->csi_status_votable,
-					"CSI_STATUS_ADA_AUTH",
-					CSI_STATUS_Adapter_Auth,
-					charger->auth_delay);
+		gvotable_cast_compound_vote(charger->csi_status_votable,
+					    "CSI_STATUS_ADA_AUTH",
+					    power_uw,
+					    CSI_STATUS_Adapter_Auth,
+					    charger->auth_delay);
 
 exit:
 	return ret;
@@ -2745,7 +2879,7 @@ static int p9221_enable_wlc_dc(struct p9221_charger_data *charger)
 {
 	const u32 req_pwr = charger->de_hpp_neg_pwr > 0 ?
 			    charger->de_hpp_neg_pwr : charger->pdata->hpp_neg_pwr;
-	const int extben_gpio = charger->pdata->ext_ben_gpio;
+	struct gpio_desc *extben_gpio = charger->pdata->ext_ben_gpio;
 	int ret;
 	u8 val8;
 
@@ -2823,14 +2957,21 @@ static int p9221_enable_wlc_dc(struct p9221_charger_data *charger)
 		return ret;
 	}
 	charger->chip_set_ovp(charger, OVSET_HPP);
+
+	if (charger->chip_id == RA9530_CHIP_ID && charger->pdata->support_usecase_cb) {
+		charger->hpp_req_pwr = req_pwr;
+		charger->wlc_dc_enabled = true;
+
+		dev_info(&charger->client->dev, "RA9530_CHIP enable usecase_cb\n");
+		return 1;
+	}
+
 	ret = charger->chip_prop_mode_en(charger, req_pwr);
 	if (ret == -ENODEV) {
 		dev_err(&charger->client->dev, "Offline during PROP Mode\n");
 		goto not_hpp;
 	}
 	set_renego_state(charger, P9XXX_AVAILABLE);
-
-	p9221_check_icl_stable(charger);
 
 	/* Only returns 1 for success */
 	if (ret != 1) {
@@ -3102,6 +3243,45 @@ static int check_hpp_fod_level(struct p9221_charger_data *charger,
 	return 0;
 }
 
+static int google_wlc_get_adapter_type(struct p9221_charger_data *charger)
+{
+	u8 mode = P9XXX_SYS_OP_MODE_AC_MISSING, txid_type;
+	int ret;
+
+	if (!charger->online) {
+		charger->ad_type = CHG_EV_ADAPTER_TYPE_UNKNOWN;
+		return charger->ad_type;
+	}
+	if (charger->ad_type == CHG_EV_ADAPTER_TYPE_UNKNOWN)
+		charger->ad_type = CHG_EV_ADAPTER_TYPE_WLC;
+
+	txid_type = (charger->tx_id & TXID_TYPE_MASK) >> TXID_TYPE_SHIFT;
+	ret = charger->chip_get_sys_mode(charger, &mode);
+	if (ret)
+		dev_err(&charger->client->dev, "fail to get system mode\n");
+
+	switch (mode) {
+	case P9XXX_SYS_OP_MODE_WPC_BASIC:
+		charger->ad_type = CHG_EV_ADAPTER_TYPE_WPC_BPP;
+		break;
+	case P9XXX_SYS_OP_MODE_WPC_EXTD:
+		if (charger->is_mfg_google && txid_type == TXID_DD_TYPE)
+			charger->ad_type = CHG_EV_ADAPTER_TYPE_DL;
+		else if (charger->is_mfg_google && txid_type == TXID_DD_TYPE2)
+			charger->ad_type = CHG_EV_ADAPTER_TYPE_L7;
+		else
+			charger->ad_type = CHG_EV_ADAPTER_TYPE_WPC_EPP;
+		break;
+	case P9XXX_SYS_OP_MODE_PROPRIETARY:
+		charger->ad_type = CHG_EV_ADAPTER_TYPE_WPC_L7;
+		break;
+	default:
+		/* should not change charger->ad_type */
+		break;
+	}
+	return charger->ad_type;
+}
+
 static int p9221_set_property(struct power_supply *psy,
 			      enum power_supply_property prop,
 			      const union power_supply_propval *val)
@@ -3261,7 +3441,9 @@ static int p9221_gbms_get_property(struct power_supply *psy,
 		if (rc)
 			val->prop.intval = 0;
 		break;
-
+	case GBMS_PROP_ADAPTER_DETAILS:
+		val->prop.intval = google_wlc_get_adapter_type(charger);
+		break;
 	default:
 		pr_debug("%s: route to p9221_get_property, psp:%d\n", __func__, prop);
 		ret = -ENODATA;
@@ -3316,7 +3498,7 @@ static int p9221_notifier_cb(struct notifier_block *nb, unsigned long event,
 	if (event != PSY_EVENT_PROP_CHANGED)
 		goto out;
 
-	if (strcmp(psy->desc->name, "dc") == 0) {
+	if (strcmp(psy->desc->name, GOOGLE_WLCIN_MAINS_NAME) == 0) {
 		charger->dc_psy = psy;
 		charger->check_dc = true;
 	} else if (strcmp(psy->desc->name, "dc-mains") == 0) {
@@ -3424,7 +3606,7 @@ int p9xxx_sw_ramp_icl(struct p9221_charger_data *charger, const int icl_target)
 		dev_dbg(&charger->client->dev, "%s: Voting ICL %duA (t=%d)\n", __func__, icl_now, icl_target);
 
 		gvotable_cast_int_vote(charger->dc_icl_votable, P9221_RAMP_VOTER, icl_now, true);
-		msleep(500);
+		usleep_range(100 * USEC_PER_MSEC, 120 * USEC_PER_MSEC);
 	}
 
 	mutex_unlock(&charger->icl_lock);
@@ -3433,7 +3615,7 @@ int p9xxx_sw_ramp_icl(struct p9221_charger_data *charger, const int icl_target)
 		return -ENODEV;
 
 	dev_dbg(&charger->client->dev, "%s: P9221_RAMP_VOTER=%d, get_current_int_vote=%d ==========\n",
-                 __func__,
+		 __func__,
 		 gvotable_get_int_vote(charger->dc_icl_votable, P9221_RAMP_VOTER),
 		 gvotable_get_current_int_vote(charger->dc_icl_votable));
 
@@ -3473,7 +3655,7 @@ static int p9221_set_dc_icl(struct p9221_charger_data *charger)
 	if (p9221_is_epp(charger) && charger->dc_icl_epp)
 		icl = charger->dc_icl_epp;
 
- 	if (charger->icl_ramp && charger->icl_ramp_alt_ua)
+	if (charger->icl_ramp && charger->icl_ramp_alt_ua)
 		icl = charger->icl_ramp_alt_ua;
 
 	dev_info(&charger->client->dev, "Voting ICL %duA ramp=%d, alt_ramp=%d\n",
@@ -3496,6 +3678,8 @@ static int p9221_set_dc_icl(struct p9221_charger_data *charger)
 	if (ret)
 		dev_err(&charger->client->dev,
 			"Could not vote DC_ICL %d\n", ret);
+
+	p9221_check_icl_stable(charger);
 
 	if (charger->pdata->has_sw_ramp && !charger->icl_ramp)
 		gvotable_cast_int_vote(charger->dc_icl_votable, P9221_RAMP_VOTER, 0, false);
@@ -3674,8 +3858,6 @@ static void p9221_icl_ramp_reset(struct p9221_charger_data *charger)
 	if (alarm_try_to_cancel(&charger->icl_ramp_alarm) < 0)
 		dev_warn(&charger->client->dev, "Couldn't cancel icl_ramp_alarm\n");
 	cancel_delayed_work(&charger->icl_ramp_work);
-
-	p9221_check_icl_stable(charger);
 }
 
 static void p9221_icl_ramp_start(struct p9221_charger_data *charger)
@@ -3720,7 +3902,6 @@ static void p9221_set_online(struct p9221_charger_data *charger)
 	charger->last_capacity = -1;
 	charger->online_at = get_boot_sec();
 	charger->dcin_waitcnt = P9221_DCIN_WAIT_CNT;
-
 	/* reset data for the new charging entry */
 	if (!charger->wait_for_online)
 		p9221_charge_stats_init(&charger->chg_data);
@@ -3903,7 +4084,7 @@ static void p9221_notifier_check_dc(struct p9221_charger_data *charger)
 
 	dc_in = p9221_has_dc_in(charger);
 	if (dc_in < 0) {
-          	dev_info(&charger->client->dev, "reschedule it(%d)\n", dc_in);
+		dev_info(&charger->client->dev, "reschedule it(%d)\n", dc_in);
 		mod_delayed_work(system_wq, &charger->notifier_work,
 				 msecs_to_jiffies(P9221_NOTIFIER_DELAY_MS));
 		return;
@@ -4813,8 +4994,8 @@ static ssize_t p9221_force_epp(struct device *dev,
 
 	charger->fake_force_epp = (val != 0);
 
-	if (charger->pdata->slct_gpio >= 0)
-		gpio_set_value_cansleep(charger->pdata->slct_gpio,
+	if (charger->pdata->slct_gpio)
+		gpiod_set_value_cansleep(charger->pdata->slct_gpio,
 			       charger->fake_force_epp ? 1 : 0);
 	return count;
 }
@@ -5007,8 +5188,8 @@ static ssize_t ptmc_id_show(struct device *dev,
 static DEVICE_ATTR_RO(ptmc_id);
 
 static ssize_t features_store(struct device *dev,
-                              struct device_attribute *attr,
-                              const char *buf, size_t count)
+			      struct device_attribute *attr,
+			      const char *buf, size_t count)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct p9221_charger_data *charger = i2c_get_clientdata(client);
@@ -5159,8 +5340,8 @@ static enum p9382_rtx_state p9xxx_get_rtx_status(struct p9221_charger_data *char
 		return RTX_NOTSUPPORTED;
 
 	/* external boost is on but not for rtx */
-	if (charger->pdata->ben_gpio > 0)
-		ext_bst_on = gpio_get_value_cansleep(charger->pdata->ben_gpio);
+	if (charger->pdata->ben_gpio)
+		ext_bst_on = gpiod_get_value_cansleep(charger->pdata->ben_gpio);
 
 	if (p9221_is_online(charger))
 		return (charger->ben_state || charger->rtx_reset_cnt) ? RTX_ACTIVE : RTX_DISABLED;
@@ -5249,10 +5430,10 @@ static ssize_t ldo_en_show(struct device *dev,
 	struct p9221_charger_data *charger = i2c_get_clientdata(client);
 	int value;
 
-	if (charger->pdata->ldo_en_gpio < 0)
+	if (!charger->pdata->ldo_en_gpio)
 		return -ENODEV;
 
-	value = gpio_get_value_cansleep(charger->pdata->ldo_en_gpio);
+	value = gpiod_get_raw_value_cansleep(charger->pdata->ldo_en_gpio);
 
 	return scnprintf(buf, PAGE_SIZE, "%d\n", value != 0);
 }
@@ -5264,10 +5445,10 @@ static ssize_t ldo_en_store(struct device *dev,
 	struct i2c_client *client = to_i2c_client(dev);
 	struct p9221_charger_data *charger = i2c_get_clientdata(client);
 
-	if (charger->pdata->ldo_en_gpio < 0)
+	if (!charger->pdata->ldo_en_gpio)
 		return -ENODEV;
 
-	gpio_set_value_cansleep(charger->pdata->ldo_en_gpio, buf[0] != '0');
+	gpiod_set_raw_value_cansleep(charger->pdata->ldo_en_gpio, buf[0] != '0');
 
 	return count;
 }
@@ -5281,10 +5462,10 @@ static ssize_t qien_show(struct device *dev,
 	struct p9221_charger_data *charger = i2c_get_clientdata(client);
 	int value;
 
-	if (charger->pdata->qien_gpio < 0)
+	if (!charger->pdata->qien_gpio)
 		return -ENODEV;
 
-	value = gpio_get_value_cansleep(charger->pdata->qien_gpio);
+	value = gpiod_get_value_cansleep(charger->pdata->qien_gpio);
 
 	return scnprintf(buf, PAGE_SIZE, "%d\n", value != 0);
 }
@@ -5296,7 +5477,7 @@ static ssize_t qien_store(struct device *dev,
 	struct i2c_client *client = to_i2c_client(dev);
 	struct p9221_charger_data *charger = i2c_get_clientdata(client);
 
-	if (charger->pdata->qien_gpio < 0)
+	if (!charger->pdata->qien_gpio)
 		return -ENODEV;
 
 	gvotable_cast_bool_vote(charger->wlc_disable_votable, "DEBUG_VOTER", buf[0] != '0');
@@ -5313,10 +5494,10 @@ static ssize_t qi_vbus_en_show(struct device *dev,
 	struct p9221_charger_data *charger = i2c_get_clientdata(client);
 	int value;
 
-	if (charger->pdata->qi_vbus_en < 0)
+	if (!charger->pdata->qi_vbus_en)
 		return -ENODEV;
 
-	value = gpio_get_value_cansleep(charger->pdata->qi_vbus_en);
+	value = gpiod_get_value_cansleep(charger->pdata->qi_vbus_en);
 
 	return scnprintf(buf, PAGE_SIZE, "%d\n", value != 0);
 }
@@ -5327,14 +5508,11 @@ static ssize_t qi_vbus_en_store(struct device *dev,
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct p9221_charger_data *charger = i2c_get_clientdata(client);
-	int value;
 
-	if (charger->pdata->qi_vbus_en < 0)
+	if (!charger->pdata->qi_vbus_en)
 		return -ENODEV;
 
-	value = (buf[0] != '0') ^ charger->pdata->qi_vbus_en_act_low;
-
-	gpio_set_value_cansleep(charger->pdata->qi_vbus_en, value);
+	gpiod_set_value_cansleep(charger->pdata->qi_vbus_en, buf[0] != '0');
 
 	return count;
 }
@@ -5348,10 +5526,10 @@ static ssize_t ext_ben_show(struct device *dev,
 	struct p9221_charger_data *charger = i2c_get_clientdata(client);
 	int value;
 
-	if (charger->pdata->ext_ben_gpio < 0)
+	if (!charger->pdata->ext_ben_gpio)
 		return -ENODEV;
 
-	value = gpio_get_value_cansleep(charger->pdata->ext_ben_gpio);
+	value = gpiod_get_value_cansleep(charger->pdata->ext_ben_gpio);
 
 	return scnprintf(buf, PAGE_SIZE, "%d\n", value != 0);
 }
@@ -5363,10 +5541,10 @@ static ssize_t ext_ben_store(struct device *dev,
 	struct i2c_client *client = to_i2c_client(dev);
 	struct p9221_charger_data *charger = i2c_get_clientdata(client);
 
-	if (charger->pdata->ext_ben_gpio < 0)
+	if (!charger->pdata->ext_ben_gpio)
 		return -ENODEV;
 
-	gpio_set_value_cansleep(charger->pdata->ext_ben_gpio, buf[0] != '0');
+	gpiod_set_value_cansleep(charger->pdata->ext_ben_gpio, buf[0] != '0');
 
 	return count;
 }
@@ -5380,10 +5558,10 @@ static ssize_t rtx_sw_show(struct device *dev,
 	struct p9221_charger_data *charger = i2c_get_clientdata(client);
 	int value;
 
-	if (charger->pdata->switch_gpio < 0)
+	if (!charger->pdata->switch_gpio)
 		return -ENODEV;
 
-	value = gpio_get_value_cansleep(charger->pdata->switch_gpio);
+	value = gpiod_get_value_cansleep(charger->pdata->switch_gpio);
 
 	return scnprintf(buf, PAGE_SIZE, "%d\n", value != 0);
 }
@@ -5395,7 +5573,7 @@ static ssize_t rtx_sw_store(struct device *dev,
 	struct i2c_client *client = to_i2c_client(dev);
 	struct p9221_charger_data *charger = i2c_get_clientdata(client);
 
-	if (charger->pdata->switch_gpio < 0)
+	if (!charger->pdata->switch_gpio)
 		return -ENODEV;
 
 	/* TODO: better test on rX mode */
@@ -5404,7 +5582,7 @@ static ssize_t rtx_sw_store(struct device *dev,
 		return -EINVAL;
 	}
 
-	gpio_set_value_cansleep(charger->pdata->switch_gpio, buf[0] != '0');
+	gpiod_set_value_cansleep(charger->pdata->switch_gpio, buf[0] != '0');
 
 	return count;
 }
@@ -5500,44 +5678,45 @@ static int p9382_rtx_enable(struct p9221_charger_data *charger, bool enable)
 		ret = gvotable_cast_long_vote(charger->chg_mode_votable,
 					      P9221_WLC_VOTER,
 					      GBMS_CHGR_MODE_WLC_TX, enable);
-		if (charger->pdata->ben_gpio > 0)
-			gpio_set_value_cansleep(charger->pdata->ben_gpio, enable);
+		if (charger->pdata->ben_gpio)
+			gpiod_set_value_cansleep(charger->pdata->ben_gpio, enable);
 		return ret;
 	}
 
-	if (charger->pdata->ben_gpio > 0)
-		gpio_set_value_cansleep(charger->pdata->ben_gpio, enable);
-	if (charger->pdata->switch_gpio > 0)
-		gpio_set_value_cansleep(charger->pdata->switch_gpio, enable);
+	if (charger->pdata->ben_gpio)
+		gpiod_set_value_cansleep(charger->pdata->ben_gpio, enable);
+	if (charger->pdata->switch_gpio)
+		gpiod_set_value_cansleep(charger->pdata->switch_gpio, enable);
 
 	/* some systems provide additional boost_gpio for charging level */
-	if (charger->pdata->boost_gpio > 0)
-		gpio_set_value_cansleep(charger->pdata->boost_gpio, enable);
+	if (charger->pdata->boost_gpio)
+		gpiod_set_value_cansleep(charger->pdata->boost_gpio, enable);
 
-	return (charger->pdata->ben_gpio < 0 &&
-		charger->pdata->switch_gpio < 0) ? -ENODEV : 0;
+	return (charger->pdata->ben_gpio || charger->pdata->switch_gpio) ? 0 : -ENODEV;
 }
 
 static int p9382_ben_cfg(struct p9221_charger_data *charger, int cfg)
 {
-	const int ben_gpio = charger->pdata->ben_gpio;
-	const int switch_gpio = charger->pdata->switch_gpio;
+	struct gpio_desc *ben_gpio = charger->pdata->ben_gpio;
+	struct gpio_desc *switch_gpio = charger->pdata->switch_gpio;
 
 	dev_info(&charger->client->dev, "ben_cfg: %d->%d (ben=%d, switch=%d)",
-		 charger->ben_state, cfg, ben_gpio, switch_gpio);
+		 charger->ben_state, cfg,
+		 ben_gpio ? desc_to_gpio(ben_gpio) : -EINVAL,
+		 switch_gpio ? desc_to_gpio(switch_gpio) : -EINVAL);
 
 	switch (cfg) {
 	case RTX_BEN_DISABLED:
 		if (charger->ben_state == RTX_BEN_ON)
 			p9382_rtx_enable(charger, false);
-		else if (ben_gpio == RTX_BEN_ENABLED)
-			gpio_set_value_cansleep(ben_gpio, 0);
+		else if (charger->ben_state == RTX_BEN_ENABLED && ben_gpio)
+			gpiod_set_value_cansleep(ben_gpio, 0);
 		charger->ben_state = cfg;
 		break;
 	case RTX_BEN_ENABLED:
 		charger->ben_state = cfg;
-		if (ben_gpio >= 0)
-			gpio_set_value_cansleep(ben_gpio, 1);
+		if (ben_gpio)
+			gpiod_set_value_cansleep(ben_gpio, 1);
 		break;
 	case RTX_BEN_ON:
 		charger->ben_state = cfg;
@@ -5614,8 +5793,8 @@ enodata_done:
 }
 
 static ssize_t p9221_ctl_chg_stats(struct device *dev,
-                                  struct device_attribute *attr,
-                                  const char *buf, size_t count)
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct p9221_charger_data *charger = i2c_get_clientdata(client);
@@ -6572,15 +6751,14 @@ static void p9xxx_reset_rtx(struct p9221_charger_data *charger)
 	}
 	charger->is_rtx_mode = false;
 	/* use gpio_get to log any plc errors during rtx */
-	if (charger->pdata->ben_gpio > 0)
-		gpio_get_value_cansleep(charger->pdata->ben_gpio);
+	if (charger->pdata->ben_gpio)
+		gpiod_get_value_cansleep(charger->pdata->ben_gpio);
 	p9382_set_rtx(charger, false);
 
 	msleep(REENABLE_RTX_DELAY);
 
-	/* external boost is on but not for rtx */
-	if (charger->pdata->ben_gpio > 0)
-		ext_bst_on = gpio_get_value_cansleep(charger->pdata->ben_gpio);
+	if (charger->pdata->ben_gpio)
+		ext_bst_on = gpiod_get_value_cansleep(charger->pdata->ben_gpio);
 	if (ext_bst_on && !rtx_gpio_retry) {
 		dev_warn(&charger->client->dev, "not allowed to re-enable due to ext on");
 		p9221_uevent(charger, UEVENT_RTX);
@@ -6753,7 +6931,7 @@ static void rtx_irq_handler(struct p9221_charger_data *charger, u16 irq_src)
 }
 
 
-#ifdef CONFIG_DC_RESET
+#if IS_ENABLED(CONFIG_DC_RESET)
 /*
  * DC reset code uses a flag in the charger to initiate a hard reset of the
  * WLC chip after a power loss. This is (was?) needed for p9221 to handle
@@ -6823,7 +7001,7 @@ static void p9221_check_dc_reset(struct p9221_charger_data *charger,
 		return;
 
 	if (!charger->dc_psy)
-		charger->dc_psy = power_supply_get_by_name("dc");
+		charger->dc_psy = power_supply_get_by_name(GOOGLE_WLCIN_MAINS_NAME);
 	if (charger->dc_psy) {
 		/* Signal DC_RESET when wireless removal is sensed. */
 		res = power_supply_set_property(charger->dc_psy,
@@ -7148,7 +7326,7 @@ static void p9xxx_change_det_status_work(struct work_struct *work)
 {
 	struct p9221_charger_data *charger = container_of(work,
 			struct p9221_charger_data, change_det_status_work.work);
-	const int det_gpio = gpio_get_value_cansleep(charger->pdata->irq_det_gpio);
+	const int det_gpio = gpiod_get_raw_value_cansleep(charger->pdata->irq_det_gpio);
 
 	/* Debounce det status */
 	logbuffer_log(charger->log, "irq_det debounce: val=%d", det_gpio);
@@ -7159,7 +7337,7 @@ static void p9xxx_change_det_status_work(struct work_struct *work)
 			disable_irq_wake(charger->pdata->irq_det_int);
 			disable_irq(charger->pdata->irq_det_int);
 			charger->online_spoof = false;
-                        gvotable_cast_bool_vote(charger->wlc_spoof_votable, "WLC", false);
+			gvotable_cast_bool_vote(charger->wlc_spoof_votable, "WLC", false);
 		}
 		charger->det_status = det_gpio;
 		power_supply_changed(charger->wc_psy);
@@ -7174,7 +7352,7 @@ static void p9xxx_change_det_status_work(struct work_struct *work)
 static irqreturn_t p9221_irq_det_thread(int irq, void *irq_data)
 {
 	struct p9221_charger_data *charger = irq_data;
-	const int det_gpio = gpio_get_value_cansleep(charger->pdata->irq_det_gpio);
+	const int det_gpio = gpiod_get_raw_value_cansleep(charger->pdata->irq_det_gpio);
 	int debounce_interval = -1;
 
 	logbuffer_log(charger->log, "irq_det: value=%d, status=%d, online=%d ben=%d",
@@ -7288,25 +7466,39 @@ static void p9382_rtx_disable_work(struct work_struct *work)
 	mutex_unlock(&charger->rtx_lock);
 }
 
-void p9221_uevent(struct p9221_charger_data *charger, u8 id)
+static void __p9221_uevent(struct p9221_charger_data *charger, u8 id)
 {
 	char source[UEVENT_ENVP_LEN];
 	char *envp[] = {source, NULL};
 
 	scnprintf(source, sizeof(source), "SOURCE=%s", uevent_source_str[id]);
 	kobject_uevent_env(&charger->dev->kobj, KOBJ_CHANGE, envp);
-
-	if (id == UEVENT_RTX)
-		schedule_work(&charger->uevent_work);
 }
 
-/* log iout/vout */
-static void p9221_uevent_work(struct work_struct *work)
+static void p9221_wlc_uevent_work(struct work_struct *work)
 {
 	struct p9221_charger_data *charger = container_of(work,
-			struct p9221_charger_data, uevent_work);
+			struct p9221_charger_data, wlc_uevent_work);
+
+	__p9221_uevent(charger, UEVENT_WLC);
+}
+
+static void p9221_fan_uevent_work(struct work_struct *work)
+{
+	struct p9221_charger_data *charger = container_of(work,
+			struct p9221_charger_data, fan_uevent_work);
+
+	__p9221_uevent(charger, UEVENT_FAN);
+}
+
+static void p9221_rtx_uevent_work(struct work_struct *work)
+{
+	struct p9221_charger_data *charger = container_of(work,
+			struct p9221_charger_data, rtx_uevent_work);
 	int ret;
 	u32 vout, iout;
+
+	__p9221_uevent(charger, UEVENT_RTX);
 
 	if (charger->ben_state) {
 		ret = charger->chip_get_iout(charger, &iout);
@@ -7316,6 +7508,26 @@ static void p9221_uevent_work(struct work_struct *work)
 				      vout, iout, charger->rtx_csp);
 		else
 			logbuffer_log(charger->rtx_log, "failed to read rtx info.");
+	}
+}
+
+void p9221_uevent(struct p9221_charger_data *charger, u8 id)
+{
+	if (id >= ARRAY_SIZE(uevent_source_str))
+		return;
+
+	switch (id) {
+	case UEVENT_WLC:
+		schedule_work(&charger->wlc_uevent_work);
+		break;
+	case UEVENT_FAN:
+		schedule_work(&charger->fan_uevent_work);
+		break;
+	case UEVENT_RTX:
+		schedule_work(&charger->rtx_uevent_work);
+		break;
+	default:
+		break;
 	}
 }
 
@@ -7386,30 +7598,6 @@ static int p9221_parse_hpp_fods(struct device *dev,
 	return 0;
 }
 
-static int p9221_parse_gpios(struct device *dev, char *of_name_1, char *of_name_2,
-			     enum of_gpio_flags *flags)
-{
-	int ret_1, ret_2 = 0;
-	struct device_node *node = dev->of_node;
-
-	ret_1 = of_get_named_gpio_flags(node, of_name_1, 0, flags);
-	if (ret_1 < 0)
-		ret_2 = of_get_named_gpio_flags(node, of_name_2, 0, flags);
-
-	if (ret_1 == -EPROBE_DEFER || ret_2 == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-
-	if (ret_1 > 0)
-		return ret_1;
-	if (ret_2 > 0)
-		return ret_2;
-
-	dev_dbg(dev, "unable to read %s from dt: %d\n", of_name_1, ret_1);
-	dev_dbg(dev, "unable to read %s from dt: %d\n", of_name_2, ret_2);
-
-	return -EINVAL;
-}
-
 static int p9221_parse_dt(struct device *dev,
 			  struct p9221_charger_platform_data *pdata)
 {
@@ -7419,7 +7607,7 @@ static int p9221_parse_dt(struct device *dev,
 	int vout_set_max_mv = P9221_VOUT_SET_MAX_MV;
 	int vout_set_min_mv = P9221_VOUT_SET_MIN_MV;
 	int nb_hpp_fod_vol;
-	enum of_gpio_flags flags = 0;
+	struct gpio_desc *desc;
 
 	if (of_device_is_compatible(node, "idt,p9412")) {
 		dev_info(dev, "selecting p9412\n");
@@ -7441,64 +7629,73 @@ static int p9221_parse_dt(struct device *dev,
 	}
 
 	/* QI_EN_L: enable/disable WLC chip */
-	pdata->qien_gpio = p9221_parse_gpios(dev, "idt,qien-gpio", "idt,gpio_qien", &flags);
-	if (pdata->qien_gpio == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-	if (pdata->qien_gpio > 0)
-		dev_info(dev, "enable gpio:%d", pdata->qien_gpio);
+	desc = devm_gpiod_get_optional(dev, "idt,qien", GPIOD_ASIS);
+	if (IS_ERR(desc))
+		return PTR_ERR(desc);
+	if (desc) {
+		pdata->qien_gpio = desc;
+		dev_info(dev, "enable gpio:%d", desc_to_gpio(desc));
+	}
 
 	/*
 	 * QI_USB_VBUS_EN: control the priority of USB and WLC,
 	 *                 set to high after boot
 	 */
-	pdata->qi_vbus_en = p9221_parse_gpios(dev, "idt,qi_vbus_en-gpio", "idt,gpio_qi_vbus_en",
-					      &flags);
-	if (pdata->qi_vbus_en == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-	if (pdata->qi_vbus_en > 0) {
-		pdata->qi_vbus_en_act_low = (flags & OF_GPIO_ACTIVE_LOW) != 0;
+	desc = devm_gpiod_get_optional(dev, "idt,qi_vbus_en", GPIOD_ASIS);
+	if (IS_ERR(desc))
+		return PTR_ERR(desc);
+	if (desc) {
+		pdata->qi_vbus_en = desc;
 		dev_info(dev, "QI_USB_VBUS_EN gpio:%d(act_low=%d)",
-			 pdata->qi_vbus_en, pdata->qi_vbus_en_act_low);
+			 desc_to_gpio(desc), gpiod_is_active_low(desc));
 	}
 
-	/* Enable/Disable WLC chip(for P9XXX_GPIO_VBUS_EN) */
-	pdata->wlc_en = p9221_parse_gpios(dev, "idt,wlc_en-gpio", "idt,gpio_wlc_en", &flags);
-	if (pdata->wlc_en == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-	if (pdata->wlc_en > 0) {
-		pdata->wlc_en_act_low = (flags & OF_GPIO_ACTIVE_LOW) != 0;
+	/*
+	 * Enable/Disable WLC chip(for P9XXX_GPIO_VBUS_EN)
+	 * It uses the same pin as either qien_gpio or qi_vbus_en, hence we
+	 * need to add the GPIOD_FLAGS_BIT_NONEXCLUSIVE flag.
+	 */
+	desc = devm_gpiod_get_optional(dev, "idt,wlc_en",
+				       GPIOD_ASIS | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
+	if (IS_ERR(desc))
+		return PTR_ERR(desc);
+	if (desc) {
+		pdata->wlc_en = desc;
 		dev_info(dev, "WLC enable/disable pin:%d(act_low=%d)",
-			 pdata->wlc_en, pdata->wlc_en_act_low);
+			 desc_to_gpio(desc), gpiod_is_active_low(desc));
 	}
 
 	/* WLC_BPP_EPP_SLCT */
-	pdata->slct_gpio = p9221_parse_gpios(dev, "idt,slct-gpio", "idt,gpio_slct", &flags);
-	if (pdata->slct_gpio == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-	if (pdata->slct_gpio > 0) {
-		ret = of_property_read_u32(node, "idt,gpio_slct_value", &data);
+	desc = devm_gpiod_get_optional(dev, "idt,slct", GPIOD_ASIS);
+	if (IS_ERR(desc))
+		return PTR_ERR(desc);
+	if (desc) {
+		pdata->slct_gpio = desc;
+		ret = of_property_read_u32(node, "idt,slct_value", &data);
 		if (ret == 0)
 			pdata->slct_value = (data != 0);
 		dev_info(dev, "WLC_BPP_EPP_SLCT gpio:%d value=%d",
-			 pdata->slct_gpio, pdata->slct_value);
+			 desc_to_gpio(desc), pdata->slct_value);
 	}
 
 	/* QI_EXT_LDO_EN */
-	pdata->ldo_en_gpio = p9221_parse_gpios(dev, "idt,ldo_en-gpio", "idt,gpio_ldo_en", &flags);
-	if (pdata->ldo_en_gpio > 0)
-		dev_info(dev, "QI_EXT_LDO_EN gpio:%d", pdata->ldo_en_gpio);
-	if (pdata->ldo_en_gpio == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
+	desc = devm_gpiod_get_optional(dev, "idt,ldo_en", GPIOD_ASIS);
+	if (IS_ERR(desc))
+		return PTR_ERR(desc);
+	if (desc) {
+		pdata->ldo_en_gpio = desc;
+		dev_info(dev, "QI_EXT_LDO_EN gpio:%d", desc_to_gpio(desc));
+	}
 
-	pdata->wcin_inlim_en_gpio = p9221_parse_gpios(dev,
-						      "google,wcin_inlim_en-gpio",
-						      "google,wcin_inlim_en", &flags);
-	if (pdata->wcin_inlim_en_gpio == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-	if (pdata->wcin_inlim_en_gpio > 0)
-		dev_info(dev, "WCIN_INLIM_EN gpio: %d", pdata->wcin_inlim_en_gpio);
+	desc = devm_gpiod_get_optional(dev, "google,wcin_inlim_en", GPIOD_ASIS);
+	if (IS_ERR(desc))
+		return PTR_ERR(desc);
+	if (desc) {
+		pdata->wcin_inlim_en_gpio = desc;
+		dev_info(dev, "WCIN_INLIM_EN gpio: %d", desc_to_gpio(desc));
+	}
 
-	/* RTx: idt,gpio_ben / idt,gpio_switch / idt,gpio_boost */
+	/* RTx: idt,ben-gpios / idt,switch-gpios / idt,boost-gpios */
 	ret = of_property_read_u32(node, "idt,has_rtx", &data);
 	if (ret == 0)
 		pdata->has_rtx = !!data;
@@ -7512,24 +7709,30 @@ static int p9221_parse_dt(struct device *dev,
 	dev_info(dev, "has_rtx:%d, has_rtx_gpio:%d\n", pdata->has_rtx, pdata->has_rtx_gpio);
 
 	/* boost enable, power WLC IC from device */
-	pdata->ben_gpio = p9221_parse_gpios(dev, "idt,gpio-ben", "idt,gpio_ben", &flags);
-	if (pdata->ben_gpio == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-	if (pdata->ben_gpio > 0)
-		dev_info(dev, "ben gpio:%d\n", pdata->ben_gpio);
+	desc = devm_gpiod_get_optional(dev, "idt,ben", GPIOD_ASIS | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
+	if (IS_ERR(desc))
+		return PTR_ERR(desc);
+	if (desc) {
+		pdata->ben_gpio = desc;
+		dev_info(dev, "ben gpio:%d\n", desc_to_gpio(desc));
+	}
 
-	pdata->switch_gpio = p9221_parse_gpios(dev, "idt,switch-gpio", "idt,gpio_switch", &flags);
-	if (pdata->switch_gpio == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-	if (pdata->switch_gpio > 0)
-		dev_info(dev, "switch gpio:%d\n", pdata->switch_gpio);
+	desc = devm_gpiod_get_optional(dev, "idt,switch", GPIOD_ASIS);
+	if (IS_ERR(desc))
+		return PTR_ERR(desc);
+	if (desc) {
+		pdata->switch_gpio = desc;
+		dev_info(dev, "switch gpio:%d\n", desc_to_gpio(desc));
+	}
 
 	/* boost gpio sets rtx at charging voltage level */
-	pdata->boost_gpio = p9221_parse_gpios(dev, "idt,boost-gpio", "idt,gpio_boost", &flags);
-	if (pdata->boost_gpio == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-	if (pdata->boost_gpio > 0)
-		dev_info(dev, "boost gpio:%d\n", pdata->boost_gpio);
+	desc = devm_gpiod_get_optional(dev, "idt,boost", GPIOD_ASIS | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
+	if (IS_ERR(desc))
+		return PTR_ERR(desc);
+	if (desc) {
+		pdata->boost_gpio = desc;
+		dev_info(dev, "boost gpio:%d\n", desc_to_gpio(desc));
+	}
 
 	/* configure boost to 7V through wlc chip */
 	pdata->apbst_en = of_property_read_bool(node, "idt,apbst_en");
@@ -7538,24 +7741,29 @@ static int p9221_parse_dt(struct device *dev,
 
 	if (pdata->has_rtx)
 		dev_info(dev, "RTx Config: ben:%d,switch:%d,boost:%d,apbst_en:%d,hw_ocp_det:%d\n",
-			 pdata->ben_gpio, pdata->switch_gpio, pdata->boost_gpio,
+			 pdata->ben_gpio ? desc_to_gpio(pdata->ben_gpio) : -EINVAL,
+			 pdata->switch_gpio ? desc_to_gpio(pdata->switch_gpio) : -EINVAL,
+			 pdata->boost_gpio ? desc_to_gpio(pdata->boost_gpio) : -EINVAL,
 			 pdata->apbst_en, pdata->hw_ocp_det);
 
 	/* DC-PPS */
-	pdata->ext_ben_gpio = p9221_parse_gpios(dev, "idt,extben-gpio", "idt,gpio_extben", &flags);
-	if (pdata->ext_ben_gpio == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-	if (pdata->ext_ben_gpio > 0) {
-		ret = gpio_request(pdata->ext_ben_gpio, "wc_ref");
-		dev_info(dev, "ext ben gpio:%d, ret=%d\n", pdata->ext_ben_gpio, ret);
+	desc = devm_gpiod_get_optional(dev, "idt,extben", GPIOD_ASIS);
+	if (IS_ERR(desc))
+		return PTR_ERR(desc);
+	if (desc) {
+		pdata->ext_ben_gpio = desc;
+		ret = gpiod_set_consumer_name(desc, "wc_ref");
+		dev_info(dev, "ext ben gpio:%d, ret=%d\n",
+			 desc_to_gpio(desc), ret);
 	}
 
-	pdata->dc_switch_gpio = p9221_parse_gpios(dev, "idt,dc_switch-gpio", "idt,gpio_dc_switch",
-						  &flags);
-	if (pdata->dc_switch_gpio == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-	if (pdata->dc_switch_gpio > 0)
-		dev_info(dev, "dc_switch gpio:%d\n", pdata->dc_switch_gpio);
+	desc = devm_gpiod_get_optional(dev, "idt,dc_switch", GPIOD_ASIS);
+	if (IS_ERR(desc))
+		return PTR_ERR(desc);
+	if (desc) {
+		pdata->dc_switch_gpio = desc;
+		dev_info(dev, "dc_switch gpio:%d\n", desc_to_gpio(desc));
+	}
 
 	ret = of_property_read_u32(node, "idt,has_wlc_dc", &data);
 	if (ret == 0)
@@ -7566,32 +7774,34 @@ static int p9221_parse_dt(struct device *dev,
 
 	if (pdata->has_wlc_dc)
 		dev_info(dev, "WLC-DC GPIO: ext_ben:%d,dc_switch:%d\n",
-			 pdata->ext_ben_gpio, pdata->dc_switch_gpio);
+			 pdata->ext_ben_gpio ? desc_to_gpio(pdata->ext_ben_gpio) : -EINVAL,
+			 pdata->dc_switch_gpio ? desc_to_gpio(pdata->dc_switch_gpio) : -EINVAL);
 
 	/* Main IRQ */
-	pdata->irq_gpio = p9221_parse_gpios(dev, "idt,irq-gpio", "idt,irq_gpio", &flags);
-	if (pdata->irq_gpio == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-	if (pdata->irq_gpio > 0) {
-		pdata->irq_int = gpio_to_irq(pdata->irq_gpio);
+	desc = devm_gpiod_get_optional(dev, "idt,irq", GPIOD_IN);
+	if (IS_ERR(desc))
+		return PTR_ERR(desc);
+	if (desc) {
+		pdata->irq_gpio = desc;
+		pdata->irq_int = gpiod_to_irq(desc);
 		ret = of_property_read_u32(node, "idt,irq_flag", &data);
 		if (ret == 0)
 			pdata->irq_flag = (u64)data;
 		else
 			pdata->irq_flag = IRQF_TRIGGER_LOW | IRQF_ONESHOT;
 		dev_info(dev, "gpio:%d, gpio_irq:%d irq_flag:0x%04llx\n",
-			 pdata->irq_gpio, pdata->irq_int, pdata->irq_flag);
+			 desc_to_gpio(desc), pdata->irq_int, pdata->irq_flag);
 	}
 
 	/* Optional Detect IRQ */
-	pdata->irq_det_gpio = p9221_parse_gpios(dev, "idt,irq_det-gpio", "idt,irq_det_gpio",
-						&flags);
-	if (pdata->irq_det_gpio == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-	if (pdata->irq_det_gpio > 0) {
-		pdata->irq_det_int = gpio_to_irq(pdata->irq_det_gpio);
+	desc = devm_gpiod_get_optional(dev, "idt,irq_det", GPIOD_IN);
+	if (IS_ERR(desc))
+		return PTR_ERR(desc);
+	if (desc) {
+		pdata->irq_det_gpio = desc;
+		pdata->irq_det_int = gpiod_to_irq(desc);
 		dev_info(dev, "det gpio:%d, det gpio_irq:%d\n",
-			 pdata->irq_det_gpio, pdata->irq_det_int);
+			 desc_to_gpio(desc), pdata->irq_det_int);
 	}
 
 	/* Optional VOUT max */
@@ -8000,6 +8210,8 @@ static int p9221_parse_dt(struct device *dev,
 	else
 		dev_info(dev, "qi spec unsupported: %d\n", pdata->qispec);
 
+	pdata->support_usecase_cb = of_property_read_bool(node, "google,support-usecase-cb");
+
 	return 0;
 }
 
@@ -8012,12 +8224,13 @@ static enum power_supply_property p9221_props[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,
 	POWER_SUPPLY_PROP_VOLTAGE_MIN,
 	POWER_SUPPLY_PROP_TEMP,
-#ifdef CONFIG_QC_COMPAT
+#if IS_ENABLED(CONFIG_QC_COMPAT)
 	POWER_SUPPLY_PROP_AICL_DELAY,
 	POWER_SUPPLY_PROP_AICL_ICL,
 #endif
 	POWER_SUPPLY_PROP_SERIAL_NUMBER,
 	POWER_SUPPLY_PROP_CAPACITY,
+	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
 };
 
 static const struct gbms_desc p9221_psy_desc = {
@@ -8175,7 +8388,8 @@ static int p9221_wlc_disable_callback(struct gvotable_election *el,
 				disable ? "disable" : "enable", reason);
 	charger->last_disable = disable;
 
-	if (defender_disabling_now || (charger->pdata->wlc_en != charger->pdata->qien_gpio)) {
+	if (defender_disabling_now ||
+		(charger->pdata->wlc_en && charger->pdata->wlc_en != charger->pdata->qien_gpio)) {
 		/*
 		 * When defender is disabling, we need to disable with EOP since some
 		 * TXs might stop pinging if the chip is inhibited, making presence
@@ -8299,9 +8513,9 @@ static bool p9xxx_find_votable(struct p9221_charger_data *charger)
 	if (!charger->dc_icl_votable)
 		dev_warn(&charger->client->dev, "Could not find DC_ICL votable\n");
 
-	if (charger->pdata->ldo_en_gpio > 0 && !charger->wlc_spoof_votable)
+	if (charger->pdata->ldo_en_gpio && !charger->wlc_spoof_votable)
 		charger->wlc_spoof_votable = gvotable_election_get_handle("WLC_SPOOF");
-	if (charger->pdata->ldo_en_gpio > 0 && !charger->wlc_spoof_votable)
+	if (charger->pdata->ldo_en_gpio && !charger->wlc_spoof_votable)
 		dev_warn(&charger->client->dev, "Could not find WLC SPOOF votable\n");
 	/*
 	 * Find the DC_SUSPEND, we use this to disable DCIN before
@@ -8320,11 +8534,10 @@ static bool p9xxx_find_votable(struct p9221_charger_data *charger)
 	return charger->dc_icl_votable != NULL &&
 	       charger->dc_suspend_votable != NULL &&
 	       charger->chg_mode_votable != NULL &&
-	       (charger->pdata->ldo_en_gpio > 0 && charger->wlc_spoof_votable != NULL);
+	       (charger->pdata->ldo_en_gpio && charger->wlc_spoof_votable != NULL);
 }
 
-static int p9221_charger_probe(struct i2c_client *client,
-				const struct i2c_device_id *id)
+static int p9221_charger_probe(struct i2c_client *client)
 {
 	struct device_node *dn, *of_node = client->dev.of_node;
 	struct p9221_charger_data *charger;
@@ -8414,12 +8627,15 @@ static int p9221_charger_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&charger->chk_fod_work, p9xxx_chk_fod_work);
 	INIT_DELAYED_WORK(&charger->set_rf_work, p9xxx_set_rf_work);
 	INIT_DELAYED_WORK(&charger->presence_check_work, p9xxx_presence_check_work);
-	INIT_WORK(&charger->uevent_work, p9221_uevent_work);
+	INIT_WORK(&charger->wlc_uevent_work, p9221_wlc_uevent_work);
+	INIT_WORK(&charger->fan_uevent_work, p9221_fan_uevent_work);
+	INIT_WORK(&charger->rtx_uevent_work, p9221_rtx_uevent_work);
 	INIT_WORK(&charger->calibration_work, p9xxx_calibration_work);
 	INIT_WORK(&charger->rtx_disable_work, p9382_rtx_disable_work);
 	INIT_WORK(&charger->rtx_reset_work, p9xxx_rtx_reset_work);
 	INIT_DELAYED_WORK(&charger->power_mitigation_work,
 			  p9221_power_mitigation_work);
+	INIT_DELAYED_WORK(&charger->register_usecase_work, google_wlc_register_usecase_work);
 	INIT_DELAYED_WORK(&charger->icl_stable_work, p9221_icl_stable_work);
 	alarm_init(&charger->icl_ramp_alarm, ALARM_BOOTTIME,
 		   p9221_icl_ramp_alarm_cb);
@@ -8454,35 +8670,36 @@ static int p9221_charger_probe(struct i2c_client *client,
 
 	p9221_charge_stats_init(&charger->chg_data);
 
-	if (charger->pdata->qien_gpio > 0)
-		gpio_direction_output(charger->pdata->qien_gpio, 0);
+	if (charger->pdata->qien_gpio)
+		gpiod_direction_output(charger->pdata->qien_gpio, 1);
 
-	if (charger->pdata->ldo_en_gpio > 0)
-		gpio_direction_output(charger->pdata->ldo_en_gpio, 0);
+	if (charger->pdata->ldo_en_gpio)
+		gpiod_direction_output_raw(charger->pdata->ldo_en_gpio, 0);
 
-	if (charger->pdata->qi_vbus_en > 0)
-		gpio_direction_output(charger->pdata->qi_vbus_en,
-				      !charger->pdata->qi_vbus_en_act_low);
+	if (charger->pdata->qi_vbus_en)
+		gpiod_direction_output(charger->pdata->qi_vbus_en, 1);
 
-	if (charger->pdata->slct_gpio > 0)
-		gpio_direction_output(charger->pdata->slct_gpio, charger->pdata->slct_value);
+	if (charger->pdata->slct_gpio)
+		gpiod_direction_output(charger->pdata->slct_gpio, charger->pdata->slct_value);
 
-	if (charger->pdata->wcin_inlim_en_gpio > 0)
-		gpio_direction_output(charger->pdata->wcin_inlim_en_gpio, 0);
+	if (charger->pdata->wcin_inlim_en_gpio)
+		gpiod_direction_output(charger->pdata->wcin_inlim_en_gpio, 0);
 
-	if (charger->pdata->ben_gpio > 0)
-		gpio_direction_output(charger->pdata->ben_gpio, 0);
+	if (charger->pdata->ben_gpio)
+		gpiod_direction_output(charger->pdata->ben_gpio, 0);
 
-	if (charger->pdata->switch_gpio > 0)
-		gpio_direction_output(charger->pdata->switch_gpio, 0);
+	if (charger->pdata->switch_gpio)
+		gpiod_direction_output(charger->pdata->switch_gpio, 0);
 
-	if (charger->pdata->ext_ben_gpio > 0)
-		gpio_direction_output(charger->pdata->ext_ben_gpio, 0);
+	if (charger->pdata->boost_gpio)
+		gpiod_direction_output(charger->pdata->boost_gpio, 0);
 
-	if (charger->pdata->dc_switch_gpio > 0)
-		gpio_direction_output(charger->pdata->dc_switch_gpio, 0);
+	if (charger->pdata->ext_ben_gpio)
+		gpiod_direction_output(charger->pdata->ext_ben_gpio, 0);
 
-	/* Default enable */
+	if (charger->pdata->dc_switch_gpio)
+		gpiod_direction_output(charger->pdata->dc_switch_gpio, 0);
+
 	charger->enabled = true;
 
 	/* Default to R5+ */
@@ -8633,7 +8850,7 @@ static int p9221_charger_probe(struct i2c_client *client,
 	 */
 	device_init_wakeup(charger->dev, true);
 
-	if (gpio_is_valid(charger->pdata->irq_det_gpio)) {
+	if (charger->pdata->irq_det_gpio) {
 		ret = devm_request_threaded_irq(&client->dev, charger->pdata->irq_det_int, NULL,
 					p9221_irq_det_thread,
 					IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
@@ -8642,7 +8859,8 @@ static int p9221_charger_probe(struct i2c_client *client,
 			dev_err(&client->dev, "Failed to request IRQ_DET\n");
 		} else {
 			mutex_lock(&charger->irq_det_lock);
-			charger->det_status = gpio_get_value_cansleep(charger->pdata->irq_det_gpio);
+			charger->det_status =
+				gpiod_get_raw_value_cansleep(charger->pdata->irq_det_gpio);
 			disable_irq(charger->pdata->irq_det_int);
 			mutex_unlock(&charger->irq_det_lock);
 		}
@@ -8712,6 +8930,7 @@ static int p9221_charger_probe(struct i2c_client *client,
 	dn = of_parse_phandle(of_node, "idt,fuel-gauge", 0);
 	if (dn)
 		schedule_delayed_work(&charger->soc_work, 0);
+	of_node_put(dn);
 
 	/*
 	 * Register notifier so we can detect changes on DC_IN
@@ -8740,6 +8959,7 @@ static int p9221_charger_probe(struct i2c_client *client,
 			ret);
 		charger->rtx_log = NULL;
 	}
+	schedule_delayed_work(&charger->register_usecase_work, 0);
 
 #if IS_ENABLED(CONFIG_GPIOLIB)
 	if (charger->pdata->chip_id == P9412_CHIP_ID ||
@@ -8747,11 +8967,14 @@ static int p9221_charger_probe(struct i2c_client *client,
 	    charger->pdata->chip_id == RA9530_CHIP_ID) {
 		p9xxx_gpio_init(charger);
 		charger->gpio.parent = &client->dev;
-		charger->gpio.of_node = of_find_node_by_name(client->dev.of_node,
-						charger->gpio.label);
-		if (!charger->gpio.of_node)
+		/* balance of_node_put() in of_find_node_by_name() */
+		of_node_get(client->dev.of_node);
+		dn = of_find_node_by_name(client->dev.of_node,
+					charger->gpio.label);
+		if(!dn)
 			dev_err(&client->dev, "Failed to find %s DT node\n",
 				charger->gpio.label);
+		charger->gpio.fwnode = of_node_to_fwnode(dn);
 
 		ret = devm_gpiochip_add_data(&client->dev, &charger->gpio, charger);
 		dev_info(&client->dev, "%d GPIOs registered ret:%d\n",
@@ -8763,7 +8986,7 @@ static int p9221_charger_probe(struct i2c_client *client,
 	dev_info(&client->dev, "p9221 Charger Driver Loaded\n");
 
 	if (online) {
-		charger->dc_psy = power_supply_get_by_name("dc");
+		charger->dc_psy = power_supply_get_by_name(GOOGLE_WLCIN_MAINS_NAME);
 		if (charger->dc_psy)
 			power_supply_changed(charger->dc_psy);
 	}
@@ -8794,7 +9017,9 @@ static void p9221_charger_remove(struct i2c_client *client)
 	cancel_delayed_work_sync(&charger->chk_fod_work);
 	cancel_delayed_work_sync(&charger->presence_check_work);
 	cancel_delayed_work_sync(&charger->set_rf_work);
-	cancel_work_sync(&charger->uevent_work);
+	cancel_work_sync(&charger->wlc_uevent_work);
+	cancel_work_sync(&charger->fan_uevent_work);
+	cancel_work_sync(&charger->rtx_uevent_work);
 	cancel_work_sync(&charger->calibration_work);
 	cancel_work_sync(&charger->rtx_disable_work);
 	cancel_work_sync(&charger->rtx_reset_work);
@@ -8839,9 +9064,9 @@ static void p9221_charger_shutdown(struct i2c_client *client)
 		return;
 
 	if (charger->online && charger->wlc_dc_enabled) {
-		gpio_direction_output(charger->pdata->wlc_en, charger->pdata->wlc_en_act_low);
-		dev_info(&charger->client->dev, "Disable WLC chip, wlc_en=%d, val=%d wlc_dc_enabled %d\n",
-			 charger->pdata->wlc_en, charger->pdata->wlc_en_act_low,
+		gpiod_direction_output(charger->pdata->wlc_en, 0);
+		dev_info(&charger->client->dev, "Disable WLC chip, wlc_en=%d wlc_dc_enabled %d\n",
+			 desc_to_gpio(charger->pdata->wlc_en),
 			 charger->wlc_dc_enabled);
 	}
 	power_supply_unreg_notifier(&charger->nb);
@@ -8854,7 +9079,7 @@ static const struct i2c_device_id p9221_charger_id_table[] = {
 };
 MODULE_DEVICE_TABLE(i2c, p9221_charger_id_table);
 
-#ifdef CONFIG_OF
+#if IS_ENABLED(CONFIG_OF)
 static struct of_device_id p9221_charger_match_table[] = {
 	{ .compatible = "idt,p9221",},
 	{ .compatible = "idt,p9222",},
@@ -8867,7 +9092,7 @@ static struct of_device_id p9221_charger_match_table[] = {
 #define p9221_charger_match_table NULL
 #endif
 
-#ifdef CONFIG_PM_SLEEP
+#if IS_ENABLED(CONFIG_PM_SLEEP)
 static int p9221_pm_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
@@ -8896,16 +9121,21 @@ static int p9221_pm_resume(struct device *dev)
 	return 0;
 }
 #endif
+
+#if IS_ENABLED(CONFIG_PM)
 static const struct dev_pm_ops p9221_pm_ops = {
 	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(p9221_pm_suspend, p9221_pm_resume)
 };
+#endif
 
 static struct i2c_driver p9221_charger_driver = {
 	.driver = {
 		.name		= "p9221",
 		.owner		= THIS_MODULE,
 		.of_match_table = p9221_charger_match_table,
+#if IS_ENABLED(CONFIG_PM)
 		.pm		= &p9221_pm_ops,
+#endif
 		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 	},
 	.probe		= p9221_charger_probe,

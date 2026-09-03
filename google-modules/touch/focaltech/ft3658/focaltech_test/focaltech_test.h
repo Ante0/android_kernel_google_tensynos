@@ -567,6 +567,16 @@ enum csv_itemcode_sc {
 *****************************************************************************/
 extern struct test_funcs test_func_ft5652;
 
+extern int fts_test_get_raw(int *raw, u8 tx, u8 rx);
+extern int fts_test_get_baseline(int *raw,int *base_raw, u8 tx, u8 rx);
+extern int fts_test_get_strength(u8 *base_raw, u16 base_raw_size);
+extern int fts_test_get_uniformity_data(int *rawdata_linearity, u8 tx, u8 rx);
+extern int fts_test_get_scap_raw(int *scap_raw, u8 tx, u8 rx, int *fwcheck);
+extern int fts_test_get_scap_cb(int *scap_cb, u8 tx, u8 rx, int *fwcheck);
+extern int fts_test_get_short(int *short_data, u8 tx, u8 rx);
+extern int fts_test_get_noise(int *noise, u8 tx, u8 rx);
+extern int fts_test_get_panel_differ(int *panel_differ, u8 tx, u8 rx);
+
 extern struct fts_test *fts_ftest;
 
 void sys_delay(int ms);
@@ -602,6 +612,7 @@ void *fts_malloc(size_t size);
 void fts_free_proc(void *p);
 void fts_test_save_data(char *name, int code, int *data, int datacnt,
                         bool mc_sc, bool key, bool result);
+void transpose_raw(u8 *src, u8 *dist, int tx, int rx, bool big_endian);
 
 #define fts_malloc_r(p, size) do {\
     if (NULL == p) {\

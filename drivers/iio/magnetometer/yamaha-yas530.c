@@ -43,7 +43,7 @@
 #include <linux/iio/trigger_consumer.h>
 #include <linux/iio/triggered_buffer.h>
 
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 
 /* Commonly used registers */
 #define YAS5XX_DEVICE_ID		0x80
@@ -1385,9 +1385,9 @@ static const struct yas5xx_chip_info yas5xx_chip_info_tbl[] = {
 	},
 };
 
-static int yas5xx_probe(struct i2c_client *i2c,
-			const struct i2c_device_id *id)
+static int yas5xx_probe(struct i2c_client *i2c)
 {
+	const struct i2c_device_id *id = i2c_client_get_device_id(i2c);
 	struct iio_dev *indio_dev;
 	struct device *dev = &i2c->dev;
 	struct yas5xx *yas5xx;
@@ -1435,9 +1435,7 @@ static int yas5xx_probe(struct i2c_client *i2c,
 		goto assert_reset;
 	}
 
-	ci = device_get_match_data(dev);
-	if (!ci)
-		ci = (const struct yas5xx_chip_info *)id->driver_data;
+	ci = i2c_get_match_data(i2c);
 	yas5xx->chip_info = ci;
 
 	ret = regmap_read(yas5xx->map, YAS5XX_DEVICE_ID, &id_check);
@@ -1606,7 +1604,7 @@ static struct i2c_driver yas5xx_driver = {
 		.of_match_table = yas5xx_of_match,
 		.pm = pm_ptr(&yas5xx_dev_pm_ops),
 	},
-	.probe	  = yas5xx_probe,
+	.probe = yas5xx_probe,
 	.remove	  = yas5xx_remove,
 	.id_table = yas5xx_id,
 };

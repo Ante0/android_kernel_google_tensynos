@@ -19,7 +19,7 @@ enum LATENCY_LEVEL {
 	LATENCY_NUM_LEVELS,
 };
 
-/* gcma_alloc_range per-page latency by ns */
+/* pixel_gcma_alloc_range per-page latency by ns */
 static struct gcma_alloc_latency {
 	unsigned long stat[LATENCY_NUM_LEVELS];
 	unsigned long threshold[LATENCY_NUM_LEVELS];

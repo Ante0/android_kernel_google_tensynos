@@ -5,10 +5,19 @@
  * Copyright 2019 Google LLC
  */
 
+/*
+ * This file implements verification of fs-verity builtin signatures.  Please
+ * take great care before using this feature.  It is not the only way to do
+ * signatures with fs-verity, and the alternatives (such as userspace signature
+ * verification, and IMA appraisal) can be much better.  For details about the
+ * limitations of this feature, see Documentation/filesystems/fsverity.rst.
+ */
+
 #include "fsverity_private.h"
 
 #include <linux/cred.h>
 #include <linux/key.h>
+#include <linux/security.h>
 #include <linux/slab.h>
 #include <linux/verification.h>
 
@@ -16,7 +25,7 @@
  * /proc/sys/fs/verity/require_signatures
  * If 1, all verity files must have a valid builtin signature.
  */
-static int fsverity_require_signatures;
+int fsverity_require_signatures;
 
 /*
  * Keyring that contains the trusted X.509 certificates.
@@ -33,44 +42,21 @@ static struct key *fsverity_keyring;
  * @sig_size: size of signature in bytes, or 0 if no signature
  *
  * If the file includes a signature of its fs-verity file digest, verify it
- * against the certificates in the fs-verity keyring.
+ * against the certificates in the fs-verity keyring. Note that signatures
+ * are verified regardless of the state of the 'fsverity_require_signatures'
+ * variable and the LSM subsystem relies on this behavior to help enforce
+ * file integrity policies. Please discuss changes with the LSM list
+ * (thank you!).
  *
  * Return: 0 on success (signature valid or not required); -errno on failure
  */
 int fsverity_verify_signature(const struct fsverity_info *vi,
 			      const u8 *signature, size_t sig_size)
 {
-	unsigned int digest_algorithm =
-		vi->tree_params.hash_alg - fsverity_hash_algs;
-
-	return __fsverity_verify_signature(vi->inode, signature, sig_size,
-					   vi->file_digest, digest_algorithm);
-}
-
-/**
- * __fsverity_verify_signature() - check a verity file's signature
- * @inode: the file's inode
- * @signature: the file's signature
- * @sig_size: size of @signature. Can be 0 if there is no signature
- * @file_digest: the file's digest
- * @digest_algorithm: the digest algorithm used
- *
- * Takes the file's digest and optional signature and verifies the signature
- * against the digest and the fs-verity keyring if appropriate
- *
- * Return: 0 on success (signature valid or not required); -errno on failure
- */
-int __fsverity_verify_signature(const struct inode *inode, const u8 *signature,
-				size_t sig_size, const u8 *file_digest,
-				unsigned int digest_algorithm)
-{
+	const struct inode *inode = vi->inode;
+	const struct fsverity_hash_alg *hash_alg = vi->tree_params.hash_alg;
 	struct fsverity_formatted_digest *d;
-	struct fsverity_hash_alg *hash_alg = fsverity_get_hash_alg(inode,
-							digest_algorithm);
 	int err;
-
-	if (IS_ERR(hash_alg))
-		return PTR_ERR(hash_alg);
 
 	if (sig_size == 0) {
 		if (fsverity_require_signatures) {
@@ -103,7 +89,7 @@ int __fsverity_verify_signature(const struct inode *inode, const u8 *signature,
 	memcpy(d->magic, "FSVerity", 8);
 	d->digest_algorithm = cpu_to_le16(hash_alg - fsverity_hash_algs);
 	d->digest_size = cpu_to_le16(hash_alg->digest_size);
-	memcpy(d->digest, file_digest, hash_alg->digest_size);
+	memcpy(d->digest, vi->file_digest, hash_alg->digest_size);
 
 	err = verify_pkcs7_signature(d, sizeof(*d) + hash_alg->digest_size,
 				     signature, sig_size, fsverity_keyring,
@@ -125,70 +111,28 @@ int __fsverity_verify_signature(const struct inode *inode, const u8 *signature,
 		return err;
 	}
 
-	return 0;
-}
-EXPORT_SYMBOL_GPL(__fsverity_verify_signature);
+	err = security_inode_setintegrity(inode,
+					  LSM_INT_FSVERITY_BUILTINSIG_VALID,
+					  signature,
+					  sig_size);
 
-#ifdef CONFIG_SYSCTL
-static struct ctl_table_header *fsverity_sysctl_header;
-
-static const struct ctl_path fsverity_sysctl_path[] = {
-	{ .procname = "fs", },
-	{ .procname = "verity", },
-	{ }
-};
-
-static struct ctl_table fsverity_sysctl_table[] = {
-	{
-		.procname       = "require_signatures",
-		.data           = &fsverity_require_signatures,
-		.maxlen         = sizeof(int),
-		.mode           = 0644,
-		.proc_handler   = proc_dointvec_minmax,
-		.extra1         = SYSCTL_ZERO,
-		.extra2         = SYSCTL_ONE,
-	},
-	{ }
-};
-
-static int __init fsverity_sysctl_init(void)
-{
-	fsverity_sysctl_header = register_sysctl_paths(fsverity_sysctl_path,
-						       fsverity_sysctl_table);
-	if (!fsverity_sysctl_header) {
-		pr_err("sysctl registration failed!\n");
-		return -ENOMEM;
+	if (err) {
+		fsverity_err(inode, "Error %d exposing file signature to LSMs",
+			     err);
+		return err;
 	}
+
 	return 0;
 }
-#else /* !CONFIG_SYSCTL */
-static inline int __init fsverity_sysctl_init(void)
-{
-	return 0;
-}
-#endif /* !CONFIG_SYSCTL */
 
-int __init fsverity_init_signature(void)
+void __init fsverity_init_signature(void)
 {
-	struct key *ring;
-	int err;
-
-	ring = keyring_alloc(".fs-verity", KUIDT_INIT(0), KGIDT_INIT(0),
-			     current_cred(), KEY_POS_SEARCH |
+	fsverity_keyring =
+		keyring_alloc(".fs-verity", KUIDT_INIT(0), KGIDT_INIT(0),
+			      current_cred(), KEY_POS_SEARCH |
 				KEY_USR_VIEW | KEY_USR_READ | KEY_USR_WRITE |
 				KEY_USR_SEARCH | KEY_USR_SETATTR,
-			     KEY_ALLOC_NOT_IN_QUOTA, NULL, NULL);
-	if (IS_ERR(ring))
-		return PTR_ERR(ring);
-
-	err = fsverity_sysctl_init();
-	if (err)
-		goto err_put_ring;
-
-	fsverity_keyring = ring;
-	return 0;
-
-err_put_ring:
-	key_put(ring);
-	return err;
+			      KEY_ALLOC_NOT_IN_QUOTA, NULL, NULL);
+	if (IS_ERR(fsverity_keyring))
+		panic("failed to allocate \".fs-verity\" keyring");
 }

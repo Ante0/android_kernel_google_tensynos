@@ -11,5 +11,7 @@
 			      IRQ_TYPE_LEVEL_HIGH>;
 
 		s2mpu = <&s2mpu_gsa>;
+
+		log-region = <&gsa_reserved_log>;
 	};
 };

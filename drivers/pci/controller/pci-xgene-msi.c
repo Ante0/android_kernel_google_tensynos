@@ -8,9 +8,9 @@
  */
 #include <linux/cpu.h>
 #include <linux/interrupt.h>
+#include <linux/irqdomain.h>
 #include <linux/module.h>
 #include <linux/msi.h>
-#include <linux/of_irq.h>
 #include <linux/irqchip/chained_irq.h>
 #include <linux/pci.h>
 #include <linux/platform_device.h>
@@ -154,7 +154,7 @@ static void xgene_compose_msi_msg(struct irq_data *data, struct msi_msg *msg)
  * X-Gene v1 only has 16 MSI GIC IRQs for 2048 MSI vectors.  To maintain
  * the expected behaviour of .set_affinity for each MSI interrupt, the 16
  * MSI GIC IRQs are statically allocated to 8 X-Gene v1 cores (2 GIC IRQs
- * for each core).  The MSI vector is moved fom 1 MSI GIC IRQ to another
+ * for each core).  The MSI vector is moved from 1 MSI GIC IRQ to another
  * MSI GIC IRQ to steer its MSI interrupt to correct X-Gene v1 core.  As a
  * consequence, the total MSI vectors that X-Gene v1 supports will be
  * reduced to 256 (2048/8) vectors.
@@ -348,7 +348,7 @@ static void xgene_msi_isr(struct irq_desc *desc)
 
 static enum cpuhp_state pci_xgene_online;
 
-static int xgene_msi_remove(struct platform_device *pdev)
+static void xgene_msi_remove(struct platform_device *pdev)
 {
 	struct xgene_msi *msi = platform_get_drvdata(pdev);
 
@@ -362,8 +362,6 @@ static int xgene_msi_remove(struct platform_device *pdev)
 	msi->bitmap = NULL;
 
 	xgene_free_domains(msi);
-
-	return 0;
 }
 
 static int xgene_msi_hwirq_alloc(unsigned int cpu)
@@ -443,8 +441,7 @@ static int xgene_msi_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, xgene_msi);
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	xgene_msi->msi_regs = devm_ioremap_resource(&pdev->dev, res);
+	xgene_msi->msi_regs = devm_platform_get_and_ioremap_resource(pdev, 0, &res);
 	if (IS_ERR(xgene_msi->msi_regs)) {
 		rc = PTR_ERR(xgene_msi->msi_regs);
 		goto error;

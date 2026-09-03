@@ -21,107 +21,144 @@ properties:
       integer specifying the wifi chip for that particulare device.
     maxItems: 1
 
+  bt-chip:
+    description:
+      integer specifying the bt chip for that particulare device.
+    maxItems: 1
+
+  gdmc-iface:
+    description:
+      Reference to the GDMC node, if any.
+    maxItems: 1
+
+  power-domains:
+    description:
+      Power domains relevant for AoC.
+
+  power-domain-names:
+    description:
+      Names for each of the power domains listed in property `power-domains`.
+
+  gsa-enabled:
+    description:
+      Boolean specifying whether GSA boot for AOC is enabled. Must be unset if false.
+    maxItems: 1
+
+  ramdump-header-offset:
+    description:
+      Location of AoC coredump header as an offset from start of DRAM carveout.
+
+  carveout-paddr-from-aoc:
+    description:
+      Physical address of DRAM carveout from AoC point of view, used by coredump writer.
+
+  carveout-vaddr-from-aoc:
+    description:
+      Virtual address of DRAM carveout from AoC point of view, used by coredump writer.
+
+  mbox-doorbell-mode-enabled:
+    description:
+      Specifies whether doorbell mode is enabled for the target.
+
+  boot-breadcrumbs-enabled:
+    description:
+      Specifies whether boot breadcrumbs are enabled for the target.
+
+  mbox-non-waking:
+    description:
+      List of references to the mailboxes which shall be used to handle
+      non waking signals. Each list entry has two arguments which specifies
+      the offset between base register address and corresponding mask register,
+      as well as a register bitmask.
+      The number of arguments has to be set as "#non_waking-cells" property in
+      the memory resource describing the mailbox.
+
+  coredump-region:
+    description:
+      Reference to the additional memory carveout where coredump can be stored.
+    maxItems: 1
+
 required:
   - compatible
+  - power-domains
+  - power-domain-names
 
 # TODO: add remaining items in required and properties.
 
 examples:
   - |
-  aoc: aoc@17000000 {
-      compatible = "google,aoc";
+    {
+      aoc: aoc@9000000 {
+        compatible = "google,aoc";
+        reg = <0x0 0x09000000 0x0 0x02000000>,
+          <0x0 0xB4C0000 0x0 0x000be28>;
+        reg-names = "blk_aoc", "lcpm";
+        iommus = <&cpuacc_mmu 0x8300>;
 
-      reg = <0x0 0x17000000 0x02000000>,
-            <0x0 0x154B0000 0x00001000>,
-            <0x0 0x190C0000 0x00001000>,
-            <0x0 0x19060000 0x00005000>;
+        memory-region = <&aoc_reserve>;
 
-      reg-names = "blk_aoc", "aoc_req", "aoc_s2mpu", "ssmt_aoc";
+        mboxes = <
+          &aoc_ap_0_mba_client_0 0
+          &aoc_ap_1_mba_client_1 0
+          &aoc_ap_2_mba_client_2 0
+          &aoc_ap_3_mba_client_3 0
+          &aoc_ap_4_mba_client_4 0
+          &aoc_ap_5_mba_client_5 0
+          &aoc_ap_6_mba_client_6 0
+          &aoc_ap_7_mba_client_7 0
+          &aoc_ap_8_mba_client_8 0
+          &aoc_ap_9_mba_client_9 0
+          &aoc_ap_10_mba_client_10 0
+          &aoc_ap_11_mba_client_11 0
+          &aoc_ap_12_mba_client_12 0
+          &aoc_ap_13_mba_client_13 0
+          &aoc_ap_14_mba_client_14 0
+          &aoc_ap_15_mba_client_15 0
+          &aoc_ap_16_mba_client_16 0
+          &aoc_ap_17_mba_client_17 0
+          &aoc_ap_18_mba_client_18 0
+          &aoc_ap_19_mba_client_19 0
+        >;
 
-      interrupts = <GIC_SPI IRQ_AOC_Watchdog_CPU_AOC
-              IRQ_TYPE_LEVEL_HIGH 0>;
-      interrupt-names = "watchdog";
+        mbox-doorbell-mode-enabled;
 
-      pinctrl-names = "default";
-      pinctrl-0 = <&aoc_vsync_pins>;
+        power-domains = <&sswrp_aoc_pd>, <&aoc_core_pd>;
+        power-domain-names = "sswrp_aoc_pd", "aoc_core_pd";
 
-      gsa-enabled = "true";
+        pinctrl-names = "default", "idle";
+        pinctrl-0 = <&aoc_uart0_rxd_rtsn_pins>, <&aoc_uart0_txd_ctsn_pins>,
+          <&aoc_uart1_rxd_rtsn_pins>, <&aoc_uart1_txd_ctsn_pins>,
+          <&aoc_uart2_pins>, <&aoc_i2c2_pins>, <&aoc_i2c4_pins>,
+          <&aoc_i3c0_pins>, <&aoc_i3c1_pins>, <&aoc_tdm1_in_pins>,
+          <&aoc_tdm1_out_pins>, <&aoc_pdm_pins>, <&aoc_pdm1_pins>,
+          <&aoc_pdm2_pins>, <&aoc_pdm3_pins>, <&aoc_tdm0_in_pins>,
+          <&aoc_tdm0_out_pins>, <&aoc_i2s0_in_pins>, <&aoc_i2s0_out_pins>,
+          <&aoc_i2s1_in_pins>, <&aoc_i2s1_out_pins>, <&aoc_modem_out_pins>,
+          <&aoc_modem_in_pins>, <&aoc_modem_pcm_valid_pins>;
+        pinctrl-1 = <>;
 
-      iommus = <&sysmmu_aoc>;
-      memory-region = <&aoc_reserve>;
-      samsung,iommu-group = <&iommu_group_aoc>;
+        mbox-channels = <20>;
 
-      mbox-channels = <48>;
+        clock-divider = <1>;
 
-      mbox-names = "aoc2ap";
-      mboxes = <&mbox_aoc_a32  0
-                &mbox_aoc_a32  1
-                &mbox_aoc_a32  2
-                &mbox_aoc_a32  3
-                &mbox_aoc_a32  4
-                &mbox_aoc_a32  5
-                &mbox_aoc_a32  6
-                &mbox_aoc_a32  7
-                &mbox_aoc_a32  8
-                &mbox_aoc_a32  9
-                &mbox_aoc_a32 10
-                &mbox_aoc_a32 11
-                &mbox_aoc_a32 12
-                &mbox_aoc_a32 13
-                &mbox_aoc_a32 14
-                &mbox_aoc_a32 15
-                &mbox_aoc_f1 0
-                &mbox_aoc_f1 1
-                &mbox_aoc_f1 2
-                &mbox_aoc_f1 3
-                &mbox_aoc_f1 4
-                &mbox_aoc_f1 5
-                &mbox_aoc_f1 6
-                &mbox_aoc_f1 7
-                &mbox_aoc_f1 8
-                &mbox_aoc_f1 9
-                &mbox_aoc_f1 10
-                &mbox_aoc_f1 11
-                &mbox_aoc_f1 12
-                &mbox_aoc_f1 13
-                &mbox_aoc_f1 14
-                &mbox_aoc_f1 15
-                &mbox_aoc_p6 0
-                &mbox_aoc_p6 1
-                &mbox_aoc_p6 2
-                &mbox_aoc_p6 3
-                &mbox_aoc_p6 4
-                &mbox_aoc_p6 5
-                &mbox_aoc_p6 6
-                &mbox_aoc_p6 7
-                &mbox_aoc_p6 8
-                &mbox_aoc_p6 9
-                &mbox_aoc_p6 10
-                &mbox_aoc_p6 11
-                &mbox_aoc_p6 12
-                &mbox_aoc_p6 13
-                &mbox_aoc_p6 14
-                &mbox_aoc_p6 15
-      >;
+        channel-max-pending-msgs = <128>;
+        block-channel-threshold = <64>;
 
-      acpm-ipc-channel = <13>;
+        notify-on-state-transition;
+        hotword-supported;
+        chre-supported;
+        iommu-config-persistent;
 
-      force-vnom = <0>;
+        aoc-coredump-mbox = <3>;
+        ramdump-header-offset = <0x3000000>;
+        carveout-paddr-from-aoc = <0x6000000>;
+        carveout-vaddr-from-aoc = <0xB6000000>;
 
-      gsa-device = <&gsa>;
+        gdmc-iface = <&goog_mba_gdmc_iface>;
 
-      pcu-base = <0x1400000>;
-      gpio-base = <0x1C00000>;
-      pcu-db-set-offset = <0x1F004>;
-      pcu-db-clr-offset = <0x1F008>;
-      cp-aperture-start-offset = <0x7FDF80>;
-      cp-aperture-end-offset = <0x7FFFFF>;
-      clock-divider = <1>;
+        boot-breadcrumbs-enabled;
 
-      channel-max-pending-msgs = <128>;
-      block-channel-threshold = <64>;
-
-      notify-on-state-transition = "true";
-      hotword-supported = "true";
-      chre-supported = "true";
-  };
+        gsa-device = <&gsa>;
+        gsa-enabled;
+      };
+    };

@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2025 Google LLC
+%YAML 1.2
+---
+
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google ST21NFC NFC Controller Driver
+
+description: NFC driver for STMicroelectronics ST54K/L
+maintainers:
+  - George Chang <georgekgchang@google.com>
+
+properties:
+  compatible:
+    type: string
+    description: Compatible string for the device.
+    const: "st,st21nfc"
+
+  reg:
+    description: I2C address of the device.
+
+  reset-gpios:
+    description: GPIO descriptor for the Reset line.
+
+  irq-gpios:
+    description: GPIO descriptor for the IRQ line.
+
+  pidle-gpios:
+    description: GPIO descriptor for the PIDLE line.
+
+  st,extpad_control_en:
+    description: Flag to set whether to use external pad for clock control.
+
+  st,clk_pinctrl_switch:
+    description: Flag to set whether to use pinctrl for clock switching.
+
+  st,pidle_active_check:
+    description: Flag to enables active monitoring of power states using a delayed work queue.
+
+  st,reduce-timeout:
+    description: Flag to enables reduce the wakelock timeout for specific commands.
+
+  pinctrl-names:
+      type: array
+      description: Names of pinctrl states.
+      items:
+          type: string
+      default: ["default", "func"]
+
+  pinctrl-0:
+      type: array
+      description: Pinctrl configuration for "default" state.
+
+  pinctrl-1:
+      type: array
+      description: Pinctrl configuration for "func" state.
+
+
+required:
+  - compatible
+  - reg
+  - reset-gpios
+  - irq-gpios
+
+examples:
+  - |
+    st21nfc@8 {
+      compatible = "st,st21nfc";
+      reg = <0x08>;
+      interrupt-parent = <&gdmc_pinctrl>; # Example interrupt parent
+      reset-gpios = <&ap2nfc_chip_en_1v2 GPIO_ACTIVE_HIGH>; # Example GPIO specifier
+      irq-gpios = <&nfc2ap_host_irq_1v2 GPIO_ACTIVE_HIGH>; # Example GPIO specifier
+      pidle-gpios = <&nfc2ap_pwr_state_1v2 GPIO_ACTIVE_HIGH>; # Example GPIO specifier
+      st,extpad_control_en;
+      st,clk_pinctrl_switch;
+      st,reduce-timeout;
+      pinctrl-names = "default", "func";
+      pinctrl-0 = <&nfc2ap_clk_req_1v2_sleep>, <&ap2nfc_clk_1v2_sleep>;
+      pinctrl-1 = <&nfc2ap_clk_req_1v2>, <&ap2nfc_clk_1v2_func>;
+      status = "ok"; # Example status, but not a property of the device itself.
+    };
+
+

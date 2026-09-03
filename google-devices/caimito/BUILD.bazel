@@ -1,9 +1,15 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch")
 load("//private/devices/google/common/kleaf:device_build.bzl", "device_build")
 load("//private/devices/google/zuma:constants.bzl", "ZUMA_DPM_DTBOS", "ZUMA_DTBS")
 load("//private/devices/google/zumapro:constants.bzl", "ZUMAPRO_DPM_DTBOS", "ZUMAPRO_DTBS", "ZUMAPRO_MODULE_OUTS")
 load(":constants.bzl", "CAIMITO_DTBOS")
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
 
 device_build(
     name = "caimito",
@@ -22,32 +28,6 @@ device_build(
     dts_srcs = glob(["dts/**"]) + [
         "//private/google-modules/soc/gs:gs.dt-bindings",
     ],
-    ext_modules = [
-        # keep sorted
-        "//private/google-modules/amplifiers/cs35l41",
-        "//private/google-modules/amplifiers/cs40l26",
-        "//private/google-modules/amplifiers/snd_soc_wm_adsp:snd-soc-wm-adsp",
-        "//private/google-modules/bluetooth/broadcom:bluetooth.broadcom",
-        "//private/google-modules/display/common/panel_tests",
-        "//private/google-modules/display/common/panels",
-        "//private/google-modules/display/panels/caimito:panel-gs-cm4",
-        "//private/google-modules/display/panels/caimito:panel-gs-km4",
-        "//private/google-modules/display/panels/caimito:panel-gs-tk4a",
-        "//private/google-modules/display/panels/caimito:panel-gs-tk4b",
-        "//private/google-modules/display/panels/caimito:panel-gs-tk4c",
-        "//private/google-modules/display/panels/caimito:panel-gs-tk4c-test",
-        "//private/google-modules/fingerprint/qcom/qfs4008:qbt_handler",
-        "//private/google-modules/gps/broadcom/bcm47765",
-        "//private/google-modules/nfc",
-        "//private/google-modules/radio/samsung/s5400:cpif",
-        "//private/google-modules/touch/common:touch.common",
-        "//private/google-modules/touch/sec",
-        "//private/google-modules/touch/synaptics/syna_gtd:syna_touch",
-        "//private/google-modules/uwb/qorvo/qm35/qm35s:uwb.qm35",
-        "//private/google-modules/wlan/bcm4390:bcmdhd4390",
-        "//private/google-modules/wlan/wlan_ptracker",
-        "//private/google-modules/wlan/wonder:wonder",
-    ],
     insmod_cfgs = glob(["insmod_cfg/*.cfg"]),
     kconfig_exts = ["Kconfig.ext.caimito"],
     kconfigs = [
@@ -55,12 +35,53 @@ device_build(
         "//private/google-modules/display/common:common.kconfig",
         "//private/google-modules/fingerprint/qcom/qfs4008:qbt_handler.kconfig",
         "//private/google-modules/radio/samsung/s5400:cpif.kconfig",
-        "//private/google-modules/touch/common:touch.common.kconfig",
-        "//private/google-modules/touch/sec:sec.kconfig",
+        "//private/google-modules/touch/sec/legacy:sec.kconfig",
     ],
     module_outs = ZUMAPRO_MODULE_OUTS,
-    vendor_dlkm_modules_blocklists = ["vendor_dlkm.blocklist.caimito"],
-    vendor_ramdisk_modules_lists = ["vendor_ramdisk.modules.caimito"],
+    vendor_dlkm_modules = [
+        # keep sorted
+        "//private/google-modules/amplifiers/cs35l41:snd-soc-cs35l41",
+        "//private/google-modules/amplifiers/cs35l41:snd-soc-cs35l41-i2c",
+        "//private/google-modules/amplifiers/cs35l41:snd-soc-cs35l41-spi",
+        "//private/google-modules/amplifiers/cs40l26:cl_dsp-core",
+        "//private/google-modules/amplifiers/cs40l26:cs40l26-core",
+        "//private/google-modules/amplifiers/cs40l26:snd-soc-cs40l26",
+        "//private/google-modules/amplifiers/snd_soc_wm_adsp:snd-soc-wm-adsp",
+        "//private/google-modules/bluetooth/broadcom:nitrous",
+        "//private/google-modules/fingerprint/qcom/qfs4008:qbt_handler",
+        "//private/google-modules/gps/broadcom/bcm47765:bbd_pps_gpio",
+        "//private/google-modules/nfc/ese:st33spi",
+        "//private/google-modules/radio/samsung/s5400:cp_thermal_zone",
+        "//private/google-modules/uwb/qorvo/qm35/qm35s:qm35",
+        "//private/google-modules/wlan/wlan_ptracker",
+        "//private/google-modules/wlan/wonder",
+    ],
+    vendor_dlkm_modules_blocklisted = [
+        # keep sorted
+        "//private/google-modules/amplifiers/cs40l26:cs40l26-i2c",
+        "//private/google-modules/display/common/panel_tests:gs-panel-common-test",
+        "//private/google-modules/soc/gs/drivers/pwm:pwm-exynos",
+        "//private/google-modules/soc/gs/drivers/video/backlight:rt4539_bl",
+        "//private/google-modules/touch/sec/legacy:sec_touch",
+        "//private/google-modules/touch/synaptics/syna_gtd:syna_touch",
+        "//private/google-modules/wlan/bcmdhd/bcm4390:bcmdhd4390",
+    ],
+    vendor_ramdisk_modules = [
+        # keep sorted
+        "//private/google-modules/display/common/panels:panel-gs-simple",
+        "//private/google-modules/display/panels/caimito:panel-gs-cm4",
+        "//private/google-modules/display/panels/caimito:panel-gs-km4",
+        "//private/google-modules/display/panels/caimito:panel-gs-tk4a",
+        "//private/google-modules/display/panels/caimito:panel-gs-tk4b",
+        "//private/google-modules/display/panels/caimito:panel-gs-tk4c",
+        "//private/google-modules/gps/broadcom/bcm47765:bcm47765_ko",
+        "//private/google-modules/nfc:st21nfc",
+        "//private/google-modules/nfc/ese:st54spi",
+        "//private/google-modules/radio/samsung/s5400:cp_pmic",
+        "//private/google-modules/radio/samsung/s5400:cpif_ko",
+        "//private/google-modules/radio/samsung/s5400:cpif_page",
+        "//private/google-modules/radio/samsung/s5400:shm_ipc",
+    ],
 )
 
 # For compatibility

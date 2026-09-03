@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Sensors device tree for Rango Proto.
+ *
+ * Copyright 2024 Google,LLC.
+ */
+
+&ldo_10s_reg {
+	google,monitor-only;
+};
+
+&aoc {
+	sensor_power_list = "sensor_1v8", "sensor_3v3";
+};

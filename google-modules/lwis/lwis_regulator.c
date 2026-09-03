@@ -12,217 +12,164 @@
 
 #include "lwis_regulator.h"
 
-struct lwis_regulator_list *lwis_regulator_list_alloc(int num_regs)
+#define REG_MODE_PREFIX_FAST "fast-"
+#define REG_MODE_PREFIX_NORMAL "normal-"
+#define REG_MODE_PREFIX_IDLE "idle-"
+#define REG_MODE_PREFIX_STANDBY "standby-"
+
+int lwis_regulator_list_add_info(struct device *dev, struct list_head *list, const char *name)
 {
-	struct lwis_regulator_list *list;
-
-	if (num_regs < 0)
-		return ERR_PTR(-EINVAL);
-
-	list = kmalloc(sizeof(struct lwis_regulator_list), GFP_KERNEL);
-	if (!list)
-		return ERR_PTR(-ENOMEM);
-
-	list->reg = kcalloc(num_regs, sizeof(struct lwis_regulator), GFP_KERNEL);
-	if (!list->reg) {
-		kfree(list);
-		return ERR_PTR(-ENOMEM);
-	}
-
-	list->count = num_regs;
-
-	return list;
-}
-
-void lwis_regulator_list_free(struct lwis_regulator_list *list)
-{
-	if (!list)
-		return;
-
-	kfree(list->reg);
-	kfree(list);
-}
-
-int lwis_regulator_get(struct lwis_regulator_list *list, char *name, int voltage,
-		       struct device *dev)
-{
+	struct lwis_regulator_info *reg_info;
 	struct regulator *reg;
-	int i;
-	int index = -1;
 
-	if (!list || !dev)
-		return -EINVAL;
-
-	/* Look for empty slot and duplicate entries */
-	for (i = 0; i < list->count; ++i) {
-		if (list->reg[i].reg == NULL) {
-			index = i;
-		} else if (!strcmp(list->reg[i].name, name)) {
-			pr_info("Regulator %s already allocated\n", name);
-			return i;
-		}
-	}
-
-	/* No empty slot */
-	if (index < 0) {
-		pr_err("No empty slots in the lwis_regulator struct\n");
-		return -ENOMEM;
-	}
+	/* Check regulator already exist or not */
+	reg_info = lwis_regulator_get_info(list, name);
+	if (!IS_ERR_OR_NULL(reg_info))
+		return 0;
 
 	/* Make sure regulator exists */
 	reg = devm_regulator_get(dev, name);
 	if (IS_ERR_OR_NULL(reg))
 		return PTR_ERR(reg);
 
-	list->reg[index].reg = reg;
-	strscpy(list->reg[index].name, name, LWIS_MAX_NAME_STRING_LEN);
-	list->reg[index].voltage = voltage;
+	reg_info = kmalloc(sizeof(struct lwis_regulator_info), GFP_KERNEL);
+	if (!reg_info)
+		return -ENOMEM;
 
-	return index;
-}
-
-int lwis_regulator_put_by_idx(struct lwis_regulator_list *list, int index)
-{
-	if (!list || index < 0 || index >= list->count)
-		return -EINVAL;
-
-	if (IS_ERR_OR_NULL(list->reg[index].reg))
-		return -EINVAL;
-
-	devm_regulator_put(list->reg[index].reg);
-	memset(list->reg + index, 0, sizeof(struct lwis_regulator));
+	reg_info->reg = reg;
+	strscpy(reg_info->name, name, LWIS_MAX_NAME_STRING_LEN);
+	list_add(&reg_info->node, list);
 
 	return 0;
 }
 
-int lwis_regulator_put_by_name(struct lwis_regulator_list *list, char *name)
+int lwis_regulator_list_add_info_by_set_mode(struct device *dev, struct list_head *list,
+					     const char *name)
 {
-	if (!list)
+	const char *reg_name;
+
+	if (strncmp(REG_MODE_PREFIX_FAST, name, strlen(REG_MODE_PREFIX_FAST)) == 0) {
+		reg_name = name + strlen(REG_MODE_PREFIX_FAST);
+	} else if (strncmp(REG_MODE_PREFIX_NORMAL, name, strlen(REG_MODE_PREFIX_NORMAL)) == 0) {
+		reg_name = name + strlen(REG_MODE_PREFIX_NORMAL);
+	} else if (strncmp(REG_MODE_PREFIX_IDLE, name, strlen(REG_MODE_PREFIX_IDLE)) == 0) {
+		reg_name = name + strlen(REG_MODE_PREFIX_IDLE);
+	} else if (strncmp(REG_MODE_PREFIX_STANDBY, name, strlen(REG_MODE_PREFIX_STANDBY)) == 0) {
+		reg_name = name + strlen(REG_MODE_PREFIX_STANDBY);
+	} else {
+		pr_err("Invalid regulator mode string %s\n", name);
 		return -EINVAL;
-
-	/* Find entry by name */
-	for (int i = 0; i < list->count; ++i) {
-		if (!strcmp(list->reg[i].name, name)) {
-			if (IS_ERR_OR_NULL(list->reg[i].reg))
-				return -EINVAL;
-
-			devm_regulator_put(list->reg[i].reg);
-			memset(list->reg + i, 0, sizeof(struct lwis_regulator));
-			return 0;
-		}
 	}
 
-	pr_err("Regulator %s not found\n", name);
-	return -EINVAL;
+	return lwis_regulator_list_add_info(dev, list, reg_name);
 }
 
-int lwis_regulator_put_all(struct lwis_regulator_list *list)
+void lwis_regulator_list_free(struct list_head *list)
 {
-	int ret = 0;
+	struct lwis_regulator_info *reg_node, *reg_node_tmp;
 
-	if (!list)
-		return -EINVAL;
-
-	for (int i = 0; i < list->count; ++i)
-		ret = lwis_regulator_put_by_idx(list, i);
-
-	return ret;
+	list_for_each_entry_safe(reg_node, reg_node_tmp, list, node) {
+		list_del(&reg_node->node);
+		kfree(reg_node);
+	}
 }
 
-int lwis_regulator_enable_by_idx(struct lwis_regulator_list *list, int index)
+struct lwis_regulator_info *lwis_regulator_get_info(struct list_head *list, const char *name)
 {
-	int ret = 0;
-	struct lwis_regulator *lwis_reg;
+	struct lwis_regulator_info *reg_node, *reg_node_tmp;
 
-	if (!list)
-		return -EINVAL;
-
-	lwis_reg = &list->reg[index];
-	if (lwis_reg->voltage > 0) {
-		ret = regulator_set_voltage(lwis_reg->reg, lwis_reg->voltage, lwis_reg->voltage);
-		if (ret) {
-			pr_err("Failed to set regulator %s voltage to %d\n", lwis_reg->name,
-			       lwis_reg->voltage);
-			return ret;
-		}
+	list_for_each_entry_safe(reg_node, reg_node_tmp, list, node) {
+		if (!strcmp(reg_node->name, name))
+			return reg_node;
 	}
 
-	return regulator_enable(list->reg[index].reg);
+	return ERR_PTR(-EINVAL);
 }
 
-int lwis_regulator_enable_by_name(struct lwis_regulator_list *list, char *name)
+int lwis_regulator_put(struct list_head *list, char *name)
 {
-	if (!list)
+	struct lwis_regulator_info *reg_info;
+
+	/* Check regulator already exist or not */
+	reg_info = lwis_regulator_get_info(list, name);
+	if (IS_ERR_OR_NULL(reg_info))
 		return -EINVAL;
 
-	for (int i = 0; i < list->count; ++i) {
-		if (!strcmp(list->reg[i].name, name))
-			return lwis_regulator_enable_by_idx(list, i);
-	}
-
-	/* No entry found */
-	pr_err("Regulator %s not found\n", name);
-	return -ENOENT;
+	devm_regulator_put(reg_info->reg);
+	return 0;
 }
 
-int lwis_regulator_enable_all(struct lwis_regulator_list *list)
+int lwis_regulator_put_all(struct list_head *list)
 {
-	int i;
-	int ret;
+	struct lwis_regulator_info *reg_node, *reg_node_tmp;
 
-	for (i = 0; i < list->count; ++i) {
-		ret = lwis_regulator_enable_by_idx(list, i);
-		if (ret) {
-			pr_err("Error enabling regulator %s\n", list->reg[i].name);
-			return ret;
-		}
+	list_for_each_entry_safe(reg_node, reg_node_tmp, list, node) {
+		devm_regulator_put(reg_node->reg);
 	}
 
 	return 0;
 }
 
-int lwis_regulator_disable_by_idx(struct lwis_regulator_list *list, int index)
+int lwis_regulator_enable(struct list_head *list, char *name)
 {
-	if (!list)
+	struct lwis_regulator_info *reg_info;
+
+	/* Check regulator already exist or not */
+	reg_info = lwis_regulator_get_info(list, name);
+	if (IS_ERR_OR_NULL(reg_info))
 		return -EINVAL;
 
-	return regulator_disable(list->reg[index].reg);
+	return regulator_enable(reg_info->reg);
 }
 
-int lwis_regulator_disable_by_name(struct lwis_regulator_list *list, char *name)
+int lwis_regulator_disable(struct list_head *list, char *name)
 {
-	if (!list)
+	struct lwis_regulator_info *reg_info;
+
+	/* Check regulator already exist or not */
+	reg_info = lwis_regulator_get_info(list, name);
+	if (IS_ERR_OR_NULL(reg_info))
 		return -EINVAL;
 
-	for (int i = 0; i < list->count; ++i) {
-		if (!strcmp(list->reg[i].name, name))
-			return regulator_disable(list->reg[i].reg);
-	}
-
-	/* No entry found */
-	pr_err("Regulator %s not found\n", name);
-	return -ENOENT;
+	return regulator_disable(reg_info->reg);
 }
 
-int lwis_regulator_disable_all(struct lwis_regulator_list *list)
+int lwis_regulator_set_mode(struct list_head *list, char *name)
 {
-	int i;
-	int ret;
+	struct lwis_regulator_info *reg_info;
+	char *reg_name;
+	uint mode;
 
-	for (i = 0; i < list->count; ++i) {
-		ret = lwis_regulator_disable_by_idx(list, i);
-		if (ret) {
-			pr_err("Error disabling regulator %s\n", list->reg[i].name);
-			return ret;
-		}
+	if (strncmp(REG_MODE_PREFIX_FAST, name, strlen(REG_MODE_PREFIX_FAST)) == 0) {
+		mode = REGULATOR_MODE_FAST;
+		reg_name = name + strlen(REG_MODE_PREFIX_FAST);
+	} else if (strncmp(REG_MODE_PREFIX_NORMAL, name, strlen(REG_MODE_PREFIX_NORMAL)) == 0) {
+		mode = REGULATOR_MODE_NORMAL;
+		reg_name = name + strlen(REG_MODE_PREFIX_NORMAL);
+	} else if (strncmp(REG_MODE_PREFIX_IDLE, name, strlen(REG_MODE_PREFIX_IDLE)) == 0) {
+		mode = REGULATOR_MODE_IDLE;
+		reg_name = name + strlen(REG_MODE_PREFIX_IDLE);
+	} else if (strncmp(REG_MODE_PREFIX_STANDBY, name, strlen(REG_MODE_PREFIX_STANDBY)) == 0) {
+		mode = REGULATOR_MODE_STANDBY;
+		reg_name = name + strlen(REG_MODE_PREFIX_STANDBY);
+	} else {
+		pr_err("Invalid regulator mode string %s\n", name);
+		return -EINVAL;
 	}
 
-	return 0;
+	/* Check regulator already exist or not */
+	reg_info = lwis_regulator_get_info(list, reg_name);
+	if (IS_ERR_OR_NULL(reg_info))
+		return -EINVAL;
+
+	return regulator_set_mode(reg_info->reg, mode);
 }
 
-void lwis_regulator_print(struct lwis_regulator_list *list)
+void lwis_regulator_print(struct list_head *list)
 {
-	for (int i = 0; i < list->count; ++i)
-		pr_info("%s: reg: %s voltage: %d\n", __func__, list->reg[i].name,
-			list->reg[i].voltage);
+	struct lwis_regulator_info *reg_node, *reg_node_tmp;
+
+	list_for_each_entry_safe(reg_node, reg_node_tmp, list, node) {
+		pr_info("lwis regulator: %s\n", reg_node->name);
+	}
 }

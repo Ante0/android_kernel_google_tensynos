@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_IRQ_CPM
+	tristate "Google CPM Mailbox IRQ driver"
+	depends on ARCH_GOOGLE
+	depends on GOOGLE_MBA_CPM_INTERFACE
+	select GENERIC_IRQ_CHIP
+	help
+	  Enable support for IRQs from CPM.
+	  Creates an irqchip to handle mailbox messages from CPM.
+	  If unsure select "N".
+
+config GIA_LIB
+	tristate "Generic Interrupt Aggregator Library"
+	help
+	  GIA (Generic Interrupt Aggregator) is an interrupt controller, of
+	  type N:M (where M <= N & M <= 32). Basically, GIA is a software
+	  view of different variety of interrupt controllers, like 32:1
+	  aggregator, 32:32, 1:1 or even N:1 (N > 32). GIA Library provides
+	  support for all such variations. To support any new interrupt
+	  aggregator, plug-in IP specific details (pulse detection vs level,
+	  offsets of various registers, different features associated with
+	  the interrupt controller IP etc) and pass this on to the GIA lib.
+	  The lib abstracts out everything, like registering with interrupt
+	  framework, implementing handler and register routines.
+
+	  Say 'y' if your interrupt controller IP fits under the GIA umbrella
+	  and the driver for the IP wants to leverage GIA abstraction.
+
+config GOOGLE_GIA_IRQ
+	tristate "Google interrupt controller"
+	depends on ARCH_GOOGLE
+	select GENERIC_IRQ_CHIP
+	select GIA_LIB
+	help
+	  Google's interrupt controller is a GIA instance. Enable this to
+	  support GIA instances placed across SoC. GIA helps to get N:1
+	  aggregation, multi-casting, feedthrough (N:N), edge-to-level
+	  conversion etc.
+
+config GOOGLE_IRQ_EXTENDED_SYSFS
+	tristate "Google IRQ descriptor telemetry"
+	help
+	  IRQ framework uses sysfs framework to display bunch of interesting
+	  info for each IRQ descriptors. Enable this feature to add a few more
+	  files per IRQ to show its SW state and HW register status. This is
+	  required until the custom added files are not part of upstream kernel.
+	  A separate kernel module adds them on the fly. This should be default
+	  enabled as it doesn`t cost anything runtime, and adds debug value
+	  during file read time.
+
+config GOOGLE_GIA_TEST
+	tristate "Test driver for interrupts"
+	depends on ARCH_GOOGLE
+	help
+	  Enable this to verify GIA nodes. This test driver allows you
+	  to fire real interrupt handlers by triggering the line on the
+	  GIA device, and to test GIA devices by registering an interrupt
+	  handler at runtime on an unused line. Interaction is through
+	  DebugFS files under gia_test dir. Output will be written to the
+	  same file you trigger an interrupt with.
+
+	  This is for verification. If you are unsure, say 'n'.

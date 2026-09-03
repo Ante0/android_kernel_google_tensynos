@@ -1,0 +1,457 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Google LGA specific bcl device tree source
+ *
+ * Copyright (c) 2024 Google LLC
+ *		https://www.google.com
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/mailbox/google,lga.h>
+#include <dt-bindings/interrupt-controller/lga-gic.h>
+#include <dt-bindings/soc/google/rdo-bcl_defs.h>
+
+&max77759tcpcspmi {
+	bcl-usb-voting;
+};
+
+&cpm_pinctrl {
+
+	ifpmic_intb: intb {
+		pins = "XCPM_EINT_10";
+		function = "cpm_int";
+	};
+
+	vdroop1_uvlo1: vdroop1_uvlo1 {
+		pins = "XCPM_VDROOP1";
+		function = "cpm_vdroop";
+		input-enable;
+	};
+
+	vdroop2_uvlo2: vdroop2_uvlo2 {
+		pins = "XCPM_VDROOP2";
+		function = "cpm_vdroop";
+		input-enable;
+	};
+
+	pre_uvlo: pre_uvlo {
+		pins = "XCPM_PRE_UVLO";
+		function = "cpm_pre";
+		input-enable;
+	};
+
+	pre_ocp_cpu1: pre_ocp_cpu1 {
+		pins = "XCPM_PRE_OCP_CPU1";
+		function = "cpm_pre";
+	};
+
+	soft_pre_ocp_cpu1: soft_pre_ocp_cpu1 {
+		pins = "XCPM_SOFT_PRE_OCP_CPU1";
+		function = "cpm_pre";
+	};
+
+	pre_ocp_cpu2: pre_ocp_cpu2 {
+		pins = "XCPM_PRE_OCP_CPU2";
+		function = "cpm_pre";
+	};
+
+	soft_pre_ocp_cpu2: soft_pre_ocp_cpu2 {
+		pins = "XCPM_SOFT_PRE_OCP_CPU2";
+		function = "cpm_pre";
+	};
+};
+
+/ {
+	fragment@battery {
+		target-path = "/";
+		__overlay__ {
+			google_mitigation: google-mitigation {
+				compatible = "google,google-bcl";
+				#thermal-sensor-cells = <1>;
+				google,ifpmic = <M77779>;
+				google,charger = <&max77779_chg>;
+				google,pmic = <&max77779_pmic>;
+				google,power-supply = <&max77779_fg>;
+				google,vimon = <&max77779_vimon>;
+				mboxes = <&goog_mba_cpm_iface>;
+				aur_con_heavy = <4>;
+				gpu_con_heavy = <4>;
+				tpu_con_heavy = <4>;
+				cpu0_con_heavy = <2>;
+				cpu1a_con_heavy = <8>;
+				cpu1b_con_heavy = <8>;
+				cpu2_con_heavy = <8>;
+				aur_con_light = <2>;
+				gpu_con_light = <2>;
+				tpu_con_light = <2>;
+				cpu0_con_light = <2>;
+				cpu1a_con_light = <2>;
+				cpu1b_con_light = <2>;
+				cpu2_con_light = <2>;
+				aur_mitigation_res_en = <2>;
+				gpu_mitigation_res_en = <0x15f>;
+				tpu_mitigation_res_en = <0x15f>;
+				cpu0_mitigation_res_en = <0x147>;
+				cpu1a_mitigation_res_en = <0x15f>;
+				cpu1b_mitigation_res_en = <0x15f>;
+				cpu2_mitigation_res_en = <0x15f>;
+				aur_mitigation_type = <2>;
+				gpu_mitigation_type = <0xcd>;
+				tpu_mitigation_type = <0x8d>;
+				cpu0_mitigation_type = <0xc5>;
+				cpu1a_mitigation_type = <0xcd>;
+				cpu1b_mitigation_type = <0xcd>;
+				cpu2_mitigation_type = <0xcd>;
+				batoilo_lower = <1800>;
+				batoilo_upper = <8000>;
+				batoilo2_lower = <3800>;
+				batoilo2_upper = <10000>;
+				batoilo_wlc_trig_lvl = <5200>;
+				batoilo2_wlc_trig_lvl = <7000>;
+				batoilo_trig_lvl = <5200>;
+				batoilo2_trig_lvl = <7000>;
+				batoilo_bat_open_to = <0x0>;    /* Disable BATFET open */
+				batoilo2_bat_open_to = <0x3>;   /* 12ms */
+				batoilo_rel = <0x2>;   /* 1ms */
+				batoilo2_rel = <0x2>;   /* 1ms */
+				batoilo_det = <0x1F>;   /* 46ms DEBOUNCE to VDROOP */
+				batoilo2_det = <0x1>;   /* 30us DEBOUNCE to VDROOP */
+				batoilo_int_det = <0x2>;   /* 5ms */
+				batoilo2_int_det = <0x1>;   /* 30us */
+				batoilo_int_rel = <0x2>;   /* 1ms */
+				batoilo2_int_rel = <0x2>;   /* 1ms */
+				uvlo1_rel = <0x1>;   /* 1ms */
+				uvlo2_rel = <0x1>;   /* 1ms */
+				uvlo1_det = <0x1>;   /* 30us */
+				uvlo2_det = <0x0>;   /* 0us */
+				evt_cnt_enable = <0x1>;
+				evt_cnt_rate = <0x0>;   /* 16k */
+				odpm_cpu1_ch = <2>; /* ch 2 */
+				odpm_cpu1_pmic = <0>; /* main */
+				odpm_cpu2_ch = <1>; /* ch 1 */
+				odpm_cpu2_pmic = <0>; /* main */
+				odpm_tpu_ch = <6>; /* ch 6 */
+				odpm_tpu_pmic = <0>; /* main */
+				odpm_gpu_ch = <1>; /* ch 1 */
+				odpm_gpu_pmic = <1>; /* sub */
+				uvlo1_lvl = <0xC>;   /* 3.2V */
+				uvlo2_lvl = <0xA>;   /* 3.1V */
+				pre_uvlo_th = <0x79>; /* 3.3V Rise, 3.0V Fall */
+				pre_uvlo_debounce = <0x7>; /* 85.33us */
+				vimon_pwr_loop_thresh = <4000>; /* 4A pwr reduction thresh */
+				vimon_pwr_loop_cnt = <3>; /* 3 ibatt sample count */
+				uvlo1_vdrp1_en;
+				uvlo2_vdrp2_en;
+				oilo1_vdrp2_en;
+				oilo2_vdrp2_en;
+				vimon_pwr_loop_en;
+				cpu0_cluster = <0>;
+				cpu1a_cluster = <2>;
+				cpu1b_cluster = <5>;
+				cpu2_cluster = <7>;
+				vdroop_int_mask = <0xDF>;   /* BATOILO1 only */
+				intb_int_mask = <0x0>;   /* All passed */
+				ocp_batfet_timeout = <666>;   /* 666ms */
+				ocp_batfet_timeout_en;
+				mba-dest-channel = <MBOX_DEST_CHAN_BCL>;
+				mba-pmic-dest-channel = <MBOX_DEST_CHAN_BCL_DA9188_REGULATOR>;
+				interrupts-extended =
+				<&gic GIC_SPI SSWRP_CPM_CPM_CPU0_VDROOP1 IRQ_TYPE_EDGE_RISING 0>,
+				<&gic GIC_SPI SSWRP_CPM_CPM_CPU0_VDROOP2 IRQ_TYPE_EDGE_RISING 0>,
+				<&gic GIC_SPI SSWRP_CPM_CPM_CPU0_PRE_UVLO IRQ_TYPE_EDGE_RISING 0>,
+				<&max77779_pmic_irq 6 IRQ_TYPE_LEVEL_LOW>;
+				interrupt-names = "vd1", "vd2", "pre_uvlo", "intb";
+
+				pinctrl-names = "default";
+				pinctrl-0 = <&vdroop1_uvlo1 &vdroop2_uvlo2
+					     &pre_uvlo &pre_ocp_cpu1 &pre_ocp_cpu2
+					     &soft_pre_ocp_cpu1 &soft_pre_ocp_cpu2>;
+				uvlo-gpios = <&cpm_pinctrl XCPM_PRE_UVLO GPIO_ACTIVE_HIGH>;
+				vd1-gpios = <&cpm_pinctrl XCPM_VDROOP1 GPIO_ACTIVE_HIGH>;
+				vd2-gpios = <&cpm_pinctrl XCPM_VDROOP2 GPIO_ACTIVE_HIGH>;
+
+				devfreq = <&gpu &edgetpu &gxp>;
+				non_monitored_module_ids = <AUDIO_MITIGATION_ID
+								HAPTICS_MITIGATION_ID>;
+
+				ifpmic_irq_drv_en;
+
+				irq_config {
+					irq,uvlo1;
+					irq,batoilo;
+					irq,batoilo2;
+					irq,pre_uvlo;
+				};
+
+				ifpmic_irq_mapping {
+					sys_uvlo1 = <IF_VDROOP1>;
+					sys_uvlo2 = <IF_SHARED>;
+					bat_oilo1 = <IF_INTB>;
+					bat_oilo2 = <IF_VDROOP2>;
+				};
+				main_limit {
+					pmic = "main_limit";
+					ch1 { setting = <17>; };
+					ch2 { setting = <91>; };
+					ch3 { setting = <69>; };
+					ch4 { setting = <32>; };
+					ch5 { setting = <38>; };
+					ch6 { setting = <85>; };
+					ch7 { setting = <156>; };
+					ch8 { setting = <21>; };
+					ch9 { setting = <9>; };
+					ch10 { setting = <4>; };
+					ch11 { setting = <31>; };
+					ch12 { setting = <13>; };
+					ch13 { setting = <34>; };
+					ch14 { setting = <170>; };
+					ch15 { setting = <42>; };
+					ch16 { setting = <42>; };
+				};
+				sub_limit {
+					pmic = "sub_limit";
+					ch1 { setting = <23>; };
+					ch2 { setting = <76>; };
+					ch3 { setting = <12>; };
+					ch4 { setting = <37>; };
+					ch5 { setting = <13>; };
+					ch6 { setting = <13>; };
+					ch7 { setting = <15>; };
+					ch8 { setting = <28>; };
+					ch9 { setting = <58>; };
+					ch10 { setting = <24>; };
+					ch11 { setting = <13>; };
+					ch12 { setting = <8>; };
+					ch13 { setting = <59>; };
+					ch14 { setting = <42>; };
+					ch15 { setting = <85>; };
+					ch16 { setting = <85>; };
+				};
+				freq_qos {
+					oilo1 {
+						cpucl0 = <1632000 1632000>;
+						cpucl1a = <1267000 1267000>;
+						cpucl1b = <1267000 1267000>;
+						cpucl2 = <1920000 1920000>;
+						gpu = <748000 748000>;
+						tpu = <825600 825600>;
+						gxp = <710400 710400>;
+					};
+					pre_uvlo {
+						cpucl0 = <1632000 1632000>;
+						cpucl1a = <2092000 2092000>;
+						cpucl1b = <2092000 2092000>;
+						cpucl2 = <2457000 2457000>;
+						gpu = <748000 748000>;
+						tpu = <825600 825600>;
+						gxp = <710400 710400>;
+					};
+					userspace {
+						cpucl0 = <1881000 1555000>;
+						cpucl1a = <2284000 1670000>;
+						cpucl1b = <2284000 1670000>;
+						cpucl2 = <2457000 1920000>;
+						gpu = <864000 633000>;
+						tpu = <825600 825600>;
+						gxp = <710400 710400>;
+					};
+				};
+				main_mitigation {
+					ch1 {
+						module_id = <AMB_MITIGATION_ID>;
+						threshold = <500000>; /* 500000uA */
+					};
+					ch2 {
+						module_id = <CPU_BIG_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch3 {
+						module_id = <CPU_MID_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch4 {
+						module_id = <CPU_LITTLE_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch5 {
+						module_id = <AUR_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch6 {
+						module_id = <LDO_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch7 {
+						module_id = <TPU_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch8 {
+						module_id = <LDO_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch9 {
+						module_id = <TPU_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch10 {
+						module_id = <AOC_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch11 {
+						module_id = <CPU_LITTLE_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch12 {
+						module_id = <CPU_MID_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch13 {
+						module_id = <WLAN_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch14 {
+						module_id = <BATT_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch15 {
+						module_id = <CAMERA_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch16 {
+						module_id = <CAMERA_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+				};
+				sub_mitigation {
+					ch1 {
+						module_id = <MM_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch2 {
+						module_id = <GPU_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch3 {
+						module_id = <LDO_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch4 {
+						module_id = <DDR_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch5 {
+						module_id = <DDR_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch6 {
+						module_id = <LDO_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch7 {
+						module_id = <LDO_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch8 {
+						module_id = <GMC_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch9 {
+						module_id = <INFRA_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch10 {
+						module_id = <INFRA_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch11 {
+						module_id = <UFS_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch12 {
+						module_id = <MIX_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch13 {
+						module_id = <CELLULAR_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch14 {
+						module_id = <MODEM_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch15 {
+						module_id = <DISPLAY_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+					ch16 {
+						module_id = <DISPLAY_MITIGATION_ID>;
+						threshold = <500000>;
+					};
+				};
+			};
+			max77779_bcl_irq: max77779-bcl-irq {
+				compatible = "max77779-bcl-irq";
+				status = "okay";
+
+				ifpmic = <&max77779_pmic>;
+				chg = <&max77779_chg>;
+				vimon = <&max77779_vimon>;
+
+				vd1-gpios = <&cpm_pinctrl XCPM_VDROOP1 GPIO_ACTIVE_HIGH>;
+				vd2-gpios = <&cpm_pinctrl XCPM_VDROOP2 GPIO_ACTIVE_HIGH>;
+
+				max77779-bcl-interrupts {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					uvlo1: interrupt@0 {
+						reg = <0>;
+						label = "uvlo1";
+						interrupts-extended = <&gic
+							GIC_SPI SSWRP_CPM_CPM_CPU0_VDROOP1
+							IRQ_TYPE_EDGE_RISING 0>;
+						interrupt-parent = <&gic>;
+						interrupt-name = "vd1";
+						irq-handler = "vdroop";
+					};
+					oilo1: interrupt@1 {
+						reg = <1>;
+						label = "oilo1";
+						interrupts-extended = <&max77779_pmic_irq 6
+							IRQ_TYPE_LEVEL_LOW 0>;
+						irq-class = "intb";
+						interrupt-name = "intb";
+						irq-handler = "irqb";
+					};
+					oilo2: interrupt@2 {
+						reg = <2>;
+						label = "oilo2";
+						interrupts-extended = <&gic
+							GIC_SPI SSWRP_CPM_CPM_CPU0_VDROOP2
+							IRQ_TYPE_EDGE_RISING 0>;
+						interrupt-parent = <&gic>;
+						interrupt-name = "vd2";
+						irq-handler = "vdroop";
+					};
+				};
+			};
+		};
+	};
+};
+
+/* Thermal Zones */
+&thermal_zones_laguna {
+	soc {
+		zone_name  = "BATT_SOC_MOD";
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&google_mitigation PMIC_SOC>;
+
+		trips {
+			soc_trip:soc-trip {
+				temperature = <SOC_LIMIT>;
+				hysteresis = <0>;
+				type = "passive";
+			};
+		};
+	};
+};

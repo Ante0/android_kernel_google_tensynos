@@ -12,22 +12,20 @@
 #include <linux/pm_runtime.h>
 #include <linux/slab.h>
 #include <soc/google/bts.h>
+#include <soc/google/pt.h>
 
 #include "lwis_commands.h"
 #include "lwis_device_dpm.h"
 #include "lwis_debug.h"
 #include "lwis_platform.h"
 
-/*
- * module_param macro defines the parameter name, type and permission bits
- * in sysfs file system. 0644 represents that the owner can read and write the kernel
- * parameter using command line while other users can read it.
- */
-bool lwis_busan_debug;
-module_param(lwis_busan_debug, bool, 0644);
-
 /* Uncomment to let kernel panic when IOMMU hits a page fault. */
 /* #define ENABLE_PAGE_FAULT_PANIC */
+
+int lwis_platform_unprobe(struct lwis_device *lwis_dev)
+{
+	return 0;
+}
 
 int lwis_platform_probe(struct lwis_device *lwis_dev)
 {
@@ -62,11 +60,13 @@ int lwis_platform_probe(struct lwis_device *lwis_dev)
 	return 0;
 }
 
-static int lwis_iommu_fault_handler(struct iommu_fault *fault, void *param)
+static int lwis_iommu_fault_handler(struct iommu_domain *domain,
+				    struct device *dev, unsigned long iova,
+				    int flags, void *token)
 {
 	int ret;
 	struct of_phandle_iterator it;
-	struct lwis_device *lwis_dev = (struct lwis_device *)param;
+	struct lwis_device *lwis_dev = token;
 	struct lwis_mem_page_fault_event_payload event_payload;
 
 	pr_err("############ LWIS IOMMU PAGE FAULT ############\n");
@@ -74,16 +74,15 @@ static int lwis_iommu_fault_handler(struct iommu_fault *fault, void *param)
 	of_for_each_phandle(&it, ret, lwis_dev->k_dev->of_node, "iommus", 0, 0) {
 		u64 iommus_reg;
 		const char *port_name = NULL;
-		struct device_node *iommus_info = of_node_get(it.node);
 
-		of_property_read_u64(iommus_info, "reg", &iommus_reg);
-		of_property_read_string(iommus_info, "port-name", &port_name);
+		of_property_read_u64(it.node, "reg", &iommus_reg);
+		of_property_read_string(it.node, "port-name", &port_name);
 		pr_info("Device [%s] registered IOMMUS :[%s] %#010llx.sysmmu\n", lwis_dev->name,
 			port_name, iommus_reg);
 		pr_err("\n");
 	}
 	pr_err("IOMMU Page Fault at Address: 0x%p Flag: 0x%08x. Check dmesg for sysmmu errors\n",
-	       (void *)fault->event.addr, fault->event.flags);
+	       (void *)iova, flags);
 	pr_err("\n");
 	lwis_debug_print_transaction_info(lwis_dev);
 	pr_err("\n");
@@ -95,8 +94,8 @@ static int lwis_iommu_fault_handler(struct iommu_fault *fault, void *param)
 	pr_err("\n");
 	pr_err("###############################################\n");
 
-	event_payload.fault_address = fault->event.addr;
-	event_payload.fault_flags = fault->event.flags;
+	event_payload.fault_address = iova;
+	event_payload.fault_flags = flags;
 	lwis_device_error_event_emit(lwis_dev, LWIS_ERROR_EVENT_ID_MEMORY_PAGE_FAULT,
 				     &event_payload, sizeof(event_payload));
 
@@ -121,6 +120,7 @@ int lwis_platform_device_enable(struct lwis_device *lwis_dev)
 	int ret;
 	int iommus_len = 0;
 	struct lwis_platform *platform;
+	struct iommu_domain *domain;
 
 	const int core_clock_qos = 67000;
 
@@ -140,12 +140,12 @@ int lwis_platform_device_enable(struct lwis_device *lwis_dev)
 
 	if (of_find_property(lwis_dev->k_dev->of_node, "iommus", &iommus_len) && iommus_len) {
 		/* Activate IOMMU for the platform device */
-		ret = iommu_register_device_fault_handler(lwis_dev->k_dev, lwis_iommu_fault_handler,
-							  lwis_dev);
-		if (ret < 0) {
-			pr_err("Failed to register fault handler for the device: %d\n", ret);
-			return ret;
-		}
+		domain = iommu_get_domain_for_dev(lwis_dev->k_dev);
+		if (domain)
+			/* Used just for logging. */
+			iommu_set_fault_handler(domain,
+						lwis_iommu_fault_handler,
+						lwis_dev);
 	}
 
 	if (lwis_dev->clock_family != CLOCK_FAMILY_INVALID &&
@@ -179,7 +179,6 @@ int lwis_platform_device_enable(struct lwis_device *lwis_dev)
 
 int lwis_platform_device_disable(struct lwis_device *lwis_dev)
 {
-	int iommus_len = 0;
 	struct lwis_platform *platform;
 
 	if (!lwis_dev)
@@ -192,16 +191,7 @@ int lwis_platform_device_disable(struct lwis_device *lwis_dev)
 	if (device_support_bts(lwis_dev) && lwis_dev->bts_scenario_name)
 		bts_del_scenario(lwis_dev->bts_scenario);
 
-	/* We can't remove fault handlers, so there's no call corresponding
-	 * to the iommu_register_device_fault_handler above
-	 */
-
 	lwis_platform_remove_qos(lwis_dev);
-
-	if (of_find_property(lwis_dev->k_dev->of_node, "iommus", &iommus_len) && iommus_len) {
-		/* Deactivate IOMMU */
-		iommu_unregister_device_fault_handler(lwis_dev->k_dev);
-	}
 
 	/* Disable platform device */
 	return pm_runtime_put_sync(lwis_dev->k_dev);
@@ -252,16 +242,14 @@ int lwis_platform_update_qos(struct lwis_device *lwis_dev, int value, int32_t cl
 	else
 		exynos_pm_qos_update_request(qos_req, value);
 
-	if (lwis_busan_debug) {
-		dev_info(lwis_dev->dev, "Updating clock for clock_family %d, freq to %u\n",
-			 clock_family, value);
-	}
+	dev_info(lwis_dev->dev, "Updating clock for clock_family %d, freq to %u\n", clock_family,
+		 value);
 
 	return 0;
 }
 
 static int find_bts_block(struct lwis_device *lwis_dev, struct lwis_device *target_dev,
-			  struct lwis_qos_setting_v3 *qos_setting)
+			  struct lwis_qos_setting *qos_setting)
 {
 	int i;
 
@@ -285,7 +273,7 @@ static int find_bts_block(struct lwis_device *lwis_dev, struct lwis_device *targ
 }
 
 int lwis_platform_dpm_update_qos(struct lwis_device *lwis_dev, struct lwis_device *target_dev,
-				 struct lwis_qos_setting_v3 *qos_setting)
+				 struct lwis_qos_setting *qos_setting)
 {
 	int ret = 0;
 
@@ -405,7 +393,7 @@ int lwis_platform_update_bts(struct lwis_device *lwis_dev, int block, unsigned i
 	ret = bts_update_bw(bts_index, bts_request);
 	if (ret < 0) {
 		dev_err(lwis_dev->dev, "Failed to update bandwidth to bts, ret: %d\n", ret);
-	} else if (lwis_busan_debug) {
+	} else {
 		dev_info(
 			lwis_dev->dev,
 			"Updated bandwidth to bts for device %s block %s: peak: %u, read: %u, write: %u, rt: %u\n",
@@ -414,9 +402,89 @@ int lwis_platform_update_bts(struct lwis_device *lwis_dev, int block, unsigned i
 	return ret;
 }
 
-int lwis_plaform_set_default_irq_affinity(unsigned int irq)
+int lwis_platform_set_default_irq_affinity(unsigned int irq)
 {
 	const int cpu = 0x2;
 
-	return irq_set_affinity_and_hint(irq, cpumask_of(cpu));
+	return irq_set_affinity_hint(irq, cpumask_of(cpu));
+}
+
+int lwis_platform_get_default_pt_id(void)
+{
+	return PT_PTID_INVALID;
+}
+
+uint32_t lwis_platform_dpm_read_clock(struct lwis_device *lwis_dev)
+{
+	uint32_t clock = 0;
+
+	if (!lwis_dev->clocks) {
+		dev_err(lwis_dev->dev, "%s clock not defined", lwis_dev->name);
+		return 0;
+	}
+	clock = clk_get_rate(lwis_dev->clocks->clk[0].clk);
+
+	return clock;
+}
+
+int lwis_platform_dpm_sync_update_qos(struct lwis_device *lwis_dev, int sync_update)
+{
+	return 0;
+}
+
+int lwis_platform_dpm_devfreq_sync_update_qos(struct lwis_device *lwis_dev, int devfreq_sync_update)
+{
+	return 0;
+}
+
+int lwis_platform_query_irm_register_verify(struct lwis_device *lwis_dev, int sync_update)
+{
+	return 0;
+}
+
+int lwis_platform_query_devfreq_verify(struct lwis_device *lwis_dev, int devfreq_sync_update)
+{
+	return 0;
+}
+
+void lwis_get_sync_update_device_mask(struct lwis_device *lwis_dev,
+				      struct lwis_qos_setting *qos_setting, int *sync_update)
+{
+}
+
+void lwis_get_devfreq_sync_update_device_mask(struct lwis_device *lwis_dev,
+					      struct lwis_qos_setting *qos_setting,
+					      int *devfreq_sync_update)
+{
+}
+
+void lwis_platform_refresh_expected_qos_settings(struct lwis_device *lwis_dev,
+						 struct lwis_qos_setting *qos_setting)
+{
+}
+
+int lwis_platform_check_qos_box_probed(struct device *dev, const char *lwis_device_name)
+{
+	return 0;
+}
+
+void lwis_platform_set_device_state(struct lwis_device *lwis_dev, bool camera_up)
+{
+}
+
+int lwis_platform_update_top_dev(struct lwis_device *top_dev, struct lwis_device *lwis_dev,
+				 bool *qos_box_probed)
+{
+	return 0;
+}
+
+bool lwis_platform_is_batch_register_io_supported(void)
+{
+	/* This platform device is not supported */
+	return false;
+}
+
+int lwis_platform_dpm_op_level_get(struct lwis_device *lwis_dev, struct lwis_dpm_op_level *op_level)
+{
+	return 0;
 }

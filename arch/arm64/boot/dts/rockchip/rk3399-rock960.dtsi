@@ -5,9 +5,8 @@
  * Copyright (c) 2018 Linaro Ltd.
  */
 
-#include "rk3399.dtsi"
-#include "rk3399-opp.dtsi"
 #include <dt-bindings/interrupt-controller/irq.h>
+#include "rk3399.dtsi"
 
 / {
 	aliases {
@@ -128,6 +127,8 @@
 };
 
 &hdmi {
+	avdd-0v9-supply = <&vcca0v9_hdmi>;
+	avdd-1v8-supply = <&vcca1v8_hdmi>;
 	ddc-i2c-bus = <&i2c3>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&hdmi_cec>;

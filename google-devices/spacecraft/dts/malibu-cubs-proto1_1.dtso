@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * cubs device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+/dts-v1/;
+/plugin/;
+
+/* define board-specific  GPIO macros before other devicetrees */
+#include "malibu-cubs-proto1_1-pinctrl.dtsi"
+#include "malibu-dabears-common.dtsi"
+#include "malibu-cubs-proto-lsio.dtsi"
+#include "malibu-cubs-common.dtsi"
+#include "malibu-cubs-camera-pmic-proto.dtsi"
+#include "malibu-cubs-camera.dtsi"
+
+/ {
+	board_id = <0x80602>;
+	board_rev = <0x010100>;
+	fragment@boardbase {
+		target-path = "/";
+		__overlay__ {
+			model = "CUBS Proto 1.1 based on MALIBU";
+			compatible = "google,malibu-cubs", "google,malibu";
+		};
+	};
+};
+

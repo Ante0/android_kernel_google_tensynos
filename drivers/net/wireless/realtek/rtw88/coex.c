@@ -633,7 +633,7 @@ static struct sk_buff *rtw_coex_info_request(struct rtw_dev *rtwdev,
 	struct rtw_coex *coex = &rtwdev->coex;
 	struct sk_buff *skb_resp = NULL;
 
-	mutex_lock(&coex->mutex);
+	lockdep_assert_held(&rtwdev->mutex);
 
 	rtw_fw_query_bt_mp_info(rtwdev, req);
 
@@ -650,7 +650,6 @@ static struct sk_buff *rtw_coex_info_request(struct rtw_dev *rtwdev,
 	}
 
 out:
-	mutex_unlock(&coex->mutex);
 	return skb_resp;
 }
 
@@ -3920,7 +3919,9 @@ void rtw_coex_display_coex_info(struct rtw_dev *rtwdev, struct seq_file *m)
 	lte_coex = rtw_coex_read_indirect_reg(rtwdev, 0x38);
 	bt_coex = rtw_coex_read_indirect_reg(rtwdev, 0x54);
 
-	if (!coex_stat->bt_disabled && !coex_stat->bt_mailbox_reply) {
+	if (!coex_stat->wl_under_ips &&
+	    (!coex_stat->wl_under_lps || coex_stat->wl_force_lps_ctrl) &&
+	    !coex_stat->bt_disabled && !coex_stat->bt_mailbox_reply) {
 		rtw_coex_get_bt_supported_version(rtwdev,
 				&coex_stat->bt_supported_version);
 		rtw_coex_get_bt_patch_version(rtwdev, &coex_stat->patch_ver);

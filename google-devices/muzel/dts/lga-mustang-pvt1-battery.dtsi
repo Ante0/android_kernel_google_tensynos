@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Battery device tree entries specific to Mustang
+ *
+ * Copyright 2024 Google LLC
+ *
+ */
+
+&google_battery {
+	google,chg-battery-capacity = <5079>;
+};

@@ -1,0 +1,1 @@
+../../../wlan_fw/modules/wlan_ring/wlan_noa_hw_ring_adaptee.h

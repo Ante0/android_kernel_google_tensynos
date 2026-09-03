@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_CPM_CLK
+	tristate "Google CPM clock driver"
+	depends on ARCH_GOOGLE
+	depends on GOOGLE_MBA_CPM_INTERFACE
+	help
+	  This driver allows clients to configure Google SoC LPCM clocks via
+	  CPM using the common clock framework. This covers clocks that are not
+	  supported by PFSM and PSM.
+	  If unsure select "N".

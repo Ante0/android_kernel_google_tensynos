@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google/tangorpro:__subpackages__",
+])
+
+ddk_module(
+    name = "pogo_transport",
+    srcs = [
+        "pogo_transport.c",
+    ],
+    out = "pogo_transport.ko",
+    copts = [
+        "-Werror",
+    ],
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
+    ],
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms:headers",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/usb/host:xhci-exynos",
+        "//private/google-modules/soc/gs/drivers/usb/typec/tcpm/google:tcpci_max77759",
+    ],
+)

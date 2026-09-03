@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# GS cpufreq
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "exynos-acme",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "exynos-acme.ko",
+    conditional_srcs = {
+        "CONFIG_ARM_EXYNOS_ACME": {
+            True: [
+                "exynos-acme.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-cpupm",
+        "//private/google-modules/soc/gs/drivers/soc/google:exynos-dm",
+        "//private/google-modules/soc/gs/drivers/soc/google/cal-if:cmupmucal",
+        "//private/google-modules/soc/gs/drivers/soc/google/debug:dss",
+        "//private/google-modules/soc/gs/drivers/soc/google/vh/kernel:systrace",
+        "//private/google-modules/soc/gs/drivers/thermal/samsung:gs_thermal",
+    ],
+)

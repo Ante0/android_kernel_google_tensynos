@@ -1,0 +1,151 @@
+# SPDX-License-Identifier: MIT
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load(
+    "@kleaf//build/kernel/kleaf:kernel.bzl",
+    "ddk_headers",
+    "ddk_module",
+)
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+_COMMON_COPTS = [
+    "-Werror",
+]
+
+ddk_headers(
+    name = "headers",
+    hdrs = glob([
+        "include/**/*.h",
+    ]) + [
+        "//private/google-modules/perf/infra/mbfs:headers",  # Needed by google_vote_manager.h
+    ],
+    includes = ["include"],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules/perf:__subpackages__",
+        "//private/google-modules/soc/rdo:__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "google_pm_qos_api",
+    hdrs = ["include/perf/core/google_pm_qos.h"],
+    includes = ["include"],
+    kconfigs = ["google_pm_qos_Kconfig"],
+    visibility = ["//visibility:private"],
+)
+
+# The stub module when the device does not need this module.
+ddk_headers(
+    name = "google_pm_qos_stub",
+    # Export the API
+    hdrs = [":google_pm_qos_api"],
+    # Unset CONFIG_GOOGLE_PM_QOS to indicate that google_pm_qos module is disabled.
+    # This is so that the common code can use it as a directive.
+    defconfigs = ["google_pm_qos_disabled_defconfig"],
+    visibility = ["//visibility:private"],
+)
+
+ddk_module(
+    name = "google_pm_qos_real",
+    srcs = [
+        "google_pm_qos.c",
+    ],
+    out = "google_pm_qos.ko",
+    hdrs = [
+        ":google_pm_qos_api",
+    ],
+    copts = _COMMON_COPTS,
+    defconfig = "google_pm_qos_enabled_defconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//common:all_headers_aarch64",
+    ],
+)
+
+bool_flag(
+    name = "enable_google_pm_qos",
+    build_setting_default = True,
+    visibility = ["//visibility:private"],
+)
+
+# Helper target to `select()` based on the flag.
+config_setting(
+    name = "google_pm_qos_enabled",
+    flag_values = {":enable_google_pm_qos": "1"},
+    visibility = ["//visibility:private"],
+)
+
+# The exposed target that switches between the real and stub implementation based on the flag.
+alias(
+    name = "google_pm_qos",
+    actual = select({
+        ":google_pm_qos_enabled": ":google_pm_qos_real",
+        "//conditions:default": ":google_pm_qos_stub",
+    }),
+)
+
+ddk_headers(
+    name = "google_vote_manager_api",
+    hdrs = [
+        "include/perf/core/google_vote_manager.h",
+        "//private/google-modules/perf/infra/mbfs:headers",
+    ],
+    includes = ["include"],
+    kconfigs = ["google_vote_manager_Kconfig"],
+    visibility = ["//visibility:private"],
+)
+
+# The stub module when the device does not need this module.
+ddk_headers(
+    name = "google_vote_manager_stub",
+    # Export the API
+    hdrs = [":google_vote_manager_api"],
+    # Unset CONFIG_GOOGLE_VOTE_MANAGER to indicate that google_vote_manager module is disabled.
+    # This is so that the common code can use it as a directive.
+    defconfigs = ["google_vote_manager_disabled_defconfig"],
+    visibility = ["//visibility:private"],
+)
+
+ddk_module(
+    name = "google_vote_manager_real",
+    srcs = [
+        "google_vote_manager.c",
+    ],
+    out = "google_vote_manager.ko",
+    hdrs = [":google_vote_manager_api"],
+    defconfig = "google_vote_manager_enabled_defconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    visibility = ["//visibility:private"],
+    deps = [
+        ":google_pm_qos",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/infra/mbfs",
+    ],
+)
+
+bool_flag(
+    name = "enable_google_vote_manager",
+    build_setting_default = True,
+    visibility = ["//visibility:private"],
+)
+
+# Helper target to `select()` based on the flag.
+config_setting(
+    name = "google_vote_manager_enabled",
+    flag_values = {":enable_google_vote_manager": "1"},
+    visibility = ["//visibility:private"],
+)
+
+# The exposed target that switches between the real and stub implementation based on the flag.
+alias(
+    name = "google_vote_manager",
+    actual = select({
+        ":google_vote_manager_enabled": ":google_vote_manager_real",
+        "//conditions:default": ":google_vote_manager_stub",
+    }),
+)

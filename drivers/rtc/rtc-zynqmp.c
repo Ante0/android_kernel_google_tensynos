@@ -330,7 +330,10 @@ static int xlnx_rtc_probe(struct platform_device *pdev)
 					   &xrtcdev->freq);
 		if (ret)
 			xrtcdev->freq = RTC_CALIB_DEF;
+	} else {
+		xrtcdev->freq--;
 	}
+
 	ret = readl(xrtcdev->reg_base + RTC_CALIB_RD);
 	if (!ret)
 		writel(xrtcdev->freq, (xrtcdev->reg_base + RTC_CALIB_WR));
@@ -342,12 +345,10 @@ static int xlnx_rtc_probe(struct platform_device *pdev)
 	return devm_rtc_register_device(xrtcdev->rtc);
 }
 
-static int xlnx_rtc_remove(struct platform_device *pdev)
+static void xlnx_rtc_remove(struct platform_device *pdev)
 {
 	xlnx_rtc_alarm_irq_enable(&pdev->dev, 0);
 	device_init_wakeup(&pdev->dev, 0);
-
-	return 0;
 }
 
 static int __maybe_unused xlnx_rtc_suspend(struct device *dev)
@@ -384,7 +385,7 @@ MODULE_DEVICE_TABLE(of, xlnx_rtc_of_match);
 
 static struct platform_driver xlnx_rtc_driver = {
 	.probe		= xlnx_rtc_probe,
-	.remove		= xlnx_rtc_remove,
+	.remove_new	= xlnx_rtc_remove,
 	.driver		= {
 		.name	= KBUILD_MODNAME,
 		.pm	= &xlnx_rtc_pm_ops,

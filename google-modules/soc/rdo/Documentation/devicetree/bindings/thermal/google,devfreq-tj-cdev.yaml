@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2025 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/thermal/google,devfreq-tj-cdev.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Google devfreq tj cooling device
+
+maintainers:
+  - Ram Chandrasekar <rchandrasekar@google.com>
+
+description: |
+  Certain Tj monitoring is done in firmware and then the mitigation action
+  is passed on to kernel to place the mitigation. The target device that
+  will receive this mitigation will use devfreq framework for DVFS. Use this
+  driver to receive the mitigation action from firmware and translate it
+  to devfreq qos request.
+
+properties:
+  compatible:
+    const: google,devfreq-tj-cdev
+
+  "thermal-hw-cdev-id":
+    maxItems: 1
+    description:
+      The Cooling device ID as defined in the below header,
+      "dt-bindings/soc/google/google-thermal-def.h".
+
+  "thermal-devfreq":
+    maxItems: 1
+    description:
+      A phandle that needs to be used to search for the devfreq handle.
+      The QOS request will be placed to this devfreq client.
+
+  required:
+    - compatible
+    - "thermal-hw-cdev-id"
+    - "thermal-devfreq"
+
+additionalProperties: false
+
+examples:
+  - |
+        thermal_devfreq_cdev {
+              compatible = "google,devfreq-tj-cdev";
+              thermal-hw-cdev-id = <HW_DT_CDEV_GPU>;
+              thermal-devfreq = <&gpu>;
+        };

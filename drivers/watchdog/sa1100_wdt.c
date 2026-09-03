@@ -164,7 +164,6 @@ static long sa1100dog_ioctl(struct file *file, unsigned int cmd,
 
 static const struct file_operations sa1100dog_fops = {
 	.owner		= THIS_MODULE,
-	.llseek		= no_llseek,
 	.write		= sa1100dog_write,
 	.unlocked_ioctl	= sa1100dog_ioctl,
 	.compat_ioctl	= compat_ptr_ioctl,
@@ -228,19 +227,17 @@ err:
 	return ret;
 }
 
-static int sa1100dog_remove(struct platform_device *pdev)
+static void sa1100dog_remove(struct platform_device *pdev)
 {
 	misc_deregister(&sa1100dog_miscdev);
 	clk_disable_unprepare(clk);
 	clk_put(clk);
-
-	return 0;
 }
 
 static struct platform_driver sa1100dog_driver = {
 	.driver.name = "sa1100_wdt",
 	.probe	  = sa1100dog_probe,
-	.remove	  = sa1100dog_remove,
+	.remove_new	  = sa1100dog_remove,
 };
 module_platform_driver(sa1100dog_driver);
 

@@ -156,9 +156,9 @@ static void si_ih_set_rptr(struct amdgpu_device *adev,
 	WREG32(IH_RB_RPTR, ih->rptr);
 }
 
-static int si_ih_early_init(void *handle)
+static int si_ih_early_init(struct amdgpu_ip_block *ip_block)
 {
-	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+	struct amdgpu_device *adev = ip_block->adev;
 
 	si_ih_set_interrupt_funcs(adev);
 
@@ -296,6 +296,8 @@ static const struct amd_ip_funcs si_ih_ip_funcs = {
 	.soft_reset = si_ih_soft_reset,
 	.set_clockgating_state = si_ih_set_clockgating_state,
 	.set_powergating_state = si_ih_set_powergating_state,
+	.dump_ip_state = NULL,
+	.print_ip_state = NULL,
 };
 
 static const struct amdgpu_ih_funcs si_ih_funcs = {

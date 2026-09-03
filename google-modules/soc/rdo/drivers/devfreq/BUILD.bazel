@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "google_devfreq.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules/soc/rdo:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "google_devfreq",
+    out = "google_devfreq.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_DEVFREQ": {
+            True: [
+                "google_cpm_mipm_service.h",
+                "google_devfreq.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/core/google_pm_qos:google_vote_manager",
+        "//private/google-modules/perf/core/google_pm_qos:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google:goog-mba-cpm-iface",
+        "//private/google-modules/soc/rdo/drivers/soc/google/dvfs-helper:dvfs_helper",
+    ],
+)
+
+ddk_module(
+    name = "google_ccf_devfreq",
+    out = "google_ccf_devfreq.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_CCF_DEVFREQ": {
+            True: [
+                "google_ccf_devfreq.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/perf/core/google_pm_qos",
+        "//private/google-modules/perf/core/google_pm_qos:google_vote_manager",
+        "//private/google-modules/perf/core/google_pm_qos:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/soc/google/dvfs-helper:dvfs_helper",
+    ],
+)

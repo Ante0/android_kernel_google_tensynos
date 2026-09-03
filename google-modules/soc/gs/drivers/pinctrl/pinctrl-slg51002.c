@@ -82,7 +82,7 @@ static int slg51002_gpio_get_direction(struct gpio_chip *chip,
 	case SLG51002_SEQ2:
 	case SLG51002_SEQ3:
 	case SLG51002_SEQ4:
-		return GPIOF_DIR_OUT;
+		return GPIO_LINE_DIRECTION_OUT;
 	default:
 		return -EOPNOTSUPP;
 	}
@@ -93,7 +93,9 @@ static int slg51002_gpio_get_direction(struct gpio_chip *chip,
 		return ret;
 	}
 
-	return (val & SLG51002_GPIO_DIR_MASK) ? GPIOF_DIR_OUT : GPIOF_DIR_IN;
+	return ((val & SLG51002_GPIO_DIR_MASK)
+		? GPIO_LINE_DIRECTION_OUT
+		: GPIO_LINE_DIRECTION_IN);
 }
 
 static int slg51002_generic_seq_get_direction(struct gpio_chip *chip,
@@ -108,7 +110,7 @@ static int slg51002_generic_seq_get_direction(struct gpio_chip *chip,
 	case SLG51002_GENERIC_SEQ5:
 	case SLG51002_GENERIC_SEQ6:
 	case SLG51002_GENERIC_SEQ7:
-		return GPIOF_DIR_OUT;
+		return GPIO_LINE_DIRECTION_OUT;
 	default:
 		return -EOPNOTSUPP;
 	}
@@ -434,6 +436,7 @@ static int slg51002_pinconf_set(struct pinctrl_dev *pctldev,
 static int slg51002_pinctrl_probe(struct platform_device *pdev)
 {
 	int ret;
+	struct device_node *dp;
 	struct slg51002_pinctrl *slg51002_pctl;
 	struct pinctrl_dev *pctl;
 	u32 ngpios;
@@ -484,20 +487,22 @@ static int slg51002_pinctrl_probe(struct platform_device *pdev)
 
 	slg51002_pctl->gc.base = -1;
 	slg51002_pctl->gc.can_sleep = true;
-	slg51002_pctl->gc.of_node =
-		of_find_node_by_name(pdev->dev.parent->of_node, pdev->name);
 	slg51002_pctl->gc.set_config = gpiochip_generic_config;
 	slg51002_pctl->gc.request = gpiochip_generic_request;
 	slg51002_pctl->gc.free = gpiochip_generic_free;
 
-	if (!slg51002_pctl->gc.of_node) {
+	/* balance of_node_put() in of_find_node_by_name() */
+	of_node_get(pdev->dev.parent->of_node);
+	dp = of_find_node_by_name(pdev->dev.parent->of_node, pdev->name);
+	if (!dp) {
 		dev_err(&pdev->dev, "Failed to find %s DT node\n", pdev->name);
 		return -EINVAL;
 	}
-	if (of_property_read_u32(slg51002_pctl->gc.of_node,
-			"ngpios", &ngpios)) {
+	slg51002_pctl->gc.fwnode = of_node_to_fwnode(dp);
+	if (of_property_read_u32(dp, "ngpios", &ngpios)) {
 		dev_err(&pdev->dev, "Failed to get ngpios from %s DT node\n",
 			pdev->name);
+		of_node_put(dp);
 		return -EINVAL;
 	}
 	slg51002_pctl->gc.ngpio = ngpios;
@@ -542,6 +547,8 @@ static int slg51002_pinctrl_probe(struct platform_device *pdev)
 	slg51002_pctl->pctrl.name = dev_name(&pdev->dev);
 
 	pinctrl_of_name = "slg51002_pinctrl";
+	/* balance of_node_put() in of_find_node_by_name() */
+	of_node_get(pdev->dev.parent->of_node);
 	pdev->dev.of_node = of_find_node_by_name(pdev->dev.parent->of_node,
 						 pinctrl_of_name);
 	if (!pdev->dev.of_node) {
@@ -575,9 +582,8 @@ static int slg51002_pinctrl_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int slg51002_pinctrl_remove(struct platform_device *pdev)
+static void slg51002_pinctrl_remove(struct platform_device *pdev)
 {
-	return 0;
 }
 
 static const struct platform_device_id slg51002_pinctrl_id[] = {

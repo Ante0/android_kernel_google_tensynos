@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# WCN Subsystem Power Control Driver - Build Definition
+#
+# This file defines the Bazel build targets for the wcn_pwrctl module.
+# It manages the kernel module compilation, header visibility, and
+# dependencies on SOC-level PMIC and Mailbox drivers.
+#
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "wcn_pwrctl",
+    srcs = [
+        "pwrctl_mbu_wcn7760.c",
+        "wcn_pwrctl_core.c",
+        "wcn_pwrctl_priv.h",
+    ],
+    out = "wcn_pwrctl.ko",
+    hdrs = glob([
+        "include/wcn_pwrctl/*.h",
+    ]),
+    includes = ["include"],
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/ap-pmic:da9188-core",
+    ],
+)

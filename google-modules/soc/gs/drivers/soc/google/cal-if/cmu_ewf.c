@@ -135,9 +135,8 @@ static int cmuewf_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int cmuewf_remove(struct platform_device *pdev)
+static void cmuewf_remove(struct platform_device *pdev)
 {
-	return 0;
 }
 
 static const struct of_device_id cmuewf_match[] = {

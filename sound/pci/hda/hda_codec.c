@@ -88,7 +88,7 @@ struct hda_conn_list {
 	struct list_head list;
 	int len;
 	hda_nid_t nid;
-	hda_nid_t conns[];
+	hda_nid_t conns[] __counted_by(len);
 };
 
 /* look up the cached results */
@@ -616,7 +616,6 @@ void snd_hda_shutup_pins(struct hda_codec *codec)
 }
 EXPORT_SYMBOL_GPL(snd_hda_shutup_pins);
 
-#ifdef CONFIG_PM
 /* Restore the pin controls cleared previously via snd_hda_shutup_pins() */
 static void restore_shutup_pins(struct hda_codec *codec)
 {
@@ -634,31 +633,22 @@ static void restore_shutup_pins(struct hda_codec *codec)
 	}
 	codec->pins_shutup = 0;
 }
-#endif
 
 static void hda_jackpoll_work(struct work_struct *work)
 {
 	struct hda_codec *codec =
 		container_of(work, struct hda_codec, jackpoll_work.work);
 
-	/* for non-polling trigger: we need nothing if already powered on */
-	if (!codec->jackpoll_interval && snd_hdac_is_power_on(&codec->core))
-		return;
-
-	/* the power-up/down sequence triggers the runtime resume */
-	snd_hda_power_up_pm(codec);
-	/* update jacks manually if polling is required, too */
-	if (codec->jackpoll_interval) {
-		snd_hda_jack_set_dirty_all(codec);
-		snd_hda_jack_poll_all(codec);
-	}
-	snd_hda_power_down_pm(codec);
-
 	if (!codec->jackpoll_interval)
 		return;
 
-	schedule_delayed_work(&codec->jackpoll_work,
-			      codec->jackpoll_interval);
+	/* the power-up/down sequence triggers the runtime resume */
+	snd_hda_power_up(codec);
+	/* update jacks manually if polling is required, too */
+	snd_hda_jack_set_dirty_all(codec);
+	snd_hda_jack_poll_all(codec);
+	schedule_delayed_work(&codec->jackpoll_work, codec->jackpoll_interval);
+	snd_hda_power_down(codec);
 }
 
 /* release all pincfg lists */
@@ -1001,9 +991,7 @@ int snd_hda_codec_device_new(struct hda_bus *bus, struct snd_card *card,
 	codec->card = card;
 	codec->addr = codec_addr;
 
-#ifdef CONFIG_PM
 	codec->power_jiffies = jiffies;
-#endif
 
 	snd_hda_sysfs_init(codec);
 
@@ -1238,7 +1226,6 @@ static void purify_inactive_streams(struct hda_codec *codec)
 	}
 }
 
-#ifdef CONFIG_PM
 /* clean up all streams; called from suspend */
 static void hda_cleanup_all_streams(struct hda_codec *codec)
 {
@@ -1250,7 +1237,6 @@ static void hda_cleanup_all_streams(struct hda_codec *codec)
 			really_cleanup_stream(codec, p);
 	}
 }
-#endif
 
 /*
  * amp access functions
@@ -1502,7 +1488,7 @@ update_amp_value(struct hda_codec *codec, hda_nid_t nid,
 	/* ofs = 0: raw max value */
 	maxval = get_amp_max_value(codec, nid, dir, 0);
 	if (val > maxval)
-		val = maxval;
+		return -EINVAL;
 	return snd_hda_codec_amp_update(codec, nid, ch, dir, idx,
 					HDA_AMP_VOLMASK, val);
 }
@@ -1553,13 +1539,21 @@ int snd_hda_mixer_amp_volume_put(struct snd_kcontrol *kcontrol,
 	unsigned int ofs = get_amp_offset(kcontrol);
 	long *valp = ucontrol->value.integer.value;
 	int change = 0;
+	int err;
 
 	if (chs & 1) {
-		change = update_amp_value(codec, nid, 0, dir, idx, ofs, *valp);
+		err = update_amp_value(codec, nid, 0, dir, idx, ofs, *valp);
+		if (err < 0)
+			return err;
+		change |= err;
 		valp++;
 	}
-	if (chs & 2)
-		change |= update_amp_value(codec, nid, 1, dir, idx, ofs, *valp);
+	if (chs & 2) {
+		err = update_amp_value(codec, nid, 1, dir, idx, ofs, *valp);
+		if (err < 0)
+			return err;
+		change |= err;
+	}
 	return change;
 }
 EXPORT_SYMBOL_GPL(snd_hda_mixer_amp_volume_put);
@@ -1732,9 +1726,9 @@ EXPORT_SYMBOL_GPL(snd_hda_ctl_add);
 /**
  * snd_hda_add_nid - Assign a NID to a control element
  * @codec: HD-audio codec
- * @nid: corresponding NID (optional)
  * @kctl: the control element to assign
  * @index: index to kctl
+ * @nid: corresponding NID (optional)
  *
  * Add the given control element to an array inside the codec instance.
  * This function is used when #snd_hda_ctl_add cannot be used for 1:1
@@ -1769,10 +1763,8 @@ void snd_hda_ctls_clear(struct hda_codec *codec)
 	int i;
 	struct hda_nid_item *items = codec->mixers.list;
 
-	down_write(&codec->card->controls_rwsem);
 	for (i = 0; i < codec->mixers.used; i++)
 		snd_ctl_remove(codec->card, items[i].kctl);
-	up_write(&codec->card->controls_rwsem);
 	snd_array_free(&codec->mixers);
 	snd_array_free(&codec->nids);
 }
@@ -2157,15 +2149,20 @@ int snd_hda_mixer_amp_switch_put(struct snd_kcontrol *kcontrol,
 	int change = 0;
 
 	if (chs & 1) {
+		if (*valp < 0 || *valp > 1)
+			return -EINVAL;
 		change = snd_hda_codec_amp_update(codec, nid, 0, dir, idx,
 						  HDA_AMP_MUTE,
 						  *valp ? 0 : HDA_AMP_MUTE);
 		valp++;
 	}
-	if (chs & 2)
+	if (chs & 2) {
+		if (*valp < 0 || *valp > 1)
+			return -EINVAL;
 		change |= snd_hda_codec_amp_update(codec, nid, 1, dir, idx,
 						   HDA_AMP_MUTE,
 						   *valp ? 0 : HDA_AMP_MUTE);
+	}
 	hda_call_check_power_status(codec, nid);
 	return change;
 }
@@ -2862,7 +2859,6 @@ static void hda_exec_init_verbs(struct hda_codec *codec)
 static inline void hda_exec_init_verbs(struct hda_codec *codec) {}
 #endif
 
-#ifdef CONFIG_PM
 /* update the power on/off account with the current jiffies */
 static void update_power_acct(struct hda_codec *codec, bool on)
 {
@@ -2922,12 +2918,12 @@ static void hda_call_codec_resume(struct hda_codec *codec)
 		snd_hda_regmap_sync(codec);
 	}
 
-	if (codec->jackpoll_interval)
-		hda_jackpoll_work(&codec->jackpoll_work.work);
-	else
-		snd_hda_jack_report_sync(codec);
+	snd_hda_jack_report_sync(codec);
 	codec->core.dev.power.power_state = PMSG_ON;
 	snd_hdac_leave_pm(&codec->core);
+	if (codec->jackpoll_interval)
+		schedule_delayed_work(&codec->jackpoll_work,
+				      codec->jackpoll_interval);
 }
 
 static int hda_codec_runtime_suspend(struct device *dev)
@@ -2939,8 +2935,6 @@ static int hda_codec_runtime_suspend(struct device *dev)
 	if (!codec->card)
 		return 0;
 
-	cancel_delayed_work_sync(&codec->jackpoll_work);
-
 	state = hda_call_codec_suspend(codec);
 	if (codec->link_down_at_suspend ||
 	    (codec_has_clkstop(codec) && codec_has_epss(codec) &&
@@ -2948,10 +2942,6 @@ static int hda_codec_runtime_suspend(struct device *dev)
 		snd_hdac_codec_link_down(&codec->core);
 	snd_hda_codec_display_power(codec, false);
 
-	if (codec->bus->jackpoll_in_suspend &&
-		(dev->power.power_state.event != PM_EVENT_SUSPEND))
-		schedule_delayed_work(&codec->jackpoll_work,
-					codec->jackpoll_interval);
 	return 0;
 }
 
@@ -2970,9 +2960,6 @@ static int hda_codec_runtime_resume(struct device *dev)
 	return 0;
 }
 
-#endif /* CONFIG_PM */
-
-#ifdef CONFIG_PM_SLEEP
 static int hda_codec_pm_prepare(struct device *dev)
 {
 	struct hda_codec *codec = dev_to_hda_codec(dev);
@@ -3027,22 +3014,19 @@ static int hda_codec_pm_restore(struct device *dev)
 	dev->power.power_state = PMSG_RESTORE;
 	return pm_runtime_force_resume(dev);
 }
-#endif /* CONFIG_PM_SLEEP */
 
 /* referred in hda_bind.c */
 const struct dev_pm_ops hda_codec_driver_pm = {
-#ifdef CONFIG_PM_SLEEP
-	.prepare = hda_codec_pm_prepare,
-	.complete = hda_codec_pm_complete,
-	.suspend = hda_codec_pm_suspend,
-	.resume = hda_codec_pm_resume,
-	.freeze = hda_codec_pm_freeze,
-	.thaw = hda_codec_pm_thaw,
-	.poweroff = hda_codec_pm_suspend,
-	.restore = hda_codec_pm_restore,
-#endif /* CONFIG_PM_SLEEP */
-	SET_RUNTIME_PM_OPS(hda_codec_runtime_suspend, hda_codec_runtime_resume,
-			   NULL)
+	.prepare = pm_sleep_ptr(hda_codec_pm_prepare),
+	.complete = pm_sleep_ptr(hda_codec_pm_complete),
+	.suspend = pm_sleep_ptr(hda_codec_pm_suspend),
+	.resume = pm_sleep_ptr(hda_codec_pm_resume),
+	.freeze = pm_sleep_ptr(hda_codec_pm_freeze),
+	.thaw = pm_sleep_ptr(hda_codec_pm_thaw),
+	.poweroff = pm_sleep_ptr(hda_codec_pm_suspend),
+	.restore = pm_sleep_ptr(hda_codec_pm_restore),
+	.runtime_suspend = pm_ptr(hda_codec_runtime_suspend),
+	.runtime_resume = pm_ptr(hda_codec_runtime_resume),
 };
 
 /* suspend the codec at shutdown; called from driver's shutdown callback */
@@ -3054,6 +3038,7 @@ void snd_hda_codec_shutdown(struct hda_codec *codec)
 	if (!codec->core.registered)
 		return;
 
+	codec->jackpoll_interval = 0; /* don't poll any longer */
 	cancel_delayed_work_sync(&codec->jackpoll_work);
 	list_for_each_entry(cpcm, &codec->pcm_list_head, list)
 		snd_pcm_suspend_all(cpcm->pcm);
@@ -3120,10 +3105,11 @@ int snd_hda_codec_build_controls(struct hda_codec *codec)
 	if (err < 0)
 		return err;
 
+	snd_hda_jack_report_sync(codec); /* call at the last init point */
 	if (codec->jackpoll_interval)
-		hda_jackpoll_work(&codec->jackpoll_work.work);
-	else
-		snd_hda_jack_report_sync(codec); /* call at the last init point */
+		schedule_delayed_work(&codec->jackpoll_work,
+				      codec->jackpoll_interval);
+
 	sync_power_up_states(codec);
 	return 0;
 }
@@ -3167,6 +3153,7 @@ static int set_pcm_default_values(struct hda_codec *codec,
 		err = snd_hda_query_supported_pcm(codec, info->nid,
 				info->rates ? NULL : &info->rates,
 				info->formats ? NULL : &info->formats,
+				info->subformats ? NULL : &info->subformats,
 				info->maxbps ? NULL : &info->maxbps);
 		if (err < 0)
 			return err;
@@ -3316,7 +3303,7 @@ int snd_hda_codec_parse_pcms(struct hda_codec *codec)
 	list_for_each_entry(cpcm, &codec->pcm_list_head, list) {
 		int stream;
 
-		for (stream = 0; stream < 2; stream++) {
+		for_each_pcm_streams(stream) {
 			struct hda_pcm_stream *info = &cpcm->stream[stream];
 
 			if (!info->substreams)
@@ -3428,7 +3415,6 @@ int snd_hda_add_new_ctls(struct hda_codec *codec,
 }
 EXPORT_SYMBOL_GPL(snd_hda_add_new_ctls);
 
-#ifdef CONFIG_PM
 /**
  * snd_hda_codec_set_power_save - Configure codec's runtime PM
  * @codec: codec device to configure
@@ -3519,7 +3505,6 @@ int snd_hda_check_amp_list_power(struct hda_codec *codec,
 	return 0;
 }
 EXPORT_SYMBOL_GPL(snd_hda_check_amp_list_power);
-#endif
 
 /*
  * input MUX helper
@@ -3761,6 +3746,7 @@ int snd_hda_multi_out_analog_open(struct hda_codec *codec,
 			snd_hda_query_supported_pcm(codec, mout->dig_out_nid,
 						    &mout->spdif_rates,
 						    &mout->spdif_formats,
+						    NULL,
 						    &mout->spdif_maxbps);
 		}
 		mutex_lock(&codec->spdif_mutex);
@@ -4062,12 +4048,10 @@ void snd_hda_bus_reset_codecs(struct hda_bus *bus)
 		/* FIXME: maybe a better way needed for forced reset */
 		if (current_work() != &codec->jackpoll_work.work)
 			cancel_delayed_work_sync(&codec->jackpoll_work);
-#ifdef CONFIG_PM
 		if (hda_codec_is_power_on(codec)) {
 			hda_call_codec_suspend(codec);
 			hda_call_codec_resume(codec);
 		}
-#endif
 	}
 }
 

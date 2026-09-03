@@ -34,12 +34,6 @@
 
 #include "qm35.h"
 
-/* TODO Compile QM358XX code */
-int qm358xx_rom_probe_device(struct qmrom_handle *handle)
-{
-	return -1;
-}
-
 static const char *fwname = NULL;
 static unsigned int speed_hz;
 extern int trace_spi_xfers;

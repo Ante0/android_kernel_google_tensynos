@@ -1,0 +1,50 @@
+What:		/sys/devices/platform/gdmc_dhub/uart_mux
+Date:		January 2024
+KernelVersion:	6.1.57-android14-11
+Description:
+		Query or set the UART Muliplexer setting managed by the Google
+		GDMC (Google Debug Management Controller) DHUB (Debug Hub).
+
+		The value is the identifier for one of the platform's
+		subsystem UART ports.   The definition of subsystem UART
+		identifiers is platform specific.
+
+What:		/sys/devices/platform/gdmc_dhub/baudrate
+Date:		January 2024
+KernelVersion:	6.1.57-android14-11
+Description:
+		Query or set the baudrate for the UART interface provided by the DHUB
+		over the device debug USB port SBU lines.  The SBU lines carry a
+		data stream consisting of virtualized subsystem	UARTs multiplexed with
+		other debug packets.
+
+For each subsystem UART exposed by DHUB, gdmc_dhub/ includes a directory
+with the following structure:
+
+What:		/sys/devices/platform/gdmc_dhub/*/baudrate
+Date:		January 2024
+KernelVersion:	6.1.57-android14-11
+Description:
+		Query or set the UART Baudrate.  Subsystem UART baudrates
+		are generally set at compile time in the subsystem's firmware.
+		The DHUB UART baudrate settings are configured to match the
+		subsystem baudrate by the device bootloader at boot.  This
+		sysfs entry could be used to override the bootloader setting,
+		if required (for example, if a subsystem firmware provides an
+		out-of-band means to change its UART baudrate).
+
+What:		/sys/devices/platform/gdmc_dhub/*/virt_en
+Date:		January 2024
+KernelVersion:	6.1.57-android14-11
+Description:
+		Query or set whether subsytem UART is enabled for virtualization.
+		When a subsystem UART is enabled for virtualization, its UART
+		Tx/Rx signals are disconnected from any dedicated UART pins on the
+		SoC, and instead plumbed through the DHUB.  The UART data is
+		packetized and sent through the multiplexed data stream over the
+		devices SBU lines to a host over the device's debug USB port.
+		A debugging dongle (e.g. Blammo) and associated host drivers are
+		required to convert the SBU signals into a USB / virtual-UART
+		terminal console on the host.  A user-space tool is also required
+		to de-multiplex the DHUB datastream into individual subsystem UART
+		data streams.

@@ -41,7 +41,7 @@ properties:
     description: Wireless DC power supply name
     $ref: /schemas/types.yaml#/definitions/string
 
-  google,dc-en:
+  google,dc-en-gpios:
     description: DC enable gpio
     type: boolean
 
@@ -51,35 +51,39 @@ properties:
     type: boolean
 
   google,dc_limit-demand:
-    description: Charge current floor to enable DC charging
+    description: Wired Default output-power-low. See Charger Config.
     $ref: /schemas/types.yaml#/definitions/uint32
 
   google,dc_limit-cc_min:
-    description: Wired charge current to disable DC charging if already enabled.
+    description: Wired default cc-max-low. See Charger Config.
     $ref: /schemas/types.yaml#/definitions/uint32
 
   google,dc_limit-cc_min_wlc:
-    description: Wireless charge current to disable DC charging if already enabled.
+    description: Wireless default cc-max-min. See Charger Config.
     $ref: /schemas/types.yaml#/definitions/uint32
 
   google,dc_limit-vbatt_min:
-    description: Charge voltage to enable DC charging.
+    description: Wired default vbatt-min. See Charger Config.
     $ref: /schemas/types.yaml#/definitions/uint32
 
   google,dc_limit-vbatt_low:
-    description: Don't start DC charging until batt voltage low is reached.
+    description: Wired default vbatt-low. See Charger Config.
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  google,wlc_dc_limit-vbatt_min:
+    description: Wireless default vbatt-min. See Charger Config.
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  google,wlc_dc_limit-vbatt_low:
+    description: Wireless default vbatt-low. See Charger Config.
     $ref: /schemas/types.yaml#/definitions/uint32
 
   google,dc_limit-vbatt_max:
-    description: Stop DC charging at batt voltage.
+    description: Wired default vbatt-max. See Charger Config.
     $ref: /schemas/types.yaml#/definitions/uint32
 
   google,dc_limit-vbatt_high:
-    description: Don't start DC charging at batt voltage.
-    $ref: /schemas/types.yaml#/definitions/uint32
-
-  google,dc_limit-soc_high:
-    description: Don't start DC charging at soc.
+    description: Wired default vbatt-high. See Charger Config.
     $ref: /schemas/types.yaml#/definitions/uint32
 
   google,taper_step-fv-margin:
@@ -115,6 +119,10 @@ properties:
     description: Wireless DC charging fast constant charge current.
     $ref: /schemas/types.yaml#/definitions/uint32
 
+  google,pri-chg-mdis:
+    description: Guarantied MDIS for priority charging session.
+    $ref: /schemas/types.yaml#/definitions/uint32
+
   google,no-init-wlc-ta-vol:
     description: Don't set the wlc init voltage.
     type: boolean
@@ -127,6 +135,7 @@ properties:
 
   google,chg-power-supplies:
     description: List of charger power supply names.
+      LEGACY: indicates CPM V1
     $ref: /schemas/types.yaml#/definitions/string-array
 
   google,mdis-out-sel-online:
@@ -146,6 +155,67 @@ properties:
     description: PPS keep wakelock while charging.
     type: boolean
 
+  google,set-mdis-to-wlc:
+    description: Enable a separate WLC thermal table which will be defined on the WLC side
+    and separately for different charger types.
+    type: boolean
+
+  chargers:
+    description: Charger configuration nodes
+    type: object
+    properties:
+      charger-node-name:
+        description: name of charger
+        type: object
+        properties:
+          status:
+            description: enable/disable charger for CPM use
+            $ref: /schemas/types.yaml#/definitions/string
+          is-cp:
+            description: Is charge pump
+            type: boolean
+          wired | wireless,config:
+            description: Wired/wireless charger configuration
+            type: object
+            properties:
+              status:
+                description: Enable/disable charger specifically for wired/wireless charging
+              power-supply:
+                description: Charger power supply string.
+                $ref: /schemas/types.yaml#/definitions/string
+              requirements:
+                description: Charger start/stop requirements
+                type: object
+                properties:
+                  # The following values override the default config. See google,dc_limit-cc_min, etc
+                  vbatt-max:
+                    description: Maximum vbatt to stop charger
+                    $ref: /schemas/types.yaml#/definitions/uint32
+                  vbatt-high:
+                    description: Maximum vbatt to start charger
+                    $ref: /schemas/types.yaml#/definitions/uint32
+                  vbatt-min:
+                    description: Minimum vbatt to stop charger
+                    $ref: /schemas/types.yaml#/definitions/uint32
+                  vbatt-low:
+                    description: Minimum vbatt to start charger
+                    $ref: /schemas/types.yaml#/definitions/uint32
+                  power-low:
+                    description: Minimum power demand (input/output) to start charger
+                    $ref: /schemas/types.yaml#/definitions/uint32
+                  power-min:
+                    description: Minimum power demand (input/output) to stop charger
+                    $ref: /schemas/types.yaml#/definitions/uint32
+                  power-max:
+                    description: Maximum supported power demand. Charger selection is sorted by this field.
+                    $ref: /schemas/types.yaml#/definitions/uint32
+                  cc-max-low-level:
+                    description: Minimum charge current to start charger (% of batt capacity)
+                    $ref: /schemas/types.yaml#/definitions/uint32
+                  cc-max-high-level:
+                    description: Minimum charge current to stop charger (% of batt capacity)
+                    $ref: /schemas/types.yaml#/definitions/uint32
+
 patternProperties:
   "^(google,mdis-out[0-9]+-limits)$":
     description: Thermal mitigation charging current limit profile. Different profiles
@@ -162,3 +232,74 @@ dependencies:
   google,mdis-out-sel-online: [ 'google,mdis-thermal-mitigation' ]
   google,mdis-fan-alarm-level: [ 'google,mdis-thermal-mitigation', 'google,mdis-out-sel-online', '"^(google,mdis-out[0-9]+-limits)$"' ]
   google,dc-en-value: [ 'google,dc-en' ]
+
+examples:
+  - |
+    google_cpm {
+      compatible = "google,cpm";
+      #cooling-cells = <2>;
+
+      google,dc_limit-demand = <560000>;
+      google,dc_limit-vbatt = <4350000>;
+      google,dc_limit-vbatt_min = <3400000>;
+      google,dc_limit-vbatt_max = <4470000>;
+      google,dc_limit-vbatt_high = <4325000>;
+
+      google,tcpm-power-supply = <&max77759tcpc>;	// in=0
+      google,wlc_dc-power-supply = "wireless";	// in=1
+      google,pps-awake;
+
+      google,taper_step-count = <1>;
+
+      /* thermal budgets */
+      google,mdis-thermal-mitigation =
+      <5677000 3413000 2603000 2017000 1919000 1506000 909000 575000
+        254000>;
+      /* PD+main-charger, WLC+main-charger */
+      google,mdis-out0-limits =
+      <4000000 3500000 3000000 3000000 2500000 2000000 1500000 1000000
+        500000 1100000  500000  500000  500000  250000  250000  100000
+        100000  100000>;
+      /* PPS_CP+pca94xx-mains, WLC_CP+pca94xx-mains */
+      google,mdis-out1-limits =
+      <6000000 5500000 5000000 4500000 3500000 3000000 2500000 2000000
+        1000000 5000000 4500000 4000000 3000000 2500000 2000000 1500000
+        1000000       0>;
+
+      chargers {
+        buck-charger-name {
+          wired,config {
+            power-supply = "buck_charger";
+            requirements {
+              power-low = <15000000>;
+              cc-max-low-level = <50>; /* 0.5C */
+            };
+          };
+          wireless,config {
+            power-supply = "wlcin-charger";
+            requirements {
+              power-low = <16000000>;
+              power-min = <12000000>;
+              power-max = <25000000>;
+              cc-max-low-level = <50>; /* 0.5C */
+            };
+          };
+        };
+        charge-pump-name {
+          is-cp;
+          wired,config {
+            power-supply = "dc-mains";
+            requirements {
+              cc-max-low-level = <50>; /* 0.5C */
+            };
+           };
+          wireless,config {
+            requirements {
+              power-low = <7600000>;
+              power-min = <7500000>;
+              power-max = <15000000>;
+            };
+          };
+        };
+      };
+    };

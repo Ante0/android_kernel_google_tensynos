@@ -1,0 +1,11 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * Copyright 2024 Google LLC
+ */
+
+#ifndef _MAILBOX_GOOGLE_PROTOCOLS_MBA_CPM_AP_NS_SSRAM_SERVICE_H
+#define _MAILBOX_GOOGLE_PROTOCOLS_MBA_CPM_AP_NS_SSRAM_SERVICE_H
+
+#define SSRAM_QUERY_IP_IDLE_ADDR (0)
+
+#endif

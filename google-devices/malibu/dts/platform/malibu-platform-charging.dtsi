@@ -1,0 +1,47 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Battery device tree entries specific to the mbu platform
+ *
+ * Copyright 2025 Google LLC
+ *
+ */
+#include <dt-bindings/interrupt-controller/irq.h>
+#include "malibu-charging.dtsi"
+
+&google_charger {
+	google,tcpm-power-supply = <&max77759tcpcspmi>;
+	google,thermal-stats-lvl-map = <0 8 16 25>;
+};
+
+&spmi_cpm {
+	status = "okay";
+
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	#include "malibu-max777xx-spmi.dtsi"
+};
+
+&max77779_pmic_irq {
+	pinctrl-0 = <&ifpmic2aoss_int_l_1v2_ac1>;
+
+	interrupt-parent = <&aoss_pinctrl>;
+	max777x9,irq-gpio = <IFPMIC2AOSS_INT_L_1V2_AC1(GPIO_ACTIVE_LOW)>;
+};
+
+&google_cpm {
+	google,tcpm-power-supply = <&max77759tcpcspmi>;	/* in=0 */
+
+	google,cop-supported;
+	google,dc_limit-vbatt_min = <3500000>;
+	google,dc_limit-vbatt_low = <3510000>;
+
+	interrupt-parent = <&max77779_chg>;
+	interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
+};
+
+&max77779_usecase {
+	max77779,extbst-ctl-gpio = <&max77759_tcpc_gpio 0 GPIO_ACTIVE_HIGH>;
+	post-init-providers = <&max77759_tcpc_gpio>;
+};
+

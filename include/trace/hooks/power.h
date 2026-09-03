@@ -33,9 +33,17 @@ DECLARE_HOOK(android_vh_freq_qos_remove_request,
 		TP_PROTO(struct freq_qos_request *req),
 		TP_ARGS(req));
 
-DECLARE_HOOK(android_vh_hibernate_state,
-		TP_PROTO(int error),
-		TP_ARGS(error));
+struct task_struct;
+struct seq_file;
+DECLARE_HOOK(android_vh_update_uid_stats,
+		TP_PROTO(u64 *combine_data, u64 *usw_data,
+			struct task_struct *task, int type),
+		TP_ARGS(combine_data, usw_data, task, type));
+
+DECLARE_HOOK(android_vh_append_total_power,
+		TP_PROTO(struct seq_file *m, uid_t uid, u64 total_utime,
+			u64 total_stime, u64 total_power),
+		TP_ARGS(m, uid, total_utime, total_stime, total_power));
 
 DECLARE_HOOK(android_vh_fas_gpu_qos_update_tracer,
 		TP_PROTO(struct freq_qos_request *req, s32 *value),

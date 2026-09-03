@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2023 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/pmic/google,da9186-vgpio.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Dialog Semiconductor DA9186 PMIC Virtual GPIO driver
+
+maintainers:
+  - Ryan Chu <cychu@google.com>
+
+description: |
+  This binding describes the virtual GPIO instance inside the DA9186/7 PMIC.
+  The virtual GPIO (vGPIO) only have the output capability, and it's normally
+  used to control / trigger some internal PMIC features, not containing the HW
+  IO wire that output signals.
+
+properties:
+  compatible:
+    const: google,da9186-vgpio
+
+  mba-dest-channel:
+    $ref: /schemas/types.yaml#/definitions/uint32-array
+    description: The mailbox tx destination channel.
+    maxItems: 1
+
+  mboxes:
+    description: A mailbox phandle and rx channel specifier.
+    maxItems: 1
+
+  gpio-controller: true
+
+  "#gpio-cells":
+    const: 2
+    description: |
+      The first cell is the pin number and the second cell is used to specify
+      optional parameters.
+
+  ngpio:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    description: The number of GPIO pins supported consecutively.
+    minimum: 1
+    maximum: 31
+
+  gpio-line-names:
+    description: Strings describing the names of each gpio line.
+    minItems: 1
+    maxItems: 31
+
+required:
+  - compatible
+  - mba-dest-channel
+  - mboxes
+  - gpio-controller
+  - '#gpio-cells'
+  - ngpio
+
+additionalProperties: false
+
+examples:
+  - |
+    da9186_pinctrl: da9186-vgpio {
+        compatible = "google,da9186-vgpio";
+        mba-dest-channel = <10>;
+        mboxes = <&mbactrl_ap_cpm 20>;
+
+        gpio-controller;
+        #gpio-cells = <2>;
+        ngpios = <31>;
+        gpio-line-names = "LED 0",
+            "LED 1",
+            "LED 2",
+            "LED 3";
+    };

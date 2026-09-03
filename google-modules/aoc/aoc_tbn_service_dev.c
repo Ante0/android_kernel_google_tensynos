@@ -14,7 +14,7 @@
 
 #define AOC_TBN_SERVICE_DEV_NAME "aoc_tbn_sdev"
 #define AOC_SERVICE_NAME "com.google.tbn_service"
-#define SEND_TIMEOUT_JIFFY (200)
+#define SEND_TIMEOUT_MS (100)
 
 static struct aoc_service_dev *aoc_tbn_service = NULL;
 static const char * const service_names[] = {
@@ -59,7 +59,8 @@ static void __exit aoc_tbn_service_exit(void)
 
 ssize_t aoc_tbn_service_write(void *cmd, size_t size)
 {
-	return aoc_service_write_timeout(aoc_tbn_service, cmd, size, SEND_TIMEOUT_JIFFY);
+	return aoc_service_write_timeout(aoc_tbn_service, cmd, size,
+					 msecs_to_jiffies(SEND_TIMEOUT_MS));
 }
 EXPORT_SYMBOL_GPL(aoc_tbn_service_write);
 
@@ -78,4 +79,5 @@ EXPORT_SYMBOL_GPL(aoc_tbn_service_ready);
 module_init(aoc_tbn_service_init);
 module_exit(aoc_tbn_service_exit);
 
+MODULE_DESCRIPTION("Google AOC tbn driver");
 MODULE_LICENSE("GPL v2");

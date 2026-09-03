@@ -1,0 +1,62 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * USB device tree source code for Rango
+ *
+ * Copyright 2024 Google LLC.
+ */
+
+&dwc3 {
+	snps,usb2-gadget-lpm-disable;
+	snps,dis-u1-entry-quirk;
+	snps,dis-u2-entry-quirk;
+	tx-fifo-resize;
+	tx-fifo-max-num = /bits/ 8 <0x9>;
+};
+
+&eusb2_repeater {
+	u_disconnect_squelch_port1 = /bits/ 8 <0x86>;
+};
+
+&usb_phy {
+	tune_params_g1 {
+		/*
+		 * Note:
+		 * The following override are effective only when USB3 Gen1 is active.
+		 *
+		 * tune_value = <offset value>
+		 */
+		tune_param0 {
+			tune_name = "tx_eq_main_g1";
+			tune_value = <0x34 0x004d0400>;
+		};
+		tune_param1 {
+			tune_name = "tx_eq_post_g1";
+			tune_value = <0x38 0x000638e3>;
+		};
+		tune_param2 {
+			tune_name = "tx_eq_pre_g1";
+			tune_value = <0x3c 0x00040082>;
+		};
+	};
+
+	tune_params {
+		/*
+		 * Note:
+		 * The following override will affect both Gen1, Gen2 & DP.
+		 *
+		 * tune_value = <offset value>
+		 */
+		tune_param1 {
+			tune_name = "sup_dig_lvl_ovrd_in_addr";
+			tune_value = <0x6202 0x29>;
+		};
+		tune_param2 {
+			tune_name = "sup_dig_lvl_ovrd_in_val";
+			tune_value = <0x6204 0x3d0>;
+		};
+		tune_param3 {
+			tune_name = "common_end_tag";
+			tune_value = <0x6206 0x9016>;
+		};
+	};
+};

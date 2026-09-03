@@ -14,7 +14,8 @@ struct meminfo {
 };
 
 void rvh_meminfo_proc_show(void *data, struct seq_file *m);
-#if IS_ENABLED(CONFIG_PIXEL_STAT)
+
+#if IS_ENABLED(CONFIG_PIXEL_STAT_MM)
 void register_meminfo(struct meminfo *meminfo);
 void unregister_meminfo(struct meminfo *meminfo);
 void dump_pixel_meminfo(void);

@@ -12,7 +12,7 @@
 #include <linux/module.h>
 #include <linux/spi/spi.h>
 
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 
 #include <linux/iio/buffer.h>
 #include <linux/iio/iio.h>
@@ -494,8 +494,7 @@ static irqreturn_t sca3300_trigger_handler(int irq, void *p)
 	int bit, ret, val, i = 0;
 	s16 *channels = (s16 *)data->buffer;
 
-	for_each_set_bit(bit, indio_dev->active_scan_mask,
-			 indio_dev->masklength) {
+	iio_for_each_active_channel(indio_dev, bit) {
 		ret = sca3300_read_reg(data, indio_dev->channels[bit].address, &val);
 		if (ret) {
 			dev_err_ratelimited(&data->spi->dev,
@@ -679,12 +678,20 @@ static const struct of_device_id sca3300_dt_ids[] = {
 };
 MODULE_DEVICE_TABLE(of, sca3300_dt_ids);
 
+static const struct spi_device_id sca3300_ids[] = {
+	{ "sca3300" },
+	{ "scl3300" },
+	{}
+};
+MODULE_DEVICE_TABLE(spi, sca3300_ids);
+
 static struct spi_driver sca3300_driver = {
-	.driver = {
+	.driver   = {
 		.name		= SCA3300_ALIAS,
 		.of_match_table = sca3300_dt_ids,
 	},
-	.probe	= sca3300_probe,
+	.probe	  = sca3300_probe,
+	.id_table = sca3300_ids,
 };
 module_spi_driver(sca3300_driver);
 

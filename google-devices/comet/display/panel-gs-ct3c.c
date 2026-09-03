@@ -14,7 +14,7 @@
 #include "gs_panel/gs_panel_funcs_defaults.h"
 
 /* DSC1.1 SCR V4 */
-static const struct drm_dsc_config pps_config = {
+static struct drm_dsc_config pps_config = {
 	.line_buf_depth = 9,
 	.bits_per_component = 8,
 	.convert_rgb = true,
@@ -328,9 +328,9 @@ static void ct3c_change_frequency(struct gs_panel *ctx, const struct gs_panel_mo
 
 	u32 vrefresh = drm_mode_vrefresh(&pmode->mode);
 
-	if (ctx->panel_rev == PANEL_REV_PROTO1) {
+	if (ctx->panel_rev_id.id == PANEL_REVID_PROTO1) {
 		ct3c_proto_change_frequency(ctx, pmode);
-	} else if (ctx->panel_rev == PANEL_REV_EVT1) {
+	} else if (ctx->panel_rev_id.id == PANEL_REVID_EVT1) {
 		ct3c_evt_change_frequency(ctx, pmode);
 	} else {
 		if (!ctx || ((vrefresh != 60) && (vrefresh != 120)))
@@ -359,11 +359,12 @@ static int ct3c_set_op_hz(struct gs_panel *ctx, unsigned int hz)
 
 	ctx->op_hz = hz;
 
-	if (ctx->panel_rev == PANEL_REV_PROTO1) {
+	if (ctx->panel_rev_id.id == PANEL_REVID_PROTO1) {
 		ct3c_change_frequency(ctx, pmode);
 		dev_info(ctx->dev, "set op_hz at %u\n", hz);
 	} else {
-		dev_info(ctx->dev, "Panel rev %d always operates at op_hz=120\n", ctx->panel_rev);
+		dev_info(ctx->dev, "Panel rev %d always operates at op_hz=120\n",
+			 ctx->panel_rev_id.id);
 	}
 
 	return 0;
@@ -444,7 +445,7 @@ static void ct3c_set_hbm_mode(struct gs_panel *ctx, enum gs_hbm_mode mode)
 
 	GS_DCS_BUF_ADD_CMDLIST(dev, test_key_enable);
 
-	if (ctx->panel_rev == PANEL_REV_PROTO1) {
+	if (ctx->panel_rev_id.id == PANEL_REVID_PROTO1) {
 		GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x01, 0x18, 0x68);
 		/* FGZ mode enable (IRC off) / FLAT gamma (default, IRC on)  */
 		GS_DCS_BUF_ADD_CMD(dev, 0x68, GS_IS_HBM_ON_IRC_OFF(ctx->hbm_mode) ? 0x82 : 0x00);
@@ -456,9 +457,9 @@ static void ct3c_set_hbm_mode(struct gs_panel *ctx, enum gs_hbm_mode mode)
 		GS_DCS_BUF_ADD_CMD(dev, 0xB0, 0x01, 0x22, 0x68);
 		if (GS_IS_HBM_ON_IRC_OFF(ctx->hbm_mode)) {
 			/* FGZ Mode ON */
-			if (ctx->panel_rev == PANEL_REV_PROTO1_1) {
+			if (ctx->panel_rev_id.id == PANEL_REVID_PROTO1_1) {
 				GS_DCS_BUF_ADD_CMD(dev, 0x68, 0x2D, 0xF1, 0xFF, 0x94);
-			} else if (ctx->panel_rev == PANEL_REV_EVT1) {
+			} else if (ctx->panel_rev_id.id == PANEL_REVID_EVT1) {
 				GS_DCS_BUF_ADD_CMD(dev, 0x68, 0x40, 0x00, 0xFF, 0x9C);
 			} else {
 				GS_DCS_BUF_ADD_CMD(dev, 0x68, 0x28, 0xED, 0xFF, 0x94);
@@ -782,7 +783,7 @@ static const struct gs_panel_funcs ct3c_gs_funcs = {
 	.is_mode_seamless = gs_panel_is_mode_seamless_helper,
 	.mode_set = ct3c_mode_set,
 	.get_panel_rev = ct3c_get_panel_rev,
-	.read_id = gs_panel_read_slsi_ddic_id,
+	.read_serial = gs_panel_read_slsi_ddic_id,
 };
 
 const struct gs_panel_brightness_desc ct3c_brightness_desc = {

@@ -8,16 +8,13 @@
 #define __ARM64_KVM_NVHE_PKVM_H__
 
 #include <asm/kvm_pkvm.h>
+#include <kvm/power_domain.h>
 
 #include <nvhe/gfp.h>
 #include <nvhe/spinlock.h>
 
-/*
- * Misconfiguration events that can undermine pKVM security.
- */
-enum pkvm_system_misconfiguration {
-	NO_DMA_ISOLATION,
-};
+/* Sentinel: distinct from NULL and any real pkvm_hyp_vcpu pointer. */
+#define PKVM_PVMFW_ENTERED ((struct pkvm_hyp_vcpu *)-1L)
 
 /*
  * Holds the relevant data for maintaining the vcpu state completely at hyp.
@@ -47,6 +44,23 @@ struct pkvm_hyp_vcpu {
 	int power_state;
 };
 
+/* Holds the hyp address of the mapped RX/TX buffers inside the hypervisor */
+struct kvm_ffa_buffers {
+	void *tx;
+	u64 tx_ipa;
+	void *rx;
+	u64 rx_ipa;
+	struct list_head xfer_list;
+	u64 vm_avail_bitmap;
+	u64 vm_creating_bitmap;
+};
+
+enum protected_vm_state {
+	PROTECTED_VM_ALIVE = 0,
+	PROTECTED_VM_DYING,
+	PROTECTED_VM_DEAD,
+};
+
 /*
  * Holds the relevant data for running a protected vm.
  */
@@ -60,27 +74,40 @@ struct pkvm_hyp_vm {
 	struct kvm_pgtable pgt;
 	struct kvm_pgtable_mm_ops mm_ops;
 	struct hyp_pool pool;
-	hyp_spinlock_t lock;
+	hyp_spinlock_t pgtable_lock;
 
-	/* Primary vCPU pending entry to the pvmfw */
-	struct pkvm_hyp_vcpu *pvmfw_entry_vcpu;
-
+	/* pvIOMMUs attached. */
+	struct list_head pviommus;
+	struct hyp_pool iommu_pool;
+	struct list_head domains;
 	/*
-	 * The number of vcpus initialized and ready to run.
-	 * Modifying this is protected by 'vm_table_lock'.
+	 * Primary vCPU slot, set once at first successful init and
+	 * never cleared after the primary has entered pvmfw. Encodings:
+	 *   NULL                - no primary claimed.
+	 *   real vCPU pointer   - claimed; for pvmfw VMs, not yet entered.
+	 *   PKVM_PVMFW_ENTERED  - claimed and has entered pvmfw (sticky).
 	 */
-	unsigned int nr_vcpus;
+	struct pkvm_hyp_vcpu *primary_vcpu;
+
+	unsigned short refcount;
+
+	hyp_spinlock_t vcpus_lock;
 
 	/*
-	 * True when the guest is being torn down. When in this state, the
-	 * guest's vCPUs can't be loaded anymore, but its pages can be
+	 * Bigger than one when the guest is being torn down. When in this state,
+	 * the guest's vCPUs can't be loaded anymore, but its pages can be
 	 * reclaimed by the host.
 	 */
-	bool is_dying;
+	enum protected_vm_state is_dying;
+
+	struct kvm_ffa_buffers ffa_buf;
+	struct list_head vm_list;
 
 	/* Array of the hyp vCPU structures for this VM. */
 	struct pkvm_hyp_vcpu *vcpus[];
 };
+
+struct ffa_mem_transfer *__pkvm_get_vm_ffa_transfer(u16 handle);
 
 static inline struct pkvm_hyp_vm *
 pkvm_hyp_vcpu_to_hyp_vm(struct pkvm_hyp_vcpu *hyp_vcpu)
@@ -88,17 +115,14 @@ pkvm_hyp_vcpu_to_hyp_vm(struct pkvm_hyp_vcpu *hyp_vcpu)
 	return container_of(hyp_vcpu->vcpu.kvm, struct pkvm_hyp_vm, kvm);
 }
 
-static inline bool vcpu_is_protected(struct kvm_vcpu *vcpu)
-{
-	if (!is_protected_kvm_enabled())
-		return false;
-
-	return vcpu->kvm->arch.pkvm.enabled;
-}
-
 static inline bool pkvm_hyp_vcpu_is_protected(struct pkvm_hyp_vcpu *hyp_vcpu)
 {
 	return vcpu_is_protected(&hyp_vcpu->vcpu);
+}
+
+static inline bool pkvm_hyp_vm_is_protected(struct pkvm_hyp_vm *hyp_vm)
+{
+	return kvm_vm_is_protected(&hyp_vm->kvm);
 }
 
 extern phys_addr_t pvmfw_base;
@@ -106,29 +130,38 @@ extern phys_addr_t pvmfw_size;
 
 void pkvm_hyp_vm_table_init(void *tbl);
 
-int __pkvm_init_vm(struct kvm *host_kvm, unsigned long vm_hva,
-		   unsigned long pgd_hva, unsigned long last_ran_hva);
-int __pkvm_init_vcpu(pkvm_handle_t handle, struct kvm_vcpu *host_vcpu,
-		     unsigned long vcpu_hva);
+struct kvm_hyp_req *
+pkvm_hyp_req_reserve(struct pkvm_hyp_vcpu *hyp_vcpu, u8 type);
+
+int __pkvm_init_vm(struct kvm *host_kvm, unsigned long pgd_hva);
+int __pkvm_init_vcpu(pkvm_handle_t handle, struct kvm_vcpu *host_vcpu);
 int __pkvm_start_teardown_vm(pkvm_handle_t handle);
 int __pkvm_finalize_teardown_vm(pkvm_handle_t handle);
-int __pkvm_reclaim_dying_guest_page(pkvm_handle_t handle, u64 pfn, u64 ipa);
+int __pkvm_reclaim_dying_guest_page(pkvm_handle_t handle, u64 pfn, u64 gfn, u8 order);
+int __pkvm_reclaim_dying_guest_ffa_resources(pkvm_handle_t handle);
+int __pkvm_notify_guest_vm_avail(pkvm_handle_t handle);
 
 struct pkvm_hyp_vcpu *pkvm_load_hyp_vcpu(pkvm_handle_t handle,
 					 unsigned int vcpu_idx);
 void pkvm_put_hyp_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu);
 struct pkvm_hyp_vcpu *pkvm_get_loaded_hyp_vcpu(void);
 
-u64 pvm_read_id_reg(const struct kvm_vcpu *vcpu, u32 id);
+struct pkvm_hyp_vm *get_pkvm_hyp_vm(pkvm_handle_t handle);
+void put_pkvm_hyp_vm(struct pkvm_hyp_vm *hyp_vm);
+struct pkvm_hyp_vm *get_np_pkvm_hyp_vm(pkvm_handle_t handle);
+
 bool kvm_handle_pvm_sysreg(struct kvm_vcpu *vcpu, u64 *exit_code);
 bool kvm_handle_pvm_restricted(struct kvm_vcpu *vcpu, u64 *exit_code);
+void kvm_init_pvm_id_regs(struct kvm_vcpu *vcpu);
 void kvm_reset_pvm_sys_regs(struct kvm_vcpu *vcpu);
 int kvm_check_pvm_sysreg_table(void);
 
-void pkvm_reset_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu);
+int pkvm_reset_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu);
 
 bool kvm_handle_pvm_hvc64(struct kvm_vcpu *vcpu, u64 *exit_code);
 bool kvm_hyp_handle_hvc64(struct kvm_vcpu *vcpu, u64 *exit_code);
+
+bool kvm_handle_pvm_smc64(struct kvm_vcpu *vcpu, u64 *exit_code);
 
 struct pkvm_hyp_vcpu *pkvm_mpidr_to_hyp_vcpu(struct pkvm_hyp_vm *vm, u64 mpidr);
 
@@ -152,5 +185,60 @@ static inline bool pkvm_ipa_range_has_pvmfw(struct pkvm_hyp_vm *vm,
 int pkvm_load_pvmfw_pages(struct pkvm_hyp_vm *vm, u64 ipa, phys_addr_t phys,
 			  u64 size);
 void pkvm_poison_pvmfw_pages(void);
+
+int pkvm_timer_init(void);
+void pkvm_udelay(unsigned long usecs);
+
+#define MAX_POWER_DOMAINS		40
+
+struct kvm_power_domain_ops {
+	int (*power_on)(struct kvm_power_domain *pd);
+	int (*power_off)(struct kvm_power_domain *pd);
+};
+
+int pkvm_init_hvc_pd(struct kvm_power_domain *pd,
+		     const struct kvm_power_domain_ops *ops);
+
+int pkvm_host_hvc_pd(u64 device_id, u64 on);
+int pkvm_init_scmi_pd(struct kvm_power_domain *pd,
+		      const struct kvm_power_domain_ops *ops);
+
+bool pkvm_device_request_mmio(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code);
+bool pkvm_device_request_dma(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code);
+bool pkvm_device_request_power(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code);
+void pkvm_device_request_power_pvm_entry(struct pkvm_hyp_vcpu *hyp_vcpu);
+void pkvm_devices_teardown(struct pkvm_hyp_vm *vm);
+int pkvm_devices_get_context(u64 iommu_id, u32 endpoint_id, struct pkvm_hyp_vm *vm);
+void pkvm_devices_put_context(u64 iommu_id, u32 endpoint_id);
+
+/*
+ * Register a power domain. When the hypervisor catches power requests from the
+ * host for this power domain, it calls the power ops with @pd as argument.
+ */
+static inline int pkvm_init_power_domain(struct kvm_power_domain *pd,
+					 const struct kvm_power_domain_ops *ops)
+{
+	switch (pd->type) {
+	case KVM_POWER_DOMAIN_NONE:
+		return 0;
+	case KVM_POWER_DOMAIN_HOST_HVC:
+		return pkvm_init_hvc_pd(pd, ops);
+	case KVM_POWER_DOMAIN_ARM_SCMI:
+		return pkvm_init_scmi_pd(pd, ops);
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
+int pkvm_init_devices(void);
+int pkvm_device_hyp_assign_mmio(u64 pfn, u64 nr_pages);
+int pkvm_device_reclaim_mmio(u64 pfn, u64 nr_pages);
+int pkvm_host_map_guest_mmio(struct pkvm_hyp_vcpu *hyp_vcpu, u64 pfn, u64 gfn);
+int pkvm_device_register_reset(u64 phys, void *cookie,
+			       int (*cb)(void *cookie, bool host_to_guest));
+int pkvm_device_register_power_lock(u64 phys, void *cookie,
+				       int (*cb)(void *cookie, bool lock));
+u32 hyp_vcpu_to_ffa_handle(struct pkvm_hyp_vcpu *hyp_vcpu);
+u32 vm_handle_to_ffa_handle(pkvm_handle_t vm_handle);
 
 #endif /* __ARM64_KVM_NVHE_PKVM_H__ */

@@ -9,22 +9,23 @@
 /* system use cases */
 &max77759_chg {
 	/* external boost */
-	max77759,bst-on = <&max777x9_gpio 4 GPIO_ACTIVE_HIGH>; /* MW: OTG_BOOST_EN */
-	max77759,extbst-ctl = <&max77759_tcpc_gpio 0 GPIO_ACTIVE_HIGH>;
-	max77759,extbst-mode = <&s2mpg14_gpio 4 GPIO_ACTIVE_HIGH>;
-	max77759,cpout-ctl =  <&p9xxx_gpio 3 GPIO_ACTIVE_HIGH>;
+	max77759,bst-on-gpios = <&max777x9_gpio 4 GPIO_ACTIVE_HIGH>; /* MW: OTG_BOOST_EN */
+	max77759,extbst-ctl-gpios = <&max77759_tcpc_gpio 0 GPIO_ACTIVE_HIGH>;
+	max77759,extbst-mode-gpios = <&s2mpg14_gpio 4 GPIO_ACTIVE_HIGH>;
+	max77759,cpout-ctl-gpios =  <&p9xxx_gpio 3 GPIO_ACTIVE_HIGH>;
+	post-init-providers = <&max77759_tcpc_gpio>;
 
 	/* WLC_TX_SW_EN */
-	/* max77759,ls1-en = <&max777x9_gpio 5 GPIO_ACTIVE_HIGH>; */
+	/* max77759,ls1-en-gpios = <&max777x9_gpio 5 GPIO_ACTIVE_HIGH>; */
 	/* MW_OVP_EN_L configured by USB driver, not here */
 
-	max77759,ls2-en = <&s2mpg14_gpio 3 GPIO_ACTIVE_HIGH>;  /* GRA-M: WLC_TX_SW_EN */
+	max77759,ls2-en-gpios = <&s2mpg14_gpio 3 GPIO_ACTIVE_HIGH>;  /* GRA-M: WLC_TX_SW_EN */
 
 	/* b/202526678 handles for WLC_RX->WLC_RX+GPIO */
-	max77759,wlc-en =  <&gph1 4 GPIO_ACTIVE_HIGH>;
-	max77759,wlc-vout_is_invalid = <&p9xxx_gpio 14 GPIO_ACTIVE_HIGH>;
-	max77759,cpout-en = <&p9xxx_gpio 1 GPIO_ACTIVE_HIGH>;
-	max77759,wlc-spoof = <&p9xxx_gpio 5 GPIO_ACTIVE_HIGH>;
+	max77759,wlc-en-gpios =  <&gph1 4 GPIO_ACTIVE_HIGH>;
+	max77759,wlc-vout_is_invalid-gpios = <&p9xxx_gpio 14 GPIO_ACTIVE_HIGH>;
+	max77759,cpout-en-gpios = <&p9xxx_gpio 1 GPIO_ACTIVE_HIGH>;
+	max77759,wlc-spoof-gpios = <&p9xxx_gpio 5 GPIO_ACTIVE_HIGH>;
 	max77759,wcin-inlim-headroom = <40000>;
 	/* for OTG related usecase*/
 	max77759,rx-to-rx-otg-en; /* support RX -> RX+OTG */
@@ -38,5 +39,5 @@
 	/* max77759,otg-fccm-vbatt-upperbd = <4000>; */
 	/* max77759,otg-fccm-vbatt-lowerbd = <3900>; */
 
-	max77759,gpio_dc_switch = <&p9xxx_gpio 4 GPIO_ACTIVE_HIGH>; /* WLC_RX_SW_EN */
+	max77759,gpio_dc_switch-gpios = <&p9xxx_gpio 4 GPIO_ACTIVE_HIGH>; /* WLC_RX_SW_EN */
 };

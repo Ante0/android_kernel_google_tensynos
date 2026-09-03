@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load(
+    "@kleaf//build/kernel/kleaf:kernel.bzl",
+    "kernel_build",
+    "kernel_build_config",
+)
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
+
+package(
+    default_visibility = [
+        "//visibility:public",
+    ],
+)
+
+# Pass it to --gki_build_config_fragment to generate vmlinux with debug info
+# for profiling
+exports_files([
+    "build.config.gki.debug_info_for_profiling.fragment",
+])
+
+kernel_build_config(
+    name = "etm_build_config",
+    srcs = [
+        # do not sort
+        "//common:set_kernel_dir_build_config",
+        "build.config.etm",
+    ],
+)
+
+kernel_build(
+    name = "etm",
+    srcs = [
+        "//common:kernel_aarch64_sources",
+    ],
+    outs = [],
+    base_kernel = "//common:kernel_aarch64",
+    build_config = ":etm_build_config",
+    defconfig_fragments = [
+        "etm_defconfig",
+    ],
+    make_goals = ["modules"],
+    module_outs = [
+        # keep sorted
+        "drivers/hwtracing/coresight/coresight.ko",
+        "drivers/hwtracing/coresight/coresight-etm4x.ko",
+        "drivers/hwtracing/coresight/coresight-funnel.ko",
+        "drivers/hwtracing/coresight/coresight-replicator.ko",
+        "drivers/hwtracing/coresight/coresight-tmc.ko",
+        "drivers/hwtracing/coresight/coresight-trbe.ko",
+    ],
+    strip_modules = True,
+)
+
+pkg_files(
+    name = "dist_files",
+    srcs = [
+        ":etm",
+        "//common:kernel_aarch64",
+    ],
+    strip_prefix = strip_prefix.files_only(),
+    visibility = ["//visibility:private"],
+)
+
+pkg_install(
+    name = "dist",
+    srcs = [":dist_files"],
+    visibility = ["//visibility:private"],
+    destdir = "out/etm/dist",
+)

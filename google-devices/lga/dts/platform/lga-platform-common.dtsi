@@ -1,0 +1,180 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * LGA platform common device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+#include "lga-platform-i2c.dtsi"
+#include "lga-platform-buttons.dtsi"
+#include "lga-platform-gsa-gsc.dtsi"
+#include "lga-platform-lsio.dtsi"
+#include "lga-platform-modem.dtsi"
+#include "lga-platform-qos-box.dtsi"
+#include "lga-platform-mbfs-cpm-backend.dtsi"
+#include "lga-platform-wlan.dtsi"
+#include "lga-platform-typec-spmi.dtsi"
+#include "lga-platform-eusb-repeater.dtsi"
+#include "lga-platform-usb-role-sw.dtsi"
+#include "lga-platform-nfc.dtsi"
+#include "lga-platform-ese.dtsi"
+#include "lga-platform-haptics.dtsi"
+#include "lga-platform-bluetooth.dtsi"
+#include "lga-platform-gnss.dtsi"
+#include "lga-platform-usbdp-phy.dtsi"
+
+&cpm_ap_ns_req_mba_client_0 {
+	status = "okay";
+};
+
+&cpm_ap_ns_resp_mba_client_1 {
+	status = "okay";
+};
+
+&goog_mba_cpm_iface {
+	status = "okay";
+};
+
+&goog_mba_cpm_iface_test {
+	status = "okay";
+};
+
+&gdmc_ap_non_secure_req_mba_client_2 {
+	status = "okay";
+};
+
+&gdmc_ap_non_secure_resp_mba_client_3 {
+	status = "okay";
+};
+
+&gdmc_ap_critical_req_mba_client_4 {
+	status = "okay";
+};
+
+&gdmc_ap_critical_resp_mba_client_5 {
+	status = "okay";
+};
+
+&gdmc_ap1_req_mba_client_6 {
+	status = "okay";
+};
+
+&gdmc_ap1_resp_mba_client_7 {
+	status = "okay";
+};
+
+&gdmc_ap2_req_mba_client_8 {
+	status = "okay";
+};
+
+&gdmc_ap2_resp_mba_client_9 {
+	status = "okay";
+};
+
+&gdmc_ap3_req_mba_client_10 {
+	status = "okay";
+};
+
+&gdmc_ap3_resp_mba_client_11 {
+	status = "okay";
+};
+
+&goog_mba_aggr_gdmc {
+	status = "okay";
+};
+
+&goog_mba_aggr_gdmc_crit {
+	status = "okay";
+};
+
+&goog_mba_gdmc_iface {
+	status = "okay";
+};
+
+&aoc_ap_0_mba_client_0 {
+	status = "okay";
+};
+
+&aoc_ap_1_mba_client_1 {
+	status = "okay";
+};
+
+&aoc_ap_2_mba_client_2 {
+	status = "okay";
+};
+
+&aoc_ap_3_mba_client_3 {
+	status = "okay";
+};
+
+&aoc_ap_4_mba_client_4 {
+	status = "okay";
+};
+
+&aoc_ap_5_mba_client_5 {
+	status = "okay";
+};
+
+&aoc_ap_6_mba_client_6 {
+	status = "okay";
+};
+
+&aoc_ap_7_mba_client_7 {
+	status = "okay";
+};
+
+&aoc_ap_8_mba_client_8 {
+	status = "okay";
+};
+
+&aoc_ap_9_mba_client_9 {
+	status = "okay";
+};
+
+&aoc_ap_10_mba_client_10 {
+	status = "okay";
+};
+
+&aoc_ap_11_mba_client_11 {
+	status = "okay";
+};
+
+&aoc_ap_12_mba_client_12 {
+	status = "okay";
+};
+
+&aoc_ap_13_mba_client_13 {
+	status = "okay";
+};
+
+&aoc_ap_14_mba_client_14 {
+	status = "okay";
+};
+
+&aoc_ap_15_mba_client_15 {
+	status = "okay";
+};
+
+&aoc_ap_16_mba_client_16 {
+	status = "okay";
+};
+
+&aoc_ap_17_mba_client_17 {
+	status = "okay";
+};
+
+&aoc_ap_18_mba_client_18 {
+	status = "okay";
+};
+
+&aoc_ap_19_mba_client_19 {
+	status = "okay";
+};
+
+&gsa_ap_0_mba_client_0 {
+	status = "okay";
+};
+
+&goog_mba_gdmc_iface_test {
+	status = "okay";
+};

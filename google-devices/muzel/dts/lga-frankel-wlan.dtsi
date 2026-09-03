@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+
+&pcie1 {
+	max-link-speed = <2>;
+	google,posted-rx-q-data-credits = <0x49>;
+};

@@ -1,0 +1,1 @@
+../../../wlan_fw/modules/memory_map/memory_map.h

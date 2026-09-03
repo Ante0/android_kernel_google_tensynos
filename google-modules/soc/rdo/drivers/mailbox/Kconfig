@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_MBA_CTRL
+	tristate "Google MBA controller driver"
+	depends on ARCH_GOOGLE
+	depends on MAILBOX
+	help
+	  Enable support for the Google MailBox Array (MBA) driver.
+	  Google MBA Controller driver allow the mailbox client to communicate
+	  with remote host via Google MBA Controller IP.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config GOOGLE_MBA_CTRL_TEST
+	tristate "Google MBA controller testing module"
+	depends on GOOGLE_MBA_CTRL
+	help
+	  Enable this module to create test client to test the function of Google
+	  MBA controller.
+	  Select Y if you have such device.
+	  If unsure select "N".

@@ -16,12 +16,18 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": %s " fmt, __func__
 
+#pragma clang diagnostic ignored "-Wenum-conversion"
+#pragma clang diagnostic ignored "-Wswitch"
+#pragma clang diagnostic ignored "-Wunused-function"
+
+#include <linux/cleanup.h>
 #include <linux/debugfs.h>
 #include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
+#include <misc/logbuffer.h>
 #include "max77779_fg.h"
 
 /* sync from google/logbuffer.c */
@@ -60,7 +66,8 @@ enum max77779_fg_command_bits {
 static irqreturn_t max77779_fg_irq_thread_fn(int irq, void *obj);
 static int max77779_fg_set_next_update(struct max77779_fg_chip *chip);
 static int max77779_fg_update_cycle_count(struct max77779_fg_chip *chip);
-static int max77779_fg_apply_register(struct max77779_fg_chip *chip, struct device_node *node);
+static int max77779_fg_apply_register(struct max77779_fg_chip *chip,
+				      const struct device_node *node);
 static u16 max77779_fg_save_battery_cycle(struct max77779_fg_chip *chip, u16 reg_cycle);
 
 /* Do not move reg_write_nolock to public header */
@@ -94,12 +101,6 @@ static inline int reg_to_cycles(u32 val)
 {
 	/* LSB: 25% of one cycle */
 	return DIV_ROUND_CLOSEST(val * 25, 100);
-}
-
-static inline int reg_to_seconds(s16 val)
-{
-	/* LSB: 5.625 seconds */
-	return DIV_ROUND_CLOSEST((int) val * 5625, 1000);
 }
 
 static inline int reg_to_capacity_uah(u16 val, struct max77779_fg_chip *chip)
@@ -237,12 +238,12 @@ unlock_exit:
 	return ret;
 }
 
-static int max77779_fg_resume_check(struct max77779_fg_chip *chip)
+static int max77779_fg_init_check(struct max77779_fg_chip *chip)
 {
 	int ret = 0;
 
 	pm_runtime_get_sync(chip->dev);
-	if (!chip->init_complete || !chip->resume_complete)
+	if (!chip->init_complete)
 		ret = -EAGAIN;
 	pm_runtime_put_sync(chip->dev);
 
@@ -324,7 +325,7 @@ int max77779_external_fg_reg_read(struct device *dev, uint16_t reg, uint16_t *va
 	if (!chip || !chip->regmap.regmap)
 		return -ENODEV;
 
-	if (max77779_fg_resume_check(chip))
+	if (max77779_fg_init_check(chip))
 		return -EAGAIN;
 
 	tmp = *val;
@@ -347,7 +348,7 @@ int max77779_external_fg_reg_write(struct device *dev, uint16_t reg, uint16_t va
 	if (!chip || !chip->regmap.regmap)
 		return -ENODEV;
 
-	if (max77779_fg_resume_check(chip))
+	if (max77779_fg_init_check(chip))
 		return -EAGAIN;
 
 	mutex_lock(&chip->model_lock);
@@ -372,7 +373,7 @@ int max77779_external_fg_reg_write_nolock(struct device *dev, uint16_t reg, uint
 	if (!chip || !chip->regmap.regmap)
 		return -ENODEV;
 
-	if (max77779_fg_resume_check(chip))
+	if (max77779_fg_init_check(chip))
 		return -EAGAIN;
 
 	return regmap_write(chip->regmap.regmap, reg, val);
@@ -433,6 +434,27 @@ static ssize_t model_state_show(struct device *dev,
 }
 
 static DEVICE_ATTR_RO(model_state);
+
+static ssize_t model_version_show(struct device *dev,
+				struct device_attribute *attr,
+				char *buf)
+{
+	struct power_supply *psy = container_of(dev, struct power_supply, dev);
+	struct max77779_fg_chip *chip = power_supply_get_drvdata(psy);
+	ssize_t len = 0;
+
+	if (!chip->model_data)
+		return -EINVAL;
+
+	mutex_lock(&chip->model_lock);
+	len += scnprintf(&buf[len], PAGE_SIZE - len, "%d\n",
+			 max77779_model_read_version(chip->model_data));
+	mutex_unlock(&chip->model_lock);
+
+	return len;
+}
+
+static DEVICE_ATTR_RO(model_version);
 
 static ssize_t gmsr_show(struct device *dev,
 			 struct device_attribute *attr,
@@ -1301,6 +1323,7 @@ static int max77779_fg_monitor_log_data(struct max77779_fg_chip *chip, bool forc
 {
 	int ret, charge_counter = -1;
 	u16 repsoc, data;
+	char buf[256] = { 0 };
 
 	ret = REGMAP_READ(&chip->regmap, MAX77779_FG_RepSOC, &data);
 	if (ret < 0)
@@ -1310,9 +1333,17 @@ static int max77779_fg_monitor_log_data(struct max77779_fg_chip *chip, bool forc
 	if (repsoc == chip->pre_repsoc && !force_log)
 		return ret;
 
+	ret = maxfg_reg_log_data(&chip->regmap, &chip->regmap_debug, buf);
+	if (ret < 0)
+		return ret;
+
 	ret = max77779_fg_update_battery_qh_based_capacity(chip);
 	if (ret == 0)
 		charge_counter = reg_to_capacity_uah(chip->current_capacity, chip);
+
+	gbms_logbuffer_devlog(chip->monitor_log, chip->dev, LOGLEVEL_INFO, 0, LOGLEVEL_INFO,
+			      "0x%04X %02X:%04X %s CC:%d", MONITOR_TAG_RM, MAX77779_FG_RepSOC, data,
+			      buf, charge_counter);
 
 	/* Log learning entry when reaching 100% and each % drop for SoC < 10% */
 	if (chip->pre_repsoc > 0 && chip->pre_repsoc < 100 && repsoc == 100)
@@ -1520,7 +1551,7 @@ static int max77779_fg_get_property(struct power_supply *psy,
 
 	mutex_lock(&chip->model_lock);
 
-	if (max77779_fg_resume_check(chip) || !chip->model_ok) {
+	if (max77779_fg_init_check(chip) || !chip->model_ok) {
 		mutex_unlock(&chip->model_lock);
 		return -EAGAIN;
 	}
@@ -1628,35 +1659,10 @@ static int max77779_fg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_TEMP:
 		val->intval = max77779_fg_get_temp(chip);
 		break;
-	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG:
-		err = REGMAP_READ(map, MAX77779_FG_TTE, &data);
-		if (err == 0)
-			val->intval = reg_to_seconds(data);
-		break;
-	case POWER_SUPPLY_PROP_TIME_TO_FULL_AVG:
-		err = REGMAP_READ(map, MAX77779_FG_TTF, &data);
-		if (err == 0)
-			val->intval = reg_to_seconds(data);
-		break;
-	case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
-		val->intval = -1;
-		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_AVG:
 		rc = REGMAP_READ(map, MAX77779_FG_AvgVCell, &data);
 		if (rc == 0)
 			val->intval = reg_to_micro_volt(data);
-		break;
-	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
-		/* LSB: 20mV */
-		err = REGMAP_READ(map, MAX77779_FG_MaxMinVolt, &data);
-		if (err == 0)
-			val->intval = ((data >> 8) & 0xFF) * 20000;
-		break;
-	case POWER_SUPPLY_PROP_VOLTAGE_MIN_DESIGN:
-		/* LSB: 20mV */
-		err = REGMAP_READ(map, MAX77779_FG_MaxMinVolt, &data);
-		if (err == 0)
-			val->intval = (data & 0xFF) * 20000;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		rc = REGMAP_READ(map, MAX77779_FG_VCell, &data);
@@ -1808,7 +1814,7 @@ static int max77779_gbms_fg_get_property(struct power_supply *psy,
 
 	mutex_lock(&chip->model_lock);
 
-	if (max77779_fg_resume_check(chip) || !chip->model_ok ||
+	if (max77779_fg_init_check(chip) || !chip->model_ok ||
 	    chip->model_reload != MAX77779_FG_LOAD_MODEL_IDLE) {
 		mutex_unlock(&chip->model_lock);
 		return -EAGAIN;
@@ -1864,13 +1870,9 @@ static int max77779_gbms_fg_get_property(struct power_supply *psy,
 							       chip->aafv_modified_fus;
 		break;
 	default:
-		pr_debug("%s: route to max77779_fg_get_property, psp:%d\n", __func__, psp);
 		err = -ENODATA;
 		break;
 	}
-
-	if (err < 0)
-		pr_debug("error %d reading prop %d\n", err, psp);
 
 	mutex_unlock(&chip->model_lock);
 	return err;
@@ -1887,7 +1889,7 @@ static int max77779_gbms_fg_set_property(struct power_supply *psy,
 	int rc = 0;
 
 	mutex_lock(&chip->model_lock);
-	if (max77779_fg_resume_check(chip) || chip->fw_update_mode) {
+	if (max77779_fg_init_check(chip) || chip->fw_update_mode) {
 		mutex_unlock(&chip->model_lock);
 		return -EAGAIN;
 	}
@@ -1990,24 +1992,21 @@ static int max77779_gbms_fg_property_is_writeable(struct power_supply *psy,
 static int max77779_fg_log_abnormal_events(struct max77779_fg_chip *chip, unsigned int curr_event,
 					   unsigned int last_event)
 {
-	int ret, i;
-	unsigned int changed;
+	unsigned long changed_bits = curr_event ^ last_event;
 	char buf[LOG_BUFFER_ENTRY_SIZE] = {0};
+	int ret, bit;
 
 	ret = maxfg_reg_log_abnormal(&chip->regmap, &chip->regmap_debug, buf, sizeof(buf));
 	if (ret < 0)
 		return ret;
 
 	/* report when event changed (bitflip) */
-	changed = curr_event ^ last_event;
-	for (i = 1; changed > 0 ; i++, changed = changed >> 1, curr_event = curr_event >> 1) {
-		if (!(changed & 0x1))
-			continue;
+	for_each_set_bit(bit, &changed_bits, 32) {
+		int state = !!(curr_event & BIT(bit));
 
-		gbms_logbuffer_devlog(chip->monitor_log, chip->dev,
-				      LOGLEVEL_INFO, 0, LOGLEVEL_INFO,
-				      "0x%04X %d %d%s",
-				      MONITOR_TAG_AB, i, curr_event & 0x1, buf);
+		gbms_logbuffer_devlog(chip->monitor_log, chip->dev, LOGLEVEL_INFO, 0, LOGLEVEL_INFO,
+				      "0x%04X %d %d%s %08X", MONITOR_TAG_AB, bit, state, buf,
+				      (unsigned int)ktime_get_real_seconds());
 	}
 
 	return 0;
@@ -2214,7 +2213,7 @@ static irqreturn_t max77779_fg_irq_thread_fn(int irq, void *obj)
 		return IRQ_NONE;
 	}
 
-	if (irq != -1 && max77779_fg_resume_check(chip)) {
+	if (irq != -1 && max77779_fg_init_check(chip)) {
 		dev_warn_ratelimited(chip->dev, "%s: irq skipped, irq%d\n", __func__, irq);
 		return IRQ_NONE;
 	}
@@ -2284,16 +2283,15 @@ static irqreturn_t max77779_fg_irq_thread_fn(int irq, void *obj)
 #define MAX77779_FG_STUCK_LOGGING_TIMES	5
 #define MAX77779_FG_STUCK_PULL_MS	20000
 #define MAX77779_FG_STUCK_LOG_MS	2000
-#define MAX77779_FG_STUCK_LOG_SIZE	((MAX77779_FG_MAX_LOG_REGS + 2) * 5) /* 2 for header */
 static int max77779_fg_log_stuck_event(struct max77779_fg_chip *chip)
 {
 	int ret, i;
 	u16 data16;
 	size_t len = 0;
-	char buf[MAX77779_FG_STUCK_LOG_SIZE];
-	static const u16 log_fg_reg[] = {0x00, 0x0c, 0x1a, 0x1b, 0x1c, 0x1e, 0x28, 0x3d, 0x3f,
-					 0x40, 0x49, 0x4a, 0x74, 0x7a, 0x7b, 0x7c, 0x7d, 0xab,
-					 0xe9, 0xff};
+	char buf[LOG_BUFFER_ENTRY_SIZE] = {0};
+	const u16 log_fg_reg[] = { 0x00, 0x0c, 0x1a, 0x1b, 0x1c, 0x1e, 0x28, 0x3d,
+				   0x3f, 0x40, 0x49, 0x4a, 0x57, 0x58, 0x74, 0x75,
+				   0x76, 0x7a, 0x7b, 0x7c, 0x7d, 0xab, 0xe9, 0xff };
 	const size_t log_fg_cnt = ARRAY_SIZE(log_fg_reg);
 
 	for (i = 0; i < log_fg_cnt; i++) {
@@ -2303,13 +2301,16 @@ static int max77779_fg_log_stuck_event(struct max77779_fg_chip *chip)
 		len += scnprintf(&buf[len], sizeof(buf) - len, " %04X", data16);
 	}
 
-	/* fill rest with 0 */
-	for (; i < MAX77779_FG_MAX_LOG_REGS - 1; i++)
+	/*
+	 * Pad the buffer with 0s to ensure the total number of logged register values
+	 * matches the count from abnormal event logs
+	 */
+	for (; i < FG_EVENT_REGS_COUNT + FG_EVENT_DBG_REGS_COUNT; i++)
 		len += scnprintf(&buf[len], sizeof(buf) - len, " %04X", 0);
-
 	gbms_logbuffer_devlog(chip->monitor_log, chip->dev, LOGLEVEL_INFO, 0, LOGLEVEL_INFO,
-			      "%#04X %d 1%s",
-			      MONITOR_TAG_AB, GET_BIT_POSITION(MAXFG_EVENT_STUCK), buf);
+			      "0x%04X %d 1%s %08X", MONITOR_TAG_AB,
+			      GET_BIT_POSITION(MAXFG_EVENT_STUCK), buf,
+			      (unsigned int)ktime_get_real_seconds());
 	chip->fg_stuck_count++;
 
 	return 0;
@@ -2397,10 +2398,14 @@ static struct device_node *max77779_fg_find_batt_node(struct max77779_fg_chip *c
 {
 	const int batt_id = chip->batt_id;
 	const struct device *dev = chip->dev;
-	struct device_node *config_node, *child_node;
+	struct device_node *config_node __free(device_node) = NULL;
+	struct device_node *child_node;
+	bool child_status;
 	u32 batt_id_kohm;
 	int ret;
 
+	/* balance of_node_put() in of_find_node_by_name() */
+	of_node_get(dev->of_node);
 	config_node = of_find_node_by_name(dev->of_node, "max77779,config");
 	if (!config_node) {
 		dev_warn(dev, "Failed to find max77779,config setting\n");
@@ -2410,6 +2415,10 @@ static struct device_node *max77779_fg_find_batt_node(struct max77779_fg_chip *c
 	for_each_child_of_node(config_node, child_node) {
 		ret = of_property_read_u32(child_node, "max77779,batt-id-kohm", &batt_id_kohm);
 		if (ret != 0)
+			continue;
+
+		child_status = of_device_is_available(child_node);
+		if (!child_status)
 			continue;
 
 		if (batt_id == batt_id_kohm)
@@ -2471,7 +2480,7 @@ int max77779_fg_enable_firmware_update(struct device *dev, bool enable) {
 
 	mutex_lock(&chip->model_lock);
 
-	if (max77779_fg_resume_check(chip))
+	if (max77779_fg_init_check(chip))
 		goto max77779_fg_enable_firmware_update_exit;
 
 	/* enable/disable irq for firmware update */
@@ -2496,6 +2505,48 @@ max77779_fg_enable_firmware_update_exit:
 
 EXPORT_SYMBOL_GPL(max77779_fg_enable_firmware_update);
 
+int max77779_fg_vdroop_snapshot(struct device *dev)
+{
+	int ret;
+	struct max77779_fg_chip *chip = dev_get_drvdata(dev);
+	struct maxfg_regmap *map = &chip->regmap;
+	struct max77779_vdroop_snapshot data;
+	u16 val;
+
+	ret = max77779_fg_get_battery_soc(chip);
+	if (ret < 0)
+		goto error;
+
+	data.soc = ret;
+	ret = REGMAP_READ(map, MAX77779_FG_Current, &val);
+	if (ret != 0)
+		goto error;
+
+	data.inow = -reg_to_micro_amp(val, chip->RSense);
+
+	data.temperature = max77779_fg_get_temp(chip);
+	ret = REGMAP_READ(map, MAX77779_FG_VCell, &val);
+	if (ret != 0)
+		goto error;
+
+	data.vnow = reg_to_micro_volt(val);
+	ret = max77779_fg_get_cycle_count(chip);
+	if (ret < 0)
+		goto error;
+
+	data.cycle_count = ret;
+	gbms_logbuffer_devlog(chip->monitor_log, chip->dev, LOGLEVEL_INFO, 0, LOGLEVEL_INFO,
+			      "%#04X SOC:%#04X I:%#04X V:%#04X T:%#04X CYL:%#04X",
+			      MONITOR_TAG_VD, data.soc, data.inow, data.vnow, data.temperature,
+			      data.cycle_count);
+
+
+	return 0;
+error:
+	dev_info(dev, "%s: error: %d\n", __func__, ret);
+	return -EINVAL;
+}
+EXPORT_SYMBOL_GPL(max77779_fg_vdroop_snapshot);
 
 static int debug_ce_start(void *data, u64 val)
 {
@@ -3566,6 +3617,24 @@ static int max77779_fg_log_event(struct max77779_fg_chip *chip, gbms_tag_t tag)
 }
 
 /* handle recovery of FG state */
+static void max77779_fg_check_gmsr_data(struct max77779_fg_chip *chip)
+{
+	int ret;
+
+	if (!chip->model_data)
+		return;
+
+	if (!max77779_fg_model_check_version(chip->model_data) ||
+	    !max77779_fg_check_state(chip->model_data)) {
+		ret = max77779_reset_state_data(chip->model_data);
+		if (ret < 0)
+			dev_err(chip->dev, "GMSR: model data didn't erase ret=%d\n", ret);
+		else
+			dev_warn(chip->dev, "GMSR: model data erased\n");
+	}
+}
+
+/* handle recovery of FG state */
 static int max77779_fg_init_model_data(struct max77779_fg_chip *chip)
 {
 	int ret;
@@ -3575,11 +3644,6 @@ static int max77779_fg_init_model_data(struct max77779_fg_chip *chip)
 
 	if (!max77779_fg_model_check_version(chip->model_data) ||
 	    !max77779_fg_check_state(chip->model_data)) {
-		ret = max77779_reset_state_data(chip->model_data);
-		if (ret < 0)
-			dev_err(chip->dev, "GMSR: model data didn't erase ret=%d\n", ret);
-		else
-			dev_warn(chip->dev, "GMSR: model data erased\n");
 
 		gbms_logbuffer_devlog(chip->ce_log, chip->dev,
 				      LOGLEVEL_INFO, 0, LOGLEVEL_INFO,
@@ -3710,6 +3774,9 @@ static int max77779_fg_init_chip(struct max77779_fg_chip *chip)
 	max77779_fg_update_cycle_count(chip);
 	mutex_unlock(&chip->model_lock);
 
+	/* check if need to erase GMSR */
+	max77779_fg_check_gmsr_data(chip);
+
 	/* triggers loading of the model in the irq handler on POR */
 	if (!chip->por) {
 		ret = max77779_fg_init_model_data(chip);
@@ -3827,7 +3894,6 @@ static void max77779_fg_init_work(struct work_struct *work)
 	mutex_init(&chip->cap_estimate.batt_ce_lock);
 	chip->prev_charge_status = POWER_SUPPLY_STATUS_UNKNOWN;
 	chip->fake_capacity = -EINVAL;
-	chip->resume_complete = true;
 	chip->init_complete = true;
 	chip->bhi_acim = 0;
 
@@ -3887,14 +3953,15 @@ static struct attribute *max77779_fg_attrs[] = {
 	&dev_attr_resistance.attr,
 	&dev_attr_gmsr.attr,
 	&dev_attr_model_state.attr,
+	&dev_attr_model_version.attr,
 	&dev_attr_fg_abnormal_events.attr,
 	&dev_attr_fg_learning_events.attr,
 	&dev_attr_registers_dump.attr,
 	&dev_attr_aafv_config.attr,
+	&dev_attr_full_cap_rep.attr,
 	&dev_attr_bypass_chargelimit_fcn_delta.attr,
 	&dev_attr_bypass_chargelimit_cycle_delta.attr,
 	&dev_attr_bypass_chargelimit_mode.attr,
-	&dev_attr_full_cap_rep.attr,
 	NULL,
 };
 
@@ -3902,7 +3969,8 @@ static const struct attribute_group max77779_fg_attr_grp = {
 	.attrs = max77779_fg_attrs,
 };
 
-static int max77779_fg_apply_register(struct max77779_fg_chip *chip, struct device_node *node)
+static int max77779_fg_apply_register(struct max77779_fg_chip *chip,
+				      const struct device_node *node)
 {
 	struct maxfg_regmap *regmap;
 	const char *propname[] = {"max77779,fg_regval", "max77779,fg_n_regval"};
@@ -4163,6 +4231,8 @@ void max77779_fg_remove(struct max77779_fg_chip *chip)
 		power_supply_unregister(chip->psy);
 
 	maxfg_free_capture_buf(&chip->cb_lh);
+
+	of_node_put(chip->batt_node);
 }
 EXPORT_SYMBOL_GPL(max77779_fg_remove);
 
@@ -4173,8 +4243,6 @@ int max77779_fg_pm_suspend(struct device *dev)
 
 	pm_runtime_get_sync(chip->dev);
 	dev_dbg(chip->dev, "%s\n", __func__);
-	chip->resume_complete = false;
-
 	pm_runtime_put_sync(chip->dev);
 
 	return 0;
@@ -4187,8 +4255,6 @@ int max77779_fg_pm_resume(struct device *dev)
 
 	pm_runtime_get_sync(chip->dev);
 	dev_dbg(chip->dev, "%s\n", __func__);
-	chip->resume_complete = true;
-
 	pm_runtime_put_sync(chip->dev);
 
 	return 0;

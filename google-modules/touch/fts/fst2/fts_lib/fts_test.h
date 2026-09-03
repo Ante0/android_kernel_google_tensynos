@@ -17,10 +17,10 @@
   *Production Test
   */
 
-#ifndef FTS_TEST_H
-#define FTS_TEST_H
+#ifndef _FTS_TEST_H_
+#define _FTS_TEST_H_
 
-#include "fts_io.h"
+#include "../fts.h"
 
 #define MAX_LIMIT_FILE_NAME 100/* /< max number of chars of the limit file name
 				 * */
@@ -57,7 +57,6 @@ struct limit_file {
 							 * limits data array */
 #endif
 
-
 /** @defgroup mp_test Mass Production Test
   * Mass production test API.
   * Mass Production Test (MP) should be executed at least one time in the life
@@ -93,83 +92,95 @@ struct limit_file {
   */
 
 struct test_to_do {
+	int mutual_raw;		/* /<check Raw data in a node is within the
+				* min and max value provided for that node*/
+	int mutual_raw_lp;	/* /<check LP Raw data in a node is within the
+				* min and max value provided for that node*/
 	int mutual_ito_raw;	/* /<check ITO Raw data in a node is
 				* within the min and max value provided
 				* for that node*/
 	int mutual_ito_raw_adj;	/* /<check ITO RawH/V data in a node is
 				* within the min and max value provided
 				* for that node*/
-	int mutual_raw;		/* /<check Raw data in a node is within the
-				* min and max value provided for that node*/
-	int mutual_raw_lp;	/* /<check LP Raw data in a node is within the
-				* min and max value provided for that node*/
+	int mutual_strength; /* /<check strength data in a node is within the
+						 min and max value provided for that node */
+	int mutual_cx_lp;	/* /<check Mutual Total CX in a node is within
+			* the min and max value provided for that node*/
+	int mutual_cx_lp_adj;	/* /<check Mutual Total CX Hor/Ver in a node is
+				* within the min and max value provided for that
+				* node*/
 	int self_force_raw;	/* /<check Self Force Raw in a node is within
 				* the min and max value provided for that node*/
 	int self_force_raw_lp;	/* /<check Self Force RawLP in a node is within
 				* the min and max value provided for that node*/
+	int self_force_ix;	/* /<check self Total IX force in a node is
+			* within the min and max value provided for
+			* that node*/
+	int self_force_ix_lp;	/* /<check self Total IX force LP in a node is
+				* within the min and max value provided for that
+				* node*/
 	int self_sense_raw;	/* /<check Self Sense Raw in a node is within
 				* the min and max value provided for that node*/
 	int self_sense_raw_lp;	/* /<check Self Sense RawLp in a node is within
 				* the min and max value provided for that node*/
-	int mutual_cx_lp;	/* /<check Mutual Total CX in a node is within
-				* the min and max value provided for that node*/
-	int mutual_cx_lp_adj;	/* /<check Mutual Total CX Hor/Ver in a node is
-				* within the min and max value provided for that
-				* node*/
-	int self_force_ix;	/* /<check self Total IX force in a node is
-				* within the min and max value provided for
-				* that node*/
-	int self_force_ix_lp;	/* /<check self Total IX force LP in a node is
-				* within the min and max value provided for that
-				* node*/
 	int self_sense_ix;	/* /<check self Total IX sense in a node is
 				* within the min and max value provided for
 				* that node*/
 	int self_sense_ix_lp;	/* /<check self Total IX sense LP in a node is
 				* within the min and max value provided for
 				* that node*/
+	int reset_pin;	/* /<check reset pin behaviour for production test */
+	int intb_pin;	/* /<check intb pin behaviour for production test */
+	int flash_writing_enable;	/* /<check flash_writing_enable behaviour
+				* for production test */
 };
-
 
 #define WAIT_FOR_FRESH_FRAMES		200
 #define WAIT_AFTER_SENSEOFF		50
 #define NO_INIT				0
 #define RETRY_INIT_BOOT			3
 
-#define MS_RAW_ITO_ADJH			"MS_ITO_RAW_ADJ_HOR"
-#define MS_RAW_ITO_ADJV			"MS_ITO_RAW_ADJ_VER"
-#define MS_RAW_ITO_EACH_NODE_MIN	"MS_ITO_RAW_MIN"
-#define MS_RAW_ITO_EACH_NODE_MAX	"MS_ITO_RAW_MAX"
-#define MS_RAW_EACH_NODE_MIN		"MS_RAW_MIN"
-#define MS_RAW_EACH_NODE_MAX		"MS_RAW_MAX"
-#define MS_RAW_LP_EACH_NODE_MIN		"MS_LP_RAW_MIN"
-#define MS_RAW_LP_EACH_NODE_MAX		"MS_LP_RAW_MAX"
-#define SS_RAW_FORCE_EACH_NODE_MIN	"SS_RAW_FORCE_MIN"
-#define SS_RAW_FORCE_EACH_NODE_MAX	"SS_RAW_FORCE_MAX"
-#define SS_RAW_SENSE_EACH_NODE_MIN	"SS_RAW_SENSE_MIN"
-#define SS_RAW_SENSE_EACH_NODE_MAX	"SS_RAW_SENSE_MAX"
-#define SS_RAW_LP_FORCE_EACH_NODE_MIN	"SS_LP_RAW_FORCE_MIN"
-#define SS_RAW_LP_FORCE_EACH_NODE_MAX	"SS_LP_RAW_FORCE_MAX"
-#define SS_RAW_LP_SENSE_EACH_NODE_MIN	"SS_LP_RAW_SENSE_MIN"
-#define SS_RAW_LP_SENSE_EACH_NODE_MAX	"SS_LP_RAW_SENSE_MIN"
-#define MS_TOTAL_CX_LP_MIN				"MS_LP_TOTAL_CX_MIN"
-#define MS_TOTAL_CX_LP_MAX				"MS_LP_TOTAL_CX_MAX"
-#define MS_TOTAL_CX_LP_ADJH				"MS_LP_TOTAL_CX_ADJ_HOR"
-#define MS_TOTAL_CX_LP_ADJV				"MS_LP_TOTAL_CX_ADJ_VER"
-#define SS_FORCE_TOTAL_IX_MIN			"SS_TOTAL_IX_FORCE_MIN"
-#define SS_FORCE_TOTAL_IX_MAX			"SS_TOTAL_IX_FORCE_MAX"
-#define SS_FORCE_TOTAL_IX_LP_MIN		"SS_LP_TOTAL_IX_FORCE_MIN"
-#define SS_FORCE_TOTAL_IX_LP_MAX		"SS_LP_TOTAL_IX_FORCE_MAX"
-#define SS_SENSE_TOTAL_IX_MIN			"SS_TOTAL_IX_SENSE_MIN"
-#define SS_SENSE_TOTAL_IX_MAX			"SS_TOTAL_IX_SENSE_MAX"
-#define SS_SENSE_TOTAL_IX_LP_MIN		"SS_LP_TOTAL_IX_SENSE_MIN"
-#define SS_SENSE_TOTAL_IX_LP_MAX		"SS_LP_TOTAL_IX_SENSE_MAX"
 
+#define MS_RAW_MIN		            "MS_RAW_MIN"
+#define MS_RAW_MAX		            "MS_RAW_MAX"
+#define MS_LP_RAW_MIN		        "MS_LP_RAW_MIN"
+#define MS_LP_RAW_MAX		        "MS_LP_RAW_MAX"
+#define MS_ITO_RAW_MIN	            "MS_ITO_RAW_MIN"
+#define MS_ITO_RAW_MAX	            "MS_ITO_RAW_MAX"
+#define MS_ITO_RAW_ADJ_HOR			"MS_ITO_RAW_ADJ_HOR"
+#define MS_ITO_RAW_ADJ_VER			"MS_ITO_RAW_ADJ_VER"
+#define MS_STRENGTH_MIN             "MS_STRENGTH_MIN"
+#define MS_STRENGTH_MAX             "MS_STRENGTH_MAX"
+#define MS_LP_TOTAL_CX_MIN			"MS_LP_TOTAL_CX_MIN"
+#define MS_LP_TOTAL_CX_MAX			"MS_LP_TOTAL_CX_MAX"
+#define MS_LP_TOTAL_CX_ADJ_HOR		"MS_LP_TOTAL_CX_ADJ_HOR"
+#define MS_LP_TOTAL_CX_ADJ_VER		"MS_LP_TOTAL_CX_ADJ_VER"
+#define SS_RAW_FORCE_MIN	        "SS_RAW_FORCE_MIN"
+#define SS_RAW_FORCE_MAX	        "SS_RAW_FORCE_MAX"
+#define SS_LP_RAW_FORCE_MIN	        "SS_LP_RAW_FORCE_MIN"
+#define SS_LP_RAW_FORCE_MAX	        "SS_LP_RAW_FORCE_MAX"
+#define SS_TOTAL_IX_FORCE_MIN		"SS_TOTAL_IX_FORCE_MIN"
+#define SS_TOTAL_IX_FORCE_MAX		"SS_TOTAL_IX_FORCE_MAX"
+#define SS_LP_TOTAL_IX_FORCE_MIN	"SS_LP_TOTAL_IX_FORCE_MIN"
+#define SS_LP_TOTAL_IX_FORCE_MAX	"SS_LP_TOTAL_IX_FORCE_MAX"
+#define SS_RAW_SENSE_MIN	        "SS_RAW_SENSE_MIN"
+#define SS_RAW_SENSE_MAX			"SS_RAW_SENSE_MAX"
+#define SS_TOTAL_IX_SENSE_MIN		"SS_TOTAL_IX_SENSE_MIN"
+#define SS_TOTAL_IX_SENSE_MAX		"SS_TOTAL_IX_SENSE_MAX"
+#define SS_LP_RAW_SENSE_MIN	        "SS_LP_RAW_SENSE_MIN"
+#define SS_LP_RAW_SENSE_MAX	        "SS_LP_RAW_SENSE_MAX"
+#define SS_LP_TOTAL_IX_SENSE_MIN	"SS_LP_TOTAL_IX_SENSE_MIN"
+#define SS_LP_TOTAL_IX_SENSE_MAX	"SS_LP_TOTAL_IX_SENSE_MAX"
+#define FLASH_WRITING_ENABLE		"FLASH_WRITING_ENABLE"
+#define RSTB_PIN_TOGGLE				"RSTB_PIN_TOGGLE"
+#define INTB_PIN_TOGGLE				"INTB_PIN_TOGGLE"
 
 
 
 
 int init_test_to_do(void);
+int enable_production_test_limits(char *path, struct limit_file *file,
+				char *label, int *enabled);
 int parse_production_test_limits(char *path, struct limit_file *file,
 			char *label, int **data, int *row, int *column);
 int read_line(char *data, char *line, int size, int *n);
@@ -199,15 +210,18 @@ int check_limits_map_total(short *data, int row, int column,
   * in order to satisfy different scenarios
   * @{
   */
-int fts_production_test_ito(char *path_limits, struct test_to_do *tests);
+int fts_production_test_ito( char *path_limits, struct test_to_do *tests);
 int fts_production_test_ms_raw(char *path_limits, struct test_to_do *tests);
 int fts_production_test_ms_raw_lp(char *path_limits, struct test_to_do *tests);
+int fts_production_test_ms_strength(char *path_limits, struct test_to_do *tests);
 int fts_production_test_ss_raw(char *path_limits, struct test_to_do *tests);
 int fts_production_test_ss_raw_lp(char *path_limits, struct test_to_do *tests);
-int fts_production_test_ms_cx_lp(char *path_limits, int stop_on_fail,
-					struct test_to_do *tests);
+int fts_production_test_ms_cx_lp(char *path_limits, struct test_to_do *tests);
 int fts_production_test_ss_ix(char *path_limits, struct test_to_do *tests);
 int fts_production_test_ss_ix_lp(char *path_limits, struct test_to_do *tests);
+int fts_production_test_reset_pin(char *path_limits, struct test_to_do *tests);
+int fts_production_test_intb_pin(char *path_limits, struct test_to_do *tests);
+int fts_production_test_flash_writing_enable(char *path_limits, struct test_to_do *tests);
 int fts_production_test_main(char *path_limits, int stop_on_fail,
 					struct test_to_do *tests, int do_init);
 /** @}*/

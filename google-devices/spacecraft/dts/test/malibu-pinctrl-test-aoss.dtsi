@@ -1,0 +1,439 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,mbu.h>
+
+&aoss_pinctrl {
+	xaoss_amb_spi0_mosi_default: xaoss_amb_spi0_mosi_default {
+		pins = "XAOSS_AMB_SPI0_MOSI";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "aoss_spi0";
+	};
+
+	xaoss_amb_spi0_sclk_default: xaoss_amb_spi0_sclk_default {
+		pins = "XAOSS_AMB_SPI0_SCLK";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "aoss_spi0";
+	};
+
+	xaoss_sc_i2c2_sda_default: xaoss_sc_i2c2_sda_default {
+		pins = "XAOSS_SC_I2C2_SDA";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "aoss_i2c2";
+	};
+
+	xaoss_cpm_gpio6_default: xaoss_cpm_gpio6_default {
+		pins = "XAOSS_CPM_GPIO6";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_sc_gpio9_default: xaoss_sc_gpio9_default {
+		pins = "XAOSS_SC_GPIO9";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_amb_uart1_txd_default: xaoss_amb_uart1_txd_default {
+		pins = "XAOSS_AMB_UART1_TXD";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "aoss_uart1";
+	};
+
+	xaoss_amb_spi3_csn_default: xaoss_amb_spi3_csn_default {
+		pins = "XAOSS_AMB_SPI3_CSn";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_cpm_i2c0_scl_default: xaoss_cpm_i2c0_scl_default {
+		bias-pull-up;
+		output-high;
+	};
+
+	xaoss_cpm_gpio4_default: xaoss_cpm_gpio4_default {
+		pins = "XAOSS_CPM_GPIO4";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_cpm_gpi0_default: xaoss_cpm_gpi0_default {
+		pins = "XAOSS_CPM_GPI0";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_amb_spi0_miso_default: xaoss_amb_spi0_miso_default {
+		pins = "XAOSS_AMB_SPI0_MISO";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoss_spi0";
+	};
+
+	xaoss_amb_uart1_ctsn_default: xaoss_amb_uart1_ctsn_default {
+		pins = "XAOSS_AMB_UART1_CTSn";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_amb_uart0_rtsn_default: xaoss_amb_uart0_rtsn_default {
+		pins = "XAOSS_AMB_UART0_RTSn";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "aoss_uart0";
+	};
+
+	xaoss_cpm_gpio5_default: xaoss_cpm_gpio5_default {
+		pins = "XAOSS_CPM_GPIO5";
+		bias-disable;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_sc_gpio3_default: xaoss_sc_gpio3_default {
+		pins = "XAOSS_SC_GPIO3";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_amb_uart0_rxd_default: xaoss_amb_uart0_rxd_default {
+		pins = "XAOSS_AMB_UART0_RXD";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoss_uart0";
+	};
+
+	xaoss_sc_i2c2_scl_default: xaoss_sc_i2c2_scl_default {
+		pins = "XAOSS_SC_I2C2_SCL";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "aoss_i2c2";
+	};
+
+	xaoss_amb_spi2_mosi_default: xaoss_amb_spi2_mosi_default {
+		pins = "XAOSS_AMB_SPI2_MOSI";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "aoss_i3c2";
+	};
+
+	xaoss_cpm_gpio8_default: xaoss_cpm_gpio8_default {
+		pins = "XAOSS_CPM_GPIO8";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_amb_spi3_mosi_default: xaoss_amb_spi3_mosi_default {
+		pins = "XAOSS_AMB_SPI3_MOSI";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "aoss_i3c3";
+	};
+
+	xaoss_sc_gpio1_default: xaoss_sc_gpio1_default {
+		pins = "XAOSS_SC_GPIO1";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_sc_gpio13_default: xaoss_sc_gpio13_default {
+		pins = "XAOSS_SC_GPIO13";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_amb_uart0_ctsn_default: xaoss_amb_uart0_ctsn_default {
+		pins = "XAOSS_AMB_UART0_CTSn";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoss_uart0";
+	};
+
+	xaoss_sc_i2c3_sda_default: xaoss_sc_i2c3_sda_default {
+		pins = "XAOSS_SC_I2C3_SDA";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_cpm_i2c0_sda_default: xaoss_cpm_i2c0_sda_default {
+		bias-pull-up;
+		output-high;
+	};
+
+	xaoss_amb_uart4_rtsn_default: xaoss_amb_uart4_rtsn_default {
+		pins = "XAOSS_AMB_UART4_RTSn";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_amb_spi1_sclk_default: xaoss_amb_spi1_sclk_default {
+		pins = "XAOSS_AMB_SPI1_SCLK";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "aoss_spi1";
+	};
+
+	xaoss_amb_spi3_sclk_default: xaoss_amb_spi3_sclk_default {
+		pins = "XAOSS_AMB_SPI3_SCLK";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "aoss_i3c3";
+	};
+
+	xaoss_amb_spi1_miso_default: xaoss_amb_spi1_miso_default {
+		pins = "XAOSS_AMB_SPI1_MISO";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoss_spi1";
+	};
+
+	xaoss_amb_spi0_csn_default: xaoss_amb_spi0_csn_default {
+		pins = "XAOSS_AMB_SPI0_CSn";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_amb_spi1_mosi_default: xaoss_amb_spi1_mosi_default {
+		pins = "XAOSS_AMB_SPI1_MOSI";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "aoss_spi1";
+	};
+
+	xaoss_cpm_gpio11_default: xaoss_cpm_gpio11_default {
+		pins = "XAOSS_CPM_GPIO11";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_amb_spi2_sclk_default: xaoss_amb_spi2_sclk_default {
+		pins = "XAOSS_AMB_SPI2_SCLK";
+		bias-disable;
+		drive-strength = <2>;
+		input-enable;
+		output-enable;
+		function = "aoss_i3c2";
+	};
+
+	xaoss_sc_gpio2_default: xaoss_sc_gpio2_default {
+		pins = "XAOSS_SC_GPIO2";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_sc_spi6_csn_default: xaoss_sc_spi6_csn_default {
+		pins = "XAOSS_SC_SPI6_CSn";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_amb_uart1_rtsn_default: xaoss_amb_uart1_rtsn_default {
+		pins = "XAOSS_AMB_UART1_RTSn";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_cpm_gpio12_default: xaoss_cpm_gpio12_default {
+		pins = "XAOSS_CPM_GPIO12";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_cpm_gpi1_default: xaoss_cpm_gpi1_default {
+		pins = "XAOSS_CPM_GPI1";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_cpm_gpio1_default: xaoss_cpm_gpio1_default {
+		pins = "XAOSS_CPM_GPIO1";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_amb_uart0_txd_default: xaoss_amb_uart0_txd_default {
+		pins = "XAOSS_AMB_UART0_TXD";
+		bias-disable;
+		drive-strength = <1>;
+		input-enable;
+		output-enable;
+		function = "aoss_uart0";
+	};
+
+	xaoss_amb_uart3_rtsn_default: xaoss_amb_uart3_rtsn_default {
+		pins = "XAOSS_AMB_UART3_RTSn";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_cpm_gpio10_default: xaoss_cpm_gpio10_default {
+		pins = "XAOSS_CPM_GPIO10";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_sc_gpio5_default: xaoss_sc_gpio5_default {
+		pins = "XAOSS_SC_GPIO5";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_sc_gpio4_default: xaoss_sc_gpio4_default {
+		pins = "XAOSS_SC_GPIO4";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_amb_uart3_ctsn_default: xaoss_amb_uart3_ctsn_default {
+		pins = "XAOSS_AMB_UART3_CTSn";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_amb_spi2_miso_default: xaoss_amb_spi2_miso_default {
+		pins = "XAOSS_AMB_SPI2_MISO";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_amb_spi1_csn_default: xaoss_amb_spi1_csn_default {
+		pins = "XAOSS_AMB_SPI1_CSn";
+		bias-disable;
+		drive-strength = <4>;
+		input-enable;
+		output-enable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_sc_gpio12_default: xaoss_sc_gpio12_default {
+		pins = "XAOSS_SC_GPIO12";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_amb_uart1_rxd_default: xaoss_amb_uart1_rxd_default {
+		pins = "XAOSS_AMB_UART1_RXD";
+		bias-pull-up;
+		input-enable;
+		output-disable;
+		function = "aoss_uart1";
+	};
+
+	xaoss_sc_gpio11_default: xaoss_sc_gpio11_default {
+		pins = "XAOSS_SC_GPIO11";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoss_gpio";
+	};
+
+	xaoss_amb_spi3_miso_default: xaoss_amb_spi3_miso_default {
+		pins = "XAOSS_AMB_SPI3_MISO";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "aoss_spi3";
+	};
+
+	xaoss_amb_spi2_csn_default: xaoss_amb_spi2_csn_default {
+		pins = "XAOSS_AMB_SPI2_CSn";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "aoss_gpio";
+	};
+};

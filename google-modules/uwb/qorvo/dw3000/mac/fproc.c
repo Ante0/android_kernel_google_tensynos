@@ -22,6 +22,7 @@
  */
 #include <linux/module.h>
 
+#include "mcps802154_fproc.h"
 #include "mcps802154_i.h"
 #include "llhw-ops.h"
 

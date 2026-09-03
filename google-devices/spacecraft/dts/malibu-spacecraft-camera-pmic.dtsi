@@ -1,0 +1,737 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * camera PMIC device tree for spacecraft
+ *
+ * Copyright 2025 Google LLC.
+ *
+ */
+
+/ {
+	fragment@rcam_supply {
+		target-path = "/";
+		__overlay__ {
+			/* SN62088AYFPR */
+			cam_pp2500_mvbuck: cam_supply@0 {
+				compatible = "regulator-fixed";
+				status = "okay";
+				regulator-name = "PP2500_CAM";
+				regulator-min-microvolt = <2500000>;
+				regulator-max-microvolt = <2500000>;
+				/* 1.25ms */
+				regulator-enable-ramp-delay = <1250>;
+				enable-active-high;
+				/* MVBUCK_EN */
+				gpio = <PMICM2CAM_LVBUCK_EN(GPIO_ACTIVE_HIGH)>;
+			};
+			/* AP7361C */
+			cam_ruw_pp2850_vana: cam_supply@1 {
+				compatible = "regulator-fixed";
+				status = "okay";
+				regulator-name = "RUWCAM_VANA";
+				regulator-min-microvolt = <2850000>;
+				regulator-max-microvolt = <2850000>;
+				/* 300us */
+				regulator-enable-ramp-delay = <300>;
+				enable-active-high;
+				/* VANA_EN */
+				gpio = <PMICM2RCAM_VANA_EN(GPIO_ACTIVE_HIGH)>;
+			};
+		};
+	};
+};
+
+&lsioe_i2c0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	slg51002: slg51002@75 {
+		compatible = "dlg,slg51002";
+		reg = <0x75>;
+		status = "ok";
+		dlg,buck-gpios = <PMICS2CAM_MVBUCK_EN(GPIO_ACTIVE_HIGH)>;
+		dlg,bb-gpios = <&da9188_gpio 9 GPIO_ACTIVE_HIGH>;
+		dlg,cs-gpios = <PMICS2CAM_PMIC_EN(GPIO_ACTIVE_HIGH)>;
+		dlg,reg-init-cells = <2>;
+
+		regulators {
+			slg51002_ldo1: ldo1 {
+				regulator-name = "ldo1";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <3750000>;
+			};
+
+			slg51002_ldo2: ldo2 {
+				regulator-name = "ldo2";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <3750000>;
+			};
+
+			slg51002_ldo3: ldo3 {
+				regulator-name = "ldo3";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <3750000>;
+			};
+
+			slg51002_ldo4: ldo4 {
+				regulator-name = "ldo4";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <3750000>;
+			};
+
+			slg51002_ldo5: ldo5 {
+				regulator-name = "ldo5";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <3750000>;
+			};
+
+			slg51002_ldo6: ldo6 {
+				regulator-name = "ldo6";
+				regulator-min-microvolt = <400000>;
+				regulator-max-microvolt = <1675000>;
+			};
+
+			slg51002_ldo7: ldo7 {
+				regulator-name = "ldo7";
+				regulator-min-microvolt = <400000>;
+				regulator-max-microvolt = <1675000>;
+			};
+
+			slg51002_ldo8: ldo8 {
+				regulator-name = "ldo8";
+				regulator-min-microvolt = <400000>;
+				regulator-max-microvolt = <1675000>;
+			};
+
+			slg51002_gpio1: gpio1 {
+				regulator-name = "gpio1";
+				regulator-min-microvolt = <400000>;
+				regulator-max-microvolt = <1675000>;
+			};
+
+			slg51002_gpio2: gpio2 {
+				regulator-name = "gpio2";
+				regulator-min-microvolt = <400000>;
+				regulator-max-microvolt = <1675000>;
+			};
+
+			slg51002_gpio3: gpio3 {
+				regulator-name = "gpio3";
+				regulator-min-microvolt = <400000>;
+				regulator-max-microvolt = <1675000>;
+			};
+
+			slg51002_gpio4: gpio4 {
+				regulator-name = "gpio4";
+				regulator-min-microvolt = <400000>;
+				regulator-max-microvolt = <1675000>;
+			};
+		};
+
+		slg51002_gpio: slg51002_gpio {
+			gpio-controller;
+			#gpio-cells = <2>;
+			ngpios = <8>;
+			gpio-ranges = <&slg51002_pinctrl 0 0 8>;
+		};
+
+		slg51002_pinctrl: slg51002_pinctrl {
+		};
+	};
+
+	sy70206_reg: sy70206@63 {
+		compatible = "sy,sy70206";
+		reg = <0x63>;
+		enable-gpios = <&da9188_gpio 9 GPIO_ACTIVE_HIGH>;
+		status = "ok";
+		regulator-name = "sy70206-regulator";
+		regulator-min-microvolt = <3200000>;
+		regulator-max-microvolt = <3200000>;
+		regulator-always-on;
+		/* REGULATOR_MODE_NORMAL (auto) */
+		regulator-initial-mode = <0x2>;
+		/* Allow for NORMAL (auto) and FAST (FPWM) mode */
+		regulator-allowed-modes = <0x2>, <0x1>;
+	};
+
+	sgm38122_csia: sgm38122@29 {
+		compatible = "sgm,sgm38122";
+		reg = <0x29>;
+		enable-supply = <&sy70206_reg>;
+		status = "ok";
+
+		regulators {
+			sgm38122_dvdd_csia: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+			};
+
+			sgm38122_avdd1_csia: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+
+			sgm38122_avdd2_csia: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+
+			sgm38122_avdd3_csia: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+		};
+	};
+
+	io_expander1: io_expander@0 {
+		compatible = "nxp,pca6416";
+		reg = <0x20>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		vcc-supply = <&ldo_24m_reg>;
+		gpio-line-names =
+			"IO_EXPNDR_GPIO0",
+			"IO_EXPNDR_GPIO1",
+			"IO_EXPNDR_GPIO2",
+			"IO_EXPNDR_GPIO3",
+			"IO_EXPNDR_GPIO4",
+			"IO_EXPNDR_GPIO5",
+			"IO_EXPNDR_GPIO6",
+			"IO_EXPNDR_GPIO7",
+			"IO_EXPNDR_GPIO10",
+			"IO_EXPNDR_GPIO11",
+			"IO_EXPNDR_GPIO12",
+			"IO_EXPNDR_GPIO13",
+			"IO_EXPNDR_GPIO14",
+			"IO_EXPNDR_GPIO15",
+			"IO_EXPNDR_GPIO16",
+			"IO_EXPNDR_GPIO17";
+
+		io_expander1_default_hog {
+			gpio-hog;
+			gpios = <0 GPIO_ACTIVE_HIGH
+				1 GPIO_ACTIVE_HIGH
+				2 GPIO_ACTIVE_HIGH
+				3 GPIO_ACTIVE_HIGH
+				4 GPIO_ACTIVE_HIGH
+				5 GPIO_ACTIVE_HIGH
+				6 GPIO_ACTIVE_HIGH
+				7 GPIO_ACTIVE_HIGH
+				8 GPIO_ACTIVE_HIGH
+				9 GPIO_ACTIVE_HIGH
+				10 GPIO_ACTIVE_HIGH
+				11 GPIO_ACTIVE_HIGH
+				12 GPIO_ACTIVE_HIGH
+				13 GPIO_ACTIVE_HIGH
+				14 GPIO_ACTIVE_HIGH
+				15 GPIO_ACTIVE_HIGH>;
+			output-high;
+		};
+	};
+
+	io_expander2: io_expander@1 {
+		compatible = "nxp,pca6416";
+		reg = <0x21>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		vcc-supply = <&ldo_24m_reg>;
+		gpio-line-names =
+			"IO_EXPNDR2_GPIO0",
+			"IO_EXPNDR2_GPIO1",
+			"IO_EXPNDR2_GPIO2",
+			"IO_EXPNDR2_GPIO3",
+			"IO_EXPNDR2_GPIO4",
+			"IO_EXPNDR2_GPIO5",
+			"IO_EXPNDR2_GPIO6",
+			"IO_EXPNDR2_GPIO7",
+			"IO_EXPNDR2_GPIO10",
+			"IO_EXPNDR2_GPIO11",
+			"IO_EXPNDR2_GPIO12",
+			"IO_EXPNDR2_GPIO13";
+
+		io_expander2_default_hog {
+			gpio-hog;
+			gpios = <0 GPIO_ACTIVE_HIGH
+				1 GPIO_ACTIVE_HIGH
+				2 GPIO_ACTIVE_HIGH
+				3 GPIO_ACTIVE_HIGH
+				4 GPIO_ACTIVE_HIGH
+				6 GPIO_ACTIVE_HIGH
+				8 GPIO_ACTIVE_HIGH
+				9 GPIO_ACTIVE_HIGH
+				10 GPIO_ACTIVE_HIGH
+				11 GPIO_ACTIVE_HIGH
+				12 GPIO_ACTIVE_HIGH
+				13 GPIO_ACTIVE_HIGH
+				14 GPIO_ACTIVE_HIGH
+				15 GPIO_ACTIVE_HIGH>;
+			output-high;
+		};
+	};
+
+	camera_buck_boost: rt6166@77 {
+		compatible = "richtek,rt6160";
+		reg = <0x77>;
+		/* PMICS2CAM_BBPMIC_E */
+		enable-gpios = <&da9188_gpio 9 GPIO_ACTIVE_HIGH>;
+		status = "ok";
+		regulator-name = "rt6166-regulator";
+		regulator-min-microvolt = <3200000>;
+		regulator-max-microvolt = <3200000>;
+		regulator-always-on;
+		/* 2ms */
+		regulator-enable-ramp-delay = <2000>;
+		/* RT6160_MODE_AUTO */
+		regulator-initial-mode = <0x0>;
+		/* Allow for NORMAL (auto) and FAST (FPWM) mode */
+		regulator-allowed-modes = <0x0>, <0x1>;
+	};
+
+	sgm38125_csia: sgm38125@2A {
+		compatible = "sgm,sgm38125";
+		reg = <0x2A>;
+		regulator-supply = <&camera_buck_boost>;
+		status = "ok";
+
+		regulators {
+			sgm38125_dvdd_csia: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+				in1-supply = <&cam_pp2500_mvbuck>;
+			};
+
+			sgm38125_avdd1_csia: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38125_avdd2_csia: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38125_avdd3_csia: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in3-supply = <&cam_pp2500_mvbuck>;
+			};
+		};
+	};
+
+	sgm38125_csib: sgm38125@4C {
+		compatible = "sgm,sgm38125";
+		reg = <0x4C>;
+		regulator-supply = <&camera_buck_boost>;
+		status = "ok";
+
+		regulators {
+			sgm38125_dvdd_csib: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+				in1-supply = <&cam_pp2500_mvbuck>;
+			};
+
+			sgm38125_avdd1_csib: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38125_avdd2_csib: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38125_avdd3_csib: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in3-supply = <&cam_pp2500_mvbuck>;
+			};
+		};
+	};
+
+	sgm38125_csic: sgm38125@5D {
+		compatible = "sgm,sgm38125";
+		reg = <0x5D>;
+		regulator-supply = <&camera_buck_boost>;
+		status = "ok";
+
+		regulators {
+			sgm38125_dvdd_csic: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+			};
+
+			sgm38125_avdd1_csic: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38125_avdd2_csic: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38125_avdd3_csic: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+		};
+	};
+
+	sgm38125_csid: sgm38125@19 {
+		compatible = "sgm,sgm38125";
+		reg = <0x19>;
+		regulator-supply = <&camera_buck_boost>;
+		status = "ok";
+
+		regulators {
+			sgm38125_dvdd_csid: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+				in1-supply = <&cam_pp2500_mvbuck>;
+			};
+
+			sgm38125_avdd1_csid: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38125_avdd2_csid: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38125_avdd3_csid: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in3-supply = <&cam_pp2500_mvbuck>;
+			};
+		};
+	};
+
+	sgm38125_csie: sgm38125@3B {
+		compatible = "sgm,sgm38125";
+		reg = <0x3B>;
+		regulator-supply = <&camera_buck_boost>;
+		status = "ok";
+
+		regulators {
+			sgm38125_dvdd_csie: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+				in1-supply = <&cam_pp2500_mvbuck>;
+			};
+
+			sgm38125_avdd1_csie: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38125_avdd2_csie: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38125_avdd3_csie: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in3-supply = <&cam_pp2500_mvbuck>;
+			};
+		};
+	};
+
+	sgm38125_csif: sgm38125@6E {
+		compatible = "sgm,sgm38125";
+		reg = <0x6E>;
+		regulator-supply = <&camera_buck_boost>;
+		status = "ok";
+
+		regulators {
+			sgm38125_dvdd_csif: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+			};
+
+			sgm38125_avdd1_csif: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38125_avdd2_csif: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+				in2-supply = <&camera_buck_boost>;
+			};
+
+			sgm38125_avdd3_csif: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+		};
+	};
+};
+
+&lsioe_i2c3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	sgm38122_shared: sgm38122@29 {
+		compatible = "sgm,sgm38122";
+		reg = <0x29>;
+		enable-supply = <&sy70206_reg>;
+		status = "ok";
+
+		regulators {
+			sgm38122_dvdd_shared: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+			};
+
+			sgm38122_avdd1_shared: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+
+			sgm38122_avdd2_shared: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+
+			sgm38122_avdd3_shared: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+		};
+	};
+};
+
+&lsios_i3c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	sgm38122_csib: sgm38122@29 {
+		compatible = "sgm,sgm38122";
+		reg = <0x29 0x0 0x00>;
+		enable-supply = <&sy70206_reg>;
+		status = "ok";
+
+		regulators {
+			sgm38122_dvdd_csib: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+			};
+
+			sgm38122_avdd1_csib: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+
+			sgm38122_avdd2_csib: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+
+			sgm38122_avdd3_csib: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+		};
+	};
+};
+
+&lsioe_i2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	sgm38122_csic: sgm38122@29 {
+		compatible = "sgm,sgm38122";
+		reg = <0x29>;
+		enable-supply = <&sy70206_reg>;
+		status = "ok";
+
+		regulators {
+			sgm38122_dvdd_csic: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+			};
+
+			sgm38122_avdd1_csic: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+
+			sgm38122_avdd2_csic: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+
+			sgm38122_avdd3_csic: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+		};
+	};
+};
+
+&lsios_i2c0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	sgm38122_csid: sgm38122@29 {
+		compatible = "sgm,sgm38122";
+		reg = <0x29>;
+		enable-supply = <&sy70206_reg>;
+		status = "ok";
+
+		regulators {
+			sgm38122_dvdd_csid: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+			};
+
+			sgm38122_avdd1_csid: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+
+			sgm38122_avdd2_csid: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+
+			sgm38122_avdd3_csid: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+		};
+	};
+};
+
+&lsioe_i2c1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	sgm38122_csie: sgm38122@29 {
+		compatible = "sgm,sgm38122";
+		reg = <0x29>;
+		enable-supply = <&sy70206_reg>;
+		status = "ok";
+
+		regulators {
+			sgm38122_dvdd_csie: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+			};
+
+			sgm38122_avdd1_csie: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+
+			sgm38122_avdd2_csie: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+
+			sgm38122_avdd3_csie: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+		};
+	};
+};
+
+&lsios_i2c3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	sgm38122_csif: sgm38122@29 {
+		compatible = "sgm,sgm38122";
+		reg = <0x29>;
+		enable-supply = <&sy70206_reg>;
+		status = "ok";
+
+		regulators {
+			sgm38122_dvdd_csif: dvdd {
+				regulator-name = "dvdd";
+				regulator-min-microvolt = <528000>;
+				regulator-max-microvolt = <1800000>;
+			};
+
+			sgm38122_avdd1_csif: avdd1 {
+				regulator-name = "avdd1";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+
+			sgm38122_avdd2_csif: avdd2 {
+				regulator-name = "avdd2";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+
+			sgm38122_avdd3_csif: avdd3 {
+				regulator-name = "avdd3";
+				regulator-min-microvolt = <1504000>;
+				regulator-max-microvolt = <3424000>;
+			};
+		};
+	};
+};

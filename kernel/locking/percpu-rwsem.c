@@ -19,26 +19,12 @@
  * will result to build-err. So we create
  * func:_trace_android_vh_record_pcpu_rwsem_starttime for percpu-rwsem.h to call.
  */
-void _trace_android_vh_record_pcpu_rwsem_starttime(struct task_struct *tsk,
+void _trace_android_vh_record_pcpu_rwsem_starttime(struct percpu_rw_semaphore *sem,
 		unsigned long settime)
 {
-	trace_android_vh_record_pcpu_rwsem_starttime(tsk, settime);
+	trace_android_vh_record_pcpu_rwsem_starttime(sem, settime);
 }
 EXPORT_SYMBOL_GPL(_trace_android_vh_record_pcpu_rwsem_starttime);
-
-/*
- * trace_android_vh_record_pcpu_rwsem_time_early is called in
- * include/linux/percpu-rwsem.h by including include/hooks/dtask.h, which
- * will result to build-err. So we create
- * func: _trace_android_vh_record_pcpu_rwsem_time_early for percpu-rwsem.h to call.
-*/
-
-void _trace_android_vh_record_pcpu_rwsem_time_early(
-		unsigned long settime, struct percpu_rw_semaphore *sem)
-{
-	trace_android_vh_record_pcpu_rwsem_time_early(settime, sem);
-}
-EXPORT_SYMBOL_GPL(_trace_android_vh_record_pcpu_rwsem_time_early);
 
 int __percpu_init_rwsem(struct percpu_rw_semaphore *sem,
 			const char *name, struct lock_class_key *key)
@@ -55,6 +41,8 @@ int __percpu_init_rwsem(struct percpu_rw_semaphore *sem,
 	debug_check_no_locks_freed((void *)sem, sizeof(*sem));
 	lockdep_init_map(&sem->dep_map, name, key, 0);
 #endif
+	trace_android_vh_percpu_rwsem_init(sem);
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(__percpu_init_rwsem);
@@ -259,13 +247,11 @@ static bool readers_active_check(struct percpu_rw_semaphore *sem)
 
 void __sched percpu_down_write(struct percpu_rw_semaphore *sem)
 {
+	bool contended = false;
 	bool complete = false;
 
 	might_sleep();
 	rwsem_acquire(&sem->dep_map, 0, 0, _RET_IP_);
-	trace_contention_begin(sem, LCB_F_PERCPU | LCB_F_WRITE);
-
-	trace_android_vh_record_pcpu_rwsem_time_early(jiffies, sem);
 
 	/* Notify readers to take the slow path. */
 	rcu_sync_enter(&sem->rss);
@@ -274,8 +260,11 @@ void __sched percpu_down_write(struct percpu_rw_semaphore *sem)
 	 * Try set sem->block; this provides writer-writer exclusion.
 	 * Having sem->block set makes new readers block.
 	 */
-	if (!__percpu_down_write_trylock(sem))
+	if (!__percpu_down_write_trylock(sem)) {
+		trace_contention_begin(sem, LCB_F_PERCPU | LCB_F_WRITE);
 		percpu_rwsem_wait(sem, /* .reader = */ false);
+		contended = true;
+	}
 
 	/* smp_mb() implied by __percpu_down_write_trylock() on success -- D matches A */
 
@@ -289,8 +278,9 @@ void __sched percpu_down_write(struct percpu_rw_semaphore *sem)
 	trace_android_rvh_percpu_rwsem_wait_complete(sem, TASK_UNINTERRUPTIBLE, &complete);
 	if (!complete)
 		rcuwait_wait_event(&sem->writer, readers_active_check(sem), TASK_UNINTERRUPTIBLE);
-	trace_contention_end(sem, 0);
-	trace_android_vh_record_pcpu_rwsem_starttime(current, jiffies);
+	if (contended)
+		trace_contention_end(sem, 0);
+	trace_android_vh_record_pcpu_rwsem_starttime(sem, jiffies);
 }
 EXPORT_SYMBOL_GPL(percpu_down_write);
 
@@ -323,7 +313,6 @@ void percpu_up_write(struct percpu_rw_semaphore *sem)
 	 * exclusive write lock because its counting.
 	 */
 	rcu_sync_exit(&sem->rss);
-	trace_android_vh_record_pcpu_rwsem_time_early(0, sem);
-	trace_android_vh_record_pcpu_rwsem_starttime(current, 0);
+	trace_android_vh_record_pcpu_rwsem_starttime(sem, 0);
 }
 EXPORT_SYMBOL_GPL(percpu_up_write);

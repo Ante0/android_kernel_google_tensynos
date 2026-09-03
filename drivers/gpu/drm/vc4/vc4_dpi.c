@@ -22,8 +22,8 @@
 #include <linux/clk.h>
 #include <linux/component.h>
 #include <linux/media-bus-format.h>
-#include <linux/of_graph.h>
-#include <linux/of_platform.h>
+#include <linux/mod_devicetable.h>
+#include <linux/platform_device.h>
 #include "vc4_drv.h"
 #include "vc4_regs.h"
 
@@ -97,14 +97,20 @@ struct vc4_dpi {
 	struct debugfs_regset32 regset;
 };
 
-static inline struct vc4_dpi *
-to_vc4_dpi(struct drm_encoder *encoder)
-{
-	return container_of(encoder, struct vc4_dpi, encoder.base);
-}
+#define to_vc4_dpi(_encoder)						\
+	container_of_const(_encoder, struct vc4_dpi, encoder.base)
 
-#define DPI_READ(offset) readl(dpi->regs + (offset))
-#define DPI_WRITE(offset, val) writel(val, dpi->regs + (offset))
+#define DPI_READ(offset)								\
+	({										\
+		kunit_fail_current_test("Accessing a register in a unit test!\n");	\
+		readl(dpi->regs + (offset));						\
+	})
+
+#define DPI_WRITE(offset, val)								\
+	do {										\
+		kunit_fail_current_test("Accessing a register in a unit test!\n");	\
+		writel(val, dpi->regs + (offset));					\
+	} while (0)
 
 static const struct debugfs_reg32 dpi_regs[] = {
 	VC4_REG32(DPI_C),
@@ -150,8 +156,8 @@ static void vc4_dpi_encoder_enable(struct drm_encoder *encoder)
 	}
 	drm_connector_list_iter_end(&conn_iter);
 
-	/* Default to 24bit if no connector or format found. */
-	dpi_c |= VC4_SET_FIELD(DPI_FORMAT_24BIT_888_RGB, DPI_FORMAT);
+	/* Default to 18bit if no connector or format found. */
+	dpi_c |= VC4_SET_FIELD(DPI_FORMAT_18BIT_666_RGB_1, DPI_FORMAT);
 
 	if (connector) {
 		if (connector->display_info.num_bus_formats) {
@@ -170,10 +176,16 @@ static void vc4_dpi_encoder_enable(struct drm_encoder *encoder)
 				dpi_c |= VC4_SET_FIELD(DPI_ORDER_BGR,
 						       DPI_ORDER);
 				break;
+			case MEDIA_BUS_FMT_BGR666_1X24_CPADHI:
+				dpi_c |= VC4_SET_FIELD(DPI_ORDER_BGR, DPI_ORDER);
+				fallthrough;
 			case MEDIA_BUS_FMT_RGB666_1X24_CPADHI:
 				dpi_c |= VC4_SET_FIELD(DPI_FORMAT_18BIT_666_RGB_2,
 						       DPI_FORMAT);
 				break;
+			case MEDIA_BUS_FMT_BGR666_1X18:
+				dpi_c |= VC4_SET_FIELD(DPI_ORDER_BGR, DPI_ORDER);
+				fallthrough;
 			case MEDIA_BUS_FMT_RGB666_1X18:
 				dpi_c |= VC4_SET_FIELD(DPI_FORMAT_18BIT_666_RGB_1,
 						       DPI_FORMAT);
@@ -182,9 +194,13 @@ static void vc4_dpi_encoder_enable(struct drm_encoder *encoder)
 				dpi_c |= VC4_SET_FIELD(DPI_FORMAT_16BIT_565_RGB_1,
 						       DPI_FORMAT);
 				break;
+			case MEDIA_BUS_FMT_RGB565_1X24_CPADHI:
+				dpi_c |= VC4_SET_FIELD(DPI_FORMAT_16BIT_565_RGB_2,
+						       DPI_FORMAT);
+				break;
 			default:
-				DRM_ERROR("Unknown media bus format %d\n",
-					  bus_format);
+				drm_err(dev, "Unknown media bus format %d\n",
+					bus_format);
 				break;
 			}
 		}
@@ -220,11 +236,11 @@ static void vc4_dpi_encoder_enable(struct drm_encoder *encoder)
 
 	ret = clk_set_rate(dpi->pixel_clock, mode->clock * 1000);
 	if (ret)
-		DRM_ERROR("Failed to set clock rate: %d\n", ret);
+		drm_err(dev, "Failed to set clock rate: %d\n", ret);
 
 	ret = clk_prepare_enable(dpi->pixel_clock);
 	if (ret)
-		DRM_ERROR("Failed to set clock rate: %d\n", ret);
+		drm_err(dev, "Failed to set clock rate: %d\n", ret);
 
 	drm_dev_exit(idx);
 }
@@ -248,11 +264,8 @@ static int vc4_dpi_late_register(struct drm_encoder *encoder)
 {
 	struct drm_device *drm = encoder->dev;
 	struct vc4_dpi *dpi = to_vc4_dpi(encoder);
-	int ret;
 
-	ret = vc4_debugfs_add_regset32(drm->primary, "dpi_regs", &dpi->regset);
-	if (ret)
-		return ret;
+	vc4_debugfs_add_regset32(drm, "dpi_regs", &dpi->regset);
 
 	return 0;
 }
@@ -326,7 +339,7 @@ static int vc4_dpi_bind(struct device *dev, struct device *master, void *data)
 	if (IS_ERR(dpi->core_clock)) {
 		ret = PTR_ERR(dpi->core_clock);
 		if (ret != -EPROBE_DEFER)
-			DRM_ERROR("Failed to get core clock: %d\n", ret);
+			drm_err(drm, "Failed to get core clock: %d\n", ret);
 		return ret;
 	}
 
@@ -334,13 +347,13 @@ static int vc4_dpi_bind(struct device *dev, struct device *master, void *data)
 	if (IS_ERR(dpi->pixel_clock)) {
 		ret = PTR_ERR(dpi->pixel_clock);
 		if (ret != -EPROBE_DEFER)
-			DRM_ERROR("Failed to get pixel clock: %d\n", ret);
+			drm_err(drm, "Failed to get pixel clock: %d\n", ret);
 		return ret;
 	}
 
 	ret = clk_prepare_enable(dpi->core_clock);
 	if (ret) {
-		DRM_ERROR("Failed to turn on core clock: %d\n", ret);
+		drm_err(drm, "Failed to turn on core clock: %d\n", ret);
 		return ret;
 	}
 
@@ -375,15 +388,14 @@ static int vc4_dpi_dev_probe(struct platform_device *pdev)
 	return component_add(&pdev->dev, &vc4_dpi_ops);
 }
 
-static int vc4_dpi_dev_remove(struct platform_device *pdev)
+static void vc4_dpi_dev_remove(struct platform_device *pdev)
 {
 	component_del(&pdev->dev, &vc4_dpi_ops);
-	return 0;
 }
 
 struct platform_driver vc4_dpi_driver = {
 	.probe = vc4_dpi_dev_probe,
-	.remove = vc4_dpi_dev_remove,
+	.remove_new = vc4_dpi_dev_remove,
 	.driver = {
 		.name = "vc4_dpi",
 		.of_match_table = vc4_dpi_dt_match,

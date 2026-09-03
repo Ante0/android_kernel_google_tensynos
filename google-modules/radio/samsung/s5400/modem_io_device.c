@@ -12,6 +12,7 @@
 #include <linux/if_arp.h>
 #include <linux/ip.h>
 #include <linux/if_ether.h>
+#include <linux/jiffies.h>
 #include <linux/etherdevice.h>
 #include <linux/device.h>
 #include <linux/module.h>
@@ -21,6 +22,9 @@
 #include <linux/tcp.h>
 #include <linux/netdevice.h>
 #include <soc/google/exynos-modem-ctrl.h>
+
+#define CREATE_TRACE_POINTS
+#include "modem_io_device_trace.h"
 
 #include "modem_prj.h"
 #include "modem_utils.h"
@@ -182,23 +186,62 @@ static ssize_t gro_option_store(struct device *dev,
 static struct device_attribute attr_gro_option =
 	__ATTR_RW(gro_option);
 
+/*
+ * Log any time the queue size high watermark increases by this many
+ * SKBs. The high watermark is cleared whenever the queue is fully flushed.
+ */
+#define LOG_WATERMARK_AMOUNT	1000
+
 static int queue_skb_to_iod(struct sk_buff *skb, struct io_device *iod)
 {
 	struct sk_buff_head *rxq = &iod->sk_rx_q;
 	int len = skb->len;
+	unsigned int qlen;
+	unsigned int high_watermark;
 
 	if (iod->attrs & IO_ATTR_NO_CHECK_MAXQ)
 		goto enqueue;
 
-	if (rxq->qlen > MAX_IOD_RXQ_LEN) {
-		mif_err_limited("%s: application may be dead (rxq->qlen %d > %d)\n",
-			iod->name, rxq->qlen, MAX_IOD_RXQ_LEN);
-		dev_kfree_skb_any(skb);
-		goto exit;
+	qlen = skb_queue_len(rxq);
+
+	/*
+	 * If there's data in the queue and nothing has been read for over
+	 * 2 seconds then stop adding new data.
+	 *
+	 * NOTE that we're not trying to be all that accurate here, so using
+	 * READ_ONCE and WRITE_ONCE w/out any locks or memory barriers is
+	 * sufficient. We aren't expecting more than one CPU to be calling
+	 * queue_skb_to_iod() at once, and if somehow we missed the most recent
+	 * write from ipc_read() it's OK as long as the data isn't too stale.
+	 */
+	if (!qlen) {
+		/*
+		 * When the first bit of data is written to the queue, reset
+		 * the access time to now. After that we just read the access
+		 * time value here to make sure that the reader is running.
+		 */
+		WRITE_ONCE(iod->rx_q_access_time, jiffies);
+	} else {
+		unsigned long rx_q_access_time = READ_ONCE(iod->rx_q_access_time);
+		unsigned long dead_time = rx_q_access_time + msecs_to_jiffies(2000);
+
+		if (time_after(jiffies, dead_time)) {
+			mif_err_limited("%s: application may be dead (rxq->qlen %d, %u ms)\n",
+					iod->name, rxq->qlen,
+					jiffies_to_msecs(jiffies - rx_q_access_time));
+			dev_kfree_skb_any(skb);
+			goto exit;
+		}
+	}
+
+	high_watermark = READ_ONCE(iod->q_high_watermark);
+	if (qlen / LOG_WATERMARK_AMOUNT > high_watermark / LOG_WATERMARK_AMOUNT) {
+		WRITE_ONCE(iod->q_high_watermark, qlen);
+		trace_s5400_log_watermark(iod->name, qlen);
 	}
 
 enqueue:
-	mif_debug("%s: rxq->qlen = %d\n", iod->name, rxq->qlen);
+	mif_debug("%s: rxq->qlen = %d\n", iod->name, qlen);
 	skb_queue_tail(rxq, skb);
 
 exit:
@@ -755,10 +798,10 @@ int sipc5_init_io_device(struct io_device *iod, struct mem_link_device *mld)
 		break;
 
 	case IODEV_NET:
+#if IS_ENABLED(CONFIG_CP_PKTPROC)
 #if IS_ENABLED(CONFIG_MODEM_IF_QOS)
 		txqs = mld->pktproc_ul.num_queue;
 #endif
-#if IS_ENABLED(CONFIG_CP_PKTPROC)
 		rxqs = mld->pktproc.num_queue;
 #endif
 		skb_queue_head_init(&iod->sk_rx_q);

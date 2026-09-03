@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "google-usb-phy",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "google-usb-phy.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_USB_PHY": {
+            True: [
+                "google-usb-phy-driver.c",
+                "google-usb-phy-patch.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)
+
+ddk_module(
+    name = "google-eusb2-repeater",
+    srcs = glob([
+        "**/*.h",
+    ]),
+    out = "google-eusb2-repeater.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_EUSB2_REPEATER": {
+            True: [
+                "google-eusb2-repeater.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ],
+)

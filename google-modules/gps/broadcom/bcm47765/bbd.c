@@ -455,7 +455,7 @@ static unsigned int bbd_common_poll(struct file *filp, poll_table *wait)
  * Receives control string from lhd and handles it
  *
  */
-ssize_t bbd_control_write(
+static ssize_t bbd_control_write(
 	struct file *filp, const char __user *buf, size_t size, loff_t *ppos)
 {
 	struct bbd_device *bbd = filp->private_data;
@@ -471,7 +471,7 @@ ssize_t bbd_control_write(
 	return bbd_control(bbd, bbd->priv[minor].write_buf, len);
 }
 
-ssize_t bbd_patch_read(
+static ssize_t bbd_patch_read(
 	struct file *filp, char __user *buf, size_t size, loff_t *ppos)
 {
 	ssize_t rd_size = size;
@@ -505,7 +505,7 @@ ssize_t bbd_patch_read(
 #ifdef BBD_PWR_STATUS
 #define BBD_MAX_PWRSTAT_SIZE 512
 
-ssize_t bbd_pwrstat_read(
+static ssize_t bbd_pwrstat_read(
 	struct file *filp, char __user *buf, size_t size, loff_t *ppos)
 {
 	const int MAX_SIZE = BBD_MAX_PWRSTAT_SIZE;
@@ -742,7 +742,7 @@ struct bbd_device *bbd_init(struct device *dev, bool legacy_patch)
 	}
 
 	/* Create class which is required for device_create() */
-	bbd->class = class_create(THIS_MODULE, "bbd");
+	bbd->class = class_create("bbd");
 	if (IS_ERR(bbd->class)) {
 		pr_err("failed to create class bbd\n");
 		goto exit;

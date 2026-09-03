@@ -15,6 +15,10 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": %s " fmt, __func__
 
+#pragma clang diagnostic ignored "-Wenum-conversion"
+#pragma clang diagnostic ignored "-Wswitch"
+#pragma clang diagnostic ignored "-Wunused-function"
+
 #include <linux/ctype.h>
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
@@ -25,8 +29,9 @@
 #include <linux/regmap.h>
 #include <misc/gvotable.h>
 #include "gbms_power_supply.h"
+#include "google_bms.h"
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 # include <linux/debugfs.h>
 # include <linux/seq_file.h>
 #endif
@@ -35,7 +40,7 @@ struct max77729_chgr_data {
 	struct device *dev;
 	struct power_supply *psy;
 	struct regmap *regmap;
-	int irq_gpio;
+	struct gpio_desc *irq_gpio;
 
 	struct gvotable_election *mode_votable;
 	struct gvotable_election *dc_suspend_votable;
@@ -47,7 +52,7 @@ struct max77729_chgr_data {
 	bool input_suspend;
 	bool online;
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct dentry *de;
 	u64 irq_count;
 	u64 irq_seen;
@@ -678,6 +683,8 @@ static int max77729_set_charge_current_max_ua(struct max77729_chgr_data *data, i
 	uint8_t reg;
 	int ret;
 
+	ua = (ua == GBMS_MSC_FCC_CHARGE_OFF) ? 0 : ua;
+
 	if (ua < 0)
 		return 0;
 
@@ -794,6 +801,8 @@ static enum power_supply_property max77729_psy_props[] = {
 	POWER_SUPPLY_PROP_CURRENT_MAX,
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,
 	POWER_SUPPLY_PROP_STATUS,
+	POWER_SUPPLY_PROP_CURRENT_NOW,
+	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 };
 
 static int max77729_psy_get_property(struct power_supply *psy,
@@ -1008,7 +1017,7 @@ static struct gbms_desc max77729_psy_desc = {
 };
 
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 
 static int max77729_dbg_reset_charger_state(void *d, u64 val)
 {
@@ -1048,7 +1057,6 @@ static inline int dbg_init_fs(struct max77729_chgr_data *data)
 	return 0;
 }
 static inline void dbg_remove_fs(struct max77729_chgr_data *data) { }
-static inline void dbg_cleanup_fs(struct max77729_chgr_data *data) { }
 #define DBG_INC(count)
 #endif
 
@@ -1081,14 +1089,13 @@ static int max77729_init_irq(struct i2c_client *client)
 	struct device *dev = &client->dev;
 	int ret = 0;
 
-	data->irq_gpio =
-		of_get_named_gpio(dev->of_node, "max77729,irq-gpio", 0);
-	if (data->irq_gpio < 0) {
+	data->irq_gpio = devm_gpiod_get(dev, "max77729,irq", GPIOD_IN);
+	if (IS_ERR(data->irq_gpio)) {
 		dev_err(dev, "failed get irq_gpio\n");
 		return -EINVAL;
 	}
 
-	client->irq = gpio_to_irq(data->irq_gpio);
+	client->irq = gpiod_to_irq(data->irq_gpio);
 	ret = devm_request_threaded_irq(data->dev, client->irq, NULL,
 					max77729_chgr_irq,
 					IRQF_TRIGGER_LOW |
@@ -1154,8 +1161,7 @@ static int max77729_setup_votables(struct max77729_chgr_data *data)
 	return 0;
 }
 
-static int max77729_charger_probe(struct i2c_client *client,
-				  const struct i2c_device_id *id)
+static int max77729_charger_probe(struct i2c_client *client)
 {
 	struct max77729_chgr_data *data;
 	struct device *dev = &client->dev;
@@ -1204,7 +1210,8 @@ static int max77729_charger_probe(struct i2c_client *client,
 		goto exit;
 	}
 
-	if (dbg_init_fs(data))
+	ret = dbg_init_fs(data);
+	if (ret)
 		dev_err(dev, "Failed to initialize debug fs\n");
 
 	if (max77729_init_irq(client) < 0) {
@@ -1267,7 +1274,7 @@ static struct i2c_driver max77729_charger_i2c_driver = {
 		.name = "max77729-charger",
 		.owner = THIS_MODULE,
 		.of_match_table = max77729_charger_of_match_table,
-#ifdef CONFIG_PM
+#if IS_ENABLED(CONFIG_PM)
 		.pm = &max77729_charger_pm_ops,
 #endif
 	},

@@ -47,7 +47,7 @@ struct stc {
 		};
 		uint32_t all;
 	};
-	uint8_t payload[0];
+	uint8_t payload[];
 } __attribute__((packed));
 #pragma GCC diagnostic pop
 

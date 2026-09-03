@@ -24,9 +24,13 @@
 #include <linux/tracepoint.h>
 
 #if IS_ENABLED(CONFIG_GS_PERF_MON)
+#if IS_ENABLED(CONFIG_SOC_GS101) || IS_ENABLED(CONFIG_SOC_GS101) || IS_ENABLED(CONFIG_SOC_ZUMA)
 #include <performance/gs_perf_mon/gs_perf_mon.h>
 #else
-#include "../../devfreq/google/governor_memlat.h"
+#include <perf/core/gs_perf_mon.h>
+#endif
+#else
+#include "governor_memlat.h"
 #endif
 
 /*
@@ -103,6 +107,6 @@ TRACE_EVENT(sched_switch_with_ctrs,
 
 #endif
 #undef TRACE_INCLUDE_PATH
-#define TRACE_INCLUDE_PATH ../../drivers/soc/google
+#define TRACE_INCLUDE_PATH .
 #define TRACE_INCLUDE_FILE perf_trace_counters
 #include <trace/define_trace.h>

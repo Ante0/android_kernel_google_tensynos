@@ -53,7 +53,7 @@ struct __packed coredump_rcv_status {
 	uint8_t ack;
 };
 
-struct coredump_packet *coredump_packet_alloc(u16 length)
+static struct coredump_packet *coredump_packet_alloc(u16 length)
 {
 	struct coredump_packet *p;
 
@@ -68,7 +68,7 @@ struct coredump_packet *coredump_packet_alloc(u16 length)
 	return p;
 }
 
-void coredump_packet_free(struct coredump_packet *p)
+static void coredump_packet_free(struct coredump_packet *p)
 {
 	hsspi_deinit_block(&p->blk);
 	kfree(p);
@@ -297,7 +297,7 @@ static const struct hsspi_layer_ops coredump_ops = {
 	.sent = coredump_sent,
 };
 
-char *debug_coredump_get(struct debug *dbg, size_t *len)
+static char *debug_coredump_get(struct debug *dbg, size_t *len)
 {
 	char *data;
 	struct qm35_ctx *qm35_hdl = container_of(dbg, struct qm35_ctx, debug);
@@ -308,7 +308,7 @@ char *debug_coredump_get(struct debug *dbg, size_t *len)
 	return data;
 }
 
-int debug_coredump_force(struct debug *dbg)
+static int debug_coredump_force(struct debug *dbg)
 {
 	struct coredump_packet *p;
 	struct coredump_common_hdr hdr = { .cmd_id = COREDUMP_FORCE_CMD };

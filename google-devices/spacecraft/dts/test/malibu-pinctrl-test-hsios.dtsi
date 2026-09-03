@@ -1,0 +1,77 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,mbu.h>
+
+&hsios_pinctrl {
+	xhsios_gpio2_default: xhsios_gpio2_default {
+		pins = "XHSIOS_GPIO2";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+
+	xhsios_gpio7_default: xhsios_gpio7_default {
+		pins = "XHSIOS_GPIO7";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "hsios_gpio";
+	};
+
+	xhsios_gpio1_default: xhsios_gpio1_default {
+		pins = "XHSIOS_GPIO1";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+
+	xhsios_gpio0_default: xhsios_gpio0_default {
+		pins = "XHSIOS_GPIO0";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+
+	xhsios_gpio6_default: xhsios_gpio6_default {
+		pins = "XHSIOS_GPIO6";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+
+	xhsios_gpio5_default: xhsios_gpio5_default {
+		pins = "XHSIOS_GPIO5";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+
+	xhsios_gpio4_default: xhsios_gpio4_default {
+		pins = "XHSIOS_GPIO4";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+
+	xhsios_gpio3_default: xhsios_gpio3_default {
+		pins = "XHSIOS_GPIO3";
+		bias-disable;
+		drive-strength = <0>;
+		input-enable;
+		output-enable;
+		function = "hsios_gpio";
+	};
+};

@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Frankel common device tree source
+ *
+ * Copyright 2024 Google LLC
+ */
+
+#include "lga-frankel-pmic.dtsi"
+#include "lga-frankel-display.dtsi"
+#include "google-base/platform/lga-platform-charging-premium.dtsi"
+#include "lga-frankel-wlan.dtsi"
+#include "lga-frankel-audio.dtsi"
+#include "lga-frankel-wcharger.dtsi"
+#include "google-base/platform/lga-platform-battery.dtsi"
+#include "lga-muzel-h2omg.dtsi"
+#include "lga-frankel-camera.dtsi"
+#include "lga-frankel-touch.dtsi"
+#include "lga-frankel-usecases.dtsi"
+#include "lga-deepspace-bcl.dtsi"
+#include "lga-frankel-battery.dtsi"
+#include "lga-frankel-usbdp-phy.dtsi"

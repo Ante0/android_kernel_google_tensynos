@@ -1,0 +1,9 @@
+config SAMPLE_KUNIT_EXAMPLE
+	tristate "KUnit example module"
+	help
+	  This is an example of a KUnit module that demonstrates how to use
+	  ddk_module and KUNIT_STATIC_STUB_REDIRECT for function mocking.
+	  It provides a simple API that can be used to understand the KUnit
+	  integration.
+
+	  If unsure, say N.

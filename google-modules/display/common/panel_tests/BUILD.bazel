@@ -1,23 +1,28 @@
 # SPDX-License-Identifier: MIT
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
 
-kernel_module(
-    name = "panel_tests",
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+ddk_module(
+    name = "gs-panel-common-test",
     srcs = [
-        "Kbuild",
         "gs-panel-common-test.c",
-        "//private/google-modules/display/common:headers",
     ],
-    outs = [
-        "gs-panel-common-test.ko",
+    out = "gs-panel-common-test.ko",
+    copts = [
+        "-Werror",
     ],
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE=1",
     ],
     deps = [
-        "//private/google-modules/display/common/gs_panel",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/display/common:ddk_headers",
+        "//private/google-modules/display/common/gs_panel:gs-panel",
     ],
 )

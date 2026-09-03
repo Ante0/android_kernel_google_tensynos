@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+filegroup(
+    name = "google_dma.kconfig",
+    srcs = [
+        "Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+        "//private/google-modules/soc/rdo:__subpackages__",
+    ],
+)
+
+ddk_module(
+    name = "google-gpdma",
+    out = "google-gpdma.ko",
+    conditional_srcs = {
+        "CONFIG_GOOGLE_GPDMA": {
+            True: [
+                "google-gpdma.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+    ],
+)
+
+ddk_module(
+    name = "pl330",
+    out = "pl330.ko",
+    conditional_srcs = {
+        "CONFIG_PL330_DMA_GOOGLE": {
+            True: [
+                "pl330.c",
+            ],
+        },
+    },
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+    ] + select({
+        "//private/devices/google/common:soc_is_laguna": [
+            "//private/google-modules/soc/rdo/ip-idle-notifier:google_ip_idle_notifier",
+        ],
+        "//conditions:default": [],
+    }),
+)

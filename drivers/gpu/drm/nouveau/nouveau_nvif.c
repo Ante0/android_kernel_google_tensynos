@@ -27,17 +27,14 @@
  ******************************************************************************/
 
 #include <core/client.h>
-#include <core/notify.h>
 #include <core/ioctl.h>
 
 #include <nvif/client.h>
 #include <nvif/driver.h>
-#include <nvif/notify.h>
 #include <nvif/event.h>
 #include <nvif/ioctl.h>
 
 #include "nouveau_drv.h"
-#include "nouveau_usif.h"
 
 static void
 nvkm_client_unmap(void *priv, void __iomem *ptr, u32 size)
@@ -72,10 +69,23 @@ nvkm_client_suspend(void *priv)
 }
 
 static int
+nvkm_client_event(u64 token, void *repv, u32 repc)
+{
+	struct nvif_object *object = (void *)(unsigned long)token;
+	struct nvif_event *event = container_of(object, typeof(*event), object);
+
+	if (event->func(event, repv, repc) == NVIF_EVENT_KEEP)
+		return NVKM_EVENT_KEEP;
+
+	return NVKM_EVENT_DROP;
+}
+
+static int
 nvkm_client_driver_init(const char *name, u64 device, const char *cfg,
 			const char *dbg, void **ppriv)
 {
-	return nvkm_client_new(name, device, cfg, dbg, nvif_notify, (struct nvkm_client **)ppriv);
+	return nvkm_client_new(name, device, cfg, dbg, nvkm_client_event,
+			       (struct nvkm_client **)ppriv);
 }
 
 const struct nvif_driver
@@ -87,5 +97,4 @@ nvif_driver_nvkm = {
 	.ioctl = nvkm_client_ioctl,
 	.map = nvkm_client_map,
 	.unmap = nvkm_client_unmap,
-	.keep = false,
 };

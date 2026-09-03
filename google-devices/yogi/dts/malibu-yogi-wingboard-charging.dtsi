@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+/*
+ * Wingboard overlay for charging. Disable PPS, WLC
+ *
+ * Copyright 2025 Google LLC
+ */
+
+&google_charger {
+	google,chg-power-supply = "main-charger";
+};
+
+&google_wlc {
+	status = "disabled";
+};
+
+&google_cpm {
+	status = "disabled";
+};
+
+&max77759tcpcspmi {
+	chg-psy-name = "main-charger";
+};

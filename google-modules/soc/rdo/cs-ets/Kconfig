@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_ETS
+	tristate "Enable support for Coresight ETS device"
+	depends on CORESIGHT
+	help
+	  Enable support for Coresight ETS device
+	  Select Y if you have such device.
+	  If unsure select "N".

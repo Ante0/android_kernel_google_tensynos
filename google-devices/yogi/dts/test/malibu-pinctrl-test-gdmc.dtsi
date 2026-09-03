@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/google,mbu.h>
+
+&gdmc_pinctrl {
+	xgdmc_in_debug_1_default: xgdmc_in_debug_1_default {
+		pins = "XGDMC_IN_DEBUG_1";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "gdmc_gpio";
+	};
+
+	xgdmc_uart0_txd_default: xgdmc_uart0_txd_default {
+		pins = "XGDMC_UART0_TXD";
+		bias-pull-down;
+		input-enable;
+		output-disable;
+		function = "gdmc_gpio";
+	};
+};

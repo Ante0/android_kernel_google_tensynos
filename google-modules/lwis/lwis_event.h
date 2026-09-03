@@ -191,10 +191,10 @@ int lwis_client_event_states_clear(struct lwis_client *lwisclient);
  * lwis_device_event_states_clear: Frees all items in lwisdev->event_states
  * and clears the hash table. Used for device shutdown only.
  *
- * Assumes: lwisdev->lock is locked
+ * Locks: lwisdev->lock
  * Returns: 0 on success
  */
-int lwis_device_event_states_clear_locked(struct lwis_device *lwisdev);
+int lwis_device_event_states_clear(struct lwis_device *lwisdev);
 
 /*
  * lwis_device_event_flags_updated: Notifies the device that the given event_id
@@ -236,11 +236,11 @@ int lwis_device_event_emit(struct lwis_device *lwis_dev, int64_t event_id, void 
  * The difference to lwis_device_event_emit is
  * 1. Directly assign event count to lwis_dev
  * 2. Won't have subscriber
- * 3. No payload to clients, only deliver event id and event count
- * 4. Not supported chain transaction
+ * 3. Not supported chain transaction
  */
 void lwis_device_external_event_emit(struct lwis_device *lwis_dev, int64_t event_id,
-				     int64_t event_counter, int64_t timestamp);
+				     int64_t event_counter, int64_t timestamp, void *payload,
+				     size_t payload_size);
 
 /*
  * lwis_device_error_event_emit: Emits an error event for all clients.
@@ -265,6 +265,18 @@ void lwis_device_error_event_emit(struct lwis_device *lwis_dev, int64_t event_id
  */
 struct lwis_device_event_state *lwis_device_event_state_find(struct lwis_device *lwis_dev,
 							     int64_t event_id);
+
+/*
+ * lwis_device_event_state_find_locked: Looks through the provided device's
+ * event state list and tries to find a lwis_device_event_state object with the
+ * matching event_id. If not found, returns NULL
+ *
+ * Assumes: lwis_dev->lock is locked
+ * Alloc: No
+ * Returns: device event state object, if found, NULL otherwise
+ */
+struct lwis_device_event_state *lwis_device_event_state_find_locked(struct lwis_device *lwis_dev,
+								    int64_t event_id);
 
 /*
  * lwis_device_event_state_find_or_create: Looks through the provided device's
@@ -299,8 +311,8 @@ lwis_client_event_state_find_or_create(struct lwis_client *lwis_client, int64_t 
  * Alloc: Maybe
  * Returns: 0 on success
  */
-int lwis_pending_event_push(struct list_head *pending_events, int64_t event_id, void *payload,
-			    size_t payload_size);
+int lwis_pending_event_push(struct lwis_device *lwis_dev, struct list_head *pending_events,
+			    int64_t event_id, void *payload, size_t payload_size);
 
 /*
  * lwis_pending_events_emit: If pending queue is not empty, start processing

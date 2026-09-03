@@ -17,6 +17,8 @@ properties:
   compatible:
     oneOf:
       - enum:
+          - fsl,imx95-flexcan
+          - fsl,imx93-flexcan
           - fsl,imx8qm-flexcan
           - fsl,imx8mp-flexcan
           - fsl,imx6q-flexcan
@@ -62,6 +64,9 @@ properties:
       boot loader. This property should only be used the used operating system
       doesn't support the clocks and clock-names property.
 
+  power-domains:
+    maxItems: 1
+
   xceiver-supply:
     description: Regulator that powers the CAN transceiver.
 
@@ -72,6 +77,10 @@ properties:
       optional property.i.e. if this property is not present in device tree
       node then controller is assumed to be little endian. If this property is
       present then controller is assumed to be big endian.
+
+  can-transceiver:
+    $ref: can-transceiver.yaml#
+    unevaluatedProperties: false
 
   fsl,stop-mode:
     description: |

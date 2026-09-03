@@ -2,7 +2,7 @@
 /*
  * Kernelspace interface to the pkey device driver
  *
- * Copyright IBM Corp. 2016,2019
+ * Copyright IBM Corp. 2016, 2023
  *
  * Author: Harald Freudenberger <freude@de.ibm.com>
  *
@@ -22,7 +22,7 @@
  * @param protkey pointer to buffer receiving the protected key
  * @return 0 on success, negative errno value on failure
  */
-int pkey_keyblob2pkey(const u8 *key, u32 keylen,
-		      struct pkey_protkey *protkey);
+int pkey_key2protkey(const u8 *key, u32 keylen,
+		     u8 *protkey, u32 *protkeylen, u32 *protkeytype);
 
 #endif /* _KAPI_PKEY_H */

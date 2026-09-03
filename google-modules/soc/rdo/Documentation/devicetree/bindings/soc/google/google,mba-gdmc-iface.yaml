@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright 2022 Google LLC
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/mailbox/google,mba-gdmc-iface.yaml#
+$schema: http://devicetree.org/meta-schemas/base.yaml#
+
+title: Google MBA (MailBox Array) GDMC Interface
+
+maintainers:
+  - Lucas Wei <lucaswei@google.com>
+  - Subhash Jadavani <sjadavani@google.com>
+
+description:
+  The Google MailBox Array GDMC interface provides GDMC services APIs.
+  On the backend, it would use GDMC normal request and response mailbox channels
+  for normal GDMC requests; GDMC critical request and response mailbox channels
+  for critical GDMC requests.
+
+properties:
+  compatible:
+    enum:
+      - google,mba-gdmc-iface
+
+  memory-region:
+    maxItems: 1
+    description:
+      DMA buffer between host and GDMC.  Allocated memory must be mappable by
+      the GDMC.
+
+  "goog-mba-aggrs":
+    type: object
+    description: device nodes whose compatible property with `google,mba-aggr`.
+      Google MBA GDMC interface use this property to search and get instance from Google
+      MBA aggregator to do operation of specific group of channels.
+
+required:
+  - compatible
+  - memory-region
+  - "goog-mba-aggrs"
+
+additionalProperties: false
+
+examples:
+  - |
+    goog_mba_gdmc_iface: goog_mba_gdmc_iface {
+        compatible = "google,mba-gdmc-iface";
+        memory-region = <&goog_mba_gdmc_iface_dma_region>;
+        goog-mba-aggrs = <&goog_mba_aggr_gdmc &goog_mba_aggr_gdmc_crit>;
+    };

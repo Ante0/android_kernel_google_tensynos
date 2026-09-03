@@ -44,6 +44,21 @@ properties:
     description:
       Maximum SPI clocking speed of the device in Hz.
 
+  spi-cs-setup-delay-ns:
+    description:
+      Delay in nanoseconds to be introduced by the controller after CS is
+      asserted.
+
+  spi-cs-hold-delay-ns:
+    description:
+      Delay in nanoseconds to be introduced by the controller before CS is
+      de-asserted.
+
+  spi-cs-inactive-delay-ns:
+    description:
+      Delay in nanoseconds to be introduced by the controller after CS is
+      de-asserted.
+
   spi-rx-bus-width:
     description:
       Bus width to the SPI bus used for read transfers.
@@ -98,9 +113,16 @@ properties:
     minItems: 2
     maxItems: 4
 
+  st,spi-midi-ns:
+    description: |
+      Only for STM32H7, (Master Inter-Data Idleness) minimum time
+      delay in nanoseconds inserted between two consecutive data frames.
+
 # The controller specific properties go here.
 allOf:
+  - $ref: arm,pl022-peripheral-props.yaml#
   - $ref: cdns,qspi-nor-peripheral-props.yaml#
+  - $ref: fsl,dspi-peripheral-props.yaml#
   - $ref: samsung,spi-peripheral-props.yaml#
   - $ref: nvidia,tegra210-quad-peripheral-props.yaml#
 

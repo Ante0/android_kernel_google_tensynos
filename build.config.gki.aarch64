@@ -1,21 +1,15 @@
+# Note: This file is no longer used by the GKI to build. The file is kept
+# here because of external usages.
+# TODO(b/236012223): Deprecate and remove this file once build-config-less
+#   builds are fully supported.
+
+echo 'WARNING: Do not source build.config.gki.aarch64. See warnings below for details.' >&2
+
 . ${ROOT_DIR}/${KERNEL_DIR}/build.config.common
 . ${ROOT_DIR}/${KERNEL_DIR}/build.config.aarch64
 . ${ROOT_DIR}/${KERNEL_DIR}/build.config.gki
 
-FILES="${FILES}
-arch/arm64/boot/Image.lz4
-arch/arm64/boot/Image.gz
-"
-
-BUILD_SYSTEM_DLKM=1
-
-BUILD_GKI_CERTIFICATION_TOOLS=1
-
-BUILD_GKI_ARTIFACTS=1
-BUILD_GKI_BOOT_IMG_SIZE=67108864
-BUILD_GKI_BOOT_IMG_GZ_SIZE=47185920
-BUILD_GKI_BOOT_IMG_LZ4_SIZE=53477376
-
 if [ -n "${GKI_BUILD_CONFIG_FRAGMENT}" ]; then
-source ${GKI_BUILD_CONFIG_FRAGMENT}
+    echo "ERROR: GKI_BUILD_CONFIG_FRAGMENT is deprecated; use --gki_build_config_fragment instead.">&2
+    exit 1
 fi

@@ -1,0 +1,127 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+/ {
+	amb_smmu: amb_smmu {
+		compatible = "arm,smmu-v3";
+		reg = <0x0 0x05b80000 0x0 0x40000>;
+		dma-coherent;
+		interrupts-extended = <&cpuacc_pulse_aggr_0_intr CPUACC_GIA_PULSE_AGGR_0_AUX_TOP_MMU700_TCU_EVENT_Q_IRPT_NS>,
+				      <&cpuacc_pulse_aggr_0_intr CPUACC_GIA_PULSE_AGGR_0_AUX_TOP_MMU700_TCU_GLOBAL_IRPT_NS>,
+				      <&cpuacc_pulse_aggr_0_intr CPUACC_GIA_PULSE_AGGR_0_AUX_TOP_MMU700_TCU_PRI_Q_IRPT_NS>;
+		interrupt-names = "eventq", "gerror", "priq";
+		#iommu-cells = <1>;
+		arm,instdata-override;
+		arm,max-sid-bits = <16>;
+	};
+
+	dpu_smmu: dpu_smmu {
+		compatible = "arm,smmu-v3";
+		reg = <0x0 0x0ed80000 0x0 0x40000>;
+		dma-coherent;
+		interrupts-extended =
+			<
+			&dpu_pulse_aggr_13_intr
+			DPU_GIA_PULSE_13_AGGR_TCU_PULSE2LEVEL_GIA_INPUT_TCU_EVENT_Q_IRPT_NS
+			>,
+			<
+			&dpu_pulse_aggr_16_intr
+			DPU_GIA_PULSE_16_AGGR_TCU_PULSE2LEVEL_GIA_INPUT_TCU_GLOBAL_IRPT_NS
+			>,
+			<
+			&dpu_pulse_aggr_18_intr
+			DPU_GIA_PULSE_18_AGGR_TCU_PULSE2LEVEL_GIA_INPUT_TCU_PRI_Q_IRPT_NS
+			>;
+		interrupt-names = "eventq", "gerror", "priq";
+		power-domains = <&sswrp_dpu_pd>;
+		#iommu-cells = <1>;
+		arm,instdata-override;
+		arm,max-sid-bits = <8>;
+		non-coherent-ttw;
+	};
+
+	ispfe_smmu: ispfe_smmu {
+		compatible = "arm,smmu-v3";
+		reg = <0x0 0x0fd00000 0x0 0x40000>;
+		dma-coherent;
+		interrupt-parent = <&ispfe_pulse_aggr_5_intr>;
+		interrupts = <ISPFE_GIA_PULSE_AGGR_5_SMMU_TCU_EVENT_Q_IRPT_NS>,
+			     <ISPFE_GIA_PULSE_AGGR_5_SMMU_TCU_GLOBAL_IRPT_NS>,
+			     <ISPFE_GIA_PULSE_AGGR_5_SMMU_TCU_PRI_Q_IRPT_NS>;
+		interrupt-names = "eventq", "gerror", "priq";
+		power-domains = <&sswrp_ispfe_pd>;
+		#iommu-cells = <1>;
+		arm,instdata-override;
+		arm,max-sid-bits = <16>;
+		non-coherent-ttw;
+	};
+
+	gpu_smmu: gpu_smmu {
+		compatible = "arm,smmu-v3";
+		reg = <0x0 0x34c00000 0x0 0x40000>;
+		dma-coherent;
+		interrupts-extended =
+			<&gpu_pulse_aggr_4_intr GPU_GIA_PULSE_AGGR_4_AUX_DS_INST_SMMU_TCU_EVENT_Q_IRPT_NS>,
+			<&gpu_pulse_aggr_4_intr GPU_GIA_PULSE_AGGR_4_AUX_DS_INST_SMMU_TCU_GLOBAL_IRPT_NS>;
+		interrupt-names = "eventq", "gerror";
+		power-domains = <&sswrp_gpu_pd>;
+		#iommu-cells = <1>;
+		arm,instdata-override;
+		arm,max-sid-bits = <8>;
+		synchronize-fw;
+	};
+
+	inf_smmu: inf_smmu {
+		compatible = "arm,smmu-v3";
+		reg = <0x0 0x35100000 0x0 0x40000>;
+		dma-coherent;
+		interrupts-extended = <&inftcu_pulse_aggr_0_intr INF_TCU_GIA_PULSE_AGGR_0_AUX_AON_EVENT_Q_IRPT_NS_RIS_SYNC>,
+				      <&inftcu_pulse_aggr_0_intr INF_TCU_GIA_PULSE_AGGR_0_AUX_AON_GLOBAL_IRPT_NS_RIS_SYNC>,
+				      <&inftcu_pulse_aggr_0_intr INF_TCU_GIA_PULSE_AGGR_0_AUX_AON_PRI_Q_IRPT_NS_RIS_SYNC>;
+		interrupt-names = "eventq", "gerror", "priq";
+		/* Power for inf_smmu is controlled by firmware without any
+		 * input from the kernel. Save and restore operations during
+		 * system suspend are also managed by firmware. Therefore, we
+		 * don't need a power-domains property here.
+		 */
+		#iommu-cells = <1>;
+		arm,instdata-override;
+		arm,max-sid-bits = <16>;
+	};
+
+	tpu_smmu: tpu_smmu  {
+		compatible = "arm,smmu-v3";
+		reg = <0x0 0x36200000 0x0 0x40000>;
+		dma-coherent;
+		interrupts-extended =
+			<&tpu_pulse_aggr_0_intr
+			TPU_GIA_PULSE_AGGR_0_AUX_LOGIC_SMMU_WRAPPER_TCU_EVENT_Q_IRPT_NS>,
+			<&tpu_pulse_aggr_0_intr
+			TPU_GIA_PULSE_AGGR_0_AUX_LOGIC_SMMU_WRAPPER_TCU_GLOBAL_IRPT_NS>,
+			<&tpu_pulse_aggr_0_intr
+			TPU_GIA_PULSE_AGGR_0_AUX_LOGIC_SMMU_WRAPPER_TCU_PRI_Q_IRPT_NS>;
+		interrupt-names = "eventq", "gerror", "priq";
+		power-domains = <&sswrp_tpu_pd>;
+		#iommu-cells = <1>;
+		arm,instdata-override;
+		arm,max-sid-bits = <16>;
+		non-coherent-ttw;
+	};
+
+	aur_smmu: aur_smmu {
+		compatible = "arm,smmu-v3";
+		reg = <0x0 0x385c0000 0x0 0x40000>;
+		dma-coherent;
+		interrupts-extended =
+			<&aurdsp_pulse_aggr_4_intr
+			AURDSP_GIA_PULSE_AGGR_4_AURORA_AUX_SMMU_TCU_EVENT_Q_IRPT_NS>,
+			<&aurdsp_pulse_aggr_4_intr
+			AURDSP_GIA_PULSE_AGGR_4_AURORA_AUX_SMMU_TCU_GLOBAL_IRPT_NS>,
+			<&aurdsp_pulse_aggr_4_intr
+			AURDSP_GIA_PULSE_AGGR_4_AURORA_AUX_SMMU_TCU_PRI_Q_IRPT_NS>;
+		interrupt-names = "eventq", "gerror", "priq";
+		power-domains = <&sswrp_aurora_pd>;
+		#iommu-cells = <1>;
+		arm,instdata-override;
+		arm,max-sid-bits = <8>;
+	};
+};

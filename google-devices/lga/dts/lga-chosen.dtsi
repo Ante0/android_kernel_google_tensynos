@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+/ {
+	chosen: chosen {
+		bootargs = "earlycon=uart8250,mmio32,0xdb62000 norandmaps ro init=/init \
+console=ttyS0,115200n8 google_8250.nr_uarts=4 androidboot.boot_devices=3c400000.ufs \
+printk.devkmsg=on firmware_class.path=/vendor/firmware fw_devlink=rpm \
+androidboot.hardware.platform=laguna kvm-arm.protected_modules=goog-mba-ctrl,pinctrl,\
+power_controller,irq-gia-google,arm_smmu_v3_kvm arm_smmu_v3_kvm.atomic_pages=8158 \
+no_console_suspend drm.vblankoffdelay=1 loop.max_part=7 aoc_core.aoc_monitor_online_timeout=60 \
+printk.debug_non_panic_cpus=1 pcie_port_pm=off";
+	};
+};

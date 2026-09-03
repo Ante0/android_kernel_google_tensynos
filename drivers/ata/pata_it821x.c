@@ -519,9 +519,9 @@ static void it821x_dev_config(struct ata_device *adev)
 	}
 	/* This is a controller firmware triggered funny, don't
 	   report the drive faulty! */
-	adev->horkage &= ~ATA_HORKAGE_DIAGNOSTIC;
+	adev->quirks &= ~ATA_QUIRK_DIAGNOSTIC;
 	/* No HPA in 'smart' mode */
-	adev->horkage |= ATA_HORKAGE_BROKEN_HPA;
+	adev->quirks |= ATA_QUIRK_BROKEN_HPA;
 }
 
 /**
@@ -800,7 +800,7 @@ static int it821x_rdc_cable(struct ata_port *ap)
 	return ATA_CBL_PATA80;
 }
 
-static struct scsi_host_template it821x_sht = {
+static const struct scsi_host_template it821x_sht = {
 	ATA_BMDMA_SHT(DRV_NAME),
 };
 

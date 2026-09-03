@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/display/verisilicon/dpu_fe.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Verisilicon DPU Front-End (FE)
+
+maintainers:
+  - Amine Najahi <anajahi@google.com>
+  - Chirayush Patel <chirayushpatel@google.com>
+  - Jing-Ping Jan <jingpingjan@google.com>
+  - Rushi Sheth <rushikesh@google.com>
+  - Taylor Nelms <tknelms@google.com>
+
+description: |
+  The Front-End (FE) component of the Verisilicon Display Processing Unit (DPU).
+  It is responsible for fetching and preprocessing layer data before passing it
+  to the Back-End (BE).
+
+properties:
+  compatible:
+    const: verisilicon,dpu_fe
+
+  fe_id:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    enum: [0, 1]
+    description: Identification index for the FE component (0 for FE0, 1 for FE1).
+
+  power-domains:
+    $ref: /schemas/power-domain/power-domain-consumer.yaml#/properties/power-domains
+    maxItems: 1
+
+  power-domain-names:
+    $ref: /schemas/power-domain/power-domain-consumer.yaml#/properties/power-domain-names
+    maxItems: 1
+
+  interrupts:
+    $ref: /schemas/interrupts.yaml#/properties/interrupts
+
+  interrupts-extended:
+    $ref: /schemas/interrupts.yaml#/properties/interrupts-extended
+
+  interrupt-names:
+    $ref: /schemas/interrupts.yaml#/properties/interrupt-names
+
+required:
+  - compatible
+  - fe_id
+  - power-domains
+
+oneOf:
+  - required:
+      - interrupts
+  - required:
+      - interrupts-extended
+
+additionalProperties: false
+
+examples:
+  - |
+    dpu_fe0: dpu_fe0@0 {
+            compatible = "verisilicon,dpu_fe";
+            fe_id = <0>;
+
+            power-domains = <&dpu_fe0_pd>;
+            power-domain-names = "dpu_fe0_pd";
+
+            interrupts-extended = <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_0_IRQ_DPU_FE_LAYER_FRM_DONE_0>,
+                         <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_0_IRQ_DPU_FE_LAYER_FRM_DONE_1>,
+                         <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_0_IRQ_DPU_FE_LAYER_FRM_DONE_2>,
+                         <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_0_IRQ_DPU_FE_LAYER_FRM_DONE_3>,
+                         <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_0_IRQ_DPU_FE_LAYER_FRM_DONE_4>,
+                         <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_0_IRQ_DPU_FE_LAYER_FRM_DONE_5>,
+                         <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_0_IRQ_FE_SW_RST_DONE>;
+            interrupt-names = "fe0_layer_frm_done0",
+                              "fe0_layer_frm_done1",
+                              "fe0_layer_frm_done2",
+                              "fe0_layer_frm_done3",
+                              "fe0_layer_frm_done4",
+                              "fe0_layer_frm_done5",
+                              "fe0_sw_rst_done";
+    };

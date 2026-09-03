@@ -1,0 +1,1 @@
+../../ring_service/ring_mgmt/wlan_ring_shared_info_instance.cc

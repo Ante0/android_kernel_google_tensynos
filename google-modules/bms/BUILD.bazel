@@ -1,76 +1,1110 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+# Google Battery Management System
 
-filegroup(
+load(
+    "@kleaf//build/kernel/kleaf:kernel.bzl",
+    "checkpatch",
+    "ddk_config",
+    "ddk_headers",
+    "ddk_module",
+)
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+ddk_headers(
     name = "headers",
-    srcs = glob([
+    hdrs = glob([
         "*.h",
     ]),
+    includes = ["."],
     visibility = [
         "//private/devices/google:__subpackages__",
         "//private/google-modules/power/mitigation:__subpackages__",
         "//private/google-modules/power/reset:__subpackages__",
+        "//private/google-modules/soc/rdo/drivers/tty/serial/8250:__subpackages__",
     ],
 )
 
-kernel_module(
-    name = "bms",
+ddk_headers(
+    name = "bms_headers",
+    hdrs = [
+        ":headers",
+    ],
+    visibility = [
+        "//private/google-modules/bms:__subpackages__",
+    ],
+)
+
+ddk_config(
+    name = "common_config",
+    defconfig = "defconfig",
+    kconfigs = ["Kconfig"],
+    kernel_build = "//private/devices/google/common:kernel",
+    visibility = ["//visibility:private"],
+)
+
+ddk_module(
+    name = "google-bms",
     srcs = glob([
-        "**/*.c",
         "**/*.h",
     ]) + [
-        "//private/google-modules/bms/misc:headers",
-        "//private/google-modules/soc/gs:gs_soc_headers",
+        "gbms_storage.c",
+        "google_bms.c",
+        "google_bms_usecase.c",
+        "google_dc_pps.c",
+        "gbms_irq.c",
+        # TODO(166536889): enable bee only on the devices supporting it. This will
+        # require a change in the API since right now storage call into eeprom that
+        # calls back into storage.
+        "google_eeprom.c",
+        "google_eeprom_01.c",
+        "google_eeprom_02.c",
+        "maxfg_common.c",
     ],
-    outs = [
-        "google-battery.ko",
-        "google-bms.ko",
-        "google-charger.ko",
-        "google-cpm.ko",
-        "google_ccd.ko",
-        "google_dock.ko",
-        "google_dual_batt_gauge.ko",
-        "max1720x-battery.ko",
-        "max20339.ko",
-        "max77729-pmic.ko",
-        "max77729_charger.ko",
-        "max77729_uic.ko",
-        "max77759-charger.ko",
-        "max77779-charger.ko",
-        "max77779-charger-i2c.ko",
-        "p9221.ko",
-        "pca9468.ko",
-        "max77779_i2cm.ko",
-        "max77779_i2cm_i2c.ko",
-        "max77779_pmic.ko",
-        "max77779_pmic_i2c.ko",
-        "max77779_pmic_irq.ko",
-        "max77779_pmic_pinctrl.ko",
-        "max77779_pmic_sgpio.ko",
-        "max77779-vimon.ko",
-        "max77779-vimon-i2c.ko",
-        "max77779-sp.ko",
-        "max77779-sp-i2c.ko",
-        "ln8411.ko",
-        "max77779-fg-i2c.ko",
-        "max77779-fg.ko",
-        "max77779-fwupdate.ko",
-        "rt9471_charger.ko",
-        # "max77729.ko",
-        # "max77759.ko",
-        # "pca9468-google.ko",
-        "hl7132.ko",
-    ],
+    out = "google-bms.ko",
+    config = ":common_config",
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/power/mitigation:__subpackages__",
-        "//private/google-modules/power/reset:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
     ],
     deps = [
-        "//private/google-modules/bms/misc:bms-misc",
-        "//private/google-modules/soc/gs:gs_soc_module",
+        ":bms_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/soc/gs/drivers/usb/typec/tcpm/google:tcpci_max77759",
+    ],
+)
+
+ddk_module(
+    name = "google-battery",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "google_battery.c",
+        "google_ttf.c",
+    ],
+    out = "google-battery.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ] + select({
+        "//private/devices/google/common:soc_is_laguna_or_later": [
+            "//private/google-modules/soc/rdo:rdo_soc_headers",
+            "//private/google-modules/soc/rdo/drivers/soc/google/cdd:gcdd",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+ddk_module(
+    name = "google-charger",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "google_charger.c",
+    ],
+    out = "google-charger.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ] + select({
+        "//private/devices/google/common:soc_is_laguna_or_later": [
+            "//private/google-modules/soc/rdo:rdo_soc_headers",
+            "//private/google-modules/soc/rdo/drivers/soc/google/cdd:gcdd",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+ddk_module(
+    name = "google_dual_batt_gauge",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "google_dual_batt_gauge.c",
+    ],
+    out = "google_dual_batt_gauge.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+# charging policy manager, for devices that have more HW chargers
+# requires google_dc_pps
+ddk_module(
+    name = "google-cpm",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "google_cpm.c",
+    ],
+    out = "google-cpm.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "google_dock",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "google_dock.c",
+    ],
+    out = "google_dock.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "google_ccd",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "google_ccd.c",
+    ],
+    out = "google_ccd.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+# max7729f drivers for the single SSID
+ddk_module(
+    name = "max77729-pmic",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77729_pmic.c",
+        "max77759_maxq.c",
+    ],
+    out = "max77729-pmic.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        ":max1720x-battery",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77729_uic",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77729_uic.c",
+    ],
+    out = "max77729_uic.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77729_charger",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77729_charger.c",
+    ],
+    out = "max77729_charger.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+# max77759 if-pmic based device (todo use the standalone)
+ddk_module(
+    name = "max77759-charger",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77759_charger.c",
+        "max77759_usecase.c",
+    ],
+    out = "max77759-charger.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        ":max1720x-battery",
+        ":max77729-pmic",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779_pmic",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_pmic.c",
+    ],
+    out = "max77779_pmic.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779_pmic_irq",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_pmic_irq.c",
+    ],
+    out = "max77779_pmic_irq.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":max77779_pmic",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779_pmic_pinctrl",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_pmic_pinctrl.c",
+    ],
+    out = "max77779_pmic_pinctrl.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":max77779_pmic",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779_pmic_sgpio",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_pmic_sgpio.c",
+    ],
+    out = "max77779_pmic_sgpio.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":max77779_pmic",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779_pmic_i2c",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_pmic_i2c.c",
+    ],
+    out = "max77779_pmic_i2c.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":max77779_pmic",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779_i2cm",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_i2cm.c",
+    ],
+    out = "max77779_i2cm.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779_i2cm_i2c",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_i2cm_i2c.c",
+    ],
+    out = "max77779_i2cm_i2c.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":max77779_i2cm",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+# MAX77779 Scratch Space
+ddk_module(
+    name = "max77779-sp",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_sp.c",
+    ],
+    out = "max77779-sp.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779-sp-i2c",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_sp_i2c.c",
+    ],
+    out = "max77779-sp-i2c.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":max77779-sp",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779-fg",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_fg.c",
+        "max77779_fg_model.c",
+    ],
+    out = "max77779-fg.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        ":max77779-charger",
+        ":max77779_pmic",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779-fg-i2c",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_fg_i2c.c",
+    ],
+    out = "max77779-fg-i2c.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":max77779-fg",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779-charger",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_charger.c",
+    ],
+    out = "max77779-charger.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        ":max77779_pmic",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779-usecase",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_usecase.c",
+        "max77779_usecase_v1.c",
+        "max77779_usecase_v2.c",
+    ],
+    out = "max77779-usecase.ko",
+    defconfig = "defconfig",
+    kconfig = "Kconfig",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        ":max77779-charger",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779-charger-i2c",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_charger_i2c.c",
+    ],
+    out = "max77779-charger-i2c.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":max77779-charger",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779-vimon",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_vimon.c",
+    ],
+    out = "max77779-vimon.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779-vimon-i2c",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_vimon_i2c.c",
+    ],
+    out = "max77779-vimon-i2c.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":max77779-vimon",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779-fwupdate",
+    srcs = glob([
+        "**/*.h",
+    ]) + ["max77779_fwupdate.c"],
+    out = "max77779-fwupdate.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        ":max77779-charger",
+        ":max77779-fg",
+        ":max77779-vimon",
+        ":max77779_pmic",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779_vdroop",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_vdroop.c",
+    ],
+    out = "max77779_vdroop.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":max77779-charger",
+        ":max77779-fg",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+# Wireless charging
+ddk_module(
+    name = "p9221",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "p9221_charger.c",
+        "p9221_chip.c",
+    ],
+    out = "p9221.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "google-wlc",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "cps4041_wlc_chip.c",
+        "google_wlc.c",
+        "google_wlc_chip.c",
+        "ra9582_wlc_chip.c",
+    ],
+    out = "google-wlc.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "ln8282_regulator",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "ln8282_regulator.c",
+    ],
+    out = "ln8282_regulator.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "pca9468",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "pca9468_charger.c",
+        "pca9468_gbms_pps.c",
+    ],
+    out = "pca9468.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+# Alternate (untested) standalone for max77729f sans FG
+# needs the usecases
+ddk_module(
+    name = "max77729",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77729_charger.c",
+        "max77729_pmic.c",
+        "max77729_uic.c",
+    ],
+    out = "max77729.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+# Alternate (untested) standalone for max77759 sans FG
+# needs the usecases
+ddk_module(
+    name = "max77759",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77729_pmic.c",
+        "max77729_uic.c",
+        "max77759_charger.c",
+        "max77759_maxq.c",
+    ],
+    out = "max77759.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+# Alternate (untested) standalone for max77779 sans FG
+# needs the usecases
+ddk_module(
+    name = "max77779",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max77779_charger.c",
+    ],
+    out = "max77779.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max1720x-battery",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max1720x_battery.c",
+        "max1720x_outliers.c",
+        "max_m5.c",
+    ],
+    out = "max1720x-battery.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+# OVP
+ddk_module(
+    name = "max20339",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "max20339.c",
+    ],
+    out = "max20339.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+# LN8411 DC Charge pump
+ddk_module(
+    name = "ln8411",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "ln8411_driver.c",
+        "ln8411_gbms_pps.c",
+    ],
+    out = "ln8411.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "rt9471_charger",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "rt9471_charger.c",
+    ],
+    out = "rt9471_charger.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+# Standalone for hl7132
+ddk_module(
+    name = "hl7132",
+    srcs = glob([
+        "**/*.h",
+    ]) + [
+        "hl7132_charger.c",
+        "hl7132_gbms_pps.c",
+    ],
+    out = "hl7132.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    local_defines = [
+        "DYNAMIC_DEBUG_MODULE",
+    ],
+    deps = [
+        ":bms_headers",
+        ":google-bms",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/bms/misc:gvotable",
+        "//private/google-modules/bms/misc:logbuffer",
+        "//private/google-modules/soc/gs:headers",
+    ],
+)
+
+ddk_module(
+    name = "max77779-charger-spmi",
+    srcs = [
+        "max77779_charger_spmi.c",
+    ],
+    out = "max77779-charger-spmi.ko",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":bms_headers",
+        ":max77779-charger",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/spmi:regmap-goog-spmi",
+    ],
+)
+
+ddk_module(
+    name = "max77779_i2cm_spmi",
+    srcs = [
+        "max77779_i2cm_spmi.c",
+    ],
+    out = "max77779_i2cm_spmi.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":bms_headers",
+        ":max77779-charger",
+        ":max77779_i2cm",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/spmi:regmap-goog-spmi",
+    ],
+)
+
+ddk_module(
+    name = "max77779_pmic_spmi",
+    srcs = [
+        "max77779_pmic_spmi.c",
+    ],
+    out = "max77779_pmic_spmi.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":bms_headers",
+        ":max77779_pmic",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/spmi:regmap-goog-spmi",
+    ],
+)
+
+ddk_module(
+    name = "max77779-vimon-spmi",
+    srcs = [
+        "max77779_vimon_spmi.c",
+    ],
+    out = "max77779-vimon-spmi.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":bms_headers",
+        ":max77779-charger",
+        ":max77779-vimon",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/spmi:regmap-goog-spmi",
+    ],
+)
+
+ddk_module(
+    name = "max77779-sp-spmi",
+    srcs = [
+        "max77779_sp_spmi.c",
+    ],
+    out = "max77779-sp-spmi.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":bms_headers",
+        ":max77779-sp",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/spmi:regmap-goog-spmi",
+    ],
+)
+
+ddk_module(
+    name = "max77779-fg-spmi",
+    srcs = [
+        "max77779_fg_spmi.c",
+    ],
+    out = "max77779-fg-spmi.ko",
+    config = ":common_config",
+    kernel_build = "//private/devices/google/common:kernel",
+    deps = [
+        ":bms_headers",
+        ":max77779-charger",
+        ":max77779-fg",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/rdo:rdo_soc_headers",
+        "//private/google-modules/soc/rdo/drivers/spmi:regmap-goog-spmi",
     ],
 )

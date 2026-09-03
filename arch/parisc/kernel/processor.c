@@ -26,6 +26,7 @@
 #include <asm/processor.h>
 #include <asm/page.h>
 #include <asm/pdc.h>
+#include <asm/smp.h>
 #include <asm/pdcpat.h>
 #include <asm/irq.h>		/* for struct irq_region */
 #include <asm/parisc-device.h>
@@ -58,7 +59,7 @@ DEFINE_PER_CPU(struct cpuinfo_parisc, cpu_data);
 */
 
 /**
- * init_cpu_profiler - enable/setup per cpu profiling hooks.
+ * init_percpu_prof - enable/setup per cpu profiling hooks.
  * @cpunum: The processor instance.
  *
  * FIXME: doesn't do much yet...
@@ -240,9 +241,9 @@ void __init collect_boot_cpu_data(void)
 	/* get CPU-Model Information... */
 #define p ((unsigned long *)&boot_cpu_data.pdc.model)
 	if (pdc_model_info(&boot_cpu_data.pdc.model) == PDC_OK) {
-		printk(KERN_INFO 
-			"model %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n",
-			p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]);
+		printk(KERN_INFO
+			"model %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n",
+			p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9]);
 
 		add_device_randomness(&boot_cpu_data.pdc.model,
 			sizeof(boot_cpu_data.pdc.model));
@@ -271,9 +272,14 @@ void __init collect_boot_cpu_data(void)
 		printk(KERN_INFO "capabilities 0x%lx\n",
 			boot_cpu_data.pdc.capabilities);
 
-	if (pdc_model_sysmodel(boot_cpu_data.pdc.sys_model_name) == PDC_OK)
-		printk(KERN_INFO "model %s\n",
+	if (pdc_model_sysmodel(OS_ID_HPUX, boot_cpu_data.pdc.sys_model_name) == PDC_OK)
+		pr_info("HP-UX model name: %s\n",
 			boot_cpu_data.pdc.sys_model_name);
+
+	serial_no[0] = 0;
+	if (pdc_model_sysmodel(OS_ID_MPEXL, serial_no) == PDC_OK &&
+		serial_no[0])
+		pr_info("MPE/iX model name: %s\n", serial_no);
 
 	dump_stack_set_arch_desc("%s", boot_cpu_data.pdc.sys_model_name);
 
@@ -361,6 +367,8 @@ int init_per_cpu(int cpunum)
 	/* FUTURE: Enable Performance Monitor : ccr bit 0x20 */
 	init_percpu_prof(cpunum);
 
+	btlb_init_per_cpu();
+
 	return ret;
 }
 
@@ -374,7 +382,7 @@ show_cpuinfo (struct seq_file *m, void *v)
 	char cpu_name[60], *p;
 
 	/* strip PA path from CPU name to not confuse lscpu */
-	strlcpy(cpu_name, per_cpu(cpu_data, 0).dev->name, sizeof(cpu_name));
+	strscpy(cpu_name, per_cpu(cpu_data, 0).dev->name, sizeof(cpu_name));
 	p = strrchr(cpu_name, '[');
 	if (p)
 		*(--p) = 0;

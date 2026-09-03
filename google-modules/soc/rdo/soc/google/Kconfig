@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config GOOGLE_SLC
+	tristate "Google system level cache driver"
+	depends on ARCH_GOOGLE
+	depends on SLC_PARTITION_MANAGER
+	depends on GOOGLE_MBA_CPM_INTERFACE
+	help
+	  Enable support for the Google system level cache driver
+	  The driver is used to provide an interface for clients to
+	  request an allocation in the cache. Clients can also disable
+	  the partition or request changes in partition parameters as needed
+

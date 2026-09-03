@@ -20,9 +20,12 @@
 static struct lwis_device_subclass_operations dpm_vops = {
 	.register_io = NULL,
 	.register_io_locked = NULL,
+	.batch_register_io = NULL,
 	.register_io_barrier = NULL,
 	.device_enable = NULL,
 	.device_disable = NULL,
+	.device_resume = NULL,
+	.device_suspend = NULL,
 	.event_enable = NULL,
 	.event_flags_updated = NULL,
 	.close = NULL,
@@ -31,7 +34,8 @@ static struct lwis_device_subclass_operations dpm_vops = {
 /*
  *  lwis_dpm_update_qos: update qos requirement for lwis device.
  */
-int lwis_dpm_update_qos(struct lwis_device *lwis_dev, struct lwis_qos_setting_v3 *qos_setting)
+int lwis_dpm_update_qos(struct lwis_device *lwis_dev, struct lwis_qos_setting *qos_setting,
+			int *sync_update, int *devfreq_sync_update)
 {
 	int ret = 0;
 	struct lwis_device *target_dev = lwis_find_dev_by_id(qos_setting->device_id);
@@ -49,11 +53,18 @@ int lwis_dpm_update_qos(struct lwis_device *lwis_dev, struct lwis_qos_setting_v3
 		return -EPERM;
 	}
 
-	// TODO: Real qos_family_name implementation will be done in b/291854347
-	// As for qos update, either of qos_family_name or clock_family need set.
+	/* As for qos update, either of qos_family_name or clock_family need set. */
 	if (strlen(qos_setting->qos_family_name) > 0 ||
 	    (qos_setting->clock_family != CLOCK_FAMILY_INVALID)) {
 		ret = lwis_platform_dpm_update_qos(lwis_dev, target_dev, qos_setting);
+
+		if (qos_setting->frequency_hz < 0) {
+			lwis_get_sync_update_device_mask(target_dev, qos_setting, sync_update);
+			lwis_platform_refresh_expected_qos_settings(target_dev, qos_setting);
+		} else {
+			lwis_get_devfreq_sync_update_device_mask(target_dev, qos_setting,
+								 devfreq_sync_update);
+		}
 	} else {
 		dev_err(lwis_dev->dev, "Invalid clock family name and clock family %d\n",
 			qos_setting->clock_family);
@@ -61,6 +72,45 @@ int lwis_dpm_update_qos(struct lwis_device *lwis_dev, struct lwis_qos_setting_v3
 	}
 
 	return ret;
+}
+
+/*
+ * lwis_dpm_sync_update_qos: sync the constraints to the device from
+ * all its subdevice IPs.
+ */
+int lwis_dpm_sync_update_qos(struct lwis_device *lwis_dev, int sync_update)
+{
+	/*
+	 * There is no constraint voting allowed when syncing the update
+	 * to the main device.
+	 */
+	return lwis_platform_dpm_sync_update_qos(lwis_dev, sync_update);
+}
+
+/*
+ *  lwis_dpm_devfreq_sync_update_qos: sync the constraints to the device from
+ *  all its subdevice IPs.
+ */
+int lwis_dpm_devfreq_sync_update_qos(struct lwis_device *lwis_dev, int devfreq_sync_update)
+{
+	/*
+	 * There is no constraint voting allowed when syncing the update
+	 * to the main device.
+	 */
+	return lwis_platform_dpm_devfreq_sync_update_qos(lwis_dev, devfreq_sync_update);
+}
+
+/*
+ * lwis_query_irm_register_verify: query the irm registers set correctly.
+ */
+int lwis_query_irm_register_verify(struct lwis_device *lwis_dev, int sync_update)
+{
+	return lwis_platform_query_irm_register_verify(lwis_dev, sync_update);
+}
+
+int lwis_query_devfreq_verify(struct lwis_device *lwis_dev, int devfreq_sync_update)
+{
+	return lwis_platform_query_devfreq_verify(lwis_dev, devfreq_sync_update);
 }
 
 /*
@@ -197,12 +247,13 @@ int lwis_dpm_device_deinit(void)
 
 uint32_t lwis_dpm_read_clock(struct lwis_device *lwis_dev)
 {
-	uint32_t clock = 0;
+	return lwis_platform_dpm_read_clock(lwis_dev);
+}
 
-	if (!lwis_dev->clocks) {
-		dev_err(lwis_dev->dev, "%s clock not defined", lwis_dev->name);
-		return -ENODEV;
-	}
-	clock = clk_get_rate(lwis_dev->clocks->clk[0].clk);
-	return clock;
+/*
+ * lwis_dpm_op_level_get: gets the operating level for the requesting entity.
+ */
+int lwis_dpm_op_level_get(struct lwis_device *lwis_dev, struct lwis_dpm_op_level *op_level)
+{
+	return lwis_platform_dpm_op_level_get(lwis_dev, op_level);
 }

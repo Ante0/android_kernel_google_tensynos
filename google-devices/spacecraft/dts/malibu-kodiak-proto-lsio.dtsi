@@ -1,0 +1,61 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Kodiak low speed interfaces configuration
+ *
+ * Copyright 2026 Google LLC
+ */
+
+/*
+ * I2C/I3C buses
+ * DISP0 PMIC
+ */
+&lsioe_i2c4 {
+	clock-frequency = <400000>;
+
+	pinctrl-0 = <&xlsioe_i23c9_scl>, <&xlsioe_i23c9_sda>;
+	pinctrl-1 = <&xlsioe_i23c9_scl_sleep>, <&xlsioe_i23c9_sda_sleep>;
+
+	status = "okay";
+};
+
+&lsios_spi1 {
+	pinctrl-0 = <&xlsios_spiu1_sclk_rtsn>, <&xlsios_spiu1_mosi_txd>,
+		    <&xlsios_spiu1_miso_rxd>, <&xlsios_spiu1_csn_ctsn_av27>;
+	pinctrl-1 = <&xlsios_spiu1_sclk_rtsn_sleep>, <&xlsios_spiu1_mosi_txd_sleep>,
+		    <&xlsios_spiu1_miso_rxd_sleep>, <&xlsios_spiu1_csn_ctsn_av27_sleep>;
+
+	status = "okay";
+};
+
+/* Camera RTCAM (CSIF) */
+&xlsios_i23c3_scl {
+	function = "lsios_i2c3";
+};
+&xlsios_i23c3_sda {
+	function = "lsios_i2c3";
+};
+&lsios_i2c3 {
+	clock-frequency = <1000000>;
+	i2c-sda-falling-time-ns = <100>;
+	i2c-scl-falling-time-ns = <100>;
+
+	hybrid-busy-wait-mode;
+	external-power-control;
+
+	pinctrl-0 = <&xlsios_i23c3_scl>, <&xlsios_i23c3_sda>;
+	pinctrl-1 = <&xlsios_i23c3_scl_sleep>, <&xlsios_i23c3_sda_sleep>;
+
+	status = "okay";
+};
+&lsios_i3c3 {
+	ibi-capable;
+
+	external-power-control;
+
+	hybrid-busy-wait-mode;
+
+	pinctrl-0 = <&xlsios_i23c3_scl>, <&xlsios_i23c3_sda>;
+	pinctrl-1 = <&xlsios_i23c3_scl_sleep>, <&xlsios_i23c3_sda_sleep>;
+
+	status = "disabled";
+};

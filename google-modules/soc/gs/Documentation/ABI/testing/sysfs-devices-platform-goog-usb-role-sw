@@ -1,0 +1,9 @@
+What:		/sys/devices/platform/goog_usb_role_sw/disable_usb_data
+Date:		April, 2025
+Contact:	"Guan-Yu Lin" <guanyulin@google.com>
+Description:
+		Provides an interface to enable/disable usb data role. When
+		enabled, usb data role will be swtiched to USB_ROLE_NONE, and
+		no data role switch will be executed until disable_usb_data is
+		cleared. Once cleared, the data role will be switched based on
+		the current voting result.

@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * cubs common device tree source
+ *
+ * Copyright 2025 Google LLC
+ */
+
+#include "malibu-cubs-display.dtsi"
+#include "malibu-cubs-pcie.dtsi"
+#include "malibu-cubs-pmic.dtsi"
+#include "malibu-cubs-audio.dtsi"
+#include "google-base/platform/malibu-platform-haptics.dtsi"
+#include "malibu-cubs-touch.dtsi"
+#include "malibu-cubs-wcharger.dtsi"
+#include "google-base/platform/malibu-platform-h2omg.dtsi"
+#include "malibu-spacecraft-ultrasonic-udfps.dtsi"
+#include "malibu-cubs-battery.dtsi"
+#include "malibu-ntc-thermal.dtsi"
+#include "malibu-cubs-usb.dtsi"
+#include "malibu-cubs-usbdp-phy.dtsi"
+#include "malibu-cubs-charging.dtsi"
+#include "malibu-cubs-charging-thermal.dtsi"

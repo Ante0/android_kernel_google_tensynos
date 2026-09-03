@@ -25,8 +25,9 @@
  */
 
 #include <drm/display/drm_dp_helper.h>
+#include <drm/drm_crtc_helper.h>
 #include <drm/drm_edid.h>
-#include <drm/drm_fb_helper.h>
+#include <drm/drm_modeset_helper_vtables.h>
 #include <drm/drm_probe_helper.h>
 #include <drm/amdgpu_drm.h>
 #include "amdgpu.h"
@@ -102,7 +103,7 @@ int amdgpu_connector_get_monitor_bpc(struct drm_connector *connector)
 	struct amdgpu_connector *amdgpu_connector = to_amdgpu_connector(connector);
 	struct amdgpu_connector_atom_dig *dig_connector;
 	int bpc = 8;
-	unsigned mode_clock, max_tmds_clock;
+	unsigned int mode_clock, max_tmds_clock;
 
 	switch (connector->connector_type) {
 	case DRM_MODE_CONNECTOR_DVII:
@@ -245,36 +246,10 @@ amdgpu_connector_find_encoder(struct drm_connector *connector,
 	return NULL;
 }
 
-struct edid *amdgpu_connector_edid(struct drm_connector *connector)
-{
-	struct amdgpu_connector *amdgpu_connector = to_amdgpu_connector(connector);
-	struct drm_property_blob *edid_blob = connector->edid_blob_ptr;
-
-	if (amdgpu_connector->edid) {
-		return amdgpu_connector->edid;
-	} else if (edid_blob) {
-		struct edid *edid = kmemdup(edid_blob->data, edid_blob->length, GFP_KERNEL);
-		if (edid)
-			amdgpu_connector->edid = edid;
-	}
-	return amdgpu_connector->edid;
-}
-
 static struct edid *
 amdgpu_connector_get_hardcoded_edid(struct amdgpu_device *adev)
 {
-	struct edid *edid;
-
-	if (adev->mode_info.bios_hardcoded_edid) {
-		edid = kmalloc(adev->mode_info.bios_hardcoded_edid_size, GFP_KERNEL);
-		if (edid) {
-			memcpy((unsigned char *)edid,
-			       (unsigned char *)adev->mode_info.bios_hardcoded_edid,
-			       adev->mode_info.bios_hardcoded_edid_size);
-			return edid;
-		}
-	}
-	return NULL;
+	return drm_edid_duplicate(drm_edid_raw(adev->mode_info.bios_hardcoded_edid));
 }
 
 static void amdgpu_connector_get_edid(struct drm_connector *connector)
@@ -463,6 +438,9 @@ static void amdgpu_connector_add_common_modes(struct drm_encoder *encoder,
 			continue;
 
 		mode = drm_cvt_mode(dev, common_modes[i].w, common_modes[i].h, 60, false, false, false);
+		if (!mode)
+			return;
+
 		drm_mode_probed_add(connector, mode);
 	}
 }
@@ -587,16 +565,26 @@ static int amdgpu_connector_set_property(struct drm_connector *connector,
 			amdgpu_encoder = to_amdgpu_encoder(connector->encoder);
 		} else {
 			const struct drm_connector_helper_funcs *connector_funcs = connector->helper_private;
+
 			amdgpu_encoder = to_amdgpu_encoder(connector_funcs->best_encoder(connector));
 		}
 
 		switch (val) {
 		default:
-		case DRM_MODE_SCALE_NONE: rmx_type = RMX_OFF; break;
-		case DRM_MODE_SCALE_CENTER: rmx_type = RMX_CENTER; break;
-		case DRM_MODE_SCALE_ASPECT: rmx_type = RMX_ASPECT; break;
-		case DRM_MODE_SCALE_FULLSCREEN: rmx_type = RMX_FULL; break;
+		case DRM_MODE_SCALE_NONE:
+			rmx_type = RMX_OFF;
+			break;
+		case DRM_MODE_SCALE_CENTER:
+			rmx_type = RMX_CENTER;
+			break;
+		case DRM_MODE_SCALE_ASPECT:
+			rmx_type = RMX_ASPECT;
+			break;
+		case DRM_MODE_SCALE_FULLSCREEN:
+			rmx_type = RMX_FULL;
+			break;
 		}
+
 		if (amdgpu_encoder->rmx_type == rmx_type)
 			return 0;
 
@@ -794,16 +782,26 @@ static int amdgpu_connector_set_lcd_property(struct drm_connector *connector,
 		amdgpu_encoder = to_amdgpu_encoder(connector->encoder);
 	else {
 		const struct drm_connector_helper_funcs *connector_funcs = connector->helper_private;
+
 		amdgpu_encoder = to_amdgpu_encoder(connector_funcs->best_encoder(connector));
 	}
 
 	switch (value) {
-	case DRM_MODE_SCALE_NONE: rmx_type = RMX_OFF; break;
-	case DRM_MODE_SCALE_CENTER: rmx_type = RMX_CENTER; break;
-	case DRM_MODE_SCALE_ASPECT: rmx_type = RMX_ASPECT; break;
+	case DRM_MODE_SCALE_NONE:
+		rmx_type = RMX_OFF;
+		break;
+	case DRM_MODE_SCALE_CENTER:
+		rmx_type = RMX_CENTER;
+		break;
+	case DRM_MODE_SCALE_ASPECT:
+		rmx_type = RMX_ASPECT;
+		break;
 	default:
-	case DRM_MODE_SCALE_FULLSCREEN: rmx_type = RMX_FULL; break;
+	case DRM_MODE_SCALE_FULLSCREEN:
+		rmx_type = RMX_FULL;
+		break;
 	}
+
 	if (amdgpu_encoder->rmx_type == rmx_type)
 		return 0;
 
@@ -967,6 +965,41 @@ amdgpu_connector_check_hpd_status_unchanged(struct drm_connector *connector)
 	return false;
 }
 
+static void amdgpu_connector_shared_ddc(enum drm_connector_status *status,
+					struct drm_connector *connector,
+					struct amdgpu_connector *amdgpu_connector)
+{
+	struct drm_connector *list_connector;
+	struct drm_connector_list_iter iter;
+	struct amdgpu_connector *list_amdgpu_connector;
+	struct drm_device *dev = connector->dev;
+	struct amdgpu_device *adev = drm_to_adev(dev);
+
+	if (amdgpu_connector->shared_ddc && *status == connector_status_connected) {
+		drm_connector_list_iter_begin(dev, &iter);
+		drm_for_each_connector_iter(list_connector,
+					    &iter) {
+			if (connector == list_connector)
+				continue;
+			list_amdgpu_connector = to_amdgpu_connector(list_connector);
+			if (list_amdgpu_connector->shared_ddc &&
+			    list_amdgpu_connector->ddc_bus->rec.i2c_id ==
+			     amdgpu_connector->ddc_bus->rec.i2c_id) {
+				/* cases where both connectors are digital */
+				if (list_connector->connector_type != DRM_MODE_CONNECTOR_VGA) {
+					/* hpd is our only option in this case */
+					if (!amdgpu_display_hpd_sense(adev,
+								      amdgpu_connector->hpd.hpd)) {
+						amdgpu_connector_free_edid(connector);
+						*status = connector_status_disconnected;
+					}
+				}
+			}
+		}
+		drm_connector_list_iter_end(&iter);
+	}
+}
+
 /*
  * DVI is complicated
  * Do a DDC probe, if DDC probe passes, get the full EDID so
@@ -997,13 +1030,33 @@ amdgpu_connector_dvi_detect(struct drm_connector *connector, bool force)
 		}
 	}
 
+	if (amdgpu_connector->detected_hpd_without_ddc) {
+		force = true;
+		amdgpu_connector->detected_hpd_without_ddc = false;
+	}
+
 	if (!force && amdgpu_connector_check_hpd_status_unchanged(connector)) {
 		ret = connector->status;
 		goto exit;
 	}
 
-	if (amdgpu_connector->ddc_bus)
+	if (amdgpu_connector->ddc_bus) {
 		dret = amdgpu_display_ddc_probe(amdgpu_connector, false);
+
+		/* Sometimes the pins required for the DDC probe on DVI
+		 * connectors don't make contact at the same time that the ones
+		 * for HPD do. If the DDC probe fails even though we had an HPD
+		 * signal, try again later
+		 */
+		if (!dret && !force &&
+		    amdgpu_display_hpd_sense(adev, amdgpu_connector->hpd.hpd)) {
+			DRM_DEBUG_KMS("hpd detected without ddc, retrying in 1 second\n");
+			amdgpu_connector->detected_hpd_without_ddc = true;
+			schedule_delayed_work(&adev->hotplug_work,
+					      msecs_to_jiffies(1000));
+			goto exit;
+		}
+	}
 	if (dret) {
 		amdgpu_connector->detected_by_load = false;
 		amdgpu_connector_free_edid(connector);
@@ -1033,32 +1086,7 @@ amdgpu_connector_dvi_detect(struct drm_connector *connector, bool force)
 			 * DDC line.  The latter is more complex because with DVI<->HDMI adapters
 			 * you don't really know what's connected to which port as both are digital.
 			 */
-			if (amdgpu_connector->shared_ddc && (ret == connector_status_connected)) {
-				struct drm_connector *list_connector;
-				struct drm_connector_list_iter iter;
-				struct amdgpu_connector *list_amdgpu_connector;
-
-				drm_connector_list_iter_begin(dev, &iter);
-				drm_for_each_connector_iter(list_connector,
-							    &iter) {
-					if (connector == list_connector)
-						continue;
-					list_amdgpu_connector = to_amdgpu_connector(list_connector);
-					if (list_amdgpu_connector->shared_ddc &&
-					    (list_amdgpu_connector->ddc_bus->rec.i2c_id ==
-					     amdgpu_connector->ddc_bus->rec.i2c_id)) {
-						/* cases where both connectors are digital */
-						if (list_connector->connector_type != DRM_MODE_CONNECTOR_VGA) {
-							/* hpd is our only option in this case */
-							if (!amdgpu_display_hpd_sense(adev, amdgpu_connector->hpd.hpd)) {
-								amdgpu_connector_free_edid(connector);
-								ret = connector_status_disconnected;
-							}
-						}
-					}
-				}
-				drm_connector_list_iter_end(&iter);
-			}
+			amdgpu_connector_shared_ddc(&ret, connector, amdgpu_connector);
 		}
 	}
 
@@ -1106,7 +1134,8 @@ amdgpu_connector_dvi_detect(struct drm_connector *connector, bool force)
 					/* assume digital unless load detected otherwise */
 					amdgpu_connector->use_digital = true;
 					lret = encoder_funcs->detect(encoder, connector);
-					DRM_DEBUG_KMS("load_detect %x returned: %x\n",encoder->encoder_type,lret);
+					DRM_DEBUG_KMS("load_detect %x returned: %x\n",
+						      encoder->encoder_type, lret);
 					if (lret == connector_status_connected)
 						amdgpu_connector->use_digital = false;
 				}
@@ -1159,35 +1188,78 @@ amdgpu_connector_dvi_encoder(struct drm_connector *connector)
 static void amdgpu_connector_dvi_force(struct drm_connector *connector)
 {
 	struct amdgpu_connector *amdgpu_connector = to_amdgpu_connector(connector);
+
 	if (connector->force == DRM_FORCE_ON)
 		amdgpu_connector->use_digital = false;
 	if (connector->force == DRM_FORCE_ON_DIGITAL)
 		amdgpu_connector->use_digital = true;
 }
 
+/**
+ * amdgpu_max_hdmi_pixel_clock - Return max supported HDMI (TMDS) pixel clock
+ * @adev: pointer to amdgpu_device
+ *
+ * Return: maximum supported HDMI (TMDS) pixel clock in KHz.
+ */
+static int amdgpu_max_hdmi_pixel_clock(const struct amdgpu_device *adev)
+{
+	if (adev->asic_type >= CHIP_POLARIS10)
+		return 600000;
+	else if (adev->asic_type >= CHIP_TONGA)
+		return 300000;
+	else
+		return 297000;
+}
+
+/**
+ * amdgpu_connector_dvi_mode_valid - Validate a mode on DVI/HDMI connectors
+ * @connector: DRM connector to validate the mode on
+ * @mode: display mode to validate
+ *
+ * Validate the given display mode on DVI and HDMI connectors, including
+ * analog signals on DVI-I.
+ *
+ * Return: drm_mode_status indicating whether the mode is valid.
+ */
 static enum drm_mode_status amdgpu_connector_dvi_mode_valid(struct drm_connector *connector,
 					    struct drm_display_mode *mode)
 {
 	struct drm_device *dev = connector->dev;
 	struct amdgpu_device *adev = drm_to_adev(dev);
 	struct amdgpu_connector *amdgpu_connector = to_amdgpu_connector(connector);
+	const int max_hdmi_pixel_clock = amdgpu_max_hdmi_pixel_clock(adev);
+	const int max_dvi_single_link_pixel_clock = 165000;
+	int max_digital_pixel_clock_khz;
 
 	/* XXX check mode bandwidth */
 
-	if (amdgpu_connector->use_digital && (mode->clock > 165000)) {
-		if ((amdgpu_connector->connector_object_id == CONNECTOR_OBJECT_ID_DUAL_LINK_DVI_I) ||
-		    (amdgpu_connector->connector_object_id == CONNECTOR_OBJECT_ID_DUAL_LINK_DVI_D) ||
-		    (amdgpu_connector->connector_object_id == CONNECTOR_OBJECT_ID_HDMI_TYPE_B)) {
-			return MODE_OK;
-		} else if (connector->display_info.is_hdmi) {
-			/* HDMI 1.3+ supports max clock of 340 Mhz */
-			if (mode->clock > 340000)
-				return MODE_CLOCK_HIGH;
-			else
-				return MODE_OK;
-		} else {
-			return MODE_CLOCK_HIGH;
+	if (amdgpu_connector->use_digital) {
+		switch (amdgpu_connector->connector_object_id) {
+		case CONNECTOR_OBJECT_ID_HDMI_TYPE_A:
+			max_digital_pixel_clock_khz = max_hdmi_pixel_clock;
+			break;
+		case CONNECTOR_OBJECT_ID_SINGLE_LINK_DVI_I:
+		case CONNECTOR_OBJECT_ID_SINGLE_LINK_DVI_D:
+			max_digital_pixel_clock_khz = max_dvi_single_link_pixel_clock;
+			break;
+		case CONNECTOR_OBJECT_ID_DUAL_LINK_DVI_I:
+		case CONNECTOR_OBJECT_ID_DUAL_LINK_DVI_D:
+		case CONNECTOR_OBJECT_ID_HDMI_TYPE_B:
+			max_digital_pixel_clock_khz = max_dvi_single_link_pixel_clock * 2;
+			break;
+		default:
+			return MODE_BAD;
 		}
+
+		/* When the display EDID claims that it's an HDMI display,
+		 * we use the HDMI encoder mode of the display HW,
+		 * so we should verify against the max HDMI clock here.
+		 */
+		if (connector->display_info.is_hdmi)
+			max_digital_pixel_clock_khz = max_hdmi_pixel_clock;
+
+		if (mode->clock > max_digital_pixel_clock_khz)
+			return MODE_CLOCK_HIGH;
 	}
 
 	/* check against the max pixel clock */
@@ -1393,6 +1465,7 @@ amdgpu_connector_dp_detect(struct drm_connector *connector, bool force)
 				ret = connector_status_connected;
 			else if (amdgpu_connector->dac_load_detect) { /* try load detection */
 				const struct drm_encoder_helper_funcs *encoder_funcs = encoder->helper_private;
+
 				ret = encoder_funcs->detect(encoder, connector);
 			}
 		}
@@ -1970,7 +2043,7 @@ amdgpu_connector_add(struct amdgpu_device *adev,
 	if (amdgpu_connector->hpd.hpd == AMDGPU_HPD_NONE) {
 		if (i2c_bus->valid) {
 			connector->polled = DRM_CONNECTOR_POLL_CONNECT |
-			                    DRM_CONNECTOR_POLL_DISCONNECT;
+						DRM_CONNECTOR_POLL_DISCONNECT;
 		}
 	} else
 		connector->polled = DRM_CONNECTOR_POLL_HPD;

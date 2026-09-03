@@ -6,13 +6,12 @@
  *
  *   Copyright (c) 2002 by Takashi Iwai <tiwai@suse.de>
  */
+#include <linux/android_kabi.h>
 
 /* handling of USB vendor/product ID pairs as 32-bit numbers */
 #define USB_ID(vendor, product) (((unsigned int)(vendor) << 16) | (product))
 #define USB_ID_VENDOR(id) ((id) >> 16)
 #define USB_ID_PRODUCT(id) ((u16)(id))
-
-#include <linux/android_kabi.h>
 
 /*
  *
@@ -20,9 +19,17 @@
 
 struct media_device;
 struct media_intf_devnode;
-struct snd_usb_substream;
 
 #define MAX_CARD_INTERFACES	16
+
+/*
+ * Structure holding assosiation between Audio Control Interface
+ * and given Streaming or Midi Interface.
+ */
+struct snd_intf_to_ctrl {
+	u8 interface;
+	struct usb_host_interface *ctrl_intf;
+};
 
 struct snd_usb_audio {
 	int index;
@@ -52,7 +59,9 @@ struct snd_usb_audio {
 	struct list_head clock_ref_list; /* list of clock refcounts */
 	int pcm_devs;
 
+	unsigned int num_rawmidis;	/* number of created rawmidi devices */
 	struct list_head midi_list;	/* list of midi interfaces */
+	struct list_head midi_v2_list;	/* list of MIDI 2 interfaces */
 
 	struct list_head mixer_list;	/* list of mixer interfaces */
 
@@ -65,6 +74,9 @@ struct snd_usb_audio {
 	struct media_device *media_dev;
 	struct media_intf_devnode *ctl_intf_media_devnode;
 
+	unsigned int num_intf_to_ctrl;
+	struct snd_intf_to_ctrl intf_to_ctrl[MAX_CARD_INTERFACES];
+
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);
@@ -75,6 +87,8 @@ struct snd_usb_audio {
 
 #define usb_audio_err(chip, fmt, args...) \
 	dev_err(&(chip)->dev->dev, fmt, ##args)
+#define usb_audio_err_ratelimited(chip, fmt, args...) \
+	dev_err_ratelimited(&(chip)->dev->dev, fmt, ##args)
 #define usb_audio_warn(chip, fmt, args...) \
 	dev_warn(&(chip)->dev->dev, fmt, ##args)
 #define usb_audio_info(chip, fmt, args...) \
@@ -188,6 +202,9 @@ extern bool snd_usb_skip_validation;
  *  for the given endpoint.
  * QUIRK_FLAG_MIC_RES_16 and QUIRK_FLAG_MIC_RES_384
  *  Set the fixed resolution for Mic Capture Volume (mostly for webcams)
+ * QUIRK_FLAG_MIXER_MIN_MUTE
+ *  Set minimum volume control value as mute for devices where the lowest
+ *  playback value represents muted state instead of minimum audible volume
  */
 
 #define QUIRK_FLAG_GET_SAMPLE_RATE	(1U << 0)
@@ -214,38 +231,6 @@ extern bool snd_usb_skip_validation;
 #define QUIRK_FLAG_FIXED_RATE		(1U << 21)
 #define QUIRK_FLAG_MIC_RES_16		(1U << 22)
 #define QUIRK_FLAG_MIC_RES_384		(1U << 23)
+#define QUIRK_FLAG_MIXER_MIN_MUTE	(1U << 24)
 
-struct audioformat;
-
-enum snd_vendor_pcm_open_close {
-	SOUND_PCM_CLOSE = 0,
-	SOUND_PCM_OPEN,
-};
-
-/**
- * struct snd_usb_audio_vendor_ops - function callbacks for USB audio accelerators
- * @set_interface: called when an interface is initialized
- * @set_pcm_intf: called when the pcm interface is set
- * @set_pcm_connection: called when pcm is opened/closed
- *
- * Set of callbacks for some accelerated USB audio streaming hardware.
- *
- * TODO: make this USB host-controller specific, right now this only works for
- * one USB controller in the system at a time, which is only realistic for
- * self-contained systems like phones.
- */
-struct snd_usb_audio_vendor_ops {
-	int (*set_interface)(struct usb_device *udev,
-			     struct usb_host_interface *alts,
-			     int iface, int alt);
-	int (*set_pcm_intf)(struct usb_interface *intf, int iface, int alt,
-			    int direction, struct snd_usb_substream *subs);
-	int (*set_pcm_connection)(struct usb_device *udev,
-				  enum snd_vendor_pcm_open_close onoff,
-				  int direction);
-	ANDROID_KABI_RESERVE(1);
-	ANDROID_KABI_RESERVE(2);
-	ANDROID_KABI_RESERVE(3);
-	ANDROID_KABI_RESERVE(4);
-};
 #endif /* __USBAUDIO_H */

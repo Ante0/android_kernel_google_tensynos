@@ -56,9 +56,6 @@ static int tegra_atomic_check(struct drm_device *drm,
 
 static const struct drm_mode_config_funcs tegra_drm_mode_config_funcs = {
 	.fb_create = tegra_fb_create,
-#ifdef CONFIG_DRM_FBDEV_EMULATION
-	.output_poll_changed = drm_fb_helper_output_poll_changed,
-#endif
 	.atomic_check = tegra_atomic_check,
 	.atomic_commit = drm_atomic_helper_commit,
 };
@@ -804,6 +801,7 @@ static const struct file_operations tegra_drm_fops = {
 	.read = drm_read,
 	.compat_ioctl = drm_compat_ioctl,
 	.llseek = noop_llseek,
+	.fop_flags = FOP_UNSIGNED_OFFSET,
 };
 
 static int tegra_drm_context_cleanup(int id, void *p, void *data)
@@ -885,14 +883,11 @@ static const struct drm_driver tegra_drm_driver = {
 			   DRIVER_ATOMIC | DRIVER_RENDER | DRIVER_SYNCOBJ,
 	.open = tegra_drm_open,
 	.postclose = tegra_drm_postclose,
-	.lastclose = drm_fb_helper_lastclose,
 
 #if defined(CONFIG_DEBUG_FS)
 	.debugfs_init = tegra_debugfs_init,
 #endif
 
-	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
-	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
 	.gem_prime_import = tegra_gem_prime_import,
 
 	.dumb_create = tegra_bo_dumb_create,
@@ -966,7 +961,8 @@ int host1x_client_iommu_attach(struct host1x_client *client)
 	 * not the shared IOMMU domain, don't try to attach it to a different
 	 * domain. This allows using the IOMMU-backed DMA API.
 	 */
-	if (domain && domain != tegra->domain)
+	if (domain && domain->type != IOMMU_DOMAIN_IDENTITY &&
+	    domain != tegra->domain)
 		return 0;
 
 	if (tegra->domain) {
@@ -1057,7 +1053,7 @@ void *tegra_drm_alloc(struct tegra_drm *tegra, size_t size, dma_addr_t *dma)
 
 	*dma = iova_dma_addr(&tegra->carveout.domain, alloc);
 	err = iommu_map(tegra->domain, *dma, virt_to_phys(virt),
-			size, IOMMU_READ | IOMMU_WRITE);
+			size, IOMMU_READ | IOMMU_WRITE, GFP_KERNEL);
 	if (err < 0)
 		goto free_iova;
 
@@ -1140,6 +1136,7 @@ static bool host1x_drm_wants_iommu(struct host1x_device *dev)
 
 static int host1x_drm_probe(struct host1x_device *dev)
 {
+	struct device *dma_dev = dev->dev.parent;
 	struct tegra_drm *tegra;
 	struct drm_device *drm;
 	int err;
@@ -1154,10 +1151,10 @@ static int host1x_drm_probe(struct host1x_device *dev)
 		goto put;
 	}
 
-	if (host1x_drm_wants_iommu(dev) && iommu_present(&platform_bus_type)) {
-		tegra->domain = iommu_domain_alloc(&platform_bus_type);
-		if (!tegra->domain) {
-			err = -ENOMEM;
+	if (host1x_drm_wants_iommu(dev) && device_iommu_mapped(dma_dev)) {
+		tegra->domain = iommu_paging_domain_alloc(dma_dev);
+		if (IS_ERR(tegra->domain)) {
+			err = PTR_ERR(tegra->domain);
 			goto free;
 		}
 
@@ -1185,15 +1182,11 @@ static int host1x_drm_probe(struct host1x_device *dev)
 	drm->mode_config.funcs = &tegra_drm_mode_config_funcs;
 	drm->mode_config.helper_private = &tegra_drm_mode_config_helpers;
 
-	err = tegra_drm_fb_prepare(drm);
-	if (err < 0)
-		goto config;
-
 	drm_kms_helper_poll_init(drm);
 
 	err = host1x_device_init(dev);
 	if (err < 0)
-		goto fbdev;
+		goto poll;
 
 	/*
 	 * Now that all display controller have been initialized, the maximum
@@ -1262,7 +1255,7 @@ static int host1x_drm_probe(struct host1x_device *dev)
 	 * will not expose any modesetting features.
 	 */
 	if (drm->mode_config.num_crtc > 0) {
-		err = drm_aperture_remove_framebuffers(false, &tegra_drm_driver);
+		err = drm_aperture_remove_framebuffers(&tegra_drm_driver);
 		if (err < 0)
 			goto hub;
 	} else {
@@ -1273,18 +1266,14 @@ static int host1x_drm_probe(struct host1x_device *dev)
 		drm->driver_features &= ~(DRIVER_MODESET | DRIVER_ATOMIC);
 	}
 
-	err = tegra_drm_fb_init(drm);
+	err = drm_dev_register(drm, 0);
 	if (err < 0)
 		goto hub;
 
-	err = drm_dev_register(drm, 0);
-	if (err < 0)
-		goto fb;
+	tegra_fbdev_setup(drm);
 
 	return 0;
 
-fb:
-	tegra_drm_fb_exit(drm);
 hub:
 	if (tegra->hub)
 		tegra_display_hub_cleanup(tegra->hub);
@@ -1297,10 +1286,8 @@ device:
 	}
 
 	host1x_device_exit(dev);
-fbdev:
+poll:
 	drm_kms_helper_poll_fini(drm);
-	tegra_drm_fb_free(drm);
-config:
 	drm_mode_config_cleanup(drm);
 domain:
 	if (tegra->domain)
@@ -1321,7 +1308,6 @@ static int host1x_drm_remove(struct host1x_device *dev)
 	drm_dev_unregister(drm);
 
 	drm_kms_helper_poll_fini(drm);
-	tegra_drm_fb_exit(drm);
 	drm_atomic_helper_shutdown(drm);
 	drm_mode_config_cleanup(drm);
 
@@ -1344,6 +1330,11 @@ static int host1x_drm_remove(struct host1x_device *dev)
 	drm_dev_put(drm);
 
 	return 0;
+}
+
+static void host1x_drm_shutdown(struct host1x_device *dev)
+{
+	drm_atomic_helper_shutdown(dev_get_drvdata(&dev->dev));
 }
 
 #ifdef CONFIG_PM_SLEEP
@@ -1403,6 +1394,7 @@ static const struct of_device_id host1x_drm_subdevs[] = {
 	{ .compatible = "nvidia,tegra194-vic", },
 	{ .compatible = "nvidia,tegra194-nvdec", },
 	{ .compatible = "nvidia,tegra234-vic", },
+	{ .compatible = "nvidia,tegra234-nvdec", },
 	{ /* sentinel */ }
 };
 
@@ -1413,6 +1405,7 @@ static struct host1x_driver host1x_drm_driver = {
 	},
 	.probe = host1x_drm_probe,
 	.remove = host1x_drm_remove,
+	.shutdown = host1x_drm_shutdown,
 	.subdevs = host1x_drm_subdevs,
 };
 

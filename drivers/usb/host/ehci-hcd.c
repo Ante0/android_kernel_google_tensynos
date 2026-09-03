@@ -32,7 +32,7 @@
 #include <asm/byteorder.h>
 #include <asm/io.h>
 #include <asm/irq.h>
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 
 #if defined(CONFIG_PPC_PS3)
 #include <asm/firmware.h>
@@ -759,7 +759,7 @@ restart:
 			INCR(ehci->stats.normal);
 		} else {
 			/* Force to check port status */
-			if (ehci->has_fsl_port_bug)
+			if (ehci->has_ci_pec_bug)
 				status |= STS_PCD;
 			INCR(ehci->stats.error);
 		}

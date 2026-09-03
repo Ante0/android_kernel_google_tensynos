@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+if WATCHDOG
+
+config GOOGLE_WDT
+	tristate "Google WDT driver"
+	depends on ARCH_GOOGLE
+	depends on WATCHDOG_CORE
+	help
+	  Enable support the watchdog device
+	  in RDO.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+config GOOGLE_WDT_TEST
+	tristate "Kunit test for Google WDT driver"
+	depends on ARCH_GOOGLE
+	depends on KUNIT
+	help
+	  Unit test for watchdog device
+	  in RDO.
+	  Select Y if you have such device.
+	  If unsure select "N".
+
+endif

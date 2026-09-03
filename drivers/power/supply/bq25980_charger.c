@@ -1207,9 +1207,9 @@ static int bq25980_parse_dt(struct bq25980_device *bq)
 	return 0;
 }
 
-static int bq25980_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id)
+static int bq25980_probe(struct i2c_client *client)
 {
+	const struct i2c_device_id *id = i2c_client_get_device_id(client);
 	struct device *dev = &client->dev;
 	struct bq25980_device *bq;
 	int ret;
@@ -1223,7 +1223,7 @@ static int bq25980_probe(struct i2c_client *client,
 
 	mutex_init(&bq->lock);
 
-	strncpy(bq->model_name, id->name, I2C_NAME_SIZE);
+	strscpy(bq->model_name, id->name, sizeof(bq->model_name));
 	bq->chip_info = &bq25980_chip_info_tbl[id->driver_data];
 
 	bq->regmap = devm_regmap_init_i2c(client,
@@ -1241,6 +1241,12 @@ static int bq25980_probe(struct i2c_client *client,
 		return ret;
 	}
 
+	ret = bq25980_power_supply_init(bq, dev);
+	if (ret) {
+		dev_err(dev, "Failed to register power supply\n");
+		return ret;
+	}
+
 	if (client->irq) {
 		ret = devm_request_threaded_irq(dev, client->irq, NULL,
 						bq25980_irq_handler_thread,
@@ -1249,12 +1255,6 @@ static int bq25980_probe(struct i2c_client *client,
 						dev_name(&client->dev), bq);
 		if (ret)
 			return ret;
-	}
-
-	ret = bq25980_power_supply_init(bq, dev);
-	if (ret) {
-		dev_err(dev, "Failed to register power supply\n");
-		return ret;
 	}
 
 	ret = bq25980_hw_init(bq);

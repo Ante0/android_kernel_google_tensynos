@@ -9,6 +9,7 @@
  *     (c) Copyright 1996 Alan Cox <alan@lxorguk.ukuu.org.uk>
  */
 
+#include <linux/cleanup.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/types.h>
@@ -45,10 +46,7 @@
 #include <linux/pid.h>
 #include <linux/sched/task.h>
 #include <soc/google/etm2dram.h>
-
-#ifndef MAX
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#endif
+#include <soc/google/exynos-debug.h>
 
 #define S3C2410_WTCON		0x00
 #define S3C2410_WTDAT		0x04
@@ -105,13 +103,6 @@
 #define WINDOW_MULTIPLIER			2
 
 #define PRINT_CPUS_LIMIT			(30)
-
-#ifndef MIN
-#define MIN(v1, v2) ((v1) < (v2) ? (v1) : (v2))
-#endif
-#ifndef MAX
-#define MAX(v1, v2) ((v1) < (v2) ? (v2) : (v1))
-#endif
 
 static bool nowayout	= WATCHDOG_NOWAYOUT;
 static int tmr_margin;
@@ -1652,20 +1643,19 @@ static int s3c2410wdt_probe(struct platform_device *pdev)
 	}
 
 	if (wdt->drv_data->quirks & QUIRKS_HAVE_PMUREG) {
-		struct device_node *syscon_np;
+		struct device_node *syscon_np __free(device_node);
 		struct resource res;
-
-		wdt->pmureg = syscon_regmap_lookup_by_phandle(dev->of_node,
-							      "samsung,syscon-phandle");
-		if (IS_ERR(wdt->pmureg)) {
-			dev_err(dev, "syscon regmap lookup failed.\n");
-			return PTR_ERR(wdt->pmureg);
-		}
 
 		syscon_np = of_parse_phandle(dev->of_node, "samsung,syscon-phandle", 0);
 		if (!syscon_np) {
 			dev_err(dev, "syscon device node not found\n");
 			return -EINVAL;
+		}
+
+		wdt->pmureg = syscon_node_to_regmap(syscon_np);
+		if (IS_ERR(wdt->pmureg)) {
+			dev_err(dev, "syscon regmap lookup failed.\n");
+			return PTR_ERR(wdt->pmureg);
 		}
 
 		if (of_address_to_resource(syscon_np, 0, &res)) {
@@ -1895,15 +1885,12 @@ static int s3c2410wdt_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int s3c2410wdt_remove(struct platform_device *dev)
+static void s3c2410wdt_remove(struct platform_device *dev)
 {
-	int ret = 0;
 	struct s3c2410_wdt *wdt = platform_get_drvdata(dev);
 
 	if (wdt->drv_data->pmu_reset_func)
-		ret = wdt->drv_data->pmu_reset_func(wdt, true);
-	if (ret < 0)
-		return ret;
+		wdt->drv_data->pmu_reset_func(wdt, true);
 
 	watchdog_unregister_device(&wdt->wdt_device);
 
@@ -1915,10 +1902,10 @@ static int s3c2410wdt_remove(struct platform_device *dev)
 
 	unregister_pm_notifier(&s3c2410wdt_pm_nb);
 
-	if (wdt->schedstat)
+	if (wdt->schedstat) {
+		WARN_ON(unregister_trace_android_vh_scheduler_tick(vh_scheduler_tick, wdt));
 		free_percpu(wdt->schedstat);
-
-	return ret;
+	}
 }
 
 static void s3c2410wdt_shutdown(struct platform_device *dev)

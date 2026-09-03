@@ -1,38 +1,48 @@
 # SPDX-License-Identifier: GPL-2.0
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+# BUILD.bazel for the drm device driver.  This driver provides support for the
+# Direct Rendering Infrastructure (DRI) in XFree86 4.1.0 and higher.
 
-filegroup(
-    name = "headers",
-    srcs = [
-        "exynos-hdcp-interface.h",
-    ],
-    visibility = [
-        "//private/google-modules/display:__subpackages__",
-    ],
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_module")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
 )
 
-kernel_module(
-    name = "hdcp.samsung",
+ddk_module(
+    name = "exynos-hdcp2",
     srcs = glob([
-        "**/*.c",
         "**/*.h",
     ]) + [
-        "Kbuild",
-        "//private/google-modules/soc/gs:gs_soc_headers",
-        "//private/google-modules/trusty:headers",
+        "auth-control.c",
+        "auth-state.c",
+        "auth13.c",
+        "auth22.c",
+        "auth22-ake.c",
+        "auth22-lc.c",
+        "auth22-repeater.c",
+        "auth22-ske.c",
+        "auth22-stream.c",
+        "dpcd.c",
+        "main.c",
+        "selftest.c",
+        "teeif.c",
     ],
-    outs = [
-        "exynos-hdcp2.ko",
+    out = "exynos-hdcp2.ko",
+    copts = [
+        "-Werror",
     ],
     kernel_build = "//private/devices/google/common:kernel",
-    visibility = [
-        "//private/devices/google:__subpackages__",
-        "//private/google-modules/display:__subpackages__",
-        "//private/google-modules/soc/gs:__pkg__",
-    ],
     deps = [
-        "//private/google-modules/soc/gs:gs_soc_module",
-        "//private/google-modules/trusty",
+        "//common:all_headers_aarch64",
+        "//private/google-modules/soc/gs:headers",
+        "//private/google-modules/trusty:trusty-ipc",
+        "//private/google-modules/trusty:trusty_headers",
     ],
 )

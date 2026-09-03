@@ -15,6 +15,9 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#pragma clang diagnostic ignored "-Wenum-conversion"
+#pragma clang diagnostic ignored "-Wswitch"
+
 #include <linux/debugfs.h>
 #include <linux/kernel.h>
 #include <linux/printk.h>
@@ -26,6 +29,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/interrupt.h>
+#include <misc/gvotable.h>
 #include "gbms_power_supply.h"
 #include "google_bms.h"
 #include "google_psy.h"
@@ -37,6 +41,9 @@
 #define GCCD_BUCK_CHARGE_CURRENT_MAX	900000		/* 0.9A */
 #define GCCD_BUCK_CHARGE_PWR_THRESHOLD	27000000	/* 27W */
 #define GCCD_MAIN_CHGIN_ILIM		2200000		/* 2.2A */
+
+/* Default value indicating the property cache is empty */
+#define GCCD_CACHE_VALUE_DEFAULT -1
 
 struct gccd_drv {
 	struct device *device;
@@ -52,9 +59,11 @@ struct gccd_drv {
 	bool init_complete;
 	int voltage_max;
 	int current_max;
-	int buck_chg_en;
+	struct gpio_desc *buck_chg_en;
 	bool ftm_mode; /* factory test, force enable buck charger */
 
+	/* Cached property values to be applied after initialization is complete */
+	int cache_voltage_max;
 };
 
 /* ------------------------------------------------------------------------- */
@@ -259,19 +268,71 @@ set_current_max:
 	 * enable buck charging by pull charging gpio high active when
 	 * buck_chg_current is non-zero
 	 */
-	if (ret == 0 && gccd->buck_chg_en >= 0) {
+	if (ret == 0 && !IS_ERR_OR_NULL(gccd->buck_chg_en)) {
 		struct power_supply *buck_psy = gccd->buck_chg_psy;
 		int en = (buck_chg_current > 0);
 
 		pr_info("%s: buck_charger enable=%d\n", __func__, en);
 
 		ret = PSY_SET_PROP(buck_psy, POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
-				   buck_chg_current);
+				buck_chg_current);
 		if (ret == 0)
-			gpio_direction_output(gccd->buck_chg_en, en);
+			gpiod_direction_output(gccd->buck_chg_en, en);
 	}
 
 	return ret;
+}
+
+static int gccd_set_voltage_max(struct gccd_drv *gccd, int val, bool *changed)
+{
+	int ret, voltage_max;
+
+	ret = PSY_SET_PROP(gccd->main_chg_psy, POWER_SUPPLY_PROP_VOLTAGE_MAX, val);
+	if (ret)
+		return ret;
+
+	voltage_max = val / 1000;
+	if (gccd->voltage_max != voltage_max) {
+		dev_dbg(gccd->device, "voltage_max: %d->%d\n", gccd->voltage_max, voltage_max);
+		*changed = true;
+		gccd->voltage_max = voltage_max;
+	}
+
+	return 0;
+}
+
+/*
+ * gccd_psy_cache_property - Store a property value for later application
+ */
+static void gccd_psy_cache_property(struct gccd_drv *gccd, enum power_supply_property psp, int val)
+{
+	switch (psp) {
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
+		gccd->cache_voltage_max = val;
+		break;
+
+	default:
+		break;
+	}
+}
+
+/*
+ * gccd_psy_set_property_from_cache - Apply all cached properties
+ */
+static bool gccd_psy_set_property_from_cache(struct gccd_drv *gccd)
+{
+	int ret;
+	bool changed = false;
+
+	if (gccd->cache_voltage_max != GCCD_CACHE_VALUE_DEFAULT) {
+		dev_info(gccd->device, "applying cached voltage_max: %d\n",
+			 gccd->cache_voltage_max);
+		ret = gccd_set_voltage_max(gccd, gccd->cache_voltage_max, &changed);
+		if (ret == 0)
+			gccd->cache_voltage_max = GCCD_CACHE_VALUE_DEFAULT;
+	}
+
+	return changed;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -279,16 +340,17 @@ set_current_max:
 static int gccd_gpio_init(struct device *dev, struct gccd_drv *gccd)
 {
 	int ret = 0;
-	struct device_node *node = dev->of_node;
 
 	/* BUCK_CHG_EN */
-	ret = of_get_named_gpio(node, "google,buck_chg_en", 0);
-	gccd->buck_chg_en = ret;
-	if (ret < 0)
+	gccd->buck_chg_en = devm_gpiod_get(dev, "google,buck_chg_en",
+					   GPIOD_ASIS | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
+	if (IS_ERR(gccd->buck_chg_en)) {
+		ret = PTR_ERR(gccd->buck_chg_en);
 		dev_warn(dev, "unable to read google,buck_chg_en from dt: %d\n",
 			 ret);
-	else
-		dev_info(dev, "BUCK_CHG_EN gpio:%d", gccd->buck_chg_en);
+	} else {
+		dev_info(dev, "BUCK_CHG_EN gpio:%d", desc_to_gpio(gccd->buck_chg_en));
+	}
 
 	return (ret < 0) ? ret : 0;
 }
@@ -316,6 +378,8 @@ static enum power_supply_property gccd_psy_properties[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,		/* compat */
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_STATUS,
+	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
+	POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE_MAX,
 };
 
 static int gccd_psy_get_property(struct power_supply *psy,
@@ -367,14 +431,18 @@ static int gccd_psy_set_property(struct power_supply *psy,
 {
 	struct gccd_drv *gccd = (struct gccd_drv *)power_supply_get_drvdata(psy);
 	int ret = 0;
-	int current_max, voltage_max;
+	int current_max;
 	bool changed = false;
 
-	if (!gccd->init_complete)
-		return -EAGAIN;
 
-	if (!gccd_get_chg_psy(gccd))
-		return -EAGAIN;
+	/*
+	 * If the driver is not yet initialized, cache the value and return -EAGAIN
+	 * to signal the caller to retry or wait.
+	 */
+	if (!gccd->init_complete || !gccd_get_chg_psy(gccd)) {
+		ret = -EAGAIN;
+		goto done;
+	}
 
 	mutex_lock(&gccd->gccd_lock);
 
@@ -400,16 +468,7 @@ static int gccd_psy_set_property(struct power_supply *psy,
 		break;
 	}
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
-		ret = PSY_SET_PROP(gccd->main_chg_psy, psp, pval->intval);
-		if (ret)
-			break;
-
-		voltage_max = pval->intval / 1000;
-		if (gccd->voltage_max != voltage_max) {
-			dev_dbg(gccd->device, "voltage_max: %d->%d\n", gccd->voltage_max, voltage_max);
-			changed = true;
-			gccd->voltage_max = voltage_max;
-		}
+		ret = gccd_set_voltage_max(gccd, pval->intval, &changed);
 		break;
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
 		pr_debug("%s: charge_current=%d (0)\n", __func__, pval->intval);
@@ -439,6 +498,13 @@ static int gccd_psy_set_property(struct power_supply *psy,
 	}
 
 	mutex_unlock(&gccd->gccd_lock);
+
+done:
+	if (ret == -EAGAIN)
+		gccd_psy_cache_property(gccd, psp, pval->intval);
+
+	if (changed)
+		power_supply_changed(psy);
 
 	return ret;
 }
@@ -521,7 +587,7 @@ static int gccd_gbms_psy_set_property(struct power_supply *psy,
 		break;
 	case GBMS_PROP_TAPER_CONTROL:
 		if (pval->prop.intval == GBMS_TAPER_CONTROL_ON)
-			gpio_direction_output(gccd->buck_chg_en, 0);
+			gpiod_direction_output(gccd->buck_chg_en, 0);
 		break;
 	default:
 		pr_debug("%s: route to gccd_psy_set_property, psp:%d\n", __func__, psp);
@@ -587,7 +653,13 @@ static void gccd_init_work(struct work_struct *work)
 	(void)gccd_init_fs(gccd);
 	(void)gccd_init_debugfs(gccd);
 
+	mutex_lock(&gccd->gccd_lock);
 	gccd->init_complete = true;
+	/* Flush cache immediately once init is done so we don't wait for the next update */
+	if (gccd_psy_set_property_from_cache(gccd))
+		power_supply_changed(gccd->psy);
+	mutex_unlock(&gccd->gccd_lock);
+
 	dev_info(gccd->device, "gccd_init_work done\n");
 
 	return;
@@ -643,6 +715,8 @@ static int google_ccd_probe(struct platform_device *pdev)
 	mutex_init(&gccd->gccd_lock);
 	INIT_DELAYED_WORK(&gccd->init_work, gccd_init_work);
 
+	gccd->cache_voltage_max = GCCD_CACHE_VALUE_DEFAULT;
+
 	platform_set_drvdata(pdev, gccd);
 
 	psy_cfg.drv_data = gccd;
@@ -664,7 +738,7 @@ static int google_ccd_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int google_ccd_remove(struct platform_device *pdev)
+static void google_ccd_remove(struct platform_device *pdev)
 {
 	struct gccd_drv *gccd = platform_get_drvdata(pdev);
 
@@ -675,8 +749,6 @@ static int google_ccd_remove(struct platform_device *pdev)
 
 	if (gccd->buck_chg_psy)
 		power_supply_put(gccd->buck_chg_psy);
-
-	return 0;
 }
 
 static const struct of_device_id google_ccd_of_match[] = {

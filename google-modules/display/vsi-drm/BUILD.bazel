@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("@kleaf//build/kernel/kleaf:kernel.bzl", "checkpatch", "ddk_headers", "ddk_uapi_headers")
+
+package(default_visibility = [
+    "//private/devices/google:__subpackages__",
+    "//private/google-modules:__subpackages__",
+])
+
+checkpatch(
+    name = "checkpatch",
+    checkpatch_pl = "//common:scripts/checkpatch.pl",
+)
+
+filegroup(
+    name = "vsi-drm.kconfig",
+    srcs = [
+        "//private/google-modules/display/vsi-drm/bridge/synopsys/dsi2host:Kconfig",
+        "//private/google-modules/display/vsi-drm/phy/synopsys:Kconfig",
+        "//private/google-modules/display/vsi-drm/verisilicon:Kconfig",
+    ],
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)
+
+bool_flag(
+    name = "trusty",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "trusty_is_enabled",
+    flag_values = {":trusty": "true"},
+    visibility = [
+        ":__subpackages__",
+    ],
+)
+
+ddk_headers(
+    name = "ddk_headers",
+    hdrs = glob([
+        "include/**/*.h",
+    ]) + [
+        "//private/google-modules/display/common:ddk_headers",
+    ],
+    includes = [
+        "include",
+        "include/uapi",
+    ],
+    visibility = [
+        ":__subpackages__",
+    ],
+)
+
+ddk_uapi_headers(
+    name = "uapi_headers",
+    srcs = glob([
+        "include/uapi/**/*.h",
+    ]),
+    out = "vsi-drm-uapi-headers.tar.gz",
+    kernel_build = "//private/devices/google/common:kernel",
+    visibility = [
+        "//private/devices/google:__subpackages__",
+    ],
+)

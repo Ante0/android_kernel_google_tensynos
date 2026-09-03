@@ -2,7 +2,7 @@
 /*
  * Landlock - Errata information
  *
- * Copyright Â© 2025 Microsoft Corporation
+ * Copyright © 2025 Microsoft Corporation
  */
 
 #ifndef _SECURITY_LANDLOCK_ERRATA_H
@@ -60,6 +60,18 @@ static const struct landlock_erratum landlock_errata_init[] __initconst = {
 #define LANDLOCK_ERRATA_ABI 4
 #if __has_include("errata/abi-4.h")
 #include "errata/abi-4.h"
+#endif
+#undef LANDLOCK_ERRATA_ABI
+
+#define LANDLOCK_ERRATA_ABI 5
+#if __has_include("errata/abi-5.h")
+#include "errata/abi-5.h"
+#endif
+#undef LANDLOCK_ERRATA_ABI
+
+#define LANDLOCK_ERRATA_ABI 6
+#if __has_include("errata/abi-6.h")
+#include "errata/abi-6.h"
 #endif
 #undef LANDLOCK_ERRATA_ABI
 

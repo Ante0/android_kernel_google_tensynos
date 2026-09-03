@@ -2,7 +2,6 @@
 menuconfig EXYNOS_MODEM_IF
 	tristate "Samsung Mobile CP Interface"
 	default n
-	depends on S5910
 	depends on GOOGLE_MODEMCTL
 	help
 	  Samsung Dual Modem Interface Driver
@@ -128,6 +127,13 @@ config LINK_DEVICE_PCIE_SOC_EXYNOS
 	help
 	  PCIE support on Exynos SOC
 
+config LINK_DEVICE_PCIE_SOC_GOOGLE
+	bool "Support for Google SOC PCIE"
+	depends on LINK_DEVICE_PCIE
+	default n
+	help
+	  PCIE support on Google SOC
+
 config LINK_DEVICE_PCIE_IOCC
 	bool "Use PCIE IOCC"
 	depends on LINK_DEVICE_PCIE
@@ -137,7 +143,7 @@ config LINK_DEVICE_PCIE_IOCC
 
 config LINK_DEVICE_PCIE_IOMMU
 	bool "Use PCIE IOMMU"
-	depends on LINK_DEVICE_PCIE && EXYNOS_PCIE_IOMMU
+	depends on LINK_DEVICE_PCIE
 	default n
 	help
 	  This enables PCIe IOMMU

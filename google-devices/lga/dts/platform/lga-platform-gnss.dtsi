@@ -1,0 +1,47 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Samsung CP interface device tree source
+ *
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ */
+
+/ {
+	fragment@modemif {
+		target-path = "/";
+		__overlay__ {
+			// #address-cells = <2>;
+			// #size-cells = <1>;
+
+			gnssif {
+				status = "okay";
+				compatible = "samsung,exynos-gnss";
+
+				device,name = "KEPLER";
+				device_node_name = "gnss_ipc";
+				pinctrl-names = "default";
+				pinctrl-0 = <&gnss2ap_host_req_1v2>,
+					<&ap2gnss_mcu_req_1v2>;
+
+				gpio_gnss2ap_spi = <GNSS2AP_HOST_REQ_1V2(GPIO_ACTIVE_LOW)>;
+				gpio_ap2gnss_spi = <AP2GNSS_MCU_REQ_1V2(GPIO_ACTIVE_LOW)>;
+			};
+		};
+	};
+};
+
+&lsios_cli6_spi {
+	gnss@0 {
+		compatible = "samsung,gnss-spi";
+		reg = <0>;
+		spi-max-frequency = <3125000>;
+		controller-data {
+			samsung,spi-feedback-delay = <0>;
+		};
+	};
+};
+
+/* Overwrite gnss-type to 2 for samsung S5400 */
+&aoc {
+	gnss-type = <2>;
+};

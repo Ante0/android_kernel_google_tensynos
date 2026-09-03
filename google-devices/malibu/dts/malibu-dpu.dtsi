@@ -1,0 +1,565 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
+#include <dt-bindings/interconnect/google,mbu.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/mbu-gic.h>
+#include <dt-bindings/interrupt-controller/irq-gia-google-mbu.h>
+#include <dt-bindings/iis/google,mbu.h>
+
+/ {
+	sswrp_dpu: sswrp_dpu@f400000 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0xf400000 0x400000>;
+
+		display-subsystem {
+			compatible = "verisilicon,display-subsystem";
+			ports = <&dc_out>;
+		};
+
+		dpu: dc9x00@200000 {
+			compatible = "verisilicon,dc9x00";
+			reg = <0x200000 0x11f000>, <0x00390000 0xe004>;
+			reg-names = "dpu-fe-be", "dpu-gpcsr";
+			/*
+			 * Add padding SIDs (marked as Padding in the comment) such that there are
+			 * no gaps. SMMUv3 driver attempts to group SIDs into a continuous range
+			 * to take advantage of STE.CONT hint performance improvement.
+			 * It is expected that TBU entries that cache memory address translations
+			 * will not differentiate based on SID any more and as a result take
+			 * a single unit of space for all SIDs that access the same memory.
+			 */
+			iommus = <&disp_smmu 0x8000>, /* Padding */
+				 <&disp_smmu 0x8001>,
+				 <&disp_smmu 0x8002>,
+				 <&disp_smmu 0x8003>,
+				 <&disp_smmu 0x8004>,
+				 <&disp_smmu 0x8005>,
+				 <&disp_smmu 0x8006>,
+				 <&disp_smmu 0x8007>, /* Padding */
+				 <&disp_smmu 0x8008>, /* Padding */
+				 <&disp_smmu 0x8009>,
+				 <&disp_smmu 0x800a>,
+				 <&disp_smmu 0x800b>,
+				 <&disp_smmu 0x800c>,
+				 <&disp_smmu 0x800d>,
+				 <&disp_smmu 0x800e>,
+				 <&disp_smmu 0x800f>,
+				 <&disp_smmu 0x8010>,
+				 <&disp_smmu 0x8011>, /* Padding */
+				 <&disp_smmu 0x8012>, /* Padding */
+				 <&disp_smmu 0x8013>, /* Padding */
+				 <&disp_smmu 0x8014>,
+				 <&disp_smmu 0x8015>,
+				 <&disp_smmu 0x8016>,
+				 <&disp_smmu 0x8017>,
+				 <&disp_smmu 0x8018>,
+				 <&disp_smmu 0x8019>,
+				 <&disp_smmu 0x801a>,
+				 <&disp_smmu 0x801b>, /* Padding */
+				 <&disp_smmu 0x801c>, /* Padding */
+				 <&disp_smmu 0x801d>, /* Padding */
+				 <&disp_smmu 0x801e>, /* Padding */
+				 <&disp_smmu 0x801f>; /* Padding */
+			iommu-names = "padding_0x8000",
+				      "layer0",
+				      "layer1",
+				      "layer2",
+				      "layer3",
+				      "layer4",
+				      "layer5",
+				      "padding_0x8007",
+				      "padding_0x8008",
+				      "layer8",
+				      "layer9",
+				      "layer10",
+				      "layer11",
+				      "layer12",
+				      "layer13",
+				      "panel0_read",
+				      "panel1_read",
+				      "padding_0x8011",
+				      "padding_0x8012",
+				      "padding_0x8013",
+				      "blender",
+				      "panel0_write",
+				      "panel1_write",
+				      "output0",
+				      "output1",
+				      "output2",
+				      "output3",
+				      "padding_0x801b",
+				      "padding_0x801c",
+				      "padding_0x801d",
+				      "padding_0x801e",
+				      "padding_0x801f";
+
+			iommu-nested-translations;
+
+			power-domains = <&dpu_dsi0_pd>, <&dpu_dsi1_pd>, <&dpu_fe0_pd>, <&dpu_fe1_pd>;
+			power-domain-names = "dpu_dsi0_pd", "dpu_dsi1_pd", "dpu_fe0_pd", "dpu_fe1_pd";
+
+			interconnects = <&icc_gmc SSWRP_DPU &icc_gmc GMC>;
+			interconnect-names = "sswrp-dpu";
+
+			fab-bus-name = "fabdisp";
+
+			boost-fab-freq = <480000>;
+			boost-core-freq = <672000>;
+
+			tzprot-device = <&tzprot>;
+
+			dc_out: ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0>;
+					dc_port0_dsi0_out: endpoint@0 {
+						reg = <0>;
+						remote-endpoint = <&dsi0_ep0_in>;
+					};
+					dc_port0_dsi1_out: endpoint@1 {
+						reg = <1>;
+						remote-endpoint = <&dsi1_ep0_in>;
+					};
+				};
+				port@1 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <1>;
+					dc_port1_dsi0_out: endpoint@0 {
+						reg = <0>;
+						remote-endpoint = <&dsi0_ep1_in>;
+					};
+					dc_port1_dsi1_out: endpoint@1 {
+						reg = <1>;
+						remote-endpoint = <&dsi1_ep1_in>;
+					};
+					dc_port1_dp_out: endpoint@2 {
+						reg = <2>;
+						remote-endpoint = <&dp_ep0_in>;
+					};
+				};
+				port@2 {
+					reg = <2>;
+					dc_port2_dp_out: endpoint {
+						remote-endpoint = <&dp_ep1_in>;
+					};
+				};
+				port@4 {
+					label = "writeback";
+					reg = <4>;
+				};
+			};
+
+			dpu_be: dpu_be@80000 {
+				compatible = "verisilicon,dpu_be";
+
+				power-domains = <&dpu_be_pd>;
+				power-domain-names = "dpu_be_pd";
+
+				interrupts-extended = <&dpu_multicast_aggr_1 DPU_GIA_MULTICAST_AGGR_1_BE_IRQ_BE_OUTPATH0_FRM_START>, /* output0 start, done, underrun */
+					     <&dpu_multicast_aggr_1 DPU_GIA_MULTICAST_AGGR_1_BE_IRQ_BE_OUTPATH0_FRM_DONE>,
+					     <&dpu_multicast_aggr_1 DPU_GIA_MULTICAST_AGGR_1_BE_IRQ_BE_OUTPATH0_UNDERRUN>,
+					     <&dpu_multicast_aggr_1 DPU_GIA_MULTICAST_AGGR_1_BE_IRQ_BE_OUTPATH1_FRM_START>, /* output1 */
+					     <&dpu_multicast_aggr_1 DPU_GIA_MULTICAST_AGGR_1_BE_IRQ_BE_OUTPATH1_FRM_DONE>,
+					     <&dpu_multicast_aggr_1 DPU_GIA_MULTICAST_AGGR_1_BE_IRQ_BE_OUTPATH1_UNDERRUN>,
+					     <&dpu_multicast_aggr_1 DPU_GIA_MULTICAST_AGGR_1_BE_IRQ_BE_OUTPATH2_FRM_START>, /* output2 */
+					     <&dpu_multicast_aggr_1 DPU_GIA_MULTICAST_AGGR_1_BE_IRQ_BE_OUTPATH2_FRM_DONE>,
+					     <&dpu_multicast_aggr_1 DPU_GIA_MULTICAST_AGGR_1_BE_IRQ_BE_OUTPATH2_UNDERRUN>,
+					     <&dpu_multicast_aggr_1 DPU_GIA_MULTICAST_AGGR_1_BE_IRQ_BE_OUTPATH3_FRM_START>, /* output3 */
+					     <&dpu_multicast_aggr_1 DPU_GIA_MULTICAST_AGGR_1_BE_IRQ_BE_OUTPATH3_FRM_DONE>,
+					     <&dpu_multicast_aggr_2 DPU_GIA_MULTICAST_AGGR_2_BE_IRQ_BE_OUTPATH3_UNDERRUN>,
+					     <&dpu_multicast_aggr_2 DPU_GIA_MULTICAST_AGGR_2_BE_IRQ_BE_BLD_WB_FRM_DONE>, /* Bld WB done */
+					     <&dpu_multicast_aggr_2 DPU_GIA_MULTICAST_AGGR_2_BE_IRQ_BE_POST_WB0_FRM_DONE>, /* WB0/1 done */
+					     <&dpu_multicast_aggr_2 DPU_GIA_MULTICAST_AGGR_2_BE_IRQ_BE_POST_WB1_FRM_DONE>,
+					     <&dpu_multicast_aggr_2 DPU_GIA_MULTICAST_AGGR_2_BE_IRQ_DPU_BE_PANEL_CTL_PROTECTION_1>, /* output1 te falling edge */
+					     <&dpu_multicast_aggr_2 DPU_GIA_MULTICAST_AGGR_2_BE_IRQ_DPU_BE_PANEL_CTL_PROTECTION_2>, /* output1 te rising edge */
+					     <&dpu_multicast_aggr_2 DPU_GIA_MULTICAST_AGGR_2_BE_IRQ_DPU_BE_PANEL_CTL_PROTECTION_4>, /* output0 te falling edge */
+					     <&dpu_multicast_aggr_1 DPU_GIA_MULTICAST_AGGR_1_BE_IRQ_BE_OUTPATH0_LTM_FRM_START>, /* output0 te rising edge */
+					     <&dpu_multicast_aggr_2 DPU_GIA_MULTICAST_AGGR_2_BE_IRQ_BE_SW_RST_DONE>, /* BE sw reset done */
+					     <&dpu_multicast_aggr_2 DPU_GIA_MULTICAST_AGGR_2_BE_IRQ_BE_WB0_DATALOST_INTR>, /* WB0/1 data loss */
+					     <&dpu_multicast_aggr_2 DPU_GIA_MULTICAST_AGGR_2_BE_IRQ_BE_WB1_DATALOST_INTR>;
+				interrupt-names = "outpath0_frm_start",
+						  "outpath0_frm_done",
+						  "outpath0_underrun",
+						  "outpath1_frm_start",
+						  "outpath1_frm_done",
+						  "outpath1_underrun",
+						  "outpath2_frm_start",
+						  "outpath2_frm_done",
+						  "outpath2_underrun",
+						  "outpath3_frm_start",
+						  "outpath3_frm_done",
+						  "outpath3_underrun",
+						  "bld_wb_frm_done",
+						  "post_wb0_frm_done",
+						  "post_wb1_frm_done",
+						  "output1_te_falling_edge",
+						  "output1_te_rising_edge",
+						  "output0_te_falling_edge",
+						  "output0_te_rising_edge",
+						  "be_sw_rst_done",
+						  "wb0_datalost",
+						  "wb1_datalost";
+			};
+
+			dpu_fe0: dpu_fe0@0 {
+				compatible = "verisilicon,dpu_fe";
+				fe_id = <0>;
+
+				power-domains = <&dpu_fe0_pd>;
+				power-domain-names = "dpu_fe0_pd";
+
+				interrupts-extended = <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_0_IRQ_DPU_FE_LAYER_FRM_DONE_0>, /* FE0 layer done */
+					     <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_0_IRQ_DPU_FE_LAYER_FRM_DONE_1>,
+					     <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_0_IRQ_DPU_FE_LAYER_FRM_DONE_2>,
+					     <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_0_IRQ_DPU_FE_LAYER_FRM_DONE_3>,
+					     <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_0_IRQ_DPU_FE_LAYER_FRM_DONE_4>,
+					     <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_0_IRQ_DPU_FE_LAYER_FRM_DONE_5>,
+					     <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_0_IRQ_FE_SW_RST_DONE>; /* FE0 sw reset done */
+				interrupt-names = "fe0_layer_frm_done0",
+						  "fe0_layer_frm_done1",
+						  "fe0_layer_frm_done2",
+						  "fe0_layer_frm_done3",
+						  "fe0_layer_frm_done4",
+						  "fe0_layer_frm_done5",
+						  "fe0_sw_rst_done";
+			};
+
+			dpu_fe1: dpu_fe1@40000 {
+				compatible = "verisilicon,dpu_fe";
+				fe_id = <1>;
+
+				power-domains = <&dpu_fe1_pd>;
+				power-domain-names = "dpu_fe1_pd";
+
+				interrupts-extended = <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_1_IRQ_DPU_FE_LAYER_FRM_DONE_0>, /* FE1 layer done */
+					     <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_1_IRQ_DPU_FE_LAYER_FRM_DONE_1>,
+					     <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_1_IRQ_DPU_FE_LAYER_FRM_DONE_2>,
+					     <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_1_IRQ_DPU_FE_LAYER_FRM_DONE_3>,
+					     <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_1_IRQ_DPU_FE_LAYER_FRM_DONE_4>,
+					     <&dpu_multicast_aggr_0 DPU_GIA_MULTICAST_AGGR_0_FE_1_IRQ_DPU_FE_LAYER_FRM_DONE_5>,
+					     <&dpu_multicast_aggr_1 DPU_GIA_MULTICAST_AGGR_1_FE_1_IRQ_FE_SW_RST_DONE>; /* FE1 sw reset done */
+				interrupt-names = "fe1_layer_frm_done0",
+						  "fe1_layer_frm_done1",
+						  "fe1_layer_frm_done2",
+						  "fe1_layer_frm_done3",
+						  "fe1_layer_frm_done4",
+						  "fe1_layer_frm_done5",
+						  "fe1_sw_rst_done";
+			};
+
+			dpu_wb: dpu_wb@80000 {
+				compatible = "verisilicon,dpu_wb";
+
+				power-domains = <&dpu_be_pd>;
+				power-domain-names = "dpu_be_pd";
+			};
+
+		};
+
+		osc_cdphy: oscillator_cdphy {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <38400000>;
+		};
+
+		dw_mipi_g301_cdphy0: dw_mipi_cdphy@3c0000 {
+			compatible = "synopsys,dw-mipi-cdphy-v2";
+			reg = <0x3c0000 0x18000>, <0x3d8800 0x800>;
+			reg-names = "cdphy-tx", "u0-apb-regbank";
+			#phy-cells = <1>;
+			/* 0: dphy, 1: cdphy */
+			is_cphy = <0>;
+			clocks = <&osc_cdphy>;
+			clock-names = "pllref";
+			power-domains = <&dpu_dsi0_pd>;
+		};
+
+		dsi2h0: dsi2host@3d8000 {
+			status = "ok";
+			compatible = "verisilicon,dc9x00-mipi-dsi2h";
+			reg = <0x3d8000 0x0800>; /* DWC MIPI DSI2 HOST */
+			verisilicon,mux-id = <0>; /* 0 to 3 for dsi0, dsi1, dp0, dp1 */
+			interrupt-parent = <&dpu_multicast_aggr_3>;
+			interrupts = <DPU_GIA_MULTICAST_AGGR_3_DSI_SS_TOP_DSI0_IRQ>; /* dsi0 * */
+			interrupt-names = "dsi0_irq";
+			power-domains = <&dpu_dsi0_pd>;
+
+			phys = <&dw_mipi_g301_cdphy0 0>;
+			phy-names = "dw-mipi-cdphy";
+
+			max_data_lanes = <4>;
+			/* 0: dphy, 1: cphy */
+			is_cphy = <0>; /* TODO(longling): dphy node also has this */
+			/* 0: continuous clock, 1: non-continuous clock */
+			clk_type = <1>;
+			/* 0: idle, 1: auto calculation, 2: command, 3: video, 4: data stream */
+			mode_ctrl = <3>;
+			auto_calc_en = <1>;
+			/* 0: 8 bits, 1: 16 bits, 2: 32 bits */
+			ppi_width = <1>;
+			lanes = <4>;
+			high_speed = <1>;
+			bta = <1>;
+			eotp = <1>;
+			tear_effect = <1>;
+			channel = <0>;
+			scrambling = <0>;
+			/* 2: burst mode */
+			vid_mode_type = <2>;
+			/* vfp, vbp, vsa, hfp, hbp, hsa */
+			hs_en = <1 1 1 0 1 1>;
+			/* Mbps */
+			datarate = <1200>;
+			lp2hs_time = <0x009b00d4>;
+			hs2lp_time = <0x006a80cc>;
+			dynamic_hs_clk_en;
+
+			/* sys_clk in KHz */
+			sys_clk = <300000>;
+			phy_clk = <1200000>;
+			ipi_clk = <75000>;
+			lptx_clk = <20000>;
+
+			hs_link_enable;
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				/* input */
+				port@0 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0>;
+					dsi0_ep0_in: endpoint@0 {
+						reg = <0>;
+						remote-endpoint = <&dc_port0_dsi0_out>;
+					};
+					dsi0_ep1_in: endpoint@1 {
+						reg = <1>;
+						remote-endpoint = <&dc_port1_dsi0_out>;
+					};
+				};
+				/* output */
+				port@1 {
+					reg = <1>;
+					dsi0_port1_out: endpoint {
+						remote-endpoint = <&dsi0_connector_in>;
+					};
+				};
+			};
+		};
+
+		dw_mipi_g301_cdphy1: dw_mipi_cdphy@3e0000 {
+			compatible = "synopsys,dw-mipi-cdphy-v2";
+			reg = <0x3e0000 0x18000>, <0x3f8800 0x800>;
+			reg-names = "cdphy-tx", "u0-apb-regbank";
+			#phy-cells = <1>;
+			/* 0: dphy, 1: cdphy */
+			is_cphy = <0>;
+			clocks = <&osc_cdphy>;
+			clock-names = "pllref";
+			power-domains = <&dpu_dsi1_pd>;
+		};
+
+		dsi2h1: dsi2host@3f8000 {
+			status = "disabled";
+			compatible = "verisilicon,dc9x00-mipi-dsi2h";
+			reg = <0x3f8000 0x0800>; /* DWC MIPI DSI2 HOST */
+			verisilicon,mux-id = <1>; /* 0 to 3 for dsi0, dsi1, dp0, dp1 */
+			interrupt-parent = <&dpu_multicast_aggr_3>;
+			interrupts = <DPU_GIA_MULTICAST_AGGR_3_DSI_SS_TOP_DSI1_IRQ>; /* dsi1 */
+			interrupt-names = "dsi1_irq";
+			power-domains = <&dpu_dsi1_pd>;
+
+			phys = <&dw_mipi_g301_cdphy1 0>;
+			phy-names = "dw-mipi-cdphy";
+
+			max_data_lanes = <4>;
+			/* 0: dphy, 1: cphy */
+			is_cphy = <0>; /* TODO(longling): dphy node also has this */
+			/* 0: continuous clock, 1: non-continuous clock */
+			clk_type = <1>;
+			/* 0: idle, 1: auto calculation, 2: command, 3: video, 4: data stream */
+			mode_ctrl = <3>;
+			auto_calc_en = <1>;
+			/* 0: 8 bits, 1: 16 bits, 2: 32 bits */
+			ppi_width = <1>;
+			lanes = <4>;
+			high_speed = <1>;
+			bta = <1>;
+			eotp = <1>;
+			tear_effect = <1>;
+			channel = <0>;
+			scrambling = <0>;
+			/* 2: burst mode */
+			vid_mode_type = <2>;
+			/* vfp, vbp, vsa, hfp, hbp, hsa */
+			hs_en = <1 1 1 0 1 1>;
+			/* Mbps */
+			datarate = <1200>;
+			lp2hs_time = <0x009b00d4>;
+			hs2lp_time = <0x006a80cc>;
+			dynamic_hs_clk_en;
+
+			/* sys_clk in KHz */
+			sys_clk = <300000>;
+			phy_clk = <1200000>;
+			ipi_clk = <75000>;
+			lptx_clk = <20000>;
+
+			hs_link_enable;
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				/* input */
+				port@0 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0>;
+					dsi1_ep0_in: endpoint@0 {
+						reg = <0>;
+						remote-endpoint = <&dc_port0_dsi1_out>;
+					};
+					dsi1_ep1_in: endpoint@1 {
+						reg = <1>;
+						remote-endpoint = <&dc_port1_dsi1_out>;
+					};
+				};
+				/* output */
+				port@1 {
+					reg = <1>;
+					dsi1_port1_out: endpoint {
+						remote-endpoint = <&dsi1_connector_in>;
+					};
+				};
+			};
+		};
+
+		dp_encoder: dp-encoder {
+			compatible = "verisilicon,dp-encoder";
+			verisilicon,mux-id = <2>;
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				/* input */
+				port@0 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0>;
+					dp_ep0_in: endpoint@0 {
+						reg = <0>;
+						remote-endpoint = <&dc_port1_dp_out>;
+					};
+					dp_ep1_in: endpoint@1 {
+						reg = <1>;
+						remote-endpoint = <&dc_port2_dp_out>;
+					};
+				};
+
+				/* output */
+				port@1 {
+					reg = <1>;
+					dp_port1_out: endpoint {
+						remote-endpoint = <&dptx_port0_in>;
+					};
+				};
+			};
+		};
+
+		disp_vddd: disp-vddd {
+			status = "disabled";
+			compatible = "regulator-fixed";
+			regulator-name = "disp_vddd";
+			regulator-min-microvolt = <1068000>;
+			regulator-max-microvolt = <1068000>;
+			regulator-boot-on;
+			enable-active-high;
+		};
+
+		gs_dsi0_connector: gs-dsi0-connector {
+			compatible = "google,drm_connector";
+
+			google,preferred-panel = <&panel_gs_simple_0>;
+
+			/* input */
+			port {
+				dsi0_connector_in: endpoint {
+					remote-endpoint = <&dsi0_port1_out>;
+				};
+			};
+
+			panel_gs_simple_0: panel-gs-simple {
+				compatible = "google,panel-gs-simple";
+				label = "panel-gs-simple";
+				channel = <0>;
+			};
+
+			panel_gs_simple_command_0: panel-gs-simple-command {
+				compatible = "google,panel-gs-simple-command";
+				label = "panel-gs-simple-command";
+				channel = <0>;
+			};
+		};
+
+		gs_dsi1_connector: gs-dsi1-connector {
+			compatible = "google,drm_connector";
+
+			google,preferred-panel = <&panel_gs_simple_1>;
+
+			/* input */
+			port {
+				dsi1_connector_in: endpoint {
+					remote-endpoint = <&dsi1_port1_out>;
+				};
+			};
+
+			panel_gs_simple_1: panel-gs-simple {
+				compatible = "google,panel-gs-simple";
+				label = "panel-gs-simple";
+				channel = <0>;
+			};
+
+			panel_gs_simple_command_1: panel-gs-simple-command {
+				compatible = "google,panel-gs-simple-command";
+				label = "panel-gs-simple-command";
+				channel = <0>;
+			};
+		};
+
+		dpu_pdma_iis0: dpu-pdma-iis0 {
+			compatible = "google,iis";
+			google,ta-iis-id = <TA_IIS_DEV_DPU_PDMA_0>;
+			power-domains = <&sswrp_dpu_pd>;
+			#access-controller-cells = <0>;
+		};
+
+		dpu_pdma_iis1: dpu-pdma-iis1 {
+			compatible = "google,iis";
+			google,ta-iis-id = <TA_IIS_DEV_DPU_PDMA_1>;
+			power-domains = <&sswrp_dpu_pd>;
+			#access-controller-cells = <0>;
+		};
+
+		dpu_pdma_iis2: dpu-pdma-iis2 {
+			compatible = "google,iis";
+			google,ta-iis-id = <TA_IIS_DEV_DPU_PDMA_2>;
+			power-domains = <&sswrp_dpu_pd>;
+			#access-controller-cells = <0>;
+		};
+
+		dpu_pdma_iis3: dpu-pdma-iis3 {
+			compatible = "google,iis";
+			google,ta-iis-id = <TA_IIS_DEV_DPU_PDMA_3>;
+			power-domains = <&sswrp_dpu_pd>;
+			#access-controller-cells = <0>;
+		};
+	};
+};

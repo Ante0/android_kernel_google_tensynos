@@ -606,8 +606,7 @@ static const struct dvb_frontend_ops mn88473_ops = {
 	.read_status = mn88473_read_status,
 };
 
-static int mn88473_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id)
+static int mn88473_probe(struct i2c_client *client)
 {
 	struct mn88473_config *config = client->dev.platform_data;
 	struct mn88473_dev *dev;
@@ -744,7 +743,7 @@ static void mn88473_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id mn88473_id_table[] = {
-	{"mn88473", 0},
+	{ "mn88473" },
 	{}
 };
 MODULE_DEVICE_TABLE(i2c, mn88473_id_table);

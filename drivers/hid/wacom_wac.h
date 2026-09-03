@@ -14,6 +14,7 @@
 #define WACOM_MAX_REMOTES	5
 #define WACOM_STATUS_UNKNOWN	255
 #define WACOM_REMOTE_BATTERY_TIMEOUT	21000000000ll
+#define WACOM_AES_BATTERY_TIMEOUT       1800000
 
 /* packet length for individual models */
 #define WACOM_PKGLEN_BBFUN	 9
@@ -297,6 +298,7 @@ struct wacom_shared {
 struct hid_data {
 	__s16 inputmode;	/* InputMode HID feature, -1 if non-existent */
 	__s16 inputmode_index;	/* InputMode HID feature index in the report */
+	__s16 inputmode_field_index; /* InputMode HID feature field index in the report */
 	bool sense_state;
 	bool inrange_state;
 	bool invert_state;
@@ -308,10 +310,11 @@ struct hid_data {
 	bool confidence;
 	int x;
 	int y;
-	int pressure;
 	int width;
 	int height;
 	int id;
+	int ring_value;
+	int ring2_value;
 	int cc_report;
 	int cc_index;
 	int cc_value_index;
@@ -328,10 +331,9 @@ struct hid_data {
 	ktime_t time_delayed;
 };
 
-struct wacom_remote_data {
+struct wacom_remote_work_data {
 	struct {
 		u32 serial;
-		bool connected;
 	} remote[WACOM_MAX_REMOTES];
 };
 
@@ -356,6 +358,8 @@ struct wacom_wac {
 	int num_contacts_left;
 	u8 bt_features;
 	u8 bt_high_speed;
+	u8 absring_count;
+	u8 relring_count;
 	int mode_report;
 	int mode_value;
 	struct hid_data hid_data;

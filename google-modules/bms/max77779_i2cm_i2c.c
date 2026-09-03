@@ -23,7 +23,7 @@ static const struct i2c_device_id id[] = {
 
 MODULE_DEVICE_TABLE(i2c, id);
 
-static int max77779_i2cm_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static int max77779_i2cm_i2c_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
 	struct max77779_i2cm_info *info;
@@ -37,7 +37,6 @@ static int max77779_i2cm_i2c_probe(struct i2c_client *client, const struct i2c_d
 		return -ENOMEM;
 
 	info->dev = dev;
-	info->client = client;
 	info->irq = client->irq;
 	i2c_set_clientdata(client, info);
 
@@ -65,7 +64,7 @@ static const struct of_device_id max77779_i2cm_match_table[] = {
 };
 #endif
 
-static struct i2c_driver max77779_i2cm_driver = {
+static struct i2c_driver max77779_i2cm_i2c_driver = {
 	.probe		= max77779_i2cm_i2c_probe,
 	.remove		= max77779_i2cm_i2c_remove,
 	.id_table	= id,
@@ -77,7 +76,7 @@ static struct i2c_driver max77779_i2cm_driver = {
 	},
 };
 
-module_i2c_driver(max77779_i2cm_driver);
+module_i2c_driver(max77779_i2cm_i2c_driver);
 MODULE_DESCRIPTION("Maxim 77779 I2CM I2C Driver");
 MODULE_AUTHOR("Daniel Okazaki <dtokazaki@google.com>");
 MODULE_LICENSE("GPL");

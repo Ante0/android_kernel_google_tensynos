@@ -325,7 +325,7 @@ int vgic_v2_map_resources(struct kvm *kvm)
 	return 0;
 }
 
-__visible DEFINE_STATIC_KEY_FALSE(vgic_v2_cpuif_trap);
+DEFINE_STATIC_KEY_FALSE(vgic_v2_cpuif_trap);
 
 /**
  * vgic_v2_probe - probe for a VGICv2 compatible interrupt controller
@@ -464,7 +464,7 @@ void vgic_v2_load(struct kvm_vcpu *vcpu)
 		       kvm_vgic_global_state.vctrl_base + GICH_APR);
 }
 
-void vgic_v2_put(struct kvm_vcpu *vcpu, bool blocking)
+void vgic_v2_put(struct kvm_vcpu *vcpu)
 {
 	struct vgic_v2_cpu_if *cpu_if = &vcpu->arch.vgic_cpu.vgic_v2;
 

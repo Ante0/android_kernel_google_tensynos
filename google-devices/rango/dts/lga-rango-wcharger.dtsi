@@ -1,0 +1,77 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Wireless charger device tree for Rangos
+ *
+ * Copyright 2024 Google LLC
+ *
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+&google_charger {
+	google,wlc-power-supply = "wireless";
+	google,therm-wlc-overrides-fcc;
+};
+
+&google_cpm {
+	google,wlc_dc-power-supply = "wireless";	// in=1
+	google,set-mdis-to-wlc;
+};
+
+&max77779_chg {
+	max77779,wlc-en-gpio = <&google_wlc_gpio 1 GPIO_ACTIVE_HIGH>;
+	max77779,wlc-spoof-gpio = <&google_wlc_gpio 5 GPIO_ACTIVE_HIGH>;
+	max77779,wcin-inlim-headroom = <25000>;
+};
+
+&max77779_pinctrl {
+
+	wc_irq: wc_irq {
+		pins = "gpio4";
+		function = "gpio";
+		bias-pull-up;
+	};
+
+	mode_gpio: mode_gpio {
+		pins = "gpio3";
+		function = "gpio";
+		output-low;
+		bias-disable;
+	};
+};
+
+&max77779_i2cm {
+#ifdef RANGO_PROTO_WLC
+	#include "google-base/platform/lga-wcharger-ra9582.dtsi"
+#else
+	#include "google-base/platform/lga-wcharger-cps4041.dtsi"
+#endif
+};
+
+&google_wlc {
+	pinctrl-0 = <&wc_irq &mode_gpio>;
+	irq-gpio = <&max77779_sgpio 4 GPIO_ACTIVE_LOW>; /* OD2 INT */
+	ap5v-gpio = <&lsioe_pinctrl XLSIOE_CLI7_PIN3 GPIO_ACTIVE_HIGH>; /* SOC_GPIO AP_5V */
+	mode-gpio = <&max77779_sgpio 3 GPIO_ACTIVE_HIGH>; /* OD5 BPP_FORCE */
+	inhibit-gpio = <&max77779_sgpio 1 GPIO_ACTIVE_HIGH>; /* OD4 RX_COMM_EN */
+	pdet-gpio = <&max77779_sgpio 2 GPIO_ACTIVE_HIGH>; /* OD3 PDET */
+
+	pinctrl-names = "default";
+	google,project_id = /bits/ 8 <0x04>;
+	google,wlc-bootloader = "CPS4041_BL.bin";
+	google,wlc-firmware = "CPS4041_A0_04.bin";
+
+	bpp_mdis_pwr = <5000000 4907600 4815200 4722800 4630400 4538000 4445600 4353200 4260800
+			4168400 4076000 3983600 3891200 3798800 3706400 3614000 3521600 3429200
+			3336800 3244400 3152000 3059600 2967200 2874800 2782400 2690000>;
+	mpp_mdis_pwr = <15000000 14542800 14085600 13628400 13171200 12714000 12256800 11799600
+			11342400 10885200 10428000  9970800  9513600  9056400  8599200  8142000
+			 7684800  7227600  6770400  6313200  5856000  5398800  4941600  4484400
+			 4027200  3570000>;
+	mpp_eds_soc = <80 95>;
+	mpp_eds_icl = <300000 100000>;
+	google,wlc_mod_depth_max = /bits/ 8 <0x0A>;
+	google,wlc_mod_soc = <75>;
+	google,wlc_qispec = <0x2003>;
+	google,cloak_ping_delay_ms = <1000>;
+};

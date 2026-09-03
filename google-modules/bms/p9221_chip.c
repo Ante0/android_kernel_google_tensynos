@@ -8,6 +8,7 @@
 
 #include <linux/device.h>
 #include <linux/pm.h>
+#include <linux/gpio/consumer.h>
 #include <linux/gpio/driver.h>
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
@@ -16,6 +17,8 @@
 #include <linux/delay.h>
 #include <linux/kernel.h>
 #include <linux/alarmtimer.h>
+#include <misc/gvotable.h>
+#include <misc/logbuffer.h>
 #include "p9221_charger.h"
 #include "google_bms.h"
 
@@ -43,11 +46,12 @@ static int p9221_chip_get_rx_ilim(struct p9221_charger_data *chgr, u32 *ma)
 	u8 val;
 
 	ret = chgr->reg_read_8(chgr, P9221R5_ILIM_SET_REG, &val);
-	if (ret)
-		return ret;
-
-	*ma = ((val * 100) + 200);
-	return 0;
+	if (ret == 0) {
+		*ma = ((val * 100) + 200);
+		if (*ma > P9221_READING_MAX_IOUT_MA)
+			return -EINVAL;
+	}
+	return ret;
 }
 
 static int p9412_chip_get_rx_ilim(struct p9221_charger_data *chgr, u32 *ma)
@@ -56,11 +60,12 @@ static int p9412_chip_get_rx_ilim(struct p9221_charger_data *chgr, u32 *ma)
 	u8 val;
 
 	ret = chgr->reg_read_8(chgr, P9221R5_ILIM_SET_REG, &val);
-	if (ret)
-		return ret;
-
-	*ma = (val + 1) * 100;
-	return 0;
+	if (ret == 0) {
+		*ma = (val + 1) * 100;
+		if (*ma > P9221_READING_MAX_IOUT_MA)
+			return -EINVAL;
+	}
+	return ret;
 }
 
 static int ra9530_chip_get_rx_ilim(struct p9221_charger_data *chgr, u32 *ma)
@@ -69,11 +74,12 @@ static int ra9530_chip_get_rx_ilim(struct p9221_charger_data *chgr, u32 *ma)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, RA9530_ILIM_REG, &val);
-	if (ret)
-		return ret;
-
-	*ma = val;
-	return 0;
+	if (ret == 0) {
+		if (val > P9221_READING_MAX_IOUT_MA)
+			return -EINVAL;
+		*ma = val;
+	}
+	return ret;
 }
 
 static int p9222_chip_get_rx_ilim(struct p9221_charger_data *chgr, u32 *ma)
@@ -82,11 +88,12 @@ static int p9222_chip_get_rx_ilim(struct p9221_charger_data *chgr, u32 *ma)
 	u8 val;
 
 	ret = chgr->reg_read_8(chgr, P9222RE_ILIM_SET_REG, &val);
-	if (ret)
-		return ret;
-
-	*ma = ((val * 100) + 100);
-	return 0;
+	if (ret == 0) {
+		*ma = ((val * 100) + 100);
+		if (*ma > P9221_READING_MAX_IOUT_MA)
+			return -EINVAL;
+	}
+	return ret;
 }
 
 /*
@@ -161,11 +168,12 @@ static int p9382_chip_get_tx_ilim(struct p9221_charger_data *chgr, u32 *ma)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9382A_ILIM_SET_REG, &val);
-	if (ret)
-		return ret;
-
-	*ma = (u32) val;
-	return 0;
+	if (ret == 0) {
+		if (val > P9221_READING_MAX_IOUT_MA)
+			return -EINVAL;
+		*ma = (u32)val;
+	}
+	return ret;
 }
 
 static int p9412_chip_get_tx_ilim(struct p9221_charger_data *chgr, u32 *ma)
@@ -174,11 +182,12 @@ static int p9412_chip_get_tx_ilim(struct p9221_charger_data *chgr, u32 *ma)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9412_TX_I_API_LIM_REG, &val);
-	if (ret)
-		return ret;
-
-	*ma = (u32) val;
-	return 0;
+	if (ret == 0) {
+		if (val > P9221_READING_MAX_IOUT_MA)
+			return -EINVAL;
+		*ma = (u32)val;
+	}
+	return ret;
 }
 
 /*
@@ -218,11 +227,14 @@ static int p9221_chip_get_die_temp(struct p9221_charger_data *chgr, int *mc)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9221R5_DIE_TEMP_ADC_REG, &val);
-	if (ret)
-		return ret;
+	if (ret == 0) {
+		int temp_c = val * 10 / 107 - 247;
 
-	*mc = (val * 10 / 107 - 247) * 10;
-	return 0;
+		if (temp_c > P9221_READING_MAX_TEMP_C)
+			return -EINVAL;
+		*mc = temp_c * 10;
+	}
+	return ret;
 }
 
 static int p9412_chip_get_die_temp(struct p9221_charger_data *chgr, int *mc)
@@ -231,11 +243,12 @@ static int p9412_chip_get_die_temp(struct p9221_charger_data *chgr, int *mc)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9412_DIE_TEMP_REG, &val);
-	if (ret)
-		return ret;
-
-	*mc = P9221_C_TO_MILLIC(val);
-	return 0;
+	if (ret == 0) {
+		if (val > P9221_READING_MAX_TEMP_C)
+			return -EINVAL;
+		*mc = P9221_C_TO_MILLIC(val);
+	}
+	return ret;
 }
 
 static int p9222_chip_get_die_temp(struct p9221_charger_data *chgr, int *mc)
@@ -244,11 +257,12 @@ static int p9222_chip_get_die_temp(struct p9221_charger_data *chgr, int *mc)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9222RE_DIE_TEMP_REG, &val);
-	if (ret)
-		return ret;
-
-	*mc = P9221_C_TO_MILLIC(val);
-	return 0;
+	if (ret == 0) {
+		if (val > P9221_READING_MAX_TEMP_C)
+			return -EINVAL;
+		*mc = P9221_C_TO_MILLIC(val);
+	}
+	return ret;
 }
 
 /*
@@ -262,11 +276,12 @@ static int p9xxx_chip_get_iout(struct p9221_charger_data *chgr, u32 *ma)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9221R5_IOUT_REG, &val);
-	if (ret)
-		return ret;
-
-	*ma = val;
-	return 0;
+	if (ret == 0) {
+		if (val > P9221_READING_MAX_IOUT_MA)
+			return -EINVAL;
+		*ma = val;
+	}
+	return ret;
 }
 
 static int p9222_chip_get_iout(struct p9221_charger_data *chgr, u32 *ma)
@@ -275,11 +290,12 @@ static int p9222_chip_get_iout(struct p9221_charger_data *chgr, u32 *ma)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9222RE_IOUT_REG, &val);
-	if (ret)
-		return ret;
-
-	*ma = val;
-	return 0;
+	if (ret == 0) {
+		if (val > P9221_READING_MAX_IOUT_MA)
+			return -EINVAL;
+		*ma = val;
+	}
+	return ret;
 }
 
 /*
@@ -293,11 +309,12 @@ static int p9xxx_chip_get_vout(struct p9221_charger_data *chgr, u32 *mv)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9221R5_VOUT_REG, &val);
-	if (ret)
-		return ret;
-
-	*mv = val;
-	return 0;
+	if (ret == 0) {
+		if (val > P9221_READING_MAX_VOLT_MV)
+			return -EINVAL;
+		*mv = val;
+	}
+	return ret;
 }
 
 static int p9222_chip_get_vout(struct p9221_charger_data *chgr, u32 *mv)
@@ -306,11 +323,12 @@ static int p9222_chip_get_vout(struct p9221_charger_data *chgr, u32 *mv)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9222RE_VOUT_REG, &val);
-	if (ret)
-		return ret;
-
-	*mv = val;
-	return 0;
+	if (ret == 0) {
+		if (val > P9221_READING_MAX_VOLT_MV)
+			return -EINVAL;
+		*mv = val;
+	}
+	return ret;
 }
 
 /*
@@ -324,11 +342,12 @@ static int p9xxx_chip_get_vrect(struct p9221_charger_data *chgr, u32 *mv)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9221R5_VRECT_REG, &val);
-	if (ret)
-		return ret;
-
-	*mv = val;
-	return 0;
+	if (ret == 0) {
+		if (val > P9221_READING_MAX_VOLT_MV)
+			return -EINVAL;
+		*mv = val;
+	}
+	return ret;
 }
 
 static int p9222_chip_get_vrect(struct p9221_charger_data *chgr, u32 *mv)
@@ -337,11 +356,12 @@ static int p9222_chip_get_vrect(struct p9221_charger_data *chgr, u32 *mv)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9222RE_VRECT_REG, &val);
-	if (ret)
-		return ret;
-
-	*mv = val;
-	return 0;
+	if (ret == 0) {
+		if (val > P9221_READING_MAX_VOLT_MV)
+			return -EINVAL;
+		*mv = val;
+	}
+	return ret;
 }
 
 /*
@@ -355,11 +375,12 @@ static int p9xxx_chip_get_op_freq(struct p9221_charger_data *chgr, u32 *khz)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9221R5_OP_FREQ_REG, &val);
-	if (ret)
-		return ret;
-
-	*khz = (u32) val;
-	return 0;
+	if (ret == 0) {
+		if (val > P9221_READING_MAX_FREQ_KHZ)
+			return -EINVAL;
+		*khz = (u32)val;
+	}
+	return ret;
 }
 
 static int p9222_chip_get_op_freq(struct p9221_charger_data *chgr, u32 *khz)
@@ -368,11 +389,12 @@ static int p9222_chip_get_op_freq(struct p9221_charger_data *chgr, u32 *khz)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9222RE_OP_FREQ_REG, &val);
-	if (ret)
-		return ret;
-
-	*khz = (u32) val;
-	return 0;
+	if (ret == 0) {
+		if (val > P9221_READING_MAX_FREQ_KHZ)
+			return -EINVAL;
+		*khz = (u32)val;
+	}
+	return ret;
 }
 static int p9xxx_chip_get_ping_freq(struct p9221_charger_data *chgr, u32 *khz)
 {
@@ -380,11 +402,12 @@ static int p9xxx_chip_get_ping_freq(struct p9221_charger_data *chgr, u32 *khz)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9221R5_TX_PINGFREQ_REG, &val);
-	if (ret)
-		return ret;
-
-	*khz = (u32) val;
-	return 0;
+	if (ret == 0) {
+		if (val > P9221_READING_MAX_FREQ_KHZ)
+			return -EINVAL;
+		*khz = (u32)val;
+	}
+	return ret;
 }
 
 static int p9222_chip_get_ping_freq(struct p9221_charger_data *chgr, u32 *khz)
@@ -393,11 +416,12 @@ static int p9222_chip_get_ping_freq(struct p9221_charger_data *chgr, u32 *khz)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9222RE_TX_PINGFREQ_REG, &val);
-	if (ret)
-		return ret;
-
-	*khz = (u32) val;
-	return 0;
+	if (ret == 0) {
+		if (val > P9221_READING_MAX_FREQ_KHZ)
+			return -EINVAL;
+		*khz = (u32)val;
+	}
+	return ret;
 }
 
 /*
@@ -516,11 +540,12 @@ static int p9412_chip_get_vcpout(struct p9221_charger_data *chgr, u32 *mv)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9412_VCPOUT_VOL_REG, &val);
-	if (ret)
-		return ret;
-
-	*mv = (u32) val;
-	return 0;
+	if (ret == 0) {
+		if (val > P9221_READING_MAX_VOLT_MV)
+			return -EINVAL;
+		*mv = (u32)val;
+	}
+	return ret;
 }
 static int p9xxx_chip_get_vcpout(struct p9221_charger_data *chgr, u32 *mv)
 {
@@ -544,11 +569,13 @@ static int p9832_chip_get_vout_max(struct p9221_charger_data *chgr, u32 *mv)
 	u8 val;
 
 	ret = chgr->reg_read_8(chgr, P9221R5_VOUT_SET_REG, &val);
-	if (ret)
-		return ret;
+	if (ret == 0) {
+		*mv = val * 100; /* 100 mV units */
+		if (*mv > P9221_READING_MAX_VOLT_MV)
+			return -EINVAL;
+	}
 
-	*mv = val * 100; /* 100 mV units */
-	return 0;
+	return ret;
 }
 
 static int p9412_chip_get_vout_max(struct p9221_charger_data *chgr, u32 *mv)
@@ -557,11 +584,13 @@ static int p9412_chip_get_vout_max(struct p9221_charger_data *chgr, u32 *mv)
 	u16 val;
 
 	ret = chgr->reg_read_16(chgr, P9412_VOUT_SET_REG, &val);
-	if (ret)
-		return ret;
+	if (ret == 0) {
+		*mv = val * 10; /* 10 mV units */
+		if (*mv > P9221_READING_MAX_VOLT_MV)
+			return -EINVAL;
+	}
 
-	*mv = val * 10; /* 10 mV units */
-	return 0;
+	return ret;
 }
 
 static int p9222_chip_get_vout_max(struct p9221_charger_data *chgr, u32 *mv)
@@ -570,11 +599,13 @@ static int p9222_chip_get_vout_max(struct p9221_charger_data *chgr, u32 *mv)
 	u8 val;
 
 	ret = chgr->reg_read_8(chgr, P9222RE_VOUT_SET_REG, &val);
-	if (ret)
-		return ret;
+	if (ret == 0) {
+		*mv = val * 100 + 3500; /* Vout = value * 100mV + 3500mV */
+		if (*mv > P9221_READING_MAX_VOLT_MV)
+			return -EINVAL;
+	}
 
-	*mv = val * 100 + 3500; /* Vout = value * 100mV + 3500mV */
-	return 0;
+	return ret;
 }
 
 /*
@@ -623,11 +654,6 @@ static int ra9530_chip_set_vout_max(struct p9221_charger_data *chgr, u32 mv)
 		__func__, mv, __builtin_return_address(2));
 
 	ret = chgr->reg_write_16(chgr, P9412_VOUT_SET_REG, mv / 10);
-
-	if (chgr->chg_mode_votable && chgr->chg_mode_off) {
-		gvotable_cast_long_vote(chgr->chg_mode_votable, HPP_VOTER, 0, false);
-		chgr->chg_mode_off = false;
-	}
 
 	return ret;
 }
@@ -2169,21 +2195,16 @@ err_exit:
 	return chgr->prop_mode_en;
 }
 
-static int ra9530_prop_mode_enable(struct p9221_charger_data *chgr, int req_pwr)
+static int ra9530_prop_mode_setup(struct p9221_charger_data *chgr)
 {
-	const int req_pwr_val = req_pwr * 2 / 1000;
-	int ret, loops, i, max_wait_time, loop_cnt, txpwr_mw;
-	u8 val8, cdmode, pwr_stp, mode_sts, prop_cur_pwr, prop_req_pwr;
+	int ret;
+	u8 val8;
 
 	ret = chgr->chip_get_sys_mode(chgr, &val8);
 	if (ret) {
 		dev_err(&chgr->client->dev, "PROP_MODE: cannot get sys mode\n");
 		return 0;
 	}
-
-	/* wait for PropModeStat interrupt/wait Vout raise to request power */
-	max_wait_time = chgr->de_wait_prop_irq_ms > 0 ?
-			chgr->de_wait_prop_irq_ms : chgr->pdata->wait_prop_irq_ms;
 
 	/*
 	 * clear all interrupts:
@@ -2197,7 +2218,7 @@ static int ra9530_prop_mode_enable(struct p9221_charger_data *chgr, int req_pwr)
 	if (ret) {
 		dev_err(&chgr->client->dev, "Failed to reset INT: %d\n", ret);
 		mutex_unlock(&chgr->cmd_lock);
-		goto err_exit;
+		return ret;
 	}
 
 	mutex_unlock(&chgr->cmd_lock);
@@ -2225,11 +2246,24 @@ static int ra9530_prop_mode_enable(struct p9221_charger_data *chgr, int req_pwr)
 		chgr->chg_mode_votable =
 			gvotable_election_get_handle(GBMS_MODE_VOTABLE);
 
-	if (chgr->chg_mode_votable) {
-		gvotable_cast_long_vote(chgr->chg_mode_votable, HPP_VOTER,
-					MAX77759_CHGR_MODE_ALL_OFF, true);
-		chgr->chg_mode_off = true;
+	return 0;
+}
+
+static int ra9530_prop_mode_transition(struct p9221_charger_data *chgr)
+{
+	const int req_pwr_val = chgr->hpp_req_pwr * 2 / 1000;
+	int ret, loops, i, max_wait_time, loop_cnt, txpwr_mw = 0;
+	u8 val8, pwr_stp = 0, mode_sts = 0, prop_cur_pwr = 0, cdmode = 0, prop_req_pwr = 0;
+
+	ret = chgr->chip_get_sys_mode(chgr, &val8);
+	if (ret) {
+		dev_err(&chgr->client->dev, "PROP_MODE: cannot get sys mode\n");
+		return 0;
 	}
+
+	/* wait for PropModeStat interrupt/wait Vout raise to request power */
+	max_wait_time = chgr->de_wait_prop_irq_ms > 0 ?
+			chgr->de_wait_prop_irq_ms : chgr->pdata->wait_prop_irq_ms;
 
 	ret = p9xxx_chip_set_cmfet_reg(chgr, chgr->wlc_dc_comcap);
 	if (ret)
@@ -2342,7 +2376,7 @@ err_exit:
 	if (ret == -ENODEV)
 		return ret;
 
-        /* check status */
+	/* check status */
 	ret = chgr->chip_get_sys_mode(chgr, &val8);
 	ret |= chgr->reg_read_8(chgr, P9412_PROP_CURR_PWR_REG, &prop_cur_pwr);
 	ret |= chgr->reg_read_8(chgr, P9412_PROP_MODE_PWR_STEP_REG, &pwr_stp);
@@ -2364,27 +2398,21 @@ err_exit:
 			 chgr->prop_mode_en, val8, mode_sts, chgr->prop_err,
 			 cdmode, pwr_stp, prop_req_pwr, prop_cur_pwr);
 	}
+	if (chgr->prop_mode_en && chgr->negotiation_complete)
+		return 1;
 
-	if (!chgr->prop_mode_en || !chgr->negotiation_complete) {
-		int rc;
+	dev_dbg(&chgr->client->dev, "%s prop_mode_en=%d,negotiation_complete=%d\n",
+		__func__, chgr->prop_mode_en, chgr->negotiation_complete);
 
-		dev_dbg(&chgr->client->dev, "%s prop_mode_en=%d,negotiation_complete=%d\n",
-			__func__, chgr->prop_mode_en, chgr->negotiation_complete);
+	gvotable_cast_int_vote(chgr->dc_icl_votable, P9221_HPP_VOTER,
+			       P9XXX_PROPMODE_ENABLE_ICL_UA, false);
 
-		rc = gvotable_cast_int_vote(chgr->dc_icl_votable, P9221_HPP_VOTER,
-					    P9XXX_PROPMODE_ENABLE_ICL_UA, false);
-		if (rc <0)
-			dev_err(&chgr->client->dev, "%s: cannot remove HPP voter (%d)\n",
-				__func__, ret);
+	return 0;
+}
 
-		if (chgr->chg_mode_votable) {
-			gvotable_cast_long_vote(chgr->chg_mode_votable, HPP_VOTER,
-						MAX77759_CHGR_MODE_ALL_OFF, false);
-			chgr->chg_mode_off = false;
-		}
-	}
-
-	return chgr->prop_mode_en && chgr->negotiation_complete;
+static int ra9530_prop_mode_enable(struct p9221_charger_data *chgr, int req_pwr)
+{
+	return 0;
 }
 
 static bool p9xxx_is_vout_on(struct p9221_charger_data *chgr)
@@ -2949,6 +2977,8 @@ int p9221_chip_init_funcs(struct p9221_charger_data *chgr, u16 chip_id)
 		chgr->chip_get_sys_mode = p9412_chip_get_sys_mode;
 		chgr->chip_renegotiate_pwr = p9412_chip_renegotiate_pwr;
 		chgr->chip_prop_mode_en = ra9530_prop_mode_enable;
+		chgr->chip_prop_mode_setup = ra9530_prop_mode_setup;
+		chgr->chip_prop_mode_transition = ra9530_prop_mode_transition;
 		chgr->chip_check_neg_power = p9xxx_check_neg_power;
 		chgr->chip_send_txid = p9xxx_send_txid;
 		chgr->chip_send_csp_in_txmode = p9xxx_send_csp_in_txmode;
@@ -3070,13 +3100,13 @@ int p9221_chip_init_funcs(struct p9221_charger_data *chgr, u16 chip_id)
 }
 
 #if IS_ENABLED(CONFIG_GPIOLIB)
-int p9xxx_gpio_set_value(struct p9221_charger_data *chgr, int gpio, int value)
+int p9xxx_gpio_set_value(struct p9221_charger_data *chgr, struct gpio_desc *gpio, int value)
 {
-	if (gpio <= 0)
+	if (!gpio)
 		return -EINVAL;
 
-	logbuffer_log(chgr->log, "%s: set gpio %d to %d", __func__, gpio, value);
-	gpio_set_value_cansleep(gpio, value);
+	logbuffer_log(chgr->log, "%s: set gpio %d to %d", __func__, desc_to_gpio(gpio), value);
+	gpiod_set_value_cansleep(gpio, value);
 
 	return 0;
 }
@@ -3084,7 +3114,7 @@ int p9xxx_gpio_set_value(struct p9221_charger_data *chgr, int gpio, int value)
 static int p9xxx_gpio_get_direction(struct gpio_chip *chip,
 				    unsigned int offset)
 {
-	return GPIOF_DIR_OUT;
+	return GPIO_LINE_DIRECTION_OUT;
 }
 
 static int p9xxx_gpio_get(struct gpio_chip *chip, unsigned int offset)
@@ -3144,20 +3174,19 @@ static void p9xxx_gpio_set(struct gpio_chip *chip, unsigned int offset, int valu
 			ret = charger->chip_set_vout_max(charger, P9412_BPP_VOUT_DFLT);
 		break;
 	case P9XXX_GPIO_VBUS_EN:
-		if (charger->pdata->wlc_en < 0)
+		if (!charger->pdata->wlc_en)
 			break;
-		value = (!!value) ^ charger->pdata->wlc_en_act_low;
-		gpio_direction_output(charger->pdata->wlc_en, value);
+		gpiod_direction_output(charger->pdata->wlc_en, value);
 		break;
 	case P9XXX_GPIO_DC_SW_EN:
 		ret = p9xxx_gpio_set_value(charger, charger->pdata->dc_switch_gpio, value);
 		break;
 	case P9XXX_GPIO_ONLINE_SPOOF:
 		mutex_lock(&charger->irq_det_lock);
-		if (charger->pdata->irq_det_gpio >= 0 &&
+		if (charger->pdata->irq_det_gpio &&
 		    value && charger->online && !charger->online_spoof) {
-			if (charger->pdata->ldo_en_gpio > 0) {
-				gpio_set_value_cansleep(charger->pdata->ldo_en_gpio, 1);
+			if (charger->pdata->ldo_en_gpio) {
+				gpiod_set_raw_value_cansleep(charger->pdata->ldo_en_gpio, 1);
 				logbuffer_prlog(charger->log,
 					"online_spoof=1 ldo_en=1 online=%d", charger->online);
 			} else {
@@ -3167,7 +3196,8 @@ static void p9xxx_gpio_set(struct gpio_chip *chip, unsigned int offset, int valu
 			enable_irq_wake(charger->pdata->irq_det_int);
 			charger->online_spoof = true;
 			cancel_delayed_work(&charger->stop_online_spoof_work);
-			charger->det_status = gpio_get_value_cansleep(charger->pdata->irq_det_gpio);
+			charger->det_status =
+				gpiod_get_raw_value_cansleep(charger->pdata->irq_det_gpio);
 			/* Prevent device removal while spoofing is enabled */
 			if (charger->det_status == 1) {
 				__pm_stay_awake(charger->det_status_ws);
@@ -3176,8 +3206,8 @@ static void p9xxx_gpio_set(struct gpio_chip *chip, unsigned int offset, int valu
 			}
 		}
 		mutex_unlock(&charger->irq_det_lock);
-		if (!value && charger->pdata->ldo_en_gpio > 0) {
-			gpio_set_value_cansleep(charger->pdata->ldo_en_gpio, 0);
+		if (!value && charger->pdata->ldo_en_gpio) {
+			gpiod_set_raw_value_cansleep(charger->pdata->ldo_en_gpio, 0);
 			logbuffer_prlog(charger->log, "pxxx_gpio online_spoof=0 ldo_en_gpio=0");
 		}
 		pr_debug("%s: GPIO offset=%d value=%d charger->det_status:%d online=%d",

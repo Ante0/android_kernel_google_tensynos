@@ -334,6 +334,17 @@ VESA DMT
 
 :author:    Video Electronics Standards Association (http://www.vesa.org)
 
+.. _vesaeddc:
+
+E-DDC
+=====
+
+
+:title:     VESA Enhanced Display Data Channel (E-DDC) Standard
+:subtitle:  Version 1.3
+
+:author:    Video Electronics Standards Association (http://www.vesa.org)
+
 .. _vesaedid:
 
 EDID
@@ -427,3 +438,12 @@ VP9
 :title:     VP9 Bitstream & Decoding Process Specification
 
 :author:    Adrian Grange (Google), Peter de Rivaz (Argon Design), Jonathan Hunt (Argon Design)
+
+.. _av1:
+
+AV1
+===
+
+:title:     AV1 Bitstream & Decoding Process Specification
+
+:author:    Peter de Rivaz, Argon Design Ltd, Jack Haughton, Argon Design Ltd

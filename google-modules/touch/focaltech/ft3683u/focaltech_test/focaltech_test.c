@@ -385,7 +385,7 @@ read_massdata_err:
     return ret;
 }
 
-int read_mass_data_u16(u8 addr, int byte_num, int *buf)
+static int read_mass_data_u16(u8 addr, int byte_num, int *buf)
 {
     int ret = 0;
     int i = 0;
@@ -1526,7 +1526,7 @@ void fts_test_save_data(char *name, int code, int *data, int datacnt,
         return ;
     }
 
-    strlcpy(info->name, name, TEST_ITEM_NAME_MAX - 1);
+    strscpy(info->name, name, TEST_ITEM_NAME_MAX - 1);
     info->code = code;
     info->mc_sc = mc_sc;
     info->key_support = key;
@@ -2948,20 +2948,6 @@ static const struct file_operations proc_test_int_fops = {
 };
 #endif
 
-
-extern int fts_test_get_raw(int *raw, u8 tx, u8 rx);
-extern int fts_test_get_baseline(int *raw,int *base_raw, u8 tx, u8 rx);
-extern int fts_test_get_strength(u8 *base_raw, u16 base_raw_size);
-extern int fts_test_get_uniformity_data(int *raw, int *rawdata_linearity, u8 tx, u8 rx);
-extern int fts_test_get_scap_raw(int *scap_raw, u8 tx, u8 rx, int *fwcheck);
-extern int fts_test_get_scap_cb(int *scap_cb, u8 tx, u8 rx, int *fwcheck);
-extern int fts_test_get_short(int *short_data, u8 tx, u8 rx);
-extern int fts_test_get_noise(int *noise, u8 tx, u8 rx);
-extern int fts_test_get_panel_differ(int *panel_differ, u8 tx, u8 rx);
-extern int fts_get_low_high_freq_rawdata(struct fts_test *tdata, int *data, bool only_high);
-extern int fts_test_get_scap_noise(int *scap_noise_data, u8 tx, u8 rx, int *fwcheck);
-extern int fts_test_get_short_ch_to_gnd(int *res, u8 *ab_ch, u8 tx, u8 rx);
-extern int fts_test_get_short_ch_to_ch(int *res, u8 *ab_ch, u8 tx, u8 rx);
 
 /* Rawdata test */
 static int proc_test_raw_show(struct seq_file *s, void *v)

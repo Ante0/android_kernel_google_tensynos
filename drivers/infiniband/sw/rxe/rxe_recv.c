@@ -14,6 +14,7 @@ static int check_type_state(struct rxe_dev *rxe, struct rxe_pkt_info *pkt,
 			    struct rxe_qp *qp)
 {
 	unsigned int pkt_type;
+	unsigned long flags;
 
 	if (unlikely(!qp->valid))
 		return -EINVAL;
@@ -38,12 +39,19 @@ static int check_type_state(struct rxe_dev *rxe, struct rxe_pkt_info *pkt,
 		return -EINVAL;
 	}
 
+	spin_lock_irqsave(&qp->state_lock, flags);
 	if (pkt->mask & RXE_REQ_MASK) {
-		if (unlikely(qp->resp.state != QP_STATE_READY))
+		if (unlikely(qp_state(qp) < IB_QPS_RTR)) {
+			spin_unlock_irqrestore(&qp->state_lock, flags);
 			return -EINVAL;
-	} else if (unlikely(qp->req.state < QP_STATE_READY ||
-				qp->req.state > QP_STATE_DRAINED))
-		return -EINVAL;
+		}
+	} else {
+		if (unlikely(qp_state(qp) < IB_QPS_RTS)) {
+			spin_unlock_irqrestore(&qp->state_lock, flags);
+			return -EINVAL;
+		}
+	}
+	spin_unlock_irqrestore(&qp->state_lock, flags);
 
 	return 0;
 }
@@ -322,7 +330,19 @@ void rxe_rcv(struct sk_buff *skb)
 	pkt->qp = NULL;
 	pkt->mask |= rxe_opcode[pkt->opcode].mask;
 
-	if (unlikely(skb->len < header_size(pkt)))
+	/*
+	 * Unknown opcodes have a zero-initialized rxe_opcode[] entry, so
+	 * both mask and length are 0.  Reject them before any length math:
+	 * rxe_icrc_hdr() would otherwise compute length - RXE_BTH_BYTES
+	 * and pass the underflowed value to rxe_crc32(), producing an
+	 * out-of-bounds read.
+	 */
+	if (unlikely(!rxe_opcode[pkt->opcode].mask ||
+		     !rxe_opcode[pkt->opcode].length))
+		goto drop;
+
+	if (unlikely(pkt->paylen < header_size(pkt) + bth_pad(pkt) +
+		       RXE_ICRC_SIZE))
 		goto drop;
 
 	err = hdr_check(pkt);

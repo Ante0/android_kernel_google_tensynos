@@ -23,3 +23,4 @@ DECLARE_RESTRICTED_HOOK(android_rvh_psci_cpu_suspend,
 #endif /* _TRACE_HOOK_PSCI_H */
 /* This part must be outside protection */
 #include <trace/define_trace.h>
+

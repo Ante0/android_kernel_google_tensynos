@@ -12,6 +12,7 @@
 #include <linux/slab.h>
 #include <linux/sysfs.h>
 #include <linux/workqueue.h>
+#include <trace/hooks/dmabuf.h>
 
 #include "dma-buf-sysfs-stats.h"
 
@@ -34,7 +35,7 @@
  * into their address space. This necessitated the creation of the DMA-BUF sysfs
  * statistics interface to provide per-buffer information on production systems.
  *
- * The interface at ``/sys/kernel/dma-buf/buffers`` exposes information about
+ * The interface at ``/sys/kernel/dmabuf/buffers`` exposes information about
  * every DMA-BUF when ``CONFIG_DMABUF_SYSFS_STATS`` is enabled.
  *
  * The following stats are exposed by the interface:
@@ -65,6 +66,7 @@ static ssize_t dma_buf_stats_attribute_show(struct kobject *kobj,
 	struct dma_buf_stats_attribute *attribute;
 	struct dma_buf_sysfs_entry *sysfs_entry;
 	struct dma_buf *dmabuf;
+	ssize_t ret;
 
 	attribute = to_dma_buf_stats_attr(attr);
 	sysfs_entry = to_dma_buf_entry_from_kobj(kobj);
@@ -73,7 +75,11 @@ static ssize_t dma_buf_stats_attribute_show(struct kobject *kobj,
 	if (!dmabuf || !attribute->show)
 		return -EIO;
 
-	return attribute->show(dmabuf, attribute, buf);
+	trace_android_vh_dma_buf_attr_show_start(&dmabuf);
+	ret = attribute->show(dmabuf, attribute, buf);
+	trace_android_vh_dma_buf_attr_show_end(dmabuf);
+
+	return ret;
 }
 
 static const struct sysfs_ops dma_buf_stats_sysfs_ops = {
@@ -113,7 +119,7 @@ static void dma_buf_sysfs_release(struct kobject *kobj)
 	kfree(sysfs_entry);
 }
 
-static struct kobj_type dma_buf_ktype = {
+static const struct kobj_type dma_buf_ktype = {
 	.sysfs_ops = &dma_buf_stats_sysfs_ops,
 	.release = dma_buf_sysfs_release,
 	.default_groups = dma_buf_stats_default_groups,
@@ -122,18 +128,22 @@ static struct kobj_type dma_buf_ktype = {
 void dma_buf_stats_teardown(struct dma_buf *dmabuf)
 {
 	struct dma_buf_sysfs_entry *sysfs_entry;
+	bool skip_sysfs_release = false;
 
 	sysfs_entry = dmabuf->sysfs_entry;
 	if (!sysfs_entry)
 		return;
 
-	kobject_del(&sysfs_entry->kobj);
-	kobject_put(&sysfs_entry->kobj);
+	trace_android_rvh_dma_buf_stats_teardown(sysfs_entry, &skip_sysfs_release);
+	if (!skip_sysfs_release) {
+		kobject_del(&sysfs_entry->kobj);
+		kobject_put(&sysfs_entry->kobj);
+	}
 }
 
 
 /* Statistics files do not need to send uevents. */
-static int dmabuf_sysfs_uevent_filter(struct kobject *kobj)
+static int dmabuf_sysfs_uevent_filter(const struct kobject *kobj)
 {
 	return 0;
 }
@@ -169,21 +179,11 @@ void dma_buf_uninit_sysfs_statistics(void)
 	kset_unregister(dma_buf_stats_kset);
 }
 
-struct dma_buf_create_sysfs_entry {
-	struct dma_buf *dmabuf;
-	struct work_struct work;
-};
-
-union dma_buf_create_sysfs_work_entry {
-	struct dma_buf_create_sysfs_entry create_entry;
-	struct dma_buf_sysfs_entry sysfs_entry;
-};
-
 static void sysfs_add_workfn(struct work_struct *work)
 {
-	struct dma_buf_create_sysfs_entry *create_entry =
-		container_of(work, struct dma_buf_create_sysfs_entry, work);
-	struct dma_buf *dmabuf = create_entry->dmabuf;
+	struct dma_buf_sysfs_entry *sysfs_entry =
+		container_of(work, struct dma_buf_sysfs_entry, sysfs_add_work);
+	struct dma_buf *dmabuf = sysfs_entry->dmabuf;
 
 	/*
 	 * A dmabuf is ref-counted via its file member. If this handler holds the only
@@ -194,7 +194,6 @@ static void sysfs_add_workfn(struct work_struct *work)
 	 * is released, and that can't happen until the end of this function.
 	 */
 	if (file_count(dmabuf->file) > 1) {
-		dmabuf->sysfs_entry->dmabuf = dmabuf;
 		/*
 		 * kobject_init_and_add expects kobject to be zero-filled, but we have populated it
 		 * (the sysfs_add_work union member) to trigger this work function.
@@ -219,26 +218,23 @@ static void sysfs_add_workfn(struct work_struct *work)
 
 int dma_buf_stats_setup(struct dma_buf *dmabuf, struct file *file)
 {
-	struct dma_buf_create_sysfs_entry *create_entry;
-	union dma_buf_create_sysfs_work_entry *work_entry;
+	struct dma_buf_sysfs_entry *sysfs_entry;
 
 	if (!dmabuf->exp_name) {
 		pr_err("exporter name must not be empty if stats needed\n");
 		return -EINVAL;
 	}
 
-	work_entry = kmalloc(sizeof(union dma_buf_create_sysfs_work_entry), GFP_KERNEL);
-	if (!work_entry)
+	sysfs_entry = kmalloc(sizeof(struct dma_buf_sysfs_entry), GFP_KERNEL);
+	if (!sysfs_entry)
 		return -ENOMEM;
 
-	dmabuf->sysfs_entry = &work_entry->sysfs_entry;
+	sysfs_entry->dmabuf = dmabuf;
+	dmabuf->sysfs_entry = sysfs_entry;
 
-	create_entry = &work_entry->create_entry;
-	create_entry->dmabuf = dmabuf;
-
-	INIT_WORK(&create_entry->work, sysfs_add_workfn);
+	INIT_WORK(&dmabuf->sysfs_entry->sysfs_add_work, sysfs_add_workfn);
 	get_dma_buf(dmabuf); /* This reference will be dropped in sysfs_add_workfn. */
-	schedule_work(&create_entry->work);
+	schedule_work(&dmabuf->sysfs_entry->sysfs_add_work);
 
 	return 0;
 }

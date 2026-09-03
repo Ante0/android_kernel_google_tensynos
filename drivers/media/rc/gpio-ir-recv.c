@@ -9,7 +9,6 @@
 #include <linux/gpio/consumer.h>
 #include <linux/slab.h>
 #include <linux/of.h>
-#include <linux/of_gpio.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/pm_qos.h>
@@ -128,7 +127,7 @@ static int gpio_ir_recv_probe(struct platform_device *pdev)
 				"gpio-ir-recv-irq", gpio_dev);
 }
 
-static int gpio_ir_recv_remove(struct platform_device *pdev)
+static void gpio_ir_recv_remove(struct platform_device *pdev)
 {
 	struct gpio_rc_dev *gpio_dev = platform_get_drvdata(pdev);
 	struct device *pmdev = gpio_dev->pmdev;
@@ -141,8 +140,6 @@ static int gpio_ir_recv_remove(struct platform_device *pdev)
 		pm_runtime_put_noidle(pmdev);
 		pm_runtime_set_suspended(pmdev);
 	}
-
-	return 0;
 }
 
 #ifdef CONFIG_PM
@@ -204,10 +201,10 @@ MODULE_DEVICE_TABLE(of, gpio_ir_recv_of_match);
 
 static struct platform_driver gpio_ir_recv_driver = {
 	.probe  = gpio_ir_recv_probe,
-	.remove = gpio_ir_recv_remove,
+	.remove_new = gpio_ir_recv_remove,
 	.driver = {
 		.name   = KBUILD_MODNAME,
-		.of_match_table = of_match_ptr(gpio_ir_recv_of_match),
+		.of_match_table = gpio_ir_recv_of_match,
 #ifdef CONFIG_PM
 		.pm	= &gpio_ir_recv_pm_ops,
 #endif
