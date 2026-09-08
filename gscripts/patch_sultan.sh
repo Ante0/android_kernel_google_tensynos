@@ -230,11 +230,6 @@ patch_susfs_ksu_next() {
                 "$KERNEL_REPO/KernelSU-Next" \
                 "$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/fix_sucompat.c.patch"
 
-		apply_patch_optional \
-                "$KERNEL_REPO/KernelSU-Next" \
-                "$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/fix_Kbuild.2.patch"
-
-
         apply_patch_optional \
                 "$KERNEL_REPO/KernelSU-Next" \
                 "$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/fix_supercall.c.patch"
