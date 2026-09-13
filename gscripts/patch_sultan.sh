@@ -216,15 +216,19 @@ patch_susfs_ksu_next() {
 
 	apply_patch_optional \
 		"$KERNEL_REPO/KernelSU-Next" \
-		"$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/fix_init.c.patch"
+		"$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/fix_dispatch.c.patch"
 
 	apply_patch_optional \
                 "$KERNEL_REPO/KernelSU-Next" \
-                "$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/fix_kernel_umount.c.patch"
+                "$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/fix_init.c.patch"
 
         apply_patch_optional \
                 "$KERNEL_REPO/KernelSU-Next" \
-        	"$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/fix_setuid_hook.c.patch"
+        	"$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/fix_kernel_umount.c.patch"
+
+        apply_patch_optional \
+                "$KERNEL_REPO/KernelSU-Next" \
+                "$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/fix_setuid_hook.c.patch"
 
         apply_patch_optional \
                 "$KERNEL_REPO/KernelSU-Next" \
@@ -238,10 +242,6 @@ patch_susfs_ksu_next() {
                 "$KERNEL_REPO/KernelSU-Next" \
                 "$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/ksu_toolkit.patch"
 
-        apply_patch_optional \
-                "$KERNEL_REPO/KernelSU-Next" \
-                "$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/overwrite_hook_mode.patch"
-
 }
 
 patch_sultan() {
@@ -249,17 +249,6 @@ patch_sultan() {
 	apply_patch_optional \
 		"$KERNEL_REPO" \
 		"$KERNEL_REPO/sultan_patches/fixer.patch"
-}
-
-patch_nomount() {
-        msg "Applying NoMount hook patches (nomount.c, fs/proc/inode.c, include/linux/proc_fs.h"
-        apply_patch_optional \
-                "$KERNEL_REPO/NoMount" \
-                "$KERNEL_REPO/sultan_patches/sultan/nomount-sultan-patch_b275.patch"
-
-	apply_patch_optional \
-                "$KERNEL_REPO" \
-                "$KERNEL_REPO/sultan_patches/sultan/nomount-sultan-proc-hook.patch"
 }
 
 ######################################################
