@@ -1110,7 +1110,7 @@ static void edgetpu_unmap_node(struct edgetpu_mapping *map)
 
 		if (map->dir == DMA_FROM_DEVICE ||
 		    map->dir == DMA_BIDIRECTIONAL)
-			set_page_dirty(page);
+			set_page_dirty_lock(page);
 
 		unpin_user_page(page);
 		num_pages++;

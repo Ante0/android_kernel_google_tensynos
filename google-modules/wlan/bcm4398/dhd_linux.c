@@ -1,7 +1,7 @@
 /*
  * Basically selected code segments from usb-cdc.c and usb-rndis.c
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -560,10 +560,8 @@ static dhd_if_t * dhd_get_ifp_by_ndev(dhd_pub_t *dhdp, struct net_device *ndev);
 static void dhd_update_rx_pkt_chainable_state(dhd_pub_t* dhdp, uint32 idx);
 #endif /* DHD_WET || DHD_MCAST_REGEN || DHD_L2_FILTER */
 
-#ifdef DHD_DEBUG
 /* Error bits */
 module_param(dhd_msg_level, int, 0);
-#endif /* DHD_DEBUG */
 
 #ifdef ARP_OFFLOAD_SUPPORT
 /* ARP offload agent mode : Enable ARP Host Auto-Reply and ARP Peer Auto-Reply */
@@ -3913,24 +3911,20 @@ dhd_dpc_tasklet_dispatcher_work(struct work_struct * work)
 
 	DHD_INFO(("%s:\n", __FUNCTION__));
 
-	dhd_sched_dpc(&dhd->pub);
+	tasklet_schedule(&dhd->tasklet);
 }
 
 void
 dhd_schedule_delayed_dpc_on_dpc_cpu(dhd_pub_t *dhdp, ulong delay)
 {
 	dhd_info_t *dhd = (dhd_info_t *)dhdp->info;
+	int dpc_cpu = atomic_read(&dhd->dpc_cpu);
 	DHD_INFO(("%s:\n", __FUNCTION__));
 
-	if (dhd->thr_dpc_ctl.thr_pid >= 0) {
-		if (delay)
-			queue_delayed_work(system_unbound_wq, &dhd->dhd_dpc_dispatcher_work, delay);
-		else
-			dhd_dpc_tasklet_dispatcher_work(&dhd->dhd_dpc_dispatcher_work.work);
-	} else {
-		/* scheduler will take care of scheduling to appropriate cpu if dpc_cpu is not online */
-		schedule_delayed_work_on(atomic_read(&dhd->dpc_cpu), &dhd->dhd_dpc_dispatcher_work, delay);
-	}
+	/* scheduler will take care of scheduling to appropriate cpu if dpc_cpu is not online */
+	schedule_delayed_work_on(dpc_cpu, &dhd->dhd_dpc_dispatcher_work, delay);
+
+	return;
 }
 
 #ifdef SHOW_LOGTRACE
@@ -4863,9 +4857,18 @@ dhd_dpc_thread(void *data)
 	tsk_ctl_t *tsk = (tsk_ctl_t *)data;
 	dhd_info_t *dhd = (dhd_info_t *)tsk->parent;
 
-#ifdef CUSTOM_DPC_CPUMASK
-	set_cpus_allowed_ptr(current,
-		to_cpumask(&(unsigned long){ CUSTOM_DPC_CPUMASK }));
+	/* This thread doesn't need any user-level access,
+	 * so get rid of all our resources
+	 */
+	if (dhd_dpc_prio > 0)
+	{
+		struct sched_param param;
+		param.sched_priority = (dhd_dpc_prio < MAX_RT_PRIO)?dhd_dpc_prio:(MAX_RT_PRIO-1);
+		setScheduler(current, SCHED_FIFO, &param);
+	}
+
+#ifdef CUSTOM_DPC_CPUCORE
+	set_cpus_allowed_ptr(current, cpumask_of(CUSTOM_DPC_CPUCORE));
 #endif
 #ifdef CUSTOM_SET_CPUCORE
 	dhd->pub.current_dpc = current;
@@ -4878,6 +4881,7 @@ dhd_dpc_thread(void *data)
 #endif /* ENABLE_ADAPTIVE_SCHED */
 			SMP_RD_BARRIER_DEPENDS();
 			if (tsk->terminated) {
+				DHD_OS_WAKE_UNLOCK(&dhd->pub);
 				break;
 			}
 
@@ -4902,9 +4906,11 @@ dhd_dpc_thread(void *data)
 #endif /* DEBUG_DPC_THREAD_WATCHDOG */
 				}
 				dhd_os_wd_timer_extend(&dhd->pub, FALSE);
+				DHD_OS_WAKE_UNLOCK(&dhd->pub);
 			} else {
 				if (dhd->pub.up)
 					dhd_bus_stop(dhd->pub.bus, TRUE);
+				DHD_OS_WAKE_UNLOCK(&dhd->pub);
 			}
 		} else {
 			break;
@@ -5034,7 +5040,13 @@ dhd_sched_dpc(dhd_pub_t *dhdp)
 	dhd_info_t *dhd = (dhd_info_t *)dhdp->info;
 
 	if (dhd->thr_dpc_ctl.thr_pid >= 0) {
-		binary_sema_up(&dhd->thr_dpc_ctl);
+		DHD_OS_WAKE_LOCK(dhdp);
+		/* If the semaphore does not get up,
+		* wake unlock should be done here
+		*/
+		if (!binary_sema_up(&dhd->thr_dpc_ctl)) {
+			DHD_OS_WAKE_UNLOCK(dhdp);
+		}
 		return;
 	} else {
 		tasklet_schedule(&dhd->tasklet);
@@ -5856,7 +5868,7 @@ dhd_del_monitor_if(dhd_info_t *dhd)
 	dev_priv = DHD_MON_DEV_PRIV(dhd->monitor_dev);
 	dev_priv->dhd = (dhd_info_t *)NULL;
 	memset(&dev_priv->stats, 0, sizeof(dev_priv->stats));
-	memset(dhd->monitor_type, 0, sizeof(dhd->monitor_type));
+	memset(dhd->monitor_type, 0, DHD_MAX_IFS);
 #endif /* WL_CFG80211_MONITOR */
 
 	if (FW_SUPPORTED((&dhd->pub), monitor)) {
@@ -6522,7 +6534,6 @@ dhd_force_collect_socram_during_wifi_onoff(dhd_pub_t *dhdp)
 #endif /* OEM_ANDROID */
 }
 
-#ifdef SHOW_LOGTRACE
 static void
 dhd_free_event_data_fmts_buf(dhd_info_t *dhd)
 {
@@ -6559,7 +6570,6 @@ dhd_free_event_data_fmts_buf(dhd_info_t *dhd)
 #endif /* COEX_CPU */
 
 }
-#endif /* SHOW_LOGTRACE */
 
 int
 dhd_stop(struct net_device *net)
@@ -6933,7 +6943,6 @@ dhd_force_collect_init_fail_dumps(dhd_pub_t *dhdp)
 #endif /* DEBUG_DNGL_INIT_FAIL */
 #endif /* CUSTOMER_HW4_DEBUG */
 
-#ifdef DHD_FW_COREDUMP
 	/* for android force collect socram for FW init failures
 	 * by putting bus state to LOAD
 	 */
@@ -6943,6 +6952,7 @@ dhd_force_collect_init_fail_dumps(dhd_pub_t *dhdp)
 	if (dhdp->busstate == DHD_BUS_DOWN) {
 		dhdp->busstate = DHD_BUS_LOAD;
 	}
+#ifdef DHD_FW_COREDUMP
 	/* save core dump or write to a file */
 	if (dhdp->memdump_enabled && (dhdp->busstate != DHD_BUS_DOWN)) {
 #ifdef DHD_SDTC_ETB_DUMP
@@ -9827,7 +9837,6 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 	}
 #endif /* EWP_EDL */
 
-#ifdef DHD_FW_COREDUMP
 	/* alloc memory for socram during init itself, newer chips
 	 * require 4M and this requires vmalloc which will fail
 	 * if called from a non sleepable context
@@ -9836,7 +9845,6 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 		DHD_ERROR(("%s: Failed to alloc memdump memory !\n", __FUNCTION__));
 		goto fail;
 	}
-#endif
 
 	dhd_init_sock_flows_buf(dhd, dhd_watchdog_ms);
 
@@ -14824,18 +14832,24 @@ void dhd_detach(dhd_pub_t *dhdp)
 		dev = ifp->net;
 	}
 
-	if (dev) {
-		rtnl_lock();
-		if (dev->flags & IFF_UP) {
-			/* If IFF_UP is still up, it indicates that
-			 * "ifconfig wlan0 down" hasn't been called.
-			 * So invoke dev_close explicitly here to
-			 * bring down the interface.
+	if (dev && (dev->flags & IFF_UP)) {
+		/* If IFF_UP is still up, it indicates that
+		* "ifconfig wlan0 down" hasn't been called.
+		* So invoke dev_close explicitly here to
+		* bring down the interface.
+		*/
+		if (!rtnl_trylock()) {
+			/* If rtnl lock is held,
+			 * skip this and let the unregister context handle it.
 			 */
-			DHD_TRACE(("IFF_UP flag is up. Enforcing dev_close from detach \n"));
+			DHD_ERROR(("%s: skip dev_close as rtnl_lock is already held\n",
+				__FUNCTION__));
+		} else {
+			DHD_TRACE(("IFF_UP flag is up."
+					" Enforcing dev_close from detach \n"));
 			dev_close(dev);
+			rtnl_unlock();
 		}
-		rtnl_unlock();
 	}
 
 	DHD_TRACE(("%s: Enter state 0x%x\n", __FUNCTION__, dhd->dhd_state));
@@ -19003,6 +19017,7 @@ int dhd_os_wake_unlock(dhd_pub_t *pub)
 	unsigned long flags;
 	int ret = 0;
 
+	dhd_os_wake_lock_timeout(pub);
 	if (dhd && (dhd->dhd_state & DHD_ATTACH_STATE_WAKELOCKS_INIT)) {
 		DHD_WAKE_SPIN_LOCK(&dhd->wakelock_spinlock, flags);
 

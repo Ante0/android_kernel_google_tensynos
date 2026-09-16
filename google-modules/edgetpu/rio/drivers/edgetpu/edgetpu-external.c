@@ -48,14 +48,14 @@ int edgetpu_acquire_ext_mailbox(struct edgetpu_client *client,
 
 	mutex_lock(&etmdev->tz_mailbox_lock);
 	if (etmdev->secure_client) {
-		etdev_err(client->etdev, "TZ mailbox already in use by PID %d\n",
-			  etmdev->secure_client->pid);
+		etdev_err(client->etdev, "TZ mailbox already in use by TGID %d\n",
+			  etmdev->secure_client->tgid);
 		mutex_unlock(&etmdev->tz_mailbox_lock);
 		return -EBUSY;
 	}
 	ret = edgetpu_mailbox_enable_ext(client, EDGETPU_TZ_MAILBOX_ID, NULL, 0);
 	if (!ret)
-		etmdev->secure_client = client;
+		etmdev->secure_client = edgetpu_client_get(client);
 	mutex_unlock(&etmdev->tz_mailbox_lock);
 	return ret;
 }
@@ -83,6 +83,7 @@ int edgetpu_release_ext_mailbox(struct edgetpu_client *client,
 		return -EBUSY;
 	}
 	etmdev->secure_client = NULL;
+	edgetpu_client_put(client);
 	ret = edgetpu_mailbox_disable_ext(client, EDGETPU_TZ_MAILBOX_ID);
 	mutex_unlock(&etmdev->tz_mailbox_lock);
 	return ret;
@@ -95,6 +96,7 @@ void edgetpu_ext_client_remove(struct edgetpu_client *client)
 	mutex_lock(&etmdev->tz_mailbox_lock);
 	if (etmdev->secure_client == client) {
 		etmdev->secure_client = NULL;
+		edgetpu_client_put(client);
 		edgetpu_mailbox_disable_ext(client, EDGETPU_TZ_MAILBOX_ID);
 	}
 	mutex_unlock(&etmdev->tz_mailbox_lock);
@@ -115,6 +117,12 @@ static int edgetpu_get_ext_mailbox_index(u32 mbox_type, u32 *start, u32 *end)
 		*end = EDGETPU_EXT_AOC_MAILBOX_END;
 		return 0;
 #endif
+#if defined(EDGETPU_EXT_SSU_MAILBOX_START)
+	case EDGETPU_EXTERNAL_MAILBOX_TYPE_SSU:
+		*start = EDGETPU_EXT_SSU_MAILBOX_START;
+		*end = EDGETPU_EXT_SSU_MAILBOX_END;
+		return 0;
+#endif
 	default:
 		return -ENOENT;
 	}
@@ -128,6 +136,10 @@ edgetpu_external_client_to_mailbox_type(enum edgetpu_ext_client_type client_type
 		return EDGETPU_EXTERNAL_MAILBOX_TYPE_DSP;
 	case EDGETPU_EXTERNAL_CLIENT_TYPE_AOC:
 		return EDGETPU_EXTERNAL_MAILBOX_TYPE_AOC;
+#if defined(EDGETPU_EXT_SSU_MAILBOX_START)
+	case EDGETPU_EXTERNAL_CLIENT_TYPE_SSU:
+		return EDGETPU_EXTERNAL_MAILBOX_TYPE_SSU;
+#endif
 	default:
 		return -ENOENT;
 	}

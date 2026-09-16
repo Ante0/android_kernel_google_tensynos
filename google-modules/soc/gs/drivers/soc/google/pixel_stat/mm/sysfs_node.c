@@ -16,6 +16,9 @@
 DEFINE_PER_CPU(unsigned long, pgalloc_costly_order);
 DEFINE_PER_CPU(unsigned long, pgcache_miss);
 DEFINE_PER_CPU(unsigned long, pgcache_hit);
+DEFINE_PER_CPU(unsigned long, pgalloc_atomic_order_zero);
+DEFINE_PER_CPU(unsigned long, pgalloc_atomic_highorder_noncostly);
+DEFINE_PER_CPU(unsigned long, pgalloc_atomic_highorder_costly);
 
 static ssize_t vmstat_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -24,19 +27,32 @@ static ssize_t vmstat_show(struct kobject *kobj,
 	unsigned long pages = 0;
 	unsigned long miss_count = 0;
 	unsigned long hit_count = 0;
+	unsigned long atomic_allocs = 0;
+	unsigned long atomic_zero = 0;
+	unsigned long atomic_noncostly = 0;
+	unsigned long atomic_costly = 0;
 
 	cpus_read_lock();
 	for_each_online_cpu(cpu) {
 		pages += per_cpu(pgalloc_costly_order, cpu);
 		miss_count += per_cpu(pgcache_miss, cpu);
 		hit_count += per_cpu(pgcache_hit, cpu);
+		atomic_zero += per_cpu(pgalloc_atomic_order_zero, cpu);
+		atomic_noncostly += per_cpu(pgalloc_atomic_highorder_noncostly, cpu);
+		atomic_costly += per_cpu(pgalloc_atomic_highorder_costly, cpu);
 	}
 	cpus_read_unlock();
 
-	return sprintf(buf, "%s %lu\n%s %lu\n%s %lu\n",
+	atomic_allocs = atomic_zero + atomic_noncostly + atomic_costly;
+
+	return sprintf(buf, "%s %lu\n%s %lu\n%s %lu\n%s %lu\n%s %lu\n%s %lu\n%s %lu\n",
 			"pgalloc_costly_order", pages,
 			"pgcache_miss", miss_count,
-			"pgcache_hit", hit_count);
+			"pgcache_hit", hit_count,
+			"pgalloc_atomic", atomic_allocs,
+			"pgalloc_atomic_order_zero", atomic_zero,
+			"pgalloc_atomic_highorder_noncostly", atomic_noncostly,
+			"pgalloc_atomic_highorder_costly", atomic_costly);
 }
 
 static struct kobj_attribute vmstat_attribute = __ATTR_RO(vmstat);

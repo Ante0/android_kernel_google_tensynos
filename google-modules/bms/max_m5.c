@@ -1667,6 +1667,7 @@ const struct maxfg_reg max_m5[] = {
 	[MAXFG_TAG_fullsocthr] = { ATOM_INIT_REG16(MAX_M5_FULLSOCTHR)},
 	[MAXFG_TAG_misccfg] = { ATOM_INIT_REG16(MAX_M5_MISCCFG)},
 	[MAXFG_TAG_ichgterm] = { ATOM_INIT_REG16(MAX_M5_ICHGTERM)},
+	[MAXFG_TAG_timer] = { ATOM_INIT_REG16(MAX_M5_TIMER)},
 };
 
 int max_m5_regmap_init(struct maxfg_regmap *regmap, struct i2c_client *clnt)

@@ -81,6 +81,9 @@ struct edgetpu_mailbox_descriptor {
 enum edgetpu_ext_mailbox_type {
 	EDGETPU_EXTERNAL_MAILBOX_TYPE_DSP,
 	EDGETPU_EXTERNAL_MAILBOX_TYPE_AOC,
+	EDGETPU_EXTERNAL_MAILBOX_TYPE_SSU,
+	/* Count of valid external mailbox types above. */
+	EDGETPU_EXTERNAL_MAILBOX_TYPE_COUNT,
 };
 
 /* Structure to hold multiple external mailboxes allocated for a device group. */

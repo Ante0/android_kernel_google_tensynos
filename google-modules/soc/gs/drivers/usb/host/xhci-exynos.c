@@ -244,7 +244,8 @@ EXPORT_SYMBOL_GPL(xhci_exynos_port_power_set);
  * Query the suspend capability from the USB descriptors
  * @udev: the USB device to be checked
  */
-static bool xhci_exynos_allow_suspend_by_descriptor(struct usb_device *udev)
+static bool xhci_exynos_allow_suspend_by_descriptor(struct usb_device *udev,
+		bool *supports_audio)
 {
 	struct usb_interface_descriptor *desc;
 	bool allow_suspend = false;
@@ -263,6 +264,7 @@ static bool xhci_exynos_allow_suspend_by_descriptor(struct usb_device *udev)
 	for (i = 0; i < udev->config->desc.bNumInterfaces; i++) {
 		desc = &udev->config->intf_cache[i]->altsetting->desc;
 		if (desc->bInterfaceClass == USB_CLASS_AUDIO) {
+			*supports_audio = true;
 			udev->do_remote_wakeup = (udev->config->desc.bmAttributes &
 						  USB_CONFIG_ATT_WAKEUP) ? true : false;
 			dev_dbg(&udev->dev, "%s: remote_wakeup = %d\n", __func__,
@@ -291,6 +293,7 @@ static bool xhci_exynos_allow_suspend_with_action(struct usb_device *target_udev
 						  unsigned long action)
 {
 	bool allow_suspend = false;
+	bool supports_audio = false;
 
 	if (!action_udev || !target_udev)
 		return true;
@@ -308,7 +311,8 @@ static bool xhci_exynos_allow_suspend_with_action(struct usb_device *target_udev
 		int port;
 
 		/* Don't support suspend if the hub itself doesn't support remote_wakeup */
-		allow_suspend = xhci_exynos_allow_suspend_by_descriptor(target_udev);
+		allow_suspend = xhci_exynos_allow_suspend_by_descriptor(target_udev,
+				&supports_audio);
 		if (!allow_suspend)
 			return false;
 
@@ -330,7 +334,8 @@ static bool xhci_exynos_allow_suspend_with_action(struct usb_device *target_udev
 				if (!child_udev->config->interface[0])
 					return false;
 
-				allow_suspend = xhci_exynos_allow_suspend_by_descriptor(child_udev);
+				allow_suspend = xhci_exynos_allow_suspend_by_descriptor(child_udev,
+						&supports_audio);
 			}
 
 			/* Don't allow if one of the child devices doesn't allow suspend. */
@@ -338,7 +343,8 @@ static bool xhci_exynos_allow_suspend_with_action(struct usb_device *target_udev
 				return false;
 		}
 	} else {
-		allow_suspend = xhci_exynos_allow_suspend_by_descriptor(target_udev);
+		allow_suspend = xhci_exynos_allow_suspend_by_descriptor(target_udev,
+				&supports_audio);
 	}
 
 	return allow_suspend;
@@ -404,7 +410,8 @@ static void xhci_exynos_scan_roothub(struct xhci_hcd_exynos *xhci_exynos,
  * wakelocks are going to be held or released.
  */
 static int xhci_exynos_check_port(struct xhci_hcd_exynos *xhci_exynos,
-				  struct usb_device *action_udev, unsigned long action)
+				  struct usb_device *action_udev, unsigned long action,
+				  bool *supports_audio)
 {
 	struct usb_device *roothub_main;
 	struct usb_device *roothub_shared;
@@ -438,7 +445,7 @@ static int xhci_exynos_check_port(struct xhci_hcd_exynos *xhci_exynos,
 
 	/* When @action_udev is added, enable autosuspend of @action_udev if it supports */
 	if (action == USB_DEVICE_ADD) {
-		if (xhci_exynos_allow_suspend_by_descriptor(action_udev)) {
+		if (xhci_exynos_allow_suspend_by_descriptor(action_udev, supports_audio)) {
 			dev_dbg(&action_udev->dev, "enable autosuspend on device\n");
 			device_init_wakeup(&action_udev->dev, 1);
 			usb_enable_autosuspend(action_udev);
@@ -478,6 +485,7 @@ static void xhci_exynos_set_port(struct usb_device *udev, unsigned long action)
 	struct device *dev = &udev->dev;
 	int check_port;
 	int ret;
+	bool supports_audio = false;
 
 	if (!xhci_exynos) {
 		dev_err(dev, "Couldn't get exynos xhci!\n");
@@ -485,7 +493,7 @@ static void xhci_exynos_set_port(struct usb_device *udev, unsigned long action)
 	} else
 		udev->dev.platform_data  = xhci_exynos;
 
-	check_port = xhci_exynos_check_port(xhci_exynos, udev, action);
+	check_port = xhci_exynos_check_port(xhci_exynos, udev, action, &supports_audio);
 	if (check_port < 0)
 		return;
 
@@ -507,8 +515,10 @@ static void xhci_exynos_set_port(struct usb_device *udev, unsigned long action)
 		xhci_exynos->is_otg_only = 0;
 		if (xhci_exynos->port_ctrl_allowed)
 			xhci_exynos_port_power_set(xhci_exynos, 0, 1);
-		usb_power_notify_control(0);
-		xhci_exynos->usb3_phy_control = false;
+		if (supports_audio) {
+			usb_power_notify_control(0);
+			xhci_exynos->usb3_phy_control = false;
+		}
 		break;
 	case PORT_USB3:
 		xhci_exynos->is_otg_only = 0;

@@ -8,9 +8,10 @@ ROOT_DIR ?= $(KERNEL_SRC)/..
 COMMON_OUT_DIR ?= $(OUT_DIR)/..
 M ?= $(shell pwd)
 
-ifndef CONFIG_EDGETPU_TEST
-KBUILD_OPTIONS	+= CONFIG_RIO=m
-endif
+EDGETPU_CHIP ?= RIO
+KBUILD_OPTIONS	+= CONFIG_$(EDGETPU_CHIP)=m
+
+KBUILD_OPTIONS	+= CONFIG_GCIP=y
 
 -include $(ROOT_DIR)/private/google-modules/soc/gs/Makefile.include
 

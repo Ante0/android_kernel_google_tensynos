@@ -1,7 +1,7 @@
 /*
  * DHD Bus Module for PCIE
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -99,8 +99,8 @@
 
 #ifdef DNGL_AXI_ERROR_LOGGING
 #include <dhd_linux_wq.h>
-#endif /* DNGL_AXI_ERROR_LOGGING */
 #include <dhd_linux.h>
+#endif /* DNGL_AXI_ERROR_LOGGING */
 
 #if defined(DHD_CONTROL_PCIE_CPUCORE_WIFI_TURNON)
 #include <dhd_linux_priv.h>
@@ -2140,12 +2140,7 @@ dhdpcie_dongle_attach(dhd_bus_t *bus)
 	dhd_init_backplane_access_lock(bus);
 
 	bus->alp_only = TRUE;
-
-	/* Clean up after the last bus attachment */
-	if (bus->sih) {
-		si_detach(bus->sih);
-		bus->sih = NULL;
-	}
+	bus->sih = NULL;
 
 	/* Checking PCIe bus status with reading configuration space */
 	val = OSL_PCI_READ_CONFIG(osh, PCI_CFG_VID, sizeof(uint32));
@@ -8452,6 +8447,13 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 
 	case IOV_SVAL(IOV_RX_METADATALEN):
 #if !defined(BCM_ROUTER_DHD)
+		/* Reject negative values */
+		if (int_val < 0) {
+			bcmerror = BCME_BADARG;
+			break;
+		}
+
+		/* Enforce upper bound */
 		if (int_val > 64) {
 			bcmerror = BCME_BUFTOOLONG;
 			break;
@@ -8493,6 +8495,13 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 
 	case IOV_SVAL(IOV_TX_METADATALEN):
 #if !defined(BCM_ROUTER_DHD)
+		/* Reject negative values */
+		if (int_val < 0) {
+			bcmerror = BCME_BADARG;
+			break;
+		}
+
+		/* Enforce upper bound */
 		if (int_val > 64) {
 			bcmerror = BCME_BUFTOOLONG;
 			break;
@@ -12305,7 +12314,7 @@ dhd_bus_inb_set_device_wake(struct dhd_bus *bus, bool val)
 		 *
 		 */
 
-		if (1) {
+		if (!CAN_SLEEP()) {
 			dhdpcie_bus_set_pcie_inband_dw_state(bus,
 				DW_DEVICE_DS_DEV_WAKE);
 			DHD_BUS_INB_DW_UNLOCK(bus->inb_lock, flags);
@@ -14740,6 +14749,7 @@ dhd_bus_flow_ring_create_response(dhd_bus_t *bus, uint16 flowid, int32 status)
 		DHD_ERROR(("%s: invalid flowid:%d alloc_max:%d fid_max:%d\n",
 			__FUNCTION__, flowid, bus->dhd->num_h2d_rings,
 			bus->dhd->max_tx_flowid));
+		return;
 	}
 
 	flow_ring_node = DHD_FLOW_RING(bus->dhd, flowid);
@@ -14847,6 +14857,7 @@ dhd_bus_flow_ring_delete_response(dhd_bus_t *bus, uint16 flowid, uint32 status)
 		DHD_ERROR(("%s: invalid flowid:%d alloc_max:%d fid_max:%d\n",
 			__FUNCTION__, flowid, bus->dhd->num_h2d_rings,
 			bus->dhd->max_tx_flowid));
+		return;
 	}
 
 	flow_ring_node = DHD_FLOW_RING(bus->dhd, flowid);
@@ -14930,6 +14941,7 @@ dhd_bus_flow_ring_flush_response(dhd_bus_t *bus, uint16 flowid, uint32 status)
 		DHD_ERROR(("%s: invalid flowid:%d alloc_max:%d fid_max:%d\n",
 			__FUNCTION__, flowid, bus->dhd->num_h2d_rings,
 			bus->dhd->max_tx_flowid));
+		return;
 	}
 
 	flow_ring_node = DHD_FLOW_RING(bus->dhd, flowid);

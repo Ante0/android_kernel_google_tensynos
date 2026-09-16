@@ -38,7 +38,7 @@
 #define P9221_ALIGN_VOTER			"WLC_ALIGN_VOTER"
 #define WLC_MFG_GOOGLE				0x72
 #define WLC_MFG_108_FOR_GOOGLE			0x108
-#define P9221_DC_ICL_BPP_UA			900000
+#define P9221_DC_ICL_BPP_UA			700000
 #define P9221_DC_ICL_BPP_RAMP_DEFAULT_UA	900000
 #define P9221_DC_ICL_BPP_RAMP_DELAY_DEFAULT_MS	(7 * 60 * 1000)  /* 7 mins */
 #define P9221_DC_ICL_EPP_UA			1100000
@@ -933,7 +933,9 @@ struct p9221_charger_data {
 	struct delayed_work		set_rf_work;
 	struct delayed_work		presence_check_work;
 	struct delayed_work		icl_stable_work;
-	struct work_struct		uevent_work;
+	struct work_struct		wlc_uevent_work;
+	struct work_struct		fan_uevent_work;
+	struct work_struct		rtx_uevent_work;
 	struct work_struct		calibration_work;
 	struct work_struct		rtx_disable_work;
 	struct work_struct		rtx_reset_work;
@@ -1237,6 +1239,10 @@ enum p9xxx_renego_state {
 };
 
 #define UEVENT_ENVP_LEN 20
+
+static char *uevent_source_str[] = {
+	"WLC", "FAN", "RTX"
+};
 
 enum uevent_source {
 	UEVENT_WLC = 0,

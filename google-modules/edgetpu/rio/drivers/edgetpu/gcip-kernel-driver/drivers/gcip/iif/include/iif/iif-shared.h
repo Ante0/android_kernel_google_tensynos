@@ -72,8 +72,9 @@ enum iif_ip_type {
 	IIF_IP_TPU,
 	IIF_IP_GPU,
 	IIF_IP_AP,
-	IIF_IP_IRIS,
+	IIF_IP_IRIS_CORE_0,
 	IIF_IP_AOC,
+	IIF_IP_IRIS_CORE_1,
 	IIF_IP_NUM,
 
 	/* Reserve the number of IP type to expand the fence table easily in the future. */

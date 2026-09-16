@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -3132,6 +3132,8 @@ wl_iftype_to_str(int wl_iftype)
 
 #define IS_AKM_SUITE_SAE_FT(sec) (sec->wpa_auth == WLAN_AKM_SUITE_FT_OVER_SAE)
 #define IS_AKM_SUITE_CCKM(sec) ({BCM_REFERENCE(sec); FALSE;})
+#define IS_CIPHER_WEP(cipher) (cipher == WLAN_CIPHER_SUITE_WEP40) || \
+				(cipher == WLAN_CIPHER_SUITE_WEP104)
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0))
 #define STA_INFO_BIT(info) (1ul << NL80211_STA_ ## info)
@@ -3554,13 +3556,8 @@ extern int wl_channel_to_frequency(u32 chan, chanspec_band_t band);
 extern int wl_cfg80211_config_rsnxe_ie(struct bcm_cfg80211 *cfg, struct net_device *dev,
 		const u8 *parse, u32 len);
 extern bool dhd_force_country_change(struct net_device *dev);
-#ifdef DHD_DEBUG
 extern u32 wl_dbg_level;
 extern u32 wl_log_level;
-#else
-#define wl_dbg_level (0)
-#define wl_log_level (0)
-#endif /* DHD_DEBUG */
 extern u32 wl_cfg80211_debug_data_dump(struct net_device *dev, u8 *buf, u32 buf_len);
 extern void wl_cfg80211_concurrent_roam(struct bcm_cfg80211 *cfg, int enable);
 

@@ -1,7 +1,7 @@
 /*
  * DHD Bus Module for PCIE
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -102,8 +102,8 @@
 
 #ifdef DNGL_AXI_ERROR_LOGGING
 #include <dhd_linux_wq.h>
-#endif /* DNGL_AXI_ERROR_LOGGING */
 #include <dhd_linux.h>
+#endif /* DNGL_AXI_ERROR_LOGGING */
 
 #ifdef DHD_PKT_LOGGING
 #include <dhd_pktlog.h>
@@ -364,6 +364,8 @@ static void dhdpcie_pme_stat_clear(dhd_bus_t *bus);
 #if defined(SUPPORT_MULTIPLE_BOARD_REVISION)
 extern void concate_custom_board_revision(char *nv_path);
 #endif /* SUPPORT_MULTIPLE_BOARD_REVISION */
+
+static void dhdpcie_dump_sreng_regs(dhd_bus_t *bus);
 
 /* IOVar table */
 enum {
@@ -1743,9 +1745,7 @@ dhdpcie_cto_recovery_handler(dhd_pub_t *dhd)
 #endif /* DHD_FW_COREDUMP */
 	}
 
-#if defined(DHD_FW_COREDUMP) && defined(DHD_SSSR_DUMP)
 exit:
-#endif /* DHD_FW_COREDUMP && DHD_SSSR_DUMP */
 #ifdef OEM_ANDROID
 #ifdef SUPPORT_LINKDOWN_RECOVERY
 #ifdef CONFIG_ARCH_MSM
@@ -1753,14 +1753,12 @@ exit:
 #endif /* CONFIG_ARCH_MSM */
 #endif /* SUPPORT_LINKDOWN_RECOVERY */
 
-#ifdef DHD_SSSR_DUMP
 	/* do not set linkdown if FIS dump collection
 	 * is to be done for CTO
 	 */
 	if (!bus->dhd->collect_fis) {
 		dhd_bus_set_linkdown(dhd, TRUE);
 	}
-#endif
 	bus->dhd->hang_reason = HANG_REASON_PCIE_CTO_DETECT;
 	/* Send HANG event */
 	dhd_os_send_hang_message(bus->dhd);
@@ -2637,12 +2635,7 @@ dhdpcie_dongle_attach(dhd_bus_t *bus)
 	dhd_init_backplane_access_lock(bus);
 
 	bus->alp_only = TRUE;
-
-	/* Clean up after the last bus attachment */
-	if (bus->sih) {
-		si_detach(bus->sih);
-		bus->sih = NULL;
-	}
+	bus->sih = NULL;
 
 	/* Checking PCIe bus status with reading configuration space */
 	val = OSL_PCI_READ_CONFIG(osh, PCI_CFG_VID, sizeof(uint32));
@@ -3291,12 +3284,10 @@ dhdpcie_advertise_bus_cleanup(dhd_pub_t *dhdp)
 				bcm_bprintf_bypass = FALSE;
 
 				DHD_ERROR(("%s : Did not receive DB7 Ack\n", __FUNCTION__));
-#ifdef DHD_FW_COREDUMP
 				if (dhdp->memdump_enabled) {
 					dhdp->memdump_type = DUMP_TYPE_NO_DB7_ACK;
 					dhdpcie_mem_dump(dhdp->bus);
 				}
-#endif /* DHD_FW_COREDUMP */
 #ifdef WBRC
 				if (dhdp->fw_mode_changed == FALSE) {
 					DHD_ERROR(("%s : Set do_chip_bighammer\n", __FUNCTION__));
@@ -6427,7 +6418,6 @@ dhdpcie_bus_membytes(dhd_bus_t *bus, bool write, dhd_pcie_mem_region_t region,
 		return BCME_ERROR;
 	}
 
-#ifdef DHD_SSSR_DUMP
 	/* if FIS trigerred, allow membytes to go through in order to get
 	 * FIS dumps
 	 */
@@ -6438,6 +6428,7 @@ dhdpcie_bus_membytes(dhd_bus_t *bus, bool write, dhd_pcie_mem_region_t region,
 		return BCME_ERROR;
 	}
 
+#ifdef DHD_SSSR_DUMP
 	if (bus->sssr_in_progress) {
 		DHD_ERROR_RLMT(("%s: SSSR in progress, skip\n", __FUNCTION__));
 		return BCME_ERROR;
@@ -9631,6 +9622,13 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 
 	case IOV_SVAL(IOV_RX_METADATALEN):
 #if !(defined(BCM_ROUTER_DHD))
+		/* Reject negative values */
+		if (int_val < 0) {
+			bcmerror = BCME_BADARG;
+			break;
+		}
+
+		/* Enforce upper bound */
 		if (int_val > 64) {
 			bcmerror = BCME_BUFTOOLONG;
 			break;
@@ -9672,6 +9670,13 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 
 	case IOV_SVAL(IOV_TX_METADATALEN):
 #if !(defined(BCM_ROUTER_DHD))
+		/* Reject negative values */
+		if (int_val < 0) {
+			bcmerror = BCME_BADARG;
+			break;
+		}
+
+		/* Enforce upper bound */
 		if (int_val > 64) {
 			bcmerror = BCME_BUFTOOLONG;
 			break;
@@ -13435,6 +13440,11 @@ sched_axi:
 }
 #endif /* DNGL_AXI_ERROR_LOGGING */
 
+/* Limit TX flowring processing time per DPC pass to avoid hard lockup. */
+#ifndef DHD_TXFLOWRINGS_DPC_BUDGET_NSEC
+#define DHD_TXFLOWRINGS_DPC_BUDGET_NSEC 200000ULL      /* 200 usec */
+#endif /* !DHD_TXFLOWRINGS_DPC_BUDGET_NSEC */
+
 /**
  * Brings transmit packets on all flow rings closer to the dongle, by moving (a subset) from their
  * flow queue to their flow ring.
@@ -13448,6 +13458,8 @@ dhd_update_txflowrings(dhd_pub_t *dhd)
 	struct dhd_bus *bus = dhd->bus;
 	int count = 0;
 	bool more = FALSE;
+	uint64 start_ts = OSL_LOCALTIME_NS();
+	uint64 now_ts;
 
 	if (dhd_query_bus_erros(dhd)) {
 		return more;
@@ -13482,8 +13494,18 @@ dhd_update_txflowrings(dhd_pub_t *dhd)
 		/* Ensure that the flowring node has valid contents */
 		ASSERT(flow_ring_node->prot_info != NULL);
 
-		more = dhd_prot_update_txflowring(dhd, flow_ring_node->flowid,
+		more |= dhd_prot_update_txflowring(dhd, flow_ring_node->flowid,
 			flow_ring_node->prot_info);
+
+		now_ts = OSL_LOCALTIME_NS();
+		if ((now_ts - start_ts) >= DHD_TXFLOWRINGS_DPC_BUDGET_NSEC) {
+			DHD_INFO(("%s: txflowring budget hit (%llu nsec), rescheduling\n",
+				__FUNCTION__,
+				(unsigned long long)DHD_TXFLOWRINGS_DPC_BUDGET_NSEC));
+			/* Keep DPC reschedule path active for remaining rings/packets. */
+			more = TRUE;
+			break;
+		}
 	}
 	DHD_FLOWRING_LIST_UNLOCK(bus->dhd->flowring_list_lock, flags);
 
@@ -13681,7 +13703,7 @@ dhd_bus_inb_set_device_wake(struct dhd_bus *bus, bool val, const char *context)
 		 *
 		 */
 
-		if (1) {
+		if (!CAN_SLEEP()) {
 			dhdpcie_bus_set_pcie_inband_dw_state(bus,
 				DW_DEVICE_DS_DEV_WAKE);
 			DHD_BUS_INB_DW_UNLOCK(bus->inb_lock, flags);
@@ -14893,24 +14915,6 @@ dhdpci_bus_read_frames(dhd_bus_t *bus)
 	dhdpci_bus_rte_log_time_sync_poll(bus);
 #endif /* DHD_H2D_LOG_TIME_SYNC */
 
-#if defined(DHD_WAKE_STATUS)
-	/* Check if host was woken up by any packets */
-	if (dhd_bus_get_bus_wake(bus->dhd) > 0) {
-		/*
-		 * If wake is due to Rx packets,
-		 * pktwake info will be printed and cleared from dhd_rx_frame()
-		 */
-		DHD_PRINT(("#### dhdpcie_host_wake: rxcpl:%d ctrlcpl:%d txcpl:%d evtlog:%d ####\n",
-			rxcpl_items, ctrlcpl_items, txcpl_items, evtlog_items));
-
-		dhd_bus_set_get_bus_wake(bus->dhd, 0);
-
-		if (rxcpl_items > 0) {
-			/* Request packet dump for first Rx packet */
-			dhd_bus_set_get_bus_wake_pkt_dump(bus->dhd, 1);
-		}
-	}
-#endif /* DHD_WAKE_STATUS */
 	return more;
 }
 
@@ -15150,7 +15154,6 @@ dhdpcie_wait_readshared_area_addr(dhd_bus_t *bus, uint32 *share_addr)
 
 		bus->dhd->arm_assert_phy_addr = (uint32)-1;
 		if (addr != (uint32)-1) {	/* skip further PCIE reads if read this addr */
-#if defined(DHD_FW_COREDUMP)
 			if (bus->dhd->memdump_enabled) {
 #ifdef DHD_SDTC_ETB_DUMP
 				bus->dhd->collect_sdtc = TRUE;
@@ -15160,7 +15163,6 @@ dhdpcie_wait_readshared_area_addr(dhd_bus_t *bus, uint32 *share_addr)
 				bus->dhd->memdump_type = DUMP_TYPE_READ_SHM_FAIL;
 				dhdpcie_mem_dump(bus);
 			}
-#endif /* DHD_FW_COREDUMP */
 		}
 #if defined(NDIS)
 		/* This is a very common code path to catch f/w init failures.
@@ -16689,6 +16691,7 @@ dhd_bus_flow_ring_create_response(dhd_bus_t *bus, uint16 flowid, int32 status)
 		DHD_ERROR(("%s: invalid flowid:%d alloc_max:%d fid_max:%d\n",
 			__FUNCTION__, flowid, bus->dhd->num_h2d_rings,
 			bus->dhd->max_tx_flowid));
+		return;
 	}
 
 	flow_ring_node = DHD_FLOW_RING(bus->dhd, flowid);
@@ -16796,6 +16799,7 @@ dhd_bus_flow_ring_delete_response(dhd_bus_t *bus, uint16 flowid, uint32 status)
 		DHD_ERROR(("%s: invalid flowid:%d alloc_max:%d fid_max:%d\n",
 			__FUNCTION__, flowid, bus->dhd->num_h2d_rings,
 			bus->dhd->max_tx_flowid));
+		return;
 	}
 
 	flow_ring_node = DHD_FLOW_RING(bus->dhd, flowid);
@@ -16879,6 +16883,7 @@ dhd_bus_flow_ring_flush_response(dhd_bus_t *bus, uint16 flowid, uint32 status)
 		DHD_ERROR(("%s: invalid flowid:%d alloc_max:%d fid_max:%d\n",
 			__FUNCTION__, flowid, bus->dhd->num_h2d_rings,
 			bus->dhd->max_tx_flowid));
+		return;
 	}
 
 	flow_ring_node = DHD_FLOW_RING(bus->dhd, flowid);
@@ -16917,10 +16922,8 @@ dhd_bus_set_linkdown(dhd_pub_t *dhdp, bool val)
 {
 	if (dhdp && dhdp->bus) {
 		dhdp->bus->is_linkdown = val;
-#ifdef EWP_DACS
 		DHD_PRINT(("%s: pcie_hwhdr_rev = %u\n", __FUNCTION__,
 			dhdp->bus->ewp_hw_info.pcie_hwhdr_rev));
-#endif
 	}
 }
 
@@ -18156,7 +18159,6 @@ dhd_bus_update_flow_watermark_stats(struct dhd_bus *bus, uint16 flowid, uint16 r
 		bus->flowring_high_watermark[flowid] = num_items;
 }
 
-#ifdef DHD_FW_COREDUMP
 void *
 dhd_bus_get_socram_buf(struct dhd_bus *bus, struct dhd_pub *dhdp)
 {
@@ -18165,7 +18167,6 @@ dhd_bus_get_socram_buf(struct dhd_bus *bus, struct dhd_pub *dhdp)
 #endif /* COEX_CPU */
 	return dhd_get_fwdump_buf(dhdp, bus->ramsize);
 }
-#endif
 
 void
 dhd_bus_set_signature_path(struct dhd_bus *bus, char *sig_path)

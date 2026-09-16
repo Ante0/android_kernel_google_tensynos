@@ -1,7 +1,7 @@
 /*
  * Basically selected code segments from usb-cdc.c and usb-rndis.c
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -102,6 +102,7 @@
 #if defined(WL_CFG80211)
 #include <wl_cfg80211.h>
 #include <wl_cfgvif.h>
+#include <wl_cfgscan.h>
 #ifdef WL_BAM
 #include <wl_bam.h>
 #endif	/* WL_BAM */
@@ -594,11 +595,8 @@ static void dhd_update_rx_pkt_chainable_state(dhd_pub_t *dhdp, uint32 idx);
 
 static int dhd_siocdevprivate(struct net_device *net, struct ifreq *ifr,
 	void __user *data, int cmd);
-
-#ifdef DHD_DEBUG
 /* Error bits */
 module_param(dhd_msg_level, int, 0);
-#endif /* DHD_DEBUG */
 
 #ifdef DHD_FORCE_MAX_CPU_FREQ
 uint dhd_force_max_cpu_freq = 1;
@@ -3061,7 +3059,8 @@ _dhd_set_mac_address(dhd_info_t *dhd, int ifidx, uint8 *addr)
 	ret = dhd_iovar(&dhd->pub, ifidx, "cur_etheraddr", (char *)addr,
 			ETHER_ADDR_LEN, NULL, 0, TRUE);
 	if (ret < 0) {
-		DHD_ERROR(("%s: set cur_etheraddr failed\n", dhd_ifname(&dhd->pub, ifidx)));
+		DHD_ERROR(("%s: set cur_etheraddr failed. ret=%d\n",
+			dhd_ifname(&dhd->pub, ifidx), ret));
 	} else {
 		NETDEV_ADDR_SET(dhd->iflist[ifidx]->net, ETHER_ADDR_LEN, addr, ETHER_ADDR_LEN);
 		if (ifidx == 0)
@@ -3943,24 +3942,20 @@ dhd_dpc_tasklet_dispatcher_work(struct work_struct *work)
 
 	DHD_INFO(("%s:\n", __FUNCTION__));
 
-	dhd_sched_dpc(&dhd->pub);
+	tasklet_schedule(&dhd->tasklet);
 }
 
 void
 dhd_schedule_delayed_dpc_on_dpc_cpu(dhd_pub_t *dhdp, ulong delay)
 {
 	dhd_info_t *dhd = (dhd_info_t *)dhdp->info;
+	int dpc_cpu = atomic_read(&dhd->dpc_cpu);
 	DHD_INFO(("%s:\n", __FUNCTION__));
 
-	if (dhd->thr_dpc_ctl.thr_pid >= 0) {
-		if (delay)
-			queue_delayed_work(system_unbound_wq, &dhd->dhd_dpc_dispatcher_work, delay);
-		else
-			dhd_dpc_tasklet_dispatcher_work(&dhd->dhd_dpc_dispatcher_work.work);
-	} else {
-		/* scheduler will take care of scheduling to appropriate cpu if dpc_cpu is not online */
-		schedule_delayed_work_on(atomic_read(&dhd->dpc_cpu), &dhd->dhd_dpc_dispatcher_work, delay);
-	}
+	/* scheduler will take care of scheduling to appropriate cpu if dpc_cpu is not online */
+	schedule_delayed_work_on(dpc_cpu, &dhd->dhd_dpc_dispatcher_work, delay);
+
+	return;
 }
 
 #ifdef SHOW_LOGTRACE
@@ -4916,9 +4911,17 @@ dhd_dpc_thread(void *data)
 	tsk_ctl_t *tsk = (tsk_ctl_t *)data;
 	dhd_info_t *dhd = (dhd_info_t *)tsk->parent;
 
-#ifdef CUSTOM_DPC_CPUMASK
-	set_cpus_allowed_ptr(current,
-		to_cpumask(&(unsigned long){ CUSTOM_DPC_CPUMASK }));
+	/* This thread doesn't need any user-level access,
+	 * so get rid of all our resources
+	 */
+	if (dhd_dpc_prio > 0) {
+		struct sched_param param;
+		param.sched_priority = (dhd_dpc_prio < MAX_RT_PRIO)?dhd_dpc_prio:(MAX_RT_PRIO-1);
+		setScheduler(current, SCHED_FIFO, &param);
+	}
+
+#ifdef CUSTOM_DPC_CPUCORE
+	set_cpus_allowed_ptr(current, cpumask_of(CUSTOM_DPC_CPUCORE));
 #endif
 #ifdef CUSTOM_SET_CPUCORE
 	dhd->pub.current_dpc = current;
@@ -4931,6 +4934,7 @@ dhd_dpc_thread(void *data)
 #endif /* ENABLE_ADAPTIVE_SCHED */
 			SMP_RD_BARRIER_DEPENDS();
 			if (tsk->terminated) {
+				DHD_OS_WAKE_UNLOCK(&dhd->pub);
 				break;
 			}
 
@@ -4955,9 +4959,11 @@ dhd_dpc_thread(void *data)
 #endif /* DEBUG_DPC_THREAD_WATCHDOG */
 				}
 				dhd_os_wd_timer_extend(&dhd->pub, FALSE);
+				DHD_OS_WAKE_UNLOCK(&dhd->pub);
 			} else {
 				if (dhd->pub.up)
 					dhd_bus_stop(dhd->pub.bus, TRUE);
+				DHD_OS_WAKE_UNLOCK(&dhd->pub);
 			}
 		} else {
 			break;
@@ -5087,7 +5093,13 @@ dhd_sched_dpc(dhd_pub_t *dhdp)
 	dhd_info_t *dhd = (dhd_info_t *)dhdp->info;
 
 	if (dhd->thr_dpc_ctl.thr_pid >= 0) {
-		binary_sema_up(&dhd->thr_dpc_ctl);
+		DHD_OS_WAKE_LOCK(dhdp);
+		/* If the semaphore does not get up,
+		* wake unlock should be done here
+		*/
+		if (!binary_sema_up(&dhd->thr_dpc_ctl)) {
+			DHD_OS_WAKE_UNLOCK(dhdp);
+		}
 		return;
 	} else {
 		tasklet_schedule(&dhd->tasklet);
@@ -5488,7 +5500,6 @@ dhd_set_monitor_ioctl(dhd_pub_t *dhdp, int ifidx, bool val)
 	return ret;
 }
 
-#define CMD_TX_ACTIVE 0x1
 int
 dhd_set_art_tx_active(dhd_pub_t *dhd, u8 ifidx, bool enable)
 {
@@ -5501,8 +5512,8 @@ dhd_set_art_tx_active(dhd_pub_t *dhd, u8 ifidx, bool enable)
 	pxtlv->len = sizeof(u32);
 	pxtlv->data[0] = 0x1;
 
-	ret = bcm_pack_xtlv_entry((uint8 **)&pxtlv, &mybuf_len, CMD_TX_ACTIVE, sizeof(enable),
-			(const u8 *)&enable, BCM_XTLV_OPTION_ALIGN32);
+	ret = bcm_pack_xtlv_entry((uint8 **)&pxtlv, &mybuf_len, WL_ART_CMD_TXACTIVE, sizeof(enable),
+		(const u8 *)&enable, BCM_XTLV_OPTION_ALIGN32);
 	if (ret != BCME_OK) {
 		ret = -EINVAL;
 		DHD_ERROR(("%s failed to pack tx enable, err: %s\n",
@@ -5522,6 +5533,41 @@ dhd_set_art_tx_active(dhd_pub_t *dhd, u8 ifidx, bool enable)
 }
 
 #define DEF_MONITOR_CHSPEC htod16(0xe09b)
+
+#ifdef WONDERTAP
+int
+dhd_set_art_tx_rate_mask(dhd_pub_t *dhd, u8 ifidx, uint8 tx_rate_mask)
+{
+	int ret = BCME_OK;
+	bcm_xtlv_t *pxtlv = NULL;
+	uint8 mybuf[WLC_IOCTL_SMLEN];
+	uint16 mybuf_len = sizeof(mybuf);
+	pxtlv = (bcm_xtlv_t *)mybuf;
+
+	pxtlv->len = sizeof(u32);
+	pxtlv->data[0] = 0x1;
+
+	ret = bcm_pack_xtlv_entry((uint8 **)&pxtlv, &mybuf_len, WL_ART_CMD_CONN_SELECT,
+		sizeof(tx_rate_mask), (const u8 *)&tx_rate_mask, BCM_XTLV_OPTION_ALIGN32);
+	if (ret != BCME_OK) {
+		ret = -EINVAL;
+		DHD_ERROR(("%s failed to pack tx_rate_mask, err: %s\n",
+			__FUNCTION__, bcmerrorstr(ret)));
+		return ret;
+	}
+
+	ret = dhd_iovar(dhd, ifidx, "art", (char *)&mybuf, sizeof(mybuf), NULL, 0, TRUE);
+	if (ret < 0) {
+		DHD_ERROR(("%s ART tx_rate_mask (0x%x) set fail, err: %s\n",
+			__FUNCTION__, tx_rate_mask, bcmerrorstr(ret)));
+	} else {
+		DHD_ERROR(("%s ART tx_rate_mask (0x%x) set pass\n",
+			__FUNCTION__, tx_rate_mask));
+	}
+
+	return ret;
+}
+#endif /* WONDERTAP */
 
 static int
 dhd_monitor_open(struct net_device *net)
@@ -5561,6 +5607,12 @@ dhd_monitor_open(struct net_device *net)
 #ifdef DHD_ART
 	else {
 		DHD_PRINT(("dhd_monitor_open: ART mode\n"));
+
+#ifdef WL_CFG80211
+		/* abort any scan in progress */
+		wl_cfgscan_scan_abort(cfg);
+#endif /* WL_CFG80211 */
+
 		/* If art_mac_addr is not initialized, use random macaddr */
 		if (ETHER_ISNULLADDR(dhdp->art_mac_addr)) {
 			u8 random_mac_addr[ETH_ALEN];
@@ -5601,7 +5653,11 @@ dhd_monitor_open(struct net_device *net)
 			goto exit;
 		}
 #endif /* WL_CFG80211 */
-
+#ifdef WONDERTAP
+		if (dhdp->rate_adaptation_enable) {
+			dhd_set_art_tx_rate_mask(dhdp, ifidx, dhdp->tx_rate_mask);
+		}
+#endif /* WONDERTAP */
 		ret = dhd_set_art_tx_active(dhdp, ifidx, TRUE);
 		if (ret < 0) {
 			goto exit;
@@ -5694,7 +5750,6 @@ dhd_monitor_stop(struct net_device *net)
 	DHD_PRINT(("%s : enable RPM\n", __FUNCTION__));
 	DHD_ART_WAKE_UNLOCK(&dhd->pub);
 	/* clear filter bssid after use */
-	bzero(&cfg->art_bssid, ETH_ALEN);
 	bzero(&dhd->pub.art_bssid, ETH_ALEN);
 #endif /* DHD_ART */
 exit:
@@ -6075,9 +6130,12 @@ dhd_add_monitor_if(dhd_info_t *dhd)
 		return;
 	}
 
+#ifdef WONDERTAP
 	if (!(dhdp->op_mode & DHD_FLAG_MONITOR_MODE)) {
 		devname = "wondertap";
-	} else {
+	} else
+#endif /* WONDERTAP */
+	{
 		devname = "radiotap";
 	}
 
@@ -6119,6 +6177,7 @@ dhd_add_monitor_if(dhd_info_t *dhd)
 	dev->ieee80211_ptr = wdev;
 	SET_NETDEV_DEV(dev, wiphy_dev(wdev->wiphy));
 	wdev->netdev = dev;
+	DHD_PRINT(("ADD: dev=%p wdev=%p\n", dev, dev->ieee80211_ptr));
 #endif /* DHD_ART */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 9))
@@ -6219,7 +6278,7 @@ dhd_del_monitor_if(dhd_info_t *dhd)
 	dev_priv = DHD_MON_DEV_PRIV(dhd->monitor_dev);
 	dev_priv->dhd = (dhd_info_t *)NULL;
 	memset(&dev_priv->stats, 0, sizeof(dev_priv->stats));
-	memset(dhd->monitor_type, 0, sizeof(dhd->monitor_type));
+	memset(dhd->monitor_type, 0, DHD_MAX_IFS);
 #endif /* !DHD_ART */
 #endif /* WL_CFG80211_MONITOR */
 
@@ -6890,7 +6949,6 @@ dhd_force_collect_socram_during_wifi_onoff(dhd_pub_t *dhdp)
 #endif /* OEM_ANDROID */
 }
 
-#ifdef SHOW_LOGTRACE
 static void
 dhd_free_event_data_fmts_buf(dhd_info_t *dhd)
 {
@@ -6927,7 +6985,6 @@ dhd_free_event_data_fmts_buf(dhd_info_t *dhd)
 #endif /* COEX_CPU */
 
 }
-#endif /* SHOW_LOGTRACE */
 
 int
 dhd_stop(struct net_device *net)
@@ -7308,7 +7365,6 @@ dhd_force_collect_init_fail_dumps(dhd_pub_t *dhdp)
 #endif /* DEBUG_DNGL_INIT_FAIL */
 #endif /* CUSTOMER_HW4_DEBUG */
 
-#ifdef DHD_FW_COREDUMP
 	/* for android force collect socram for FW init failures
 	 * by putting bus state to LOAD
 	 */
@@ -7318,6 +7374,7 @@ dhd_force_collect_init_fail_dumps(dhd_pub_t *dhdp)
 	if (dhdp->busstate == DHD_BUS_DOWN) {
 		dhdp->busstate = DHD_BUS_LOAD;
 	}
+#ifdef DHD_FW_COREDUMP
 	/* save core dump or write to a file */
 	if (dhdp->memdump_enabled && (dhdp->busstate != DHD_BUS_DOWN)) {
 #ifdef DHD_SDTC_ETB_DUMP
@@ -8206,8 +8263,8 @@ dhd_get_static_ifp_by_ndev(dhd_pub_t *dhdp, struct net_device *ndev)
 	while (ifidx < DHD_MAX_STATIC_IFS) {
 		ifp = dhdinfo->static_iflist[ifidx];
 		if (ifp && (ifp->net == ndev)) {
-			DHD_TRACE(("match found for %s in static_iflist ifidx:%d\n",
-				ndev->name, ifidx));
+			DHD_PRINT(("match found for %s in static_iflist ifidx:%d, net:%p\n",
+				ndev->name, ifidx, ifp->net));
 			return ifp;
 		}
 		ifidx++;
@@ -8509,7 +8566,8 @@ dhd_allocate_static_if(dhd_pub_t *dhdpub, const char *name,
 
 	ifp->static_if = TRUE;
 	dhdinfo->static_iflist[static_idx] = ifp;
-	DHD_PRINT(("%s: updated ifp @ static_iflist index:%d\n", __FUNCTION__, static_idx));
+	DHD_PRINT(("%s: updated ifp @ static_iflist index:%d, net:%p\n",
+		__FUNCTION__, static_idx, ifp->net));
 	return ifp->net;
 }
 
@@ -10428,7 +10486,6 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 
 	atomic_set(&dhd->pub.edl_attached, 0);
 
-#ifdef DHD_FW_COREDUMP
 	/* alloc memory for socram during init itself, newer chips
 	 * require 4M and this requires vmalloc which will fail
 	 * if called from a non sleepable context
@@ -10437,7 +10494,6 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 		DHD_ERROR(("%s: Failed to alloc memdump memory !\n", __FUNCTION__));
 		goto fail;
 	}
-#endif
 
 	/* Allocate core dump size after each section len is set up
 	 * coredump consist of hdr, socram, sssr, sdtc and coex
@@ -15468,8 +15524,9 @@ _dhd_register_if(dhd_pub_t *dhdp, int ifidx, bool need_rtnl_lock, dhd_if_t *ifp)
 	unsigned long flags;
 	bool radiotap_if = FALSE;
 
-	DHD_PRINT(("%s: enter ifidx:%d\n", __FUNCTION__, ifidx));
 	net = ifp->net;
+	DHD_PRINT(("%s: enter ifidx:%d, net=%p, name:%s, ieee80211_ptr:%p\n",
+		__FUNCTION__, ifidx, net, net->name, net->ieee80211_ptr));
 
 	ASSERT(net && (ifp->idx == ifidx));
 	if (!net->netdev_ops) {
@@ -15757,18 +15814,24 @@ dhd_pri_dev_close(dhd_pub_t *dhdp)
 		dev = ifp->net;
 	}
 
-	if (dev) {
-		rtnl_lock();
-		if (dev->flags & IFF_UP) {
-			/* If IFF_UP is still up, it indicates that
-			 * "ifconfig wlan0 down" hasn't been called.
-			 * So invoke dev_close explicitly here to
-			 * bring down the interface.
+	if (dev && (dev->flags & IFF_UP)) {
+		/* If IFF_UP is still up, it indicates that
+		* "ifconfig wlan0 down" hasn't been called.
+		* So invoke dev_close explicitly here to
+		* bring down the interface.
+		*/
+		if (!rtnl_trylock()) {
+			/* If rtnl lock is held,
+			 * skip this and let the unregister context handle it.
 			 */
-			DHD_TRACE(("IFF_UP flag is up. Enforcing dev_close from detach \n"));
+			DHD_ERROR(("%s: skip dev_close as rtnl_lock is already held\n",
+				__FUNCTION__));
+		} else {
+			DHD_TRACE(("IFF_UP flag is up."
+					" Enforcing dev_close from detach \n"));
 			dev_close(dev);
+			rtnl_unlock();
 		}
-		rtnl_unlock();
 	}
 }
 
@@ -15885,6 +15948,11 @@ void dhd_detach(dhd_pub_t *dhdp)
 		/* dbg->private and dbg freed after calling below */
 		dhd_os_dbg_detach(dhdp);
 	}
+
+/* Delete monitor interface before the static-IF loop and wlan0 unregister */
+#ifdef WL_MONITOR
+	dhd_del_monitor_if(dhd);
+#endif /* WL_MONITOR */
 
 	/* delete all interfaces, start with virtual  */
 	if (dhd->dhd_state & DHD_ATTACH_STATE_ADD_IF) {
@@ -16176,9 +16244,6 @@ void dhd_detach(dhd_pub_t *dhdp)
 	/* memory waste feature list initilization */
 	dhd_mw_list_delete(dhdp, &(dhdp->mw_list_head));
 #endif /* DHD_DEBUG */
-#ifdef WL_MONITOR
-	dhd_del_monitor_if(dhd);
-#endif /* WL_MONITOR */
 #ifdef DHD_LOGGER
 	if ((dhd_logger == TRUE) && (dhdp->logger)) {
 		/* detach dhd logger interface */
@@ -20129,6 +20194,7 @@ int dhd_os_wake_unlock(dhd_pub_t *pub)
 	unsigned long flags;
 	int ret = 0;
 
+	dhd_os_wake_lock_timeout(pub);
 	if (dhd && (dhd->dhd_state & DHD_ATTACH_STATE_WAKELOCKS_INIT)) {
 		DHD_WAKE_SPIN_LOCK(&dhd->wakelock_spinlock, flags);
 

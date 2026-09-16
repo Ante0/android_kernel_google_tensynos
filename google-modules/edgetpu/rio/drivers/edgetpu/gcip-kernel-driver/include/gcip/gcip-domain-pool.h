@@ -12,17 +12,26 @@
 #include <linux/idr.h>
 #include <linux/iommu.h>
 #include <linux/types.h>
+#include <linux/xarray.h>
 
 #include <gcip/gcip-iommu.h>
 
+/**
+ * struct gcip_domain_pool - GCIP IOMMU domain pool.
+ * @dev: Device to interact with the IOMMU interfaces.
+ * @size: Number of domains to be pre-allocated.
+ * @pasid_pool: PASID pool.
+ * @min_pasid: Minimum PASID value.
+ * @max_pasid: Maximum PASID value.
+ * @domain_xa: Xarray of GCIP IOMMU domains.
+ */
 struct gcip_domain_pool {
-	struct ida idp; /* ID allocator to keep track of used domains. */
-	unsigned int size; /* Size of the pool. */
-	struct gcip_iommu_domain **array; /* Array holding the pointers to pre-allocated domains. */
-	struct device *dev; /* The device used for logging warnings/errors. */
+	struct device *dev;
+	size_t size;
+	struct ida pasid_pool;
 	ioasid_t min_pasid;
 	ioasid_t max_pasid;
-	struct ida pasid_pool;
+	struct xarray domain_xa;
 };
 
 /**
@@ -60,7 +69,7 @@ void gcip_domain_pool_exit(struct gcip_domain_pool *pool);
 struct gcip_iommu_domain *gcip_domain_pool_alloc(struct gcip_domain_pool *pool);
 
 /* Releases a domain from the pool. */
-void gcip_domain_pool_free(struct gcip_domain_pool *pool, struct gcip_iommu_domain *domain);
+void gcip_domain_pool_free(struct gcip_domain_pool *pool, struct gcip_iommu_domain *gdomain);
 
 /*
  * Attaches a GCIP IOMMU domain and sets the obtained PASID

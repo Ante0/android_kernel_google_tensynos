@@ -24,9 +24,6 @@
 /* Number of TPU clusters for metrics handling. */
 #define EDGETPU_TPU_CLUSTER_COUNT 3
 
-/* Size of IKV queues (in unit number of elements). */
-#define EDGETPU_IKV_QUEUE_SIZE 1023
-
 /*
  * TZ Mailbox ID for secure workloads.  Must match firmware kTzMailboxId value for the chip,
  * but note firmware uses a zero-based index vs. kernel passing a one-based value here.
@@ -39,6 +36,9 @@
 #define EDGETPU_EXT_TZ_CONTEXT_ID 0x40000000
 
 #define EDGETPU_MMU_GRANULARITY_IS_PAGE 0
+
+/* Rio platforms only support GSA enabled, cannot check CONFIG_GSA on 6.1 */
+#define EDGETPU_HAS_GSA 1
 
 #include "config-csrs.h"
 #include "config-mailbox.h"

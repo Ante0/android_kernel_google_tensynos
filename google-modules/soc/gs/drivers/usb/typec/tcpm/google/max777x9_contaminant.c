@@ -172,13 +172,25 @@ static int max777x9_maxq_detect_contaminant(struct max777x9_contaminant *contami
 	return ret;
 }
 
-static bool is_cc_open(u8 cc_status)
+static bool is_cc_unattached(u8 cc_status)
 {
-	return status_check(cc_status, TCPC_CC_STATUS_CC1_MASK << TCPC_CC_STATUS_CC1_SHIFT,
-			    TCPC_CC_STATE_SRC_OPEN) && status_check(cc_status,
-								    TCPC_CC_STATUS_CC2_MASK <<
-								    TCPC_CC_STATUS_CC2_SHIFT,
-								    TCPC_CC_STATE_SRC_OPEN);
+	bool rp_term = status_check(cc_status, TCPC_CC_STATUS_TERM, 0);
+	bool cc1_is_open = status_check(cc_status,
+					TCPC_CC_STATUS_CC1_MASK << TCPC_CC_STATUS_CC1_SHIFT,
+					TCPC_CC_STATE_SRC_OPEN);
+	bool cc2_is_open = status_check(cc_status,
+					TCPC_CC_STATUS_CC2_MASK << TCPC_CC_STATUS_CC2_SHIFT,
+					TCPC_CC_STATE_SRC_OPEN);
+	bool cc1_is_ra = status_check(cc_status,
+				      TCPC_CC_STATUS_CC1_MASK << TCPC_CC_STATUS_CC1_SHIFT,
+				      TCPC_CC_STATE_SRC_RA << TCPC_CC_STATUS_CC1_SHIFT);
+	bool cc2_is_ra = status_check(cc_status,
+				      TCPC_CC_STATUS_CC2_MASK << TCPC_CC_STATUS_CC2_SHIFT,
+				      TCPC_CC_STATE_SRC_RA << TCPC_CC_STATUS_CC2_SHIFT);
+
+	return (cc1_is_open && cc2_is_open) ||
+		(rp_term && ((cc1_is_open && cc2_is_ra) ||
+			     (cc1_is_ra && cc2_is_open)));
 }
 
 static void max777x9_update_contaminant_state(struct max777x9_contaminant *contaminant,
@@ -280,7 +292,7 @@ int max777x9_process_contaminant_alert(struct max777x9_contaminant *contaminant,
 		} else {
 			/* Need to check again after tCCDebounce */
 			if (((cc_status & TCPC_CC_STATUS_TOGGLING) == 0)  &&
-			    (debounce_path || (tcpm_toggling && is_cc_open(cc_status)))) {
+			    (debounce_path || (tcpm_toggling && is_cc_unattached(cc_status)))) {
 				/*
 				 * Stage 3
 				 */
@@ -296,7 +308,7 @@ int max777x9_process_contaminant_alert(struct max777x9_contaminant *contaminant,
 				logbuffer_log(chip->log,
 					      "Contaminant: CC_STATUS check stage 3 sw WAR: %#x",
 					      cc_status);
-				if (is_cc_open(cc_status)) {
+				if (is_cc_unattached(cc_status)) {
 					u8 role_ctrl, role_ctrl_backup;
 
 					ret = max77759_read8(regmap, TCPC_ROLE_CTRL, &role_ctrl);

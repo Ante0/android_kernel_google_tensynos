@@ -1,7 +1,7 @@
 /*
  * log_dump - debugability support for dumping logs to file
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -800,6 +800,8 @@ dhd_get_flowring_len(void *ndev, dhd_pub_t *dhdp)
 	log_dump_section_hdr_t sec_hdr;
 	dhd_info_t *dhd_info;
 	uint16 max_tx_flowrings;
+	uint16 flowid;
+	flow_ring_node_t *flow_ring_node;
 
 	if (ndev) {
 		dhd_info = *(dhd_info_t **)netdev_priv((struct net_device *)ndev);
@@ -842,17 +844,23 @@ dhd_get_flowring_len(void *ndev, dhd_pub_t *dhdp)
 				+ (sizeof(uint16) * 2));
 #endif /* EWP_EDL */
 
-	if (dhdp->htput_support) {
-		/* flowring lengths are different for HTPUT rings, handle accordingly */
-		length += ((dhd_prot_get_h2d_txpost_size(dhdp) * h2d_htput_max_txpost *
-			dhdp->htput_total_flowrings) +
-			(dhd_prot_get_h2d_txpost_size(dhdp) * h2d_max_txpost *
-			(max_tx_flowrings - dhdp->htput_total_flowrings)));
-	} else {
-		length += (dhd_prot_get_h2d_txpost_size(dhdp) * h2d_max_txpost *
-			max_tx_flowrings);
+	for (flowid = BCMPCIE_H2D_COMMON_MSGRINGS;
+		flowid < max_tx_flowrings + BCMPCIE_H2D_COMMON_MSGRINGS; flowid++) {
+		flow_ring_node = DHD_FLOW_RING(dhdp, flowid);
+		if (!flow_ring_node || !flow_ring_node->active) {
+			/* Stub: only 2 x uint16 (max_items=0 + item_len=0) */
+			length += (sizeof(uint16) * 2);
+			continue;
+		}
+		if (DHD_IS_FLOWID_HTPUT(dhdp, flowid)) {
+			length += dhd_prot_get_h2d_txpost_size(dhdp) *
+				h2d_htput_max_txpost;
+		} else {
+			length += dhd_prot_get_h2d_txpost_size(dhdp) *
+				h2d_max_txpost;
+		}
+		length += (sizeof(uint16) * 2);
 	}
-	length += max_tx_flowrings * (sizeof(uint16) * 2);
 
 	return length;
 }

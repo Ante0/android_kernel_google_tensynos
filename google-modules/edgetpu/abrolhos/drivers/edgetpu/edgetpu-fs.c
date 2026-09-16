@@ -302,12 +302,8 @@ static int edgetpu_ioctl_map_buffer(struct edgetpu_client *client,
 	if (ret)
 		goto out;
 
-	if (copy_to_user(argp, &ibuf, sizeof(ibuf))) {
-		edgetpu_device_group_unmap(group, ibuf.die_index,
-					   ibuf.device_address,
-					   EDGETPU_MAP_SKIP_CPU_SYNC);
+	if (copy_to_user(argp, &ibuf, sizeof(ibuf)))
 		ret = -EFAULT;
-	}
 
 out:
 	edgetpu_device_group_put(group);
@@ -380,11 +376,8 @@ edgetpu_ioctl_map_dmabuf(struct edgetpu_client *client,
 	if (ret)
 		goto out;
 
-	if (copy_to_user(argp, &ibuf, sizeof(ibuf))) {
-		edgetpu_unmap_dmabuf(group, ibuf.die_index,
-				     ibuf.device_address);
+	if (copy_to_user(argp, &ibuf, sizeof(ibuf)))
 		ret = -EFAULT;
-	}
 
 out:
 	edgetpu_device_group_put(group);

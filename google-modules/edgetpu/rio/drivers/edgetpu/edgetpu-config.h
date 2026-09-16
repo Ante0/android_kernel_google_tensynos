@@ -8,6 +8,7 @@
 #ifndef __EDGETPU_CONFIG_H__
 #define __EDGETPU_CONFIG_H__
 
+
 #if IS_ENABLED(CONFIG_RIO)
 
 #include "rio/config.h"
@@ -35,8 +36,12 @@
 #endif
 
 #ifndef EDGETPU_HAS_GSA
+#if IS_ENABLED(CONFIG_GSA) || IS_ENABLED(CONFIG_EDGETPU_TEST)
 #define EDGETPU_HAS_GSA 1
+#else
+#define EDGETPU_HAS_GSA 0
 #endif
+#endif /* !defined(EDGETPU_HAS_GSA) */
 
 #ifndef EDGETPU_ALLOW_NONSECURE_FW
 #define EDGETPU_ALLOW_NONSECURE_FW 0
@@ -72,11 +77,6 @@
 
 #ifndef EDGETPU_NUM_VII_CREDITS_PER_CLIENT
 #define EDGETPU_NUM_VII_CREDITS_PER_CLIENT 8
-#endif
-
-#ifndef EDGETPU_IKV_QUEUE_SIZE
-/* Size of IKV queues (in unit number of elements). */
-#define EDGETPU_IKV_QUEUE_SIZE (EDGETPU_NUM_VII_CREDITS_PER_CLIENT * EDGETPU_NUM_VCIDS)
 #endif
 
 #ifndef EDGETPU_CPU_CACHE_LINE_SIZE

@@ -67,7 +67,9 @@ enum uc_device_id {
 #define WAITING_TIME_MS 500
 #define DSP_MOD_WAITING_TIME_MS 700
 
-#define PCM_TIMER_INTERVAL_NANOSECS 10e6
+#define PCM_TIMER_INTERVAL_NANOSECS 10000000UL /* 10ms */
+#define PCM_POLL_INTERVAL_NANOSECS 1000000UL /* 1ms */
+#define PCM_POLL_THRESHOLD_NANOSECS 1000000UL /* 1ms threshold */
 #define COMPR_OFFLOAD_TIMER_INTERVAL_NANOSECS 5000e6
 #define AOC_COMPR_HRTIMER_IRQ_HANDLER_BYPASS
 #define DEFAULT_PCM_WAIT_TIME_IN_MSECS 10000
@@ -400,9 +402,17 @@ struct aoc_alsa_stream {
 	struct work_struct pcm_period_work;
 };
 
+enum aoc_pcm_process_status {
+	AOC_PCM_FATAL_ERROR = -1,
+	AOC_PCM_NO_NEW_DATA = 0,
+	AOC_PCM_PERIOD_NOT_ELAPSED,
+	AOC_PCM_PERIOD_ELAPSED,
+};
+
 bool aoc_support_interrupt_idx(int idx);
 void aoc_timer_start(struct aoc_alsa_stream *alsa_stream);
 void aoc_timer_restart(struct aoc_alsa_stream *alsa_stream);
+void aoc_timer_restart_interval(struct aoc_alsa_stream *alsa_stream, unsigned long interval_ns);
 void aoc_timer_stop(struct aoc_alsa_stream *alsa_stream);
 void aoc_timer_stop_sync(struct aoc_alsa_stream *alsa_stream);
 void aoc_pcm_period_work_handler(struct work_struct *work);

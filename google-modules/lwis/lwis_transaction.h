@@ -9,6 +9,7 @@
 #define LWIS_TRANSACTION_H_
 
 #include "lwis_commands.h"
+#include <linux/atomic.h>
 #include <linux/dma-fence.h>
 
 #define EXPLICIT_EVENT_COUNTER(x)                                                                  \
@@ -17,6 +18,12 @@
 /* LWIS forward declarations */
 struct lwis_device;
 struct lwis_client;
+
+struct lwis_io_bundle {
+	atomic_t refcount;
+	size_t num_io_entries;
+	struct lwis_io_entry *io_entries;
+};
 
 /*
  * Transaction entry. Each entry belongs to two queues:
@@ -67,6 +74,8 @@ struct lwis_transaction {
 	int64_t triggered_event_timestamp;
 	/* The timestamp when the transaction is allowed to be executed */
 	int64_t delayed_execution_timestamp;
+	/* Bundle to share IO entries across repeating iterations */
+	struct lwis_io_bundle *bundle;
 };
 
 /*

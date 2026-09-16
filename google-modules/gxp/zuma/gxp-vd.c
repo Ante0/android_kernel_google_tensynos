@@ -659,7 +659,7 @@ static int gxp_attach_mmu_domain(struct gxp_dev *gxp, struct gxp_virtual_device 
 	/* Ignore the return value of this put function, just print messages on error. */
 	err = pm_runtime_put_sync(gxp->dev);
 	if (err)
-		dev_err(gxp->dev, "Failed to power off during domain attach: %d", err);
+		dev_warn(gxp->dev, "pm_runtime_put_sync during domain attach returned %d", err);
 
 	return ret;
 }
@@ -681,10 +681,9 @@ static int gxp_detach_mmu_domain(struct gxp_dev *gxp, struct gxp_virtual_device 
 	gxp_dma_domain_detach_device(gxp, vd->domain, vd->core_list);
 	ret = pm_runtime_put_sync(gxp->dev);
 	if (ret)
-		dev_err(gxp->dev, "Failed to power off during domain attach: %d", ret);
+		dev_warn(gxp->dev, "pm_runtime_put_sync during domain attach returned %d", ret);
 
-	return ret;
-
+	return 0;
 }
 #endif /* GXP_MMU_REQUIRE_ATTACH */
 
@@ -727,8 +726,6 @@ struct gxp_virtual_device *gxp_vd_allocate(struct gxp_dev *gxp,
 	vd->credit = GXP_COMMAND_CREDIT_PER_VD;
 	vd->first_open = true;
 	vd->vdid = atomic_inc_return(&gxp->next_vdid);
-	mutex_init(&vd->fence_list_lock);
-	INIT_LIST_HEAD(&vd->gxp_fence_list);
 	mutex_init(&vd->debug_dump_lock);
 	init_waitqueue_head(&vd->finished_dump_processing_waitq);
 	atomic_set(&vd->core_dump_generated_list, 0);
@@ -801,17 +798,25 @@ struct gxp_virtual_device *gxp_vd_allocate(struct gxp_dev *gxp,
 	if (err)
 		goto error_unmap_core_telemetry_buffer;
 
+	vd->gfence_mgr = gcip_dma_fence_manager_create(gxp->dev, GXP_NAME, "gxp_vd");
+	if (IS_ERR(vd->gfence_mgr)) {
+		err = PTR_ERR(vd->gfence_mgr);
+		goto error_unmap_debug_dump_buffer;
+	}
+
 	vd->iommu_reserve_mgr =
 		gcip_iommu_reserve_manager_create(vd->domain, &iommu_reserve_manager_ops, vd);
 	if (IS_ERR(vd->iommu_reserve_mgr)) {
 		err = PTR_ERR(vd->iommu_reserve_mgr);
-		goto error_unmap_debug_dump_buffer;
+		goto error_destroy_gfence_mgr;
 	}
 
 	trace_gxp_vd_allocate_end(vd->vdid);
 
 	return vd;
 
+error_destroy_gfence_mgr:
+	gcip_dma_fence_manager_destroy(vd->gfence_mgr);
 error_unmap_debug_dump_buffer:
 	unmap_debug_dump_buffer(gxp, vd);
 error_unmap_core_telemetry_buffer:
@@ -863,6 +868,7 @@ void gxp_vd_release(struct gxp_virtual_device *vd)
 	}
 
 	gcip_iommu_reserve_manager_retire(vd->iommu_reserve_mgr);
+	gcip_dma_fence_manager_destroy(vd->gfence_mgr);
 	unmap_debug_dump_buffer(gxp, vd);
 	unmap_core_telemetry_buffers(gxp, vd, core_list);
 	unmap_fw_image(gxp, vd);

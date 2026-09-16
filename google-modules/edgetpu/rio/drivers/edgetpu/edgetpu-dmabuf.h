@@ -1,49 +1,40 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * EdgeTPU support for buffers backed by dma-buf.
  *
- * Copyright (C) 2020 Google, Inc.
+ * Copyright (C) 2020-2026 Google LLC
  */
 #ifndef __EDGETPU_DMABUF_H__
 #define __EDGETPU_DMABUF_H__
-
-#include <linux/seq_file.h>
 
 #include "edgetpu-device-group.h"
 #include "edgetpu-internal.h"
 #include "edgetpu.h"
 
-/*
- * Maps a dma-buf to a device group.
+/**
+ * edgetpu_map_dmabuf() - Maps a dma-buf to a device group.
+ * @group: The device group to map the buffer to.
+ * @arg: Pointer to the map dma-buf ioctl argument.
+ * @limited: Set to true if being called on behalf of a limited interface.
  *
- * @arg->device_address will be set as the mapped TPU VA on success.
+ * The arg->device_address will be set as the mapped TPU VA on success.
  *
- * @limited must be true if being called on behalf of a limited interface.
- *
- * Returns zero on success or a negative errno on error.
+ * Return: 0 on success or a negative errno on error.
  */
-int edgetpu_map_dmabuf(struct edgetpu_device_group *group,
-		       struct edgetpu_map_dmabuf_ioctl *arg, bool limited);
-/*
- * Unmap the dma-buf backed buffer from a device group.
+int edgetpu_map_dmabuf(struct edgetpu_device_group *group, struct edgetpu_map_dmabuf_ioctl *arg,
+		       bool limited);
+
+/**
+ * edgetpu_unmap_dmabuf() - Unmap the dma-buf backed buffer from a device group.
+ * @group: The device group to unmap the buffer from.
+ * @tpu_addr: The TPU virtual address of the mapping to unmap.
+ * @limited: Set to true if being called on behalf of a limited interface.
  *
- * @limited must be true if being called on behalf of a limited interface. If the mapping pointed
- * to by @tpu_addr was not mapped with @limited == true, the unmap will fail and return -EINVAL.
+ * If @limited == true, only mappings created with @limited == true will be unmapped. Otherwise the
+ * unmap will fail and return -EINVAL.
+ *
+ * Return: 0 on success or a negative errno on error.
  */
-int edgetpu_unmap_dmabuf(struct edgetpu_device_group *group,
-			 tpu_addr_t tpu_addr, bool limited);
-/* Creates a DMA sync fence manager. */
-int edgetpu_sync_fence_manager_create(struct edgetpu_dev *etdev);
-/* Create a DMA sync fence via ioctl */
-int edgetpu_sync_fence_create(struct edgetpu_dev *etdev, struct edgetpu_device_group *group,
-			      struct edgetpu_create_sync_fence_data *datap);
-/* Signal a DMA sync fence, optionally specifying error status */
-int edgetpu_sync_fence_signal(struct edgetpu_signal_sync_fence_data *datap);
-/* Return DMA sync fence status */
-int edgetpu_sync_fence_status(struct edgetpu_sync_fence_status *datap);
-/* Send error signal to any remaining unsignalled DMA sync fences in a group being disbanded.*/
-void edgetpu_sync_fence_group_shutdown(struct edgetpu_device_group *group);
-/* Dump sync fence info from debugfs */
-int edgetpu_sync_fence_debugfs_show(struct seq_file *s, void *unused);
+int edgetpu_unmap_dmabuf(struct edgetpu_device_group *group, tpu_addr_t tpu_addr, bool limited);
 
 #endif /* __EDGETPU_DMABUF_H__ */

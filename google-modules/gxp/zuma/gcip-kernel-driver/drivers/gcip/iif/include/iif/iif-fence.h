@@ -489,9 +489,7 @@ int iif_fence_add_sync_point(struct iif_fence *fence, u64 timeline, u64 count);
  *
  * This function cannot be called in the IRQ context.
  *
- * Note that this function may reorder fences internally. This is to prevent a potential dead lock
- * which can be caused by holding the locks of multiple fences at the same time. Also, fences in
- * @in_fences and @out_fences should be unique. Otherwise, it will return -EDEADLK.
+ * Fences in @in_fences and @out_fences must be unique. Otherwise, it will return -EDEADLK.
  *
  * For @in_fences or @out_fences, if the caller doesn't need to submit a waiter or signaler
  * accordingly, NULL pointer can be passed to them. If @in_fences is NULL which means the caller

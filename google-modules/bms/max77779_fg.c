@@ -1301,6 +1301,7 @@ static int max77779_fg_monitor_log_data(struct max77779_fg_chip *chip, bool forc
 {
 	int ret, charge_counter = -1;
 	u16 repsoc, data;
+	char buf[256] = { 0 };
 
 	ret = REGMAP_READ(&chip->regmap, MAX77779_FG_RepSOC, &data);
 	if (ret < 0)
@@ -1310,9 +1311,17 @@ static int max77779_fg_monitor_log_data(struct max77779_fg_chip *chip, bool forc
 	if (repsoc == chip->pre_repsoc && !force_log)
 		return ret;
 
+	ret = maxfg_reg_log_data(&chip->regmap, &chip->regmap_debug, buf);
+	if (ret < 0)
+		return ret;
+
 	ret = max77779_fg_update_battery_qh_based_capacity(chip);
 	if (ret == 0)
 		charge_counter = reg_to_capacity_uah(chip->current_capacity, chip);
+
+	gbms_logbuffer_devlog(chip->monitor_log, chip->dev, LOGLEVEL_INFO, 0, LOGLEVEL_INFO,
+			      "0x%04X %02X:%04X %s CC:%d", MONITOR_TAG_RM, MAX77779_FG_RepSOC, data,
+			      buf, charge_counter);
 
 	/* Log learning entry when reaching 100% and each % drop for SoC < 10% */
 	if (chip->pre_repsoc > 0 && chip->pre_repsoc < 100 && repsoc == 100)
@@ -1990,24 +1999,21 @@ static int max77779_gbms_fg_property_is_writeable(struct power_supply *psy,
 static int max77779_fg_log_abnormal_events(struct max77779_fg_chip *chip, unsigned int curr_event,
 					   unsigned int last_event)
 {
-	int ret, i;
-	unsigned int changed;
+	unsigned long changed_bits = curr_event ^ last_event;
 	char buf[LOG_BUFFER_ENTRY_SIZE] = {0};
+	int ret, bit;
 
 	ret = maxfg_reg_log_abnormal(&chip->regmap, &chip->regmap_debug, buf, sizeof(buf));
 	if (ret < 0)
 		return ret;
 
 	/* report when event changed (bitflip) */
-	changed = curr_event ^ last_event;
-	for (i = 1; changed > 0 ; i++, changed = changed >> 1, curr_event = curr_event >> 1) {
-		if (!(changed & 0x1))
-			continue;
+	for_each_set_bit(bit, &changed_bits, 32) {
+		int state = !!(curr_event & BIT(bit));
 
-		gbms_logbuffer_devlog(chip->monitor_log, chip->dev,
-				      LOGLEVEL_INFO, 0, LOGLEVEL_INFO,
-				      "0x%04X %d %d%s",
-				      MONITOR_TAG_AB, i, curr_event & 0x1, buf);
+		gbms_logbuffer_devlog(chip->monitor_log, chip->dev, LOGLEVEL_INFO, 0, LOGLEVEL_INFO,
+				      "0x%04X %d %d%s %08X", MONITOR_TAG_AB, bit, state, buf,
+				      (unsigned int)ktime_get_real_seconds());
 	}
 
 	return 0;
@@ -2284,16 +2290,15 @@ static irqreturn_t max77779_fg_irq_thread_fn(int irq, void *obj)
 #define MAX77779_FG_STUCK_LOGGING_TIMES	5
 #define MAX77779_FG_STUCK_PULL_MS	20000
 #define MAX77779_FG_STUCK_LOG_MS	2000
-#define MAX77779_FG_STUCK_LOG_SIZE	((MAX77779_FG_MAX_LOG_REGS + 2) * 5) /* 2 for header */
 static int max77779_fg_log_stuck_event(struct max77779_fg_chip *chip)
 {
 	int ret, i;
 	u16 data16;
 	size_t len = 0;
-	char buf[MAX77779_FG_STUCK_LOG_SIZE];
-	static const u16 log_fg_reg[] = {0x00, 0x0c, 0x1a, 0x1b, 0x1c, 0x1e, 0x28, 0x3d, 0x3f,
-					 0x40, 0x49, 0x4a, 0x74, 0x7a, 0x7b, 0x7c, 0x7d, 0xab,
-					 0xe9, 0xff};
+	char buf[LOG_BUFFER_ENTRY_SIZE] = {0};
+	const u16 log_fg_reg[] = { 0x00, 0x0c, 0x1a, 0x1b, 0x1c, 0x1e, 0x28, 0x3d,
+				   0x3f, 0x40, 0x49, 0x4a, 0x57, 0x58, 0x74, 0x75,
+				   0x76, 0x7a, 0x7b, 0x7c, 0x7d, 0xab, 0xe9, 0xff };
 	const size_t log_fg_cnt = ARRAY_SIZE(log_fg_reg);
 
 	for (i = 0; i < log_fg_cnt; i++) {
@@ -2303,13 +2308,16 @@ static int max77779_fg_log_stuck_event(struct max77779_fg_chip *chip)
 		len += scnprintf(&buf[len], sizeof(buf) - len, " %04X", data16);
 	}
 
-	/* fill rest with 0 */
-	for (; i < MAX77779_FG_MAX_LOG_REGS - 1; i++)
+	/*
+	 * Pad the buffer with 0s to ensure the total number of logged register values
+	 * matches the count from abnormal event logs
+	 */
+	for (; i < FG_EVENT_REGS_COUNT + FG_EVENT_DBG_REGS_COUNT; i++)
 		len += scnprintf(&buf[len], sizeof(buf) - len, " %04X", 0);
-
 	gbms_logbuffer_devlog(chip->monitor_log, chip->dev, LOGLEVEL_INFO, 0, LOGLEVEL_INFO,
-			      "%#04X %d 1%s",
-			      MONITOR_TAG_AB, GET_BIT_POSITION(MAXFG_EVENT_STUCK), buf);
+			      "0x%04X %d 1%s %08X", MONITOR_TAG_AB,
+			      GET_BIT_POSITION(MAXFG_EVENT_STUCK), buf,
+			      (unsigned int)ktime_get_real_seconds());
 	chip->fg_stuck_count++;
 
 	return 0;

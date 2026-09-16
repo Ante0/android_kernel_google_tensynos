@@ -1,7 +1,7 @@
 /*
  * Debug/trace/assert driver definitions for Dongle Host Driver.
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -54,7 +54,7 @@ do {	\
 } while (0)
 #else
 #define DBG_PRINT_SYSTEM_TIME
-#define DHD_CONS_ONLY(args) do { if (0) printf args;} while (0)
+#define DHD_CONS_ONLY(args) do { printf args;} while (0)
 #endif /* CUSTOM_PREFIX */
 
 #if defined(BCMDBG) || defined(DHD_DEBUG)
@@ -735,13 +735,8 @@ extern void dhd_blog(char *cp, int size);
 #endif
 
 #define DHD_NONE(args)
-#ifdef DHD_DEBUG
 extern int dhd_msg_level;
 extern int dhd_log_level;
-#else
-#define dhd_msg_level (0)
-#define dhd_log_level (0)
-#endif /* DHD_DEBUG */
 #ifdef DHD_LOG_PRINT_RATE_LIMIT
 extern int log_print_threshold;
 #endif /* DHD_LOG_PRINT_RATE_LIMIT */

@@ -61,7 +61,7 @@ static void edgetpu_wakelock_ws_acquire(struct edgetpu_client *client)
 
 	if (!wakelock->etws) {
 		char ws_name[80];
-		uint tgid = client->limited_tgid == -1 ? client->tgid : client->limited_tgid;
+		uint tgid = client->tgid;
 
 		wakelock->etws = kmalloc(sizeof(*wakelock->etws), GFP_KERNEL);
 		if (!wakelock->etws)

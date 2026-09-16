@@ -532,58 +532,19 @@ int maxfg_health_write_ai(u16 act_impedance, u16 act_timerh)
 	return 0;
 }
 
-/* for abnormal event log */
-static enum maxfg_reg_tags fg_event_regs[] = {
-	MAXFG_TAG_cycles,
-	MAXFG_TAG_vcel,
-	MAXFG_TAG_avgv,
-	MAXFG_TAG_curr,
-	MAXFG_TAG_avgc,
-	MAXFG_TAG_timerh,
-	MAXFG_TAG_temp,
-	MAXFG_TAG_repcap,
-	MAXFG_TAG_mixcap,
-	MAXFG_TAG_fcrep,
-	MAXFG_TAG_fcnom,
-	MAXFG_TAG_qresd,
-	MAXFG_TAG_avcap,
-	MAXFG_TAG_vfremcap,
-	MAXFG_TAG_repsoc,
-	MAXFG_TAG_vfsoc,
-	MAXFG_TAG_msoc,
-	MAXFG_TAG_vfocv,
-	MAXFG_TAG_dpacc,
-	MAXFG_TAG_dqacc,
-	MAXFG_TAG_qh,
-	MAXFG_TAG_qh0,
-	MAXFG_TAG_vfsoc0,
-	MAXFG_TAG_qrtable20,
-	MAXFG_TAG_qrtable30,
-	MAXFG_TAG_status,
-	MAXFG_TAG_fstat,
-};
-
-static enum maxfg_reg_tags fg_event_dbg_regs[] = {
-	MAXFG_TAG_rcomp0,
-	MAXFG_TAG_tempco,
-};
-
-
 int maxfg_reg_log_abnormal(struct maxfg_regmap *map, struct maxfg_regmap *map_debug,
 			   char *buf, int buf_len)
 {
 	u16 ret, i, addr, val, pos = 0;
-	size_t reg_cnt = sizeof(fg_event_regs) / sizeof(enum maxfg_reg_tags);
-	size_t dbg_reg_cnt = sizeof(fg_event_dbg_regs) / sizeof(enum maxfg_reg_tags);
 
-	for (i = 0; i < reg_cnt; i++) {
+	for (i = 0; i < FG_EVENT_REGS_COUNT; i++) {
 		ret = maxfg_reg_read_addr(map, fg_event_regs[i], &val, &addr);
 		if (ret < 0)
 			return ret;
 		pos += scnprintf(&buf[pos], buf_len - pos, " %04X", val);
 	}
 
-	for (i = 0; i < dbg_reg_cnt; i++) {
+	for (i = 0; i < FG_EVENT_DBG_REGS_COUNT; i++) {
 		ret = maxfg_reg_read_addr(map_debug, fg_event_dbg_regs[i], &val, &addr);
 		if (ret < 0)
 			return ret;
@@ -600,7 +561,7 @@ int maxfg_reg_log_data(struct maxfg_regmap *map, struct maxfg_regmap *map_debug,
 	u16 vfsoc_addr, avcap_addr, repcap_addr, fullcap_addr, fullcaprep_addr, fullcapnom_addr;
 	u16 qh0_addr, qh_addr, dqacc_addr, dpacc_addr, fstat_addr, qresidual_addr, rcomp0_addr;
 	u16 cycles_addr, learncfg_addr, tempco_addr, filtercfg_addr, mixcap_addr, vfremcap_addr;
-	u16 vcell_addr, ibat_addr;
+	u16 vcell_addr, ibat_addr, temp, temp_addr;
 	int ret, len;
 
 	ret = maxfg_reg_read_addr(map, MAXFG_TAG_vfsoc, &vfsoc, &vfsoc_addr);
@@ -687,17 +648,22 @@ int maxfg_reg_log_data(struct maxfg_regmap *map, struct maxfg_regmap *map_debug,
 	if (ret < 0)
 		return ret;
 
-	len = scnprintf(&buf[0], PAGE_SIZE, "%02X:%04X %02X:%04X %02X:%04X %02X:%04X"
+	ret = maxfg_reg_read_addr(map, MAXFG_TAG_temp, &temp, &temp_addr);
+	if (ret < 0)
+		return ret;
+
+	len = scnprintf(&buf[0], PAGE_SIZE,
+			"%02X:%04X %02X:%04X %02X:%04X %02X:%04X"
 			" %02X:%04X %02X:%04X %02X:%04X %02X:%04X %02X:%04X %02X:%04X"
 			" %02X:%04X %02X:%04X %02X:%04X %02X:%04X %02X:%04X %02X:%04X"
-			" %02X:%04X %02X:%04X %02X:%04X %02X:%04X %02X:%04X",
-			vfsoc_addr, vfsoc, avcap_addr, avcap, repcap_addr, repcap,
-			fullcap_addr, fullcap, fullcaprep_addr, fullcaprep,
-			fullcapnom_addr, fullcapnom, qh0_addr, qh0, qh_addr, qh, dqacc_addr, dqacc,
-			dpacc_addr, dpacc, qresidual_addr, qresidual, fstat_addr, fstat,
-			learncfg_addr, learncfg, tempco_addr, tempco, filtercfg_addr, filtercfg,
-			mixcap_addr, mixcap, vfremcap_addr, vfremcap, vcell_addr, vcell,
-			ibat_addr , ibat, rcomp0_addr, rcomp0, cycles_addr, cycles);
+			" %02X:%04X %02X:%04X %02X:%04X %02X:%04X %02X:%04X %02X:%04X",
+			vfsoc_addr, vfsoc, avcap_addr, avcap, repcap_addr, repcap, fullcap_addr,
+			fullcap, fullcaprep_addr, fullcaprep, fullcapnom_addr, fullcapnom, qh0_addr,
+			qh0, qh_addr, qh, dqacc_addr, dqacc, dpacc_addr, dpacc, qresidual_addr,
+			qresidual, fstat_addr, fstat, learncfg_addr, learncfg, tempco_addr, tempco,
+			filtercfg_addr, filtercfg, mixcap_addr, mixcap, vfremcap_addr, vfremcap,
+			vcell_addr, vcell, ibat_addr, ibat, rcomp0_addr, rcomp0, cycles_addr,
+			cycles, temp_addr, temp);
 
 	return len;
 }

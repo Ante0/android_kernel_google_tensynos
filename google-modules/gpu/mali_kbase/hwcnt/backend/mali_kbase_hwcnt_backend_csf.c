@@ -403,15 +403,20 @@ void kbase_hwcnt_backend_csf_set_hw_availability(struct kbase_hwcnt_backend_inte
 {
 	struct kbase_hwcnt_backend_csf_info *csf_info;
 	u64 norm_shader_present = power_core_mask & shader_present;
+	unsigned long flags = 0UL;
 
 	if (!iface)
 		return;
 
 	csf_info = (struct kbase_hwcnt_backend_csf_info *)iface->info;
+	if (!csf_info)
+		return;
+
+	csf_info->csf_if->lock(csf_info->csf_if->ctx, &flags);
 
 	/* Early out if the backend does not exist. */
-	if (!csf_info || !csf_info->backend)
-		return;
+	if (!kbasep_hwcnt_backend_csf_backend_exists(csf_info))
+		goto unlock;
 
 	if (csf_info->prfcnt_info.has_virtual_ids) {
 		DECLARE_BITMAP(sc_mask, BITS_PER_TYPE(u64));
@@ -440,15 +445,18 @@ void kbase_hwcnt_backend_csf_set_hw_availability(struct kbase_hwcnt_backend_inte
 
 	/* MCU needs to be powered off. */
 	if (WARN_ON(csf_info->mcu_on))
-		return;
+		goto unlock;
 
 	if (WARN_ON(num_l2_slices > csf_info->backend->phys_layout.mmu_l2_cnt) ||
 	    WARN_ON((norm_shader_present & csf_info->backend->phys_layout.shader_avail_mask) !=
 		    norm_shader_present))
-		return;
+		goto unlock;
 
 	csf_info->backend->num_l2_slices = num_l2_slices;
 	csf_info->backend->powered_shader_core_mask = norm_shader_present;
+
+unlock:
+	csf_info->csf_if->unlock(csf_info->csf_if->ctx, flags);
 }
 
 /**

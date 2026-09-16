@@ -13,7 +13,7 @@ M ?= $(shell pwd)
 
 ifeq ($(WLAN_ROOT),)
 # WLAN_ROOT must contain an absolute path (i.e. not a relative path)
-KBUILD_OPTIONS := WLAN_ROOT=$(srctree)/$(src)
+KBUILD_OPTIONS := WLAN_ROOT=$(shell cd $(KERNEL_SRC); readlink -e $(M))
 KBUILD_OPTIONS += MODNAME?=wlan
 
 #By default build for CLD
@@ -28,13 +28,12 @@ EXTRA_SYMBOLS +=$(COMMON_OUT_DIR)/private/google-modules/wlan/wcn6740/cnss2/Modu
 KBUILD_OPTIONS += CONFIG_ARCH_MSM=n
 KBUILD_OPTIONS += CONFIG_ARCH_QCOM=n
 KBUILD_OPTIONS += CONFIG_CNSS2=m
+KBUILD_OPTIONS += CONFIG_CNSS2_DEBUG=y
 KBUILD_OPTIONS += CONFIG_CNSS_GENL=m
 KBUILD_OPTIONS += CONFIG_WCNSS_MEM_PRE_ALLOC=m
 KBUILD_OPTIONS += CONFIG_CNSS_UTILS=m
 KBUILD_OPTIONS += $(WLAN_SELECT)
 KBUILD_OPTIONS += $(KBUILD_EXTRA) # Extra config if any
-KBUILD_OPTIONS += TARGET_BUILD_VARIANT=user
-KBUILD_OPTIONS += WLAN_COMMON_ROOT=../qca-wifi-host-cmn
 endif
 
 # Define and "all" target, which isn't really needed but doesn't hurt.

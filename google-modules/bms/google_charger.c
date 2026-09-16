@@ -35,8 +35,10 @@
 #include "google_dc_pps.h"
 #include "google_psy.h"
 
+#ifdef CONFIG_DEBUG_FS
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
+#endif
 
 #if IS_ENABLED(CONFIG_GOOGLE_CRASH_DEBUG_DUMP)
 #include <soc/google/google-cdd.h>
@@ -227,6 +229,9 @@ struct bd_data {
 	bool lowerbd_reached;
 	bool bd_temp_dry_run;
 
+	/* dwell_defend */
+	int dwell_state;
+
 	/* dock_defend */
 	u32 dd_triggered;
 	u32 dd_enabled;
@@ -244,6 +249,9 @@ struct bd_data {
 	ktime_t bd_pretrigger_stats_last_update;
 	struct gbms_ce_tier_stats bd_resume_stats;
 	ktime_t bd_resume_stats_last_update;
+	struct gbms_ce_tier_stats bd_recharge_stats[RECHG_STATS_SIZE];
+	ktime_t bd_recharge_stats_last_update;
+	int bd_recharge_complete_count;
 
 	/* notify bd_event */
 	struct power_supply *bat_psy;
@@ -377,6 +385,9 @@ struct chg_drv {
 	/* charging policy */
 	struct gvotable_election *charging_policy_votable;
 	int charging_policy;
+	struct gbms_ce_tier_stats policy_longlife_recharge_stats[RECHG_STATS_SIZE];
+	ktime_t policy_longlife_recharge_stats_last_update;
+	int policy_longlife_recharge_complete_count;
 
 	int online;
 	int present;
@@ -494,6 +505,7 @@ static void chg_stats_init(struct gbms_ce_tier_stats *tier, int8_t idx)
 static void bd_dd_stats_init(struct chg_drv *chg_drv)
 {
 	ktime_t now = get_boot_sec();
+	int idx;
 
 	mutex_lock(&chg_drv->stats_lock);
 	/* Dock Defend */
@@ -505,6 +517,16 @@ static void bd_dd_stats_init(struct chg_drv *chg_drv)
 	/* Temp Defend resume */
 	chg_stats_init(&chg_drv->bd_state.bd_resume_stats, GBMS_STATS_BD_TI_TEMP_RESUME);
 	chg_drv->bd_state.bd_resume_stats_last_update = 0;
+	/* Temp Defend Recharge */
+	for (idx = 0; idx < RECHG_STATS_SIZE; idx++)
+		chg_stats_init(&chg_drv->bd_state.bd_recharge_stats[idx],
+			       GBMS_STATS_BD_TI_TEMP_RECHARGE);
+	chg_drv->bd_state.bd_recharge_complete_count = 0;
+	/* Policy Longlife Recharge */
+	for (idx = 0; idx < RECHG_STATS_SIZE; idx++)
+		chg_stats_init(&chg_drv->policy_longlife_recharge_stats[idx],
+			       GBMS_STATS_BD_TI_POLICY_LONGLIFE_RECHARGE);
+	chg_drv->policy_longlife_recharge_complete_count = 0;
 	mutex_unlock(&chg_drv->stats_lock);
 }
 
@@ -1070,8 +1092,9 @@ static int chg_work_is_charging_disabled(struct chg_drv *chg_drv, int capacity)
 {
 	const int upperbd = chg_drv->charge_stop_level;
 	const int lowerbd = chg_drv->charge_start_level;
+	const int lowerbd_was_reached = chg_drv->lowerbd_reached;
 	bool is_limit_fcc = false;
-	int disable_charging = 0;
+	int idx, disable_charging = 0;
 
 	if (!chg_is_custom_enabled(upperbd, lowerbd))
 		goto done;
@@ -1098,6 +1121,19 @@ static int chg_work_is_charging_disabled(struct chg_drv *chg_drv, int capacity)
 	} else {
 		pr_info("MSC_CHG lowerbd=%d, upperbd=%d, capacity=%d, charging on\n",
 			lowerbd, upperbd, capacity);
+	}
+
+	if (chg_drv->charging_policy == CHARGING_POLICY_VOTE_LONGLIFE && chg_drv->first_ramp_done) {
+		idx = chg_drv->policy_longlife_recharge_complete_count;
+
+		if (chg_drv->lowerbd_reached && idx < RECHG_STATS_SIZE)
+			chg_stats_update(chg_drv, &chg_drv->policy_longlife_recharge_stats[idx],
+					 &chg_drv->policy_longlife_recharge_stats_last_update);
+		mutex_lock(&chg_drv->stats_lock);
+		if (chg_drv->policy_longlife_recharge_stats[idx % RECHG_STATS_SIZE].soc_in != -1 &&
+		    lowerbd_was_reached != chg_drv->lowerbd_reached && !chg_drv->lowerbd_reached)
+			chg_drv->policy_longlife_recharge_complete_count++;
+		mutex_unlock(&chg_drv->stats_lock);
 	}
 
 	/* slow down the charging speed when repeated charging in a certain range */
@@ -1848,7 +1884,8 @@ static bool bd_check_timer_pause(struct chg_drv *chg_drv)
 	/* To cover Dwell, Retail, LotX_on */
 	const int upperbd = chg_drv->charge_stop_level;
 	const int lowerbd = chg_drv->charge_start_level;
-	const bool is_charge_limit = chg_is_custom_enabled(upperbd, lowerbd);
+	const bool is_charge_limit = chg_is_custom_enabled(upperbd, lowerbd) &&
+				     chg_drv->bd_state.dwell_state < STATE_ACTIVE_1;
 
 	bool should_pause = false;
 	bool is_soc_safe = false;
@@ -1878,8 +1915,8 @@ static bool bd_check_timer_pause(struct chg_drv *chg_drv)
 				chg_drv->bd_state.time_sum);
 		} else {
 			chg_drv->bd_state.bd_time_sum_paused = false;
-			pr_info("MSC_BD: Rseume Elap Timer counting. Device %s %s",
-				chg_status != POWER_SUPPLY_STATUS_NOT_CHARGING ? "resume_charging" : " ",
+			pr_info("MSC_BD: Resume Elap Timer counting. Device %s %s",
+				is_not_charging ? " " : "resume_charging",
 				soc_raw > MAX_BD_PAUSE_SOC ? "high_Soc" : " ");
 		}
 	}
@@ -2003,7 +2040,8 @@ static int bd_update_stats(struct chg_drv *chg_drv, const ktime_t now, bool onli
 static int bd_recharge_logic(struct chg_drv *chg_drv, int val)
 {
 	struct bd_data *bd_state = &chg_drv->bd_state;
-	int lowerbd, upperbd;
+	const int lowerbd_was_reached = bd_state->lowerbd_reached;
+	int lowerbd, upperbd, idx;
 	int disable_charging = 0;
 	bool is_limit_fcc = false;
 
@@ -2051,6 +2089,20 @@ recharge_logic:
 	} else {
 		pr_info("MSC_BD lowerbd=%d, upperbd=%d, val=%d, charging on\n",
 			lowerbd, upperbd, val);
+	}
+
+	if (chg_drv->first_ramp_done) {
+		idx = chg_drv->bd_state.bd_recharge_complete_count;
+
+		if (bd_state->lowerbd_reached && idx < RECHG_STATS_SIZE)
+			chg_stats_update(chg_drv, &bd_state->bd_recharge_stats[idx],
+					 &bd_state->bd_recharge_stats_last_update);
+
+		mutex_lock(&chg_drv->stats_lock);
+		if (bd_state->bd_recharge_stats[idx % RECHG_STATS_SIZE].soc_in != -1 &&
+		    lowerbd_was_reached != bd_state->lowerbd_reached && !bd_state->lowerbd_reached)
+			bd_state->bd_recharge_complete_count++;
+		mutex_unlock(&chg_drv->stats_lock);
 	}
 
 	/* slow down the charging speed when repeated charging in a certain range */
@@ -2390,7 +2442,8 @@ static int chg_run_defender(struct chg_drv *chg_drv)
 	if (disable_charging && soc > chg_drv->charge_stop_level)
 		disable_pwrsrc = 1;
 
-	if (chg_is_custom_enabled(upperbd, lowerbd)) {
+	if (chg_is_custom_enabled(upperbd, lowerbd) &&
+	    chg_drv->bd_state.dwell_state < STATE_ACTIVE_1) {
 		/*
 		 * This mode can be enabled from DWELL-DEFEND when in "idle",
 		 * while TEMP-DEFEND is triggered or from Retail Mode.
@@ -2414,7 +2467,8 @@ static int chg_run_defender(struct chg_drv *chg_drv)
 			chg_drv->bd_state.dd_state = bd_dd_state_update(chg_drv->bd_state.dd_state,
 									false, false);
 
-	} else if (chg_drv->bd_state.enabled) {
+	} else if (chg_drv->bd_state.enabled ||
+		   chg_drv->bd_state.dwell_state >= STATE_ACTIVE_1) {
 		const bool was_triggered = bd_state->triggered;
 		const ktime_t now = get_boot_sec();
 
@@ -2567,9 +2621,8 @@ int chg_switch_profile(struct pd_pps_data *pps, struct power_supply *tcpm_psy,
 static void chg_update_csi(struct chg_drv *chg_drv)
 {
 	const bool is_policy = chg_drv->charging_policy == CHARGING_POLICY_VOTE_LONGLIFE;
-	const bool is_dwell = !is_policy &&
-			     chg_is_custom_enabled(chg_drv->charge_stop_level,
-						   chg_drv->charge_start_level);
+	const bool is_dwell = !is_policy && chg_drv->bd_state.dwell_state >= STATE_ACTIVE_1;
+	const bool is_visible_dwell = is_dwell && chg_drv->bd_state.dwell_state >= STATE_ACTIVE_2;
 	const bool is_disconnected = chg_state_is_disconnected(&chg_drv->chg_state);
 	const bool is_full = (chg_drv->chg_state.f.flags & GBMS_CS_FLAG_DONE) != 0;
 	const bool is_dock = chg_drv->bd_state.dd_state == DOCK_DEFEND_ACTIVE;
@@ -2607,7 +2660,7 @@ static void chg_update_csi(struct chg_drv *chg_drv)
 	/* Longlife is set on TEMP, DWELL and TRICKLE */
 	gvotable_cast_long_vote(chg_drv->csi_type_votable, "CSI_TYPE_DEFEND",
 				CSI_TYPE_LongLife,
-				is_temp || is_dwell || is_dock || is_policy);
+				is_temp || is_visible_dwell || is_dock || is_policy);
 
 	/* Set to normal if the device docked */
 	if (is_dock)
@@ -3158,8 +3211,14 @@ static ssize_t set_charge_stop_level(struct device *dev,
 	    (val > DEFAULT_CHARGE_STOP_LEVEL))
 		return -EINVAL;
 
-	pr_info("%s: %d -> %d\n", __func__, chg_drv->charge_stop_level, val);
+	gbms_logbuffer_prlog(chg_drv->bd_state.bd_log, LOGLEVEL_INFO, 0, LOGLEVEL_INFO,
+			     "CHG_LEVEL: stop %d -> %d", chg_drv->charge_stop_level, val);
 	chg_drv->charge_stop_level = val;
+
+	/* Dwell v1.5: Sync charge stop level to battery for dynamic spoofing */
+	ret = GPSY_SET_PROP(chg_drv->bat_psy, GBMS_PROP_CHARGE_STOP_LEVEL, val);
+	if (ret < 0)
+		pr_warn("Failed to sync charge_stop_level to battery: %d\n", ret);
 
 	/* Force update charging state vote */
 	chg_run_defender(chg_drv);
@@ -3203,8 +3262,14 @@ static ssize_t set_charge_start_level(struct device *dev,
 	    (val < DEFAULT_CHARGE_START_LEVEL))
 		return -EINVAL;
 
-	pr_info("%s: %d -> %d\n", __func__, chg_drv->charge_start_level, val);
+	gbms_logbuffer_prlog(chg_drv->bd_state.bd_log, LOGLEVEL_INFO, 0, LOGLEVEL_INFO,
+			     "CHG_LEVEL: start %d -> %d", chg_drv->charge_start_level, val);
 	chg_drv->charge_start_level = val;
+
+	/* Dwell v1.5: Sync charge start level to battery for dynamic spoofing */
+	ret = GPSY_SET_PROP(chg_drv->bat_psy, GBMS_PROP_CHARGE_START_LEVEL, val);
+	if (ret < 0)
+		pr_warn("Failed to sync charge_start_level to battery: %d\n", ret);
 
 	/* Force update charging state vote */
 	chg_run_defender(chg_drv);
@@ -3217,6 +3282,53 @@ static ssize_t set_charge_start_level(struct device *dev,
 
 static DEVICE_ATTR(charge_start_level, 0660,
 		   show_charge_start_level, set_charge_start_level);
+
+static ssize_t show_dwell_state(struct device *dev, struct device_attribute *attr,
+				char *buf)
+{
+	struct chg_drv *chg_drv = dev_get_drvdata(dev);
+
+	return scnprintf(buf, PAGE_SIZE, "%d\n", chg_drv->bd_state.dwell_state);
+}
+
+static ssize_t set_dwell_state(struct device *dev, struct device_attribute *attr,
+			       const char *buf, size_t count)
+{
+	struct chg_drv *chg_drv = dev_get_drvdata(dev);
+	int ret = 0, val;
+	bool spoof_on = true;
+
+	ret = kstrtoint(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+
+	if (val < 0 || val >= STATE_COUNT)
+		return -EINVAL;
+
+	if (chg_drv->bd_state.dwell_state != val) {
+		dev_info(chg_drv->device, "DWELL: state %d -> %d\n",
+			 chg_drv->bd_state.dwell_state, val);
+		chg_drv->bd_state.dwell_state = val;
+
+		if (val == STATE_ACTIVE_NOSPOOF)
+			spoof_on = false;
+		ret = GPSY_SET_PROP(chg_drv->bat_psy, GBMS_PROP_DWELL_SOC_SPOOFING, spoof_on);
+		if (ret < 0)
+			pr_warn("Failed to set soc-spoofing state to battery: %d\n", ret);
+
+		ret = GPSY_SET_PROP(chg_drv->bat_psy, GBMS_PROP_DWELL_STATE, val);
+		if (ret < 0)
+			pr_warn("Failed to set dwell_state to battery: %d\n", ret);
+
+		/* Notify battery driver to update UI spoofing behavior */
+		if (chg_drv->bat_psy)
+			power_supply_changed(chg_drv->bat_psy);
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR(dwell_state, 0660, show_dwell_state, set_dwell_state);
 
 static ssize_t
 show_bd_temp_enable(struct device *dev,
@@ -3642,13 +3754,12 @@ bd_state_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct chg_drv *chg_drv = dev_get_drvdata(dev);
 	struct bd_data *bd_state = &chg_drv->bd_state;
-	long long temp_avg = 0;
+	long long temp_avg;
 	ssize_t len;
 
 	mutex_lock(&chg_drv->bd_lock);
 
-	if (bd_state->time_sum)
-		temp_avg = div64_s64(bd_state->temp_sum, bd_state->time_sum);
+	temp_avg = div64_s64(bd_state->temp_sum, bd_state->time_sum);
 	len = scnprintf(buf, PAGE_SIZE,
 		       "t_sum=%lld, time_sum=%lld t_avg=%lld lst_v=%d lst_t=%d lst_u=%lld, dt=%lld, t=%d e=%d\n",
 		       bd_state->temp_sum, bd_state->time_sum, temp_avg,
@@ -3854,6 +3965,8 @@ static int chg_vote_input_suspend(struct chg_drv *chg_drv,
 
 	return 0;
 }
+
+#ifdef CONFIG_DEBUG_FS
 
 static int chg_get_input_suspend(void *data, u64 *val)
 {
@@ -4124,6 +4237,9 @@ static int bd_enabled_set(void *data, u64 val)
 DEFINE_SIMPLE_ATTRIBUTE(bd_enabled_fops, bd_enabled_get,
 			bd_enabled_set, "%lld\n");
 
+
+#endif
+
 static int debug_get_pps_cc_tolerance(void *data, u64 *val)
 {
 	struct chg_drv *chg_drv = data;
@@ -4248,6 +4364,8 @@ charge_stats_show(struct device *dev, struct device_attribute *attr, char *buf)
 	struct gbms_ce_tier_stats *dd_stats = &chg_drv->dd_stats;
 	struct gbms_ce_tier_stats *bd_p_stats = &chg_drv->bd_state.bd_pretrigger_stats;
 	struct gbms_ce_tier_stats *bd_r_stats = &chg_drv->bd_state.bd_resume_stats;
+	struct gbms_ce_tier_stats *rechg_stats;
+	int idx, idx_cnt;
 	uint32_t time_sum;
 	ssize_t len = 0;
 
@@ -4260,6 +4378,20 @@ charge_stats_show(struct device *dev, struct device_attribute *attr, char *buf)
 		len += gbms_tier_stats_cstr(&buf[len], PAGE_SIZE, bd_p_stats, false);
 	if (chg_drv->bd_state.bd_resume_stats_last_update > 0)
 		len += gbms_tier_stats_cstr(&buf[len], PAGE_SIZE, bd_r_stats, false);
+	if (chg_drv->bd_state.bd_recharge_complete_count > 0) {
+		idx_cnt = min(chg_drv->bd_state.bd_recharge_complete_count, RECHG_STATS_SIZE);
+		for (idx = 0; idx < idx_cnt; idx++) {
+			rechg_stats = &chg_drv->bd_state.bd_recharge_stats[idx];
+			len += gbms_tier_stats_cstr(&buf[len], PAGE_SIZE, rechg_stats, false);
+		}
+	}
+	if (chg_drv->policy_longlife_recharge_complete_count > 0) {
+		idx_cnt = min(chg_drv->policy_longlife_recharge_complete_count, RECHG_STATS_SIZE);
+		for (idx = 0; idx < idx_cnt; idx++) {
+			rechg_stats = &chg_drv->policy_longlife_recharge_stats[idx];
+			len += gbms_tier_stats_cstr(&buf[len], PAGE_SIZE, rechg_stats, false);
+		}
+	}
 	len += scnprintf(&buf[len], PAGE_SIZE - len, "\nD:0x0,%#x,0x0,0x0,0x0,0x0,%#x\n",
 			 chg_drv->adapter_capabilities[ADAPTER_CAP_APDO],
 			 chg_drv->adapter_capabilities[ADAPTER_CAP_PDO]);
@@ -4301,6 +4433,12 @@ static int chg_init_fs(struct chg_drv *chg_drv)
 	ret = device_create_file(chg_drv->device, &dev_attr_charge_start_level);
 	if (ret != 0) {
 		pr_err("Failed to create charge_start_level files, ret=%d\n", ret);
+		return ret;
+	}
+
+	ret = device_create_file(chg_drv->device, &dev_attr_dwell_state);
+	if (ret != 0) {
+		pr_err("Failed to create dwell_state files, ret=%d\n", ret);
 		return ret;
 	}
 
@@ -4742,7 +4880,7 @@ static int msc_last_cb(struct gvotable_election *el, const char *reason, void *v
 
 }
 
-static void chg_update_charging_policy(struct chg_drv *chg_drv, const int value)
+static void chg_update_charging_policy(struct chg_drv *chg_drv, const char *reason, const int value)
 {
 	/* set custom upper and lower bound for long_life charging policy */
 	if (value == CHARGING_POLICY_VOTE_LONGLIFE &&
@@ -4757,6 +4895,13 @@ static void chg_update_charging_policy(struct chg_drv *chg_drv, const int value)
 		chg_update_charging_state(chg_drv, false, false);
 	}
 
+	/* ignore logging the init case where charging_policy == 0 */
+	if (chg_drv->charging_policy != 0)
+		gbms_logbuffer_prlog(chg_drv->bd_state.bd_log, LOGLEVEL_INFO, 0, LOGLEVEL_INFO,
+				     "CHG_LEVEL: policy %d->%d(%s), level %d-%d",
+				     chg_drv->charging_policy, value, reason,
+				     chg_drv->charge_start_level, chg_drv->charge_stop_level);
+
 	chg_drv->charging_policy = value;
 }
 
@@ -4769,7 +4914,7 @@ static int charging_policy_cb(struct gvotable_election *el,
 	if (!chg_drv || chg_drv->charging_policy == charging_policy)
 		return 0;
 
-	chg_update_charging_policy(chg_drv, charging_policy);
+	chg_update_charging_policy(chg_drv, reason, charging_policy);
 
 	if (chg_drv->bat_psy)
 		power_supply_changed(chg_drv->bat_psy);
@@ -5461,6 +5606,8 @@ state2power_table_show(struct device *dev, struct device_attribute *attr, char *
 
 static DEVICE_ATTR_RO(state2power_table);
 
+#ifdef CONFIG_DEBUG_FS
+
 static ssize_t tm_store(struct chg_thermal_device *tdev,
 			const char __user *user_buf,
 			size_t count, loff_t *ppos)
@@ -5529,6 +5676,8 @@ static ssize_t dc_tm_store(struct file *filp, const char __user *user_buf,
 }
 
 DEBUG_ATTRIBUTE_WO(dc_tm);
+
+#endif // CONFIG_DEBUG_FS
 
 static int chg_init_mdis_stats_map(struct chg_drv *chg_drv, const char *name) {
 	int rc, byte_len;
@@ -5995,6 +6144,8 @@ static void google_charger_init_work(struct work_struct *work)
 
 	chg_init_state(chg_drv);
 	chg_init_charge_level(chg_drv);
+	GPSY_SET_PROP(chg_drv->bat_psy, GBMS_PROP_DWELL_STATE,
+		      chg_drv->bd_state.dwell_state);
 	chg_drv->stop_charging = -1;
 	chg_drv->charging_policy = CHARGING_POLICY_DEFAULT;
 	mutex_init(&chg_drv->stats_lock);

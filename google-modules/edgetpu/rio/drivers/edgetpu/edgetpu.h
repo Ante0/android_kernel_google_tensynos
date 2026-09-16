@@ -25,13 +25,14 @@
  * This number must be incremented when new features or fields are added, or when existing features
  * are marked deprecated.
  */
-#define _EDGETPU_INTERFACE_VERSION_MINOR 2
+#define _EDGETPU_INTERFACE_VERSION_MINOR 3
 
 /*
  * Interface version history:
  *
  * 1.1: Initial support for interface versioning.
  * 1.2: Add EDGETPU_TRIM_ENABLE; earlier versions to be considered not supporting trim.
+ * 1.3: Add EDGETPU_IDENTIFY_CLIENT.
  */
 
 /*
@@ -982,5 +983,10 @@ struct edgetpu_interface_version_ioctl {
  * disable trim.
  */
 #define EDGETPU_TRIM_ENABLE	_IOW(EDGETPU_IOCTL_BASE, 43, __u32)
+
+/*
+ * Runtime server passes the PID of its client process for identification/triage purposes.
+ */
+#define EDGETPU_IDENTIFY_CLIENT	_IOW(EDGETPU_IOCTL_BASE, 44, __u32)
 
 #endif /* __EDGETPU_H__ */

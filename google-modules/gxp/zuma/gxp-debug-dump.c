@@ -989,10 +989,11 @@ static int gxp_debug_dump_add_segments(struct gxp_dev *gxp, struct gxp_virtual_d
 #endif /* GXP_HAS_MCU */
 
 	core_cfg = vd->core_cfg.virt_addr + (vd->core_cfg.size / GXP_NUM_CORES) * virt_core_id;
-	scnprintf(mgr->sscd_segments[core_id].sscd_msg, SSCD_MSG_LENGTH - 1,
-		  "gxp debug dump (vdid %d)(core %0x)(exccause:0x%x, excvaddr:0x%x, epc1:0x%x)",
-		  vd->vdid, core_id, core_cfg->crash_exccause, core_cfg->crash_excvaddr,
-		  core_cfg->crash_epc1);
+	scnprintf(
+		mgr->sscd_segments[core_id].sscd_msg, SSCD_MSG_LENGTH - 1,
+		"gxp debug dump (vdid %d)(core %0x)(device_id:0x%x)(exccause:0x%x, excvaddr:0x%x, epc1:0x%x)",
+		vd->vdid, core_id, core_cfg->device_id, core_cfg->crash_exccause,
+		core_cfg->crash_excvaddr, core_cfg->crash_epc1);
 
 out_add_seg:
 	if (ret)

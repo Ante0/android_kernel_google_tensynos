@@ -424,8 +424,8 @@ static int gxp_uci_before_enqueue_wait_list(struct gcip_mailbox *mailbox, void *
 	 * submitted to the firmware and the kernel driver doesn't need to care signaling out-fences
 	 * with an error caused in the driver side.
 	 */
-	ret = gcip_fence_array_submit_waiter_and_signaler(async_resp->in_fences,
-							  async_resp->out_fences, IIF_IP_DSP);
+	ret = gcip_fence_array_submit_waiter_and_signaler(
+		async_resp->in_fences, async_resp->out_fences, NULL, NULL, IIF_IP_DSP);
 	if (ret) {
 		dev_err(mailbox->dev, "Failed to submit waiter or signaler to fences, ret=%d", ret);
 		return ret;

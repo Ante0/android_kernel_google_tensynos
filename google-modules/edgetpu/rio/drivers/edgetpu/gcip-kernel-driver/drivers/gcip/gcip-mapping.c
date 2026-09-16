@@ -372,7 +372,7 @@ err_unpin_page:
  * @dir: The DMA direction of the mapping.
  * @mm: The mm_struct to maintain pinned_vm.
  *
- * If the @sgt has never been mapped, pass DMA_NONE for @dir to skip set_page_dirty().
+ * If the @sgt has never been mapped, pass DMA_NONE for @dir to skip set_page_dirty_lock().
  */
 static void gcip_mapping_buffer_sgt_destroy(struct sg_table *sgt, enum dma_data_direction dir,
 					    struct mm_struct *mm)
@@ -384,7 +384,7 @@ static void gcip_mapping_buffer_sgt_destroy(struct sg_table *sgt, enum dma_data_
 	for_each_sg_page(sgt->sgl, &sg_iter, sgt->orig_nents, 0) {
 		page = sg_page_iter_page(&sg_iter);
 		if (dir == DMA_FROM_DEVICE || dir == DMA_BIDIRECTIONAL)
-			set_page_dirty(page);
+			set_page_dirty_lock(page);
 		unpin_user_page(page);
 		num_pages++;
 	}
@@ -837,6 +837,16 @@ static struct sg_table *gcip_mapping_dmabuf_map_sgt_to_iova(struct gcip_iommu_do
 		dev_err(domain->dev, "Failed to copy sg_table (ret=%d)\n", ret);
 		goto err_destroy_sgt;
 	}
+
+	/*
+	 * If DMA_ATTR_PRIVILEGED is set in the attrs provided by the heap exporter then this
+	 * mapping is from the system-uncached heap. That attr signalled the SMMU driver to remove
+	 * shareability/IOMMU_CACHE from the default domain mapping (if it was requested), since
+	 * this is invalid (and tends to hit bogus AP cache lines). Also turn off coherency/
+	 * IOMMU_CACHE in our per-context mapping.
+	 */
+	if (attachment->dma_map_attrs & DMA_ATTR_PRIVILEGED)
+		gcip_map_flags &= ~BIT(GCIP_MAP_FLAGS_DMA_COHERENT_OFFSET);
 
 	nents_mapped = gcip_iommu_domain_map_sgt_to_iova(domain, sgt_ret, iova, &gcip_map_flags);
 	if (!nents_mapped) {

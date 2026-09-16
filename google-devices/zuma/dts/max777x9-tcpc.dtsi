@@ -70,6 +70,8 @@ max77759tcpc: max77759tcpc@25 {
 					0x18D1)
 				VDO_CERT(0x0)
 				VDO_PRODUCT(0x4EE1, 0x0)>;
+		pd-revision = /bits/ 8 <0x3 0x1 0x1 0x8>;
+
 		altmodes {
 			displayport {
 				svid = <0xff01>;

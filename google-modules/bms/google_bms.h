@@ -148,6 +148,31 @@ typedef struct {
     char *cc_limits[GBMS_AACT_NB_LIMITS_MAX];
 } aact_limits_profiles_t;
 
+/* the number should be the same as GBMS_AACT_NB_LIMITS_MAX */
+static aact_limits_profiles_t aact_all_limits = {
+    .temp_limits = {
+        "google,aact-temp-limits",
+        "google,aact-temp-limits-1",
+        "google,aact-temp-limits-2",
+        "google,aact-temp-limits-3",
+        "google,aact-temp-limits-4"
+    },
+    .cv_limits = {
+        "google,aact-cv-limits",
+        "google,aact-cv-limits-1",
+        "google,aact-cv-limits-2",
+        "google,aact-cv-limits-3",
+        "google,aact-cv-limits-4"
+    },
+    .cc_limits = {
+        "google,aact-cc-limits",
+        "google,aact-cc-limits-1",
+        "google,aact-cc-limits-2",
+        "google,aact-cc-limits-3",
+        "google,aact-cc-limits-4"
+    }
+};
+
 #define WLC_BPP_THRESHOLD_UV	7000000
 #define WLC_EPP_THRESHOLD_UV	11000000
 
@@ -404,6 +429,7 @@ enum gbms_stats_tier_idx_t {
 	GBMS_STATS_TI_FULL_CHARGE = 100,
 	GBMS_STATS_TI_HIGH_SOC = 101,
 	GBMS_STATS_TI_EOC = 102,
+	GBMS_STATS_TI_FULL_RECHARGE = 103,
 
 	/* Defender TEMP or DWELL */
 	GBMS_STATS_BD_TI_OVERHEAT_TEMP = 110,
@@ -414,10 +440,28 @@ enum gbms_stats_tier_idx_t {
 	GBMS_STATS_BD_TI_TEMP_RESUME = 115,
 	GBMS_STATS_BD_TI_POLICY_LONGLIFE = 116,
 	GBMS_STATS_BD_TI_POLICY_FORCE_TO_FULL = 117,
+	GBMS_STATS_BD_TI_TEMP_RECHARGE = 118,
+	GBMS_STATS_BD_TI_POLICY_LONGLIFE_RECHARGE = 119,
 
 	GBMS_STATS_BD_TI_TRICKLE_CLEARED = 122,
 	GBMS_STATS_BD_TI_DOCK_CLEARED = 123,
 	GBMS_STATS_TEMP_FILTER = 124,
+	GBMS_STATS_BD_TI_DWELL_V1P5_STAGE1 = 125,
+	GBMS_STATS_BD_TI_DWELL_V1P5_STAGE2 = 126,
+};
+
+/* Definition should be synced to HLOS BatteryDefender.h */
+enum dwell_defend_state {
+	STATE_INIT,
+	STATE_DISABLED,
+	STATE_DISCONNECTED,
+	STATE_CONNECTED,
+	STATE_ACTIVE_HOLD,
+	STATE_ACTIVE_1,
+	STATE_ACTIVE_2,
+	STATE_ACTIVE_3,
+	STATE_ACTIVE_NOSPOOF,
+	STATE_COUNT,
 };
 
 /* health state */
@@ -450,6 +494,8 @@ struct batt_chg_health {
 
 #define CHG_HEALTH_REST_SOC(rest) (((rest)->always_on_soc != -1) ? \
 			(rest)->always_on_soc : (rest)->rest_soc)
+
+#define RECHG_STATS_SIZE 10
 
 /* reset on every charge session */
 struct gbms_charging_event {
@@ -496,9 +542,12 @@ struct gbms_charging_event {
 	struct gbms_ce_tier_stats cc_lvl_stats;
 	struct gbms_ce_tier_stats trickle_stats;
 	struct gbms_ce_tier_stats temp_filter_stats;
+	struct gbms_ce_tier_stats dwell_stage1_stats;
+	struct gbms_ce_tier_stats dwell_stage2_stats;
 	struct gbms_ce_tier_stats policy_longlife_stats;
 	struct gbms_ce_tier_stats policy_force_full_stats;
 	struct gbms_ce_tier_stats eoc_charge_stats;
+	struct gbms_ce_tier_stats full_recharge_stats[RECHG_STATS_SIZE];
 };
 
 #define GBMS_CCCM_LIMITS_SET(profile, ti, vi) \
@@ -1033,6 +1082,7 @@ enum spoof_soc_reason {
 	SPOOF_SOC_CHARGING_POLICY,
 	SPOOF_SOC_ADAPTIVE_CHARGING,
 	SPOOF_SOC_TEMP_DEFEND,
+	SPOOF_SOC_DWELL_DEFEND,
 };
 
 enum bpst_batt_status {

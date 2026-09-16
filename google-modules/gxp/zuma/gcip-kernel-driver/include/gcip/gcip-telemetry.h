@@ -85,7 +85,7 @@ struct gcip_telemetry {
 	struct mutex state_ctx_lock; /* protects ctx and state */
 	const char *name; /* for debugging */
 
-	struct work_struct work; /* worker for handling data */
+	struct delayed_work work; /* delayed work struct for handling data */
 	/* Fallback function to call for default log/trace/opaque handling. */
 	void (*fallback_fn)(const struct gcip_telemetry *tel);
 	struct mutex mmap_lock; /* protects mmapped_count */

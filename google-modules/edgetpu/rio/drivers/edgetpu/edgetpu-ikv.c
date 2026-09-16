@@ -55,11 +55,11 @@ static int edgetpu_ikv_alloc_queue(struct edgetpu_ikv *etikv, enum gcip_mailbox_
 	/* Allocate the queues based on the larger litebuf sizes which can handle both formats. */
 	switch (type) {
 	case GCIP_MAILBOX_CMD_QUEUE:
-		size = EDGETPU_IKV_QUEUE_SIZE * VII_CMD_SIZE_BYTES;
+		size = etikv->queue_size * VII_CMD_SIZE_BYTES;
 		mem = &etikv->cmd_queue_mem;
 		break;
 	case GCIP_MAILBOX_RESP_QUEUE:
-		size = EDGETPU_IKV_QUEUE_SIZE * VII_RESP_SIZE_BYTES;
+		size = etikv->queue_size * VII_RESP_SIZE_BYTES;
 		mem = &etikv->resp_queue_mem;
 		break;
 	}
@@ -68,11 +68,12 @@ static int edgetpu_ikv_alloc_queue(struct edgetpu_ikv *etikv, enum gcip_mailbox_
 	 * in-kernel VII is kernel-to-firmware communication, so its queues are allocated in the
 	 * same context as KCI, despite being a separate protocol.
 	 */
-	ret = edgetpu_iremap_alloc(etdev, size,  mem);
+	ret = edgetpu_iremap_alloc(etdev, size, mem);
 	if (ret)
 		return ret;
 
-	ret = edgetpu_mailbox_set_queue(etikv->mbx_hardware, type, mem->dma_addr, EDGETPU_IKV_QUEUE_SIZE);
+	ret = edgetpu_mailbox_set_queue(etikv->mbx_hardware, type, mem->dma_addr,
+					etikv->queue_size);
 	if (ret) {
 		etdev_err(etikv->etdev, "failed to set mailbox queue: %d", ret);
 		edgetpu_iremap_free(etdev, mem);
@@ -112,6 +113,7 @@ int edgetpu_ikv_init(struct edgetpu_dev *etdev, struct edgetpu_ikv *etikv)
 	};
 	int ret;
 
+	etikv->queue_size = etdev->max_concurrent_clients * EDGETPU_NUM_VII_CREDITS_PER_CLIENT;
 	etikv->command_timeout_ms = timeout;
 	etikv->etdev = etdev;
 	mutex_init(&etikv->enabled_pasids_lock);
@@ -173,12 +175,12 @@ int edgetpu_ikv_reinit(struct edgetpu_ikv *etikv)
 	edgetpu_mailbox_clear_doorbells(mbx_hardware);
 
 	ret = edgetpu_mailbox_set_queue(mbx_hardware, GCIP_MAILBOX_CMD_QUEUE,
-					cmd_queue_mem->dma_addr, EDGETPU_IKV_QUEUE_SIZE);
+					cmd_queue_mem->dma_addr, etikv->queue_size);
 	if (ret)
 		return ret;
 
 	ret = edgetpu_mailbox_set_queue(mbx_hardware, GCIP_MAILBOX_RESP_QUEUE,
-					resp_queue_mem->dma_addr, EDGETPU_IKV_QUEUE_SIZE);
+					resp_queue_mem->dma_addr, etikv->queue_size);
 	if (ret)
 		return ret;
 
@@ -248,8 +250,13 @@ int edgetpu_ikv_activate_client(struct edgetpu_ikv *etikv, u32 pasid, u32 client
 	if (!ret)
 		etikv->enabled_pasids |= mailbox_map;
 	mutex_unlock(&etikv->enabled_pasids_lock);
-	if (ret == -ETIMEDOUT)
+	if (ret == -ETIMEDOUT) {
 		edgetpu_watchdog_bite(etdev);
+	} else if (ret > 0) {
+		etdev_err(etdev, "allocate mailbox for VCID %d failed with firmware error %d", vcid,
+			  ret);
+		ret = -EBADMSG;
+	}
 
 	return ret;
 }
@@ -391,9 +398,16 @@ static void edgetpu_ikv_process_response(struct edgetpu_ikv_response *ikv_resp, 
 		list_del(&ikv_resp->list_entry);
 	list_add_tail(&ikv_resp->list_entry, ikv_resp->dest_queue);
 
+	/*
+	 * Hold a reference to the awaiter. This prevents the response object from being freed by
+	 * the queue consumer before we finish signaling the response waiters.
+	 */
+	gcip_mailbox_awaiter_get(&ikv_resp->gcip_awaiter);
+
 	spin_unlock_irqrestore(ikv_resp->queue_lock, flags);
 
 	signal_response_waiters(ikv_resp, fence_error, true);
+	gcip_mailbox_awaiter_put(&ikv_resp->gcip_awaiter);
 }
 
 static void edgetpu_ikv_response_handle_arrived(struct gcip_mailbox_awaiter *gcip_awaiter)
@@ -487,7 +501,8 @@ struct send_cmd_args {
 	void *cmd;
 };
 
-static int do_send_cmd(struct send_cmd_args *args) {
+static int do_send_cmd(struct send_cmd_args *args)
+{
 	struct edgetpu_ikv *etikv = args->etikv;
 	void *cmd = args->cmd;
 	struct edgetpu_ikv_response *ikv_resp = args->ikv_resp;
@@ -562,8 +577,9 @@ err_send_error_resp:
 	 * Notify the IIF driver that the signaler of the out_fence_array was "submitted" so that
 	 * any IIF out-fences can be signaled when processing the error response.
 	 */
-	ret = gcip_fence_array_submit_waiter_and_signaler(
-		args->ikv_resp->in_fence_array, args->ikv_resp->out_fence_array, IIF_IP_TPU);
+	ret = gcip_fence_array_submit_waiter_and_signaler(args->ikv_resp->in_fence_array,
+							  args->ikv_resp->out_fence_array, NULL,
+							  NULL, IIF_IP_TPU);
 	if (ret)
 		etdev_err(
 			args->etikv->etdev,
@@ -591,8 +607,7 @@ int edgetpu_ikv_send_cmd(struct edgetpu_ikv *etikv, void *cmd, struct list_head 
 			 struct list_head *ready_queue, spinlock_t *queue_lock,
 			 struct edgetpu_device_group *group_to_notify,
 			 struct gcip_fence_array *in_fence_array,
-			 struct gcip_fence_array *out_fence_array,
-			 struct iif_fence *iif_dma_fence,
+			 struct gcip_fence_array *out_fence_array, struct iif_fence *iif_dma_fence,
 			 struct edgetpu_ikv_additional_info *additional_info,
 			 void (*release_callback)(void *), void *release_data)
 {

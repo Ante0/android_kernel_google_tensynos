@@ -637,8 +637,8 @@ int edgetpu_register_irq(struct edgetpu_dev *etdev, int irq)
 {
 	int ret;
 
-	ret = devm_request_irq(etdev->dev, irq, edgetpu_chip_irq_handler,
-			       IRQF_ONESHOT, etdev->dev_name, etdev);
+	ret = devm_request_irq(etdev->dev, irq, edgetpu_chip_irq_handler, 0,
+			       etdev->dev_name, etdev);
 	if (ret)
 		dev_err(etdev->dev, "%s: failed to request irq %d: %d\n",
 			etdev->dev_name, irq, ret);

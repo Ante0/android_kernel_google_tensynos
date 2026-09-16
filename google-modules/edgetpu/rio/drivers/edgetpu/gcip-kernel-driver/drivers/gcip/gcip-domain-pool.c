@@ -12,9 +12,12 @@
 #include <linux/idr.h>
 #include <linux/iommu.h>
 #include <linux/of.h>
+#include <linux/xarray.h>
 
 #include <gcip/gcip-domain-pool.h>
 #include <gcip/gcip-iommu.h>
+
+#define GCIP_DOMAIN_POOL_MARK_AVAILABLE XA_MARK_0
 
 int gcip_domain_pool_init(struct gcip_domain_pool *pool, struct device *dev, int size,
 			  enum gcip_iommu_domain_type domain_type, size_t granule)
@@ -47,13 +50,7 @@ int gcip_domain_pool_init(struct gcip_domain_pool *pool, struct device *dev, int
 	pool->max_pasid = BIT(pasid_num_bits) - 1;
 
 	ida_init(&pool->pasid_pool);
-	ida_init(&pool->idp);
-
-	pool->array = devm_kcalloc(dev, size, sizeof(*pool->array), GFP_KERNEL);
-	if (!pool->array) {
-		ret = -ENOMEM;
-		goto err_free_ida;
-	}
+	xa_init(&pool->domain_xa);
 
 	for (i = 0; i < size; i++) {
 		domain = iommu_domain_alloc(dev->bus);
@@ -75,20 +72,21 @@ int gcip_domain_pool_init(struct gcip_domain_pool *pool, struct device *dev, int
 			goto err_free_domain;
 		}
 
-		pool->array[i] = gdomain;
+		xa_store(&pool->domain_xa, i, gdomain, GFP_KERNEL);
+		xa_set_mark(&pool->domain_xa, i, GCIP_DOMAIN_POOL_MARK_AVAILABLE);
 	}
 
 	return 0;
 
 err_free_domain:
 	while (i--) {
-		domain = pool->array[i]->domain;
-		gcip_iommu_domain_destroy(pool->array[i]);
+		gdomain = xa_load(&pool->domain_xa, i);
+		domain = gdomain->domain;
+		gcip_iommu_domain_destroy(gdomain);
 		iommu_domain_free(domain);
 	}
-err_free_ida:
-	devm_kfree(pool->dev, pool->array);
-	ida_destroy(&pool->idp);
+
+	xa_destroy(&pool->domain_xa);
 	ida_destroy(&pool->pasid_pool);
 
 	return ret;
@@ -96,47 +94,52 @@ err_free_ida:
 
 void gcip_domain_pool_exit(struct gcip_domain_pool *pool)
 {
+	struct gcip_iommu_domain *gdomain;
 	struct iommu_domain *domain;
 	int i;
 
 	for (i = 0; i < pool->size; i++) {
-		domain = pool->array[i]->domain;
-		gcip_iommu_domain_destroy(pool->array[i]);
+		gdomain = xa_load(&pool->domain_xa, i);
+		domain = gdomain->domain;
+		gcip_iommu_domain_destroy(gdomain);
 		iommu_domain_free(domain);
 	}
 
-	devm_kfree(pool->dev, pool->array);
-	ida_destroy(&pool->idp);
+	xa_destroy(&pool->domain_xa);
 	ida_destroy(&pool->pasid_pool);
 }
 
 struct gcip_iommu_domain *gcip_domain_pool_alloc(struct gcip_domain_pool *pool)
 {
-	int id;
+	struct gcip_iommu_domain *gdomain;
+	unsigned long id = 0;
 
-	id = ida_alloc_max(&pool->idp, pool->size - 1, GFP_KERNEL);
+	xa_lock(&pool->domain_xa);
 
-	if (id < 0) {
-		dev_err(pool->dev, "No more domains available from pool of size %u\n", pool->size);
-		return ERR_PTR(-ENOSPC);
-	}
+	gdomain = xa_find(&pool->domain_xa, &id, pool->size - 1, GCIP_DOMAIN_POOL_MARK_AVAILABLE);
 
-	dev_dbg(pool->dev, "Allocated domain from pool with id = %d\n", id);
+	if (gdomain)
+		__xa_clear_mark(&pool->domain_xa, id, GCIP_DOMAIN_POOL_MARK_AVAILABLE);
+	else
+		gdomain = ERR_PTR(-ENOSPC);
 
-	return pool->array[id];
+	xa_unlock(&pool->domain_xa);
+
+	return gdomain;
 }
 
-void gcip_domain_pool_free(struct gcip_domain_pool *pool, struct gcip_iommu_domain *domain)
+void gcip_domain_pool_free(struct gcip_domain_pool *pool, struct gcip_iommu_domain *gdomain)
 {
-	int id;
+	struct gcip_iommu_domain *cur;
+	unsigned long id;
 
-	for (id = 0; id < pool->size; id++) {
-		if (pool->array[id] == domain) {
-			dev_dbg(pool->dev, "Released domain from pool with id = %d\n", id);
-			ida_free(&pool->idp, id);
+	xa_for_each(&pool->domain_xa, id, cur) {
+		if (cur == gdomain) {
+			xa_set_mark(&pool->domain_xa, id, GCIP_DOMAIN_POOL_MARK_AVAILABLE);
 			return;
 		}
 	}
+
 	dev_err(pool->dev, "Domain not found in pool\n");
 }
 

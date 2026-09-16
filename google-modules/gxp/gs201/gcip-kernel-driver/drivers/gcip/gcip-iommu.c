@@ -513,7 +513,7 @@ static void gcip_iommu_mapping_unmap_buffer(struct gcip_iommu_mapping *mapping)
 	for_each_sg_page(sgt->sgl, &sg_iter, sgt->orig_nents, 0) {
 		page = sg_page_iter_page(&sg_iter);
 		if (dir == DMA_FROM_DEVICE || dir == DMA_BIDIRECTIONAL)
-			set_page_dirty(page);
+			set_page_dirty_lock(page);
 
 		unpin_user_page(page);
 		num_pages++;

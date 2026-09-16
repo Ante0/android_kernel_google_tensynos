@@ -368,7 +368,20 @@ int edgetpu_pm_suspend(struct edgetpu_dev *etdev)
 	struct edgetpu_pm *etpm = etdev->pm;
 	struct edgetpu_list_device_client *lc;
 
-	if (!etpm || !etpm->p->power_up_count)
+	if (!edgetpu_pm_trylock(etpm)) {
+		etdev_warn_ratelimited(etdev, "cannot suspend during power state transition\n");
+		return -EAGAIN;
+	}
+
+	if (etpm->p->power_down_pending) {
+		etdev_warn_ratelimited(etdev, "cannot suspend when power down is pending\n");
+		edgetpu_pm_unlock(etpm);
+		return -EAGAIN;
+	}
+
+	edgetpu_pm_unlock(etpm);
+
+	if (!etpm->p->power_up_count)
 		return 0;
 
 	etdev_warn_ratelimited(

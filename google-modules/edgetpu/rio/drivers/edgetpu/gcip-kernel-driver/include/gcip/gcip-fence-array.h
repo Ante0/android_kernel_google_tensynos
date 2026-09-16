@@ -81,8 +81,8 @@ void gcip_fence_array_submit_signaler(struct gcip_fence_array *fence_array);
 void gcip_fence_array_submit_waiter(struct gcip_fence_array *fence_array, enum iif_ip_type ip);
 
 /*
- * Submits a waiter of @ip to each fence in @in_fences and a signaler to each fence in @out_fences.
- * Either @in_fences or @out_fences is allowed to be NULL.
+ * Submits a waiter of @ip to each fence in @in_fences/@mid_in_fences and a signaler to each fence
+ * in @out_fences/@mid_out_fences. All of the fence arrays are allowed to be NULL.
  *
  * For the waiter submission, if at least one fence of @in_fences haven't finished the signaler
  * submission, this function will fail and return -EAGAIN.
@@ -97,6 +97,8 @@ void gcip_fence_array_submit_waiter(struct gcip_fence_array *fence_array, enum i
  */
 int gcip_fence_array_submit_waiter_and_signaler(struct gcip_fence_array *in_fences,
 						struct gcip_fence_array *out_fences,
+						struct gcip_fence_array *mid_in_fences,
+						struct gcip_fence_array *mid_out_fences,
 						enum iif_ip_type ip);
 
 /*
@@ -177,5 +179,18 @@ int gcip_fence_array_add_iif(struct gcip_fence_array *fence_array, struct iif_fe
  * directly.
  */
 int gcip_fence_array_add_ikf(struct gcip_fence_array *fence_array, struct dma_fence *ikf);
+
+
+/**
+ * gcip_fence_array_bridge_to_iif() - Converts the array to a pure IIF fence array by bridging.
+ * @fence_array: The GCIP fence array to be converted.
+ * @iif_mgr: The IIF manager to bridge the DMA fences to IIF fences.
+ *
+ * All the DMA fences in the @fence_array will be replaced with the bridging IIF fences.
+ *
+ * Return: 0 on success, or a negative errno on failure.
+ */
+int gcip_fence_array_bridge_to_iif(struct gcip_fence_array *fence_array,
+				   struct iif_manager *iif_mgr);
 
 #endif /* __GCIP_FENCE_ARRAY_H__ */

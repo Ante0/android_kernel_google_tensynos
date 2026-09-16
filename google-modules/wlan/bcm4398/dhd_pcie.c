@@ -1,7 +1,7 @@
 /*
  * DHD Bus Module for PCIE
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -103,8 +103,8 @@
 
 #ifdef DNGL_AXI_ERROR_LOGGING
 #include <dhd_linux_wq.h>
-#endif /* DNGL_AXI_ERROR_LOGGING */
 #include <dhd_linux.h>
+#endif /* DNGL_AXI_ERROR_LOGGING */
 
 #ifdef DHD_PKT_LOGGING
 #include <dhd_pktlog.h>
@@ -449,6 +449,8 @@ extern void concate_custom_board_revision(char *nv_path);
 static int dhd_bus_get_etb_dump_cmn(dhd_bus_t *bus, uint8 *buf, uint bufsize,
 	uint32 etb_config_info_addr);
 #endif /* EWP_DACS || DHD_SDTC_ETB_DUMP */
+
+static void dhdpcie_dump_sreng_regs(dhd_bus_t *bus);
 
 /* IOVar table */
 enum {
@@ -1804,14 +1806,12 @@ dhdpcie_cto_recovery_handler(dhd_pub_t *dhd)
 #endif /* CONFIG_ARCH_MSM */
 #endif /* SUPPORT_LINKDOWN_RECOVERY */
 
-#ifdef DHD_SSSR_DUMP
 	/* do not set linkdown if FIS dump collection
 	 * is to be done for CTO
 	 */
 	if (!bus->dhd->collect_fis) {
 		bus->is_linkdown = TRUE;
 	}
-#endif /* DHD_SSSR_DUMP */
 	bus->dhd->hang_reason = HANG_REASON_PCIE_CTO_DETECT;
 	/* Send HANG event */
 	dhd_os_send_hang_message(bus->dhd);
@@ -2706,12 +2706,7 @@ dhdpcie_dongle_attach(dhd_bus_t *bus)
 	dhd_init_backplane_access_lock(bus);
 
 	bus->alp_only = TRUE;
-
-	/* Clean up after the last bus attachment */
-	if (bus->sih) {
-		si_detach(bus->sih);
-		bus->sih = NULL;
-	}
+	bus->sih = NULL;
 
 	/* Checking PCIe bus status with reading configuration space */
 	val = OSL_PCI_READ_CONFIG(osh, PCI_CFG_VID, sizeof(uint32));
@@ -3312,12 +3307,10 @@ dhdpcie_advertise_bus_cleanup(dhd_pub_t *dhdp)
 				bcm_bprintf_bypass = FALSE;
 
 				DHD_ERROR(("%s : Did not receive DB7 Ack\n", __FUNCTION__));
-#ifdef DHD_FW_COREDUMP
 				if (dhdp->memdump_enabled) {
 					dhdp->memdump_type = DUMP_TYPE_NO_DB7_ACK;
 					dhdpcie_mem_dump(dhdp->bus);
 				}
-#endif /* DHD_FW_COREDUMP */
 #ifdef WBRC
 				if (dhdp->fw_mode_changed == FALSE) {
 					DHD_ERROR(("%s : Set do_chip_bighammer\n", __FUNCTION__));
@@ -10015,6 +10008,13 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 
 	case IOV_SVAL(IOV_RX_METADATALEN):
 #if !(defined(BCM_ROUTER_DHD))
+		/* Reject negative values */
+		if (int_val < 0) {
+			bcmerror = BCME_BADARG;
+			break;
+		}
+
+		/* Enforce upper bound */
 		if (int_val > 64) {
 			bcmerror = BCME_BUFTOOLONG;
 			break;
@@ -10056,6 +10056,13 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 
 	case IOV_SVAL(IOV_TX_METADATALEN):
 #if !(defined(BCM_ROUTER_DHD))
+		/* Reject negative values */
+		if (int_val < 0) {
+			bcmerror = BCME_BADARG;
+			break;
+		}
+
+		/* Enforce upper bound */
 		if (int_val > 64) {
 			bcmerror = BCME_BUFTOOLONG;
 			break;
@@ -14585,7 +14592,7 @@ dhd_bus_inb_set_device_wake(struct dhd_bus *bus, bool val, const char *context)
 		 *
 		 */
 
-		if (1) {
+		if (!CAN_SLEEP()) {
 			dhdpcie_bus_set_pcie_inband_dw_state(bus,
 				DW_DEVICE_DS_DEV_WAKE);
 			DHD_BUS_INB_DW_UNLOCK(bus->inb_lock, flags);
@@ -15782,24 +15789,6 @@ dhdpci_bus_read_frames(dhd_bus_t *bus)
 	dhdpci_bus_rte_log_time_sync_poll(bus);
 #endif /* DHD_H2D_LOG_TIME_SYNC */
 
-#if defined(DHD_WAKE_STATUS)
-	/* Check if host was woken up by any packets */
-	if (dhd_bus_get_bus_wake(bus->dhd) > 0) {
-		/*
-		 * If wake is due to Rx packets,
-		 * pktwake info will be printed and cleared from dhd_rx_frame()
-		 */
-		DHD_PRINT(("#### dhdpcie_host_wake: rxcpl:%d ctrlcpl:%d txcpl:%d evtlog:%d ####\n",
-			rxcpl_items, ctrlcpl_items, txcpl_items, evtlog_items));
-
-		dhd_bus_set_get_bus_wake(bus->dhd, 0);
-
-		if (rxcpl_items > 0) {
-			/* Request packet dump for first Rx packet */
-			dhd_bus_set_get_bus_wake_pkt_dump(bus->dhd, 1);
-		}
-	}
-#endif /* DHD_WAKE_STATUS */
 	return more;
 }
 
@@ -19084,7 +19073,6 @@ dhd_dump_bus_ds_trace(dhd_bus_t *bus, struct bcmstrbuf *strbuf)
 void
 dhd_dump_ds_trace_console(dhd_pub_t *dhdp)
 {
-#ifdef DHD_LOG_DUMP
 	struct bcmstrbuf b;
 	struct bcmstrbuf *strbuf = &b;
 
@@ -19093,7 +19081,6 @@ dhd_dump_ds_trace_console(dhd_pub_t *dhdp)
 	bcm_bprintf_bypass = TRUE;
 	dhd_dump_bus_ds_trace(dhdp->bus, strbuf);
 	bcm_bprintf_bypass = FALSE;
-#endif
 }
 
 void
@@ -23077,13 +23064,11 @@ dhd_bus_update_flow_watermark_stats(struct dhd_bus *bus, uint16 flowid, uint16 r
 		bus->flowring_high_watermark[flowid] = num_items;
 }
 
-#ifdef DHD_FW_COREDUMP
 void *
 dhd_bus_get_socram_buf(struct dhd_bus *bus, struct dhd_pub *dhdp)
 {
 	return dhd_get_fwdump_buf(dhdp, bus->ramsize);
 }
-#endif
 
 void
 dhd_bus_set_signature_path(struct dhd_bus *bus, char *sig_path)

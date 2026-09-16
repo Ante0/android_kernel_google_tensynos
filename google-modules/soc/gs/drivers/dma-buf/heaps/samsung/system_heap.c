@@ -214,6 +214,10 @@ static const struct dma_heap_ops system_heap_ops = {
 	.get_pool_size = system_heap_get_pool_size,
 };
 
+static bool skip_deferred_free;
+module_param(skip_deferred_free, bool, 0644);
+MODULE_PARM_DESC(skip_deferred_free, "Skip deferred free and return pages to buddy allocator");
+
 static void system_heap_free(struct deferred_freelist_item *item, enum df_reason reason)
 {
 	struct samsung_dma_buffer *buffer;
@@ -232,7 +236,10 @@ static void system_heap_release(struct samsung_dma_buffer *buffer)
 {
 	int npages = PAGE_ALIGN(buffer->len) / PAGE_SIZE;
 
-	deferred_free(&buffer->deferred_free, system_heap_free, npages);
+	if (READ_ONCE(skip_deferred_free))
+		system_heap_free(&buffer->deferred_free, DF_UNDER_PRESSURE);
+	else
+		deferred_free(&buffer->deferred_free, system_heap_free, npages);
 }
 
 static int system_heap_probe(struct platform_device *pdev)

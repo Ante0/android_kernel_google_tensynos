@@ -171,6 +171,9 @@ int edgetpu_mmu_attach_domain(struct edgetpu_dev *etdev,
 void edgetpu_mmu_detach_domain(struct edgetpu_dev *etdev,
 			       struct edgetpu_iommu_domain *etdomain);
 
+/* Returns the maximum number of edgetpu_iommu_domains that can be simultaneously attached. */
+size_t edgetpu_mmu_get_max_attached_domains(struct edgetpu_dev *etdev);
+
 /* TODO(b/281459896) Make domain comparisons internal to edgetpu-mmu.h */
 bool edgetpu_mmu_is_domain_default_domain(struct edgetpu_dev *etdev,
 					  struct edgetpu_iommu_domain *etdomain);

@@ -443,12 +443,9 @@ static int gsc_probe(struct spi_device *spi)
 		goto free_gsc;
 	}
 
-	ret = devm_request_irq(&gsc->spi->dev,
-			       gpio_to_irq(gsc->ctdl_ap_irq),
-			       gsc_irq_handler,
-			       IRQF_TRIGGER_RISING | IRQF_ONESHOT,
-			       dev_name(&spi->dev),
-			       gsc);
+	ret = devm_request_irq(&gsc->spi->dev, gpio_to_irq(gsc->ctdl_ap_irq),
+			       gsc_irq_handler, IRQF_TRIGGER_RISING,
+			       dev_name(&spi->dev), gsc);
 	if (ret) {
 		dev_err(&spi->dev,
 			"devm_request_irq  gsc,ctdl_ap_irq failed.\n");

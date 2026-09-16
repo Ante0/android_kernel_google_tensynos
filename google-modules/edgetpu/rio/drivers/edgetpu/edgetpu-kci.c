@@ -252,7 +252,8 @@ int edgetpu_kci_init(struct edgetpu_dev *etdev, struct edgetpu_kci *etkci)
 		.dev = etdev->dev,
 		.queue_wrap_bit = CIRC_QUEUE_WRAP_BIT,
 		.rkci_buffer_size = REVERSE_KCI_BUFFER_SIZE,
-		.timeout = KCI_TIMEOUT,
+		.timeout = etdev->emulation_slow_tpu ? KCI_TIMEOUT * 100
+			: KCI_TIMEOUT,
 		.ops = &kci_ops,
 		.data = mailbox,
 	};

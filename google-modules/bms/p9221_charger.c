@@ -112,10 +112,6 @@ static char *align_status_str[] = {
 	"...", "M2C", "OK", "-1"
 };
 
-static char *uevent_source_str[] = {
-	"WLC", "FAN", "RTX"
-};
-
 static size_t p9221_hex_str(u8 *data, size_t len, char *buf, size_t max_buf,
 			    bool msbfirst)
 {
@@ -3424,7 +3420,7 @@ int p9xxx_sw_ramp_icl(struct p9221_charger_data *charger, const int icl_target)
 		dev_dbg(&charger->client->dev, "%s: Voting ICL %duA (t=%d)\n", __func__, icl_now, icl_target);
 
 		gvotable_cast_int_vote(charger->dc_icl_votable, P9221_RAMP_VOTER, icl_now, true);
-		msleep(500);
+		usleep_range(100 * USEC_PER_MSEC, 120 * USEC_PER_MSEC);
 	}
 
 	mutex_unlock(&charger->icl_lock);
@@ -7288,25 +7284,39 @@ static void p9382_rtx_disable_work(struct work_struct *work)
 	mutex_unlock(&charger->rtx_lock);
 }
 
-void p9221_uevent(struct p9221_charger_data *charger, u8 id)
+static void __p9221_uevent(struct p9221_charger_data *charger, u8 id)
 {
 	char source[UEVENT_ENVP_LEN];
 	char *envp[] = {source, NULL};
 
 	scnprintf(source, sizeof(source), "SOURCE=%s", uevent_source_str[id]);
 	kobject_uevent_env(&charger->dev->kobj, KOBJ_CHANGE, envp);
-
-	if (id == UEVENT_RTX)
-		schedule_work(&charger->uevent_work);
 }
 
-/* log iout/vout */
-static void p9221_uevent_work(struct work_struct *work)
+static void p9221_wlc_uevent_work(struct work_struct *work)
 {
 	struct p9221_charger_data *charger = container_of(work,
-			struct p9221_charger_data, uevent_work);
+			struct p9221_charger_data, wlc_uevent_work);
+
+	__p9221_uevent(charger, UEVENT_WLC);
+}
+
+static void p9221_fan_uevent_work(struct work_struct *work)
+{
+	struct p9221_charger_data *charger = container_of(work,
+			struct p9221_charger_data, fan_uevent_work);
+
+	__p9221_uevent(charger, UEVENT_FAN);
+}
+
+static void p9221_rtx_uevent_work(struct work_struct *work)
+{
+	struct p9221_charger_data *charger = container_of(work,
+			struct p9221_charger_data, rtx_uevent_work);
 	int ret;
 	u32 vout, iout;
+
+	__p9221_uevent(charger, UEVENT_RTX);
 
 	if (charger->ben_state) {
 		ret = charger->chip_get_iout(charger, &iout);
@@ -7316,6 +7326,26 @@ static void p9221_uevent_work(struct work_struct *work)
 				      vout, iout, charger->rtx_csp);
 		else
 			logbuffer_log(charger->rtx_log, "failed to read rtx info.");
+	}
+}
+
+void p9221_uevent(struct p9221_charger_data *charger, u8 id)
+{
+	if (id >= ARRAY_SIZE(uevent_source_str))
+		return;
+
+	switch (id) {
+	case UEVENT_WLC:
+		schedule_work(&charger->wlc_uevent_work);
+		break;
+	case UEVENT_FAN:
+		schedule_work(&charger->fan_uevent_work);
+		break;
+	case UEVENT_RTX:
+		schedule_work(&charger->rtx_uevent_work);
+		break;
+	default:
+		break;
 	}
 }
 
@@ -8414,7 +8444,9 @@ static int p9221_charger_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&charger->chk_fod_work, p9xxx_chk_fod_work);
 	INIT_DELAYED_WORK(&charger->set_rf_work, p9xxx_set_rf_work);
 	INIT_DELAYED_WORK(&charger->presence_check_work, p9xxx_presence_check_work);
-	INIT_WORK(&charger->uevent_work, p9221_uevent_work);
+	INIT_WORK(&charger->wlc_uevent_work, p9221_wlc_uevent_work);
+	INIT_WORK(&charger->fan_uevent_work, p9221_fan_uevent_work);
+	INIT_WORK(&charger->rtx_uevent_work, p9221_rtx_uevent_work);
 	INIT_WORK(&charger->calibration_work, p9xxx_calibration_work);
 	INIT_WORK(&charger->rtx_disable_work, p9382_rtx_disable_work);
 	INIT_WORK(&charger->rtx_reset_work, p9xxx_rtx_reset_work);
@@ -8794,7 +8826,9 @@ static void p9221_charger_remove(struct i2c_client *client)
 	cancel_delayed_work_sync(&charger->chk_fod_work);
 	cancel_delayed_work_sync(&charger->presence_check_work);
 	cancel_delayed_work_sync(&charger->set_rf_work);
-	cancel_work_sync(&charger->uevent_work);
+	cancel_work_sync(&charger->wlc_uevent_work);
+	cancel_work_sync(&charger->fan_uevent_work);
+	cancel_work_sync(&charger->rtx_uevent_work);
 	cancel_work_sync(&charger->calibration_work);
 	cancel_work_sync(&charger->rtx_disable_work);
 	cancel_work_sync(&charger->rtx_reset_work);

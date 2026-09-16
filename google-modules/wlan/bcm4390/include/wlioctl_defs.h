@@ -4,7 +4,7 @@
  *
  * Definitions subject to change without notice.
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -2673,6 +2673,7 @@ enum {
 	WL_REINIT_RC_RX_HW_ERR		  = 60, /* Rx HW error */
 	WL_REINIT_RC_URB_LEN_ERROR	  = 61, /* URB LEN error */
 	WL_REINIT_RC_PHY_BAD_ERROR	  = 62, /* PHY badness detected */
+	WL_REINIT_RC_DYNSAR_ERROR	  = 63, /* Error detected in dynsar */
 	WL_REINIT_RC_SUPPORTED_LAST	/* Use for app ONLY, DONOT use this in wlc code.
 					 * For wlc, use WL_REINIT_RC_VERSIONED_LAST
 					 */
@@ -2862,83 +2863,6 @@ typedef enum sup_auth_status {
 	WLC_SUP_KEYXCHANGE_WAIT_G1,	/**< Waiting to receive handshake msg G1 */
 	WLC_SUP_KEYXCHANGE_PREP_G2	/**< Preparing to send handshake msg G2 */
 } sup_auth_status_t;
-
-#ifndef BCMUTILS_ERR_CODES
-
-/* SAE (Simultaneous Authentication of Equals) error codes.
- * These error codes are local.
- */
-
-/*  SAE status codes are reserved from -3072 to -4095 (1K) */
-
-enum wl_sae_status {
-	WL_SAE_E_AUTH_FAILURE			= -3072,
-	/* Discard silently */
-	WL_SAE_E_AUTH_DISCARD			= -3073,
-	/* Authentication in progress */
-	WL_SAE_E_AUTH_CONTINUE			= -3074,
-	/* Invalid scalar/elt */
-	WL_SAE_E_AUTH_COMMIT_INVALID		= -3075,
-	/* Invalid confirm token */
-	WL_SAE_E_AUTH_CONFIRM_INVALID		= -3076,
-	/* Peer scalar validation failure */
-	WL_SAE_E_CRYPTO_SCALAR_VALIDATION	= -3077,
-	/* Peer element prime validation failure */
-	WL_SAE_E_CRYPTO_ELE_PRIME_VALIDATION	= -3078,
-	/* Peer element is not on the curve */
-	WL_SAE_E_CRYPTO_ELE_NOT_ON_CURVE	= -3079,
-	/* Generic EC error (eliptic curve related) */
-	WL_SAE_E_CRYPTO_EC_ERROR		= -3080,
-	/* Both local and peer mac addrs are same */
-	WL_SAE_E_CRYPTO_EQUAL_MACADDRS		= -3081,
-	/* Loop exceeded in deriving the scalar */
-	WL_SAE_E_CRYPTO_SCALAR_ITER_EXCEEDED	= -3082,
-	/* ECC group is unsupported */
-	WL_SAE_E_CRYPTO_UNSUPPORTED_GROUP	= -3083,
-	/* Exceeded the hunting-and-pecking counter */
-	WL_SAE_E_CRYPTO_PWE_COUNTER_EXCEEDED	= -3084,
-	/* SAE crypto component is not initialized */
-	WL_SAE_E_CRYPTO_NOT_INITED		= -3085,
-	/* bn_get has failed */
-	WL_SAE_E_CRYPTO_BN_GET_ERROR		= -3086,
-	/* bn_set has failed */
-	WL_SAE_E_CRYPTO_BN_SET_ERROR		= -3087,
-	/* PMK is not computed yet */
-	WL_SAE_E_CRYPTO_PMK_UNAVAILABLE		= -3088,
-	/* Peer confirm did not match */
-	WL_SAE_E_CRYPTO_CONFIRM_MISMATCH	= -3089,
-	/* Element K is at infinity no the curve */
-	WL_SAE_E_CRYPTO_KEY_AT_INFINITY		= -3090,
-	/* SAE Crypto private data magic number mismatch */
-	WL_SAE_E_CRYPTO_PRIV_MAGIC_MISMATCH	= -3091,
-	/* Max retry exhausted */
-	WL_SAE_E_MAX_RETRY_LIMIT_REACHED	= -3092,
-	/* peer sent password ID mismatch to local */
-	WL_SAE_E_AUTH_PEER_PWDID_MISMATCH	= -3093,
-	/* user not configured password */
-	WL_SAE_E_AUTH_PASSWORD_NOT_CONFIGURED	= -3094,
-	/* user not configured password ID */
-	WL_SAE_E_AUTH_PWDID_NOT_CONFIGURED	= -3095,
-	/* Anti-clogging token mismatch */
-	WL_SAE_E_AUTH_ANTI_CLOG_MISMATCH	= -3096,
-	/* SAE PWE method mismatch */
-	WL_SAE_E_AUTH_PWE_MISMATCH		= -3097,
-	/* SAE-PK validation failed */
-	WL_SAE_E_AUTH_PK_VALIDATION		= -3098
-};
-
-/* PMK manager block. Event codes from -5120 to -6143 */
-
-/* PSK hashing event codes */
-typedef enum wlc_pmk_psk_hash_status {
-	WL_PMK_E_PSK_HASH_FAILED =  -5120,
-	WL_PMK_E_PSK_HASH_DONE =    -5121,
-	WL_PMK_E_PSK_HASH_RUNNING = -5122,
-	WL_PMK_E_PSK_INVALID = -5123,
-	WL_PMK_E_PSK_NOMEM = -5124
-} wlc_pmk_psk_hash_status_t;
-
-#endif	/* BCMUTILS_ERR_CODES */
 
 /* Per-interface reportable stats types */
 enum wl_ifstats_xtlv_id {
@@ -3164,7 +3088,13 @@ enum wlc_capext_coex_subfeature_bitpos {
 	WLC_CAPEXT_COEX_BITPOS_LTECX_LBT	= 1,
 	WLC_CAPEXT_COEX_BITPOS_BTC_WIFI_PROT	= 2,
 	WLC_CAPEXT_COEX_BITPOS_RC1		= 3,
+#if defined(WL_RC2COEX) || defined(RC2CX)
+	WLC_CAPEXT_COEX_BITPOS_RC2		= 4,
+#endif /* WL_RC2COEX */
 	WLC_CAPEXT_COEX_BITPOS_SIB		= 5,
+#ifdef LR154CX
+	WLC_CAPEXT_COEX_BITPOS_154		= 6,
+#endif /* LR154CX */
 	WLC_CAPEXT_COEX_BITPOS_BT2G		= 7,
 	WLC_CAPEXT_COEX_BITPOS_BT5G		= 8,
 	WLC_CAPEXT_COEX_BITPOS_MAX

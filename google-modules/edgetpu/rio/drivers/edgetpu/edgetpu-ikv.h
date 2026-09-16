@@ -130,6 +130,12 @@ struct edgetpu_ikv {
 	 * param `user_ikv_timeout`.
 	 */
 	unsigned int command_timeout_ms;
+
+	/*
+	 * Size of both the command and response queues, in number of packets.
+	 * Set during `edgetpu_ikv_init()` then never changes.
+	 */
+	size_t queue_size;
 };
 
 /*

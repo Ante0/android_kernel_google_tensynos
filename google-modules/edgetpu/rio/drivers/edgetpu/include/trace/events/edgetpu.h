@@ -227,21 +227,16 @@ TRACE_EVENT(edgetpu_acquire_wakelock_start,
 	TP_ARGS(client, flags),
 
 	TP_STRUCT__entry(
-		__field(pid_t, pid)
-		__field(pid_t, tgid)
 		__field(int, client_id)
 		__field(u32, flags)
 	),
 
 	TP_fast_assign(
-		__entry->pid = client->pid;
-		__entry->tgid = client->tgid;
 		__entry->client_id = client->client_id;
 		__entry->flags = flags;
 	),
 
-	TP_printk("pid = %u, tgid = %u client = %u flags = %u", __entry->pid, __entry->tgid,
-		  __entry->client_id, __entry->flags)
+	TP_printk("client = %u flags = %u", __entry->client_id, __entry->flags)
 );
 
 TRACE_EVENT(edgetpu_acquire_wakelock_end,
@@ -251,23 +246,19 @@ TRACE_EVENT(edgetpu_acquire_wakelock_end,
 	TP_ARGS(client, count, ret),
 
 	TP_STRUCT__entry(
-		__field(pid_t, pid)
-		__field(pid_t, tgid)
 		__field(int, client_id)
 		__field(int, count)
 		__field(int, ret)
 	),
 
 	TP_fast_assign(
-		__entry->pid = client->pid;
-		__entry->tgid = client->tgid;
 		__entry->client_id = client->client_id;
 		__entry->count = count;
 		__entry->ret = ret;
 	),
 
-	TP_printk("pid = %d, tgid = %d client = %u req_count = %d, ret = %d",
-		  __entry->pid, __entry->tgid, __entry->client_id, __entry->count, __entry->ret)
+	TP_printk("client = %u req_count = %d, ret = %d",
+		  __entry->client_id, __entry->count, __entry->ret)
 );
 
 TRACE_EVENT(edgetpu_release_wakelock_start,
@@ -277,19 +268,14 @@ TRACE_EVENT(edgetpu_release_wakelock_start,
 	TP_ARGS(client),
 
 	TP_STRUCT__entry(
-		__field(pid_t, pid)
-		__field(pid_t, tgid)
 		__field(int, client_id)
 	),
 
 	TP_fast_assign(
-		__entry->pid = client->pid;
-		__entry->tgid = client->tgid;
 		__entry->client_id = client->client_id;
 	),
 
-	TP_printk("pid = %d, tgid = %d client = %u", __entry->pid, __entry->tgid,
-		  __entry->client_id)
+	TP_printk("client = %u", __entry->client_id)
 );
 
 TRACE_EVENT(edgetpu_release_wakelock_end,
@@ -299,21 +285,16 @@ TRACE_EVENT(edgetpu_release_wakelock_end,
 	TP_ARGS(client, count),
 
 	TP_STRUCT__entry(
-		__field(pid_t, pid)
-		__field(pid_t, tgid)
 		__field(int, client_id)
 		__field(int, count)
 	),
 
 	TP_fast_assign(
-		__entry->pid = client->pid;
-		__entry->tgid = client->tgid;
 		__entry->client_id = client->client_id;
 		__entry->count = count;
 	),
 
-	TP_printk("pid = %d, tgid = %d client = %u, req_count = %d", __entry->pid, __entry->tgid,
-		  __entry->client_id, __entry->count)
+	TP_printk("client = %u, req_count = %d", __entry->client_id, __entry->count)
 );
 
 TRACE_EVENT(edgetpu_vii_command_start,
@@ -323,21 +304,15 @@ TRACE_EVENT(edgetpu_vii_command_start,
 	TP_ARGS(client),
 
 	TP_STRUCT__entry(
-		__field(pid_t, pid)
-		__field(pid_t, tgid)
-		__field(pid_t, limited_pid)
-		__field(pid_t, limited_tgid)
+		__field(__u32, client_id)
 	),
 
 	TP_fast_assign(
-		__entry->pid = client->pid;
-		__entry->tgid = client->tgid;
-		__entry->limited_pid = client->limited_pid;
-		__entry->limited_tgid = client->limited_tgid;
+		__entry->client_id = client->client_id;
 	),
 
-	TP_printk("client pid = %u, tgid = %u, limited_pid = %d, limited_tgid = %d",
-		  __entry->pid, __entry->tgid, __entry->limited_pid, __entry->limited_tgid)
+	TP_printk("client = %u",
+		  __entry->client_id)
 );
 
 TRACE_EVENT(edgetpu_vii_command_end,
@@ -347,26 +322,19 @@ TRACE_EVENT(edgetpu_vii_command_end,
 	TP_ARGS(client, ibuf, ret),
 
 	TP_STRUCT__entry(
-		__field(pid_t, pid)
-		__field(pid_t, tgid)
-		__field(pid_t, limited_pid)
-		__field(pid_t, limited_tgid)
+		__field(__u32, client_id)
 		__field(__u64, seq)
 		__field(int, ret)
 	),
 
 	TP_fast_assign(
-		__entry->pid = client->pid;
-		__entry->tgid = client->tgid;
-		__entry->limited_pid = client->limited_pid;
-		__entry->limited_tgid = client->limited_tgid;
+		__entry->client_id = client->client_id;
 		__entry->seq = ibuf->command.seq;
 		__entry->ret = ret;
 	),
 
-	TP_printk("client pid = %u, tgid = %u, limited_pid = %d, limited_tgid = %d, seq = %llu (ret = %d)",
-		  __entry->pid, __entry->tgid, __entry->limited_pid, __entry->limited_tgid,
-		  __entry->seq, __entry->ret)
+	TP_printk("client = %u, seq = %llu (ret = %d)",
+		  __entry->client_id, __entry->seq, __entry->ret)
 
 );
 
@@ -377,21 +345,15 @@ TRACE_EVENT(edgetpu_vii_response_start,
 	TP_ARGS(client),
 
 	TP_STRUCT__entry(
-		__field(pid_t, pid)
-		__field(pid_t, tgid)
-		__field(pid_t, limited_pid)
-		__field(pid_t, limited_tgid)
+		__field(__u32, client_id)
 	),
 
 	TP_fast_assign(
-		__entry->pid = client->pid;
-		__entry->tgid = client->tgid;
-		__entry->limited_pid = client->limited_pid;
-		__entry->limited_tgid = client->limited_tgid;
+		__entry->client_id = client->client_id;
 	),
 
-	TP_printk("client pid = %u, tgid = %u, limited_pid = %d, limited_tgid = %d",
-		  __entry->pid, __entry->tgid, __entry->limited_pid, __entry->limited_tgid)
+	TP_printk("client = %u",
+		  __entry->client_id)
 );
 
 TRACE_EVENT(edgetpu_vii_response_end,
@@ -401,28 +363,21 @@ TRACE_EVENT(edgetpu_vii_response_end,
 	TP_ARGS(client, ibuf, ret),
 
 	TP_STRUCT__entry(
-		__field(pid_t, pid)
-		__field(pid_t, tgid)
-		__field(pid_t, limited_pid)
-		__field(pid_t, limited_tgid)
+		__field(__u32, client_id)
 		__field(__u64, seq)
 		__field(__u64, retval)
 		__field(int, ret)
 	),
 
 	TP_fast_assign(
-		__entry->pid = client->pid;
-		__entry->tgid = client->tgid;
-		__entry->limited_pid = client->limited_pid;
-		__entry->limited_tgid = client->limited_tgid;
+		__entry->client_id = client->client_id;
 		__entry->seq = ibuf->response.seq;
 		__entry->retval = ibuf->response.retval;
 		__entry->ret = ret;
 	),
 
-	TP_printk("client pid = %u, tgid = %u, limited_pid = %d, limited_tgid = %d, seq = %llu, retval = 0x%llx (ret = %d)",
-		  __entry->pid, __entry->tgid, __entry->limited_pid, __entry->limited_tgid,
-		  __entry->seq, __entry->retval, __entry->ret)
+	TP_printk("client = %u, seq = %llu, retval = 0x%llx (ret = %d)",
+		  __entry->client_id, __entry->seq, __entry->retval, __entry->ret)
 );
 
 TRACE_EVENT(edgetpu_vii_litebuf_command_start,
@@ -432,21 +387,15 @@ TRACE_EVENT(edgetpu_vii_litebuf_command_start,
 	TP_ARGS(client),
 
 	TP_STRUCT__entry(
-		__field(pid_t, pid)
-		__field(pid_t, tgid)
-		__field(pid_t, limited_pid)
-		__field(pid_t, limited_tgid)
+		__field(__u32, client_id)
 	),
 
 	TP_fast_assign(
-		__entry->pid = client->pid;
-		__entry->tgid = client->tgid;
-		__entry->limited_pid = client->limited_pid;
-		__entry->limited_tgid = client->limited_tgid;
+		__entry->client_id = client->client_id;
 	),
 
-	TP_printk("client pid = %u, tgid = %u, limited_pid = %d, limited_tgid = %d",
-		  __entry->pid, __entry->tgid, __entry->limited_pid, __entry->limited_tgid)
+	TP_printk("client = %u",
+		  __entry->client_id)
 );
 
 TRACE_EVENT(edgetpu_vii_litebuf_command_end,
@@ -457,26 +406,19 @@ TRACE_EVENT(edgetpu_vii_litebuf_command_end,
 	TP_ARGS(client, ibuf, ret),
 
 	TP_STRUCT__entry(
-		__field(pid_t, pid)
-		__field(pid_t, tgid)
-		__field(pid_t, limited_pid)
-		__field(pid_t, limited_tgid)
+		__field(__u32, client_id)
 		__field(__u64, seq)
 		__field(int, ret)
 	),
 
 	TP_fast_assign(
-		__entry->pid = client->pid;
-		__entry->tgid = client->tgid;
-		__entry->limited_pid = client->limited_pid;
-		__entry->limited_tgid = client->limited_tgid;
+		__entry->client_id = client->client_id;
 		__entry->seq = ibuf->seq;
 		__entry->ret = ret;
 	),
 
-	TP_printk("client pid = %u, tgid = %u, limited_pid = %d, limited_tgid = %d, seq = %llu (ret = %d)",
-		  __entry->pid, __entry->tgid, __entry->limited_pid, __entry->limited_tgid,
-		  __entry->seq, __entry->ret)
+	TP_printk("client = %u, seq = %llu (ret = %d)",
+		  __entry->client_id, __entry->seq, __entry->ret)
 
 );
 
@@ -487,21 +429,15 @@ TRACE_EVENT(edgetpu_vii_litebuf_response_start,
 	TP_ARGS(client),
 
 	TP_STRUCT__entry(
-		__field(pid_t, pid)
-		__field(pid_t, tgid)
-		__field(pid_t, limited_pid)
-		__field(pid_t, limited_tgid)
+		__field(__u32, client_id)
 	),
 
 	TP_fast_assign(
-		__entry->pid = client->pid;
-		__entry->tgid = client->tgid;
-		__entry->limited_pid = client->limited_pid;
-		__entry->limited_tgid = client->limited_tgid;
+		__entry->client_id = client->client_id;
 	),
 
-	TP_printk("client pid = %u, tgid = %u, limited_pid = %d, limited_tgid = %d",
-		  __entry->pid, __entry->tgid, __entry->limited_pid, __entry->limited_tgid)
+	TP_printk("client = %u",
+		  __entry->client_id)
 );
 
 TRACE_EVENT(edgetpu_vii_litebuf_response_end,
@@ -512,28 +448,21 @@ TRACE_EVENT(edgetpu_vii_litebuf_response_end,
 	TP_ARGS(client, ibuf, ret),
 
 	TP_STRUCT__entry(
-		__field(pid_t, pid)
-		__field(pid_t, tgid)
-		__field(pid_t, limited_pid)
-		__field(pid_t, limited_tgid)
+		__field(__u32, client_id)
 		__field(__u64, seq)
 		__field(__u16, code)
 		__field(int, ret)
 	),
 
 	TP_fast_assign(
-		__entry->pid = client->pid;
-		__entry->tgid = client->tgid;
-		__entry->limited_pid = client->limited_pid;
-		__entry->limited_tgid = client->limited_tgid;
+		__entry->client_id = client->client_id;
 		__entry->seq = ibuf->seq;
 		__entry->code = ibuf->code;
 		__entry->ret = ret;
 	),
 
-	TP_printk("client pid = %u, tgid = %u, limited_pid = %d, limited_tgid = %d, seq = %llu, code = 0x%hx (ret = %d)",
-		  __entry->pid, __entry->tgid, __entry->limited_pid, __entry->limited_tgid,
-		  __entry->seq, __entry->code, __entry->ret)
+	TP_printk("client = %u, seq = %llu, code = 0x%hx (ret = %d)",
+		  __entry->client_id, __entry->seq, __entry->code, __entry->ret)
 );
 
 TRACE_EVENT(edgetpu_iif_unblocked_start,
@@ -579,17 +508,15 @@ TRACE_EVENT(edgetpu_client_create,
 	TP_ARGS(client),
 
 	TP_STRUCT__entry(
-		__field(pid_t, pid)
-		__field(pid_t, tgid)
+		__field(__u32, client_id)
 	),
 
 	TP_fast_assign(
-		__entry->pid = client->pid;
-		__entry->tgid = client->tgid;
+		__entry->client_id = client->client_id;
 	),
 
-	TP_printk("client pid = %u, tgid = %u",
-		  __entry->pid, __entry->tgid)
+	TP_printk("client = %u",
+		  __entry->client_id)
 );
 
 TRACE_EVENT(edgetpu_client_group_create,
@@ -599,21 +526,17 @@ TRACE_EVENT(edgetpu_client_group_create,
 	TP_ARGS(client),
 
 	TP_STRUCT__entry(
-		__field(pid_t, pid)
-		__field(pid_t, tgid)
 		__field(uint, client_id)
 		__field(uint, vcid)
 	),
 
 	TP_fast_assign(
-		__entry->pid = client->pid;
-		__entry->tgid = client->tgid;
 		__entry->client_id = client->client_id;
 		__entry->vcid = client->group->vcid;
 	),
 
-	TP_printk("client pid = %u, tgid = %u, client = %u vcid = %u",
-		  __entry->pid, __entry->tgid, __entry->client_id, __entry->vcid)
+	TP_printk("client = %u vcid = %u",
+		  __entry->client_id, __entry->vcid)
 );
 
 TRACE_EVENT(edgetpu_client_remove,
@@ -623,25 +546,16 @@ TRACE_EVENT(edgetpu_client_remove,
 	TP_ARGS(client),
 
 	TP_STRUCT__entry(
-		__field(pid_t, pid)
-		__field(pid_t, tgid)
-		__field(pid_t, limited_pid)
-		__field(pid_t, limited_tgid)
 		__field(int, client_id)
 		__field(uint, wakelock_count)
 	),
 
 	TP_fast_assign(
 		__entry->client_id = client->client_id;
-		__entry->pid = client->pid;
-		__entry->tgid = client->tgid;
-		__entry->limited_pid = client->limited_pid;
-		__entry->limited_tgid = client->limited_tgid;
 		__entry->wakelock_count = client->wakelock.req_count;
 	),
 
-	TP_printk("client pid = %u, tgid = %u, limited_pid = %d, limited_tgid = %d client = %u wake = %u",
-		  __entry->pid, __entry->tgid, __entry->limited_pid, __entry->limited_tgid,
+	TP_printk("client = %u wake = %u",
 		  __entry->client_id, __entry->wakelock_count)
 );
 

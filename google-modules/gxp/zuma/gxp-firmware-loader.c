@@ -32,7 +32,6 @@ static int gxp_firmware_loader_gsa_auth(struct gxp_dev *gxp)
 	uint core;
 	dma_addr_t headers_dma_addr;
 	void *header_vaddr;
-	const u8 *data;
 	struct gxp_mcu_firmware *mcu_fw = gxp_mcu_firmware_of(gxp);
 
 	if (!mcu_fw->is_secure) {
@@ -58,12 +57,12 @@ static int gxp_firmware_loader_gsa_auth(struct gxp_dev *gxp)
 	if (fw_header_size == GCIP_FW_PQ_ENABLED_HEADER_SIZE) {
 #if GXP_HAS_PQ_FW_AUTH
 		dev_dbg(gxp->dev,
-			"Requesting GSA authentication for PQ image. meta = %pad payload = %pap",
+			"Requesting MCU fw GSA auth for PQ image. meta = %pad payload = %pap",
 			&headers_dma_addr, &mcu_fw->image_buf.phys_addr);
 		ret = gsa_load_dsp_fw_image_pq(gxp->gsa_dev, headers_dma_addr,
 					       mcu_fw->image_buf.phys_addr,
 					       mgr->mcu_firmware->size - fw_header_size);
-#else
+#else /* GXP_HAS_PQ_FW_AUTH */
 		dev_err(gxp->dev, "PQ firmware image found, but platform does not support it");
 		ret = -EINVAL;
 #endif /* GXP_HAS_PQ_FW_AUTH */
@@ -77,16 +76,30 @@ static int gxp_firmware_loader_gsa_auth(struct gxp_dev *gxp)
 	}
 
 	for (core = 0; core < GXP_NUM_CORES; core++) {
-		data = mgr->core_firmware[core]->data;
 		/*
 		 * Authenticate core firmware.
 		 * On the given platform, the firmware header size remains the same for both MCU
 		 * and core fw. Thus reusing the @fw_header_size fetched from MCU firmware header
 		 * for core firmware header too.
 		 */
-		memcpy(header_vaddr, data, fw_header_size);
-		ret = gsa_load_dsp_fw_image(gxp->gsa_dev, headers_dma_addr,
-					    gxp->fwbufs[core].phys_addr);
+		memcpy(header_vaddr, mgr->core_firmware[core]->data, fw_header_size);
+		if (fw_header_size == GCIP_FW_PQ_ENABLED_HEADER_SIZE) {
+#if GXP_HAS_PQ_FW_AUTH
+			dev_dbg(gxp->dev,
+				"Requesting core fw GSA auth for PQ image. meta=%pad payload=%pap",
+				&headers_dma_addr, &gxp->fwbufs[core].phys_addr);
+			ret = gsa_load_dsp_fw_image_pq(
+				gxp->gsa_dev, headers_dma_addr, gxp->fwbufs[core].phys_addr,
+				mgr->core_firmware[core]->size - fw_header_size);
+#else /* GXP_HAS_PQ_FW_AUTH */
+			dev_err(gxp->dev,
+				"PQ firmware image found, but platform does not support it");
+			ret = -EINVAL;
+#endif /* GXP_HAS_PQ_FW_AUTH */
+		} else {
+			ret = gsa_load_dsp_fw_image(gxp->gsa_dev, headers_dma_addr,
+						    gxp->fwbufs[core].phys_addr);
+		}
 		if (ret) {
 			dev_err(gxp->dev,
 				"Core %u firmware authentication fails", core);

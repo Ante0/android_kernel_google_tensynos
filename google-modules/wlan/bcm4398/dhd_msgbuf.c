@@ -3,7 +3,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -8089,6 +8089,7 @@ BCMFASTPATH(dhd_prot_process_msgbuf_rxcpl)(dhd_pub_t *dhd, int ringtype, uint32 
 	int i;
 	uint8 sync;
 	unsigned long rx_lock_flags = 0;
+	uint16 fw_len = 0;
 
 #ifdef DHD_LB_RXP
 	/* must be the first check in this function */
@@ -8146,6 +8147,7 @@ BCMFASTPATH(dhd_prot_process_msgbuf_rxcpl)(dhd_pub_t *dhd, int ringtype, uint32 
 
 		while (msg_len > 0) {
 			msg = (host_rxbuf_cmpl_t *)msg_addr;
+			fw_len = ltoh16(msg->data_len);
 
 			/* Don't process further if any bus error has occurred */
 			if (dhd_query_bus_erros(dhd)) {
@@ -8213,9 +8215,21 @@ BCMFASTPATH(dhd_prot_process_msgbuf_rxcpl)(dhd_pub_t *dhd, int ringtype, uint32 
 				pktid = ltoh32(msg->cmn_hdr.request_id);
 				if (msg->cmn_hdr.flags &
 					BCMPCIE_CMNHDR_FLAGS_WAKE_PACKET) {
-					DHD_ERROR(("%s:Rx: Wakeup Packet received\n",
+					DHD_PRINT(("%s:Rx: Wakeup Packet received\n",
 						__FUNCTION__));
-					prot->rx_wakeup_pkt ++;
+					prot->rx_wakeup_pkt++;
+
+#if defined(DHD_WAKE_STATUS)
+					/* Check if host was woken up by any packets */
+					if (dhd_bus_get_bus_wake(dhd) > 0) {
+						/* Clear bus_wake */
+						dhd_bus_set_get_bus_wake(dhd, 0);
+						/* Request packet dump for first Rx packet */
+						DHD_PRINT(("%s: set wake pkt dump\n",
+							__FUNCTION__));
+						dhd_bus_set_get_bus_wake_pkt_dump(dhd, 1);
+					}
+#endif /* DHD_WAKE_STATUS */
 				}
 
 #ifdef DHD_PKTID_AUDIT_RING
@@ -8342,8 +8356,13 @@ BCMFASTPATH(dhd_prot_process_msgbuf_rxcpl)(dhd_pub_t *dhd, int ringtype, uint32 
 					/* DMA RX offset updated through shared area */
 					PKTPULL(dhd->osh, pkt, prot->rx_dataoffset);
 				}
-				/* Actual length of the packet */
-				PKTSETLEN(dhd->osh, pkt, ltoh16(msg->data_len));
+
+				if (fw_len > PKTLEN(dhd->osh, pkt)) {
+					DHD_ERROR(("%s: dongle data_len %u > posted %u\n",
+						__FUNCTION__, fw_len, PKTLEN(dhd->osh, pkt)));
+					fw_len = (uint16)PKTLEN(dhd->osh, pkt);
+				}
+				PKTSETLEN(dhd->osh, pkt, fw_len);
 
 
 #if defined(WL_MONITOR)
@@ -9737,6 +9756,12 @@ dhd_prot_event_process(dhd_pub_t *dhd, void *msg)
 		PKTPULL(dhd->osh, pkt, dhd->prot->rx_dataoffset);
 #endif /* !BCM_ROUTER_DHD */
 
+	if (buflen > PKTLEN(dhd->osh, pkt)) {
+		DHD_ERROR(("%s: dongle event_data_len %u posted buf %u clamping\n",
+			__FUNCTION__, buflen, PKTLEN(dhd->osh, pkt)));
+		buflen = (uint16)PKTLEN(dhd->osh, pkt);
+	}
+
 	PKTSETLEN(dhd->osh, pkt, buflen);
 #ifdef DHD_LBUF_AUDIT
 	PKTAUDIT(dhd->osh, pkt);
@@ -9789,6 +9814,12 @@ BCMFASTPATH(dhd_prot_process_infobuf_complete)(dhd_pub_t *dhd, void* buf)
 	if (dhd->prot->rx_dataoffset)
 		PKTPULL(dhd->osh, pkt, dhd->prot->rx_dataoffset);
 #endif /* !BCM_ROUTER_DHD */
+
+	if (buflen > PKTLEN(dhd->osh, pkt)) {
+		DHD_ERROR(("%s: dongle info_data_len %u posted buf %u clamping\n",
+			__FUNCTION__, buflen, PKTLEN(dhd->osh, pkt)));
+		buflen = (uint16)PKTLEN(dhd->osh, pkt);
+	}
 
 	PKTSETLEN(dhd->osh, pkt, buflen);
 #ifdef DHD_LBUF_AUDIT

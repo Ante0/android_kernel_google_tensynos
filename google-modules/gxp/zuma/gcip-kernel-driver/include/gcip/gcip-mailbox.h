@@ -616,6 +616,8 @@ void gcip_mailbox_awaiter_put(struct gcip_mailbox_awaiter *awaiter);
 static inline const struct gcip_mailbox_awaiter_ops *
 gcip_mailbox_awaiter_get_ops(struct gcip_mailbox_awaiter *awaiter)
 {
+	if (!awaiter)
+		return NULL;
 	return awaiter->ops;
 }
 

@@ -42,8 +42,11 @@ static int setup_iommu_mappings(struct gcip_image_config_parser *parser,
 	u32 map_flags;
 
 	for (i = 0; i < config->num_iommu_mappings; i++) {
-		daddr = virt_address_to_dma(config->iommu_mappings[i].virt_address);
-		map_flags = config->iommu_mappings[i].virt_address & GCIP_IMG_CFG_MAP_FLAGS_MASK;
+		u32 virt_address = config->iommu_mappings[i].virt_address;
+		u32 image_config_value = config->iommu_mappings[i].image_config_value;
+
+		daddr = virt_address_to_dma(virt_address);
+		map_flags = virt_address & GCIP_IMG_CFG_MAP_FLAGS_MASK;
 		if (skip_secure_mapping(config, map_flags))
 			continue;
 		if (unlikely(!daddr)) {
@@ -51,8 +54,15 @@ static int setup_iommu_mappings(struct gcip_image_config_parser *parser,
 			ret = -EIO;
 			goto err;
 		}
-		size = gcip_config_to_size(config->iommu_mappings[i].image_config_value);
-		paddr = config->iommu_mappings[i].image_config_value & GCIP_IMG_CFG_ADDR_MASK;
+		size = gcip_config_to_size(image_config_value);
+
+		if (virt_address & GCIP_IMAGE_CONFIG_MAP_MMIO_BIT) {
+			paddr = gcip_get_fixed_mmio_address(config, image_config_value &
+									    GCIP_IMG_CFG_ADDR_MASK);
+		} else {
+			paddr = gcip_get_fixed_mem_address(config, image_config_value &
+									   GCIP_IMG_CFG_ADDR_MASK);
+		}
 
 		dev_dbg(parser->dev, "Image config adding IOMMU mapping: %pad -> %pap", &daddr,
 			&paddr);

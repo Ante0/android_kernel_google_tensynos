@@ -5,6 +5,7 @@
  * Copyright (C) 2022 Google LLC
  */
 
+#include <linux/cleanup.h>
 #include <linux/container_of.h>
 #include <linux/delay.h>
 #include <linux/dev_printk.h>
@@ -187,7 +188,7 @@ void gcip_telemetry_irq_handler(struct gcip_telemetry *tel)
 	if (tel->header && (tel->header->head == tel->header->tail))
 		return;
 
-	schedule_work(&tel->work);
+	schedule_delayed_work(&tel->work, 0);
 }
 
 /**
@@ -313,30 +314,21 @@ err_unlock:
 }
 
 /**
- * gcip_telemetry_worker() - The worker for processing log/trace/hwtrace buffers.
+ * gcip_telemetry_worker() - The worker for processing log/trace/hwtrace or opaque buffers.
  * @work: The work_struct of the telemetry.
  */
 static void gcip_telemetry_worker(struct work_struct *work)
 {
-	struct gcip_telemetry *tel = container_of(work, struct gcip_telemetry, work);
+	struct gcip_telemetry *tel = container_of(work, struct gcip_telemetry,
+						  work.work);
 	struct gcip_telemetry_header *header = tel->header;
-	u32 prev_head;
 
-	/*
-	 * Loops while following conditions are all true:
-	 * 1. The telemetry is enabled.
-	 * 2. The header is visible(not NULL).
-	 * 3. There is data to be consumed, and the previous iteration made progress.
-	 */
-	do {
-		mutex_lock(&tel->state_ctx_lock);
-		if (tel->state != GCIP_TELEMETRY_ENABLED) {
-			mutex_unlock(&tel->state_ctx_lock);
+	scoped_guard(mutex, &tel->state_ctx_lock) {
+		if (tel->state != GCIP_TELEMETRY_ENABLED)
 			return;
-		}
-
-		if (header)
-			prev_head = header->head;
+		/* Opaque type buffers do not have a header, always signal on each run. */
+		if (header && (header->head == header->tail))
+			return;
 
 		/*
 		 * The runtime side handler and the fallback function should consider the case that
@@ -348,12 +340,12 @@ static void gcip_telemetry_worker(struct work_struct *work)
 			tel->fallback_fn(tel);
 		else
 			dev_warn(tel->dev, "Failed to consume the telemetry buffer");
+	}
 
-		mutex_unlock(&tel->state_ctx_lock);
-		msleep(GCIP_TELEMETRY_TYPE_LOG_RECHECK_DELAY);
-	} while (header && (header->head != header->tail) && (header->head != prev_head));
-
-	/* If another IRQ arrives after the header check, we should schedule another worker. */
+	/* Opaque type buffers do not need a recheck for new data arriving concurrently. */
+	if (tel->type != GCIP_TELEMETRY_TYPE_OPAQUE)
+		schedule_delayed_work(to_delayed_work(work),
+				      msecs_to_jiffies(GCIP_TELEMETRY_TYPE_LOG_RECHECK_DELAY));
 }
 
 int gcip_telemetry_init(struct gcip_telemetry *tel, enum gcip_telemetry_type type,
@@ -419,7 +411,7 @@ int gcip_telemetry_init(struct gcip_telemetry *tel, enum gcip_telemetry_type typ
 		tel->header->entries_dropped = 0;
 	}
 
-	INIT_WORK(&tel->work, gcip_telemetry_worker);
+	INIT_DELAYED_WORK(&tel->work, gcip_telemetry_worker);
 	mutex_init(&tel->mmap_lock);
 	mutex_init(&tel->state_ctx_lock);
 
@@ -436,5 +428,5 @@ void gcip_telemetry_exit(struct gcip_telemetry *tel)
 	tel->state = GCIP_TELEMETRY_INVALID;
 	mutex_unlock(&tel->state_ctx_lock);
 
-	cancel_work_sync(&tel->work);
+	cancel_delayed_work_sync(&tel->work);
 }

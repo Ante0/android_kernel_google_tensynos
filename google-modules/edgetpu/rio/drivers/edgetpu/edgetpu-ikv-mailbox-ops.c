@@ -214,8 +214,8 @@ static int edgetpu_ikv_before_enqueue_wait_list(struct gcip_mailbox *mailbox, vo
 	 * submitted to the firmware and the kernel driver doesn't need to care signaling out-fences
 	 * with an error caused in the driver side.
 	 */
-	ret = gcip_fence_array_submit_waiter_and_signaler(ikv_resp->in_fence_array,
-							  ikv_resp->out_fence_array, IIF_IP_TPU);
+	ret = gcip_fence_array_submit_waiter_and_signaler(
+		ikv_resp->in_fence_array, ikv_resp->out_fence_array, NULL, NULL, IIF_IP_TPU);
 	if (ret) {
 		dev_err(mailbox->dev, "Failed to submit waiter or signaler to fences, ret=%d", ret);
 		return ret;

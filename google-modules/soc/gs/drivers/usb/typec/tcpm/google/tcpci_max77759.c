@@ -722,8 +722,9 @@ EXPORT_SYMBOL_GPL(register_data_active_callback);
 
 void register_orientation_callback(void (*callback)(void *orientation_payload), void *data)
 {
-	orientation_callback = callback;
 	orientation_payload = data;
+	smp_wmb();
+	orientation_callback = callback;
 }
 EXPORT_SYMBOL_GPL(register_orientation_callback);
 
@@ -900,7 +901,7 @@ static void max77759_init_regs(struct max77759_plat *chip, bool setup)
 
 static int post_process_pd_message(struct max77759_plat *chip, struct pd_message msg)
 {
-	enum pd_data_msg_type pd_type = pd_header_type_le(msg.header);
+	enum pd_ctrl_msg_type pd_type = pd_header_type_le(msg.header);
 
 	if (pd_type == PD_DATA_VENDOR_DEF) {
 		u32 payload[2];
@@ -2387,6 +2388,19 @@ static irqreturn_t max77759_irq(int irq, void *dev_id)
 	return irq_return;
 }
 
+static irqreturn_t max77759_isr(int irq, void *dev_id)
+{
+	struct max77759_plat *chip = dev_id;
+
+	LOG(LOG_LVL_DEBUG, chip->log, "TCPC_ALERT triggered ");
+	pm_wakeup_event(chip->dev, PD_ACTIVITY_TIMEOUT_MS);
+
+	if (!chip->tcpci)
+		return IRQ_HANDLED;
+
+	return IRQ_WAKE_THREAD;
+}
+
 static void max77759_io_error_work(struct kthread_work *work)
 {
 	struct max77759_plat *chip =
@@ -2409,7 +2423,7 @@ static int max77759_init_alert(struct max77759_plat *chip,
 	if (!client->irq)
 		return -ENODEV;
 
-	ret = devm_request_threaded_irq(chip->dev, client->irq, NULL,
+	ret = devm_request_threaded_irq(chip->dev, client->irq, max77759_isr,
 					max77759_irq,
 					(IRQF_TRIGGER_LOW | IRQF_ONESHOT),
 					dev_name(chip->dev), chip);
@@ -4052,7 +4066,7 @@ static int __init max77759_i2c_driver_init(void)
 {
 	tcpm_log = logbuffer_register("tcpm");
 	if (IS_ERR_OR_NULL(tcpm_log))
-		pr_err("%s: logbuffer get failed, not fatal", __func__);
+		return -EAGAIN;
 
 	return i2c_add_driver(&max77759_i2c_driver);
 }

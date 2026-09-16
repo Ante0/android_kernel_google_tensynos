@@ -2,7 +2,7 @@
 /*
  * Power management header for mobile chipsets.
  *
- * Copyright (C) 2021 Google, Inc.
+ * Copyright (C) 2021-2026 Google LLC
  */
 
 #ifndef __MOBILE_PM_H__
@@ -45,11 +45,7 @@ static inline int exynos_acpm_set_policy(unsigned int id, unsigned long policy)
  * Values must match with firmware code base
  */
 enum mobile_reverse_kci_code {
-	RKCI_CODE_PM_QOS = RKCI_CHIP_CODE_FIRST + 1,
-	RKCI_CODE_BTS = RKCI_CHIP_CODE_FIRST + 2,
-	/* The above codes have been deprecated. */
-
-	RKCI_CODE_PM_QOS_BTS = RKCI_CHIP_CODE_FIRST + 3,
+	RKCI_CODE_PM_QOS_BTS = 3,
 };
 
 #define MAX_VOLTAGE_VAL 1250000

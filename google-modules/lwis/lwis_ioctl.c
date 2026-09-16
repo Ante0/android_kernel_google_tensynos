@@ -649,7 +649,7 @@ static int cmd_device_disable(struct lwis_client *lwis_client, struct lwis_cmd_p
 		dev_err(lwis_dev->dev, "Failed to power down device\n");
 		goto exit_locked;
 	}
-	lwis_device_event_states_clear_locked(lwis_dev);
+	lwis_device_event_states_clear(lwis_dev);
 
 	lwis_dev->enabled--;
 	lwis_client->is_enabled = false;
@@ -745,7 +745,7 @@ static int cmd_device_reset(struct lwis_client *lwis_client, struct lwis_cmd_pkt
 			 "Device is not enabled, IoEntries will not be executed in DEVICE_RESET\n");
 
 	mutex_lock(&lwis_dev->interclient_lock);
-	lwis_device_event_states_clear_locked(lwis_dev);
+	lwis_device_event_states_clear(lwis_dev);
 	mutex_unlock(&lwis_dev->interclient_lock);
 	mutex_unlock(&lwis_client->lock);
 soft_reset_exit:
@@ -804,7 +804,7 @@ static int cmd_device_suspend(struct lwis_client *lwis_client, struct lwis_cmd_p
 		goto exit_locked;
 	}
 
-	lwis_device_event_states_clear_locked(lwis_dev);
+	lwis_device_event_states_clear(lwis_dev);
 
 	lwis_dev->is_suspended = true;
 	dev_info(lwis_dev->dev, "Device suspended\n");
@@ -840,8 +840,10 @@ static int cmd_device_resume(struct lwis_client *lwis_client, struct lwis_cmd_pk
 	lwis_client_event_queue_clear(lwis_client);
 	lwis_client_error_event_queue_clear(lwis_client);
 
+	lwis_bus_manager_lock_bus(lwis_dev);
 	ret = lwis_dev_process_power_sequence(lwis_dev, lwis_dev->resume_sequence,
 					      /*set_active=*/true, /*skip_error=*/false);
+	lwis_bus_manager_unlock_bus(lwis_dev);
 	if (ret) {
 		dev_err(lwis_dev->dev, "Error lwis_dev_process_power_sequence (%d)\n", ret);
 		goto exit_locked;
@@ -1419,6 +1421,22 @@ static int cmd_transaction_submit(struct lwis_client *client, struct lwis_cmd_pk
 	if (ret) {
 		dev_err(lwis_dev->dev, "Failed to prepare lwis io entries for transaction\n");
 		goto err_free_cmd;
+	}
+
+	if (k_transaction->info.num_io_entries > 0) {
+		struct lwis_io_bundle *bundle = lwis_allocator_allocate(
+			lwis_dev, sizeof(struct lwis_io_bundle), GFP_KERNEL);
+		if (!bundle) {
+			ret = -ENOMEM;
+			lwis_transaction_free(lwis_dev, &k_transaction);
+			goto err_free_cmd;
+		}
+		atomic_set(&bundle->refcount, 1);
+		bundle->num_io_entries = k_transaction->info.num_io_entries;
+		bundle->io_entries = k_transaction->info.io_entries;
+		k_transaction->bundle = bundle;
+	} else {
+		k_transaction->bundle = NULL;
 	}
 
 	k_transaction->legacy_lwis_fence = (header->cmd_id == LWIS_CMD_ID_TRANSACTION_SUBMIT_V6 ||

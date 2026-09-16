@@ -1188,23 +1188,6 @@ static int dn_share_fd(struct tipc_dn_chan *dn, int fd,
 		return -ENOTCONN;
 	}
 
-	file = fget(fd);
-	if (!file) {
-		dev_dbg(dev, "Invalid fd (%d)\n", fd);
-		return -EBADF;
-	}
-
-	if (!(file->f_mode & FMODE_READ)) {
-		dev_dbg(dev, "Cannot create write-only mapping\n");
-		fput(file);
-		return -EACCES;
-	}
-
-	writable = file->f_mode & FMODE_WRITE;
-	prot = writable ? PAGE_KERNEL : PAGE_KERNEL_RO;
-	fput(file);
-	file = NULL;
-
 	ret = tipc_shared_handle_new(&shared_handle, dn->chan->vds);
 	if (ret)
 		return ret;
@@ -1216,6 +1199,17 @@ static int dn_share_fd(struct tipc_dn_chan *dn, int fd,
 		dev_dbg(dev, "Unable to get dma buf from fd (%d)\n", ret);
 		goto cleanup_handle;
 	}
+
+	file = shared_handle->dma_buf->file;
+
+	if (!(file->f_mode & FMODE_READ)) {
+		dev_dbg(dev, "Cannot create write-only mapping\n");
+		ret = -EACCES;
+		goto cleanup_handle;
+	}
+
+	writable = file->f_mode & FMODE_WRITE;
+	prot = writable ? PAGE_KERNEL : PAGE_KERNEL_RO;
 
 	tag = trusty_dma_buf_get_ffa_tag(shared_handle->dma_buf);
 	ret = trusty_dma_buf_get_shared_mem_id(shared_handle->dma_buf, &mem_id);

@@ -117,7 +117,9 @@ struct edgetpu_firmware {
 
 	/*
 	 * Pointer to GSA device for firmware authentication.
-	 * May be NULL if GSA not present (in which case firmware authentication is not supported).
+	 * May be NULL if GSA not enabled in the kernel or the GSA device is not specified in the
+	 * device tree "gsa-device" property, in which case firmware authentication is not
+	 * available.
 	 */
 	struct device *gsa_dev;
 
@@ -477,14 +479,16 @@ static int edgetpu_firmware_update_remapped_data_region(struct edgetpu_dev *etde
 	tpu_addr_t shared_data_daddr =
 		config->shared_data_iova ? config->shared_data_iova :
 					   (EDGETPU_INSTRUCTION_REMAP_BASE + et_fw->fw_region_size);
-	phys_addr_t shared_data_paddr = i_has_shared_data_addr ?
-						config->shared_data_start :
-						et_fw->fw_region_paddr + et_fw->fw_region_size;
+	phys_addr_t shared_data_paddr =
+		i_has_shared_data_addr ?
+			gcip_get_fixed_mem_address(config, config->shared_data_start) :
+			et_fw->fw_region_paddr + et_fw->fw_region_size;
 	size_t shared_data_size = i_has_shared_data_addr ? config->shared_data_size :
 							   EDGETPU_DEFAULT_REMAPPED_DATA_SIZE;
 	size_t firmware_size = config->firmware_size;
-	u32 firmware_base = config->firmware_base;
-	u32 secure_data_start = config->secure_data_start;
+	phys_addr_t firmware_base = gcip_get_fixed_mem_address(config, config->firmware_base);
+	phys_addr_t secure_data_start =
+		gcip_get_fixed_mem_address(config, config->secure_data_start);
 	struct gcip_telemetry_buffer_config telemetry_config;
 	bool i_has_telemetry_config =
 		gcip_image_config_get_telemetry_buffer_config(config, &telemetry_config);
@@ -497,15 +501,14 @@ static int edgetpu_firmware_update_remapped_data_region(struct edgetpu_dev *etde
 		return 0;
 
 	/* Allow shared data region to be placed after secure data if an address was provided */
-	if (shared_data_daddr <
-		    EDGETPU_INSTRUCTION_REMAP_BASE + firmware_size ||
+	if (shared_data_daddr < EDGETPU_INSTRUCTION_REMAP_BASE + firmware_size ||
 	    (!i_has_shared_data_addr &&
-	     (firmware_base + et_fw->fw_region_size + shared_data_size >
-	      secure_data_start))) {
+	     (gcip_get_fixed_mem_address(config, firmware_base + et_fw->fw_region_size +
+							 shared_data_size) > secure_data_start))) {
 		etdev_err(etdev, "Firmware shared data address invalid");
 		etdev_err(etdev, "Shared data @ %08llX (%zu bytes)", shared_data_daddr,
 			  shared_data_size);
-		etdev_err(etdev, "Firmware base @ %08X", firmware_base);
+		etdev_err(etdev, "Firmware base @ %08llX", firmware_base);
 		etdev_err(etdev, "Firmware %s a shared data address",
 			  i_has_shared_data_addr ? "provided" : "did not provide");
 		return -EINVAL;
@@ -744,10 +747,13 @@ static int edgetpu_firmware_setup_image(struct edgetpu_firmware *et_fw, const st
 		return -EINVAL;
 	}
 
-	et_fw->fw_region_paddr = image_config->firmware_base;
+	et_fw->fw_region_paddr =
+		gcip_get_fixed_mem_address(image_config, image_config->firmware_base);
 	et_fw->fw_region_size =
 		image_config->shared_data_start ?
-			image_config->shared_data_start - image_config->firmware_base :
+			gcip_get_fixed_mem_address(image_config, image_config->shared_data_start) -
+				gcip_get_fixed_mem_address(image_config,
+							   image_config->firmware_base) :
 			EDGETPU_DEFAULT_FW_LIMIT;
 
 	image_vaddr = memremap(et_fw->fw_region_paddr, et_fw->fw_region_size, MEMREMAP_WC);
@@ -783,6 +789,8 @@ static int edgetpu_firmware_setup_image(struct edgetpu_firmware *et_fw, const st
 		etdev_dbg(etdev, "Continuing without authentication.");
 		/* Copy the firmware image to the target location, skipping the header. */
 		fw_header_size = gcip_common_get_fw_header_size(fw->data, EDGETPU_FW_MAGIC);
+		etdev_dbg(etdev, "Copying %zu bytes to physical address %pap\n",
+			  fw->size - fw_header_size, &et_fw->fw_region_paddr);
 		memcpy(image_vaddr, fw->data + fw_header_size, fw->size - fw_header_size);
 	} else {
 		etdev_err(etdev,
@@ -794,8 +802,10 @@ static int edgetpu_firmware_setup_image(struct edgetpu_firmware *et_fw, const st
 	if (ret)
 		goto out;
 
-	image_start = (phys_addr_t)image_config->carveout_base;
-	image_end = (phys_addr_t)(image_config->firmware_base + image_config->firmware_size - 1);
+	image_start =
+		(phys_addr_t)gcip_get_fixed_mem_address(image_config, image_config->carveout_base);
+	image_end = (phys_addr_t)gcip_get_fixed_mem_address(
+		image_config, image_config->firmware_base + image_config->firmware_size - 1);
 	carveout_start = et_fw->fw_region_paddr;
 	carveout_end = carveout_start + et_fw->fw_region_size - 1;
 
@@ -1455,7 +1465,10 @@ int edgetpu_firmware_create(struct edgetpu_dev *etdev)
 		etdev_warn(etdev, "Failed to init fault injection: %d\n", ret);
 
 
-	ret = edgetpu_sw_wdt_create(etdev, EDGETPU_ACTIVE_DEV_BEAT_MS,
+	ret = edgetpu_sw_wdt_create(etdev,
+				    etdev->emulation_slow_tpu ? EDGETPU_ACTIVE_DEV_BEAT_MS * 4 :
+				    EDGETPU_ACTIVE_DEV_BEAT_MS,
+				    etdev->emulation_slow_tpu ? EDGETPU_DORMANT_DEV_BEAT_MS * 2 :
 				    EDGETPU_DORMANT_DEV_BEAT_MS);
 	if (ret)
 		etdev_warn(etdev, "Failed to create software watchdog\n");

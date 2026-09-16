@@ -1,7 +1,7 @@
 /*
  * Broadcom Dongle Host Driver (DHD), common DHD core.
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -149,7 +149,6 @@
 int log_print_threshold;
 #endif /* DHD_LOG_PRINT_RATE_LIMIT */
 
-#ifdef DHD_DEBUG
 /* dhd_msg_level : a default level to print to dmesg buffer
  * dhd_log_level : a default level to log to DLD or Ring
  * To keep one level operation(dhd_msg_level) in HW4,
@@ -192,7 +191,6 @@ int dhd_log_level = DHD_ERROR_VAL | DHD_FWLOG_VAL | DHD_EVENT_VAL
 	| DHD_PKT_MON_VAL;
 
 #endif /* DHD_DEBUGABILITY_LOG_DUMP_RING */
-#endif /* DHD_DEBUG */
 
 #ifdef NDIS
 extern uint wl_msg_level;
@@ -2842,10 +2840,8 @@ dhd_doiovar(dhd_pub_t *dhd_pub, int ifidx, const bcm_iovar_t *vi, uint32 actioni
 		if (!(int_val & DHD_WL_VAL2))
 #endif /* WL_CFG80211 */
 		{
-#ifdef DHD_DEBUG
 			dhd_msg_level = int_val;
 			dhd_log_level = int_val;
-#endif /* DHD_DEBUG */
 		}
 		break;
 #ifdef DHD_LOGLEVEL
@@ -10381,6 +10377,14 @@ dhd_tput_test(dhd_pub_t *dhd, tput_test_t *tput_data)
 		err_exit = BCME_BUSY;
 		goto exit_error;
 	}
+
+	if (tput_data->payload_size < TPUT_TEST_MIN_PAYLOAD_SIZE) {
+		DHD_ERROR(("%s: min payload size is %u !\n", __FUNCTION__,
+			TPUT_TEST_MIN_PAYLOAD_SIZE));
+		err_exit = BCME_BADOPTION;
+		goto exit_error;
+	}
+
 #ifdef PCIE_FULL_DONGLE
 	/*
 	 * 100 bytes to accommodate ether header and tput header. As of today
