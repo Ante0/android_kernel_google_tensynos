@@ -71,8 +71,14 @@ __percpu_##name##_case_##sz(void *ptr, unsigned long val)		\
 	u##sz tmp;							\
 									\
 	asm volatile (ARM64_LSE_ATOMIC_INSN(				\
+	/* LL/SC */							\
+	"1:	ldxr" #sfx "\t%" #w "[tmp], %[ptr]\n"			\
+		#op_llsc "\t%" #w "[tmp], %" #w "[tmp], %" #w "[val]\n"	\
+	"	stxr" #sfx "\t%w[loop], %" #w "[tmp], %[ptr]\n"		\
+	"	cbnz	%w[loop], 1b",					\
 	/* LSE atomics */						\
-		#op_lse "\t%" #w "[val], %[ptr]\n")			\
+		#op_lse "\t%" #w "[val], %[ptr]\n"			\
+		__nops(3))						\
 	: [loop] "=&r" (loop), [tmp] "=&r" (tmp),			\
 	  [ptr] "+Q"(*(u##sz *)ptr)					\
 	: [val] "r" ((u##sz)(val)));					\
@@ -86,9 +92,15 @@ __percpu_##name##_return_case_##sz(void *ptr, unsigned long val)	\
 	u##sz ret;							\
 									\
 	asm volatile (ARM64_LSE_ATOMIC_INSN(				\
+	/* LL/SC */							\
+	"1:	ldxr" #sfx "\t%" #w "[ret], %[ptr]\n"			\
+		#op_llsc "\t%" #w "[ret], %" #w "[ret], %" #w "[val]\n"	\
+	"	stxr" #sfx "\t%w[loop], %" #w "[ret], %[ptr]\n"		\
+	"	cbnz	%w[loop], 1b",					\
 	/* LSE atomics */						\
 		#op_lse "\t%" #w "[val], %" #w "[ret], %[ptr]\n"	\
-		#op_llsc "\t%" #w "[ret], %" #w "[ret], %" #w "[val]\n")\
+		#op_llsc "\t%" #w "[ret], %" #w "[ret], %" #w "[val]\n"	\
+		__nops(2))						\
 	: [loop] "=&r" (loop), [ret] "=&r" (ret),			\
 	  [ptr] "+Q"(*(u##sz *)ptr)					\
 	: [val] "r" ((u##sz)(val)));					\

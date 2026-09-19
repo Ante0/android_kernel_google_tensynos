@@ -120,6 +120,7 @@
   devm_gpiochip_add_data_with_key
   devm_gpiod_get
   devm_gpiod_get_optional
+  devm_hwspin_lock_request_specific
   devm_ioremap
   devm_ioremap_resource
   devm_ioremap_wc
@@ -301,6 +302,7 @@
   gpiochip_get_data
   gpiochip_remove
   gpiod_get_value_cansleep
+  gpiod_is_active_low
   gpiod_set_consumer_name
   gpiod_set_value
   gpiod_set_value_cansleep
@@ -741,6 +743,8 @@
   snd_soc_jack_report
   snd_soc_put_enum_double
   snd_soc_put_volsw
+  snd_soc_register_component
+  snd_soc_unregister_component
   snprintf
   sock_create_kern
   sock_release
@@ -1072,6 +1076,7 @@
   down_read
   down_write
   find_vma
+  mtree_load
   __mmap_lock_do_trace_acquire_returned
   __mmap_lock_do_trace_released
   __mmap_lock_do_trace_start_locking
@@ -1576,6 +1581,7 @@
   vsnprintf
   ww_mutex_lock
   ww_mutex_lock_interruptible
+  ww_mutex_trylock
   ww_mutex_unlock
 
 # required by msm_serial.ko
@@ -1956,6 +1962,7 @@
 # required by snd-soc-lpass-va-macro.ko
   clk_hw_get_clk
   dapm_regulator_event
+  devm_clk_hw_get_clk
   regcache_sync_region
 
 # required by snd-soc-qcom-common.ko

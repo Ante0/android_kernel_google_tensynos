@@ -162,24 +162,6 @@ void topology_set_freq_scale(const struct cpumask *cpus, unsigned long cur_freq,
 		per_cpu(arch_freq_scale, i) = scale;
 }
 
-DEFINE_PER_CPU(unsigned long, arch_min_freq_scale);
-EXPORT_PER_CPU_SYMBOL_GPL(arch_min_freq_scale);
-
-void topology_set_min_freq_scale(const struct cpumask *cpus,
-				 unsigned long min_freq, unsigned long max_freq)
-{
-	unsigned long scale;
-	int i;
-
-	if (WARN_ON_ONCE(!max_freq))
-		return;
-
-	scale = (min_freq * per_cpu(cpu_scale, cpumask_any(cpus))) / max_freq;
-
-	for_each_cpu(i, cpus)
-		per_cpu(arch_min_freq_scale, i) = scale;
-}
-
 DEFINE_PER_CPU(unsigned long, cpu_scale) = SCHED_CAPACITY_SCALE;
 EXPORT_PER_CPU_SYMBOL_GPL(cpu_scale);
 
@@ -365,7 +347,7 @@ bool __init topology_parse_cpu_capacity(struct device_node *cpu_node, int cpu)
 		 * frequency (by keeping the initial freq_factor value).
 		 */
 		cpu_clk = of_clk_get(cpu_node, 0);
-		if (!PTR_ERR_OR_ZERO(cpu_clk)) {
+		if (!IS_ERR_OR_NULL(cpu_clk)) {
 			per_cpu(freq_factor, cpu) =
 				clk_get_rate(cpu_clk) / 1000;
 			clk_put(cpu_clk);
@@ -774,7 +756,7 @@ void update_siblings_masks(unsigned int cpuid)
 
 	ret = detect_cache_attributes(cpuid);
 	if (ret && ret != -ENOENT)
-		pr_info("Early cacheinfo failed, ret = %d\n", ret);
+		pr_info("Early cacheinfo allocation failed, ret = %d\n", ret);
 
 	/* update core and thread sibling masks */
 	for_each_online_cpu(cpu) {
@@ -863,7 +845,7 @@ __weak int __init parse_acpi_topology(void)
 #if defined(CONFIG_ARM64) || defined(CONFIG_RISCV)
 void __init init_cpu_topology(void)
 {
-	int ret;
+	int cpu, ret;
 
 	reset_cpu_topology();
 	ret = parse_acpi_topology();
@@ -877,6 +859,14 @@ void __init init_cpu_topology(void)
 		 */
 		reset_cpu_topology();
 		return;
+	}
+
+	for_each_possible_cpu(cpu) {
+		ret = fetch_cache_info(cpu);
+		if (ret) {
+			pr_err("Early cacheinfo failed, ret = %d\n", ret);
+			break;
+		}
 	}
 }
 

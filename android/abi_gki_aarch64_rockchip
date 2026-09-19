@@ -536,6 +536,8 @@
   hdmi_audio_infoframe_pack
   hdmi_drm_infoframe_pack
   hdmi_infoframe_pack
+  hdmi_infoframe_log
+  hdmi_infoframe_unpack
   hdmi_vendor_infoframe_pack
   hid_debug
   hid_hw_close
@@ -1733,6 +1735,7 @@
   drm_display_mode_from_cea_vic
   drm_edid_duplicate
   drm_edid_get_monitor_name
+  drm_edid_get_panel_id
   drm_modeset_lock_single_interruptible
   drm_object_property_set_value
   __drm_printfn_debug
@@ -2293,6 +2296,7 @@
 
 # required by rk808.ko
   devm_register_sys_off_handler
+  driver_for_each_device
   platform_device_add
   platform_device_alloc
   register_syscore_ops
@@ -2565,6 +2569,7 @@
   drm_mode_is_420
   drm_mode_object_get
   drm_mode_prune_invalid
+  drm_mode_get_hv_timing
   drm_mode_set_crtcinfo
   drm_modeset_lock_all
   drm_modeset_unlock_all
@@ -3057,3 +3062,7 @@
 
 # required by pl2303.ko
   tty_termios_hw_change
+
+# required by motorcomm.ko
+  phy_basic_ports_array
+  __mdiobus_modify_changed

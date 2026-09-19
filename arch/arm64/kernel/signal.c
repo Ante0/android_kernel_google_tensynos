@@ -317,10 +317,24 @@ static int restore_sve_fpsimd_context(struct user_ctxs *user)
 	fpsimd_flush_task_state(current);
 	/* From now, fpsimd_thread_switch() won't touch thread.sve_state */
 
+	if (sve.flags & SVE_SIG_FLAG_SM) {
+		sme_alloc(current, false);
+		if (!current->thread.za_state)
+			return -ENOMEM;
+	}
+
 	sve_alloc(current, true);
 	if (!current->thread.sve_state) {
 		clear_thread_flag(TIF_SVE);
 		return -ENOMEM;
+	}
+
+	if (sve.flags & SVE_SIG_FLAG_SM) {
+		current->thread.svcr |= SVCR_SM_MASK;
+		set_thread_flag(TIF_SME);
+	} else {
+		current->thread.svcr &= ~SVCR_SM_MASK;
+		set_thread_flag(TIF_SVE);
 	}
 
 	err = __copy_from_user(current->thread.sve_state,
@@ -329,11 +343,6 @@ static int restore_sve_fpsimd_context(struct user_ctxs *user)
 			       SVE_SIG_REGS_SIZE(vq));
 	if (err)
 		return -EFAULT;
-
-	if (sve.flags & SVE_SIG_FLAG_SM)
-		current->thread.svcr |= SVCR_SM_MASK;
-	else
-		set_thread_flag(TIF_SVE);
 
 fpsimd_only:
 	/* copy the FP and status/control registers */
@@ -431,6 +440,10 @@ static int restore_za_context(struct user_ctxs *user)
 
 	fpsimd_flush_task_state(current);
 	/* From now, fpsimd_thread_switch() won't touch thread.sve_state */
+
+	sve_alloc(current, false);
+	if (!current->thread.sve_state)
+		return -ENOMEM;
 
 	sme_alloc(current, true);
 	if (!current->thread.za_state) {
@@ -1110,11 +1123,13 @@ static void do_signal(struct pt_regs *regs)
 void do_notify_resume(struct pt_regs *regs, unsigned long thread_flags)
 {
 	int thread_lazy_flag = 0;
-
+	trace_android_vh_restore_curr_resched(&thread_flags,
+			&thread_lazy_flag);
 	do {
 		trace_android_vh_read_lazy_flag(&thread_lazy_flag, &thread_flags);
 		if ((thread_flags & _TIF_NEED_RESCHED) || thread_lazy_flag) {
 			/* Unmask Debug and SError for the next task */
+			thread_lazy_flag = 0;
 			local_daif_restore(DAIF_PROCCTX_NOIRQ);
 
 			schedule();
@@ -1142,7 +1157,9 @@ void do_notify_resume(struct pt_regs *regs, unsigned long thread_flags)
 
 		local_daif_mask();
 		thread_flags = read_thread_flags();
-	} while (thread_flags & _TIF_WORK_MASK);
+		trace_android_vh_restore_curr_resched(&thread_flags,
+			&thread_lazy_flag);
+	} while (thread_flags & _TIF_WORK_MASK || thread_lazy_flag);
 }
 
 unsigned long __ro_after_init signal_minsigstksz;

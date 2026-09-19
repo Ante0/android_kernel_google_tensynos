@@ -1293,6 +1293,8 @@ static struct rw_semaphore *rwsem_wake(struct rw_semaphore *sem)
 	raw_spin_unlock_irqrestore(&sem->wait_lock, flags);
 	wake_up_q(&wake_q);
 
+	trace_android_vh_rwsem_wakeup_patch(sem);
+
 	return sem;
 }
 

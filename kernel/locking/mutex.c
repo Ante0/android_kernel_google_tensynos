@@ -978,6 +978,8 @@ static noinline void __sched __mutex_unlock_slowpath(struct mutex *lock, unsigne
 	raw_spin_unlock(&lock->wait_lock);
 
 	wake_up_q(&wake_q);
+
+	trace_android_vh_mutex_wakeup_patch(lock);
 }
 
 #ifndef CONFIG_DEBUG_LOCK_ALLOC

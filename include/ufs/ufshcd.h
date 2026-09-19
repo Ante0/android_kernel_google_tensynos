@@ -17,7 +17,6 @@
 #include <linux/blk-mq.h>
 #include <linux/devfreq.h>
 #include <linux/msi.h>
-#include <linux/pm_qos.h>
 #include <linux/pm_runtime.h>
 #include <linux/dma-direction.h>
 #include <scsi/scsi_device.h>
@@ -626,6 +625,13 @@ enum ufshcd_quirks {
 	UFSHCD_QUIRK_HIBERN_FASTAUTO			= 1 << 18,
 
 	/*
+	 * This quirk indicates that DME_LINKSTARTUP should not be issued a 2nd
+	 * time (refer link_startup_again) after the 1st time was successful,
+	 * because it causes link startup to become unreliable.
+	 */
+	UFSHCD_QUIRK_PERFORM_LINK_STARTUP_ONCE		= 1 << 19,
+
+	/*
 	 * Some host raises interrupt (per queue) in addition to
 	 * CQES (traditional) when ESI is disabled.
 	 * Enable this quirk will disable CQES and use per queue interrupt.
@@ -1129,15 +1135,6 @@ struct ufs_hba {
 	struct ufs_hw_queue *uhq;
 	struct ufs_hw_queue *dev_cmd_queue;
 	struct ufshcd_mcq_opr_info_t mcq_opr[OPR_MAX];
-
-	struct {
-		struct pm_qos_request req;
-		struct work_struct get_work;
-		struct work_struct put_work;
-		struct mutex lock;
-		atomic_t count;
-		bool active;
-	} pm_qos;
 
 	ANDROID_OEM_DATA(1);
 };

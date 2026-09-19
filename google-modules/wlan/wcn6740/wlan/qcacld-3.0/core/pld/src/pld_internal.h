@@ -30,7 +30,7 @@ struct dev_node {
 
 struct pld_context {
 	struct pld_driver_ops *ops;
-	raw_spinlock_t pld_lock;
+	spinlock_t pld_lock;
 	struct list_head dev_list;
 	uint32_t pld_driver_state;
 	uint8_t mode;

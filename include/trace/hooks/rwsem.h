@@ -28,6 +28,9 @@ DECLARE_HOOK(android_vh_alter_rwsem_list_add,
 DECLARE_HOOK(android_vh_rwsem_wake_finish,
 	TP_PROTO(struct rw_semaphore *sem),
 	TP_ARGS(sem));
+DECLARE_HOOK(android_vh_rwsem_wakeup_patch,
+	TP_PROTO(struct rw_semaphore *sem),
+	TP_ARGS(sem));
 DECLARE_HOOK(android_vh_rwsem_direct_rsteal,
 	TP_PROTO(struct rw_semaphore *sem, bool *steal),
 	TP_ARGS(sem, steal));

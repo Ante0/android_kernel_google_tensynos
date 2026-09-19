@@ -75,10 +75,8 @@ extern struct module_attribute module_uevent;
 /* These are either module local, or the kernel's dummy ones. */
 extern int init_module(void);
 extern void cleanup_module(void);
-extern bool integrated_module_load_in_progress(void);
-extern void integrated_module_load_end(void);
 
-#if !defined(MODULE) || defined(CONFIG_INTEGRATE_MODULES)
+#ifndef MODULE
 /**
  * module_init() - driver initialization entry point
  * @x: function to be run at kernel boot time or module insertion
@@ -87,20 +85,7 @@ extern void integrated_module_load_end(void);
  * builtin) or at module insertion time (if a module).  There can only
  * be one per module.
  */
-#ifdef MODULE
-/*
- * Place integrated module initcall entries into the .rodata section. Integrated
- * modules intentionally lack unique initcall names so that name collisions will
- * produce linker errors.
- */
-#define module_init(x) \
-	____define_initcall(x,						\
-		__initcall_stub(x, __KBUILD_MODNAME,),			\
-		__PASTE(__initcall__, __PASTE(__KBUILD_MODNAME, __)),	\
-		".rodata")
-#else
 #define module_init(x)	__initcall(x);
-#endif
 
 /**
  * module_exit() - driver exit entry point
@@ -114,9 +99,8 @@ extern void integrated_module_load_end(void);
  */
 #define module_exit(x)	__exitcall(x);
 
-#endif /* !MODULE || CONFIG_INTEGRATE_MODULES */
+#else /* MODULE */
 
-#ifdef MODULE
 /*
  * In most cases loadable modules do not need custom
  * initcall levels. There are still some valid cases where
@@ -142,7 +126,6 @@ extern void integrated_module_load_end(void);
 
 #define console_initcall(fn)		module_init(fn)
 
-#ifndef CONFIG_INTEGRATE_MODULES
 /* Each module must use one module_init(). */
 #define module_init(initfn)					\
 	static inline initcall_t __maybe_unused __inittest(void)		\
@@ -159,12 +142,11 @@ extern void integrated_module_load_end(void);
 		__attribute__((alias(#exitfn)));		\
 	___ADDRESSABLE(cleanup_module, __exitdata);
 
-#endif /* !CONFIG_INTEGRATE_MODULES */
-#endif /* MODULE */
+#endif
 
 /* This means "can be init if no module support, otherwise module load
    may call it." */
-#if defined(CONFIG_MODULES) || defined(CONFIG_INTEGRATE_MODULES)
+#ifdef CONFIG_MODULES
 #define __init_or_module
 #define __initdata_or_module
 #define __initconst_or_module
@@ -179,6 +161,8 @@ extern void integrated_module_load_end(void);
 #define __INITDATA_OR_MODULE __INITDATA
 #define __INITRODATA_OR_MODULE __INITRODATA
 #endif /*CONFIG_MODULES*/
+
+struct module_kobject *lookup_or_create_module_kobject(const char *name);
 
 /* Generic info of form tag = "info" */
 #define MODULE_INFO(tag, info) __MODULE_INFO(tag, tag, info)
@@ -256,12 +240,12 @@ extern void integrated_module_load_end(void);
 /* What your module does. */
 #define MODULE_DESCRIPTION(_description) MODULE_INFO(description, _description)
 
-#if defined(MODULE) && !defined(CONFIG_INTEGRATE_MODULES)
+#ifdef MODULE
 /* Creates an alias so file2alias.c can find device table. */
 #define MODULE_DEVICE_TABLE(type, name)					\
 extern typeof(name) __mod_##type##__##name##_device_table		\
   __attribute__ ((unused, alias(__stringify(name))))
-#else  /* !MODULE || CONFIG_INTEGRATE_MODULES */
+#else  /* !MODULE */
 #define MODULE_DEVICE_TABLE(type, name)
 #endif
 
@@ -681,6 +665,15 @@ static inline void __module_get(struct module *module)
 	struct module *__mod = (mod);		\
 	__mod ? __mod->name : "kernel";		\
 })
+
+static inline const unsigned char *module_buildid(struct module *mod)
+{
+#ifdef CONFIG_STACKTRACE_BUILD_ID
+	return mod->build_id;
+#else
+	return NULL;
+#endif
+}
 
 /* Dereference module function descriptor */
 void *dereference_module_function_descriptor(struct module *mod, void *ptr);

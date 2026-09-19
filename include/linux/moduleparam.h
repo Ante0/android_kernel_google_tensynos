@@ -8,7 +8,7 @@
 
 /* You can override this manually, but generally this should match the
    module name. */
-#if defined(MODULE) && !defined(CONFIG_INTEGRATE_MODULES)
+#ifdef MODULE
 #define MODULE_PARAM_PREFIX /* empty */
 #define __MODULE_INFO_PREFIX /* empty */
 #else
@@ -282,10 +282,9 @@ struct kparam_array
 #define __moduleparam_const const
 #endif
 
-/* This is the fundamental function for registering boot/module
-   parameters. */
+/* This is the fundamental function for registering boot/module parameters. */
 #define __module_param_call(prefix, name, ops, arg, perm, level, flags)	\
-	/* Default value instead of permissions? */			\
+	static_assert(sizeof(""prefix) - 1 <= MAX_PARAM_PREFIX_LEN);	\
 	static const char __param_str_##name[] = prefix #name;		\
 	static struct kernel_param __moduleparam_const __param_##name	\
 	__used __section("__param")					\
@@ -393,14 +392,9 @@ extern char *parse_args(const char *name,
 				     const char *doing, void *arg));
 
 /* Called by module remove. */
-#ifdef CONFIG_SYSFS
-extern void destroy_params(const struct kernel_param *params, unsigned num);
-#else
-static inline void destroy_params(const struct kernel_param *params,
-				  unsigned num)
-{
-}
-#endif /* !CONFIG_SYSFS */
+#ifdef CONFIG_MODULES
+void module_destroy_params(const struct kernel_param *params, unsigned int num);
+#endif
 
 /* All the helper functions */
 /* The macros to do compile-time type checking stolen from Jakub
@@ -594,7 +588,7 @@ extern int param_get_string(char *buffer, const struct kernel_param *kp);
 
 struct module;
 
-#if defined(CONFIG_SYSFS) && defined(CONFIG_MODULES) && !defined(CONFIG_INTEGRATE_MODULES)
+#if defined(CONFIG_SYSFS) && defined(CONFIG_MODULES)
 extern int module_param_sysfs_setup(struct module *mod,
 				    const struct kernel_param *kparam,
 				    unsigned int num_params);

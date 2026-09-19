@@ -325,7 +325,7 @@ int vgic_v2_map_resources(struct kvm *kvm)
 	return 0;
 }
 
-__visible DEFINE_STATIC_KEY_FALSE(vgic_v2_cpuif_trap);
+DEFINE_STATIC_KEY_FALSE(vgic_v2_cpuif_trap);
 
 /**
  * vgic_v2_probe - probe for a VGICv2 compatible interrupt controller

@@ -1157,6 +1157,7 @@
   __traceiter_dma_fence_emit
   __tracepoint_dma_fence_emit
   vmemdup_user
+  ww_mutex_lock
   ww_mutex_lock_interruptible
   ww_mutex_unlock
 

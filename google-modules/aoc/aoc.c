@@ -1210,18 +1210,16 @@ static struct aoc_service_dev *create_service_device(struct aoc_prvdata *prvdata
 	if (!s)
 		return NULL;
 
+	dev = kzalloc(sizeof(struct aoc_service_dev), GFP_KERNEL);
+	if (!dev)
+		return NULL;
+	prvdata->services[index] = dev;
+
 	name = aoc_service_name(s);
 	if (!name)
 		return NULL;
 
 	memcpy_fromio(service_name, name, sizeof(service_name));
-	if (!strcmp(service_name, "logging") || !strcmp(service_name, "debug"))
-		return NULL;
-
-	dev = kzalloc(sizeof(struct aoc_service_dev), GFP_KERNEL);
-	if (!dev)
-		return NULL;
-	prvdata->services[index] = dev;
 
 	dev_set_name(&dev->dev, "%s", service_name);
 	dev->dev.parent = parent;
@@ -1416,15 +1414,15 @@ static void aoc_did_become_online(struct work_struct *work)
 	}
 
 	for (i = 0; i < s; i++) {
-		create_service_device(prvdata, i);
+		if (!create_service_device(prvdata, i)) {
+			dev_err(prvdata->dev, "failed to create service device at index %d\n", i);
+			goto err;
+		}
 	}
 
 	aoc_state = AOC_STATE_ONLINE;
 
 	for (i = 0; i < s; i++) {
-		if (!prvdata->services[i])
-			continue;
-
 		ret = device_register(&prvdata->services[i]->dev);
 		if (ret)
 			dev_err(dev, "failed to register service device %s err=%d\n",
@@ -1658,7 +1656,7 @@ static void aoc_process_services(struct aoc_prvdata *prvdata, int offset)
 	for (i = 0; i < services; i++) {
 		service_dev = service_dev_at_index(prvdata, i);
 		if (!service_dev)
-			continue;
+			goto exit;
 
 		service = service_dev->service;
 		if (service_dev->mbox_index != offset)
@@ -2574,7 +2572,7 @@ static int aoc_platform_probe(struct platform_device *pdev)
 		sizeof(struct mbox_slot) * prvdata->aoc_mbox_channels, GFP_KERNEL);
 	if (!prvdata->mbox_channels) {
 		rc = -ENOMEM;
-		goto err_invalid_dt;
+		goto err_failed_prvdata_alloc;
 	}
 
 	prvdata->dev = dev;
@@ -2590,7 +2588,7 @@ static int aoc_platform_probe(struct platform_device *pdev)
 	if (rc) {
 		dev_err(dev, "Failed to initialize gsa device: %d\n", rc);
 		rc = -EINVAL;
-		goto err_invalid_dt;
+		goto err_failed_prvdata_alloc;
 	}
 
 	ret = init_chardev(prvdata);
@@ -2647,8 +2645,8 @@ static int aoc_platform_probe(struct platform_device *pdev)
 	init_waitqueue_head(&prvdata->aoc_reset_wait_queue);
 	INIT_WORK(&prvdata->watchdog_work, aoc_watchdog);
 
-	rc = configure_watchdog_interrupt(pdev, prvdata);
-	if (rc < 0)
+	ret = configure_watchdog_interrupt(pdev, prvdata);
+	if (ret < 0)
 		goto err_watchdog_irq;
 
 	iommu_node = of_parse_phandle(aoc_node, "iommus", 0);
@@ -2657,8 +2655,8 @@ static int aoc_platform_probe(struct platform_device *pdev)
 		rc = -ENODEV;
 		goto err_watchdog_iommu_irq;
 	}
-	rc = configure_iommu_interrupts(dev, iommu_node, prvdata);
-	if (rc < 0)
+	ret = configure_iommu_interrupts(dev, iommu_node, prvdata);
+	if (ret < 0)
 		goto err_watchdog_iommu_irq;
 	of_node_put(iommu_node);
 
@@ -2786,11 +2784,8 @@ err_mem_resources:
 err_memnode:
 	deinit_chardev(prvdata);
 err_chardev:
-	devm_remove_action(dev, release_gsa_device, prvdata);
-err_invalid_dt:
-	platform_set_drvdata(pdev, NULL);
-	devm_kfree(dev, prvdata);
 err_failed_prvdata_alloc:
+err_invalid_dt:
 	aoc_platform_device = NULL;
 err_platform_not_null:
 	return rc;

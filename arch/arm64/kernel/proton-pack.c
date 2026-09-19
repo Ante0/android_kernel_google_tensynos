@@ -908,6 +908,7 @@ static u8 spectre_bhb_loop_affected(void)
 		MIDR_ALL_VERSIONS(MIDR_CORTEX_X2),
 		MIDR_ALL_VERSIONS(MIDR_NEOVERSE_N2),
 		MIDR_ALL_VERSIONS(MIDR_NEOVERSE_V1),
+		MIDR_ALL_VERSIONS(MIDR_HISI_TSV110),
 		{},
 	};
 	static const struct midr_range spectre_bhb_k24_list[] = {
@@ -1121,7 +1122,7 @@ bool is_spectre_bhb_fw_mitigated(void)
 }
 
 /* Patched to NOP when enabled */
-void noinstr __visible spectre_bhb_patch_loop_mitigation_enable(struct alt_instr *alt,
+void noinstr spectre_bhb_patch_loop_mitigation_enable(struct alt_instr *alt,
 						     __le32 *origptr,
 						      __le32 *updptr, int nr_inst)
 {
@@ -1143,7 +1144,7 @@ void noinstr spectre_bhb_patch_fw_mitigation_enabled(struct alt_instr *alt,
 }
 
 /* Patched to correct the immediate */
-void noinstr __visible spectre_bhb_patch_loop_iter(struct alt_instr *alt,
+void noinstr spectre_bhb_patch_loop_iter(struct alt_instr *alt,
 				   __le32 *origptr, __le32 *updptr, int nr_inst)
 {
 	u8 rd;
@@ -1189,7 +1190,7 @@ void noinstr spectre_bhb_patch_wa3(struct alt_instr *alt,
 }
 
 /* Patched to NOP when not supported */
-void __init __visible spectre_bhb_patch_clearbhb(struct alt_instr *alt,
+void __init spectre_bhb_patch_clearbhb(struct alt_instr *alt,
 				   __le32 *origptr, __le32 *updptr, int nr_inst)
 {
 	BUG_ON(nr_inst != 2);

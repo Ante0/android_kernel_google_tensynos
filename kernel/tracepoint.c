@@ -337,6 +337,8 @@ static int tracepoint_add_func(struct tracepoint *tp,
 			lockdep_is_held(&tracepoints_mutex));
 	old = func_add(&tp_funcs, func, prio);
 	if (IS_ERR(old)) {
+		if (tp->unregfunc && !static_key_enabled(&tp->key))
+			tp->unregfunc();
 		WARN_ON_ONCE(warn && PTR_ERR(old) != -ENOMEM);
 		return PTR_ERR(old);
 	}
@@ -815,8 +817,6 @@ static int rvh_func_add(struct tracepoint *tp, struct tracepoint_func *func)
 		}
 	}
 
-	WARN(1, "Cannot register more than %d probes per vendor hook",
-	     ANDROID_RVH_NR_PROBES_MAX);
 	return -EBUSY;
 }
 

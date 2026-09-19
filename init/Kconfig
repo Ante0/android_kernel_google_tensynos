@@ -1289,31 +1289,6 @@ config CHECKPOINT_RESTORE
 
 	  If unsure, say N here.
 
-config SCHED_CASS
-	bool "Capacity Aware Superset Scheduler"
-	depends on SMP
-	help
-	  This enables the Capacity Aware Superset Scheduler (CASS), which
-	  optimizes runqueue selection of CFS tasks. By using CPU capacity as a
-	  basis for comparing the relative utilization between different CPUs,
-	  CASS fairly balances load across CPUs of varying capacities. This
-	  results in improved multi-core performance, especially when CPUs are
-	  overutilized because CASS doesn't clip a CPU's utilization when it
-	  eclipses the CPU's capacity.
-
-	  As a superset of capacity aware scheduling, CASS implements a
-	  hierarchy of criteria to determine the better CPU to wake a task upon
-	  between CPUs that have the same relative utilization. This way,
-	  single-core performance, latency, and cache affinity are all optimized
-	  where possible.
-
-	  CASS doesn't feature explicit energy awareness but its basic load
-	  balancing principle results in decreased overall energy, often better
-	  than what is possible with explicit energy awareness. By fairly
-	  balancing load based on relative utilization, all CPUs are kept at
-	  their lowest P-state necessary to satisfy the overall load at any
-	  given moment.
-
 config SCHED_AUTOGROUP
 	bool "Automatic process group scheduling"
 	select CGROUPS
@@ -1438,8 +1413,27 @@ config BOOT_CONFIG_EMBED_FILE
 	  This bootconfig will be used if there is no initrd or no other
 	  bootconfig in the initrd.
 
+config CMDLINE_LOG_WRAP_IDEAL_LEN
+	int "Length to try to wrap the cmdline when logged at boot"
+	default 974
+	range 0 974
+	help
+	  At boot time, the kernel command line is logged to the console.
+	  The log message will start with the prefix "Kernel command line: ".
+	  The log message will attempt to be wrapped (split into multiple log
+	  messages) at spaces based on CMDLINE_LOG_WRAP_IDEAL_LEN characters.
+	  If wrapping happens, each log message will start with the prefix and
+	  all but the last message will end with " \". Messages may exceed the
+	  ideal length if a place to wrap isn't found before the specified
+	  number of characters.
+
+	  A value of 0 disables wrapping, though be warned that the maximum
+	  length of a log message (1021 characters) may cause the cmdline to
+	  be truncated.
+
 config INITRAMFS_PRESERVE_MTIME
 	bool "Preserve cpio archive mtimes in initramfs"
+	depends on BLK_DEV_INITRD
 	default y
 	help
 	  Each entry in an initramfs cpio archive carries an mtime value. When
@@ -1459,12 +1453,6 @@ config CC_OPTIMIZE_FOR_PERFORMANCE
 	  with the "-O2" compiler flag for best performance and most
 	  helpful compile-time warnings.
 
-config CC_OPTIMIZE_FOR_PERFORMANCE_O3
-	bool "Optimize more for performance (-O3)"
-	help
-	  Choosing this option will pass "-O3" to your compiler to optimize
-	  the kernel yet more for performance.
-
 config CC_OPTIMIZE_FOR_SIZE
 	bool "Optimize for size (-Os)"
 	help
@@ -1472,9 +1460,6 @@ config CC_OPTIMIZE_FOR_SIZE
 	  in a smaller kernel.
 
 endchoice
-
-config LTO_GCC
-	bool "Enable Link Time Optimization for GCC"
 
 config HAVE_LD_DEAD_CODE_DATA_ELIMINATION
 	bool
@@ -1545,6 +1530,8 @@ config BPF
 
 menuconfig EXPERT
 	bool "Configure standard kernel features (expert users)"
+	# Unhide debug options, to make the on-by-default options visible
+	select DEBUG_KERNEL
 	help
 	  This option allows certain base kernel options and settings
 	  to be disabled or tweaked. This is for specialized
@@ -2064,4 +2051,4 @@ config ARCH_HAS_SYNC_CORE_BEFORE_USERMODE
 config ARCH_HAS_SYSCALL_WRAPPER
 	def_bool n
 
-#source "init/Kconfig.gki"
+source "init/Kconfig.gki"

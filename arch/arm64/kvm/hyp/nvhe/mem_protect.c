@@ -27,8 +27,8 @@
 
 struct host_mmu host_mmu;
 
-__visible struct pkvm_moveable_reg pkvm_moveable_regs[PKVM_NR_MOVEABLE_REGS];
-__visible unsigned int pkvm_moveable_regs_nr;
+struct pkvm_moveable_reg pkvm_moveable_regs[PKVM_NR_MOVEABLE_REGS];
+unsigned int pkvm_moveable_regs_nr;
 
 static struct hyp_pool host_s2_pool;
 
@@ -340,6 +340,9 @@ int __pkvm_guest_relinquish_to_host(struct pkvm_hyp_vcpu *vcpu,
 	};
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(vcpu);
 	int ret;
+
+	if (ipa & ~PAGE_MASK)
+		return -EINVAL;
 
 	host_lock_component();
 	guest_lock_component(vm);
