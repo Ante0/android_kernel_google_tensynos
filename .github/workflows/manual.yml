@@ -23,8 +23,8 @@ on:
           - all
           - ksu-susfs
           - ksu-next-susfs
-          - ksu-susfs-nomount
-          - ksu-next-susfs-nomount
+          - ksu-susfs-vpnhide
+          - ksu-next-susfs-vpnhide
 
 jobs:
   matrix:
@@ -54,8 +54,8 @@ jobs:
               VARIANTS=(
                   ksu-susfs
                   ksu-next-susfs
-                  ksu-susfs-nomount
-                  ksu-next-susfs-nomount
+                  ksu-susfs-vpnhide
+                  ksu-next-susfs-vpnhide
               )
           else
               VARIANTS=("$VARIANT")
