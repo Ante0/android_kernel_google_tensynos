@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/config.sh"
 
 if [ $# -ne 2 ]; then
-    echo "Usage: $0 <gs201|zuma|zumapro> <ksu-susfs|ksu-susfs-nomount|ksu-next-susfs|ksu-next-susfs-nomount"
+    echo "Usage: $0 <gs201|zuma|zumapro> <ksu-susfs|ksu-susfs-vpnhide|ksu-next-susfs|ksu-next-susfs-vpnhide"
     exit 1
 fi
 
@@ -34,12 +34,12 @@ case "$1" in
 esac
 
 case "$2" in
-    ksu-susfs|ksu-susfs-nomount|ksu-next-susfs|ksu-next-susfs-nomount)
+    ksu-susfs|ksu-susfs-vpnhide|ksu-next-susfs|ksu-next-susfs-vpnhide)
         VARIANT="$2"
         ;;
     *)
         echo "Error: '$2' is not a valid variant."
-        echo "Usage: $0 <gs201|zuma|zumapro> <ksu-susfs|ksu-susfs-nomount|ksu-next-susfs|ksu-next-susfs-nomount"
+        echo "Usage: $0 <gs201|zuma|zumapro> <ksu-susfs|ksu-susfs-vpnhide|ksu-next-susfs|ksu-next-susfs-vpnhide"
         exit 1
         ;;
 esac
@@ -77,6 +77,15 @@ clone_kernel_patches() {
 		--depth=1 \
 		"${PATCHES_REPO}" \
 		kernel_patches
+}
+
+clone_vpnhide() {
+	msg "Cloning VPNHIDE"
+
+	git clone \
+		--depth=1 \
+		"${VPNHIDE_REPO}" \
+		-b "${VPNHIDE_BRANCH}"
 }
 
 clone_nomount() {
@@ -149,6 +158,55 @@ install_ksu_next() {
         -o "$setup_script"
 
     bash "$setup_script" "$KSU_NEXT_BRANCH"
+}
+
+patch_vpnhide() {
+	msg "Applying VPNHide"
+	cp "$KERNEL_REPO"/vpnhide/builtin/include/linux/vpnhide.h "$KERNEL_REPO"/include/linux/
+	cp -r "$KERNEL_REPO"/vpnhide/builtin/security/vpnhide "$KERNEL_REPO"/security/
+	apply_patch_optional \
+                "$KERNEL_REPO" \
+                "$KERNEL_REPO"/vpnhide/builtin/versions/android14-6.1/fs_namei.c.patch
+        apply_patch_optional \
+                "$KERNEL_REPO" \
+                "$KERNEL_REPO"/vpnhide/builtin/versions/android14-6.1/fs_readdir.c.patch
+        apply_patch_optional \
+                "$KERNEL_REPO" \
+                "$KERNEL_REPO"/vpnhide/builtin/versions/android14-6.1/fs_stat.c.patch
+        apply_patch_optional \
+                "$KERNEL_REPO" \
+                "$KERNEL_REPO"/vpnhide/builtin/versions/android14-6.1/net_core_dev_ioctl.c.patch
+        apply_patch_optional \
+                "$KERNEL_REPO" \
+                "$KERNEL_REPO"/vpnhide/builtin/versions/android14-6.1/net_core_fib_rules.c.patch
+        apply_patch_optional \
+                "$KERNEL_REPO" \
+                "$KERNEL_REPO"/vpnhide/builtin/versions/android14-6.1/net_core_rtnetlink.c.patch
+        apply_patch_optional \
+                "$KERNEL_REPO" \
+                "$KERNEL_REPO"/vpnhide/builtin/versions/android14-6.1/net_ipv4_devinet.c.patch
+        apply_patch_optional \
+                "$KERNEL_REPO" \
+                "$KERNEL_REPO"/vpnhide/builtin/versions/android14-6.1/net_ipv4_fib_semantics.c.patch
+        apply_patch_optional \
+                "$KERNEL_REPO" \
+                "$KERNEL_REPO"/vpnhide/builtin/versions/android14-6.1/net_ipv4_fib_trie.c.patch
+        apply_patch_optional \
+                "$KERNEL_REPO" \
+                "$KERNEL_REPO"/vpnhide/builtin/versions/android14-6.1/net_ipv6_addrconf.c.patch
+        apply_patch_optional \
+                "$KERNEL_REPO" \
+                "$KERNEL_REPO"/vpnhide/builtin/versions/android14-6.1/net_ipv6_ip6_fib.c.patch
+        apply_patch_optional \
+                "$KERNEL_REPO" \
+                "$KERNEL_REPO"/vpnhide/builtin/versions/android14-6.1/net_ipv6_route.c.patch
+        apply_patch_optional \
+                "$KERNEL_REPO" \
+                "$KERNEL_REPO"/vpnhide/builtin/versions/android14-6.1/net_socket.c.patch
+		msg "Fix namei.c"
+        apply_patch_optional \
+                "$KERNEL_REPO" \
+                "$KERNEL_REPO"/kernel_patches/sultan/vpnhide_fs_namei.c.patch
 }
 
 patch_utf8() {
@@ -269,35 +327,41 @@ case "$VARIANT" in
     ksu-susfs)
 	install_ksu
 	clone_susfs
+	clone_nomount
 	patch_utf8
 	patch_susfs_ksu
 	patch_sultan
 	msg "$TARGET $VARIANT done"
         ;;
-	ksu-susfs-nomount)
+	ksu-susfs-vpnhide)
 	install_ksu
 	clone_susfs
+	clone_nomount
 	patch_utf8
 	patch_susfs_ksu
 	patch_sultan
-	clone_nomount
+	clone_vpnhide
+	patch_vpnhide
 	msg "$TARGET $VARIANT done"
 		;;
     ksu-next-susfs)
 	install_ksu_next
 	clone_susfs
+	clone_nomount
 	patch_utf8
 	patch_susfs_ksu_next
 	patch_sultan
 	echo "$TARGET $VARIANT done"
         ;;
-	ksu-next-susfs-nomount)
+	ksu-next-susfs-vpnhide)
 	install_ksu_next
 	clone_susfs
+	clone_nomount
 	patch_utf8
 	patch_susfs_ksu_next
-	patch_sultan
-	clone_nomount
+	patch_sultan	
+	clone_vpnhide
+	patch_vpnhide
 	echo "$TARGET $VARIANT done"
         ;;
 esac
@@ -319,9 +383,14 @@ if ! grep -q "^CONFIG_KSU_SUSFS=y$" "$DEFCONFIG"; then
         echo "CONFIG_KSU_SUSFS=y" >> "$DEFCONFIG"
 fi
 
-if [[ "$VARIANT" == *"-nomount" ]]; then
-                if ! grep -q "^CONFIG_NOMOUNT=y$" "$DEFCONFIG"; then
-                        echo "CONFIG_NOMOUNT=y" >> "$DEFCONFIG"
+#NoMount
+if ! grep -q "^CONFIG_NOMOUNT=y$" "$DEFCONFIG"; then
+		echo "CONFIG_NOMOUNT=y" >> "$DEFCONFIG"
+fi
+
+if [[ "$VARIANT" == *"-vpnhide" ]]; then
+                if ! grep -q "^CONFIG_VPNHIDE=y$" "$DEFCONFIG"; then
+                        echo "CONFIG_VPNHIDE=y" >> "$DEFCONFIG"
                 fi
 fi
 
