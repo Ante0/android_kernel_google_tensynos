@@ -48,9 +48,9 @@ readonly TARGETS=(
 
 readonly VARIANTS=(
     ksu-susfs
-    ksu-susfs-nomount
+    ksu-susfs-vpnhide
     ksu-next-susfs
-    ksu-next-susfs-nomount
+    ksu-next-susfs-vpnhide
 )
 
 ###############################################################################
@@ -84,6 +84,9 @@ readonly PATCHES2_REPO="https://github.com/Ante0/fix_patches"
 
 readonly NOMOUNT_REPO="https://github.com/maxsteeel/nomount"
 readonly NOMOUNT_BRANCH="dev"
+
+readonly VPNHIDE_REPO="https://github.com/okhsunrog/vpnhide"
+readonly VPNHIDE_BRANCH="main"
 
 ###############################################################################
 # Release
