@@ -103,6 +103,9 @@ IFS=$'\t' read -r NEW_SUSFS SUSFS_MSG \
 IFS=$'\t' read -r NEW_NOMOUNT NOMOUNT_MSG \
     < <(github_commit_info "$NOMOUNT_REPO" "$NOMOUNT_BRANCH" "kernel")
 
+IFS=$'\t' read -r NEW_VPNHIDE VPNHIDE_MSG \
+    < <(github_commit_info "$VPNHIDE_REPO" "$VPNHIDE_BRANCH" "builtin")
+
 NEW_SOURCE="$(git rev-parse HEAD)"
 SOURCE_MSG="$(git log -1 --pretty=%s)"
 
@@ -116,9 +119,9 @@ if [[ ! -f "${JSON_FILE}" ]]; then
 
     BUILD_VARIANTS=(
         ksu-susfs
-		ksu-susfs-nomount
+		ksu-susfs-vpnhide
 		ksu-next-susfs
-		ksu-next-susfs-nomount
+		ksu-next-susfs-vpnhide
     )
 
 else
@@ -128,6 +131,7 @@ else
     OLD_NEXT="$(jq -r '.kernelsu_next' "${JSON_FILE}")"
     OLD_SUSFS="$(jq -r '.susfs' "${JSON_FILE}")"
 	OLD_NOMOUNT="$(jq -r '.nomount' "${JSON_FILE}")"
+	OLD_VPNHIDE="$(jq -r '.vpnhide' "${JSON_FILE}")"
 
     BUILD_VARIANTS=()
 
@@ -136,8 +140,8 @@ if [[ "${OLD_SOURCE}" != "${NEW_SOURCE}" ]]; then
     BUILD_VARIANTS+=(
         ksu-susfs
         ksu-next-susfs
-		ksu-susfs-nomount
-		ksu-next-susfs-nomount
+		ksu-susfs-vpnhide
+		ksu-next-susfs-vpnhide
     )
 
     SHORT_SHA="${NEW_SOURCE:0:7}"
@@ -192,9 +196,9 @@ cat >>"$NOTES_FILE" <<EOF
 EOF
     fi
 
-###SUSFS
+###NoMount
     if [[ "${OLD_NOMOUNT}" != "${NEW_NOMOUNT}" ]]; then
-        BUILD_VARIANTS+=(ksu-susfs-nomount ksu-next-susfs-nomount)
+        BUILD_VARIANTS+=(ksu-susfs ksu-next-susfs ksu-susfs-vpnhide ksu-next-susfs-vpnhide)
 
 	SHORT_SHA="${NEW_NOMOUNT:0:7}"
 
@@ -202,6 +206,20 @@ cat >>"$NOTES_FILE" <<EOF
 ###NoMount
 
 - ${SHORT_SHA} — ${NOMOUNT_MSG}
+
+EOF
+    fi
+
+###VPNHIDE
+    if [[ "${OLD_VPNHIDE}" != "${NEW_VPNHIDE}" ]]; then
+        BUILD_VARIANTS+=(ksu-susfs-vpnhide ksu-next-susfs-vpnhide)
+
+	SHORT_SHA="${NEW_VPNHIDE:0:7}"
+
+cat >>"$NOTES_FILE" <<EOF
+###VPNHIDE
+
+- ${SHORT_SHA} — ${VPNHIDE_MSG}
 
 EOF
     fi
@@ -260,6 +278,7 @@ fi
     echo "next_sha=$NEW_NEXT"
     echo "susfs_sha=$NEW_SUSFS"
 	echo "nomount_sha=$NEW_NOMOUNT"
+	echo "vpnhide_sha=$NEW_VPNHIDE"
     echo "release_notes<<EOF"
     cat "$NOTES_FILE"
     echo "EOF"
