@@ -5389,7 +5389,6 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 				(__GFP_ATOMIC|__GFP_DIRECT_RECLAIM)))
 		gfp_mask &= ~__GFP_ATOMIC;
 
-	trace_android_vh_alloc_pages_slowpath_start(&stime);
 
 restart:
 	compaction_retries = 0;
@@ -5522,7 +5521,6 @@ restart:
 	}
 
 retry:
-	retry_loop_count++;
 	/*
 	 * Deal with possible cpuset update races or zonelist updates to avoid
 	 * infinite retries.
@@ -5591,7 +5589,7 @@ retry:
 	}
 	page = __alloc_pages_direct_reclaim(gfp_mask, order, alloc_flags, ac,
 							&did_some_progress);
-	pages_reclaimed += did_some_progress;
+
 	if (page)
 		goto got_pg;
 
