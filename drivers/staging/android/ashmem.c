@@ -263,46 +263,25 @@ static long ashmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case ASHMEM_GET_NAME:
 		return 0;
 	case ASHMEM_SET_SIZE:
-		ret = -EINVAL;
-		mutex_lock(&ashmem_mutex);
-		if (!asma->file) {
-			ret = 0;
-			asma->size = (size_t)arg;
-		}
-		mutex_unlock(&ashmem_mutex);
-		break;
-	case ASHMEM_GET_SIZE:
-		ret = asma->size;
-		break;
-	case ASHMEM_SET_PROT_MASK:
-		ret = set_prot_mask(asma, arg);
-		break;
-	case ASHMEM_GET_PROT_MASK:
-		ret = asma->prot_mask;
-		break;
-	case ASHMEM_PIN:
-	case ASHMEM_UNPIN:
-	case ASHMEM_GET_PIN_STATUS:
-		ret = ashmem_pin_unpin(asma, cmd, (void __user *)arg);
-		break;
-	case ASHMEM_PURGE_ALL_CACHES:
-		ret = -EPERM;
-		if (capable(CAP_SYS_ADMIN)) {
-			struct shrink_control sc = {
-				.gfp_mask = GFP_KERNEL,
-				.nr_to_scan = LONG_MAX,
-			};
-			ret = ashmem_shrink_count(&ashmem_shrinker, &sc);
-			ashmem_shrink_scan(&ashmem_shrinker, &sc);
-		}
-		break;
-	case ASHMEM_GET_FILE_ID:
-		ret = get_file_id(asma, &ino);
-		if (ret)
-			break;
+		if (READ_ONCE(asma->file))
+			return -EINVAL;
 
-		ret = put_user(ino, (unsigned long __user *)arg) ? -EFAULT : 0;
-		break;
+		WRITE_ONCE(asma->size, (size_t)arg);
+		return 0;
+	case ASHMEM_GET_SIZE:
+		return READ_ONCE(asma->size);
+	case ASHMEM_SET_PROT_MASK:
+		return set_prot_mask(asma, arg);
+	case ASHMEM_GET_PROT_MASK:
+		return READ_ONCE(asma->prot_mask);
+	case ASHMEM_PIN:
+		return 0;
+	case ASHMEM_UNPIN:
+		return 0;
+	case ASHMEM_GET_PIN_STATUS:
+		return ASHMEM_IS_PINNED;
+	case ASHMEM_PURGE_ALL_CACHES:
+		return capable(CAP_SYS_ADMIN) ? 0 : -EPERM;
 	}
 
 	return -ENOTTY;
