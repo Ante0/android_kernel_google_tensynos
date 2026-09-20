@@ -77,9 +77,7 @@ static void drain_openssl_errors(void)
 		}					\
 	} while(0)
 
-#ifdef USE_PKCS11_ENGINE
 static const char *key_pass;
-#endif
 static BIO *wb;
 static char *cert_dst;
 static int kbuild_verbose;
@@ -108,9 +106,7 @@ int main(int argc, char **argv)
 
 	kbuild_verbose = atoi(getenv("KBUILD_VERBOSE")?:"0");
 
-#ifdef USE_PKCS11_ENGINE
 	key_pass = getenv("KBUILD_SIGN_PIN");
-#endif
 
 	if (argc != 3)
 		format();
