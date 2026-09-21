@@ -83,7 +83,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Sultan_${{ inputs.branch }}_${{ inputs.target }}_${{ inputs.variant }}
+          name: Sultan_LTS_${{ inputs.branch }}_${{ inputs.target }}_${{ inputs.variant }}
           path: AnyKernel/*
           if-no-files-found: error
           compression-level: 0
