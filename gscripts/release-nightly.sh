@@ -51,11 +51,11 @@ EOF
 # Create release if necessary
 ###############################################################################
 
-if ! gh release view Nightly >/dev/null 2>&1; then
+if ! gh release view Nightly-LTS >/dev/null 2>&1; then
 
     msg "Creating Nightly release"
 
-    gh release create Nightly \
+    gh release create Nightly-LTS \
         --title "Nightly" \
         --notes "$RELEASE_NOTES"
 
@@ -67,7 +67,7 @@ fi
 
 msg "Uploading kernel packages"
 
-gh release upload Nightly \
+gh release upload Nightly-LTS \
     "${DIST_DIR}"/*.zip \
     --clobber
 
@@ -77,7 +77,7 @@ gh release upload Nightly \
 
 msg "Uploading nightly.json"
 
-gh release upload Nightly \
+gh release upload Nightly-LTS \
     "${DIST_DIR}/nightly.json" \
     --clobber
 
@@ -87,7 +87,7 @@ gh release upload Nightly \
 
 msg "Updating release notes"
 
-gh release edit Nightly \
+gh release edit Nightly-LTS \
     --title "Nightly" \
     --notes "$RELEASE_NOTES"
 
