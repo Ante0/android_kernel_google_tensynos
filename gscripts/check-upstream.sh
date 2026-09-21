@@ -71,10 +71,10 @@ if [[ -f "$LOCAL_JSON" ]]; then
     JSON_FILE="$LOCAL_JSON"
 fi
 
-if gh release view Nightly >/dev/null 2>&1; then
+if gh release view Nightly-LTS >/dev/null 2>&1; then
 
     ASSET_URL=$(
-        gh api repos/${GITHUB_REPOSITORY}/releases/tags/Nightly \
+        gh api repos/${GITHUB_REPOSITORY}/releases/tags/Nightly-LTS \
             --jq '.assets[]
                 | select(.name=="nightly.json")
                 | .url'
@@ -246,7 +246,7 @@ else
     JSON='{"include":['
     FIRST=true
 
-    for BRANCH in 17.0.0-cp2a 17.0.0-cp3a; do
+    for BRANCH in 17.0.0-cp3a-lts; do
     for TARGET in "${TARGETS[@]}"; do
         for VARIANT in "${BUILD_VARIANTS[@]}"; do
 
