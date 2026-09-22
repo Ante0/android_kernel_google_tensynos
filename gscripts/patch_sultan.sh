@@ -392,6 +392,15 @@ if ! grep -q "^CONFIG_NOMOUNT=y$" "$DEFCONFIG"; then
         echo "CONFIG_NOMOUNT=y" >> "$DEFCONFIG"
 fi
 
+#tmpfs
+if ! grep -q "^CONFIG_TMPFS_XATTR=y$" "$DEFCONFIG"; then
+		echo "CONFIG_TMPFS_XATTR=y" >> "$DEFCONFIG"
+fi
+
+if ! grep -q "^CONFIG_TMPFS_POSIX_ACL=y$" "$DEFCONFIG"; then
+		echo "CONFIG_TMPFS_POSIX_ACL=y" >> "$DEFCONFIG"
+fi
+
 if [[ "$VARIANT" == *"-vpnhide" ]]; then
                 if ! grep -q "^CONFIG_VPNHIDE=y$" "$DEFCONFIG"; then
                         echo "CONFIG_VPNHIDE=y" >> "$DEFCONFIG"
