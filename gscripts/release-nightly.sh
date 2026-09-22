@@ -56,7 +56,7 @@ if ! gh release view Nightly-LTS >/dev/null 2>&1; then
     msg "Creating Nightly release"
 
     gh release create Nightly-LTS \
-        --title "Nightly" \
+        --title "Nightly-LTS" \
         --notes "$RELEASE_NOTES"
 
 fi
