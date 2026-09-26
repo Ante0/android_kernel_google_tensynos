@@ -279,8 +279,8 @@ patch_vpnhide() {
 	mkdir "$KERNEL_REPO"/security/vpnhide/shared/
 	mkdir "$KERNEL_REPO"/security/vpnhide/generated/
 	cp "$KERNEL_REPO"/vpnhide/kmod/shared/vpnhide_logic.h "$KERNEL_REPO"/security/vpnhide/shared/
-	cp "$KERNEL_REPO"/vpnhide/generated/iface_lists.h "$KERNEL_REPO"/security/vpnhide/generated/
-	cp "$KERNEL_REPO"/vpnhide/generated/hook_ids.h "$KERNEL_REPO"/security/vpnhide/generated/
+	cp "$KERNEL_REPO"/vpnhide/kmod/generated/iface_lists.h "$KERNEL_REPO"/security/vpnhide/generated/
+	cp "$KERNEL_REPO"/vpnhide/kmod/generated/hook_ids.h "$KERNEL_REPO"/security/vpnhide/generated/
 	apply_patch_optional \
                 "$KERNEL_REPO" \
                 "$KERNEL_REPO"/vpnhide/builtin/versions/android14-6.1/fs_namei.c.patch
