@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Copyright (C) 2023 Google LLC
+
+build:tegu --config=zumapro_base
+build:tegu --//private/devices/google/common:kernel=//private/devices/google/tegu:tegu/kernel
+build:tegu --//private/google-modules/touch/common:samsung_drm
