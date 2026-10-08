@@ -265,7 +265,7 @@ patch_susfs_ksu() {
 	msg "Applying the SIMON IS ON VACATION SUSFS KernelSU patch"
 	apply_patch_optional \
 		"$KERNEL_REPO/KernelSU" \
-		"$KERNEL_REPO/kernel_patches/susfs_fix_patches/susfs4ksu.patch"
+		"$KERNEL_REPO/kernel_patches/ksu/susfs_fix_patches/susfs4ksu.patch"
 }
 
 patch_susfs_ksu_next() {
@@ -286,7 +286,7 @@ patch_susfs_ksu_next() {
 	msg "Applying the SIMON IS ON VACATION SUSFS KernelSU patch"
 	apply_patch_optional \
 		"$KERNEL_REPO/KernelSU-Next" \
-		"$KERNEL_REPO/kernel_patches/susfs_fix_patches/susfs4ksu.patch"
+		"$KERNEL_REPO/kernel_patches/ksu/susfs_fix_patches/susfs4ksu.patch"
 
 	msg "Applying KernelSU-Next compatibility fixes"
 
