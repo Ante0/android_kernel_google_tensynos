@@ -288,7 +288,6 @@ patch_susfs_ksu_next() {
 	apply_patch_optional \
 		"$KERNEL_REPO/KernelSU-Next" \
 		"$KERNEL_REPO/kernel_patches/ksu/susfs_fix_patches/susfs4ksu.patch"
-}
 
 	msg "Applying KernelSU-Next compatibility fixes"
 
@@ -319,6 +318,14 @@ patch_susfs_ksu_next() {
         apply_patch_optional \
                 "$KERNEL_REPO/KernelSU-Next" \
                 "$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/fix_supercall.c.patch"
+
+		apply_patch_optional \
+                "$KERNEL_REPO/KernelSU-Next" \
+                "$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/fix_selinux.c.patch"
+
+        apply_patch_optional \
+                "$KERNEL_REPO/KernelSU-Next" \
+                "$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/fix_ksu.h.patch"
 
         apply_patch_optional \
                 "$KERNEL_REPO/KernelSU-Next" \
