@@ -74,7 +74,7 @@ readonly KSU_NEXT_REPO="https://github.com/KernelSU-Next/KernelSU-Next"
 readonly KSU_NEXT_BRANCH="dev"
 
 readonly SUSFS_REPO="https://gitlab.com/simonpunk/susfs4ksu.git"
-readonly SUSFS_BRANCH="gki-android14-6.1"
+readonly SUSFS_BRANCH="gki-android14-6.1-dev"
 
 readonly ANYKERNEL_REPO="https://github.com/Ante0/AnyKernel3"
 readonly ANYKERNEL_BRANCH_PREFIX="sultan-17"
