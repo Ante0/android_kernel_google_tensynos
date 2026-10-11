@@ -56,7 +56,7 @@ trap 'rm -rf "$TMP"' EXIT
 NOTES_FILE="${TMP}/release_notes.md"
 
 cat >"$NOTES_FILE" <<EOF
-## Automated Nightly Build
+## Automated Nightly beta LTS Build
 
 This build was triggered by upstream changes.
 
@@ -74,7 +74,7 @@ fi
 if gh release view Nightly-LTS >/dev/null 2>&1; then
 
     ASSET_URL=$(
-        gh api repos/${GITHUB_REPOSITORY}/releases/tags/Nightly-LTS \
+        gh api repos/${GITHUB_REPOSITORY}/releases/tags/Nightly-beta-LTS \
             --jq '.assets[]
                 | select(.name=="nightly.json")
                 | .url'
@@ -246,7 +246,7 @@ else
     JSON='{"include":['
     FIRST=true
 
-    for BRANCH in 17.0.0-cp3a-lts; do
+    for BRANCH in 17.0.0-cp41.007; do
     for TARGET in "${TARGETS[@]}"; do
         for VARIANT in "${BUILD_VARIANTS[@]}"; do
 
