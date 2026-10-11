@@ -494,6 +494,7 @@ static int snd_aoc_pcm_close(struct snd_soc_component *component,
 	struct aoc_alsa_stream *alsa_stream = runtime->private_data;
 	struct aoc_chip *chip = alsa_stream->chip;
 	int err;
+	bool mutex_locked = true;
 
 	pr_debug("%s: name %s substream %p", __func__, rtd->dai_link->name, substream);
 	aoc_timer_stop_sync(alsa_stream);
@@ -508,7 +509,8 @@ static int snd_aoc_pcm_close(struct snd_soc_component *component,
 
 	if (mutex_lock_interruptible(&chip->audio_mutex)) {
 		pr_err("ERR: interrupted while waiting for lock\n");
-		return -EINTR;
+		mutex_locked = false;
+		/* b/480740542 don't return to cleanup the resource */
 	}
 
 	runtime = substream->runtime;
@@ -544,7 +546,8 @@ static int snd_aoc_pcm_close(struct snd_soc_component *component,
 	* Do not free up alsa_stream here, it will be freed up by
 	* runtime->private_free callback we registered in *_open above
    	*/
-	mutex_unlock(&chip->audio_mutex);
+	if (mutex_locked)
+		mutex_unlock(&chip->audio_mutex);
 
 	cancel_work_sync(&alsa_stream->free_aoc_service_work);
 
@@ -567,7 +570,7 @@ static int snd_aoc_pcm_hw_params(struct snd_soc_component *component,
 		return err;
 	}
 
-	substream->wait_time = msecs_to_jiffies(chip->pcm_wait_time_in_ms);
+	substream->wait_time = chip->pcm_wait_time_in_ms;
 
 	alsa_stream->channels = params_channels(params);
 	alsa_stream->params_rate = params_rate(params);

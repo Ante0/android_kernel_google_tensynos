@@ -11,6 +11,7 @@
 #include <linux/dma-direction.h>
 #include <linux/dma-mapping.h>
 #include <linux/dma-resv.h>
+#include <linux/fs.h>
 #include <linux/genalloc.h>
 #include <linux/iova.h>
 #include <linux/limits.h>
@@ -1226,6 +1227,12 @@ struct gcip_iommu_mapping *gcip_iommu_domain_map_dma_buf_to_iova(struct gcip_iom
 
 	gcip_map_flags_adjust_dir(&gcip_map_flags);
 	dir = GCIP_MAP_FLAGS_GET_DMA_DIRECTION(gcip_map_flags);
+
+	if (!(dmabuf->file->f_mode & FMODE_WRITE) && dir != DMA_TO_DEVICE) {
+		gcip_map_flags &= ~GCIP_MAP_MASK_DMA_DIRECTION;
+		gcip_map_flags |= GCIP_MAP_FLAGS_DMA_DIRECTION_TO_FLAGS(DMA_TO_DEVICE);
+		dir = DMA_TO_DEVICE;
+	}
 
 	attachment = dma_buf_attach(dmabuf, dev);
 	if (IS_ERR(attachment)) {

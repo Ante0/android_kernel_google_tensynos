@@ -17,6 +17,7 @@
 #include <linux/mm.h>
 #include <linux/preempt.h>
 #include <linux/slab.h>
+#include <linux/overflow.h>
 #include <linux/dma-fence.h>
 #include <linux/err.h>
 
@@ -991,23 +992,35 @@ static int prepare_response_locked(struct lwis_client *client, struct lwis_trans
 	size_t read_buf_size = 0;
 	int read_entries = 0;
 	const int reg_value_bytewidth = client->lwis_dev->native_value_bitwidth / 8;
+	size_t result_size, temp_size;
 
 	for (i = 0; i < info->num_io_entries; ++i) {
 		struct lwis_io_entry *entry = &info->io_entries[i];
 
-		if (entry->type == LWIS_IO_ENTRY_READ || entry->type == LWIS_IO_ENTRY_READ_V2) {
-			read_buf_size += reg_value_bytewidth;
-			read_entries++;
-		} else if (entry->type == LWIS_IO_ENTRY_READ_BATCH ||
-			   entry->type == LWIS_IO_ENTRY_READ_BATCH_V2) {
-			read_buf_size += entry->rw_batch.size_in_bytes;
+		if (entry->type == LWIS_IO_ENTRY_READ || entry->type == LWIS_IO_ENTRY_READ_V2 ||
+		    entry->type == LWIS_IO_ENTRY_READ_BATCH ||
+		    entry->type == LWIS_IO_ENTRY_READ_BATCH_V2) {
+			size_t size_in_bytes;
+
+			if (entry->type == LWIS_IO_ENTRY_READ ||
+			    entry->type == LWIS_IO_ENTRY_READ_V2)
+				size_in_bytes = reg_value_bytewidth;
+			else
+				size_in_bytes = entry->rw_batch.size_in_bytes;
+
+			if (check_add_overflow(read_buf_size, size_in_bytes, &read_buf_size))
+				return -EOVERFLOW;
 			read_entries++;
 		}
 	}
 
-	/* Event response payload consists of header, and address and offset pairs. */
-	resp_size = sizeof(struct lwis_transaction_response_header) +
-		    read_entries * sizeof(struct lwis_io_result) + read_buf_size;
+	if (check_mul_overflow(read_entries, sizeof(struct lwis_io_result), &result_size) ||
+	    check_add_overflow(sizeof(struct lwis_transaction_response_header), result_size,
+			       &temp_size) ||
+	    check_add_overflow(temp_size, read_buf_size, &resp_size)) {
+		return -EOVERFLOW;
+	}
+
 	/*
 	 * Revisit the use of GFP_ATOMIC here. Reason for this to be atomic is
 	 * because this function can be called by transaction_replace while

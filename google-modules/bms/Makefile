@@ -40,7 +40,8 @@ GBMS_MODULES =	GOOGLE_BMS \
 		VIMON_MAX77779 \
 		VIMON_MAX77779_I2C \
 		FWUPDATE_MAX77779 \
-		CHARGER_RT9471
+		CHARGER_RT9471 \
+		HL7132
 
 obj-$(CONFIG_GOOGLE_BMS)	+= google-bms.o
 google-bms-objs += google_bms.o

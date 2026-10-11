@@ -826,7 +826,6 @@ void gxp_vd_release(struct gxp_virtual_device *vd)
 	}
 	up_write(&vd->mappings_semaphore);
 
-	kfree(vd->mailbox_resp_queues);
 	if (vd->slice_index >= 0)
 		ida_free(&vd->gxp->shared_slice_idp, vd->slice_index);
 #ifndef GXP_USE_DEFAULT_DOMAIN
@@ -1542,8 +1541,10 @@ void gxp_vd_put(struct gxp_virtual_device *vd)
 {
 	if (!vd)
 		return;
-	if (refcount_dec_and_test(&vd->refcount))
+	if (refcount_dec_and_test(&vd->refcount)) {
+		kfree(vd->mailbox_resp_queues);
 		kfree(vd);
+	}
 }
 
 static void gxp_vd_invalidate_locked(struct gxp_dev *gxp, struct gxp_virtual_device *vd, u32 reason)

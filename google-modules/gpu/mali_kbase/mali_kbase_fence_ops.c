@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -60,12 +60,20 @@ static void kbase_fence_fence_value_str(struct dma_fence *fence, char *str, int 
 
 static void kbase_fence_release(struct dma_fence *fence)
 {
-	struct kbase_kcpu_dma_fence *kcpu_fence = (struct kbase_kcpu_dma_fence *)fence;
+	struct kbase_kcpu_dma_fence *kcpu_fence =
+		container_of(fence, struct kbase_kcpu_dma_fence, base);
+	struct kbase_kcpu_dma_fence_meta *metadata = kcpu_fence->metadata;
+	struct module *module = kcpu_fence->module;
 
-	kbase_kcpu_dma_fence_meta_put(kcpu_fence->metadata);
-	if (likely(kcpu_fence->module))
-		module_put(kcpu_fence->module);
-	kfree(kcpu_fence);
+	BUILD_BUG_ON(offsetof(struct kbase_kcpu_dma_fence, base) != 0);
+
+	/* Below is a MUST in freeing a kbase_kcpu_dma_fence, i.e. must use
+	 * upstream exported dma_fence_free() method. This ensures the alignment
+	 * of free-handling in kbase to the kernel upstream framework.
+	 */
+	dma_fence_free(fence);
+	kbase_kcpu_dma_fence_meta_put(metadata);
+	module_put(module);
 }
 
 extern const struct dma_fence_ops kbase_fence_ops; /* silence checker warning */

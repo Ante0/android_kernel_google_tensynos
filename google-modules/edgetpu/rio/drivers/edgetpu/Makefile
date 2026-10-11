@@ -11,6 +11,8 @@ M ?= $(shell pwd)
 EDGETPU_CHIP ?= RIO
 KBUILD_OPTIONS	+= CONFIG_$(EDGETPU_CHIP)=m
 
+KBUILD_OPTIONS	+= CONFIG_GCIP=y
+
 -include $(ROOT_DIR)/private/google-modules/soc/gs/Makefile.include
 
 ifneq ("$(wildcard $(COMMON_OUT_DIR)/private/google-modules/power/mitigation/Module.symvers)","")

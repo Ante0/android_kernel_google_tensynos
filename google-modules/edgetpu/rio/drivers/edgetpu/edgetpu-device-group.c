@@ -338,10 +338,6 @@ static void edgetpu_group_clear_responses(struct edgetpu_device_group *group)
 	 * as processed, no other threads will modify `pending_ikv_resps`.
 	 */
 	list_for_each_entry_safe(cur, nxt, &pending_ikv_resps, list_entry) {
-		if (cur->iif_dma_fence) {
-			iif_dma_fence_stop(cur->iif_dma_fence);
-			iif_fence_put(cur->iif_dma_fence);
-		}
 		gcip_fence_array_waited_async(cur->in_fence_array, IIF_IP_TPU);
 		gcip_fence_array_put_async(cur->out_fence_array);
 		gcip_fence_array_put_async(cur->in_fence_array);

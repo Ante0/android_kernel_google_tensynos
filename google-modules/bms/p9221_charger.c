@@ -112,10 +112,6 @@ static char *align_status_str[] = {
 	"...", "M2C", "OK", "-1"
 };
 
-static char *uevent_source_str[] = {
-	"WLC", "FAN", "RTX"
-};
-
 static size_t p9221_hex_str(u8 *data, size_t len, char *buf, size_t max_buf,
 			    bool msbfirst)
 {
@@ -3424,7 +3420,7 @@ int p9xxx_sw_ramp_icl(struct p9221_charger_data *charger, const int icl_target)
 		dev_dbg(&charger->client->dev, "%s: Voting ICL %duA (t=%d)\n", __func__, icl_now, icl_target);
 
 		gvotable_cast_int_vote(charger->dc_icl_votable, P9221_RAMP_VOTER, icl_now, true);
-		msleep(500);
+		usleep_range(100 * USEC_PER_MSEC, 120 * USEC_PER_MSEC);
 	}
 
 	mutex_unlock(&charger->icl_lock);

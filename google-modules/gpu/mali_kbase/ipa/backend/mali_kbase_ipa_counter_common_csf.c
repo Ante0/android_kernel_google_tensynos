@@ -275,10 +275,11 @@ int kbase_ipa_counter_dynamic_coeff(struct kbase_ipa_model *model, u32 *coeffp)
 	 * switch to the simple power model.
 	 */
 	ret = kbase_ipa_control_query(kbdev, model_data->ipa_control_client, cnt_values_p,
-				      num_counters, NULL, &now);
+				      num_counters, NULL);
 	if (WARN_ON(ret))
 		return ret;
 
+	now = ktime_get_raw();
 	diff = ktime_sub(now, kbdev->ipa.last_sample_time);
 	diff_ms = ktime_to_ms(diff);
 
@@ -353,7 +354,7 @@ void kbase_ipa_counter_reset_data(struct kbase_ipa_model *model)
 	lockdep_assert_held(&model->kbdev->ipa.lock);
 
 	ret = kbase_ipa_control_query(model->kbdev, model_data->ipa_control_client, cnt_values_p,
-				      num_counters, NULL, NULL);
+				      num_counters, NULL);
 	WARN_ON(ret);
 }
 

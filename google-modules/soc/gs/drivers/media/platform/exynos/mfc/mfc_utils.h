@@ -181,6 +181,7 @@ static inline int mfc_check_mb_flag(struct mfc_buf *mfc_buf, enum mfc_mb_flag f)
 }
 
 int mfc_check_vb_with_fmt(struct mfc_fmt *fmt, struct vb2_buffer *vb);
+int mfc_check_dec_resolution(struct mfc_ctx *ctx, int width, int height);
 unsigned int mfc_get_uncomp_format(struct mfc_ctx *ctx, u32 org_fmt);
 void mfc_set_linear_stride_size(struct mfc_ctx *ctx, struct mfc_raw_info *raw, struct mfc_fmt *fmt);
 void mfc_dec_calc_dpb_size(struct mfc_ctx *ctx, struct mfc_raw_info *raw, struct mfc_fmt *fmt);

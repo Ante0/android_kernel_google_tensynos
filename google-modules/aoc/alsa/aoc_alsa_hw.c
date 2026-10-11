@@ -776,7 +776,7 @@ int aoc_sidetone_eq_set(struct aoc_chip *chip, int biquad_idx, long *val)
 	cmd.stage_num = biquad_idx;
 	for (i = 0; i < n_params; i++) {
 		tmp = (uint32_t)val[i];
-		memcpy(&cmd.coeffs[i], &tmp, sizeof(tmp));
+		cmd.coeffs[i] = *(float *)(&tmp);
 	}
 	err = aoc_audio_control(CMD_OUTPUT_CHANNEL, (uint8_t *)&cmd, sizeof(cmd), (uint8_t *)&cmd,
 				chip);
@@ -2574,7 +2574,7 @@ int aoc_mel_rs2_set(struct aoc_chip *chip, long *rs2)
 	AocCmdHdrSet(&(cmd.parent), CMD_AUDIO_OUTPUT_MEL_SET_RS2_ID, sizeof(cmd));
 
 	tmp = (uint32_t)rs2[0];
-	memcpy(&cmd.rs2_value, &tmp, sizeof(tmp));
+	cmd.rs2_value = *(float *)(&tmp);
 
 	err = aoc_audio_control(CMD_OUTPUT_CHANNEL, (uint8_t *)&cmd, sizeof(cmd), (uint8_t *)&cmd,
 		chip);
@@ -2612,9 +2612,9 @@ int aoc_compr_offload_playback_rate_set(struct aoc_chip *chip, long *val)
 	AocCmdHdrSet(&(cmd.parent), CMD_AUDIO_OUTPUT_DECODER_CFG_SPEED_ID, sizeof(cmd));
 
 	tmp = (uint32_t)val[0];
-	memcpy(&cmd.speed, &tmp, sizeof(tmp));
+	cmd.speed = *(float *)(&tmp);
 	tmp = (uint32_t)val[1];
-	memcpy(&cmd.pitch, &tmp, sizeof(tmp));
+	cmd.pitch = *(float *)(&tmp);
 	cmd.stretch_mode = (int32_t)val[2];
 	cmd.fallback_mode = (int32_t)val[3];
 
@@ -3160,17 +3160,20 @@ error:
 int aoc_displayport_service_free(struct aoc_chip *chip)
 {
 	struct aoc_service_dev *dev;
+	bool mutex_locked = true;
+
 	if (!chip)
 		return -ENODEV;
 	if (mutex_lock_interruptible(&chip->audio_cmd_chan_mutex))
-		return -EINTR;
+		mutex_locked = false;
 
 	chip->dp_starting = 0;
 	dev = chip->dp_dev;
 	chip->dp_dev = NULL;
 	if (dev)
 		free_aoc_audio_service(AOC_DISPLAYPORT_SERVICE, dev);
-	mutex_unlock(&chip->audio_cmd_chan_mutex);
+	if (mutex_locked)
+		mutex_unlock(&chip->audio_cmd_chan_mutex);
 	return 0;
 }
 

@@ -25,8 +25,10 @@
 #include "google_dc_pps.h"
 #include <linux/usb/max77759_export.h>
 
+#ifdef CONFIG_DEBUG_FS
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
+#endif
 
 #define PPS_UPDATE_DELAY_MS		2000
 

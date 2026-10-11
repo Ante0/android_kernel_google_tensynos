@@ -764,7 +764,7 @@ int kbase_csf_queue_bind(struct kbase_context *kctx, union kbase_ioctl_cs_queue_
 	queue = find_queue(kctx, bind->in.buffer_gpu_addr);
 
 	if (!group || !queue)
-		goto out;
+		goto out_unlock_csf;
 
 	/* For the time being, all CSGs have the same number of CSs
 	 * so we check CSG 0 for this number
@@ -772,23 +772,25 @@ int kbase_csf_queue_bind(struct kbase_context *kctx, union kbase_ioctl_cs_queue_
 	max_streams = kctx->kbdev->csf.global_iface.groups[0].stream_num;
 
 	if (bind->in.csi_index >= max_streams)
-		goto out;
+		goto out_unlock_csf;
 
 	if (queue->user_io_addr != NULL) {
 		dev_err(kctx->kbdev->dev, "Queue with stale user_io address: %pK",
 			(void *)queue->user_io_addr);
-		goto out;
+		goto out_unlock_csf;
 	}
 
 	if (group->run_state == KBASE_CSF_GROUP_TERMINATED)
-		goto out;
+		goto out_unlock_csf;
+
+	kbase_csf_scheduler_lock(kctx->kbdev);
 
 	if (queue->group || group->bound_queues[bind->in.csi_index])
-		goto out;
+		goto out_unlock_sched;
 
 	ret = get_user_pages_mmap_handle(kctx, queue);
 	if (ret)
-		goto out;
+		goto out_unlock_sched;
 
 	bind->out.mmap_handle = queue->handle;
 	group->bound_queues[bind->in.csi_index] = queue;
@@ -797,7 +799,9 @@ int kbase_csf_queue_bind(struct kbase_context *kctx, union kbase_ioctl_cs_queue_
 	queue->csi_index = (s8)bind->in.csi_index;
 	queue->bind_state = KBASE_CSF_QUEUE_BIND_IN_PROGRESS;
 
-out:
+out_unlock_sched:
+	kbase_csf_scheduler_unlock(kctx->kbdev);
+out_unlock_csf:
 	rt_mutex_unlock(&kctx->csf.lock);
 
 	return ret;
@@ -1068,11 +1072,22 @@ static void unbind_queue(struct kbase_context *kctx, struct kbase_queue *queue)
 	kbase_reset_gpu_assert_failed_or_prevented(kctx->kbdev);
 	lockdep_assert_held(&kctx->csf.lock);
 
-	if (queue->bind_state != KBASE_CSF_QUEUE_UNBOUND) {
-		if (queue->bind_state == KBASE_CSF_QUEUE_BOUND)
-			kbase_csf_scheduler_queue_stop(queue);
+	if (queue->bind_state == KBASE_CSF_QUEUE_UNBOUND)
+		return;
 
+	if (queue->bind_state == KBASE_CSF_QUEUE_BOUND) {
+		kbase_csf_scheduler_queue_stop(queue);
 		unbind_stopped_queue(kctx, queue);
+	}
+
+	if (queue->bind_state == KBASE_CSF_QUEUE_BIND_IN_PROGRESS) {
+		/* Hold scheduler lock to prevent a rare racing against
+		 * queue termination or vm_close which holds the same lock
+		 * and clears group->bound_queues[] and frees the queue.
+		 */
+		kbase_csf_scheduler_lock(kctx->kbdev);
+		unbind_stopped_queue(kctx, queue);
+		kbase_csf_scheduler_unlock(kctx->kbdev);
 	}
 }
 

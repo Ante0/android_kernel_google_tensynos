@@ -438,6 +438,7 @@ static int aoc_compr_playback_free(struct snd_compr_stream *cstream)
 	struct aoc_alsa_stream *alsa_stream = runtime->private_data;
 	struct aoc_chip *chip = alsa_stream->chip;
 	int err;
+	bool mutex_locked = true;
 
 	pr_debug("dai name %s, cstream %pK\n", rtd->dai_link->name, cstream);
 	aoc_timer_stop_sync(alsa_stream);
@@ -445,7 +446,8 @@ static int aoc_compr_playback_free(struct snd_compr_stream *cstream)
 	cancel_work_sync(&alsa_stream->free_aoc_service_work);
 	if (mutex_lock_interruptible(&chip->audio_mutex)) {
 		pr_err("ERR: interrupted while waiting for lock\n");
-		return -EINTR;
+		mutex_locked = false;
+		/* b/480740542 don't return to cleanup the resource */
 	}
 	chip->compr_offload_stream = NULL;
 
@@ -479,7 +481,8 @@ static int aoc_compr_playback_free(struct snd_compr_stream *cstream)
 	chip->opened &= ~(1 << alsa_stream->idx);
 	kfree(alsa_stream);
 
-	mutex_unlock(&chip->audio_mutex);
+	if (mutex_locked)
+		mutex_unlock(&chip->audio_mutex);
 
 	return 0;
 }
