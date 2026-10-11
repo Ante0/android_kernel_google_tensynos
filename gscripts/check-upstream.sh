@@ -56,7 +56,7 @@ trap 'rm -rf "$TMP"' EXIT
 NOTES_FILE="${TMP}/release_notes.md"
 
 cat >"$NOTES_FILE" <<EOF
-## Automated Nightly Build
+## Automated Nightly LTS Build
 
 This build was triggered by upstream changes.
 
