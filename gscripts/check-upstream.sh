@@ -71,7 +71,7 @@ if [[ -f "$LOCAL_JSON" ]]; then
     JSON_FILE="$LOCAL_JSON"
 fi
 
-if gh release view Nightly-LTS >/dev/null 2>&1; then
+if gh release view Nightly-beta-LTS >/dev/null 2>&1; then
 
     ASSET_URL=$(
         gh api repos/${GITHUB_REPOSITORY}/releases/tags/Nightly-beta-LTS \
