@@ -12,9 +12,9 @@
 #ifndef __GOOGLE_SLC_PMON_H__
 #define __GOOGLE_SLC_PMON_H__
 
-struct slc_acpm_driver_data;
-
 #if IS_ENABLED(CONFIG_SLC_PMON)
+
+struct slc_acpm_driver_data;
 
 /*
  * Driver entry point: allocates SLC PMON structures and registers
@@ -32,16 +32,8 @@ extern void slc_pmon_exit(void);
 
 #else
 
-static inline int slc_pmon_init(struct slc_acpm_driver_data *driver_data,
-				int (*slc_acpm)(struct slc_acpm_driver_data *,
-						unsigned int, unsigned int,
-						unsigned long, uint32_t *))
-{
-	return 0;
-}
-static inline void slc_pmon_exit(void)
-{
-}
+#define slc_pmon_init(driver_data, acpm_callback) (0)
+#define slc_pmon_exit()
 
 #endif
 

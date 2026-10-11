@@ -1293,7 +1293,8 @@ static int max77729_pmic_probe(struct i2c_client *client,
 		}
 	}
 
-	if (dbg_init_fs(data) < 0)
+	ret = dbg_init_fs(data);
+	if (ret < 0)
 		dev_err(dev, "Failed to initialize debug fs\n");
 
 	if (pmic_id == MAX77759_PMIC_PMIC_ID_MW) {

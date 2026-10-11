@@ -115,10 +115,8 @@
 		} \
 	} while (0)
 #else
-#define __QDF_TRACE_RATE_LIMITED(arg ...) \
-	__qdf_trace_dummy(arg)
-#define __QDF_TRACE_HEX_DUMP_RATE_LIMITED(arg ...) \
-	__qdf_trace_dummy(arg)
+#define __QDF_TRACE_RATE_LIMITED(arg ...)
+#define __QDF_TRACE_HEX_DUMP_RATE_LIMITED(arg ...)
 #endif
 
 #define __QDF_TRACE_NO_FL(log_level, module_id, format, args...) \
@@ -355,7 +353,7 @@ static inline void qdf_vprint(const char *fmt, va_list args)
 #endif
 
 #ifdef PANIC_ON_BUG
-#if defined(CONFIG_SLUB_DEBUG) && defined(WLAN_DEBUG)
+#ifdef CONFIG_SLUB_DEBUG
 /**
  * __qdf_bug() - Calls BUG() when the PANIC_ON_BUG compilation option is enabled
  *

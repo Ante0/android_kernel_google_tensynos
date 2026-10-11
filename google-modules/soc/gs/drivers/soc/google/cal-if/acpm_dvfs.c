@@ -17,6 +17,10 @@
 #include "acpm_dvfs.h"
 #include "cmucal.h"
 
+#if !IS_ENABLED(CONFIG_ARM_EXYNOS_DEVFREQ)
+#define PM_QOS_BUS_THROUGHPUT (11)
+#endif
+
 #define ASYNC_DVFS_UNAVAILABLE 0xFFFFFFFF
 
 static struct acpm_dvfs acpm_dvfs;
@@ -94,6 +98,7 @@ int exynos_acpm_set_rate(unsigned int id, unsigned long rate)
 {
 	struct ipc_config config;
 	unsigned int cmd[4];
+	unsigned long long before, after, latency;
 	int ret;
 
 	if (acpm_dvfs.async_ch_num != ASYNC_DVFS_UNAVAILABLE && async_dvfs_enabled &&
@@ -106,22 +111,22 @@ int exynos_acpm_set_rate(unsigned int id, unsigned long rate)
 	config.cmd = cmd;
 	if (id == GET_IDX(ACPM_DVFS_MIF) || id == GET_IDX(ACPM_DVFS_INT) ||
 	    id == GET_IDX(ACPM_DVFS_CPUCL0) || id == GET_IDX(ACPM_DVFS_CPUCL1) ||
-	    id == GET_IDX(ACPM_DVFS_CPUCL2)
-#ifdef CONFIG_SOC_ZUMA
-	    || id == GET_IDX(ACPM_DVFS_DSU) || id == GET_IDX(ACPM_DVFS_BCI)
-#endif
-	    )
+	    id == GET_IDX(ACPM_DVFS_CPUCL2))
 		config.response = false;
 	else
 		config.response = true;
 	config.cmd[0] = id;
 	config.cmd[1] = (unsigned int)rate;
 	config.cmd[2] = FREQ_REQ;
-	config.cmd[3] = 0;
+	config.cmd[3] = (u32)(sched_clock() / 1000000); /*record ktime ms*/
 
+	before = sched_clock();
 	ret = acpm_ipc_send_data_lazy(acpm_dvfs.ch_num, &config);
+	after = sched_clock();
+	latency = after - before;
 	if (ret) {
-		pr_err("%s:[%d] ret = %d", __func__, id, ret);
+		pr_err("%s:[%d] latency = %llu ret = %d",
+			__func__, id, latency, ret);
 		return ret;
 	}
 
@@ -133,6 +138,7 @@ int exynos_acpm_set_init_freq(unsigned int dfs_id, unsigned long freq)
 {
 	struct ipc_config config;
 	unsigned int cmd[4];
+	unsigned long long before, after, latency;
 	int ret, id;
 
 	id = GET_IDX(dfs_id);
@@ -144,9 +150,13 @@ int exynos_acpm_set_init_freq(unsigned int dfs_id, unsigned long freq)
 	config.cmd[2] = DATA_INIT;
 	config.cmd[3] = SET_INIT_FREQ;
 
+	before = sched_clock();
 	ret = acpm_ipc_send_data_lazy(acpm_dvfs.ch_num, &config);
+	after = sched_clock();
+	latency = after - before;
 	if (ret) {
-		pr_err("%s:[%d] ret = %d", __func__, id, ret);
+		pr_err("%s:[%d] latency = %llu ret = %d",
+			__func__, id, latency, ret);
 		return ret;
 	}
 
@@ -158,6 +168,7 @@ int exynos_acpm_get_rate(unsigned int id, unsigned long dbg_val)
 {
 	struct ipc_config config;
 	unsigned int cmd[4];
+	unsigned long long before, after, latency;
 	int ret;
 
 	config.cmd = cmd;
@@ -165,11 +176,15 @@ int exynos_acpm_get_rate(unsigned int id, unsigned long dbg_val)
 	config.cmd[0] = id;
 	config.cmd[1] = dbg_val;
 	config.cmd[2] = FREQ_GET;
-	config.cmd[3] = 0;
+	config.cmd[3] = (u32)(sched_clock() / 1000000); /*record ktime ms*/
 
+	before = sched_clock();
 	ret = acpm_ipc_send_data_lazy(acpm_dvfs.ch_num, &config);
+	after = sched_clock();
+	latency = after - before;
 	if (ret)
-		pr_err("%s:[%d] ret = %d", __func__, id, ret);
+		pr_err("%s:[%d] latency = %llu ret = %d", __func__,
+			id, latency, ret);
 	if (config.cmd[3])
 		return config.cmd[3];
 
@@ -181,6 +196,7 @@ int exynos_acpm_set_volt_margin(unsigned int id, int volt)
 {
 	struct ipc_config config;
 	unsigned int cmd[4];
+	unsigned long long before, after, latency;
 	int ret;
 
 	config.cmd = cmd;
@@ -188,11 +204,15 @@ int exynos_acpm_set_volt_margin(unsigned int id, int volt)
 	config.cmd[0] = id;
 	config.cmd[1] = volt;
 	config.cmd[2] = MARGIN_REQ;
-	config.cmd[3] = 0;
+	config.cmd[3] = (u32)(sched_clock() / 1000000); /*record ktime ms*/
 
+	before = sched_clock();
 	ret = acpm_ipc_send_data_lazy(acpm_dvfs.ch_num, &config);
+	after = sched_clock();
+	latency = after - before;
 	if (ret) {
-		pr_err("%s:[%d] ret = %d", __func__, id, ret);
+		pr_err("%s:[%d] latency = %llu ret = %d",
+			__func__, id, latency, ret);
 		return ret;
 	}
 
@@ -203,6 +223,7 @@ int exynos_acpm_set_policy(unsigned int id, unsigned long policy)
 {
 	struct ipc_config config;
 	unsigned int cmd[4];
+	unsigned long long before, after, latency;
 	int ret;
 
 	config.cmd = cmd;
@@ -210,11 +231,15 @@ int exynos_acpm_set_policy(unsigned int id, unsigned long policy)
 	config.cmd[0] = id;
 	config.cmd[1] = policy;
 	config.cmd[2] = POLICY_REQ;
-	config.cmd[3] = 0;
+	config.cmd[3] = (u32)(sched_clock() / 1000000); /*record ktime ms*/
 
+	before = sched_clock();
 	ret = acpm_ipc_send_data(acpm_dvfs.ch_num, &config);
+	after = sched_clock();
+	latency = after - before;
 	if (ret) {
-		pr_err("%s:[%d] ret = %d", __func__, id, ret);
+		pr_err("%s:[%d] latency = %llu ret = %d",
+			__func__, id, latency, ret);
 		return ret;
 	}
 
