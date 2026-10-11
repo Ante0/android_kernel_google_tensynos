@@ -57,6 +57,7 @@ NOTES_FILE="${TMP}/release_notes.md"
 
 cat >"$NOTES_FILE" <<EOF
 ## Automated Nightly beta LTS Build
+NOTE: for QPR2 Beta 7, untested on anything else.
 
 This build was triggered by upstream changes.
 
