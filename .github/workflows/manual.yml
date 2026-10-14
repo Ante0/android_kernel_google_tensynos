@@ -3,6 +3,16 @@ name: Manual Build
 on:
   workflow_dispatch:
     inputs:
+      branch:
+        description: Kernel branch to build
+        type: choice
+        required: true
+        options:
+          - 17.0.0-cp2a
+          - 17.0.0-cp3a
+          - 17.0.0-cp3a-lts
+          - 17.0.0-cp41.007
+
       target:
         description: Device target
         type: choice
@@ -102,6 +112,6 @@ jobs:
     with:
       target: ${{ matrix.target }}
       variant: ${{ matrix.variant }}
-      branch: ${{ github.ref_name }}
+      branch: ${{ inputs.branch }}
 
     secrets: inherit
