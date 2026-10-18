@@ -200,7 +200,7 @@ patch_susfs_ksu() {
 	msg "Applying SUSFS KernelSU patch"
 	apply_patch_optional \
 		"$KERNEL_REPO/KernelSU" \
-		"$KERNEL_REPO/kernel_patches/ksu/susfs_fix_patches/susfs_for_ksu.patch"
+		"$KERNEL_REPO/susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch"
 }
 
 patch_susfs_ksu_next() {
@@ -216,7 +216,7 @@ patch_susfs_ksu_next() {
 	msg "Applying SUSFS KernelSU patch"
 	apply_patch_optional \
 		"$KERNEL_REPO/KernelSU-Next" \
-		"$KERNEL_REPO/kernel_patches/ksu/susfs_fix_patches/susfs_for_ksu.patch"
+		"$KERNEL_REPO/susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch"
 
 	msg "Applying KernelSU-Next compatibility fixes"
 
