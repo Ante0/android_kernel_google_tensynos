@@ -33,7 +33,7 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("LeeGarChat");
 MODULE_DESCRIPTION("DWC3 OTG host-ready shim for recovery (replaces AOC) - Sultan Edition");
 
-extern int dcw3_otg_host_ready(bool ready);
+extern int dwc3_otg_host_ready(bool ready);
 
 static bool host_ready_active;
 static struct proc_dir_entry *proc_shim;
