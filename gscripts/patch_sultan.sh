@@ -252,6 +252,10 @@ patch_susfs_ksu_next() {
                 "$KERNEL_REPO/KernelSU-Next" \
                 "$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/fix_selinux.c.patch"
 
+		apply_patch_optional \
+                "$KERNEL_REPO/KernelSU-Next" \
+                "$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/fix_selinux_hide.c.patch"
+
         apply_patch_optional \
                 "$KERNEL_REPO/KernelSU-Next" \
                 "$KERNEL_REPO/kernel_patches/next/susfs_fix_patches/v2.2.0/fix_ksu.h.patch"
