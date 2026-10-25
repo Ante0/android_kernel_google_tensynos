@@ -79,6 +79,16 @@ clone_kernel_patches() {
 		kernel_patches
 }
 
+clone_otg_shim() {
+	msg "Cloning OTG_HOST_SHIM"
+
+	git clone \
+		--depth=1 \
+		-b "${OTG_SHIM_BRANCH}" \
+		"${OTG_SHIM_REPO}" \
+		otg_host_shim
+}
+
 clone_vpnhide() {
 	msg "Cloning VPNHIDE"
 
@@ -340,11 +350,24 @@ patch_sultan() {
 		"$KERNEL_REPO/sultan_patches/fix_sys.c.patch"
 }
 
+patch_otg_shim() {
+	msg "Patching dwc3 Kbuild"
+
+	apply_patch_optional \
+		"$KERNEL_REPO" \
+		"$KERNEL_REPO/sultan_patches/otg_host_shim.patch"
+
+	msg "Copying otg_host_shim.c"
+	cp "$KERNEL_REPO"/otg_host_shim/include/source/otg_host_shim/otg_host_shim.c "$KERNEL_REPO"/google-modules/soc/gs/drivers/usb/dwc3/
+}
+
 ######################################################
 
 #clone kernel_patches
 clone_kernel_patches
 clone_sultan_patches
+clone_otg_shim
+patch_otg_shim
 
 case "$VARIANT" in
     ksu-susfs)
