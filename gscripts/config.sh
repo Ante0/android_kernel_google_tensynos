@@ -88,6 +88,9 @@ readonly NOMOUNT_BRANCH="dev"
 readonly VPNHIDE_REPO="https://github.com/okhsunrog/vpnhide"
 readonly VPNHIDE_BRANCH="main"
 
+readonly OTG_SHIM_REPO="https://github.com/leegarchat/twrp_device_google_pixels"
+readonly OTG_SHIM_BRANCH="R12_16"
+
 ###############################################################################
 # Release
 ###############################################################################

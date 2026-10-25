@@ -79,6 +79,16 @@ clone_kernel_patches() {
 		kernel_patches
 }
 
+clone_otg_shim() {
+	msg "Cloning OTG_HOST_SHIM"
+
+	git clone \
+		--depth=1 \
+		-b "${OTG_SHIM_BRANCH}" \
+		"${OTG_SHIM_REPO}" \
+		otg_host_shim
+}
+
 clone_nomount() {
 	msg "Cloning Nomount"
 
@@ -272,15 +282,29 @@ patch_susfs_ksu_next() {
 patch_sultan() {
 	msg "Applying Sultan specific patches (fs/namespace.c and kernel/sys.c)"
 	msg "fs/namespace.c will fail if Simons susfs patch was successful (differences in sources)."
+
 	apply_patch_optional \
 		"$KERNEL_REPO" \
 		"$KERNEL_REPO/sultan_patches/fix_namespace.c.patch"
+
 	apply_patch_optional \
 		"$KERNEL_REPO" \
 		"$KERNEL_REPO/sultan_patches/fix_sys.c.patch"
+
 	apply_patch_optional \
-        "$KERNEL_REPO" \
-        "$KERNEL_REPO/sultan_patches/fix_super.c.patch"
+        	"$KERNEL_REPO" \
+        	"$KERNEL_REPO/sultan_patches/fix_super.c.patch"
+}
+
+patch_otg_shim() {
+	msg "Patching dwc3 Kbuild"
+
+	apply_patch_optional \
+		"$KERNEL_REPO" \
+		"$KERNEL_REPO/sultan_patches/otg_host_shim.patch"
+
+	msg "Copying otg_host_shim.c"
+	cp "$KERNEL_REPO"/otg_host_shim/include/source/otg_host_shim/otg_host_shim.c "$KERNEL_REPO"/google-modules/soc/gs/drivers/usb/dwc3/
 }
 
 patch_vpnhide() {
@@ -341,7 +365,6 @@ patch_vpnhide() {
 		apply_patch_optional \
                 "$KERNEL_REPO" \
                 "$KERNEL_REPO"/kernel_patches/sultan/vpnhide_security_Makefile.patch
-				
 }
 
 ######################################################
@@ -349,6 +372,8 @@ patch_vpnhide() {
 #clone_kernel_patches
 clone_kernel_patches
 clone_sultan_patches
+clone_otg_shim
+patch_otg_shim
 
 case "$VARIANT" in
     ksu-susfs)
