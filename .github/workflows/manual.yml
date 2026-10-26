@@ -11,7 +11,6 @@ on:
           - 17.0.0-cp2a
           - 17.0.0-cp3a
           - 17.0.0-cp3a-lts
-          - 17.0.0-cp41.007
 
       target:
         description: Device target
