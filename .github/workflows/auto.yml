@@ -123,4 +123,3 @@ jobs:
             "${{ needs.check.outputs.nomount_sha }}" \
             "${{ needs.check.outputs.vpnhide_sha }}" \
             "$RELEASE_NOTES"
-            
