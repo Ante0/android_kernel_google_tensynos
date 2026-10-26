@@ -22,22 +22,24 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Checkout shared scripts
+        uses: actions/checkout@v4
         with:
-          ref: 17.0.0-cp3a-lts
+          repository: Ante0/gscripts
+          ref: main
+          path: shared-gscripts
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y jq gh
 
-      - name: Prepare scripts
-        run: chmod +x gscripts/*.sh
-
       - id: check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ./gscripts/check-upstream.sh
+          ./shared-gscripts/check-upstream.sh lts
 
   build:
     needs: check
@@ -69,8 +71,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: 17.0.0-cp3a-lts
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -103,15 +103,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gh
 
-      - name: Prepare scripts
-        run: chmod +x scripts/*.sh
-
       - name: Update Nightly release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_NOTES: ${{ needs.check.outputs.release_notes }}
         run: |
-          ./gscripts/release-nightly.sh \
+          ./shared-gscripts/release-nightly.sh \
             "${{ needs.check.outputs.source_sha }}" \
             "${{ needs.check.outputs.ksu_sha }}" \
             "${{ needs.check.outputs.next_sha }}" \
