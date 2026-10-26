@@ -33,6 +33,13 @@ jobs:
           ref: ${{ inputs.branch }} 
           submodules: recursive
 
+      - name: Checkout shared scripts
+        uses: actions/checkout@v4
+        with:
+          repository: Ante0/gscripts
+          ref: main
+          path: shared-gscripts
+
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -65,20 +72,17 @@ jobs:
             ccache-${{ runner.os }}-${{ inputs.target }}
             ccache-${{ runner.os }}
 
-      - name: Prepare scripts
-        run: chmod +x scripts/*.sh
-
       - name: Patch source tree
         run: |
-          ./gscripts/patch_sultan.sh "$TARGET" "$VARIANT"
+          ./shared-gscripts/patch_sultan.sh "$TARGET" "$VARIANT"
 
       - name: Build kernel
         run: |
-          ./gscripts/build.sh "$TARGET"
+          ./shared-gscripts/build.sh "$TARGET"
 
       - name: Package AnyKernel
         run: |
-          ./gscripts/package.sh "$TARGET" "$VARIANT"
+          ./shared-gscripts/package.sh "$TARGET" "$VARIANT"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
