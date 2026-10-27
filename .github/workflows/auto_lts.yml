@@ -18,6 +18,7 @@ jobs:
       susfs_sha: ${{ steps.check.outputs.susfs_sha }}
       nomount_sha: ${{ steps.check.outputs.nomount_sha }}
       vpnhide_sha: ${{ steps.check.outputs.vpnhide_sha }}
+      release_tag: ${{ steps.check.outputs.release_tag }}
       release_notes: ${{ steps.check.outputs.release_notes }}
 
     steps:
@@ -114,6 +115,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_NOTES: ${{ needs.check.outputs.release_notes }}
+          RELEASE_TAG: ${{ needs.check.outputs.release_tag }}
         run: |
           ./shared-gscripts/release-nightly.sh \
             "${{ needs.check.outputs.source_sha }}" \
