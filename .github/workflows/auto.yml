@@ -17,6 +17,7 @@ jobs:
       next_sha: ${{ steps.check.outputs.next_sha }}
       susfs_sha: ${{ steps.check.outputs.susfs_sha }}
       nomount_sha: ${{ steps.check.outputs.nomount_sha }}
+      gscripts_sha: ${{ steps.check.outputs.gscripts_sha }}
       vpnhide_sha: ${{ steps.check.outputs.vpnhide_sha }}
       release_notes: ${{ steps.check.outputs.release_notes }}
       release_tag: ${{ steps.check.outputs.release_tag }}
@@ -123,5 +124,6 @@ jobs:
             "${{ needs.check.outputs.next_sha }}" \
             "${{ needs.check.outputs.susfs_sha }}" \
             "${{ needs.check.outputs.nomount_sha }}" \
+            "${{ needs.check.outputs.gscripts_sha }}" \
             "${{ needs.check.outputs.vpnhide_sha }}" \
             "$RELEASE_NOTES"
