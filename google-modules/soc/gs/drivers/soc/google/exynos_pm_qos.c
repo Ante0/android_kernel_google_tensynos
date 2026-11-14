@@ -30,6 +30,7 @@
 #include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/spinlock.h>
+#include <linux/rwlock.h>
 #include <linux/slab.h>
 #include <linux/time.h>
 #include <linux/fs.h>
@@ -50,14 +51,91 @@
 #include <soc/google/exynos_pm_qos.h>
 #include "cal-if/acpm_dvfs.h"
 
+# define plist_check_head(h)	do { } while (0)
+/**
+ * plist_add - add @node to @head
+ *
+ * @node:	&struct plist_node pointer
+ * @head:	&struct plist_head pointer
+ */
+void exynos_plist_add(struct plist_node *node, struct plist_head *head)
+{
+	struct plist_node *first, *iter, *prev = NULL;
+	struct list_head *node_next = &head->node_list;
+
+	plist_check_head(head);
+	WARN_ON(!plist_node_empty(node));
+	WARN_ON(!list_empty(&node->prio_list));
+
+	if (plist_head_empty(head))
+		goto ins_node;
+
+	iter = plist_first(head);
+	first = iter;
+
+	do {
+		if (node->prio < iter->prio) {
+			node_next = &iter->node_list;
+			break;
+		}
+
+		prev = iter;
+		iter = list_entry(iter->prio_list.next,
+				  struct plist_node, prio_list);
+	} while (iter != first);
+
+	if (!prev || prev->prio != node->prio)
+		list_add_tail(&node->prio_list, &iter->prio_list);
+ins_node:
+	list_add_tail(&node->node_list, node_next);
+
+	plist_check_head(head);
+}
+
+/**
+ * plist_del - Remove a @node from plist.
+ *
+ * @node:	&struct plist_node pointer - entry to be removed
+ * @head:	&struct plist_head pointer - list head
+ */
+void exynos_plist_del(struct plist_node *node, struct plist_head *head)
+{
+	plist_check_head(head);
+
+	if (!list_empty(&node->prio_list)) {
+		if (node->node_list.next != &head->node_list) {
+			struct plist_node *next;
+
+			next = list_entry(node->node_list.next,
+					  struct plist_node, node_list);
+
+			/* add the next plist_node into prio_list */
+			if (list_empty(&next->prio_list))
+				list_add(&next->prio_list, &node->prio_list);
+		}
+		list_del_init(&node->prio_list);
+	}
+
+	list_del_init(&node->node_list);
+
+	plist_check_head(head);
+}
+
+/*
+ * locking rule: all changes to constraints or notifiers lists
+ * or exynos_pm_qos_object list and exynos_pm_qos_objects need to happen with exynos_pm_qos_lock
+ * held, taken with _irqsave.  One lock to rule them all
+ */
 struct exynos_pm_qos_object {
 	struct exynos_pm_qos_constraints *constraints;
 	char *name;
 };
 
+static DEFINE_RWLOCK(exynos_pm_qos_lock);
+
 static struct exynos_pm_qos_object null_exynos_pm_qos;
 
-SRCU_NOTIFIER_HEAD_STATIC(device_throughput_notifier);
+static BLOCKING_NOTIFIER_HEAD(device_throughput_notifier);
 static struct exynos_pm_qos_constraints device_tput_constraints = {
 	.list = PLIST_HEAD_INIT(device_tput_constraints.list),
 	.target_value = PM_QOS_DEVICE_THROUGHPUT_DEFAULT_VALUE,
@@ -72,7 +150,7 @@ static struct exynos_pm_qos_object device_throughput_pm_qos = {
 	.name = "device_throughput",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(device_throughput_max_notifier);
+static BLOCKING_NOTIFIER_HEAD(device_throughput_max_notifier);
 static struct exynos_pm_qos_constraints device_tput_max_constraints = {
 	.list = PLIST_HEAD_INIT(device_tput_max_constraints.list),
 	.target_value = PM_QOS_DEVICE_THROUGHPUT_MAX_DEFAULT_VALUE,
@@ -87,7 +165,7 @@ static struct exynos_pm_qos_object device_throughput_max_pm_qos = {
 	.name = "device_throughput_max",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(intcam_throughput_notifier);
+static BLOCKING_NOTIFIER_HEAD(intcam_throughput_notifier);
 static struct exynos_pm_qos_constraints intcam_tput_constraints = {
 	.list = PLIST_HEAD_INIT(intcam_tput_constraints.list),
 	.target_value = PM_QOS_INTCAM_THROUGHPUT_DEFAULT_VALUE,
@@ -102,7 +180,7 @@ static struct exynos_pm_qos_object intcam_throughput_pm_qos = {
 	.name = "intcam_throughput",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(intcam_throughput_max_notifier);
+static BLOCKING_NOTIFIER_HEAD(intcam_throughput_max_notifier);
 static struct exynos_pm_qos_constraints intcam_tput_max_constraints = {
 	.list = PLIST_HEAD_INIT(intcam_tput_max_constraints.list),
 	.target_value = PM_QOS_INTCAM_THROUGHPUT_MAX_DEFAULT_VALUE,
@@ -117,7 +195,7 @@ static struct exynos_pm_qos_object intcam_throughput_max_pm_qos = {
 	.name = "intcam_throughput_max",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(bus_throughput_notifier);
+static BLOCKING_NOTIFIER_HEAD(bus_throughput_notifier);
 static struct exynos_pm_qos_constraints bus_tput_constraints = {
 	.list = PLIST_HEAD_INIT(bus_tput_constraints.list),
 	.target_value = PM_QOS_BUS_THROUGHPUT_DEFAULT_VALUE,
@@ -132,7 +210,7 @@ static struct exynos_pm_qos_object bus_throughput_pm_qos = {
 	.name = "bus_throughput",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(bus_throughput_max_notifier);
+static BLOCKING_NOTIFIER_HEAD(bus_throughput_max_notifier);
 static struct exynos_pm_qos_constraints bus_tput_max_constraints = {
 	.list = PLIST_HEAD_INIT(bus_tput_max_constraints.list),
 	.target_value = PM_QOS_BUS_THROUGHPUT_MAX_DEFAULT_VALUE,
@@ -147,7 +225,7 @@ static struct exynos_pm_qos_object bus_throughput_max_pm_qos = {
 	.name = "bus_throughput_max",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(cluster2_freq_min_notifier);
+static BLOCKING_NOTIFIER_HEAD(cluster2_freq_min_notifier);
 static struct exynos_pm_qos_constraints cluster2_freq_min_constraints = {
 	.list = PLIST_HEAD_INIT(cluster2_freq_min_constraints.list),
 	.target_value = PM_QOS_CLUSTER2_FREQ_MIN_DEFAULT_VALUE,
@@ -162,7 +240,7 @@ static struct exynos_pm_qos_object cluster2_freq_min_pm_qos = {
 	.name = "cluster2_freq_min",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(cluster2_freq_max_notifier);
+static BLOCKING_NOTIFIER_HEAD(cluster2_freq_max_notifier);
 static struct exynos_pm_qos_constraints cluster2_freq_max_constraints = {
 	.list = PLIST_HEAD_INIT(cluster2_freq_max_constraints.list),
 	.target_value = PM_QOS_CLUSTER2_FREQ_MAX_DEFAULT_VALUE,
@@ -177,7 +255,7 @@ static struct exynos_pm_qos_object cluster2_freq_max_pm_qos = {
 	.name = "cluster2_freq_max",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(cluster1_freq_min_notifier);
+static BLOCKING_NOTIFIER_HEAD(cluster1_freq_min_notifier);
 static struct exynos_pm_qos_constraints cluster1_freq_min_constraints = {
 	.list = PLIST_HEAD_INIT(cluster1_freq_min_constraints.list),
 	.target_value = PM_QOS_CLUSTER1_FREQ_MIN_DEFAULT_VALUE,
@@ -192,7 +270,7 @@ static struct exynos_pm_qos_object cluster1_freq_min_pm_qos = {
 	.name = "cluster1_freq_min",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(cluster1_freq_max_notifier);
+static BLOCKING_NOTIFIER_HEAD(cluster1_freq_max_notifier);
 static struct exynos_pm_qos_constraints cluster1_freq_max_constraints = {
 	.list = PLIST_HEAD_INIT(cluster1_freq_max_constraints.list),
 	.target_value = PM_QOS_CLUSTER1_FREQ_MAX_DEFAULT_VALUE,
@@ -207,7 +285,7 @@ static struct exynos_pm_qos_object cluster1_freq_max_pm_qos = {
 	.name = "cluster1_freq_max",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(cluster0_freq_min_notifier);
+static BLOCKING_NOTIFIER_HEAD(cluster0_freq_min_notifier);
 static struct exynos_pm_qos_constraints cluster0_freq_min_constraints = {
 	.list = PLIST_HEAD_INIT(cluster0_freq_min_constraints.list),
 	.target_value = PM_QOS_CLUSTER0_FREQ_MIN_DEFAULT_VALUE,
@@ -222,7 +300,7 @@ static struct exynos_pm_qos_object cluster0_freq_min_pm_qos = {
 	.name = "cluster0_freq_min",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(cluster0_freq_max_notifier);
+static BLOCKING_NOTIFIER_HEAD(cluster0_freq_max_notifier);
 static struct exynos_pm_qos_constraints cluster0_freq_max_constraints = {
 	.list = PLIST_HEAD_INIT(cluster0_freq_max_constraints.list),
 	.target_value = PM_QOS_CLUSTER0_FREQ_MAX_DEFAULT_VALUE,
@@ -237,7 +315,7 @@ static struct exynos_pm_qos_object cluster0_freq_max_pm_qos = {
 	.name = "cluster0_freq_max",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(display_throughput_notifier);
+static BLOCKING_NOTIFIER_HEAD(display_throughput_notifier);
 static struct exynos_pm_qos_constraints display_tput_constraints = {
 	.list = PLIST_HEAD_INIT(display_tput_constraints.list),
 	.target_value = PM_QOS_DISPLAY_THROUGHPUT_DEFAULT_VALUE,
@@ -252,7 +330,7 @@ static struct exynos_pm_qos_object display_throughput_pm_qos = {
 	.name = "display_throughput",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(display_throughput_max_notifier);
+static BLOCKING_NOTIFIER_HEAD(display_throughput_max_notifier);
 static struct exynos_pm_qos_constraints display_tput_max_constraints = {
 	.list = PLIST_HEAD_INIT(display_tput_max_constraints.list),
 	.target_value = PM_QOS_DISPLAY_THROUGHPUT_MAX_DEFAULT_VALUE,
@@ -267,7 +345,7 @@ static struct exynos_pm_qos_object display_throughput_max_pm_qos = {
 	.name = "display_throughput_max",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(cam_throughput_notifier);
+static BLOCKING_NOTIFIER_HEAD(cam_throughput_notifier);
 static struct exynos_pm_qos_constraints cam_tput_constraints = {
 	.list = PLIST_HEAD_INIT(cam_tput_constraints.list),
 	.target_value = PM_QOS_CAM_THROUGHPUT_DEFAULT_VALUE,
@@ -282,7 +360,7 @@ static struct exynos_pm_qos_object cam_throughput_pm_qos = {
 	.name = "cam_throughput",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(cam_throughput_max_notifier);
+static BLOCKING_NOTIFIER_HEAD(cam_throughput_max_notifier);
 static struct exynos_pm_qos_constraints cam_tput_max_constraints = {
 	.list = PLIST_HEAD_INIT(cam_tput_max_constraints.list),
 	.target_value = PM_QOS_CAM_THROUGHPUT_MAX_DEFAULT_VALUE,
@@ -297,7 +375,7 @@ static struct exynos_pm_qos_object cam_throughput_max_pm_qos = {
 	.name = "cam_throughput_max",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(mfc_throughput_notifier);
+static BLOCKING_NOTIFIER_HEAD(mfc_throughput_notifier);
 static struct exynos_pm_qos_constraints mfc_tput_constraints = {
 	.list = PLIST_HEAD_INIT(mfc_tput_constraints.list),
 	.target_value = PM_QOS_MFC_THROUGHPUT_DEFAULT_VALUE,
@@ -312,7 +390,7 @@ static struct exynos_pm_qos_object mfc_throughput_pm_qos = {
 	.name = "mfc_throughput",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(gpu_freq_min_notifier);
+static BLOCKING_NOTIFIER_HEAD(gpu_freq_min_notifier);
 static struct exynos_pm_qos_constraints gpu_freq_min_constraints = {
 	.list = PLIST_HEAD_INIT(gpu_freq_min_constraints.list),
 	.target_value = PM_QOS_GPU_FREQ_MIN_DEFAULT_VALUE,
@@ -327,7 +405,7 @@ static struct exynos_pm_qos_object gpu_freq_min_pm_qos = {
 	.name = "gpu_freq_min",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(gpu_freq_max_notifier);
+static BLOCKING_NOTIFIER_HEAD(gpu_freq_max_notifier);
 static struct exynos_pm_qos_constraints gpu_freq_max_constraints = {
 	.list = PLIST_HEAD_INIT(gpu_freq_max_constraints.list),
 	.target_value = PM_QOS_GPU_FREQ_MAX_DEFAULT_VALUE,
@@ -342,7 +420,7 @@ static struct exynos_pm_qos_object gpu_freq_max_pm_qos = {
 	.name = "gpu_freq_max",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(mfc_throughput_max_notifier);
+static BLOCKING_NOTIFIER_HEAD(mfc_throughput_max_notifier);
 static struct exynos_pm_qos_constraints mfc_tput_max_constraints = {
 	.list = PLIST_HEAD_INIT(mfc_tput_max_constraints.list),
 	.target_value = PM_QOS_MFC_THROUGHPUT_MAX_DEFAULT_VALUE,
@@ -357,7 +435,7 @@ static struct exynos_pm_qos_object mfc_throughput_max_pm_qos = {
 	.name = "mfc_throughput_max",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(tnr_throughput_notifier);
+static BLOCKING_NOTIFIER_HEAD(tnr_throughput_notifier);
 static struct exynos_pm_qos_constraints tnr_tput_constraints = {
 	.list = PLIST_HEAD_INIT(tnr_tput_constraints.list),
 	.target_value = PM_QOS_TNR_THROUGHPUT_DEFAULT_VALUE,
@@ -372,7 +450,7 @@ static struct exynos_pm_qos_object tnr_throughput_pm_qos = {
 	.name = "tnr_throughput",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(tnr_throughput_max_notifier);
+static BLOCKING_NOTIFIER_HEAD(tnr_throughput_max_notifier);
 static struct exynos_pm_qos_constraints tnr_tput_max_constraints = {
 	.list = PLIST_HEAD_INIT(tnr_tput_max_constraints.list),
 	.target_value = PM_QOS_TNR_THROUGHPUT_MAX_DEFAULT_VALUE,
@@ -387,7 +465,7 @@ static struct exynos_pm_qos_object tnr_throughput_max_pm_qos = {
 	.name = "tnr_throughput_max",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(bw_throughput_notifier);
+static BLOCKING_NOTIFIER_HEAD(bw_throughput_notifier);
 static struct exynos_pm_qos_constraints bw_tput_constraints = {
 	.list = PLIST_HEAD_INIT(bw_tput_constraints.list),
 	.target_value = PM_QOS_BW_THROUGHPUT_DEFAULT_VALUE,
@@ -402,7 +480,7 @@ static struct exynos_pm_qos_object bw_throughput_pm_qos = {
 	.name = "bw_throughput",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(bw_throughput_max_notifier);
+static BLOCKING_NOTIFIER_HEAD(bw_throughput_max_notifier);
 static struct exynos_pm_qos_constraints bw_tput_max_constraints = {
 	.list = PLIST_HEAD_INIT(bw_tput_max_constraints.list),
 	.target_value = PM_QOS_BW_THROUGHPUT_MAX_DEFAULT_VALUE,
@@ -417,7 +495,7 @@ static struct exynos_pm_qos_object bw_throughput_max_pm_qos = {
 	.name = "bw_throughput_max",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(dsu_throughput_notifier);
+static BLOCKING_NOTIFIER_HEAD(dsu_throughput_notifier);
 static struct exynos_pm_qos_constraints dsu_tput_constraints = {
         .list = PLIST_HEAD_INIT(dsu_tput_constraints.list),
         .target_value = PM_QOS_DSU_THROUGHPUT_DEFAULT_VALUE,
@@ -432,7 +510,7 @@ static struct exynos_pm_qos_object dsu_throughput_pm_qos = {
         .name = "dsu_throughput",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(dsu_throughput_max_notifier);
+static BLOCKING_NOTIFIER_HEAD(dsu_throughput_max_notifier);
 static struct exynos_pm_qos_constraints dsu_tput_max_constraints = {
         .list = PLIST_HEAD_INIT(dsu_tput_max_constraints.list),
         .target_value = PM_QOS_DSU_THROUGHPUT_MAX_DEFAULT_VALUE,
@@ -447,7 +525,7 @@ static struct exynos_pm_qos_object dsu_throughput_max_pm_qos = {
         .name = "dsu_throughput_max",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(bci_throughput_notifier);
+static BLOCKING_NOTIFIER_HEAD(bci_throughput_notifier);
 static struct exynos_pm_qos_constraints bci_tput_constraints = {
         .list = PLIST_HEAD_INIT(bci_tput_constraints.list),
         .target_value = PM_QOS_BCI_THROUGHPUT_DEFAULT_VALUE,
@@ -462,7 +540,7 @@ static struct exynos_pm_qos_object bci_throughput_pm_qos = {
         .name = "bci_throughput",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(bci_throughput_max_notifier);
+static BLOCKING_NOTIFIER_HEAD(bci_throughput_max_notifier);
 static struct exynos_pm_qos_constraints bci_tput_max_constraints = {
         .list = PLIST_HEAD_INIT(bci_tput_max_constraints.list),
         .target_value = PM_QOS_BCI_THROUGHPUT_MAX_DEFAULT_VALUE,
@@ -477,7 +555,7 @@ static struct exynos_pm_qos_object bci_throughput_max_pm_qos = {
         .name = "bci_throughput_max",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(tpu_freq_min_notifier);
+static BLOCKING_NOTIFIER_HEAD(tpu_freq_min_notifier);
 static struct exynos_pm_qos_constraints tpu_freq_min_constraints = {
 	.list = PLIST_HEAD_INIT(tpu_freq_min_constraints.list),
 	.target_value = 0,
@@ -492,7 +570,7 @@ static struct exynos_pm_qos_object tpu_freq_min_pm_qos = {
 	.name = "tpu_freq_min",
 };
 
-SRCU_NOTIFIER_HEAD_STATIC(tpu_freq_max_notifier);
+static BLOCKING_NOTIFIER_HEAD(tpu_freq_max_notifier);
 static struct exynos_pm_qos_constraints tpu_freq_max_constraints = {
 	.list = PLIST_HEAD_INIT(tpu_freq_max_constraints.list),
 	.target_value = INT_MAX,
@@ -587,15 +665,21 @@ s32 exynos_pm_qos_read_value(struct exynos_pm_qos_constraints *c)
 int exynos_pm_qos_read_req_value(int pm_qos_class, struct exynos_pm_qos_request *req)
 {
 	struct plist_node *p;
+	unsigned long flags;
+
+	read_lock_irqsave(&exynos_pm_qos_lock, flags);
 
 	spin_lock(&exynos_pm_qos_array[pm_qos_class]->constraints->lock);
 	plist_for_each(p, &exynos_pm_qos_array[pm_qos_class]->constraints->list) {
 		if (req == container_of(p, struct exynos_pm_qos_request, node)) {
 			spin_unlock(&exynos_pm_qos_array[pm_qos_class]->constraints->lock);
+			read_unlock_irqrestore(&exynos_pm_qos_lock, flags);
 			return p->prio;
 		}
 	}
 	spin_unlock(&exynos_pm_qos_array[pm_qos_class]->constraints->lock);
+
+	read_unlock_irqrestore(&exynos_pm_qos_lock, flags);
 
 	return -ENODATA;
 }
@@ -605,6 +689,71 @@ static inline void exynos_pm_qos_set_value(struct exynos_pm_qos_constraints *c, 
 {
 	c->target_value = value;
 }
+
+static int exynos_pm_qos_debug_show(struct seq_file *s, void *unused)
+{
+	struct exynos_pm_qos_object *qos = (struct exynos_pm_qos_object *)s->private;
+	struct exynos_pm_qos_constraints *c;
+	struct exynos_pm_qos_request *req;
+	char *type;
+	unsigned long flags;
+	int tot_reqs = 0;
+	int active_reqs = 0;
+
+	if (IS_ERR_OR_NULL(qos)) {
+		pr_err("%s: bad qos param!\n", __func__);
+		return -EINVAL;
+	}
+	c = qos->constraints;
+	if (IS_ERR_OR_NULL(c)) {
+		pr_err("%s: Bad constraints on qos?\n", __func__);
+		return -EINVAL;
+	}
+
+	/* Lock to ensure we have a snapshot */
+	write_lock_irqsave(&exynos_pm_qos_lock, flags);
+	if (plist_head_empty(&c->list)) {
+		seq_puts(s, "Empty!\n");
+		goto out;
+	}
+
+	switch (c->type) {
+	case EXYNOS_PM_QOS_MIN:
+		type = "Minimum";
+		break;
+	case EXYNOS_PM_QOS_MAX:
+		type = "Maximum";
+		break;
+	case EXYNOS_PM_QOS_SUM:
+		type = "Sum";
+		break;
+	default:
+		type = "Unknown";
+	}
+
+	plist_for_each_entry(req, &c->list, node) {
+		char *state = "Default";
+
+		if (req->node.prio != c->default_value) {
+			active_reqs++;
+			state = "Active";
+		}
+		tot_reqs++;
+		seq_printf(s, "%d: %d: %s(%s:%d)\n", tot_reqs,
+			   (req->node).prio, state,
+			   req->func,
+			   req->line);
+	}
+
+	seq_printf(s, "Type=%s, Value=%d, Requests: active=%d / total=%d\n",
+		   type, exynos_pm_qos_get_value(c), active_reqs, tot_reqs);
+
+out:
+	write_unlock_irqrestore(&exynos_pm_qos_lock, flags);
+	return 0;
+}
+
+DEFINE_SHOW_ATTRIBUTE(exynos_pm_qos_debug);
 
 /**
  * exynos_pm_qos_update_target - manages the constraints list and calls the notifiers
@@ -620,9 +769,11 @@ static inline void exynos_pm_qos_set_value(struct exynos_pm_qos_constraints *c, 
 int exynos_pm_qos_update_target(struct exynos_pm_qos_constraints *c, struct plist_node *node,
 				enum exynos_pm_qos_req_action action, int value)
 {
+	unsigned long flags;
 	int prev_value, curr_value, new_value;
 	int ret;
 
+	read_lock_irqsave(&exynos_pm_qos_lock, flags);
 	spin_lock(&c->lock);
 	prev_value = exynos_pm_qos_get_value(c);
 	if (value == EXYNOS_PM_QOS_DEFAULT_VALUE)
@@ -632,7 +783,7 @@ int exynos_pm_qos_update_target(struct exynos_pm_qos_constraints *c, struct plis
 
 	switch (action) {
 	case EXYNOS_PM_QOS_REMOVE_REQ:
-		plist_del(node, &c->list);
+		exynos_plist_del(node, &c->list);
 		break;
 	case EXYNOS_PM_QOS_UPDATE_REQ:
 		/*
@@ -640,11 +791,11 @@ int exynos_pm_qos_update_target(struct exynos_pm_qos_constraints *c, struct plis
 		 * with new value and add, then see if the extremal
 		 * changed
 		 */
-		plist_del(node, &c->list);
+		exynos_plist_del(node, &c->list);
 		fallthrough;
 	case EXYNOS_PM_QOS_ADD_REQ:
 		plist_node_init(node, new_value);
-		plist_add(node, &c->list);
+		exynos_plist_add(node, &c->list);
 		break;
 	default:
 		/* no action */
@@ -655,17 +806,81 @@ int exynos_pm_qos_update_target(struct exynos_pm_qos_constraints *c, struct plis
 	exynos_pm_qos_set_value(c, curr_value);
 
 	spin_unlock(&c->lock);
+	read_unlock_irqrestore(&exynos_pm_qos_lock, flags);
 
 	if (prev_value != curr_value) {
 		ret = 1;
 		if (c->notifiers)
-			srcu_notifier_call_chain(c->notifiers,
-						 (unsigned long)curr_value,
-						 NULL);
+			blocking_notifier_call_chain(c->notifiers,
+						     (unsigned long)curr_value,
+						     NULL);
 	} else {
 		ret = 0;
 	}
 	return ret;
+}
+
+/**
+ * exynos_pm_qos_flags_remove_req - Remove device PM QoS flags request.
+ * @pqf: Device PM QoS flags set to remove the request from.
+ * @req: Request to remove from the set.
+ */
+static void exynos_pm_qos_flags_remove_req(struct exynos_pm_qos_flags *pqf,
+					   struct exynos_pm_qos_flags_request *req)
+{
+	s32 val = 0;
+
+	list_del(&req->node);
+	list_for_each_entry(req, &pqf->list, node)
+		val |= req->flags;
+
+	pqf->effective_flags = val;
+}
+
+/**
+ * exynos_pm_qos_update_flags - Update a set of PM QoS flags.
+ * @pqf: Set of flags to update.
+ * @req: Request to add to the set, to modify, or to remove from the set.
+ * @action: Action to take on the set.
+ * @val: Value of the request to add or modify.
+ *
+ * Update the given set of PM QoS flags and call notifiers if the aggregate
+ * value has changed.  Returns 1 if the aggregate constraint value has changed,
+ * 0 otherwise.
+ */
+bool exynos_pm_qos_update_flags(struct exynos_pm_qos_flags *pqf,
+				struct exynos_pm_qos_flags_request *req,
+				enum exynos_pm_qos_req_action action, s32 val)
+{
+	unsigned long irqflags;
+	s32 prev_value, curr_value;
+
+	read_lock_irqsave(&exynos_pm_qos_lock, irqflags);
+
+	prev_value = list_empty(&pqf->list) ? 0 : pqf->effective_flags;
+
+	switch (action) {
+	case EXYNOS_PM_QOS_REMOVE_REQ:
+		exynos_pm_qos_flags_remove_req(pqf, req);
+		break;
+	case EXYNOS_PM_QOS_UPDATE_REQ:
+		exynos_pm_qos_flags_remove_req(pqf, req);
+		fallthrough;
+	case EXYNOS_PM_QOS_ADD_REQ:
+		req->flags = val;
+		INIT_LIST_HEAD(&req->node);
+		list_add_tail(&req->node, &pqf->list);
+		pqf->effective_flags |= val;
+		break;
+	default:
+		break;
+	}
+
+	curr_value = list_empty(&pqf->list) ? 0 : pqf->effective_flags;
+
+	read_unlock_irqrestore(&exynos_pm_qos_lock, irqflags);
+
+	return prev_value != curr_value;
 }
 
 /**
@@ -702,6 +917,22 @@ static void __exynos_pm_qos_update_request(struct exynos_pm_qos_request *req,
 	trace_clock_set_rate(exynos_pm_qos_array[class]->name,
 			exynos_pm_qos_request(class), raw_smp_processor_id());
 }
+
+/**
+ * exynos_pm_qos_work_fn - the timeout handler of exynos_pm_qos_update_request_timeout
+ * @work: work struct for the delayed work (timeout)
+ *
+ * This cancels the timeout request by falling back to the default at timeout.
+ */
+static void exynos_pm_qos_work_fn(struct work_struct *work)
+{
+	struct exynos_pm_qos_request *req = container_of(to_delayed_work(work),
+						  struct exynos_pm_qos_request,
+						  work);
+
+	__exynos_pm_qos_update_request(req, EXYNOS_PM_QOS_DEFAULT_VALUE);
+}
+
 
 static void exynos_pm_qos_async_vote_fn(struct work_struct *work)
 {
@@ -744,6 +975,7 @@ void exynos_pm_qos_add_request_trace(const char *func, unsigned int line,
 	req->exynos_pm_qos_class = exynos_pm_qos_class;
 	req->func = func;
 	req->line = line;
+	INIT_DELAYED_WORK(&req->work, exynos_pm_qos_work_fn);
 	INIT_WORK(&req->async_vote.work, exynos_pm_qos_async_vote_fn);
 	exynos_pm_qos_update_target(exynos_pm_qos_array[exynos_pm_qos_class]->constraints,
 				    &req->node, EXYNOS_PM_QOS_ADD_REQ, value);
@@ -773,6 +1005,7 @@ void exynos_pm_qos_update_request(struct exynos_pm_qos_request *req,
 		return;
 	}
 
+	cancel_delayed_work(&req->work);
 	__exynos_pm_qos_update_request(req, new_value);
 }
 EXPORT_SYMBOL_GPL(exynos_pm_qos_update_request);
@@ -804,6 +1037,38 @@ void exynos_pm_qos_update_request_async(struct exynos_pm_qos_request *req,
 EXPORT_SYMBOL_GPL(exynos_pm_qos_update_request_async);
 
 /**
+ * exynos_pm_qos_update_request_timeout - modifies an existing qos request temporarily.
+ * @req : handle to list element holding a exynos_pm_qos request to use
+ * @new_value: defines the temporal qos request
+ * @timeout_us: the effective duration of this qos request in usecs.
+ *
+ * After timeout_us, this qos request is cancelled automatically.
+ */
+void exynos_pm_qos_update_request_timeout(struct exynos_pm_qos_request *req, s32 new_value,
+					  unsigned long timeout_us)
+{
+	int class;
+
+	if (!req)
+		return;
+	if (WARN(!exynos_pm_qos_request_active(req),
+		 "%s called for unknown object.", __func__))
+		return;
+
+	cancel_delayed_work_sync(&req->work);
+
+	class = req->exynos_pm_qos_class;
+	if (new_value != req->node.prio)
+		exynos_pm_qos_update_target(exynos_pm_qos_array[class]->constraints,
+					    &req->node, EXYNOS_PM_QOS_UPDATE_REQ, new_value);
+
+	schedule_delayed_work(&req->work, usecs_to_jiffies(timeout_us));
+	trace_clock_set_rate(exynos_pm_qos_array[class]->name,
+			exynos_pm_qos_request(class), raw_smp_processor_id());
+}
+EXPORT_SYMBOL_GPL(exynos_pm_qos_update_request_timeout);
+
+/**
  * exynos_pm_qos_remove_request - modifies an existing qos request
  * @req: handle to request list element
  *
@@ -823,6 +1088,8 @@ void exynos_pm_qos_remove_request(struct exynos_pm_qos_request *req)
 		WARN(1, "%s called for unknown object\n", __func__);
 		return;
 	}
+
+	cancel_delayed_work_sync(&req->work);
 
 	class = req->exynos_pm_qos_class;
 	exynos_pm_qos_update_target(exynos_pm_qos_array[class]->constraints,
@@ -849,7 +1116,8 @@ int exynos_pm_qos_add_notifier(int exynos_pm_qos_class, struct notifier_block *n
 
 	constraints = exynos_pm_qos_array[exynos_pm_qos_class]->constraints;
 
-	retval = srcu_notifier_chain_register(constraints->notifiers, notifier);
+	retval = blocking_notifier_chain_register(constraints->notifiers,
+						  notifier);
 
 	return retval;
 }
@@ -870,8 +1138,8 @@ int exynos_pm_qos_remove_notifier(int exynos_pm_qos_class, struct notifier_block
 
 	constraints = exynos_pm_qos_array[exynos_pm_qos_class]->constraints;
 
-	retval = srcu_notifier_chain_unregister(constraints->notifiers,
-						notifier);
+	retval = blocking_notifier_chain_unregister(constraints->notifiers,
+						    notifier);
 
 	return retval;
 }
@@ -879,7 +1147,19 @@ EXPORT_SYMBOL_GPL(exynos_pm_qos_remove_notifier);
 
 static int exynos_pm_qos_power_init(void)
 {
+	int ret = 0;
+	int i;
+	struct dentry *d;
+
 	BUILD_BUG_ON(ARRAY_SIZE(exynos_pm_qos_array) != EXYNOS_PM_QOS_NUM_CLASSES);
+
+	d = debugfs_create_dir("exynos_pm_qos", NULL);
+
+	for (i = PM_QOS_CLUSTER0_FREQ_MIN; i < EXYNOS_PM_QOS_NUM_CLASSES; i++) {
+		debugfs_create_file(exynos_pm_qos_array[i]->name, 0444, d,
+				    (void *)exynos_pm_qos_array[i],
+				    &exynos_pm_qos_debug_fops);
+	}
 
 	if (!async_vote_wq)
 		async_vote_wq = alloc_workqueue("async_vote_wq",
@@ -890,7 +1170,7 @@ static int exynos_pm_qos_power_init(void)
 		pr_err("%s: Couldn't create async_vote_wq workqueue!\n", __func__);
 	}
 
-	return 0;
+	return ret;
 }
 late_initcall(exynos_pm_qos_power_init);
 

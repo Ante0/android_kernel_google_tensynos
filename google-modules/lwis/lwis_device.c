@@ -303,7 +303,7 @@ static int lwis_release(struct inode *node, struct file *fp)
 		/* remove voted qos */
 		lwis_platform_remove_qos(lwis_dev);
 		/* Release device event states if no more client is using */
-		lwis_device_event_states_clear_locked(lwis_dev);
+		lwis_device_event_states_clear(lwis_dev);
 	}
 	mutex_unlock(&lwis_dev->interclient_lock);
 

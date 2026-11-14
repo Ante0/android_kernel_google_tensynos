@@ -191,10 +191,10 @@ int lwis_client_event_states_clear(struct lwis_client *lwisclient);
  * lwis_device_event_states_clear: Frees all items in lwisdev->event_states
  * and clears the hash table. Used for device shutdown only.
  *
- * Assumes: lwisdev->lock is locked
+ * Locks: lwisdev->lock
  * Returns: 0 on success
  */
-int lwis_device_event_states_clear_locked(struct lwis_device *lwisdev);
+int lwis_device_event_states_clear(struct lwis_device *lwisdev);
 
 /*
  * lwis_device_event_flags_updated: Notifies the device that the given event_id

@@ -13,6 +13,7 @@
 #include <gcip/gcip-dma-fence.h>
 #include <gcip/gcip-fence-array.h>
 #include <gcip/gcip-fence.h>
+#include <iif/iif-dma-fence.h>
 #include <iif/iif-fence.h>
 #include <iif/iif-shared.h>
 
@@ -188,18 +189,35 @@ void gcip_fence_array_submit_waiter(struct gcip_fence_array *fence_array, enum i
 
 int gcip_fence_array_submit_waiter_and_signaler(struct gcip_fence_array *in_fences,
 						struct gcip_fence_array *out_fences,
+						struct gcip_fence_array *mid_in_fences,
+						struct gcip_fence_array *mid_out_fences,
 						enum iif_ip_type ip)
 {
-	int i, ret, iif_num_in_fences = 0, iif_num_out_fences = 0;
+	int i, ret, gcip_num_fences = 0, iif_num_in_fences = 0, iif_num_out_fences = 0;
+	struct iif_fence **iif_fences = NULL;
 	struct iif_fence **iif_in_fences = NULL;
 	struct iif_fence **iif_out_fences = NULL;
 
 	if (in_fences)
-		iif_in_fences = kcalloc(in_fences->size, sizeof(*iif_in_fences), GFP_KERNEL);
+		gcip_num_fences += in_fences->size;
+
+	if (mid_in_fences)
+		gcip_num_fences += mid_in_fences->size;
 
 	if (out_fences)
-		iif_out_fences = kcalloc(out_fences->size, sizeof(*iif_out_fences), GFP_KERNEL);
+		gcip_num_fences += out_fences->size;
 
+	if (mid_out_fences)
+		gcip_num_fences += mid_out_fences->size;
+
+	if (!gcip_num_fences)
+		return 0;
+
+	iif_fences = kcalloc(gcip_num_fences, sizeof(*iif_out_fences), GFP_KERNEL);
+	if (!iif_fences)
+		return -ENOMEM;
+
+	iif_in_fences = iif_fences;
 	for (i = 0; in_fences && i < in_fences->size; i++) {
 		if (in_fences->fences[i]->type == GCIP_INTER_IP_FENCE) {
 			iif_in_fences[iif_num_in_fences] = in_fences->fences[i]->fence.iif;
@@ -207,6 +225,14 @@ int gcip_fence_array_submit_waiter_and_signaler(struct gcip_fence_array *in_fenc
 		}
 	}
 
+	for (i = 0; mid_in_fences && i < mid_in_fences->size; i++) {
+		if (mid_in_fences->fences[i]->type == GCIP_INTER_IP_FENCE) {
+			iif_in_fences[iif_num_in_fences] = mid_in_fences->fences[i]->fence.iif;
+			iif_num_in_fences++;
+		}
+	}
+
+	iif_out_fences = iif_fences + iif_num_in_fences;
 	for (i = 0; out_fences && i < out_fences->size; i++) {
 		if (out_fences->fences[i]->type == GCIP_INTER_IP_FENCE) {
 			iif_out_fences[iif_num_out_fences] = out_fences->fences[i]->fence.iif;
@@ -214,10 +240,16 @@ int gcip_fence_array_submit_waiter_and_signaler(struct gcip_fence_array *in_fenc
 		}
 	}
 
+	for (i = 0; mid_out_fences && i < mid_out_fences->size; i++) {
+		if (mid_out_fences->fences[i]->type == GCIP_INTER_IP_FENCE) {
+			iif_out_fences[iif_num_out_fences] = mid_out_fences->fences[i]->fence.iif;
+			iif_num_out_fences++;
+		}
+	}
+
 	ret = iif_fence_submit_signaler_and_waiter(iif_in_fences, iif_num_in_fences, iif_out_fences,
 						   iif_num_out_fences, ip);
-	kfree(iif_out_fences);
-	kfree(iif_in_fences);
+	kfree(iif_fences);
 
 	return ret;
 }
@@ -352,6 +384,58 @@ int gcip_fence_array_add_ikf(struct gcip_fence_array *fence_array, struct dma_fe
 
 	ret = gcip_fence_array_add(fence_array, fence);
 	gcip_fence_put(fence);
+
+	return ret;
+}
+
+int gcip_fence_array_bridge_to_iif(struct gcip_fence_array *fence_array,
+				   struct iif_manager *iif_mgr)
+{
+	struct gcip_fence *gcip_fence;
+	struct iif_fence **iif_fences;
+	int ret = 0;
+	int i;
+
+	iif_fences = kcalloc(fence_array->size, sizeof(*iif_fences), GFP_KERNEL);
+	if (!iif_fences)
+		return -ENOMEM;
+
+	for (i = 0; i < fence_array->size; i++) {
+		gcip_fence = fence_array->fences[i];
+
+		if (gcip_fence->type == GCIP_INTER_IP_FENCE)
+			continue;
+
+		/* A reference count of the original IKF is acquired by iif_dma_fence_bridge. */
+		iif_fences[i] = iif_dma_fence_bridge(iif_mgr, gcip_fence->fence.ikf);
+		if (IS_ERR(iif_fences[i])) {
+			ret = PTR_ERR(iif_fences[i]);
+			goto err_free_iif_fences;
+		}
+	}
+
+	for (i = 0; i < fence_array->size; i++) {
+		if (!iif_fences[i])
+			continue;
+
+		/* Change the underlying fence to IIF and update the type and reference count. */
+		gcip_fence = fence_array->fences[i];
+		dma_fence_put(gcip_fence->fence.ikf);
+		gcip_fence->fence.iif = iif_fences[i];
+		gcip_fence->type = GCIP_INTER_IP_FENCE;
+	}
+
+	fence_array->same_type = true;
+	fence_array->type = GCIP_INTER_IP_FENCE;
+
+	goto out;
+
+err_free_iif_fences:
+	while (i--)
+		iif_fence_put(iif_fences[i]);
+
+out:
+	kfree(iif_fences);
 
 	return ret;
 }

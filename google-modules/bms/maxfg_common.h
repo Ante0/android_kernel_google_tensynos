@@ -101,7 +101,46 @@ enum maxfg_reg_tags {
 	MAXFG_TAG_ichgterm,
 	MAXFG_TAG_vempty,
 	MAXFG_TAG_sochold,
+	MAXFG_TAG_timer,
 };
+
+static const enum maxfg_reg_tags fg_event_regs[] = {
+	MAXFG_TAG_cycles,
+	MAXFG_TAG_vcel,
+	MAXFG_TAG_avgv,
+	MAXFG_TAG_curr,
+	MAXFG_TAG_avgc,
+	MAXFG_TAG_timer,
+	MAXFG_TAG_temp,
+	MAXFG_TAG_repcap,
+	MAXFG_TAG_mixcap,
+	MAXFG_TAG_fcrep,
+	MAXFG_TAG_fcnom,
+	MAXFG_TAG_qresd,
+	MAXFG_TAG_avcap,
+	MAXFG_TAG_vfremcap,
+	MAXFG_TAG_repsoc,
+	MAXFG_TAG_vfsoc,
+	MAXFG_TAG_msoc,
+	MAXFG_TAG_vfocv,
+	MAXFG_TAG_dpacc,
+	MAXFG_TAG_dqacc,
+	MAXFG_TAG_qh,
+	MAXFG_TAG_qh0,
+	MAXFG_TAG_vfsoc0,
+	MAXFG_TAG_qrtable20,
+	MAXFG_TAG_qrtable30,
+	MAXFG_TAG_status,
+	MAXFG_TAG_fstat,
+};
+
+static const enum maxfg_reg_tags fg_event_dbg_regs[] = {
+	MAXFG_TAG_rcomp0,
+	MAXFG_TAG_tempco,
+};
+
+#define FG_EVENT_REGS_COUNT (ARRAY_SIZE(fg_event_regs))
+#define FG_EVENT_DBG_REGS_COUNT (ARRAY_SIZE(fg_event_dbg_regs))
 
 enum max17x0x_reg_types {
 	GBMS_ATOM_TYPE_MAP = 0,

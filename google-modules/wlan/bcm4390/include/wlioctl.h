@@ -6,7 +6,7 @@
  *
  * Definitions subject to change without notice.
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -52,12 +52,8 @@
 
 #include <bcm_mpool_pub.h>
 #include <bcmcdc.h>
-#define SSSR_NEW_API
 
-/* Include bcmerror.h for error codes or aliases */
-#ifdef BCMUTILS_ERR_CODES
 #include <bcmerror.h>
-#endif	/* BCMUTILS_ERR_CODES */
 #include <bcmtlv.h>
 
 #ifndef USE_LEGACY_RSPEC_DEFS
@@ -69,6 +65,11 @@
 #endif
 
 #include <wlioctl_counters.h>
+
+/* Backwards compatibility for legacy branches. */
+#if !defined(BCM_EXTENSION)
+#define BCM_EXTENSION
+#endif
 
 /* NOTE re: Module specific error codes.
  *
@@ -9335,9 +9336,11 @@ typedef enum {
 	WL_BSSTRANS_POLICY_PRODUCT = 4,		/**< Policy for real product use cases */
 	WL_BSSTRANS_POLICY_PRODUCT_WBTEXT = 5,	/**< Policy for real product use cases */
 	WL_BSSTRANS_POLICY_MBO = 6,		/**< Policy for MBO certification */
-	WL_BSSTRANS_POLICY_T2LM = 7,		/**< Policy for TID-to-link mapping use-case */
+	WL_BSSTRANS_POLICY_MLO_T2LM = 7,	/**< Policy for MLO TID-to-link mapping use-case */
+	WL_BSSTRANS_POLICY_T2LM = WL_BSSTRANS_POLICY_MLO_T2LM,
 	WL_BSSTRANS_POLICY_MLO_REASSOC = 8,	/**< Policy for MLO Reassociation use-case */
-	WL_BSSTRANS_POLICY_MAX = 9
+	WL_BSSTRANS_POLICY_MLO_LINK_RECFG = 9,	/**< Policy for MLO Link Reconfiguration use-case */
+	WL_BSSTRANS_POLICY_MAX = 10
 } wnm_bsstrans_policy_type_t;
 
 /** Definitions for WNM/NPS TIM Broadcast */
@@ -11433,119 +11436,6 @@ typedef uint8 wl_nan_mr_changed_t;
 #define WL_NAN_AMR_CHANGED	1
 #define WL_NAN_IMR_CHANGED	2
 
-/*
- * The macro BCMUTILS_ERR_CODES is defined only
- * when using the common header file(a new approach) bcmutils/include/bcmerror.h.
- * Otherwise, use the error codes from this file.
- */
-#ifndef BCMUTILS_ERR_CODES
-
-/** status - TBD BCME_ vs NAN status - range reserved for BCME_ */
-enum {
-	/* add new status here... */
-	WL_NAN_E_NOT_SUPPORTED		= -2141,
-	WL_NAN_E_NOT_ASSOCIATED		= -2140,
-	WL_NAN_E_BUSY			= -2139,
-	WL_NAN_E_REDUNDANT		= -2138,
-	WL_NAN_E_GRP_REKEY_FAIL		= -2137,	/* Group rekey failure */
-	WL_NAN_E_NO_ACTION		= -2136,	/* status for no action */
-	WL_NAN_E_INVALID_TOKEN		= -2135,	/* invalid token or mismatch */
-	WL_NAN_E_INVALID_ATTR		= -2134,	/* generic invalid attr error */
-	WL_NAN_E_INVALID_NDL_ATTR	= -2133,	/* invalid NDL attribute */
-	WL_NAN_E_SCB_NORESOURCE		= -2132,	/* no more peer scb available */
-	WL_NAN_E_PEER_NOTAVAIL		= -2131,
-	WL_NAN_E_SCB_EXISTS		= -2130,
-	WL_NAN_E_INVALID_PEER_NDI	= -2129,
-	WL_NAN_E_INVALID_LOCAL_NDI	= -2128,
-	WL_NAN_E_ALREADY_EXISTS		= -2127,	/* generic NAN error for duplication */
-	WL_NAN_E_EXCEED_MAX_NUM_MAPS	= -2126,
-	WL_NAN_E_INVALID_DEV_CHAN_SCHED	= -2125,
-	WL_NAN_E_INVALID_PEER_BLOB_TYPE	= -2124,
-	WL_NAN_E_INVALID_LCL_BLOB_TYPE	= -2123,
-	WL_NAN_E_BCMC_PDPA		= -2122,	/* BCMC NAF PDPA */
-	WL_NAN_E_TIMEOUT		= -2121,
-	WL_NAN_E_HOST_CFG		= -2120,
-	WL_NAN_E_NO_ACK			= -2119,
-	WL_NAN_E_SECINST_FAIL		= -2118,
-	WL_NAN_E_REJECT_NDL		= -2117,	/* generic NDL rejection error */
-	WL_NAN_E_INVALID_NDP_ATTR	= -2116,
-	WL_NAN_E_HOST_REJECTED		= -2115,
-	WL_NAN_E_PCB_NORESOURCE		= -2114,
-	WL_NAN_E_NDC_EXISTS		= -2113,
-	WL_NAN_E_NO_NDC_ENTRY_AVAIL	= -2112,
-	WL_NAN_E_INVALID_NDC_ENTRY      = -2111,
-	WL_NAN_E_SD_TX_LIST_FULL        = -2110,
-	WL_NAN_E_SVC_SUB_LIST_FULL      = -2109,
-	WL_NAN_E_SVC_PUB_LIST_FULL      = -2108,
-	WL_NAN_E_SDF_MAX_LEN_EXCEEDED   = -2107,
-	WL_NAN_E_ZERO_CRB		= -2106,	/* no CRB between local and peer */
-	WL_NAN_E_PEER_NDC_NOT_SELECTED	= -2105,	/* peer ndc not selected */
-	WL_NAN_E_DAM_CHAN_CONFLICT	= -2104,	/* dam schedule channel conflict */
-	WL_NAN_E_DAM_SCHED_PERIOD	= -2103,	/* dam schedule period mismatch */
-	WL_NAN_E_LCL_NDC_NOT_SELECTED	= -2102,	/* local selected ndc not configured */
-	WL_NAN_E_NDL_QOS_INVALID_NA	= -2101,	/* na doesn't comply with ndl qos */
-	WL_NAN_E_CLEAR_NAF_WITH_SA_AS_RNDI = -2100,	/* rx clear naf with peer rndi */
-	WL_NAN_E_SEC_CLEAR_PKT		= -2099,	/* rx clear pkt from a peer with sec_sa */
-	WL_NAN_E_PROT_NON_PDPA_NAF	= -2098,	/* rx protected non PDPA frame */
-	WL_NAN_E_DAM_DOUBLE_REMOVE	= -2097,	/* remove peer schedule already removed */
-	WL_NAN_E_DAM_DOUBLE_MERGE	= -2096,	/* merge peer schedule already merged */
-	WL_NAN_E_DAM_REJECT_INVALID	= -2095,	/* reject for invalid schedule */
-	WL_NAN_E_DAM_REJECT_RANGE	= -2094,
-	WL_NAN_E_DAM_REJECT_QOS		= -2093,
-	WL_NAN_E_DAM_REJECT_NDC		= -2092,
-	WL_NAN_E_DAM_REJECT_PEER_IMMUT	= -2091,
-	WL_NAN_E_DAM_REJECT_LCL_IMMUT	= -2090,
-	WL_NAN_E_DAM_EXCEED_NUM_SCHED	= -2089,
-	WL_NAN_E_DAM_INVALID_SCHED_MAP	= -2088,	/* invalid schedule map list */
-	WL_NAN_E_DAM_INVALID_LCL_SCHED	= -2087,
-	WL_NAN_E_INVALID_MAP_ID		= -2086,
-	WL_NAN_E_CHAN_OVERLAP_ACROSS_MAP = -2085,
-	WL_NAN_E_INVALID_CHAN_LIST	= -2084,
-	WL_NAN_E_INVALID_RANGE_TBMP	= -2083,
-	WL_NAN_E_INVALID_IMMUT_SCHED	= -2082,
-	WL_NAN_E_INVALID_NDC_ATTR	= -2081,
-	WL_NAN_E_INVALID_TIME_BITMAP	= -2080,
-	WL_NAN_E_INVALID_NA_ATTR	= -2079,
-	WL_NAN_E_NO_NA_ATTR_IN_AVAIL_MAP = -2078,	/* no na attr saved in avail map */
-	WL_NAN_E_INVALID_MAP_IDX	= -2077,
-	WL_NAN_E_SEC_SA_NOTFOUND	= -2076,
-	WL_NAN_E_BSSCFG_NOTFOUND	= -2075,
-	WL_NAN_E_SCB_NOTFOUND		= -2074,
-	WL_NAN_E_NCS_SK_KDESC_TYPE      = -2073,
-	WL_NAN_E_NCS_SK_KEY_DESC_VER    = -2072,	/* key descr ver */
-	WL_NAN_E_NCS_SK_KEY_TYPE        = -2071,	/* key descr type */
-	WL_NAN_E_NCS_SK_KEYINFO_FAIL    = -2070,	/* key info (generic) */
-	WL_NAN_E_NCS_SK_KEY_LEN         = -2069,	/* key len */
-	WL_NAN_E_NCS_SK_KDESC_NOT_FOUND = -2068,	/* key desc not found */
-	WL_NAN_E_NCS_SK_INVALID_PARAMS  = -2067,	/* invalid args */
-	WL_NAN_E_NCS_SK_KDESC_INVALID   = -2066,	/* key descr is not valid */
-	WL_NAN_E_NCS_SK_NONCE_MISMATCH  = -2065,
-	WL_NAN_E_NCS_SK_KDATA_SAVE_FAIL = -2064,	/* not able to save key data */
-	WL_NAN_E_NCS_SK_AUTH_TOKEN_CALC_FAIL = -2063,
-	WL_NAN_E_NCS_SK_PTK_CALC_FAIL   = -2062,
-	WL_NAN_E_INVALID_STARTOFFSET	= -2061,
-	WL_NAN_E_BAD_NA_ENTRY_TYPE	= -2060,
-	WL_NAN_E_INVALID_CHANBMP	= -2059,
-	WL_NAN_E_INVALID_OP_CLASS	= -2058,
-	WL_NAN_E_NO_IES			= -2057,
-	WL_NAN_E_NO_PEER_ENTRY_AVAIL	= -2056,
-	WL_NAN_E_INVALID_PEER		= -2055,
-	WL_NAN_E_PEER_EXISTS		= -2054,
-	WL_NAN_E_PEER_NOTFOUND		= -2053,
-	WL_NAN_E_NO_MEM			= -2052,
-	WL_NAN_E_INVALID_OPTION		= -2051,
-	WL_NAN_E_INVALID_BAND		= -2050,
-	WL_NAN_E_INVALID_MAC		= -2049,
-	WL_NAN_E_BAD_INSTANCE		= -2048,
-	WL_NAN_E_INVALID_S3_ATTR	= -2047,
-	/* NAN status code reserved from -2046 to -3071 */
-	/* Do NOT add new status below -2046 */
-	WL_NAN_E_ERROR			= -1,
-	WL_NAN_E_OK			= 0
-};
-
-#endif	/* BCMUTILS_ERR_CODES */
-
 /* Error codes used in vendor specific attribute in Data Path Termination frames */
 enum {
 	WL_NAN_DPEND_E_OK		= 0,
@@ -13200,6 +13090,7 @@ typedef struct wl_nan_host_assist_req {
 } wl_nan_host_assist_req_t;
 
 /* nan sub-features */
+BCM_EXTENSION	/* Suppress warning: enum values in range 'int'. */
 enum wl_nan_fw_cap_flag1 {
 	WL_NAN_FW_CAP_FLAG_NONE			= 0x00000000, /* dummy */
 	WL_NAN_FW_CAP_FLAG1_AVAIL		= 0x00000001,
@@ -15608,6 +15499,7 @@ enum {
 typedef int16 wl_proxd_method_t;
 
 /** global and method configuration flags */
+BCM_EXTENSION	/* Suppress warning: enum values in range 'int'. */
 enum {
 	WL_PROXD_FLAG_NONE			= 0x00000000,
 	WL_PROXD_FLAG_RX_ENABLED		= 0x00000001, /* respond to requests, per bss */
@@ -15631,6 +15523,7 @@ typedef uint32 wl_proxd_flags_t;
 #define WL_PROXD_FLAGS_AVAIL (WL_PROXD_FLAG_AVAIL_PUBLISH | \
 	WL_PROXD_FLAG_AVAIL_SCHEDULE)
 
+BCM_EXTENSION	/* Suppress warning: enum values in range 'int'. */
 typedef enum wl_proxd_session_flags {
 	WL_PROXD_SESSION_FLAG_NONE              = 0x00000000,  /**< no flags */
 	WL_PROXD_SESSION_FLAG_INITIATOR         = 0x00000001,  /**< local device is initiator */
@@ -15766,7 +15659,7 @@ typedef struct wl_proxd_tlv {
 	uint8  data[1];
 } wl_proxd_tlv_t;
 
-typedef uint8		wl_proxd_type_t;
+typedef uint8 wl_proxd_type_t;
 typedef uint16 wl_proxd_session_id_t;
 
 /** proxd iovar - applies to proxd, method or session */
@@ -15787,55 +15680,8 @@ typedef wl_ftm_tlv_t wl_proxd_tlv_t;
 typedef wl_ftm_iov_t wl_proxd_iov_t;
 #endif /* FTM */
 
-/* Use WL_PROXD_E_* errorcodes from this file if BCMUTILS_ERR_CODES not defined */
-#ifndef BCMUTILS_ERR_CODES
-
-/** status - TBD BCME_ vs proxd status - range reserved for BCME_ */
-enum {
-	WL_PROXD_E_LAST			= -1059,
-	WL_PROXD_E_CHANSW       		= -1059,
-	WL_PROXD_E_PKTFREED		= -1058,
-	WL_PROXD_E_ASSOC_INPROG         = -1057,
-	WL_PROXD_E_NOAVAIL		= -1056,
-	WL_PROXD_E_EXT_SCHED		= -1055,
-	WL_PROXD_E_NOT_BCM		= -1054,
-	WL_PROXD_E_FRAME_TYPE		= -1053,
-	WL_PROXD_E_VERNOSUPPORT		= -1052,
-	WL_PROXD_E_SEC_NOKEY		= -1051,
-	WL_PROXD_E_SEC_POLICY		= -1050,
-	WL_PROXD_E_SCAN_INPROCESS	= -1049,
-	WL_PROXD_E_BAD_PARTIAL_TSF	= -1048,
-	WL_PROXD_E_SCANFAIL		= -1047,
-	WL_PROXD_E_NOTSF		= -1046,
-	WL_PROXD_E_POLICY		= -1045,
-	WL_PROXD_E_INCOMPLETE		= -1044,
-	WL_PROXD_E_OVERRIDDEN		= -1043,
-	WL_PROXD_E_ASAP_FAILED		= -1042,
-	WL_PROXD_E_NOTSTARTED		= -1041,
-	WL_PROXD_E_INVALIDMEAS		= -1040,
-	WL_PROXD_E_INCAPABLE		= -1039,
-	WL_PROXD_E_MISMATCH		= -1038,
-	WL_PROXD_E_DUP_SESSION		= -1037,
-	WL_PROXD_E_REMOTE_FAIL		= -1036,
-	WL_PROXD_E_REMOTE_INCAPABLE	= -1035,
-	WL_PROXD_E_SCHED_FAIL		= -1034,
-	WL_PROXD_E_PROTO		= -1033,
-	WL_PROXD_E_EXPIRED		= -1032,
-	WL_PROXD_E_TIMEOUT		= -1031,
-	WL_PROXD_E_NOACK		= -1030,
-	WL_PROXD_E_DEFERRED		= -1029,
-	WL_PROXD_E_INVALID_SID		= -1028,
-	WL_PROXD_E_REMOTE_CANCEL	= -1027,
-	WL_PROXD_E_CANCELED		= -1026,	/**< local */
-	WL_PROXD_E_INVALID_SESSION	= -1025,
-	WL_PROXD_E_BAD_STATE		= -1024,
-	WL_PROXD_E_START		= -1024,
-	WL_PROXD_E_ERROR		= -1,
-	WL_PROXD_E_OK			= 0
-};
+/* FIXME: why doesn't the one defined in bcmerror.h work? */
 typedef int32 wl_proxd_status_t;
-
-#endif	/* BCMUTILS_ERR_CODES */
 
 /* proxd errors from phy */
 #define PROXD_TOF_INIT_ERR_BITS 16
@@ -16267,6 +16113,7 @@ typedef struct wl_proxd_avail {
 /* collect support TBD */
 
 /** debugging */
+BCM_EXTENSION	/* Suppress warning: enum values in range 'int'. */
 enum {
 	WL_PROXD_DEBUG_NONE		= 0x00000000,
 	WL_PROXD_DEBUG_LOG		= 0x00000001,
@@ -16966,7 +16813,9 @@ typedef struct wnm_noqbss_score_mode_v1 {
  */
 typedef enum wl_interface_type {
 	WL_INTERFACE_TYPE_STA = 0,
+	WL_INTERFACE_TYPE_INFRA_STA = 0,
 	WL_INTERFACE_TYPE_AP = 1,
+	WL_INTERFACE_TYPE_INFRA_AP = 1,
 
 	WL_INTERFACE_TYPE_NAN = 3,
 	WL_INTERFACE_TYPE_P2P_GO = 4,
@@ -17714,6 +17563,7 @@ enum {
 	IOV_DYNSAR_PROFILES	= 13,
 	IOV_DYNSAR_STAT_DET_V2	= 14,
 	IOV_DYNSAR_UTMON_BT     = 15,
+	IOV_DYNSAR_SAR_BUDGET   = 16,
 	IOV_DYNSAR_CMD_LAST
 };
 
@@ -17726,6 +17576,19 @@ enum {
 	IOV_DYNSAR_MODE_MAX
 };
 
+enum {
+	DYNSAR_WLMAIN = 0,
+	DYNSAR_WLAUX  = 1,
+	DYNSAR_BT     = 2,
+	DYNSAR_TX_LAST
+};
+
+#define DYNSAR_IS_MAIN(x)	((x) == DYNSAR_WLMAIN)
+#define DYNSAR_IS_AUX(x)	((x) == DYNSAR_WLAUX)
+#define DYNSAR_IS_BT(x)		((x) == DYNSAR_BT)
+#define DYNSAR_IS_WLAN(x)	(DYNSAR_IS_MAIN(x) || DYNSAR_IS_AUX(x))
+#define DYNSAR_IS_VALID_ID(x)	((x) < DYNSAR_TX_MAX)
+
 #define DYNSAR_CNT_VERSION_V1	1u
 #define DYNSAR_CNT_VERSION_V2	2u
 #define DYNSAR_CNT_VERSION_V3	3u
@@ -17733,7 +17596,8 @@ enum {
 #define DYNSAR_CNT_VERSION_V5	5u
 #define DYNSAR_STS_OBS_WIN	20u
 #define DYNSAR_MAX_ANT		WL_STA_ANT_MAX
-#define DYNSAR_MAX_AGG_IDX (DYNSAR_MAX_ANT << 1u) /* max antenna aggregation index */
+#define DYNSAR_MAX_AGG_IDX	(DYNSAR_MAX_ANT << 1u) /* max antenna aggregation index */
+/* Keep it for compatibility with the old branches. Should not be used in the new code */
 #define DYNSAR_MAC_NUM		2u
 
 /* Error bits */
@@ -17746,16 +17610,15 @@ enum {
 
 /* TLVs for DYNSAR related IOVARs */
 typedef enum wl_dynsar_tlv {
-	DYNSAR_AGG_IDX       = 1u,
-	DYNSAR_FS_RSN        = 2u
+	DYNSAR_AGG_IDX	= 1u,
+	DYNSAR_FS_RSN	= 2u
 } wl_dynsar_tlv_t;
 
 /* bit position corresponding to each failsafe reason */
 typedef enum wlc_fs_rsn_bit {
-	FS_FORCED = 0, /* Forced */
-	FS_UX_SAFE = 1, /* Ux Safe exceeds limit */
-	FS_UTIL_MEAN = 2, /* Mean Util exceeds limit */
-	FS_TXDC_AVG = 3, /* Average Txdc exceeds limit */
+	FS_FORCED	= 0, /* Forced */
+	FS_UX_SAFE	= 1, /* Ux Safe exceeds limit */
+	FS_UTIL_MEAN	= 2, /* Mean Util exceeds limit */
 } wlc_dynsar_fs_rsn_bit_t;
 
 typedef uint8 wlc_dynsar_fs_rsn_t;
@@ -18071,6 +17934,14 @@ typedef struct dynsar_opt_profiles_hdr {
 
 typedef dynsar_opt_profiles_v2_t dynsar_opt_profiles_t;
 
+#define DSA_MAX_RADIO		6u
+typedef struct dynsar_sar_budget {
+	uint16 ver;
+	uint16 len;		    /* length of this structure  */
+	uint16 size;		    /* number of the sar entries */
+	uint8  sar[DSA_MAX_RADIO];  /* active profile */
+} dynsar_sar_budget_t;
+
 typedef struct wl_dynsar_ioc {
 	uint16 id;	/* ID of the sub-command */
 	uint16 len;	/* total length of all data[] */
@@ -18088,6 +17959,7 @@ typedef struct wl_dynsar_ioc {
 		dynsar_opt_profiles_v1_t profiles;
 		dynsar_opt_profiles_v2_t profilesv2;
 		dynsar_opt_profiles_v3_t profilesv3;
+		dynsar_sar_budget_t	 budgets;
 	} data;
 } wl_dynsar_ioc_t;
 
@@ -20448,13 +20320,15 @@ typedef struct wl_mlo_status_v2 {
  */
 #define WL_MLO_CAP_VER_1	(1u)
 
+#define WL_MLO_CAP_EMLSR_ONLE_LINK_EN	(1u << 0u)	/* Capable of one link EMLSR operation. */
+
 typedef struct wl_mlo_cap_v1 {
 	uint16	version;
 	uint16  length;
 	uint8	max_mlo_links;		/* Maximum number of MLO links supported */
 	uint8	max_str_links;		/* Maximum number of STR links supported */
 	uint8	max_emlsr_links;	/* Maximum number of EMLSR links supported */
-	uint8	PAD;
+	uint8	cap_flags;		/* Bit map of supported capabilities */
 } wl_mlo_cap_v1_t;
 
 // #ifdef EHT_MAC_SW_TEST
@@ -20752,6 +20626,7 @@ typedef struct wl_mlo_tid_map_adv_v1 {
 #define WL_MLO_EMLSR_CTRL_FLAGS_TRANS_DLY_SHIFT		(5u)
 #define WL_MLO_EMLSR_CTRL_FLAGS_EMLOMN_LINKID_SHIFT	(6u)
 #define WL_MLO_EMLSR_CTRL_FLAGS_SM_PRINT_EN_SHIFT	(7u)
+#define WL_MLO_EMLSR_CTRL_FLAGS_ONE_LINK_EN_SHIFT	(8u)
 
 /* MLO emlsr ctrl Flags definition */
 #define WL_MLO_EMLSR_CTRL_FLAGS_MURTS_EN	(1u << WL_MLO_EMLSR_CTRL_FLAGS_MURTS_EN_SHIFT)
@@ -20763,6 +20638,7 @@ typedef struct wl_mlo_tid_map_adv_v1 {
 #define WL_MLO_EMLSR_CTRL_FLAGS_TRANS_DLY	(1u << WL_MLO_EMLSR_CTRL_FLAGS_TRANS_DLY_SHIFT)
 #define WL_MLO_EMLSR_CTRL_FLAGS_EMLOMN_LINKID	(1u << WL_MLO_EMLSR_CTRL_FLAGS_EMLOMN_LINKID_SHIFT)
 #define WL_MLO_EMLSR_CTRL_FLAGS_SM_PRINT_EN	(1u << WL_MLO_EMLSR_CTRL_FLAGS_SM_PRINT_EN_SHIFT)
+#define WL_MLO_EMLSR_CTRL_FLAGS_ONE_LINK_EN	(1u << WL_MLO_EMLSR_CTRL_FLAGS_ONE_LINK_EN_SHIFT)
 
 /* setting values in params: note: reusing some of the flags */
 #define WL_MLO_EMLSR_CTRL_SET_MURTS_EN(val, en)			\
@@ -20796,7 +20672,7 @@ typedef struct wl_mlo_emlsr_ctrl_v1 {
 	uint8	trans_dly;	/* EMLSR transition delay */
 	uint8	emlomn_linkid;	/* link to be used for EML OMN tx */
 	int8	sm_print_en;	/* EMLSR SM print enable */
-	uint8	PAD;
+	uint8	one_link_en;	/* One link EMLSR mode enable */
 } wl_mlo_emlsr_ctrl_v1_t;
 
 /* WL_MLO_CMD_MLD_AP_OP opcode */
@@ -21280,6 +21156,29 @@ typedef struct wl_qos_rav_scs_qos_char_v1 {
 					 * per second
 					 */
 } wl_qos_rav_scs_qos_char_v1_t;
+
+/* QoS DAR Session States */
+enum wl_qos_dar_session_states {
+	/* IDLE state */
+	WL_QOS_DAR_SESSION_STATE_IDLE			= 0u,
+	/* Initiator, Responder Configured */
+	WL_QOS_DAR_SESSION_STATE_CONFIGURED		= 1u,
+	/* Initiator waiting for DAR response */
+	WL_QOS_DAR_SESSION_STATE_INIT_WAIT_RESPONSE	= 2u,
+	/* Initiator waiting for DAR report */
+	WL_QOS_DAR_SESSION_STATE_INIT_WAIT_REPORT	= 3u,
+	/* Initiator waiting for DAR response */
+	WL_QOS_DAR_SESSION_STATE_RESP_SEND_RESPONSE	= 4u,
+	/* Responder in measurement phase */
+	WL_QOS_DAR_SESSION_STATE_RESP_MEASUREMENT	= 5u,
+	/* Session termination */
+	WL_QOS_DAR_SESSION_STATE_TERMINATING		= 6u,
+	/* Session end */
+	WL_QOS_DAR_SESSION_STATE_END			= 7u
+};
+
+typedef uint8 wl_qos_dar_session_states_t;
+typedef uint16 wl_qos_dar_session_id_t;
 
 #define WL_ESP_IOV_MAJOR_VER_1 1
 #define WL_ESP_IOV_MINOR_VER_1 1
@@ -24831,101 +24730,6 @@ typedef struct wl_srcb_v1 {
 	} u;
 } wl_srcb_v1_t;
 
-#ifndef BCMUTILS_ERR_CODES
-
-/*
- * SOE (Security Offload Engine) status codes.
- */
-
-/*  SOE status codes are reserved from -6144 to -7167 (1K) */
-
-enum wl_soe_status {
-	/* Invalid operational context */
-	WL_SOE_E_BAD_OP_CONTEXT				= -6144,
-
-	/* Invalid operational type */
-	WL_SOE_E_BAD_OP_TYPE				= -6145,
-
-	/* Failure to get NAF3 encoded scalar */
-	WL_SOE_E_BN_GET_NAF3_ERROR			= -6146,
-
-	/* Failure to get NAF3 params */
-	WL_SOE_E_ECG_GET_NAF3_PARAMS_ERROR		= -6147,
-
-	/* FAILURE to get Montgomery params */
-	WL_SOE_E_MONT_PARAMS_GET_ERROR			= -6148,
-
-	/* Invalid OSL handle */
-	WL_SOE_E_BAD_SI_OSH				= -6149,
-
-	/* Invalid ECG group */
-	WL_SOE_E_BAD_ECG_GROUP				= -6150,
-
-	/* Invalid BN context */
-	WL_SOE_E_BAD_BN_CTX				= -6151,
-
-	/* Invalid SOE core register base address */
-	WL_SOE_E_BAD_SOE_REGBASE			= -6152,
-
-	/* Invalid SOE context */
-	WL_SOE_E_BAD_SOE_CONTXT				= -6153,
-
-	/* Number of words are too short (i.e., not enough
-	 * room to encode the PKA sequence)
-	 */
-	WL_SOE_E_PKA_SEQUENCE_WORDS_TOO_SHORT		= -6154,
-
-	/* Generic bn_get error */
-	WL_SOE_E_PKA_BN_GET_ERROR			= -6155,
-
-	/* Sequence buf too short for BN */
-	WL_SOE_E_PKA_BN_BUF_TOO_SHORT_BN		= -6156,
-
-	/* Sequence buf too short for ECG prime */
-	WL_SOE_E_PKA_BN_BUF_TOO_SHORT_ECG_PRIME		= -6157,
-
-	/* Sequence buf too short for Montgomery N' */
-	WL_SOE_E_PKA_SEQ_BUF_TOO_SHORT_MONT_PRIME	= -6158,
-
-	/* Sequence buf too short for Accumulator registers */
-	WL_SOE_E_PKA_SEQ_BUF_TOO_SHORT_ACCM_REG		= -6159,
-
-	/* Sequence buf too short for the point P */
-	WL_SOE_E_PKA_SEQ_BUF_TOO_SHORT_P		= -6160,
-
-	/* Sequence buf too short for -P */
-	WL_SOE_E_PKA_SEQ_BUF_TOO_SHORT_PN		= -6161,
-
-	/* Sequence buf too short for 3P */
-	WL_SOE_E_PKA_SEQ_BUF_TOO_SHORT_3P		= -6162,
-
-	/* Sequence buf too short for -3P */
-	WL_SOE_E_PKA_SEQ_BUF_TOO_SHORT_3PN		= -6163,
-
-	/* Sequence buf too short for NAF3 scalar */
-	WL_SOE_E_PKA_SEQ_BUF_TOO_SHORT_NAF3_SCALAR	= -6164,
-
-	/* Sequence buf too short for load shift count */
-	WL_SOE_E_PKA_SEQ_BUF_TOO_SHORT_PRE_JMP		= -6165,
-
-	/* SOE engine(SHA/PKA) failed to complete the operation */
-	WL_SOE_E_ENGINE_UNABLE_TO_COMPLETE		= -6166,
-
-	/* Wrong LIR (Long Integer Register) type */
-	WL_SOE_E_PKA_BAD_LIR_TYPE			= -6167,
-
-	/* Reference count has reached maximum */
-	WL_SOE_E_MAX_REF_COUNT_REACHED			= -6168,
-
-	/* Failed to get the SOE context reference */
-	WL_SOE_E_GET_REF_FAILED				= -6169,
-
-	/* Incoming digest length is invalid */
-	WL_SOE_E_SHA_WRONG_DIGEST_LEN			= -6170
-};
-
-#endif /* BCMUTILS_ERR_CODES */
-
 #define NR5GCX_STATUS_VER_1 1
 /* NR coex status structures */
 typedef struct wlc_nr5gcx_status_v1 {
@@ -25770,6 +25574,124 @@ typedef struct wl_rng_iovar {
 	} u;
 } wl_rng_iovar_t;
 
+#if defined(WL_RC2COEX) || defined(LR154CX) || defined(RC2CX)
+#define RC2CX_STATUS_VER_3 3
+/* RC2/15.4 coex status structures */
+typedef struct wlc_rc2cx_stats_v3 {
+	uint16	version;		/* version info */
+	uint8	len;			/* status length */
+	uint8	mode;			/* RC2 coex mode */
+	uint16	rc2_req_cnt;		/* RC2 req number since last read. */
+	uint16	rc2_grant_cnt;		/* RC2 grant count since last read. */
+	uint32	rc2_dur;		/* RC2 duration since last read, us. */
+	uint16	rc2_succ_pm_prot_cnt;	/* RC2 number of successfully acked PM. */
+	uint16	rc2_succ_cts_prot_cnt;	/* RC2 number of successfully TXed CTS2A. */
+	uint16	rc2_grant_delay_cnt;	/* RC2 grant delay counter, delay > 4.5ms. */
+	uint16	rc2_crit_phycal_cnt;	/* RC2 WLAN/BT critical: PHY cal. counter. */
+	uint16	rc2_crit_rate_cnt;	/* RC2 WLAN/BT critical: rate recovery counter. */
+	uint16	rc2_crit_bcnloss_cnt;	/* RC2 WLAN/BT critical: beacon loss counter. */
+	uint16	rc2_crit_hpp_cnt;	/* RC2 WLAN/BT critical: HPP counter. */
+	uint16	rc2_crit_bt_cnt;	/* RC2 WLAN/BT critical: BT counter. */
+	uint16	rc2_crit_slotbss_cnt;	/* RC2 WLAN/BT critical: AWDL/NAN counter. */
+	uint16	rc2_crit_max_dur;	/* The longest critical event duration. */
+	uint32	rc2_crit_cnt;		/* RC2 WLAN/BT critical counter, aggregate. */
+	uint16	rc2_crit_map_max;	/* A bitmap of the deny sources. */
+	uint16	rc2_tx_req_cnt;		/* RC2 TX req number since last read. */
+	uint16	rc2_rx_req_cnt;		/* RC2 RX req number since last read. */
+	uint16	rc2_tx_deny_cnt;	/* RC2 TX deny number since last read. */
+	uint16	rc2_rx_deny_cnt;	/* RC2 RX deny number since last read. */
+	uint8	pad[2];
+} wlc_rc2cx_stats_v3_t;
+#endif /* WL_RC2COEX || LR154CX */
+
+#if defined(WL_RC2COEX) || defined(RC2CX)
+#define RC2CX_STATUS_VER_2 2
+/* RC2 coex status structures */
+typedef struct wlc_rc2cx_stats_v2 {
+	uint16	version;		/* version info */
+	uint8	len;			/* status length */
+	uint8	mode;			/* RC2 coex mode */
+	uint16	rc2_req_cnt;		/* RC2 req number since last read. */
+	uint16	rc2_grant_cnt;		/* RC2 grant count since last read. */
+	uint32	rc2_dur;		/* RC2 duration since last read, us. */
+	uint16	rc2_succ_pm_prot_cnt;	/* RC2 number of successfully acked PM. */
+	uint16	rc2_succ_cts_prot_cnt;	/* RC2 number of successfully TXed CTS2A. */
+	uint16	rc2_grant_delay_cnt;	/* RC2 grant delay counter, delay > 4.5ms. */
+	uint16	rc2_crit_phycal_cnt;	/* RC2 WLAN/BT critical: PHY cal. counter. */
+	uint16	rc2_crit_rate_cnt;	/* RC2 WLAN/BT critical: rate recovery counter. */
+	uint16	rc2_crit_bcnloss_cnt;	/* RC2 WLAN/BT critical: beacon loss counter. */
+	uint16	rc2_crit_hpp_cnt;	/* RC2 WLAN/BT critical: HPP counter. */
+	uint16	rc2_crit_bt_cnt;	/* RC2 WLAN/BT critical: BT counter. */
+	uint16	rc2_crit_slotbss_cnt;	/* RC2 WLAN/BT critical: AWDL/NAN counter. */
+	uint16	rc2_crit_max_dur;	/* The longest critical event duration. */
+	uint32	rc2_crit_cnt;		/* RC2 WLAN/BT critical counter, aggregate. */
+	uint16	rc2_crit_map_max;	/* A bitmap of the deny sources. */
+	uint8	pad[2];
+} wlc_rc2cx_stats_v2_t;
+
+#define RC2CX_STATUS_VER_1 1
+/* RC2 coex status structures */
+typedef struct wlc_rc2cx_stats_v1 {
+	uint16	version;		/* version info */
+	uint8	len;			/* status length */
+	uint8	mode;			/* RC2 coex mode */
+	uint16	rc2_req_cnt;		/* RC2 req number since last read. */
+	uint16	rc2_grant_cnt;		/* RC2 grant count since last read. */
+	uint32	rc2_dur;		/* RC2 duration since last read, us. */
+	uint16	rc2_succ_pm_prot_cnt;	/* RC2 number of successfully acked PM. */
+	uint16	rc2_succ_cts_prot_cnt;	/* RC2 number of successfully TXed CTS2A. */
+	uint16	rc2_grant_delay_cnt;	/* RC2 grant delay counter, delay > 4.5ms. */
+	uint16	rc2_crit_phycal_cnt;	/* RC2 WLAN/BT critical: PHY cal. counter. */
+	uint16	rc2_crit_rate_cnt;	/* RC2 WLAN/BT critical: rate recovery counter. */
+	uint16	rc2_crit_bcnloss_cnt;	/* RC2 WLAN/BT critical: beacon loss counter. */
+	uint16	rc2_crit_hpp_cnt;	/* RC2 WLAN/BT critical: HPP counter. */
+	uint16	rc2_crit_bt_cnt;	/* RC2 WLAN/BT critical: BT counter. */
+	uint16	rc2_crit_slotbss_cnt;	/* RC2 WLAN/BT critical: AWDL/NAN counter. */
+	uint16	rsvd;
+	uint32	rc2_crit_cnt;		/* RC2 WLAN/BT critical counter, aggregate. */
+} wlc_rc2cx_stats_v1_t;
+
+/* Definitions for RC2 coex iovar */
+#define WL_RC2CX_VERSION	1
+
+/* RC2 coex IOV sub command IDs */
+typedef enum rc2cx_cmd_id {
+	WL_RC2CX_CMD_VER	= 0,	/* RC2CX version sub command */
+	WL_RC2CX_CMD_MODE	= 1,	/* RC2CX Mode sub command */
+	WL_RC2CX_CMD_PM_PROT	= 2,	/* RC2CX PM Protection sub command */
+	WL_RC2CX_CMD_PER_CTS	= 3	/* RC2CX Periodic CTS sub command */
+} rc2cx_cmd_id_t;
+
+/* first byte of bcm_iov_batch_subcmd.data for the WL_RC2CX_CMD_MODE command */
+#define RC2CX_MODE_DISABLED		0x00u
+#define RC2CX_MODE_TDD			0x01u
+#define RC2CX_MODE_PM_PROT		0x02u
+#define RC2CX_MODE_PER_CTS		0x04u
+#define RC2CX_MODE_PER_CTS_DENY_BT	0x08u
+
+/* first byte of bcm_iov_batch_subcmd.data for the WL_RC2CX_CMD_PM_PROT command */
+#define RC2CX_PM_PROT_ENABLED	0x01u
+#define RC2CX_PM_PROT_DISABLED	0x00u
+
+/* first byte of bcm_iov_batch_subcmd.data for the WL_RC2CX_CMD_PER_CTS command */
+#define RC2CX_PER_CTS_ENABLED	0x01u
+#define RC2CX_PER_CTS_DISABLED	0x00u
+
+#define RC2CX_PER_CTS_DENY_BT	0x02u
+#define RC2CX_PER_CTS_GRANT_BT	0x01u
+
+/* payload for the WL_RC2CX_CMD_PER_CTS command */
+typedef struct rc2cx_per_cts_config {
+	uint8 enable_flag;	/* 0: feature disabled;
+				* 1: grant BT when granting RC2;
+				* 2: deny BT when granting RC2
+				*/
+	uint8 duration_val;	/* Must be valid with enable command */
+	uint8 interval_val;	/* Must be valid with enable command */
+	uint8 PAD;
+} rc2cx_per_cts_config_t;
+
+#endif /* WL_RC2COEX */
 
 #ifdef WL_UWBCOEX
 /* Definitions for UWB coex iovar */
@@ -26345,7 +26267,11 @@ enum {
 	/* AP only. AP is waiting for authentication frame with sequence 3. */
 	WL_PASN_STATE_WAIT_AUTH_3	= 11,
 	/* PASN exchange is done. */
-	WL_PASN_STATE_DONE			= 12
+	WL_PASN_STATE_DONE		= 12,
+	/* STA only. User(ex FTM) indicated to use cached key info. Key info is present for peer in
+	 * the keyinfo database. Install key info by passing it to key management module.
+	 */
+	WL_PASN_STATE_INSTALL_CACHED_KEY = 13
 };
 
 typedef uint8 wl_pasn_session_state_t;
@@ -26360,13 +26286,19 @@ typedef uint16 wl_pasn_flags_t;
 
 enum {
 	/* PASN exchange will use PMKSA to derive PTKSA */
-	WL_PASN_SESSION_FLAG_CACHED_PMK = 0x0001u,
+	WL_PASN_SESSION_FLAG_CACHED_PMK		= 0x0001u,
 	/* PASN exchange will setup PMKSA by tunneling protocol data */
-	WL_PASN_SESSION_FLAG_TUNNELED_AKM = 0x0002u,
+	WL_PASN_SESSION_FLAG_TUNNELED_AKM	= 0x0002u,
 	/* PASN session will be deleted if error occurs */
-	WL_PASN_SESSION_FLAG_DELETE_ON_ERR = 0x0004u,
+	WL_PASN_SESSION_FLAG_DELETE_ON_ERR	= 0x0004u,
 	/* PASN session will issue scan with randmac */
-	WL_PASN_SESSION_FLAG_RANDMAC = 0x0008u
+	WL_PASN_SESSION_FLAG_RANDMAC		= 0x0008u,
+	/* PASN session will use existing cached PTKSA or derive the PTKSA and cache it */
+	WL_PASN_SESSION_FLAG_USE_PTK_CACHE	= 0x0010u,
+	/* PASN session is using cached PTKSA */
+	WL_PASN_SESSION_FLAG_CACHED_PTK_IN_USE	= 0x0020u,
+	/* PASN scan results processed */
+	WL_PASN_SESSION_FLAG_SCAN_RESULTS_PROCESSED = 0x0040u
 };
 typedef uint16 wl_pasn_session_flags_t;
 
@@ -27871,6 +27803,8 @@ enum wl_platcfg_cmd_id {
 	WL_PLATCFG_CMD_DUMP_DATA	= 4u,
 	WL_PLATCFG_CMD_BLOB_VER_V2	= 5u,
 	WL_PLATCFG_CMD_DUMP_DATA_V2	= 6u,
+	WL_PLATCFG_CMD_DUMP_DATA_V3	= 7u,
+	WL_PLATCFG_CMD_BLOBSEC		= 8u,
 	WL_PLATCFG_CMD_LAST
 };
 
@@ -27892,7 +27826,13 @@ typedef struct wl_platcfg_ver {
 	uint8	pad[2];
 } wl_platcfg_ver_t;
 
+typedef struct wl_platcfg_blobsec {
+	uint32  cmds;		/* WL_PLATCFG_CMD_BLOBSEC */
+} wl_platcfg_blobsec_t;
+
 /* tracks current module command version */
+#define	WL_PLATCFG_CMD_VER_V4	4u	/* Add 4x4, no signing */
+#define WL_PLATCFG_CMD_VER_V3	3u	/* Add MSF signing */
 #define WL_PLATCFG_CMD_VER_V2	2u
 #define WL_PLATCFG_CMD_VER_V1	1u
 
@@ -27970,7 +27910,31 @@ typedef struct wl_antgain6g_datalist_v2 {
 	uint8	antg[];		/* list of wl_antgain6g_data_t */
 } wl_antgain6g_datalist_v2_t;
 
-#define WL_ANTG_NUM_ANTS	2u
+/* V3 is for access router (4x4) and V2 is for mobility (2x2) */
+#define WL_ANTG_MAX_ANTS_V3	4u
+#define WL_ANTG_MAX_ANTS_V2	2u
+/*
+ * Due to build erros, keep WL_ANTG_NUM_ANTS
+ * until all the related changes are checkedin.
+ */
+#define WL_ANTG_NUM_ANTS	WL_ANTG_MAX_ANTS_V2
+typedef struct wl_antgain6g_data_v3 {
+	uint16  start_freq;				/* in MHz */
+	uint16  end_freq;				/* in MHz */
+	uint16	num_ants;				/* 2: 2x2, 3:3x3, 4:4x4 */
+	int16   corr_gain[WL_ANTG_MAX_ANTS_V3 - 1];     /* directional gain of
+							 * correlated signals used by FW,
+							 * scaled to 100x to avoid float
+							 * corr_gain[0] is for 2Tx,
+							 * corr_gain[1] is for 3Tx,
+							 * corr_gain[2] is for 4Tx.
+							 */
+	int16   uncorr_gain[WL_ANTG_MAX_ANTS_V3 - 1];   /* same definition as corr_gain, but for
+							 * non-correlated signals
+							 */
+	int16   ag_val[WL_ANTG_MAX_ANTS_V3];		/* individual antenna gains */
+} wl_antgain6g_data_v3_t;
+
 typedef struct wl_antgain6g_data_v2 {
 	uint16  start_freq;	/* in MHz */
 	uint16  end_freq;	/* in MHz */
@@ -27980,7 +27944,7 @@ typedef struct wl_antgain6g_data_v2 {
 	int16	uncorr_gain;	/* same definition as corr_gain, but for
 				 * non-correlated signals
 				 */
-	int16	ag_val[WL_ANTG_NUM_ANTS]; /* individual antenna gains */
+	int16	ag_val[WL_ANTG_MAX_ANTS_V2]; /* individual antenna gains */
 } wl_antgain6g_data_v2_t;
 
 /* WL_PLATCFG_XTLV_DUMP_DATA */
@@ -28114,35 +28078,37 @@ typedef struct wl_vlptpc_thresh_v1 {
 
 /* UHR sub command IDs */
 enum {
-	WL_UHR_CMD_ENAB		= 0u,	/* enable/disable UHR feature as a whole */
-	WL_UHR_CMD_FEATURES	= 1u,	/* configure UHR sub-features */
+	WL_UHR_CMD_ENAB			= 0u,	/* enable/disable UHR feature as a whole */
+	WL_UHR_CMD_FEATURES		= 1u,	/* configure UHR sub-features */
+	WL_UHR_CMD_SLROAM_ENAB		= 2u,	/* UHR slroam enab/disable */
+	WL_UHR_CMD_SLROAM_POLICY	= 3u,	/* UHR slroam policy */
 
 	/* Add new sub command IDs here... */
 
 	/* debug/test related sub-commands, mogrify? */
-	WL_UHR_CMD_DBG		= 0x1000u,	/* configure UHR debug facilities */
+	WL_UHR_CMD_DBG			= 0x1000u,	/* configure UHR debug facilities */
 };
 
 /*
  * CCI performance monitor definitions
  */
-#define WL_CCIPERF_VER_1               1u
+#define WL_CCIPERF_VER_1		1
 
-#define CCIPERF_MAX_COUNTERS_V1        4u
-#define CCIPERF_MAX_SOURCES_V1         8u
-#define CCIPERF_MAX_SLAVE_SOURCE_V1    5u
-#define CCIPERF_MAX_MASTER_SOURCE_V1   CCIPERF_MAX_SOURCES_V1
-#define CCIPERF_MAX_SLAVE_EVENTS_V1    21u
-#define CCIPERF_MAX_MASTER_EVENTS_V1   18u
+#define CCIPERF_MAX_COUNTERS_V1		4
+#define CCIPERF_MAX_SOURCES_V1		8
+#define CCIPERF_MAX_SLAVE_SOURCE_V1	5
+#define CCIPERF_MAX_MASTER_SOURCE_V1	CCIPERF_MAX_SOURCES_V1
+#define CCIPERF_MAX_SLAVE_EVENTS_V1	21
+#define CCIPERF_MAX_MASTER_EVENTS_V1	18
 
 /* CCIPERF subcommand IDs */
 enum {
-	WL_CCIPERF_CMD_SELECT       = 0,
-	WL_CCIPERF_CMD_DESELECT     = 1,
-	WL_CCIPERF_CMD_DESELECT_ALL = 2,
-	WL_CCIPERF_CMD_CLEAR        = 3,
-	WL_CCIPERF_CMD_CLEAR_ALL    = 4,
-	WL_CCIPERF_CMD_DUMP         = 5,
+	WL_CCIPERF_CMD_SELECT		= 0,
+	WL_CCIPERF_CMD_DESELECT		= 1,
+	WL_CCIPERF_CMD_DESELECT_ALL	= 2,
+	WL_CCIPERF_CMD_CLEAR		= 3,
+	WL_CCIPERF_CMD_CLEAR_ALL	= 4,
+	WL_CCIPERF_CMD_DUMP		= 5,
 	WL_CCIPERF_CMD_LAST
 };
 
@@ -28182,11 +28148,19 @@ typedef struct wl_art_cmd_config_v1 {
 	uint16 chanspec; 		/* Channel configuration */
 } wl_art_cmd_config_v1_t;
 
+typedef enum wl_art_conn_type {
+	WL_ART_CONN_HT	= 1u,	/**< ART is HT Connection */
+	WL_ART_CONN_VHT	= 2u,	/**< ART is VHT Connection */
+	WL_ART_CONN_HE	= 3u,	/**< ART is HE Connection */
+	WL_ART_CONN_EHT	= 4u,	/**< ART is EHT Connection */
+} wl_art_conn_type_t;
+
 /* ART Top level command IDs */
 enum {
 	WL_ART_CMD_ENAB		= 0,
 	WL_ART_CMD_TXACTIVE	= 1,
 	WL_ART_CMD_CONFIG	= 2,
+	WL_ART_CMD_CONN_SELECT	= 3,
 	WL_ART_CMD_LAST
 };
 #endif /* _wlioctl_h_ */

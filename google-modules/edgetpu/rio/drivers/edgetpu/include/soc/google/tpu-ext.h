@@ -80,6 +80,9 @@ enum edgetpu_ext_commands {
 enum edgetpu_ext_client_type {
 	EDGETPU_EXTERNAL_CLIENT_TYPE_DSP,
 	EDGETPU_EXTERNAL_CLIENT_TYPE_AOC,
+	EDGETPU_EXTERNAL_CLIENT_TYPE_SSU,
+	/* Number of valid types defined above. */
+	EDGETPU_EXTERNAL_CLIENT_TYPE_COUNT,
 };
 
 /*

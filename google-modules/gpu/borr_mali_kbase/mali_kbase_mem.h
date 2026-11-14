@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -447,8 +447,10 @@ enum kbase_page_status {
 /**
  * struct kbase_page_metadata - Metadata for each page in kbase
  *
+ * @kbdev:         Pointer to kbase device.
  * @dma_addr:      DMA address mapped to page.
  * @migrate_lock:  A spinlock to protect the private metadata.
+ * @cpu_map_lock:  A semaphore used to sync CPU map/unmap operations.
  * @data:          Member in union valid based on @status.
  * @status:        Status to keep track if page can be migrated at any
  *                 given moment. MSB will indicate if page is isolated.
@@ -461,8 +463,10 @@ enum kbase_page_status {
  * migration functionality as well as address for DMA mapping.
  */
 struct kbase_page_metadata {
+	struct kbase_device *kbdev;
 	dma_addr_t dma_addr;
 	spinlock_t migrate_lock;
+	struct semaphore cpu_map_lock;
 
 	union {
 		struct {
@@ -470,10 +474,6 @@ struct kbase_page_metadata {
 			 * won't be able to get reference to kbase device.
 			 */
 			struct kbase_mem_pool *pool;
-			/**
-			 * @data.mem_pool.kbdev: Pointer to kbase device.
-			 */
-			struct kbase_device *kbdev;
 		} mem_pool;
 		struct {
 			struct kbase_va_region *reg;
@@ -507,12 +507,6 @@ struct kbase_page_metadata {
 			s8 num_allocated_sub_pages;
 #endif
 		} pt_mapped;
-		struct {
-			struct kbase_device *kbdev;
-		} free_isolated;
-		struct {
-			struct kbase_device *kbdev;
-		} free_pt_isolated;
 	} data;
 
 	u8 status;

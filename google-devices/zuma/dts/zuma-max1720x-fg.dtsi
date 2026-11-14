@@ -13,7 +13,6 @@ max1720x_fg: max1720x@36 {
 	reg = <0x36 0x0b>;
 
 	pinctrl-names = "default";
-	maxim,irqf-shared;
 
 	maxim,rsense-default = <300>;
 

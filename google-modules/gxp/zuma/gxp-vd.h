@@ -19,6 +19,7 @@
 #include <linux/types.h>
 #include <linux/wait.h>
 
+#include <gcip/gcip-dma-fence.h>
 #include <gcip/gcip-image-config.h>
 #include <gcip/gcip-iommu-reserve.h>
 #include <gcip/gcip-memory.h>
@@ -137,10 +138,8 @@ struct gxp_virtual_device {
 	/* A constant ID assigned after VD is allocated. For debug only. */
 	int vdid;
 	struct gcip_image_config_parser cfg_parser;
-	/* Protects @dma_fence_list. */
-	struct mutex fence_list_lock;
-	/* List of GXP DMA fences owned by this VD. */
-	struct list_head gxp_fence_list;
+	/* To manage DMA fences. */
+	struct gcip_dma_fence_manager *gfence_mgr;
 	/* Protects changing the state of vd while generating a debug dump. */
 	struct mutex debug_dump_lock;
 	/* An eventfd which will be triggered when this vd is invalidated. */

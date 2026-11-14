@@ -1557,6 +1557,17 @@ static int __mfc_handle_seq_dec(struct mfc_core *core, struct mfc_ctx *ctx)
 	if (ctx->src_fmt->fourcc != V4L2_PIX_FMT_FIMV1) {
 		ctx->img_width = mfc_core_get_img_width();
 		ctx->img_height = mfc_core_get_img_height();
+		if (mfc_check_dec_resolution(ctx, ctx->img_width, ctx->img_height)) {
+			mfc_ctx_err("[STREAM] unsupported resolution from F/W, %dx%d\n",
+					ctx->img_width, ctx->img_height);
+			mfc_change_state(core_ctx, MFCINST_HEAD_PARSED);
+			/*
+			 * ctx->img_width and ctx->img_height are not initialized here.
+			 * Invalid values must be updated so that mfc_dec_g_fmt_vid_cap_mplane
+			 * can return an error to the user.
+			 */
+			return -EINVAL;
+		}
 		ctx->crop_width = ctx->img_width;
 		ctx->crop_height = ctx->img_height;
 		mfc_ctx_info("[STREAM] resolution w: %d, h: %d\n",

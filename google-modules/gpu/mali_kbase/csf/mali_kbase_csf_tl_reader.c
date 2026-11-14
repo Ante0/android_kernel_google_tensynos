@@ -28,6 +28,7 @@
 #include "tl/mali_kbase_tl_serialize.h"
 #include "tl/mali_kbase_tracepoints.h"
 
+#include "mali_kbase_mipe_proto.h"
 #include "mali_kbase_pm.h"
 #include "mali_kbase_hwaccess_time.h"
 
@@ -56,6 +57,9 @@ struct kbase_csffw_tl_message {
 	u64 timestamp;
 	u64 cycle_counter;
 } __packed __aligned(4);
+
+#define KBASE_CSFFW_TL_MAX_EVENT_SIZE \
+	(PACKET_SIZE - PACKET_HEADER_SIZE - PACKET_NUMBER_SIZE)
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 static int kbase_csf_tl_debugfs_poll_interval_read(void *data, u64 *val)
@@ -231,6 +235,14 @@ int kbase_csf_tl_reader_flush_buffer(struct kbase_csf_tl_reader *self)
 			dev_warn(kbdev->dev, "event_id: %u, can't read with event_size: %u.",
 				 event_id, event_size);
 			ret = -EBUSY;
+			break;
+		}
+
+		if (event_size < sizeof(struct kbase_csffw_tl_message) ||
+		    event_size > KBASE_CSFFW_TL_MAX_EVENT_SIZE) {
+			dev_warn(kbdev->dev, "event_id: %u, invalid event_size: %u.",
+				 event_id, event_size);
+			ret = -EINVAL;
 			break;
 		}
 

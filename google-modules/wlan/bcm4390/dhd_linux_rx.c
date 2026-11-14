@@ -2,7 +2,7 @@
  * Broadcom Dongle Host Driver (DHD),
  * Linux-specific network interface for receive(rx) path
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1360,16 +1360,13 @@ dhd_validate_monitor_packet_sanity(struct sk_buff *skb, dhd_pub_t *dhdp)
 	prhex("mac_hdr", (u8 *)mac_hdr, (u32)sizeof(struct ieee80211_hdr_3addr));
 #endif /* DHD_MON_DBG */
 	/* look for packets of interest by app space based on bssid */
-	if ((memcmp(mac_hdr->addr3, cfg->art_bssid, ETH_ALEN) == 0) ||
-		(memcmp(mac_hdr->addr3, dhdp->art_bssid, ETH_ALEN) == 0)) {
+	if ((memcmp(mac_hdr->addr3, dhdp->art_bssid, ETH_ALEN) == 0)) {
 		DHD_MON_TRACE(("bssid mached. allow packet skb->len:%d\n", len));
 		return BCME_OK;
 	}
 
 	/* unknown packets - drop */
 	DHD_MON_TRACE(("bssid mismatch. drop packet. skb->len:%d\n", len));
-	DHD_MON_TRACE(("mac_addr3:" MACF " cfg art_bssid:" MACF "\n",
-		ETHERP_TO_MACF(mac_hdr->addr3), ETHERP_TO_MACF(cfg->art_bssid)));
 	DHD_MON_TRACE(("mac_addr3:" MACF " dhd art_bssid:" MACF "\n",
 		ETHERP_TO_MACF(mac_hdr->addr3), ETHERP_TO_MACF(dhdp->art_bssid)));
 	return BCME_ERROR;

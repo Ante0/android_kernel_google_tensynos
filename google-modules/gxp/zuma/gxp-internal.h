@@ -155,9 +155,6 @@ struct gxp_dev {
 	/* Next virtual device ID. */
 	atomic_t next_vdid;
 
-	/* To manage DMA fences. */
-	struct gcip_dma_fence_manager *gfence_mgr;
-
 	/* To save device properties */
 	struct gxp_dev_prop device_prop;
 

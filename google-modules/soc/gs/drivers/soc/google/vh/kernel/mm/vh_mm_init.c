@@ -7,16 +7,24 @@
  */
 
 #include "linux/cpumask.h"
+#include "linux/delay.h"
 #include "linux/spinlock.h"
 #include <linux/kobject.h>
 #include <linux/module.h>
+#include <linux/sched.h>
 #include <linux/string.h>
 #include <trace/hooks/mm.h>
 #include <trace/hooks/vmscan.h>
 #include <uapi/linux/sched/types.h>
+#include <heaps/deferred-free-helper.h>
 
 #include "../../include/pixel_mm_hint.h"
 #include "../../include/pixel_mm.h"
+
+#define READ_SWAP_CACHE_ASYNC_SPIN_COUNT 8
+#define READ_SWAP_CACHE_ASYNC_DELAY_US 5
+#define READ_SWAP_CACHE_ASYNC_SLEEP_MIN 10
+#define READ_SWAP_CACHE_ASYNC_SLEEP_MAX 15
 
 static struct task_struct *tsk_kswapd, *tsk_kcompactd;
 
@@ -242,11 +250,63 @@ static void vh_kcompactd_cpu_online(void *data, int cpu) {
 
 VENDOR_MM_RW(kcompactd_cpu_affinity);
 
+static ssize_t deferred_free_thread_nice_show(struct kobject *kobj,
+						struct kobj_attribute *attr,
+						char *buf)
+{
+	if (freelist_task)
+		return sysfs_emit(buf, "%d\n", task_nice(freelist_task));
+
+	return -ESRCH;
+}
+
+static ssize_t deferred_free_thread_nice_store(struct kobject *kobj,
+						struct kobj_attribute *attr,
+						const char *buf,
+						size_t len)
+{
+	int nice;
+
+	if (kstrtoint(buf, 10, &nice))
+		return -EINVAL;
+
+	if (nice < MIN_NICE)
+		nice = MIN_NICE;
+	if (nice > MAX_NICE)
+		nice = MAX_NICE;
+
+	if (freelist_task) {
+		sched_set_normal(freelist_task, nice);
+	} else {
+		WARN_ON_ONCE(1);
+		return -ESRCH;
+	}
+
+	return len;
+}
+
+VENDOR_MM_RW(deferred_free_thread_nice);
+
+static void rvh_read_swap_cache_async_schedule_timeout(void *data, size_t *count, bool *skip)
+{
+	*skip = true;
+
+	//spin before sleep
+	if (*count < READ_SWAP_CACHE_ASYNC_SPIN_COUNT) {
+		*count = *count + 1;
+		udelay(READ_SWAP_CACHE_ASYNC_DELAY_US);
+		return;
+	}
+
+	usleep_range(READ_SWAP_CACHE_ASYNC_SLEEP_MIN, READ_SWAP_CACHE_ASYNC_SLEEP_MAX);
+}
+
 static struct attribute *vendor_mm_attrs[] = {
 	&kswapd_cpu_affinity_attr.attr,
 	&kswapd_uclamp_min_attr.attr,
 	&kcompactd_cpu_affinity_attr.attr,
 	&kcompactd_uclamp_min_attr.attr,
+	&deferred_free_thread_nice_attr.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(vendor_mm);
@@ -321,6 +381,15 @@ static int vh_mm_init(void)
 		goto out_err;
 
 	ret = register_trace_android_vh_do_async_mmap_readahead(vh_do_async_mmap_readahead, NULL);
+	if (ret)
+		goto out_err;
+
+	ret = register_trace_android_vh_do_sync_mmap_readahead(vh_do_sync_mmap_readahead, NULL);
+	if (ret)
+		goto out_err;
+
+	ret = register_trace_android_rvh_read_swap_cache_async_timeout
+			(rvh_read_swap_cache_async_schedule_timeout, NULL);
 	if (ret)
 		goto out_err;
 

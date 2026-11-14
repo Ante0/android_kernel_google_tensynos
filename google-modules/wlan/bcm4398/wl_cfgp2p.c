@@ -1,7 +1,7 @@
 /*
  * Linux cfgp2p driver
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -142,6 +142,19 @@ bool wl_cfgp2p_is_pub_action(void *frame, u32 frame_len)
 	}
 
 	return false;
+}
+
+/*
+ * Returns the number of bytes that wl_cfgp2p_vndr_ie will write for a given datalen.
+ * This matches the offset calculation in wl_cfgp2p_vndr_ie.
+ */
+u32 wl_cfgp2p_vndr_ie_write_len(u32 datalen)
+{
+	u8 *base = (u8 *)0;
+	u8 *data_ptr = (u8 *)&(((vndr_ie_setbuf_t *)base)
+		->vndr_ie_buffer.vndr_ie_list->vndr_ie_data.data[0]);
+	u32 data_offset = data_ptr - base;
+	return data_offset + datalen;
 }
 
 bool wl_cfgp2p_is_p2p_action(void *frame, u32 frame_len)
@@ -2014,9 +2027,21 @@ wl_cfg80211_change_ifaddr(u8* buf, struct ether_addr *p2p_int_addr, u8 element_i
 		subelt_len |= *subel++ << 8;
 
 		len -= 2;
+		/* Bounds check: ensure subelt_len doesn't exceed remaining length */
+		if (subelt_len > len) {
+			/* TLV length exceeds remaining data malformed IE */
+			break;
+		}
 		len -= subelt_len;	/* for the remaining subelt fields */
 
 		if (subelt_id == element_id) {
+			if ((subelt_id == P2P_SEID_INTINTADDR || subelt_id == P2P_SEID_DEV_ID ||
+				subelt_id == P2P_SEID_DEV_INFO || subelt_id == P2P_SEID_GROUP_ID) &&
+				subelt_len < ETHER_ADDR_LEN) {
+				CFGP2P_ERR(("Malformed P2P attribute len %u for id %u\n",
+					subelt_len, subelt_id));
+				break;
+			}
 			if (subelt_id == P2P_SEID_INTINTADDR) {
 				memcpy(subel, p2p_int_addr->octet, ETHER_ADDR_LEN);
 				CFGP2P_INFO(("Intended P2P Interface Address ATTR FOUND\n"));
@@ -2415,6 +2440,11 @@ wl_cfgp2p_retreive_p2pattrib(const void *buf, u8 element_id)
 		subelt_len |= *subel++ << 8;
 
 		len -= 2;
+		/* Bounds check: ensure subelt_len doesn't exceed remaining length */
+		if (subelt_len > len) {
+			/* TLV length exceeds remaining data malformed IE */
+			break;
+		}
 		len -= subelt_len;	/* for the remaining subelt fields */
 
 		if (subelt_id == element_id) {

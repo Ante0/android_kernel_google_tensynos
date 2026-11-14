@@ -977,6 +977,13 @@ static void mlme_init_rates_in_cfg(struct wlan_objmgr_psoc *psoc,
 			      &rates->current_mcs_set.len);
 }
 
+static void mlme_init_passive_enable_in_cfg(struct wlan_objmgr_psoc *psoc,
+					    struct wlan_mlme_cfg *mlme_cfg)
+{
+	mlme_cfg->passive_chan_discard_mode =
+		cfg_get(psoc, CFG_DISCARD_PASSIVE_CHANNEL_FOR_MODE);
+}
+
 static void mlme_init_dfs_cfg(struct wlan_objmgr_psoc *psoc,
 			      struct wlan_mlme_dfs_cfg *dfs_cfg)
 {
@@ -997,6 +1004,8 @@ static void mlme_init_dfs_cfg(struct wlan_objmgr_psoc *psoc,
 		cfg_get(psoc, CFG_SAP_TX_LEAKAGE_THRESHOLD);
 	dfs_cfg->dfs_pri_multiplier =
 		cfg_get(psoc, CFG_DFS_RADAR_PRI_MULTIPLIER);
+	dfs_cfg->dfs_discard_mode =
+		cfg_get(psoc, CFG_DISCARD_DFS_CHANNEL_FOR_MODE);
 }
 
 static void mlme_init_feature_flag_in_cfg(
@@ -2725,6 +2734,7 @@ QDF_STATUS mlme_cfg_on_psoc_enable(struct wlan_objmgr_psoc *psoc)
 	mlme_init_qos_cfg(psoc, &mlme_cfg->qos_mlme_params);
 	mlme_init_rates_in_cfg(psoc, &mlme_cfg->rates);
 	mlme_init_dfs_cfg(psoc, &mlme_cfg->dfs_cfg);
+	mlme_init_passive_enable_in_cfg(psoc, mlme_cfg);
 	mlme_init_sap_protection_cfg(psoc, &mlme_cfg->sap_protection_cfg);
 	mlme_init_vht_cap_cfg(psoc, &mlme_cfg->vht_caps.vht_cap_info);
 	mlme_init_chainmask_cfg(psoc, &mlme_cfg->chainmask_cfg);

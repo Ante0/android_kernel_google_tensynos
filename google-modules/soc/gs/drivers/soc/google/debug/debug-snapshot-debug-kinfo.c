@@ -93,6 +93,11 @@ static void update_vendor_kernel_all_info(void)
 	str_idx = strstr(UTS_RELEASE, "-ab");
 	if (str_idx)
 		strlcat(info->uts_release, str_idx, total_len);
+
+	/* dirty build w/o -g and -ab */
+	str_idx = strstr(UTS_RELEASE, "-maybe-dirty");
+	if (str_idx)
+		strscpy(info->uts_release, UTS_RELEASE, total_len);
 #else
 	strscpy(info->uts_release, UTS_RELEASE, total_len);
 #endif

@@ -498,10 +498,10 @@ void gxp_dci_release(struct gxp_mailbox_manager *mgr,
 {
 	struct gxp_dci *dci = mbx->data;
 
+	gxp_mailbox_release(mgr, vd, virt_core, mbx);
 	gxp_vd_put(dci->vd);
 	/* Frees dci. */
 	kfree(dci);
-	gxp_mailbox_release(mgr, vd, virt_core, mbx);
 }
 
 int gxp_dci_execute_cmd(struct gxp_mailbox *mbx, struct gxp_dci_command *cmd,

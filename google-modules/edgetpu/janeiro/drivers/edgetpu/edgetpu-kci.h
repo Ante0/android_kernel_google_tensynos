@@ -3,7 +3,7 @@
  * Kernel Control Interface, implements the protocol between AP kernel and TPU
  * firmware.
  *
- * Copyright (C) 2019 Google, Inc.
+ * Copyright (C) 2019-2026 Google LLC
  */
 #ifndef __EDGETPU_KCI_H__
 #define __EDGETPU_KCI_H__
@@ -125,17 +125,17 @@ enum edgetpu_kci_code {
 };
 
 /*
- * Definition of reverse KCI request code ranges
- * 16-bit unsigned integer
- * First half is reserved for chip specific codes,
- * Generic codes can use the second half.
+ * Definition of reverse KCI request codes.
+ * 16-bit unsigned integer.
  */
 enum edgetpu_reverse_kci_code {
-	RKCI_CHIP_CODE_FIRST = 0,
-	RKCI_CHIP_CODE_LAST = 0x7FFF,
+	RKCI_FIRMWARE_CRASH = 7,
+	RKCI_JOB_LOCKUP = 8,
+
+	/* TODO(b/521646360): Deprecate following fields once firmware adopt the new ones. */
 	RKCI_GENERIC_CODE_FIRST = 0x8000,
-	RKCI_FIRMWARE_CRASH = RKCI_GENERIC_CODE_FIRST + 0,
-	RKCI_JOB_LOCKUP = RKCI_GENERIC_CODE_FIRST + 1,
+	RKCI_FIRMWARE_CRASH_LEGACY = RKCI_GENERIC_CODE_FIRST + 0,
+	RKCI_JOB_LOCKUP_LEGACY = RKCI_GENERIC_CODE_FIRST + 1,
 	RKCI_GENERIC_CODE_LAST = 0xFFFF,
 };
 

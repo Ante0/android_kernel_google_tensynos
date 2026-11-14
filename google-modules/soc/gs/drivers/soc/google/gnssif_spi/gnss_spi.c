@@ -14,7 +14,6 @@
 #include "include/gnss.h"
 #include "gnss_spi.h"
 
-static struct gnss_spi gnss_if;
 
 int gnss_spi_send(char *buff, unsigned int size, char *rx_buff)
 {

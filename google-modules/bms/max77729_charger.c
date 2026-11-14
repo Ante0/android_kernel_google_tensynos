@@ -1048,7 +1048,6 @@ static inline int dbg_init_fs(struct max77729_chgr_data *data)
 	return 0;
 }
 static inline void dbg_remove_fs(struct max77729_chgr_data *data) { }
-static inline void dbg_cleanup_fs(struct max77729_chgr_data *data) { }
 #define DBG_INC(count)
 #endif
 
@@ -1204,7 +1203,8 @@ static int max77729_charger_probe(struct i2c_client *client,
 		goto exit;
 	}
 
-	if (dbg_init_fs(data))
+	ret = dbg_init_fs(data);
+	if (ret)
 		dev_err(dev, "Failed to initialize debug fs\n");
 
 	if (max77729_init_irq(client) < 0) {

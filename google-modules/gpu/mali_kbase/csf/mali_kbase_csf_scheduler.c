@@ -7532,8 +7532,11 @@ static void scheduler_protm_free_imported_buf_alloc_helper(struct kbase_mem_phy_
 {
 	switch (alloc->type) {
 	case KBASE_MEM_TYPE_IMPORTED_UMM:
-		dma_buf_detach(alloc->imported.umm.dma_buf, alloc->imported.umm.dma_attachment);
-		dma_buf_put(alloc->imported.umm.dma_buf);
+		if (alloc->imported.umm.dma_buf && alloc->imported.umm.dma_attachment) {
+			dma_buf_detach(alloc->imported.umm.dma_buf,
+				       alloc->imported.umm.dma_attachment);
+			dma_buf_put(alloc->imported.umm.dma_buf);
+		}
 		break;
 	case KBASE_MEM_TYPE_IMPORTED_USER_BUF:
 		switch (alloc->imported.user_buf.state) {

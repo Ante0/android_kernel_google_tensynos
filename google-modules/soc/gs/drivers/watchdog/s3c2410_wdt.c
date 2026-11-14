@@ -1915,8 +1915,10 @@ static int s3c2410wdt_remove(struct platform_device *dev)
 
 	unregister_pm_notifier(&s3c2410wdt_pm_nb);
 
-	if (wdt->schedstat)
+	if (wdt->schedstat) {
+		WARN_ON(unregister_trace_android_vh_scheduler_tick(vh_scheduler_tick, wdt));
 		free_percpu(wdt->schedstat);
+	}
 
 	return ret;
 }

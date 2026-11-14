@@ -1,7 +1,7 @@
 /*
  * Neighbor Awareness Networking
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -392,13 +392,16 @@ s32 wl_cfgnan_parse_sdea_data(osl_t *osh, const uint8 *p_attr,
 	uint8 offset;
 	s32 ret = BCME_OK;
 
-	/* service descriptor ext attributes */
+	(void)memset_s(&tlv_data->sde_svc_info, sizeof(tlv_data->sde_svc_info),
+			0, sizeof(tlv_data->sde_svc_info));
+	if (len < sizeof(*nan_svc_desc_ext_attr)) {
+		WL_ERR(("Invalid event buffer len\n"));
+		return BCME_BUFTOOSHORT;
+	}
 	nan_svc_desc_ext_attr = (const wifi_nan_svc_desc_ext_attr_t *)p_attr;
 
-	/* attribute ID */
+	/* Attribute ID and length */
 	WL_TRACE(("> attr id: 0x%02x\n", nan_svc_desc_ext_attr->id));
-
-	/* attribute length */
 	WL_TRACE(("> attr len: 0x%x\n", nan_svc_desc_ext_attr->len));
 	if (nan_svc_desc_ext_attr->instance_id == tlv_data->pub_id) {
 		tlv_data->sde_control_flag = nan_svc_desc_ext_attr->control;
@@ -417,6 +420,11 @@ s32 wl_cfgnan_parse_sdea_data(osl_t *osh, const uint8 *p_attr,
 	}
 	if (tlv_data->sde_control_flag & NAN_SDE_CF_SVC_UPD_IND_PRESENT) {
 		WL_TRACE(("> svc_control: sdea svc specific info present\n"));
+		if (len < SDEA_INFO_LEN_FIELD_SIZE) {
+			WL_ERR(("Not enough data for sdea svc info len\n"));
+			ret = BCME_BUFTOOSHORT;
+			goto fail;
+		}
 		tlv_data->sde_svc_info.dlen = (p_attr[1] | (p_attr[2] << 8));
 		WL_TRACE(("> sdea svc info len: 0x%02x\n", tlv_data->sde_svc_info.dlen));
 		if (!tlv_data->sde_svc_info.dlen ||
@@ -428,35 +436,30 @@ s32 wl_cfgnan_parse_sdea_data(osl_t *osh, const uint8 *p_attr,
 			goto fail;
 		}
 
-		if (tlv_data->sde_svc_info.dlen > 0) {
-			tlv_data->sde_svc_info.data = MALLOCZ(osh, tlv_data->sde_svc_info.dlen);
-			if (!tlv_data->sde_svc_info.data) {
-				WL_ERR(("%s: memory allocation failed\n", __FUNCTION__));
-				tlv_data->sde_svc_info.dlen = 0;
-				ret = BCME_NOMEM;
-				goto fail;
-			}
-			/* advance read pointer, consider sizeof of Service Update Indicator */
-			offset = sizeof(tlv_data->sde_svc_info.dlen) - 1;
-			if (offset > len) {
-				WL_ERR(("Invalid event buffer len\n"));
-				ret = BCME_BUFTOOSHORT;
-				goto fail;
-			}
-			p_attr += offset;
-			len -= offset;
-			ret = memcpy_s(tlv_data->sde_svc_info.data, tlv_data->sde_svc_info.dlen,
-				p_attr, tlv_data->sde_svc_info.dlen);
-			if (ret != BCME_OK) {
-				WL_ERR(("Failed to copy sde_svc_info\n"));
-				goto fail;
-			}
-		} else {
-			/* must be able to handle null msg which is not error */
-			tlv_data->sde_svc_info.dlen = 0;
-			WL_DBG(("%s: sdea svc info length is zero, null info data\n",
-				__FUNCTION__));
+		if (len < SDEA_INFO_LEN_FIELD_SIZE + tlv_data->sde_svc_info.dlen) {
+		   WL_ERR(("Not enough data for sdea svc info\n"));
+		   ret = BCME_BUFTOOSHORT;
+		   goto fail;
 		}
+		tlv_data->sde_svc_info.data = MALLOCZ(osh, tlv_data->sde_svc_info.dlen);
+		if (!tlv_data->sde_svc_info.data) {
+			WL_ERR(("%s: memory allocation failed\n", __FUNCTION__));
+			tlv_data->sde_svc_info.dlen = 0;
+			ret = BCME_NOMEM;
+			goto fail;
+		}
+		/* advance read pointer, consider sizeof of Service Update Indicator */
+		offset = SDEA_INFO_LEN_FIELD_SIZE;
+		p_attr += offset;
+		len -= offset;
+		ret = memcpy_s(tlv_data->sde_svc_info.data, tlv_data->sde_svc_info.dlen,
+			p_attr, tlv_data->sde_svc_info.dlen);
+		if (ret != BCME_OK) {
+			WL_ERR(("Failed to copy sde_svc_info\n"));
+			goto fail;
+		}
+		p_attr += tlv_data->sde_svc_info.dlen;
+		len -= tlv_data->sde_svc_info.dlen;
 	}
 	return ret;
 fail:
@@ -465,7 +468,6 @@ fail:
 				tlv_data->sde_svc_info.dlen);
 		tlv_data->sde_svc_info.data = NULL;
 	}
-
 	WL_DBG(("Parse SDEA event data, status = %d\n", ret));
 	return ret;
 }
@@ -1302,7 +1304,7 @@ wl_cfgnan_config_eventmask(struct net_device *ndev, struct bcm_cfg80211 *cfg,
 		 * Android framework event mask configuration.
 		 */
 		nan_buf->is_set = false;
-		memset(resp_buf, 0, sizeof(resp_buf));
+		(void)memset_s(resp_buf, sizeof(resp_buf), 0, sizeof(resp_buf));
 		ret = wl_cfgnan_execute_ioctl(ndev, cfg, nan_buf, nan_buf_size, &status,
 				(void*)resp_buf, NAN_IOCTL_BUF_SIZE);
 		if (unlikely(ret) || unlikely(status)) {
@@ -3350,7 +3352,7 @@ wl_cfgnan_start_handler(struct net_device *ndev, struct bcm_cfg80211 *cfg,
 	nan_buf->is_set = true;
 
 	nan_buf_size -= nan_iov_data->nan_iov_len;
-	memset(resp_buf, 0, sizeof(resp_buf));
+	(void)memset_s(resp_buf, sizeof(resp_buf), 0, sizeof(resp_buf));
 	/* Reset conditon variable */
 	ret = wl_cfgnan_execute_ioctl(ndev, cfg, nan_buf, nan_buf_size,
 			&(cmd_data->status), (void*)resp_buf, NAN_IOCTL_BUF_SIZE);
@@ -3770,8 +3772,10 @@ wl_cfgnan_stop_handler(struct net_device *ndev,
 fail:
 	/* Resetting instance ID mask */
 	nancfg->inst_id_start = 0;
-	memset(nancfg->svc_inst_id_mask, 0, sizeof(nancfg->svc_inst_id_mask));
-	memset(nancfg->svc_info, 0, NAN_MAX_SVC_INST * sizeof(nan_svc_info_t));
+	(void)memset_s(nancfg->svc_inst_id_mask, sizeof(nancfg->svc_inst_id_mask),
+			0, sizeof(nancfg->svc_inst_id_mask));
+	(void)memset_s(nancfg->svc_info, NAN_MAX_SVC_INST * sizeof(nan_svc_info_t),
+			0, NAN_MAX_SVC_INST * sizeof(nan_svc_info_t));
 	nancfg->nan_enable = false;
 	WL_INFORM_MEM(("[NAN] Disable done\n"));
 
@@ -4326,7 +4330,7 @@ wl_cfgnan_clear_svc_cache(struct bcm_cfg80211 *cfg,
 	svc = wl_cfgnan_get_svc_inst(cfg, svc_id, 0);
 	if (svc) {
 		WL_DBG(("clearing cached svc info for svc id %d\n", svc_id));
-		memset(svc, 0, sizeof(*svc));
+		(void)memset_s(svc, sizeof(*svc), 0, sizeof(*svc));
 	}
 }
 
@@ -6568,7 +6572,7 @@ wl_cfgnan_get_capability(struct net_device *ndev,
 	nan_buf->count = 1;
 
 	nan_buf->is_set = false;
-	memset(resp_buf, 0, sizeof(resp_buf));
+	(void)memset_s(resp_buf, sizeof(resp_buf), 0, sizeof(resp_buf));
 	ret = wl_cfgnan_execute_ioctl(ndev, cfg, nan_buf, nan_buf_size, &status,
 			(void*)resp_buf, NAN_IOCTL_BUF_SIZE);
 	if (unlikely(ret) || unlikely(status)) {
@@ -6609,7 +6613,8 @@ wl_cfgnan_get_capability(struct net_device *ndev,
 		}
 	} while ((xtlv = bcm_next_xtlv(xtlv, &len, BCM_XTLV_OPTION_ALIGN32)));
 
-	memset(capabilities, 0, sizeof(nan_hal_capabilities_t));
+	(void)memset_s(capabilities, sizeof(nan_hal_capabilities_t),
+		0, sizeof(nan_hal_capabilities_t));
 	capabilities->max_publishes = fw_cap->max_svc_publishes;
 	capabilities->max_subscribes = fw_cap->max_svc_subscribes;
 	capabilities->max_ndi_interfaces = fw_cap->max_lcl_ndi_interfaces;
@@ -7048,7 +7053,7 @@ wl_cfgnan_data_remove_peer(struct bcm_cfg80211 *cfg,
 	peer->dp_count--;
 	if (peer->dp_count == 0) {
 		/* No more NDPs, delete entry */
-		memset(peer, 0, sizeof(nan_ndp_peer_t));
+		(void)memset_s(peer, sizeof(nan_ndp_peer_t), 0, sizeof(nan_ndp_peer_t));
 	} else {
 		/* Set peer dp state to connected if any ndp still exits */
 		peer->peer_dp_state = NAN_PEER_DP_CONNECTED;

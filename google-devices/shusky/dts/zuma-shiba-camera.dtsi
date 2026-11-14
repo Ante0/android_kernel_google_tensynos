@@ -601,6 +601,9 @@
 
 				power-seq = <&rear_camera_power_seq>;
 
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
 				i2c-lock-group-id = <0>;
 			};
 
@@ -638,6 +641,9 @@
 				power-down-seq-delays-us =
 					<1000>;
 
+				/* Thread priority */
+				transaction-thread-priority = <99>;
+
 				i2c-lock-group-id = <1>;
 			};
 
@@ -674,6 +680,9 @@
 					"regulator";
 				power-down-seq-delays-us =
 					<1000>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
 
 				i2c-lock-group-id = <2>;
 			};

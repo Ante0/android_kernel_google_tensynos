@@ -1110,7 +1110,7 @@ int fts_ts_set_bus_ref(struct fts_ts_data *ts, u16 ref, bool enable)
     return result;
 }
 
-static struct drm_connector *get_bridge_connector(struct drm_bridge *bridge)
+struct drm_connector *get_bridge_connector(struct drm_bridge *bridge)
 {
     struct drm_connector *connector;
     struct drm_connector_list_iter conn_iter;
@@ -1952,12 +1952,6 @@ static int fts_irq_registration(struct fts_ts_data *ts_data)
     ts_data->irq = gpio_to_irq(pdata->irq_gpio);
     pdata->irq_gpio_flags = IRQF_TRIGGER_FALLING | IRQF_ONESHOT;
     FTS_INFO("irq:%d, flag:%x", ts_data->irq, pdata->irq_gpio_flags);
-
-    /* init pm_qos before interrupt registered. */
-    ts_data->pm_qos_req.type = PM_QOS_REQ_AFFINE_IRQ;
-    ts_data->pm_qos_req.irq = ts_data->irq;
-    cpu_latency_qos_add_request(&ts_data->pm_qos_req, PM_QOS_DEFAULT_VALUE);
-
     ret = request_threaded_irq(ts_data->irq, fts_irq_ts, fts_irq_handler,
                                pdata->irq_gpio_flags,
                                FTS_DRIVER_NAME, ts_data);
@@ -3108,6 +3102,8 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
         FTS_ERROR("init esd check fail");
     }
 #endif
+    /* init pm_qos before interrupt registered. */
+    cpu_latency_qos_add_request(&ts_data->pm_qos_req, PM_QOS_DEFAULT_VALUE);
 
     ret = fts_irq_registration(ts_data);
     if (ret) {

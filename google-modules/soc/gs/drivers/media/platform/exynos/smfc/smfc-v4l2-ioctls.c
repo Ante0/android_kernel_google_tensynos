@@ -7,6 +7,7 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/overflow.h>
 
 #include "smfc.h"
 
@@ -656,10 +657,18 @@ static int smfc_calc_crop(struct smfc_ctx *ctx, struct v4l2_selection *s)
 	unsigned char bpp_pix = ctx->img_fmt->bpp_pix[0] / 8;
 	unsigned char chroma_hfactor = ctx->img_fmt->chroma_hfactor;
 	unsigned char chroma_vfactor = ctx->img_fmt->chroma_vfactor;
+	u32 frame_bytes = frame_width * ctx->height * bpp_pix;
 	unsigned int i;
 
 	ctx->crop.po[0] = (frame_width * top + left) * bpp_pix;
 	ctx->crop.so[0] = (frame_width - crop_width) * bpp_pix;
+
+	if (ctx->crop.po[0] >= frame_bytes) {
+		v4l2_err(&ctx->smfc->v4l2_dev,
+			"Computed crop offset %u exceeds frame size %u\n",
+			ctx->crop.po[0], frame_bytes);
+		return -EINVAL;
+	}
 
 	for (i = 1; i < ctx->img_fmt->num_planes; i++) {
 		ctx->crop.po[i] = frame_width * top / chroma_vfactor + left;
@@ -900,6 +909,7 @@ static int smfc_v4l2_s_selection(struct file *file, void *fh, struct v4l2_select
 	struct smfc_ctx *ctx = v4l2_fh_to_smfc_ctx(fh);
 	unsigned int i;
 	int ret = 0;
+	u32 sum_x, sum_y;
 
 	if (s->r.left < 0 || s->r.top < 0 || s->r.width < 16 || s->r.height < 16) {
 		v4l2_err(&ctx->smfc->v4l2_dev, "Invalid crop region (%d,%d):%dx%d\n",
@@ -907,9 +917,14 @@ static int smfc_v4l2_s_selection(struct file *file, void *fh, struct v4l2_select
 		return -EINVAL;
 	}
 
-	if ((s->r.left + s->r.width) > ctx->width || (s->r.top + s->r.height) > ctx->height) {
-		v4l2_err(&ctx->smfc->v4l2_dev, "Crop (%d,%d):%dx%d overflows the image %dx%d\n",
-			 s->r.left, s->r.top, s->r.width, s->r.height, ctx->width, ctx->height);
+
+	if (check_add_overflow((u32)s->r.left, s->r.width, &sum_x) ||
+			check_add_overflow((u32)s->r.top, s->r.height, &sum_y) ||
+			sum_x > ctx->width || sum_y > ctx->height) {
+		v4l2_err(&ctx->smfc->v4l2_dev,
+			"Crop (%d,%d):%ux%u exceeds the image size %ux%u\n",
+			s->r.left, s->r.top, s->r.width, s->r.height,
+			ctx->width, ctx->height);
 		return -EINVAL;
 	}
 

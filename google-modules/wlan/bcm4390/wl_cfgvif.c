@@ -1,7 +1,7 @@
 /*
  * Wifi Virtual Interface implementaion
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -9649,6 +9649,13 @@ wl_cfgvif_update_assoc_fail_status(struct bcm_cfg80211 *cfg, struct net_device *
 			} else if (auth_type) {
 				/* WLC_E_ASSOC e->auth_type carries dot11 assoc status */
 				assoc_status = e->auth_type;
+			}
+			break;
+		case WLC_E_SET_SSID:
+			if (status == WLC_E_STATUS_NO_NETWORKS) {
+				/* Propagate FW no-networks status (3) to cfg80211 connect_done. */
+				assoc_status = -1;
+				timeout_reason = NL80211_TIMEOUT_SCAN;
 			}
 			break;
 		default:

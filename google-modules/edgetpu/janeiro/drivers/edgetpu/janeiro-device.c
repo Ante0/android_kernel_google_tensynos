@@ -2,7 +2,7 @@
 /*
  * Janeiro Edge TPU ML accelerator device host support.
  *
- * Copyright (C) 2020 Google, Inc.
+ * Copyright (C) 2020-2026 Google LLC
  */
 
 #include <linux/irqreturn.h>
@@ -71,8 +71,8 @@ void edgetpu_mark_probe_fail(struct edgetpu_dev *etdev)
 {
 }
 
-void edgetpu_chip_handle_reverse_kci(struct edgetpu_dev *etdev,
-				     struct edgetpu_kci_response_element *resp)
+int edgetpu_chip_handle_reverse_kci(struct edgetpu_dev *etdev,
+				    struct edgetpu_kci_response_element *resp)
 {
 	switch (resp->code) {
 	case RKCI_CODE_PM_QOS_BTS:
@@ -81,11 +81,9 @@ void edgetpu_chip_handle_reverse_kci(struct edgetpu_dev *etdev,
 			edgetpu_mobile_pm_set_pm_qos(etdev, resp->retval);
 		if (resp->status != (typeof(resp->status))~0ull)
 			edgetpu_mobile_pm_set_bts(etdev, resp->status);
-		break;
+		return 0;
 	default:
-		etdev_warn(etdev, "%s: Unrecognized KCI request: %u\n",
-			   __func__, resp->code);
-		break;
+		return -EOPNOTSUPP;
 	}
 }
 

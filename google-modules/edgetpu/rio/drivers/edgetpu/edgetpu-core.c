@@ -255,6 +255,8 @@ int edgetpu_device_add(struct edgetpu_dev *etdev,
 		dev_err(etdev->dev, "failed to attach IOMMU: %d", ret);
 		goto remove_pm;
 	}
+	etdev->max_concurrent_clients =
+		min(edgetpu_mmu_get_max_attached_domains(etdev), EDGETPU_NUM_VCIDS);
 
 	edgetpu_usage_stats_init(etdev);
 
@@ -365,6 +367,13 @@ void edgetpu_client_update_name(struct edgetpu_client *client, pid_t task_id)
 	rcu_read_unlock();
 }
 
+void edgetpu_client_set_tgid(struct edgetpu_client *client, pid_t task_id)
+{
+	client->runtime_identified_client = true;
+	client->tgid = task_id;
+	edgetpu_client_update_name(client, task_id);
+}
+
 struct edgetpu_client *edgetpu_client_add(struct edgetpu_dev_iface *etiface)
 {
 	struct edgetpu_client *client;
@@ -381,11 +390,8 @@ struct edgetpu_client *edgetpu_client_add(struct edgetpu_dev_iface *etiface)
 	client->client_id = atomic_add_return(1, &next_client_id);
 	client->etdev = etdev;
 	edgetpu_wakelock_init(client);
-	client->pid = task_pid_nr(current);
 	client->tgid = task_tgid_nr(current);
 	edgetpu_client_update_name(client, client->tgid);
-	client->limited_pid = -1;
-	client->limited_tgid = -1;
 	client->etiface = etiface;
 	mutex_init(&client->group_lock);
 	/* equivalent to edgetpu_client_get() */
@@ -427,14 +433,6 @@ void edgetpu_client_remove(struct edgetpu_client *client)
 	 * [acquire/release]_wakelock ioctl calls which cannot race with releasing client/fd.
 	 */
 	wakelock_count = client->wakelock.req_count;
-	/*
-	 * @wakelock_count = 0 means the device might be powered off. Mailbox(EXT/VII) is removed
-	 * when the group is released, so we need to ensure the device should not accessed to
-	 * prevent kernel panic on programming mailbox CSRs.
-	 */
-	if (!wakelock_count && client->group)
-		client->group->dev_inaccessible = true;
-
 	mutex_unlock(&client->group_lock);
 
 	mutex_lock(&etdev->clients_lock);
@@ -447,8 +445,12 @@ void edgetpu_client_remove(struct edgetpu_client *client)
 		}
 	}
 	mutex_unlock(&etdev->clients_lock);
-	if (client->group)
+	if (client->group) {
 		edgetpu_device_group_disband(client);
+		edgetpu_client_put(client);
+		edgetpu_device_group_put(client->group);
+		client->group = NULL;
+	}
 	/* Cleanup external mailbox/secure client stuff. */
 	edgetpu_ext_client_remove(client);
 

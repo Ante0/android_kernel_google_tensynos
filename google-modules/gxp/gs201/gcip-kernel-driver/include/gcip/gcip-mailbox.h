@@ -9,6 +9,7 @@
 #define __GCIP_MAILBOX_H__
 
 #include <linux/compiler.h>
+#include <linux/completion.h>
 #include <linux/mutex.h>
 #include <linux/refcount.h>
 #include <linux/spinlock.h>
@@ -123,6 +124,8 @@ struct gcip_mailbox_resp_awaiter {
 	void *data;
 	/* Reference count. */
 	refcount_t refs;
+	/* Completion signaled when callback handler finishes. */
+	struct completion handled;
 	/*
 	 * The callback for releasing the @data.
 	 * It will be set as @release_awaiter_data of struct gcip_mailbox_ops.
@@ -392,6 +395,8 @@ struct gcip_mailbox {
 	spinlock_t wait_list_lock;
 	/* List of commands that need to wait for responses. */
 	struct list_head wait_list;
+	/* List of awaiters currently executing their callback handlers. */
+	struct list_head handling_list;
 	/* Queue for waiting for the wait_list to be consumed. */
 	wait_queue_head_t wait_list_waitq;
 

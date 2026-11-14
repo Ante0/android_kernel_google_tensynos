@@ -2,26 +2,17 @@
 /*
  * EdgeTPU support for dma-buf.
  *
- * Copyright (C) 2020-2025 Google LLC
+ * Copyright (C) 2020-2026 Google LLC
  */
 
-#include <linux/debugfs.h>
 #include <linux/dma-buf.h>
-#include <linux/dma-direction.h>
-#include <linux/dma-fence.h>
-#include <linux/dma-mapping.h>
-#include <linux/kernel.h>
-#include <linux/ktime.h>
-#include <linux/list.h>
-#include <linux/module.h>
+#include <linux/err.h>
+#include <linux/errno.h>
+#include <linux/mutex.h>
+#include <linux/rwsem.h>
 #include <linux/seq_file.h>
 #include <linux/slab.h>
-#include <linux/spinlock.h>
-#include <linux/sync_file.h>
-#include <linux/time64.h>
-#include <linux/uaccess.h>
 
-#include <gcip/gcip-dma-fence.h>
 #include <gcip/gcip-mapping.h>
 
 #include "edgetpu-device-group.h"
@@ -30,23 +21,6 @@
 #include "edgetpu-mapping.h"
 #include "edgetpu-mmu.h"
 #include "edgetpu.h"
-
-#define to_etfence(gfence) container_of(gfence, struct edgetpu_dma_fence, gfence)
-
-/*
- * edgetpu implementation of DMA fence
- *
- * @gfence:		GCIP DMA fence
- * @group:		owning device group
- * @group_list:		list of DMA fences owned by the same group
- */
-struct edgetpu_dma_fence {
-	struct gcip_dma_fence gfence;
-	struct edgetpu_device_group *group;
-	struct list_head group_list;
-};
-
-static const struct dma_fence_ops edgetpu_dma_fence_ops;
 
 /*
  * Clean resources recorded in @dmap.
@@ -175,174 +149,5 @@ int edgetpu_unmap_dmabuf(struct edgetpu_device_group *group, tpu_addr_t tpu_addr
 	edgetpu_mapping_unlink(mappings, map);
 	edgetpu_mapping_unlock(mappings);
 	map->release(map);
-	return 0;
-}
-
-int edgetpu_sync_fence_manager_create(struct edgetpu_dev *etdev)
-{
-	struct gcip_dma_fence_manager *gfence_mgr = gcip_dma_fence_manager_create(etdev->dev);
-
-	if (IS_ERR(gfence_mgr))
-		return PTR_ERR(gfence_mgr);
-
-	etdev->gfence_mgr = gfence_mgr;
-
-	return 0;
-}
-
-static const char *edgetpu_dma_fence_get_driver_name(struct dma_fence *fence)
-{
-	return "edgetpu";
-}
-
-static void edgetpu_dma_fence_release(struct dma_fence *fence)
-{
-	struct gcip_dma_fence *gfence = to_gcip_fence(fence);
-	struct edgetpu_dma_fence *etfence = to_etfence(gfence);
-	struct edgetpu_device_group *group = etfence->group;
-
-	mutex_lock(&group->dma_fence_lock);
-	list_del(&etfence->group_list);
-	mutex_unlock(&group->dma_fence_lock);
-	/* Release this fence's reference on the owning group. */
-	edgetpu_device_group_put(group);
-	gcip_dma_fence_exit(gfence);
-	kfree(etfence);
-}
-
-static const struct dma_fence_ops edgetpu_dma_fence_ops = {
-	.get_driver_name = edgetpu_dma_fence_get_driver_name,
-	.get_timeline_name = gcip_dma_fence_get_timeline_name,
-	.wait = dma_fence_default_wait,
-	.enable_signaling = gcip_dma_fence_always_true,
-	.release = edgetpu_dma_fence_release,
-};
-
-static int edgetpu_dma_fence_after_init(struct gcip_dma_fence *gfence)
-{
-	struct edgetpu_dma_fence *etfence = to_etfence(gfence);
-	struct edgetpu_device_group *group = etfence->group;
-
-	mutex_lock(&group->dma_fence_lock);
-	list_add_tail(&etfence->group_list, &group->dma_fence_list);
-	mutex_unlock(&group->dma_fence_lock);
-	return 0;
-}
-
-int edgetpu_sync_fence_create(struct edgetpu_dev *etdev, struct edgetpu_device_group *group,
-			      struct edgetpu_create_sync_fence_data *datap)
-{
-	struct gcip_dma_fence_data data = {
-		.timeline_name = datap->timeline_name,
-		.ops = &edgetpu_dma_fence_ops,
-		.seqno = datap->seqno,
-		.after_init = edgetpu_dma_fence_after_init,
-	};
-	struct edgetpu_dma_fence *etfence = kzalloc(sizeof(*etfence), GFP_KERNEL);
-	int ret;
-
-	if (!etfence)
-		return -ENOMEM;
-
-	INIT_LIST_HEAD(&etfence->group_list);
-	etfence->group = edgetpu_device_group_get(group);
-
-	ret = gcip_dma_fence_init(etdev->gfence_mgr, &etfence->gfence, &data);
-	if (!ret)
-		datap->fence = data.fence;
-
-	/*
-	 * We don't need to kfree(etfence) on error because that's called in
-	 * edgetpu_dma_fence_release.
-	 */
-
-	return ret;
-}
-
-int edgetpu_sync_fence_signal(struct edgetpu_signal_sync_fence_data *datap)
-{
-	return gcip_dma_fence_signal(datap->fence, datap->error, false);
-}
-
-void edgetpu_sync_fence_group_shutdown(struct edgetpu_device_group *group)
-{
-	struct list_head *pos, *next;
-	LIST_HEAD(signalled_fences);
-	int ret;
-
-	mutex_lock(&group->dma_fence_lock);
-	list_for_each_safe(pos, next, &group->dma_fence_list) {
-		struct edgetpu_dma_fence *etfence =
-			container_of(pos, struct edgetpu_dma_fence, group_list);
-		struct dma_fence *fence = &etfence->gfence.fence;
-
-		/* Attempt to acquire a reference. Skip the fence if it's being released. */
-		if (!dma_fence_get_rcu(fence))
-			continue;
-
-		ret = gcip_dma_fenceptr_signal(&etfence->gfence, -EPIPE, true);
-		if (ret) {
-			etdev_warn(group->etdev, "error %d signaling fence %s-%s %llu-%llu", ret,
-				   fence->ops->get_driver_name(fence),
-				   fence->ops->get_timeline_name(fence), fence->context,
-				   fence->seqno);
-		}
-
-		/*
-		 * Move the entry from the dma_fence_list to our local signalled list.
-		 * Our ref to the fence will be dropped when we shoot the local signalled list
-		 * below, after we drop group->dma_fence_lock (b/478201743).
-		 */
-		list_del(&etfence->group_list);
-		list_add_tail(&etfence->group_list, &signalled_fences);
-	}
-	mutex_unlock(&group->dma_fence_lock);
-
-	/*
-	 * Shoot the local signalled list, dropping our ref to the fences and often releasing
-	 * each fence (without holding group->dma_fence_lock).
-	 */
-	list_for_each_safe(pos, next, &signalled_fences) {
-		struct edgetpu_dma_fence *etfence =
-			container_of(pos, struct edgetpu_dma_fence, group_list);
-		struct dma_fence *fence = &etfence->gfence.fence;
-
-		/*
-		 * Move the entry back to the dma_fence_list. Although we are about to drop our
-		 * reference with dma_fence_put, other references to the fence might still exist.
-		 * The fence must remain in group->dma_fence_list until its final release
-		 * in edgetpu_dma_fence_release.
-		 */
-		list_del(&etfence->group_list);
-		mutex_lock(&group->dma_fence_lock);
-		list_add_tail(&etfence->group_list, &group->dma_fence_list);
-		mutex_unlock(&group->dma_fence_lock);
-		/*
-		 * Now drop the reference from above. This might trigger edgetpu_dma_fence_release.
-		 */
-		dma_fence_put(fence);
-	}
-}
-
-int edgetpu_sync_fence_status(struct edgetpu_sync_fence_status *datap)
-{
-	return gcip_dma_fence_status(datap->fence, &datap->status);
-}
-
-int edgetpu_sync_fence_debugfs_show(struct seq_file *s, void *unused)
-{
-	struct edgetpu_dev *etdev = s->private;
-	struct gcip_dma_fence *gfence;
-	unsigned long flags;
-
-	GCIP_DMA_FENCE_LIST_LOCK(etdev->gfence_mgr, flags);
-	gcip_for_each_fence(etdev->gfence_mgr, gfence) {
-		struct edgetpu_dma_fence *etfence = to_etfence(gfence);
-
-		gcip_dma_fence_show(gfence, s);
-		seq_printf(s, " client %s\n", etfence->group->client->name);
-	}
-	GCIP_DMA_FENCE_LIST_UNLOCK(etdev->gfence_mgr, flags);
-
 	return 0;
 }

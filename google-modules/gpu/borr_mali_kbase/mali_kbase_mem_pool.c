@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2015-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2015-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -148,7 +148,6 @@ static bool set_pool_new_page_metadata(struct kbase_mem_pool *pool, struct page 
 		} else if (!WARN_ON_ONCE(IS_PAGE_ISOLATED(page_md->status))) {
 			page_md->status = PAGE_STATUS_SET(page_md->status, (u8)MEM_POOL);
 			page_md->data.mem_pool.pool = pool;
-			page_md->data.mem_pool.kbdev = pool->kbdev;
 			list_add(&p->lru, page_list);
 			(*list_size)++;
 		}

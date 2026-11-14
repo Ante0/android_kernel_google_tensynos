@@ -85,7 +85,7 @@ enum max1720x_drift_algo_version {
 /* fix to capacity estimation */
 struct max1720x_drift_data {
 	u16 rsense;
-	u32 algo_ver;
+	enum max1720x_drift_algo_version algo_ver;
 
 	u16 design_capacity;
 	int cycle_band;

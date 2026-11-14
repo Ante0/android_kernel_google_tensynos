@@ -6,7 +6,7 @@
  * OBSS - Overlapping BSS
  * EXTCH/EXT_CH - Extension Channel
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you

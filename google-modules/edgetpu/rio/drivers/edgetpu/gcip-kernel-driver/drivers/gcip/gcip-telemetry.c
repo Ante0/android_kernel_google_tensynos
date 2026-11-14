@@ -5,6 +5,7 @@
  * Copyright (C) 2022 Google LLC
  */
 
+#include <linux/cleanup.h>
 #include <linux/container_of.h>
 #include <linux/delay.h>
 #include <linux/dev_printk.h>
@@ -15,7 +16,6 @@
 #include <linux/mutex.h>
 #include <linux/refcount.h>
 #include <linux/scatterlist.h>
-#include <linux/slab.h>
 #include <linux/workqueue.h>
 
 #include <gcip/gcip-memory.h>
@@ -84,81 +84,16 @@ void gcip_telemetry_unset_event(struct gcip_telemetry *tel)
 }
 
 /**
- * copy_with_wrap() - The helper function to copy data out of the log buffer with wrapping.
- * @header: The telemetry header to read and write the head value.
- * @dest: The buffer to copy the data to.
- * @length: The length of the data to be copied.
- * @size: The size of telemetry buffer.
- * @start: The start address of the telemetry buffer.
- */
-static void copy_with_wrap(struct gcip_telemetry_header *header, void *dest, u32 length, u32 size,
-			   void *start)
-{
-	const u32 wrap_bit = size + sizeof(*header);
-	u32 remaining = 0;
-	u32 head = header->head & (wrap_bit - 1);
-
-	if (head + length < size) {
-		memcpy(dest, start + head, length);
-		header->head += length;
-	} else {
-		remaining = size - head;
-		memcpy(dest, start + head, remaining);
-		memcpy(dest + remaining, start, length - remaining);
-		header->head = (header->head & wrap_bit) ^ wrap_bit;
-		header->head |= length - remaining;
-	}
-}
-
-/**
  * gcip_telemetry_fw_log() - The fallback function to consume the log buffer.
  * @log: The log telemetry object.
  *
- * This function will consume the log buffer and print it to dmesg from the host CPU. The logging
- * level depends on the code in the header entry.
+ * This function will do nothing but update the value of the head in the header.
  */
 static void gcip_telemetry_fw_log(const struct gcip_telemetry *log)
 {
-	struct device *dev = log->dev;
 	struct gcip_telemetry_header *header = log->header;
-	struct gcip_log_entry_header entry;
-	u8 *start;
-	const size_t queue_size = header->size - sizeof(*header);
-	const size_t max_length = queue_size - sizeof(entry);
-	char *buffer = kvmalloc(max_length + 1, GFP_KERNEL);
 
-	if (!buffer) {
-		header->head = header->tail;
-		return;
-	}
-	start = (u8 *)header + sizeof(*header);
-
-	while (header->head != header->tail) {
-		copy_with_wrap(header, &entry, sizeof(entry), queue_size, start);
-		if (entry.length == 0 || entry.length > max_length) {
-			header->head = header->tail;
-			dev_err(dev, "log queue is corrupted");
-			break;
-		}
-		copy_with_wrap(header, buffer, entry.length, queue_size, start);
-		buffer[entry.length] = 0;
-
-		switch (entry.code) {
-		case GCIP_FW_LOG_LEVEL_VERBOSE:
-		case GCIP_FW_LOG_LEVEL_DEBUG:
-		case GCIP_FW_LOG_LEVEL_INFO:
-			dev_info(dev, "%s", buffer);
-			break;
-		case GCIP_FW_LOG_LEVEL_WARN:
-			dev_warn(dev, "%s", buffer);
-			break;
-		case GCIP_FW_LOG_LEVEL_FATAL:
-		case GCIP_FW_LOG_LEVEL_ERROR:
-			dev_err(dev, "%s", buffer);
-			break;
-		}
-	}
-	kvfree(buffer);
+	header->head = header->tail;
 }
 
 /**
@@ -187,7 +122,7 @@ void gcip_telemetry_irq_handler(struct gcip_telemetry *tel)
 	if (tel->header && (tel->header->head == tel->header->tail))
 		return;
 
-	schedule_work(&tel->work);
+	schedule_delayed_work(&tel->work, 0);
 }
 
 /**
@@ -313,30 +248,21 @@ err_unlock:
 }
 
 /**
- * gcip_telemetry_worker() - The worker for processing log/trace/hwtrace buffers.
+ * gcip_telemetry_worker() - The worker for processing log/trace/hwtrace or opaque buffers.
  * @work: The work_struct of the telemetry.
  */
 static void gcip_telemetry_worker(struct work_struct *work)
 {
-	struct gcip_telemetry *tel = container_of(work, struct gcip_telemetry, work);
+	struct gcip_telemetry *tel = container_of(work, struct gcip_telemetry,
+						  work.work);
 	struct gcip_telemetry_header *header = tel->header;
-	u32 prev_head;
 
-	/*
-	 * Loops while following conditions are all true:
-	 * 1. The telemetry is enabled.
-	 * 2. The header is visible(not NULL).
-	 * 3. There is data to be consumed, and the previous iteration made progress.
-	 */
-	do {
-		mutex_lock(&tel->state_ctx_lock);
-		if (tel->state != GCIP_TELEMETRY_ENABLED) {
-			mutex_unlock(&tel->state_ctx_lock);
+	scoped_guard(mutex, &tel->state_ctx_lock) {
+		if (tel->state != GCIP_TELEMETRY_ENABLED)
 			return;
-		}
-
-		if (header)
-			prev_head = header->head;
+		/* Opaque type buffers do not have a header, always signal on each run. */
+		if (header && (header->head == header->tail))
+			return;
 
 		/*
 		 * The runtime side handler and the fallback function should consider the case that
@@ -348,12 +274,12 @@ static void gcip_telemetry_worker(struct work_struct *work)
 			tel->fallback_fn(tel);
 		else
 			dev_warn(tel->dev, "Failed to consume the telemetry buffer");
+	}
 
-		mutex_unlock(&tel->state_ctx_lock);
-		msleep(GCIP_TELEMETRY_TYPE_LOG_RECHECK_DELAY);
-	} while (header && (header->head != header->tail) && (header->head != prev_head));
-
-	/* If another IRQ arrives after the header check, we should schedule another worker. */
+	/* Opaque type buffers do not need a recheck for new data arriving concurrently. */
+	if (tel->type != GCIP_TELEMETRY_TYPE_OPAQUE)
+		schedule_delayed_work(to_delayed_work(work),
+				      msecs_to_jiffies(GCIP_TELEMETRY_TYPE_LOG_RECHECK_DELAY));
 }
 
 int gcip_telemetry_init(struct gcip_telemetry *tel, enum gcip_telemetry_type type,
@@ -419,7 +345,7 @@ int gcip_telemetry_init(struct gcip_telemetry *tel, enum gcip_telemetry_type typ
 		tel->header->entries_dropped = 0;
 	}
 
-	INIT_WORK(&tel->work, gcip_telemetry_worker);
+	INIT_DELAYED_WORK(&tel->work, gcip_telemetry_worker);
 	mutex_init(&tel->mmap_lock);
 	mutex_init(&tel->state_ctx_lock);
 
@@ -436,5 +362,5 @@ void gcip_telemetry_exit(struct gcip_telemetry *tel)
 	tel->state = GCIP_TELEMETRY_INVALID;
 	mutex_unlock(&tel->state_ctx_lock);
 
-	cancel_work_sync(&tel->work);
+	cancel_delayed_work_sync(&tel->work);
 }

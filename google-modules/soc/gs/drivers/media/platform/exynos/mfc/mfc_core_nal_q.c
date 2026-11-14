@@ -1863,12 +1863,21 @@ static void __mfc_core_nal_q_handle_frame_copy_timestamp(struct mfc_ctx *ctx,
 static void __mfc_core_nal_q_get_img_size(struct mfc_core *core, struct mfc_ctx *ctx,
 			DecoderOutputStr *pOutStr, enum mfc_get_img_size img_size)
 {
+	struct mfc_core_ctx *core_ctx = core->core_ctx[ctx->num];
 	struct mfc_dec *dec = ctx->dec_priv;
 	unsigned int w, h;
 	int i;
 
 	w = ctx->img_width;
 	h = ctx->img_height;
+
+	if (mfc_check_dec_resolution(ctx,
+			pOutStr->DisplayFrameWidth, pOutStr->DisplayFrameHeight)) {
+		mfc_ctx_err("[NALQ][DRC] unsupported resolution from F/W, %dx%d\n",
+				pOutStr->DisplayFrameWidth, pOutStr->DisplayFrameHeight);
+		mfc_change_state(core_ctx, MFCINST_ERROR);
+		return;
+	}
 
 	ctx->img_width = pOutStr->DisplayFrameWidth;
 	ctx->img_height = pOutStr->DisplayFrameHeight;
@@ -1887,10 +1896,10 @@ static void __mfc_core_nal_q_get_img_size(struct mfc_core *core, struct mfc_ctx 
 	if (img_size == MFC_GET_RESOL_SIZE) {
 		dec->disp_drc.width[dec->disp_drc.push_idx] = ctx->img_width;
 		dec->disp_drc.height[dec->disp_drc.push_idx] = ctx->img_height;
-		dec->disp_drc.disp_res_change = (dec->disp_drc.disp_res_change + 1) % MFC_MAX_DRC_FRAME;
+		dec->disp_drc.disp_res_change = ++dec->disp_drc.disp_res_change % MFC_MAX_DRC_FRAME;
 		mfc_debug(3, "[NALQ][DRC] disp_res_change[%d] count %d\n",
 				dec->disp_drc.push_idx, dec->disp_drc.disp_res_change);
-		dec->disp_drc.push_idx = (dec->disp_drc.push_idx + 1) % MFC_MAX_DRC_FRAME;
+		dec->disp_drc.push_idx = ++dec->disp_drc.push_idx % MFC_MAX_DRC_FRAME;
 	} else if (img_size == MFC_GET_RESOL_DPB_SIZE) {
 		ctx->scratch_buf_size = mfc_core_get_scratch_size();
 		for (i = 0; i < ctx->dst_fmt->num_planes; i++) {

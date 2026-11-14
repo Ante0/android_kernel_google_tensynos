@@ -343,6 +343,7 @@ static const struct maxfg_reg max1720x[] = {
 	[MAXFG_TAG_fullsocthr] = { ATOM_INIT_REG16(MAX1720X_FULLSOCTHR)},
 	[MAXFG_TAG_misccfg] = { ATOM_INIT_REG16(MAX1720X_MISCCFG)},
 	[MAXFG_TAG_ichgterm] = { ATOM_INIT_REG16(MAX1720X_ICHGTERM)},
+	[MAXFG_TAG_timer] = { ATOM_INIT_REG16(MAX1720X_TIMER)},
 };
 
 

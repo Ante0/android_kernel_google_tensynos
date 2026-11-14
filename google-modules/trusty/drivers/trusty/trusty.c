@@ -29,6 +29,7 @@
 #include "trusty-trace.h"
 #include "trusty-sched-share-api.h"
 
+#define MAX_STRING_LEN 128
 
 struct trusty_state;
 static struct platform_driver trusty_driver;
@@ -163,6 +164,46 @@ static void trusty_local_irq_enable_after_smc(void)
 
 #endif
 
+static char *trusty_get_string(struct device *dev, gfp_t gfp, const u32 smcnr)
+{
+	int ret;
+	int i;
+	int str_len;
+	char *str;
+
+	ret = trusty_fast_call32(dev, smcnr, -1, 0, 0);
+	if (ret < 0)
+		goto err_out;
+
+	if (ret > MAX_STRING_LEN) {
+		ret = -EOVERFLOW;
+		goto err_out;
+	}
+
+	str_len = ret;
+
+	str = kmalloc(str_len + 1, gfp);
+	if (!str) {
+		ret = -ENOMEM;
+		goto err_out;
+	}
+
+	for (i = 0; i < str_len; i++) {
+		ret = trusty_fast_call32(dev, smcnr, i, 0, 0);
+		if (ret < 0)
+			goto err_get_char;
+		str[i] = ret;
+	}
+	str[i] = '\0';
+
+	return str;
+
+err_get_char:
+	kfree(str);
+err_out:
+	return ERR_PTR(ret);
+}
+
 static unsigned long trusty_std_call_helper(struct device *dev,
 					    unsigned long smcnr,
 					    unsigned long a0, unsigned long a1,
@@ -185,11 +226,27 @@ static unsigned long trusty_std_call_helper(struct device *dev,
 
 		ret = trusty_std_call_inner(dev, smcnr, a0, a1, a2);
 		if (ret == SM_ERR_PANIC) {
+			char *panic_msg;
+
 			s->trusty_panicked = true;
-			if (IS_ENABLED(CONFIG_TRUSTY_CRASH_IS_PANIC))
-				panic("trusty crashed");
-			else
-				WARN_ONCE(1, "trusty crashed");
+
+			/* Check if we can get a crash reason from Trusty */
+			panic_msg = trusty_get_string(dev, GFP_ATOMIC, SMC_FC_GET_PANIC_STR);
+			if (!IS_ERR(panic_msg) && strlen(panic_msg) > 0) {
+				if (IS_ENABLED(CONFIG_TRUSTY_CRASH_IS_PANIC))
+					panic("trusty crashed: %s", panic_msg);
+				else
+					WARN_ONCE(1, "trusty crashed: %s", panic_msg);
+			} else {
+				/* Maintain compatible panic string */
+				if (IS_ENABLED(CONFIG_TRUSTY_CRASH_IS_PANIC))
+					panic("trusty crashed");
+				else
+					WARN_ONCE(1, "trusty crashed");
+			}
+
+			if (!IS_ERR(panic_msg))
+				kfree(panic_msg);
 		}
 
 		atomic_notifier_call_chain(&s->notifier, TRUSTY_CALL_RETURNED,
@@ -724,33 +781,13 @@ static void trusty_free_msg_buf(struct trusty_state *s, struct device *dev)
 
 static void trusty_init_version(struct trusty_state *s, struct device *dev)
 {
-	int ret;
-	int i;
-	int version_str_len;
-
-	ret = trusty_fast_call32(dev, SMC_FC_GET_VERSION_STR, -1, 0, 0);
-	if (ret <= 0)
-		goto err_get_size;
-
-	version_str_len = ret;
-
-	s->version_str = kmalloc(version_str_len + 1, GFP_KERNEL);
-	for (i = 0; i < version_str_len; i++) {
-		ret = trusty_fast_call32(dev, SMC_FC_GET_VERSION_STR, i, 0, 0);
-		if (ret < 0)
-			goto err_get_char;
-		s->version_str[i] = ret;
+	char *ver = trusty_get_string(dev, GFP_KERNEL, SMC_FC_GET_VERSION_STR);
+	if (!IS_ERR(ver)) {
+		dev_info(dev, "trusty version: %s\n", ver);
+		s->version_str = ver;
+	} else {
+		dev_err(dev, "failed to get trusty version string: %ld\n", PTR_ERR(ver));
 	}
-	s->version_str[i] = '\0';
-
-	dev_info(dev, "trusty version: %s\n", s->version_str);
-	return;
-
-err_get_char:
-	kfree(s->version_str);
-	s->version_str = NULL;
-err_get_size:
-	dev_err(dev, "failed to get version: %d\n", ret);
 }
 
 u32 trusty_get_api_version(struct device *dev)
@@ -924,6 +961,8 @@ static void nop_work_func(struct trusty_work *tw)
 		if (kthread_should_park())
 			kthread_parkme();
 
+		preempt_disable();
+
 		if (tw != this_cpu_ptr(s->nop_works)) {
 			dev_warn_ratelimited(s->dev,
 					     "trusty-nop-%d ran on wrong cpu, %u\n",
@@ -952,6 +991,8 @@ static void nop_work_func(struct trusty_work *tw)
 				do_nop = true;
 			}
 		}
+
+		preempt_enable();
 	}
 	dev_dbg(s->dev, "%s: done\n", __func__);
 }

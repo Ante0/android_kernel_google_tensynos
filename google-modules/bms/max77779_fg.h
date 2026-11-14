@@ -35,8 +35,6 @@
 
 #define MAX77779_FG_NDGB_ADDRESS 0x37
 
-#define MAX77779_FG_MAX_LOG_REGS	30
-
 static const struct maxfg_reg max77779_fg[] = {
 	[MAXFG_TAG_avgc] = { ATOM_INIT_REG16(MAX77779_FG_AvgCurrent)},
 	[MAXFG_TAG_cnfg] = { ATOM_INIT_REG16(MAX77779_FG_Config)},
@@ -86,6 +84,7 @@ static const struct maxfg_reg max77779_fg[] = {
 	[MAXFG_TAG_ichgterm] = { ATOM_INIT_REG16(MAX77779_FG_IChgTerm)},
 	[MAXFG_TAG_vempty] = { ATOM_INIT_REG16(MAX77779_FG_VEmpty)},
 	[MAXFG_TAG_sochold] = { ATOM_INIT_REG16(MAX77779_FG_SOCHold)},
+	[MAXFG_TAG_timer] = { ATOM_INIT_REG16(MAX77779_FG_Timer)},
 };
 
 static const struct maxfg_reg max77779_debug_fg[] = {

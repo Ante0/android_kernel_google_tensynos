@@ -15,6 +15,7 @@
 #include <linux/slab.h>
 #include <linux/compiler_types.h>
 #include <linux/uaccess.h>
+#include <linux/overflow.h>
 
 #include "lwis_ioctl_past.h"
 #include "lwis_allocator.h"
@@ -293,7 +294,7 @@ static int construct_io_entry(struct lwis_client *client, struct lwis_io_entry *
 	struct lwis_device *lwis_dev = client->lwis_dev;
 	/* Following variables are used to avoid lwis integer overflow */
 	int read_entries = 0;
-	size_t read_buf_size = 0;
+	size_t accumulated_read_size = 0;
 	const int reg_value_bytewidth = client->lwis_dev->native_value_bitwidth / 8;
 
 	entry_size = num_io_entries * sizeof(struct lwis_io_entry);
@@ -319,8 +320,6 @@ static int construct_io_entry(struct lwis_client *client, struct lwis_io_entry *
 	 * will be allocated in the form of lwis_io_result in io processing.
 	 */
 	for (i = 0; i < num_io_entries; ++i) {
-		const size_t remaining_capacity = LWIS_IO_ENTRY_READ_RESTRICTION - read_buf_size -
-						  read_entries * sizeof(struct lwis_io_result);
 		if (k_entries[i].type == LWIS_IO_ENTRY_WRITE_BATCH ||
 		    k_entries[i].type == LWIS_IO_ENTRY_WRITE_BATCH_V2) {
 			user_buf = k_entries[i].rw_batch.buf;
@@ -348,23 +347,30 @@ static int construct_io_entry(struct lwis_client *client, struct lwis_io_entry *
 				goto error_free_buf;
 			last_buf_alloc_idx = i;
 		} else if (k_entries[i].type == LWIS_IO_ENTRY_READ ||
-			   k_entries[i].type == LWIS_IO_ENTRY_READ_V2) {
-			/* Check for size_t overflow. */
-			if (reg_value_bytewidth > remaining_capacity ||
-			    ++read_entries >= LWIS_IO_ENTRY_READ_OVERFLOW_BOUND) {
-				ret = -EOVERFLOW;
-				goto error_free_buf;
-			}
-			read_buf_size += reg_value_bytewidth;
-		} else if (k_entries[i].type == LWIS_IO_ENTRY_READ_BATCH ||
+			   k_entries[i].type == LWIS_IO_ENTRY_READ_V2 ||
+			   k_entries[i].type == LWIS_IO_ENTRY_READ_BATCH ||
 			   k_entries[i].type == LWIS_IO_ENTRY_READ_BATCH_V2) {
-			/* Check for size_t overflow. */
-			if (k_entries[i].rw_batch.size_in_bytes > remaining_capacity ||
+			size_t size_in_bytes;
+			size_t total_entry_size;
+			size_t new_accumulated_size;
+
+			if (k_entries[i].type == LWIS_IO_ENTRY_READ ||
+			    k_entries[i].type == LWIS_IO_ENTRY_READ_V2) {
+				size_in_bytes = reg_value_bytewidth;
+			} else {
+				size_in_bytes = k_entries[i].rw_batch.size_in_bytes;
+			}
+
+			if (check_add_overflow(size_in_bytes, sizeof(struct lwis_io_result),
+					       &total_entry_size) ||
+			    check_add_overflow(accumulated_read_size, total_entry_size,
+					       &new_accumulated_size) ||
+			    new_accumulated_size > LWIS_IO_ENTRY_READ_RESTRICTION ||
 			    ++read_entries >= LWIS_IO_ENTRY_READ_OVERFLOW_BOUND) {
 				ret = -EOVERFLOW;
 				goto error_free_buf;
 			}
-			read_buf_size += k_entries[i].rw_batch.size_in_bytes;
+			accumulated_read_size = new_accumulated_size;
 		}
 	}
 
@@ -649,7 +655,7 @@ static int cmd_device_disable(struct lwis_client *lwis_client, struct lwis_cmd_p
 		dev_err(lwis_dev->dev, "Failed to power down device\n");
 		goto exit_locked;
 	}
-	lwis_device_event_states_clear_locked(lwis_dev);
+	lwis_device_event_states_clear(lwis_dev);
 
 	lwis_dev->enabled--;
 	lwis_client->is_enabled = false;
@@ -745,7 +751,7 @@ static int cmd_device_reset(struct lwis_client *lwis_client, struct lwis_cmd_pkt
 			 "Device is not enabled, IoEntries will not be executed in DEVICE_RESET\n");
 
 	mutex_lock(&lwis_dev->interclient_lock);
-	lwis_device_event_states_clear_locked(lwis_dev);
+	lwis_device_event_states_clear(lwis_dev);
 	mutex_unlock(&lwis_dev->interclient_lock);
 	mutex_unlock(&lwis_client->lock);
 soft_reset_exit:
@@ -804,7 +810,7 @@ static int cmd_device_suspend(struct lwis_client *lwis_client, struct lwis_cmd_p
 		goto exit_locked;
 	}
 
-	lwis_device_event_states_clear_locked(lwis_dev);
+	lwis_device_event_states_clear(lwis_dev);
 
 	lwis_dev->is_suspended = true;
 	dev_info(lwis_dev->dev, "Device suspended\n");
@@ -840,8 +846,10 @@ static int cmd_device_resume(struct lwis_client *lwis_client, struct lwis_cmd_pk
 	lwis_client_event_queue_clear(lwis_client);
 	lwis_client_error_event_queue_clear(lwis_client);
 
+	lwis_bus_manager_lock_bus(lwis_dev);
 	ret = lwis_dev_process_power_sequence(lwis_dev, lwis_dev->resume_sequence,
 					      /*set_active=*/true, /*skip_error=*/false);
+	lwis_bus_manager_unlock_bus(lwis_dev);
 	if (ret) {
 		dev_err(lwis_dev->dev, "Error lwis_dev_process_power_sequence (%d)\n", ret);
 		goto exit_locked;
@@ -1419,6 +1427,22 @@ static int cmd_transaction_submit(struct lwis_client *client, struct lwis_cmd_pk
 	if (ret) {
 		dev_err(lwis_dev->dev, "Failed to prepare lwis io entries for transaction\n");
 		goto err_free_cmd;
+	}
+
+	if (k_transaction->info.num_io_entries > 0) {
+		struct lwis_io_bundle *bundle = lwis_allocator_allocate(
+			lwis_dev, sizeof(struct lwis_io_bundle), GFP_KERNEL);
+		if (!bundle) {
+			ret = -ENOMEM;
+			lwis_transaction_free(lwis_dev, &k_transaction);
+			goto err_free_cmd;
+		}
+		atomic_set(&bundle->refcount, 1);
+		bundle->num_io_entries = k_transaction->info.num_io_entries;
+		bundle->io_entries = k_transaction->info.io_entries;
+		k_transaction->bundle = bundle;
+	} else {
+		k_transaction->bundle = NULL;
 	}
 
 	k_transaction->legacy_lwis_fence = (header->cmd_id == LWIS_CMD_ID_TRANSACTION_SUBMIT_V6 ||

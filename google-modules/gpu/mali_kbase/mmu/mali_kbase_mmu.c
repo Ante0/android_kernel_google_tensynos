@@ -1267,7 +1267,7 @@ page_fault_retry:
 						    region->nr_pages * PAGE_SIZE,
 						    current_backed_size, (u64)new_pages);
 
-		if (region->flags & BASEP_MEM_ACTIVE_JIT_ALLOC) {
+		if (region->flags & KBASE_REG_ACTIVE_JIT_ALLOC) {
 			KBASE_TLSTREAM_JIT_GROW_ON_FAULT(kbdev, kctx->id,
 							 region->start_pfn << PAGE_SHIFT,
 							 fault->addr, (u64)new_pages);

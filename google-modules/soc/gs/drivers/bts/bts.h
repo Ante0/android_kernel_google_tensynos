@@ -20,7 +20,6 @@
 #include <linux/types.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
-#include <linux/rtmutex.h>
 #include <dt-bindings/soc/google/gs-bts.h>
 #include <soc/google/exynos-pd.h>
 #include <soc/google/bts.h>
@@ -29,7 +28,7 @@
 #define BUS_WIDTH 16
 #define MIF_UTIL 65
 #define INT_UTIL 65
-#define RT_UTIL 39
+#define RT_UTIL 40
 
 #if IS_ENABLED(CONFIG_SOC_ZUMA)
 #define NOCL2A_NUM_CHANNEL 2
@@ -91,7 +90,7 @@ struct bts_device {
 	/* bts spinlock */
 	spinlock_t lock;
 	/* mutex-lock to protect accessing setting DVFS */
-	struct rt_mutex mutex_lock;
+	struct mutex mutex_lock;
 
 	unsigned int num_bts;
 	unsigned int num_scen;

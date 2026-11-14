@@ -198,8 +198,8 @@ static int edgetpu_mailbox_request_irq(struct edgetpu_mailbox *mailbox, int irq)
 	if (!irq)
 		return 0;
 
-	ret = devm_request_irq(etdev->dev, irq, edgetpu_mailbox_irq_handler, IRQF_ONESHOT,
-			       etdev->dev_name, mailbox);
+	ret = devm_request_irq(etdev->dev, irq, edgetpu_mailbox_irq_handler, 0, etdev->dev_name,
+			       mailbox);
 	if (!ret)
 		mailbox->irq = irq;
 
@@ -819,7 +819,7 @@ static int edgetpu_mailbox_external_disable_free(struct edgetpu_client *client)
 
 void edgetpu_mailbox_external_disable_free_locked(struct edgetpu_device_group *group)
 {
-	if (!group->dev_inaccessible) {
+	if (pm_runtime_get_if_active(group->etdev->dev, false) > 0) {
 	/*
 	 * Deactivate only fails if f/w is unresponsive which will put group
 	 * in errored state or mailbox physically disabled before requesting
@@ -827,6 +827,7 @@ void edgetpu_mailbox_external_disable_free_locked(struct edgetpu_device_group *g
 	 */
 		edgetpu_mailbox_deactivate_external_mailbox(group);
 		edgetpu_mailbox_disable_external_mailbox(group);
+		pm_runtime_put(group->etdev->dev);
 	}
 	edgetpu_mailbox_external_free(group);
 }

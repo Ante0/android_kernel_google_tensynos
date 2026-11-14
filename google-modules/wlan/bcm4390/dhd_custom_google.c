@@ -1,7 +1,7 @@
 /*
  * Customer HW 2 dependant file
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -31,7 +31,6 @@
 #include <linux/fcntl.h>
 #include <linux/fs.h>
 #include <linux/of_gpio.h>
-#include <bcmutils.h>
 #ifdef CONFIG_WIFI_CONTROL_FUNC
 #include <linux/wlan_plat.h>
 #else
@@ -66,6 +65,7 @@
 #include <net/mac80211.h>
 #include <dhd_linux_priv.h>
 #include "wl_cfg80211.h"
+#include "wl_cfgscan.h"
 #include "bcmwifi_rates.h"
 #include "wldev_common.h"
 #endif /* DHD_ART */
@@ -163,9 +163,9 @@ extern void exynos_pcie_set_skip_config(int ch_num, bool val);
 extern void google_pcie_dump_debug(int num);
 #endif /* CONFIG_SOC_LGA */
 
+#ifdef DHD_COREDUMP
 #define DEVICE_NAME "wlan"
 
-#ifdef DHD_COREDUMP
 static void sscd_release(struct device *dev);
 static struct sscd_platform_data sscd_pdata;
 static struct platform_device sscd_dev = {
@@ -177,7 +177,6 @@ static struct platform_device sscd_dev = {
 		.release       = sscd_release,
 		},
 };
-#endif /* DHD_COREDUMP */
 
 /* Google PCIe interface */
 static int pcie_ch_num = GOOGLE_PCIE_CH_NUM;
@@ -355,7 +354,6 @@ void _pcie_deregister_event(void *plat_info)
 }
 #endif /* !IS_ENABLED(CONFIG_PCI_EXYNOS_GS) */
 
-#ifdef DHD_COREDUMP
 static void sscd_release(struct device *dev)
 {
 	DHD_INFO(("%s: enter\n", __func__));
@@ -389,7 +387,7 @@ typedef struct {
     char sku[MAX_HW_INFO_LEN];
 } sku_info_t;
 
-static sku_info_t sku_table[] = {
+sku_info_t sku_table[] = {
 	{ {"G9S9B"}, {"MMW"} },
 	{ {"G8V0U"}, {"MMW"} },
 	{ {"GFQM1"}, {"MMW"} },
@@ -530,8 +528,8 @@ enum {
 
 #define DEFAULT_VAL "DEFAULT"
 
-static char val_revision[MAX_HW_INFO_LEN] = DEFAULT_VAL;
-static char val_sku[MAX_HW_INFO_LEN] = DEFAULT_VAL;
+char val_revision[MAX_HW_INFO_LEN] = DEFAULT_VAL;
+char val_sku[MAX_HW_INFO_LEN] = DEFAULT_VAL;
 
 enum hw_stage_attr {
 	DEV = 1,
@@ -546,7 +544,7 @@ typedef struct platform_hw_info {
 	uint8 avail_bmap;
 	char ext_name[MAX_FILE_COUNT][MAX_HW_EXT_LEN];
 } platform_hw_info_t;
-static platform_hw_info_t platform_hw_info;
+platform_hw_info_t platform_hw_info;
 
 static void
 dhd_set_platform_ext_name(char *hw_rev, char *hw_sku)
@@ -1389,9 +1387,6 @@ void dhd_plat_report_bh_sched(void *plat_info, int resched)
 	uint64 curr_time_ns;
 	uint64 time_delta_ns;
 
-	if (IS_ENABLED(CONFIG_IRQ_SBALANCE))
-		return;
-
 	if (dhd_force_max_cpu_freq) {
 		dhd_force_affinity_cpufreq(p->pdev);
 		return;
@@ -1884,6 +1879,8 @@ dhd_pcie_l1_exit(int ch_num)
 static int dhd_wondertap_set_reg(void *vendor_handle, const char *country_code);
 static int dhd_wondertap_set_fixed_tx_rate(void *vendor_handle,
 	const struct wondertap_fixed_tx_rate_params *params);
+static int dhd_wondertap_set_tx_rate_mask(void *vendor_handle,
+	const struct wondertap_tx_rate_mask_params *params);
 
 static enum
 nl80211_band dhd_freq_to_band(int freq)
@@ -1984,13 +1981,21 @@ dhd_wondertap_ops_init(void **handle, const struct wondertap_init_params *params
 		dhd_wondertap_ops_set_freq(*handle, &params->channel);
 		eacopy(params->bssid, dhdp->art_bssid);
 		eacopy(params->mac_addr, dhdp->art_mac_addr);
+		if (params->rate_adaptation_enable) {
+			g_dhd_pub->rate_adaptation_enable = TRUE;
+			g_dhd_pub->tx_rate_mask = params->tx_rate_mask.max_preamble;
+			DHD_PRINT(("%s RA enabled, set rate(%d) in monitor_open\n",
+				__func__, g_dhd_pub->tx_rate_mask));
+		}
 		int ret = dev_open(monitor_dev, NULL);
 
 		if (ret) {
 			DHD_ERROR(("wondertap: Failed to open interface: %d\n", ret));
 			return ret;
 		}
-		dhd_wondertap_set_fixed_tx_rate(*handle, &params->tx_rate);
+		if (!(params->rate_adaptation_enable)) {
+			dhd_wondertap_set_fixed_tx_rate(*handle, &params->tx_rate);
+		}
 	}
 
 	return 0;
@@ -2048,6 +2053,9 @@ dhd_wondertap_set_fixed_tx_rate(void *vendor_handle,
 	uint32 rspec = 0;
 	chanspec_t chanspec;
 	struct net_device *monitor_dev;
+#ifdef WL_CFG80211
+	struct bcm_cfg80211 *cfg;
+#endif /* WL_CFG80211 */
 
 	monitor_dev = dhd_get_monitor_ndev(dhdp);
 	if (!monitor_dev) {
@@ -2088,6 +2096,14 @@ dhd_wondertap_set_fixed_tx_rate(void *vendor_handle,
 		return -EINVAL;
 	}
 
+#ifdef WL_CFG80211
+	cfg = wl_get_cfg(monitor_dev);
+	if (cfg) {
+		/* abort any scan in progress */
+		wl_cfgscan_scan_abort(cfg);
+	}
+#endif /* WL_CFG80211 */
+
 	if (CHSPEC_BAND(chanspec) == WL_CHANSPEC_BAND_5G) {
 		rspec |= WL_RSPEC_LDPC;
 		error = wldev_iovar_setint(monitor_dev, "5g_rate", rspec);
@@ -2108,6 +2124,30 @@ dhd_wondertap_set_fixed_tx_rate(void *vendor_handle,
 		return -EINVAL;
 	}
 
+	return 0;
+}
+
+static int
+dhd_wondertap_set_tx_rate_mask(void *vendor_handle,
+	const struct wondertap_tx_rate_mask_params *params)
+{
+	dhd_pub_t *dhdp = (dhd_pub_t *)g_dhd_pub;
+	struct net_device *monitor_dev;
+	int ifidx;
+
+	monitor_dev = dhd_get_monitor_ndev(dhdp);
+	if (!monitor_dev) {
+		DHD_ERROR(("monitor_dev is null\n"));
+		return -ENODEV;
+	}
+
+	ifidx = dhd_net2idx(dhdp->info, monitor_dev);
+	if ((ifidx == DHD_BAD_IF) || (ifidx >= DHD_MAX_IFS)) {
+		DHD_ERROR(("wrong ifidx:%d for monitor dev:%p\n", ifidx, monitor_dev));
+		return -ENODEV;
+	}
+
+	dhd_set_art_tx_rate_mask(dhdp, ifidx, params->max_preamble);
 	return 0;
 }
 
@@ -2152,6 +2192,7 @@ dhd_wondertap_get_capabilities(void *vendor_handle, struct wondertap_capability 
 	capabilities->version = 0;
 	bzero(&capabilities->bits, sizeof(capabilities->bits));
 	capabilities->bits.amsdu_aggregation = 1;
+	capabilities->bits.rate_adaptation = 1;
 	return 0;
 }
 
@@ -2161,7 +2202,7 @@ static const struct wondertap_ops wondertap_ops = {
 	.set_freq = NULL,
 	.set_filter = dhd_wondertap_set_filter,
 	.set_fixed_tx_rate = NULL,
-	.set_tx_rate_mask = NULL,
+	.set_tx_rate_mask = dhd_wondertap_set_tx_rate_mask,
 	.get_capabilities = dhd_wondertap_get_capabilities,
 };
 
@@ -2207,6 +2248,7 @@ static int dhd_wonder_remove_wrapper(struct platform_device *pdev)
 	dhd_wonder_remove(pdev);
 	return 0;
 }
+
 #define dhd_wonder_remove dhd_wonder_remove_wrapper
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0) */
 
@@ -2222,6 +2264,6 @@ static struct platform_driver dhd_wonder_driver = {
 	.driver = {
 		.name = "dhd_wonder_dev",
 		.of_match_table = dhd_wonder_dt_ids,
-	},
+		},
 };
 #endif /* WONDERTAP */

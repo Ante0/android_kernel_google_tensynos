@@ -840,15 +840,22 @@ int dwc3_exynos_otg_init(struct dwc3 *dwc, struct dwc3_exynos *exynos)
 
 void dwc3_exynos_otg_exit(struct dwc3 *dwc, struct dwc3_exynos *exynos)
 {
-	struct dwc3_otg *dotg = exynos->dotg;
+	struct dwc3_otg *dotg;
+
+	unregister_reboot_notifier(&dwc3_otg_reboot_notifier);
+
+	mutex_lock(&exynos->dotg_lock);
+
+	dotg = exynos->dotg;
 
 	gvotable_destroy_election(dotg->ssphy_restart_votable);
 	gvotable_destroy_election(dotg->usbdp_tca_votable);
 	sysfs_put(dotg->desired_role_kn);
-	unregister_reboot_notifier(&dwc3_otg_reboot_notifier);
 	unregister_pm_notifier(&dotg->pm_nb);
 	cancel_work_sync(&dotg->work);
 	wakeup_source_unregister(dotg->wakelock);
 	devm_kfree(dwc->dev, dotg);
 	exynos->dotg = NULL;
+
+	mutex_unlock(&exynos->dotg_lock);
 }

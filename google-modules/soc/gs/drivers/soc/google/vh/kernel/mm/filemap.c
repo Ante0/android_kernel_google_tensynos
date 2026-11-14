@@ -89,14 +89,25 @@ static const struct kobj_type pixel_filemap_ktype = {
 	.default_groups = pixel_filemap_attr_groups,
 };
 
-void vh_do_async_mmap_readahead(void *data, struct vm_fault *vmf,
-				    struct folio *folio, bool *skip)
+static inline void vh_mmap_readahead_adj(bool *skip)
 {
 	if (unlikely(!async_readahead_adj_enabled))
 		return;
 
 	if ((get_nr_swap_pages() * PAGE_SIZE) >> 20 < free_swap_threshold_mb)
 		*skip = true;
+}
+
+void vh_do_async_mmap_readahead(void *data, struct vm_fault *vmf,
+				struct folio *folio, bool *skip)
+{
+	vh_mmap_readahead_adj(skip);
+}
+
+void vh_do_sync_mmap_readahead(void *data, struct vm_fault *vmf,
+			       bool *skip)
+{
+	vh_mmap_readahead_adj(skip);
 }
 
 int pixel_mm_filemap_sysfs(struct kobject *parent)

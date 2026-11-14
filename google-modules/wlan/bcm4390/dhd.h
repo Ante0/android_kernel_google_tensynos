@@ -4,7 +4,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1334,7 +1334,11 @@ typedef struct dhd_db7_info {
 } dhd_db7_info_t;
 
 #ifdef DHD_ART
+#ifdef WONDERTAP
 #define IS_ART_IFACE(ifname) strstr(ifname, "wondertap0")
+#else
+#define IS_ART_IFACE(ifname) strstr(ifname, "radiotap0")
+#endif /* WONDERTAP */
 typedef struct dhd_art_counters {
     uint64 rx_packets;
     uint64 rx_dbg_monitor_packets;
@@ -2091,6 +2095,10 @@ typedef struct dhd_pub {
 	bool host_art_enabled;
 	bool dongle_art_enabled;
 	bool usr_art_enabled;
+#ifdef WONDERTAP
+	bool rate_adaptation_enable;
+	uint8 tx_rate_mask;
+#endif /* WONDERTAP */
 #endif /* DHD_ART */
 #ifdef TX_CSO
 	bool dongle_txcso_enabled;
@@ -2636,7 +2644,7 @@ static inline void MUTEX_UNLOCK_SOFTAP_SET(dhd_pub_t *dhdp)
 #endif /* defined(OEM_ANDROID) */
 
 #ifdef BCMPCIE_OOB_HOST_WAKE
-#define OOB_WAKE_LOCK_TIMEOUT 100
+#define OOB_WAKE_LOCK_TIMEOUT 500
 extern void dhd_os_oob_irq_wake_lock_timeout(dhd_pub_t *pub, int val);
 extern void dhd_os_oob_irq_wake_unlock(dhd_pub_t *pub);
 
@@ -5330,4 +5338,7 @@ chanspec_t dhd_get_monitor_chspec(dhd_pub_t *dhdp);
 extern void *dhd_validate_packet_address(dhd_pub_t *dhd, void *pkt);
 extern void dhd_enqueue_inv_address_queue(struct dhd_pub *dhdp, void *pkt);
 #endif /* DHD_VALIDATE_PKT_ADDRESS */
+#ifdef WONDERTAP
+int dhd_set_art_tx_rate_mask(dhd_pub_t *dhd, u8 ifidx, uint8 tx_rate_mask);
+#endif /* WONDERTAP */
 #endif /* _dhd_h_ */

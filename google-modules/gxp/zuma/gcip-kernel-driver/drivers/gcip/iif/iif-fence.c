@@ -146,37 +146,6 @@ static inline int iif_fences_sort_by_id(struct iif_fence **fences, int size)
 }
 
 /*
- * Checks whether all fences in @in_fences and @out_fences are unique.
- *
- * This check is required before submitting signalers or waiters to the multiple fences of one
- * command since if there are fences existing in both @in_fences and @out_fences, it will cause a
- * deadlock.
- *
- * Both fence arrays should be sorted first using the `iif_fences_sort_by_id` function above.
- *
- * Returns 0 if there is no cycle. Otherwise, returns -EDEADLK.
- */
-static inline int iif_fences_check_fence_uniqueness(struct iif_fence **in_fences, int num_in_fences,
-						    struct iif_fence **out_fences,
-						    int num_out_fences)
-{
-	int i = 0, j = 0;
-
-	while (i < num_in_fences && j < num_out_fences) {
-		if (in_fences[i]->id < out_fences[j]->id) {
-			i++;
-		} else if (in_fences[i]->id > out_fences[j]->id) {
-			j++;
-		} else {
-			iif_err(in_fences[i], "Duplicated fences in in-fences and out-fences\n");
-			return -EDEADLK;
-		}
-	}
-
-	return 0;
-}
-
-/*
  * Holds the rwlocks which protect the number of signalers of each fence in @fences without saving
  * the IRQ state.
  *
@@ -1341,9 +1310,11 @@ int iif_fence_submit_signaler_and_waiter(struct iif_fence **in_fences, int num_i
 					 struct iif_fence **out_fences, int num_out_fences,
 					 enum iif_ip_type waiter_ip)
 {
+	struct iif_fence **fences;
 	enum iif_ip_type ip;
 	u16 *wakelock_held;
-	unsigned long *in_flags, *out_flags;
+	unsigned long *flags;
+	int num_fences = num_in_fences + num_out_fences;
 	int i, tmp, ret;
 
 	might_sleep();
@@ -1352,32 +1323,26 @@ int iif_fence_submit_signaler_and_waiter(struct iif_fence **in_fences, int num_i
 	if (num_in_fences && waiter_ip >= IIF_IP_NUM)
 		return -EINVAL;
 
-	in_flags = kcalloc(num_in_fences, sizeof(*in_flags), GFP_KERNEL);
-	if (!in_flags)
+	fences = kcalloc(num_fences, sizeof(*fences), GFP_KERNEL);
+	if (!fences)
 		return -ENOMEM;
 
-	out_flags = kcalloc(num_out_fences, sizeof(*out_flags), GFP_KERNEL);
-	if (!out_flags) {
+	flags = kcalloc(num_fences, sizeof(*flags), GFP_KERNEL);
+	if (!flags) {
 		ret = -ENOMEM;
-		goto err_free_in_flags;
+		goto err_free_fences;
 	}
 
 	wakelock_held = kcalloc(num_out_fences, sizeof(*wakelock_held), GFP_KERNEL);
 	if (!wakelock_held) {
 		ret = -ENOMEM;
-		goto err_free_out_flags;
+		goto err_free_flags;
 	}
 
-	ret = iif_fences_sort_by_id(in_fences, num_in_fences);
-	if (ret)
-		goto err_free_wakelock_held;
+	memcpy(fences, in_fences, num_in_fences * sizeof(*in_fences));
+	memcpy(fences + num_in_fences, out_fences, num_out_fences * sizeof(*out_fences));
 
-	ret = iif_fences_sort_by_id(out_fences, num_out_fences);
-	if (ret)
-		goto err_free_wakelock_held;
-
-	ret = iif_fences_check_fence_uniqueness(in_fences, num_in_fences, out_fences,
-						num_out_fences);
+	ret = iif_fences_sort_by_id(fences, num_fences);
 	if (ret)
 		goto err_free_wakelock_held;
 
@@ -1407,8 +1372,7 @@ int iif_fence_submit_signaler_and_waiter(struct iif_fence **in_fences, int num_i
 	if (ret)
 		goto err_release_block_wakelock;
 
-	iif_fences_write_lock(in_fences, num_in_fences, in_flags);
-	iif_fences_write_lock(out_fences, num_out_fences, out_flags);
+	iif_fences_write_lock(fences, num_fences, flags);
 
 	/*
 	 * Checks whether we can submit a waiter to @in_fences.
@@ -1443,8 +1407,7 @@ int iif_fence_submit_signaler_and_waiter(struct iif_fence **in_fences, int num_i
 	}
 
 err_unlock_fences:
-	iif_fences_write_unlock(out_fences, num_out_fences, out_flags);
-	iif_fences_write_unlock(in_fences, num_in_fences, in_flags);
+	iif_fences_write_unlock(fences, num_fences, flags);
 
 	if (ret)
 		iif_fences_release_block_wakelock_of_waiters(out_fences, num_out_fences,
@@ -1454,10 +1417,10 @@ err_release_block_wakelock:
 		iif_fences_release_block_wakelock(in_fences, num_in_fences, waiter_ip);
 err_free_wakelock_held:
 	kfree(wakelock_held);
-err_free_out_flags:
-	kfree(out_flags);
-err_free_in_flags:
-	kfree(in_flags);
+err_free_flags:
+	kfree(flags);
+err_free_fences:
+	kfree(fences);
 
 	return ret;
 }

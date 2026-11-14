@@ -9,6 +9,7 @@
 #define __GCIP_IMAGE_CONFIG_H__
 
 #include <linux/bits.h>
+#include <linux/bitfield.h>
 #include <linux/sizes.h>
 #include <linux/types.h>
 
@@ -48,6 +49,10 @@
 #define GCIP_IMAGE_CONFIG_MAP_36BIT_BIT		BIT(3)
 #define GCIP_IMAGE_CONFIG_MAP_36BIT(flags)	((flags) & GCIP_IMAGE_CONFIG_MAP_36BIT_BIT)
 
+/* For 36-bit physical addresses in image config */
+#define GCIP_IMAGE_CONFIG_MAPPING_OFFSETS_MEM_OFFSET_FIELD GENMASK(3, 0)
+#define GCIP_IMAGE_CONFIG_MAPPING_OFFSETS_MMIO_OFFSET_FIELD GENMASK(7, 4)
+
 /*
  * The image configuration attached to the signed firmware.
  */
@@ -71,7 +76,8 @@ struct gcip_image_config {
 		 */
 		__u32 image_config_value;
 	} iommu_mappings[GCIP_IMG_CFG_MAX_IOMMU_MAPPINGS];
-	__u32 reserved;
+	__u8 mapping_offsets;
+	__u8 reserved[3];
 	__u32 shared_data_iova;
 	__u32 telemetry_buffer_config;
 	__u32 sanitizer_config;
@@ -245,6 +251,30 @@ gcip_image_config_get_telemetry_buffer_config(const struct gcip_image_config *co
 	telemetry_config->trace_buffer_size =
 		((config->telemetry_buffer_config >> 16) & 0xFF) * SZ_4K;
 	return true;
+}
+
+static inline phys_addr_t gcip_get_mem_address_high_bits(const struct gcip_image_config *config)
+{
+	return FIELD_GET(GCIP_IMAGE_CONFIG_MAPPING_OFFSETS_MEM_OFFSET_FIELD,
+			 config->mapping_offsets);
+}
+
+static inline phys_addr_t gcip_get_fixed_mem_address(const struct gcip_image_config *config,
+						     uint32_t addr)
+{
+	return (phys_addr_t)(gcip_get_mem_address_high_bits(config) << 32) | addr;
+}
+
+static inline phys_addr_t gcip_get_mmio_address_high_bits(const struct gcip_image_config *config)
+{
+	return FIELD_GET(GCIP_IMAGE_CONFIG_MAPPING_OFFSETS_MMIO_OFFSET_FIELD,
+			 config->mapping_offsets);
+}
+
+static inline phys_addr_t gcip_get_fixed_mmio_address(const struct gcip_image_config *config,
+						      uint32_t addr)
+{
+	return (phys_addr_t)(gcip_get_mmio_address_high_bits(config) << 32) | addr;
 }
 
 #endif /* __GCIP_IMAGE_CONFIG_H__ */

@@ -24,7 +24,6 @@ gxp-objs += \
 		gxp-core-telemetry.o \
 		gxp-dci.o \
 		gxp-debug-dump.o \
-		gxp-dma-fence.o \
 		gxp-dma-iommu.o \
 		gxp-dmabuf.o \
 		gxp-domain-pool.o \
@@ -89,6 +88,15 @@ COMMON_OUT_DIR ?= $(OUT_DIR)/..
 -include $(ROOT_DIR)/private/google-modules/soc/gs/Makefile.include
 M ?= $(shell pwd)
 
+# Obtain the current git commit hash for logging on probe
+GIT_PATH=$(shell cd $(KERNEL_SRC); readlink -e $(M))
+GIT_BIN=/usr/bin/git
+GIT=$(GIT_BIN) -C $(GIT_PATH)
+ifeq ($(shell $(GIT) rev-parse --is-inside-work-tree),true)
+        GIT_REPO_STATE=$(shell ($(GIT) --work-tree=$(GIT_PATH) status --porcelain | grep -q .) && echo -dirty)
+        ccflags-y       += -DGIT_REPO_TAG=\"$(shell $(GIT) rev-parse --short HEAD)$(GIT_REPO_STATE)\"
+endif
+
 # If building via make directly, specify target platform by adding
 #     "GXP_PLATFORM=<target>"
 # With one of the following values:
@@ -151,9 +159,6 @@ endif
 ifneq ($(wildcard $(GMODULE_OUT_PATH)/perf/google_pm_qos_Module.symvers),)
 EXTRA_SYMBOLS += $(GMODULE_OUT_PATH)/perf/google_pm_qos_Module.symvers
 endif
-
-%/gcip.o: FORCE
-	$(Q)$(MAKE) $(build)=$(@D) $@
 
 modules modules_install compile_commands.json:
 	$(MAKE) -C $(KERNEL_SRC) M=$(M)/$(GCIP_DIR) gcip.o

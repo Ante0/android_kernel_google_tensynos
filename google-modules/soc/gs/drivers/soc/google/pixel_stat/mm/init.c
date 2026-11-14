@@ -13,6 +13,7 @@
 #include "cma.h"
 #include "vmscan.h"
 #include "compaction.h"
+#include "page_alloc.h"
 
 extern void vh_rmqueue_mod(void *data, struct zone *preferred_zone,
 		struct zone *zone, unsigned int order, gfp_t gfp_flags,
@@ -97,6 +98,10 @@ static int pixel_stat_mm_init(void)
 		return ret;
 
 	ret = register_trace_android_rvh_vmscan_kswapd_done(rvh_vmscan_kswapd_done, NULL);
+	if (ret)
+		return ret;
+
+	ret = register_trace_android_rvh_try_alloc_pages_gfp(rvh_try_alloc_pages_gfp_mod, NULL);
 	if (ret)
 		return ret;
 

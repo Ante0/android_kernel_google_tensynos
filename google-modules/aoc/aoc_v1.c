@@ -184,6 +184,10 @@ int aoc_watchdog_restart(struct aoc_prvdata *prvdata,
 
 	/* Restore IOMMU settings by briefly setting AoC to runtime active. Since IOMMU is a
 	 * supplier to AoC, it will be set to runtime active as a side effect. */
+
+	//TODO: b/469263456 Find way to check if IOMMU control is ready
+	msleep(20);
+
 	rc = pm_runtime_set_active(prvdata->dev);
 	if (rc < 0) {
 		dev_err(prvdata->dev, "iommu restore failed: pm_runtime_resume rc = %d\n", rc);

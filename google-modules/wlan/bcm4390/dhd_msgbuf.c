@@ -3,7 +3,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -8312,6 +8312,7 @@ BCMFASTPATH(dhd_prot_process_msgbuf_rxcpl)(dhd_pub_t *dhd, int ringtype, uint32 
 	int i;
 	uint8 sync;
 	unsigned long rx_lock_flags = 0;
+	uint16 fw_len = 0;
 
 #ifdef DHD_LB_RXP
 	/* must be the first check in this function */
@@ -8370,6 +8371,7 @@ BCMFASTPATH(dhd_prot_process_msgbuf_rxcpl)(dhd_pub_t *dhd, int ringtype, uint32 
 
 		while (msg_len > 0) {
 			msg = (host_rxbuf_cmpl_t *)msg_addr;
+			fw_len = ltoh16(msg->data_len);
 
 			/* Don't process further if any bus error has occurred */
 			if (dhd_query_bus_erros(dhd)) {
@@ -8437,9 +8439,21 @@ BCMFASTPATH(dhd_prot_process_msgbuf_rxcpl)(dhd_pub_t *dhd, int ringtype, uint32 
 				pktid = ltoh32(msg->cmn_hdr.request_id);
 				if (msg->cmn_hdr.flags &
 					BCMPCIE_CMNHDR_FLAGS_WAKE_PACKET) {
-					DHD_ERROR(("%s:Rx: Wakeup Packet received\n",
+					DHD_PRINT(("%s:Rx: Wakeup Packet received\n",
 						__FUNCTION__));
 					prot->rx_wakeup_pkt++;
+
+#if defined(DHD_WAKE_STATUS)
+					/* Check if host was woken up by any packets */
+					if (dhd_bus_get_bus_wake(dhd) > 0) {
+						/* Clear bus_wake */
+						dhd_bus_set_get_bus_wake(dhd, 0);
+						/* Request packet dump for first Rx packet */
+						DHD_PRINT(("%s: set wake pkt dump\n",
+							__FUNCTION__));
+						dhd_bus_set_get_bus_wake_pkt_dump(dhd, 1);
+					}
+#endif /* DHD_WAKE_STATUS */
 				}
 
 #ifdef DHD_PKTID_AUDIT_RING
@@ -8565,8 +8579,13 @@ BCMFASTPATH(dhd_prot_process_msgbuf_rxcpl)(dhd_pub_t *dhd, int ringtype, uint32 
 					/* DMA RX offset updated through shared area */
 					PKTPULL(dhd->osh, pkt, prot->rx_dataoffset);
 				}
-				/* Actual length of the packet */
-				PKTSETLEN(dhd->osh, pkt, ltoh16(msg->data_len));
+
+				if (fw_len > PKTLEN(dhd->osh, pkt)) {
+					DHD_ERROR(("%s: dongle data_len %u > posted %u\n",
+						__FUNCTION__, fw_len, PKTLEN(dhd->osh, pkt)));
+					fw_len = (uint16)PKTLEN(dhd->osh, pkt);
+				}
+				PKTSETLEN(dhd->osh, pkt, fw_len);
 
 
 #if defined(WL_MONITOR)
@@ -10146,6 +10165,12 @@ dhd_prot_event_process(dhd_pub_t *dhd, void *msg)
 		PKTPULL(dhd->osh, pkt, dhd->prot->rx_dataoffset);
 #endif /* !BCM_ROUTER_DHD */
 
+	if (buflen > PKTLEN(dhd->osh, pkt)) {
+		DHD_ERROR(("%s: dongle event_data_len %u posted buf %u clamping\n",
+			__FUNCTION__, buflen, PKTLEN(dhd->osh, pkt)));
+		buflen = (uint16)PKTLEN(dhd->osh, pkt);
+	}
+
 	PKTSETLEN(dhd->osh, pkt, buflen);
 #ifdef DHD_LBUF_AUDIT
 	PKTAUDIT(dhd->osh, pkt);
@@ -10198,6 +10223,12 @@ BCMFASTPATH(dhd_prot_process_infobuf_complete)(dhd_pub_t *dhd, void *buf)
 	if (dhd->prot->rx_dataoffset)
 		PKTPULL(dhd->osh, pkt, dhd->prot->rx_dataoffset);
 #endif /* !BCM_ROUTER_DHD */
+
+	if (buflen > PKTLEN(dhd->osh, pkt)) {
+		DHD_ERROR(("%s: dongle info_data_len %u posted buf %u clamping\n",
+			__FUNCTION__, buflen, PKTLEN(dhd->osh, pkt)));
+		buflen = (uint16)PKTLEN(dhd->osh, pkt);
+	}
 
 	PKTSETLEN(dhd->osh, pkt, buflen);
 #ifdef DHD_LBUF_AUDIT
@@ -12497,6 +12528,7 @@ int dhd_d2h_h2d_ring_dump(dhd_pub_t *dhd, void *file, const void *user_buf,
 	int ret = 0;
 	uint16 h2d_flowrings_total;
 	uint16 flowid;
+	flow_ring_node_t *flow_ring_node;
 
 	if (!(dhd) || !(dhd->prot)) {
 		goto exit;
@@ -12535,6 +12567,20 @@ int dhd_d2h_h2d_ring_dump(dhd_pub_t *dhd, void *file, const void *user_buf,
 		goto exit;
 	}
 	FOREACH_RING_IN_FLOWRINGS_POOL(prot, ring, flowid, h2d_flowrings_total) {
+		flow_ring_node = dhd_flow_ring_node(dhd, flowid);
+		if (!flow_ring_node || !flow_ring_node->active) {
+			/* Write zero-length stub: max_items=0, item_len=0 */
+			uint16 zero = 0;
+			ret = dhd_export_debug_data((char *)&zero, file, user_buf,
+				sizeof(zero), (int *)file_posn);
+			if (ret < 0)
+				goto exit;
+			ret = dhd_export_debug_data((char *)&zero, file, user_buf,
+				sizeof(zero), (int *)file_posn);
+			if (ret < 0)
+				goto exit;
+			continue;
+		}
 		ret = dhd_ring_write(dhd, ring, file, user_buf, file_posn);
 		if (ret < 0) {
 			goto exit;

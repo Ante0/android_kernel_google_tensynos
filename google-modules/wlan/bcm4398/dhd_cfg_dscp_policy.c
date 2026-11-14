@@ -12,7 +12,7 @@
  *
  * This file is used only if the DHD is built with the feature string "dscp_policy".
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -853,7 +853,7 @@ dhd_dscp_policy_send_query(struct net_device *ndev, uint32 query_val, uint8 *dn,
 	struct bcm_cfg80211 *cfg;
 	dscp_policy_info_t *policy_info;
 	unsigned long flags;
-	uint8 dn_attr_len = 0;
+	uint16 dn_attr_len = 0;
 
 	/* Allow only 0 or 1 for now.
 	 * 0 means reject all policies from the DSCP request following DSCP query
@@ -883,6 +883,12 @@ dhd_dscp_policy_send_query(struct net_device *ndev, uint32 query_val, uint8 *dn,
 	}
 
 	if ((query_val == 1) && (dn_len != 0) && (dn != NULL)) {
+		/* Validate dn_len to avoid overflow in attribute length */
+		if (dn_len > (DOMAIN_NAME_SIZE_MAX - DSCP_POLICY_DOMAIN_NAME_ATTR_SIZE)) {
+			ret_val = BCME_BADARG;
+			goto done;
+		}
+
 		dn_attr_len = DSCP_POLICY_DOMAIN_NAME_ATTR_SIZE + dn_len;
 		buf_len += (QOS_MGMT_IE_HDR_SIZE + dn_attr_len);
 	}

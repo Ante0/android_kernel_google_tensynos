@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -2513,9 +2513,6 @@ struct bcm_cfg80211 {
 	u64 cfg80211_features;
 	uint32 nan_usd_busy_cnt;
 	uint32 actfrm_fail_cnt;
-#ifdef DHD_ART
-	u8 art_bssid[ETHER_ADDR_LEN]; /* BSSID filter */
-#endif /* DHD_ART */
 };
 
 typedef struct wl_multink_config {
@@ -3913,13 +3910,8 @@ extern int wl_channel_to_frequency(u32 chan, chanspec_band_t band);
 extern int wl_cfg80211_config_rsnxe_ie(struct bcm_cfg80211 *cfg, struct net_device *dev,
 		const u8 *parse, u32 len, wlcfg_assoc_info_t *info);
 extern bool dhd_force_country_change(struct net_device *dev);
-#ifdef DHD_DEBUG
 extern u32 wl_dbg_level;
 extern u32 wl_log_level;
-#else
-#define wl_dbg_level (0)
-#define wl_log_level (0)
-#endif /* DHD_DEBUG */
 extern u32 wl_cfg80211_debug_data_dump(struct net_device *dev, u8 *buf, u32 buf_len);
 extern s32 wl_cfg80211_iface_state_ops(struct wireless_dev *wdev, wl_interface_state_t state,
 	wl_iftype_t wl_iftype, u16 wl_mode);

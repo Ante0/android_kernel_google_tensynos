@@ -2,7 +2,7 @@
 /*
  * Edge TPU driver common internal definitions.
  *
- * Copyright (C) 2019 Google, Inc.
+ * Copyright (C) 2019-2026 Google LLC
  */
 #ifndef __EDGETPU_INTERNAL_H__
 #define __EDGETPU_INTERNAL_H__
@@ -426,8 +426,8 @@ u64 edgetpu_chip_tpu_timestamp(struct edgetpu_dev *etdev);
  * Note: This will get called from the system's work queue.
  * Code should not block for extended periods of time
  */
-void edgetpu_chip_handle_reverse_kci(struct edgetpu_dev *etdev,
-				     struct edgetpu_kci_response_element *resp);
+int edgetpu_chip_handle_reverse_kci(struct edgetpu_dev *etdev,
+				    struct edgetpu_kci_response_element *resp);
 
 /* Device -> Core API */
 

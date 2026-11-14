@@ -1,7 +1,7 @@
 /*
  * Linux Packet (skb) interface
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -112,7 +112,7 @@
 #define	PKTSETLEN(osh, skb, len)	\
 	({ \
 	 BCM_REFERENCE(osh); \
-	 __skb_trim((struct sk_buff*)(skb), (len)); \
+	 skb_trim((struct sk_buff *)(skb), (len)); \
 	 })
 #define	PKTPUSH(osh, skb, bytes)	\
 	({ \

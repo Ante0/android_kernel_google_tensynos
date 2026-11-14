@@ -20,7 +20,6 @@
 
 #include "edgetpu-config.h"
 #include "edgetpu-devfreq.h"
-#include "edgetpu-dmabuf.h"
 #include "edgetpu-dt-mailbox-adapter.h"
 #include "edgetpu-firmware.h"
 #include "edgetpu-ikv.h"
@@ -34,9 +33,8 @@
 
 static struct edgetpu_dev *edgetpu_debug_pointer;
 
-static int edgetpu_platform_setup_fw_region(struct edgetpu_mobile_platform_dev *etmdev)
+static int edgetpu_platform_setup_fw_region(struct edgetpu_dev *etdev)
 {
-	struct edgetpu_dev *etdev = &etmdev->edgetpu_dev;
 	struct device *dev = etdev->dev;
 	struct resource r;
 	struct device_node *np;
@@ -67,10 +65,8 @@ static int edgetpu_platform_setup_fw_region(struct edgetpu_mobile_platform_dev *
 	return ret;
 }
 
-static void edgetpu_platform_cleanup_fw_region(struct edgetpu_mobile_platform_dev *etmdev)
+static void edgetpu_platform_cleanup_fw_region(struct edgetpu_dev *etdev)
 {
-	struct edgetpu_dev *etdev = &etmdev->edgetpu_dev;
-
 	edgetpu_firmware_cleanup_fw_carveout(etdev);
 }
 
@@ -83,6 +79,17 @@ static inline const char *get_driver_commit(void)
 #else
 	return "Unknown";
 #endif
+}
+
+static void edgetpu_platform_init_emulation(struct edgetpu_dev *etdev)
+{
+	const char *emul_flavor = NULL;
+
+	if (of_property_read_string(etdev->dev->of_node, "emulation",
+				    &emul_flavor))
+		return;
+	if (!strcmp(emul_flavor, "slow-tpu"))
+		etdev->emulation_slow_tpu = true;
 }
 
 static int edgetpu_mobile_platform_probe(struct platform_device *pdev)
@@ -144,7 +151,8 @@ static int edgetpu_mobile_platform_probe(struct platform_device *pdev)
 	if (ret)
 		dev_warn(dev, "dma_set_coherent_mask returned %d\n", ret);
 
-	ret = edgetpu_platform_setup_fw_region(etmdev);
+	edgetpu_platform_init_emulation(etdev);
+	ret = edgetpu_platform_setup_fw_region(etdev);
 	if (ret) {
 		dev_err(dev, "setup fw regions failed: %d", ret);
 		return ret;
@@ -176,12 +184,6 @@ static int edgetpu_mobile_platform_probe(struct platform_device *pdev)
 	if (ret)
 		etdev_warn(etdev, "Failed to create devfreq interface: %d", ret);
 
-	ret = edgetpu_sync_fence_manager_create(etdev);
-	if (ret) {
-		etdev_err(etdev, "Failed to create DMA fence manager: %d", ret);
-		goto out_destroy_devfreq;
-	}
-
 	edgetpu_soc_post_power_on_init(etdev);
 
 	/* Turn the device off unless a client request is already received. */
@@ -210,21 +212,20 @@ out_destroy_devfreq:
 out_remove_device:
 	edgetpu_device_remove(etdev);
 out_cleanup_fw_region:
-	edgetpu_platform_cleanup_fw_region(etmdev);
+	edgetpu_platform_cleanup_fw_region(etdev);
 	return ret;
 }
 
 static void edgetpu_mobile_platform_remove(struct platform_device *pdev)
 {
 	struct edgetpu_dev *etdev = platform_get_drvdata(pdev);
-	struct edgetpu_mobile_platform_dev *etmdev = to_mobile_dev(etdev);
 
 	edgetpu_fs_remove(etdev);
 	edgetpu_devfreq_destroy(etdev);
 	edgetpu_thermal_destroy(etdev);
 	edgetpu_firmware_destroy(etdev);
 	edgetpu_device_remove(etdev);
-	edgetpu_platform_cleanup_fw_region(etmdev);
+	edgetpu_platform_cleanup_fw_region(etdev);
 
 	edgetpu_debug_pointer = NULL;
 }

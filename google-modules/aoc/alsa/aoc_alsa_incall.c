@@ -47,24 +47,25 @@ static bool aoc_incall_hifi_support_interrupt(uint8_t mbox_index)
 static enum hrtimer_restart aoc_incall_hifi_irq_process(struct aoc_alsa_stream *alsa_stream)
 {
 	struct aoc_service_dev *dev;
-	unsigned long consumed; /* TODO: uint64_t? */
 	struct snd_pcm_runtime *runtime;
+	unsigned long consumed;
 
-	/* The number of bytes read/writtien should be the bytes in the buffer
+	if (!alsa_stream || !alsa_stream->substream || !alsa_stream->substream->runtime ||
+	    !alsa_stream->dev)
+		return HRTIMER_NORESTART;
+
+	dev = alsa_stream->dev;
+	runtime = alsa_stream->substream->runtime;
+
+	if (runtime->status->state != SNDRV_PCM_STATE_RUNNING)
+		return HRTIMER_RESTART;
+
+	/* The number of bytes read/written should be the bytes in the buffer
 	 * already played out in the case of playback. But this may not be true
 	 * in the AoC ring buffer implementation, since the reader pointer in
 	 * the playback case represents what has been read from the buffer,
 	 * not what already played out .
 	*/
-	runtime = alsa_stream->substream->runtime;
-	if (!runtime)
-		return HRTIMER_RESTART;
-
-	if (alsa_stream->dev == NULL ||
-		 runtime->status->state != SNDRV_PCM_STATE_RUNNING)
-		return HRTIMER_RESTART;
-
-	dev = alsa_stream->dev;
 	consumed = ((alsa_stream->substream->stream == SNDRV_PCM_STREAM_PLAYBACK) ?
 				  aoc_ring_bytes_read(dev->service, AOC_DOWN) :
 				  aoc_ring_bytes_written(dev->service, AOC_UP));
@@ -288,6 +289,7 @@ static int snd_aoc_pcm_close(struct snd_soc_component *component,
 	struct aoc_alsa_stream *alsa_stream = runtime->private_data;
 	struct aoc_chip *chip = alsa_stream->chip;
 	int err;
+	bool mutex_locked = true;
 
 	dev_dbg(component->dev, "name %s substream %pK", rtd->dai_link->name, substream);
 	aoc_timer_stop_sync(alsa_stream);
@@ -302,7 +304,8 @@ static int snd_aoc_pcm_close(struct snd_soc_component *component,
 
 	if (mutex_lock_interruptible(&chip->audio_mutex)) {
 		dev_err(component->dev, "ERR: interrupted while waiting for lock\n");
-		return -EINTR;
+		mutex_locked = false;
+		/* b/480740542 don't return to cleanup the resource */
 	}
 
 	runtime = substream->runtime;
@@ -342,7 +345,8 @@ static int snd_aoc_pcm_close(struct snd_soc_component *component,
 		 */
 		teardown_voipcall(alsa_stream);
 	}
-	mutex_unlock(&chip->audio_mutex);
+	if (mutex_locked)
+		mutex_unlock(&chip->audio_mutex);
 
 	return 0;
 }
@@ -361,9 +365,9 @@ static long get_wait_time(struct snd_pcm_substream *substream)
 	case IDX_INCALL_CAP1_TX:
 	case IDX_INCALL_CAP2_TX:
 	case IDX_INCALL_CAP3_TX:
-		return msecs_to_jiffies(chip->voice_pcm_wait_time_in_ms);
+		return chip->voice_pcm_wait_time_in_ms;
 	default:
-		return msecs_to_jiffies(chip->pcm_wait_time_in_ms);
+		return chip->pcm_wait_time_in_ms;
 	}
 }
 

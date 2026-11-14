@@ -26,7 +26,6 @@
 #include <linux/types.h>
 #include <linux/workqueue.h>
 
-#include <gcip/gcip-dma-fence.h>
 #include <gcip/gcip-firmware.h>
 #include <gcip/gcip-memory.h>
 #include <gcip/gcip-telemetry.h>
@@ -79,6 +78,9 @@ enum edgetpu_eventlog_eventcode {
 	EVENTLOG_EVENT_POWER_STATE_END,
 	EVENTLOG_EVENT_POWER_WAITSTATE,
 	EVENTLOG_EVENT_POWER_RPMDONE,
+	EVENTLOG_EVENT_CLIENT_TRIM_DONE,
+	EVENTLOG_EVENT_CLIENT_REMAP_DONE,
+	EVENTLOG_EVENT_CLIENT_ACCESS_FAULT,
 	EVENTLOG_EVENT_COUNT /* Number of valid event codes above. */
 };
 
@@ -87,7 +89,6 @@ enum edgetpu_eventlog_eventcode {
 
 struct edgetpu_eventlog_event {
 	struct timespec64 timestamp;
-	pid_t pid; /* pid of current thread at event log time */
 	enum edgetpu_eventlog_eventcode code;
 	long arg; /* extra info associated with the particular code */
 };
@@ -100,12 +101,13 @@ struct edgetpu_eventlog {
 struct edgetpu_client {
 	/* Unique ID number of this client. */
 	uint client_id;
-	pid_t pid;
 	pid_t tgid;
-	/* PID and TGID for a limited interface to this client. -1 if no such interface. */
-	pid_t limited_pid;
-	pid_t limited_tgid;
 	char name[40];
+	/*
+	 * true if client has been identified via EDGETPU_IDENTIFY_CLIENT.
+	 * TODO(b/489208801): Remove when EDGETPU_IDENTIFY_CLIENT in use for all targets.
+	 */
+	bool runtime_identified_client;
 	/* Reference count */
 	refcount_t count;
 	/* protects group. */
@@ -263,7 +265,6 @@ struct edgetpu_dev {
 	/* Memory pool in instruction remap region */
 	struct edgetpu_mempool *iremap_pool;
 	struct edgetpu_sw_wdt *etdev_sw_wdt;	/* software watchdog */
-	struct gcip_dma_fence_manager *gfence_mgr; /* DMA sync fences manager */
 	/* version read from the firmware binary file */
 	struct edgetpu_fw_version fw_version;
 	atomic_t job_count;	/* # times a device group has been created for this device */
@@ -298,6 +299,18 @@ struct edgetpu_dev {
 	/* List of current and preserved former client wakeup sources for power analysis. */
 	struct mutex wakeup_sources_lock;
 	struct list_head wakeup_sources;
+
+	/*
+	 * The maximum number of edgetpu_clients that can concurrently hold a wakelock.
+	 *
+	 * This value is generally equal to the number of MMU domains that can be attached at once.
+	 * Other limits, such as the number of clients supported by firmware may also be taken into
+	 * account.
+	 */
+	size_t max_concurrent_clients;
+
+	/* true if running on emulation where the TPU is much slower than AP */
+	bool emulation_slow_tpu;
 };
 
 struct edgetpu_dev_iface {
@@ -409,6 +422,9 @@ void edgetpu_client_remove(struct edgetpu_client *client);
 
 /* Set client name based on comm field of the supplied process task_id. */
 void edgetpu_client_update_name(struct edgetpu_client *client, pid_t task_id);
+
+/* Set client tgid and update client name via edgetpu_client_update_name. */
+void edgetpu_client_set_tgid(struct edgetpu_client *client, pid_t task_id);
 
 /* mmap() device/queue memory */
 int edgetpu_mmap(struct edgetpu_client *client, struct vm_area_struct *vma);

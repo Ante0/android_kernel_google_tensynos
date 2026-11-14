@@ -8,6 +8,7 @@
 
 #include <dt-bindings/clock/zuma.h>
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
 #include <arm64/exynos/exynos-pinctrl.h>
 #include <dt-bindings/lwis/platform/zuma/tof.h>
 
@@ -747,6 +748,9 @@
 				pinctrl-1 = <&sensor_mclk4_out &sensor_mclk8_out &ldaf_irq>;
 				/* Power sequence */
 				power-seq = <&rear_camera_power_seq>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
 			};
 
 			/* EEPROM SMAUG for DOKKAEBI */
@@ -782,6 +786,9 @@
 					"regulator";
 				power-down-seq-delays-us =
 					<1000>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
 
 				i2c-lock-group-id = <1>;
 			};
@@ -819,6 +826,9 @@
 					"regulator";
 				power-down-seq-delays-us =
 					<1000>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
 
 				i2c-lock-group-id = <2>;
 			};
@@ -875,6 +885,9 @@
 					 1000
 					 1000
 					 0>;
+
+				/* Thread priority */
+				transaction-thread-priority = <99>;
 
 				i2c-lock-group-id = <3>;
 			};
@@ -1228,8 +1241,7 @@
 				irq-gpios = <&gpa5 4 GPIO_ACTIVE_LOW>;
 				irq-gpios-names = "tof-irq";
 				irq-gpios-events = <LWIS_PLATFORM_EVENT_ID_TOF_DATA_POLLING>;
-				/* IRQF_ONESHOT | IRQF_TRIGGER_FALLING */
-				irq-gpios-types = <0x2002>;
+				irq-gpios-types = <IRQ_TYPE_EDGE_FALLING>;
 
 				/* Power sequence */
 				power-seq = <&rear_camera_power_seq>;

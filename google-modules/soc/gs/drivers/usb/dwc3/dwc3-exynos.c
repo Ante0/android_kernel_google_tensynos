@@ -1266,13 +1266,13 @@ static int dwc3_exynos_probe(struct platform_device *pdev)
 	ret = dwc3_exynos_get_properties(exynos);
 	if (ret) {
 		dev_err(dev, "couldn't get properties.\n");
-		goto phys_unregister;
+		goto extcon_unregister;
 	}
 
 	pm_runtime_enable(dev);
 	ret = pm_runtime_get_sync(dev);
 	if (ret < 0)
-		goto disable_rpm;
+		goto extcon_unregister;
 
 	pm_runtime_forbid(dev);
 
@@ -1280,7 +1280,7 @@ static int dwc3_exynos_probe(struct platform_device *pdev)
 	if (!dwc3_np) {
 		dev_err(dev, "failed to find dwc3 core child!\n");
 		ret = -EEXIST;
-		goto allow_rpm;
+		goto extcon_unregister;
 	}
 
 	exynos_usbdrd_s2mpu_manual_control(1);
@@ -1289,25 +1289,25 @@ static int dwc3_exynos_probe(struct platform_device *pdev)
 		ret = of_platform_populate(node, NULL, NULL, dev);
 		if (ret) {
 			dev_err(dev, "failed to add dwc3 core\n");
-			goto allow_rpm;
+			goto populate_err;
 		}
 	} else {
 		dev_err(dev, "no device node, failed to add dwc3 core\n");
 		ret = -ENODEV;
-		goto allow_rpm;
+		goto populate_err;
 	}
 
 	dwc3_pdev = of_find_device_by_node(dwc3_np);
 	exynos->dwc = platform_get_drvdata(dwc3_pdev);
 	if (exynos->dwc == NULL)
-		goto allow_rpm;
+		goto populate_err;
 
 	/* dwc3 core configurations */
 	pm_runtime_allow(exynos->dwc->dev);
 	ret = dma_set_mask_and_coherent(exynos->dwc->dev, DMA_BIT_MASK(36));
 	if (ret) {
 		dev_err(dev, "dwc3 core dma_set_mask returned FAIL!(%d)\n", ret);
-		goto allow_rpm;
+		goto populate_err;
 	}
 	exynos->dwc->gadget->sg_supported = false;
 	exynos->dwc->imod_interval = 100;
@@ -1326,7 +1326,7 @@ static int dwc3_exynos_probe(struct platform_device *pdev)
 	ret = dwc3_exynos_otg_init(exynos->dwc, exynos);
 	if (ret < 0) {
 		dev_err(dev, "failed to initialize dwc3_exynos_otg\n");
-		goto disable_rpm;
+		goto populate_err;
 	}
 
 	/* disconnect gadget in probe */
@@ -1348,12 +1348,7 @@ static int dwc3_exynos_probe(struct platform_device *pdev)
 
 	return 0;
 
-allow_rpm:
-	pm_runtime_allow(dev);
-disable_rpm:
-	pm_runtime_put_sync(dev);
-	pm_runtime_disable(dev);
-phys_unregister:
+populate_err:
 	platform_device_unregister(exynos->usb2_phy);
 	platform_device_unregister(exynos->usb3_phy);
 extcon_unregister:
@@ -1364,6 +1359,8 @@ extcon_unregister:
 vdd33_err:
 	dwc3_exynos_clk_disable_unprepare(exynos);
 	exynos_update_ip_idle_status(exynos->idle_ip_index, 1);
+	pm_runtime_put_sync(&pdev->dev);
+	pm_runtime_disable(&pdev->dev);
 	dev_err(dev, "%s err = %d\n", __func__, ret);
 
 	return ret;
@@ -1374,9 +1371,7 @@ static int dwc3_exynos_remove(struct platform_device *pdev)
 	struct dwc3_exynos	*exynos = platform_get_drvdata(pdev);
 	struct dwc3	*dwc = exynos->dwc;
 
-	mutex_lock(&exynos->dotg_lock);
 	dwc3_exynos_otg_exit(dwc, exynos);
-	mutex_unlock(&exynos->dotg_lock);
 
 	pm_runtime_get_sync(&pdev->dev);
 

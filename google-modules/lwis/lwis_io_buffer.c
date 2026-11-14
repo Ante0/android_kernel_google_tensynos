@@ -101,6 +101,14 @@ int lwis_io_buffer_write(struct lwis_device *lwis_dev, struct lwis_io_entry *ent
 {
 	struct pdma_buffer *pdma_buffer = entry->write_to_buffer.buffer;
 	void *kernel_address;
+	size_t end;
+
+	if (check_add_overflow(entry->write_to_buffer.offset,
+			       (uint64_t)entry->write_to_buffer.size_in_bytes, &end) ||
+	    end > pdma_buffer->dma_buf->size) {
+		dev_err(lwis_dev->dev, "PDMA buffer IO failed because write is out of bounds");
+		return -EINVAL;
+	}
 
 	if (pdma_buffer->io_sys_map.is_iomem)
 		kernel_address = pdma_buffer->io_sys_map.vaddr_iomem;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -175,25 +175,28 @@ KBASE_EXPORT_TEST_API(kbase_backend_get_gpu_time_norequest);
  *
  * @kbdev: Kbase device
  *
- * Return: true if CYCLE_COUNT_ACTIVE is active within the timeout.
+ * Return: 0 if CYCLE_COUNT_ACTIVE is active within the timeout,
+ *         otherwise a negative error code.
  */
-static bool timedwait_cycle_count_active(struct kbase_device *kbdev)
+static int timedwait_cycle_count_active(struct kbase_device *kbdev)
 {
 #if IS_ENABLED(CONFIG_MALI_NO_MALI)
-	return true;
+	return 0;
 #else
-	bool success = false;
 	const unsigned int timeout = 100;
 	const unsigned long remaining = jiffies + msecs_to_jiffies(timeout);
 
 	while (time_is_after_jiffies(remaining)) {
+#if IS_ENABLED(CONFIG_MALI_ARBITER_SUPPORT)
+		if (kbase_pm_is_gpu_lost(kbdev))
+			return -ENODEV;
+#endif
 		if ((kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_STATUS)) &
-		     GPU_STATUS_CYCLE_COUNT_ACTIVE)) {
-			success = true;
-			break;
-		}
+		     GPU_STATUS_CYCLE_COUNT_ACTIVE))
+			return 0;
 	}
-	return success;
+
+	return -ETIMEDOUT;
 #endif
 }
 #endif
@@ -203,9 +206,20 @@ void kbase_backend_get_gpu_time(struct kbase_device *kbdev, u64 *cycle_counter, 
 {
 #if !MALI_USE_CSF
 	kbase_pm_wait_for_l2_powered(kbdev);
-	WARN_ONCE(kbdev->pm.backend.l2_state != KBASE_L2_ON, "L2 not powered up");
-	WARN_ONCE((!timedwait_cycle_count_active(kbdev)), "Timed out on CYCLE_COUNT_ACTIVE");
+
+#if IS_ENABLED(CONFIG_MALI_ARBITER_SUPPORT)
+#define KBASE_L2_WARN_NEEDED(kb) (!kbase_pm_is_gpu_lost(kb))
+#else
+#define KBASE_L2_WARN_NEEDED(kb) (1)
 #endif
+
+	if (KBASE_L2_WARN_NEEDED(kbdev))
+		WARN_ONCE(kbdev->pm.backend.l2_state != KBASE_L2_ON, "L2 not powered up");
+
+	WARN_ONCE(timedwait_cycle_count_active(kbdev) == -ETIMEDOUT,
+		  "Timed out on CYCLE_COUNT_ACTIVE");
+#endif /* MALI_USE_CSF */
+
 	kbase_backend_get_gpu_time_norequest(kbdev, cycle_counter, system_time, ts);
 }
 KBASE_EXPORT_TEST_API(kbase_backend_get_gpu_time);

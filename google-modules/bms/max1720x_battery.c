@@ -266,6 +266,8 @@ struct max1720x_chip {
 	int stuck_reset_retry;
 	bool is_timer_stuck;
 	bool is_battery_removal;
+	wait_queue_head_t irq_wait;
+	bool shutting_down;
 };
 
 #define MAX1720_EMPTY_VOLTAGE(profile, temp, cycle) \
@@ -1587,7 +1589,7 @@ static int max1720x_find_entry(int *first_empty, int *first_misplaced,
 static int max1720x_erase_history(int dst_entry)
 {
 	struct maxfg_eeprom_history hist_empty;
-	int ret = 0, retry;
+	int ret, retry;
 
 	memset(&hist_empty, 0xff, sizeof(hist_empty));
 	for (retry = 3; retry && ret != sizeof(hist_empty); retry--)
@@ -3355,8 +3357,9 @@ static irqreturn_t max1720x_fg_irq_thread_fn(int irq, void *obj)
 			chip->debug_irq_none_cnt++;
 			pr_debug("spurius: fg_status=0 cnt=%d\n",
 				chip->debug_irq_none_cnt);
-			/* rate limit spurius interrupts */
-			msleep(MAX1720X_TICLR_MS);
+			/* Rate limit spurious interrupts with cancellable sleep */
+			wait_event_timeout(chip->irq_wait, chip->shutting_down,
+					   msecs_to_jiffies(MAX1720X_TICLR_MS));
 			return IRQ_HANDLED;
 		}
 	} else if (fg_status == 0) {
@@ -3469,13 +3472,17 @@ static irqreturn_t max1720x_fg_irq_thread_fn(int irq, void *obj)
 		power_supply_changed(chip->psy);
 
 	/*
-	 * oneshot w/o filter will unmask on return but gauge will take up
-	 * to 351 ms to clear ALRM1.
-	 * NOTE: can do this masking on gauge side (Config, 0x1D) and using a
-	 * workthread to re-enable.
+	 * Oneshot w/o filter will unmask on return, but the gauge takes up
+	 * to 351 ms to clear ALRM1 internally.
+	 *
+	 * NOTE: We use a cancellable wait_event_timeout() instead of msleep()
+	 * to allow this kthread to be woken up instantly during shutdown or
+	 * suspend (by setting shutting_down and calling wake_up), avoiding
+	 * synchronize_irq() lockups on the reboot/suspend paths.
 	 */
 	if (irq != -1)
-		msleep(MAX1720X_TICLR_MS);
+		wait_event_timeout(chip->irq_wait, chip->shutting_down,
+				   msecs_to_jiffies(MAX1720X_TICLR_MS));
 
 
 	return IRQ_HANDLED;
@@ -4186,9 +4193,6 @@ static int max1720x_init_model(struct max1720x_chip *chip)
 	const bool no_battery = chip->fake_battery == 0;
 	void *model_data;
 
-	if (chip->gauge_type != MAX_M5_GAUGE_TYPE)
-		return 0;
-
 	if (no_battery)
 		return 0;
 
@@ -4198,6 +4202,8 @@ static int max1720x_init_model(struct max1720x_chip *chip)
 		pr_debug("node found=%d for ID=%d algo=%d\n",
 			 !!chip->batt_node, chip->batt_id,
 			 chip->drift_data.algo_ver);
+		if (chip->gauge_type != MAX_M5_GAUGE_TYPE)
+			return 0;
 	}
 
 	/* reset state (if needed) */
@@ -5682,10 +5688,9 @@ static int max1720x_init_chip(struct max1720x_chip *chip)
 		dev_err(chip->dev, "Cannot init FG model (%d)\n", ret);
 
 	/* loading default aafv values from device tree */
-	if (chip->gauge_type == MAX_M5_GAUGE_TYPE)
-		ret = maxfg_aafv_init(chip->batt_node, "maxim,fg-aafv", chip->aafv_cfgs,
-				      &chip->aafv_config_limits);
-	else
+	ret = maxfg_aafv_init(chip->batt_node, "maxim,fg-aafv", chip->aafv_cfgs,
+			      &chip->aafv_config_limits);
+	if (ret < 0)
 		ret = maxfg_aafv_init(chip->dev->of_node, "maxim,fg-aafv", chip->aafv_cfgs,
 				      &chip->aafv_config_limits);
 	if (ret < 0)
@@ -6765,6 +6770,8 @@ static int max1720x_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&chip->model_work, max1720x_model_work);
 	INIT_DELAYED_WORK(&chip->rc_switch.switch_work, max1720x_rc_work);
 
+	init_waitqueue_head(&chip->irq_wait);
+	chip->shutting_down = false;
 	schedule_delayed_work(&chip->init_work, 0);
 
 	if (chip->gauge_type == MAX1720X_GAUGE_TYPE) {
@@ -6786,28 +6793,68 @@ i2c_unregister:
 	return ret;
 }
 
+static void max1720x_shutdown(struct i2c_client *client)
+{
+	struct max1720x_chip *chip = i2c_get_clientdata(client);
+
+	if (!chip)
+		return;
+
+	/* 1. Mask non-shared IRQ (non-blocking) to prevent IRQ storm during shutdown */
+	if (!chip->irq_shared && chip->primary->irq > 0)
+		disable_irq_nosync(chip->primary->irq);
+
+	/*
+	 * 2. Wake up the threaded IRQ handler if it is currently sleeping
+	 * in wait_event_timeout to avoid synchronize_irq() deadlock
+	 * during shutdown.
+	 */
+	chip->shutting_down = true;
+	wake_up(&chip->irq_wait);
+
+	/* 3. Synchronize to ensure the thread has completely exited */
+	if (!chip->irq_shared && chip->primary->irq > 0)
+		synchronize_irq(chip->primary->irq);
+
+	/* 4. Cancel and cleanup all delayed works safely */
+	cancel_delayed_work_sync(&chip->init_work);
+	cancel_delayed_work_sync(&chip->model_work);
+	cancel_delayed_work_sync(&chip->rc_switch.switch_work);
+	cancel_delayed_work_sync(&chip->cap_estimate.settle_timer);
+	if (chip->gauge_type == MAX1720X_GAUGE_TYPE)
+		cancel_delayed_work_sync(&chip->stuck_monitor_work);
+}
+
 static void max1720x_remove(struct i2c_client *client)
 {
 	struct max1720x_chip *chip = i2c_get_clientdata(client);
+
+	/* 1. Stop IRQ and cancel delayed works safely */
+	max1720x_shutdown(client);
+
+	/* 2. Synchronize and free the IRQ */
+	if (chip->primary->irq > 0) {
+		disable_irq_wake(chip->primary->irq);
+		free_irq(chip->primary->irq, chip);
+	}
+	device_init_wakeup(chip->dev, false);
+
+	/* 3. Stop userspace access */
+	power_supply_unregister(chip->psy);
+
+	/* 4. Free data after all activity has stopped */
+	max_m5_free_data(chip->model_data);
+	max1720x_cleanup_history(chip);
 
 	if (chip->ce_log) {
 		logbuffer_unregister(chip->ce_log);
 		chip->ce_log = NULL;
 	}
 
-	max1720x_cleanup_history(chip);
-	max_m5_free_data(chip->model_data);
-	cancel_delayed_work(&chip->init_work);
-	cancel_delayed_work(&chip->model_work);
-	cancel_delayed_work(&chip->rc_switch.switch_work);
-	if (chip->gauge_type == MAX1720X_GAUGE_TYPE)
-		cancel_delayed_work(&chip->stuck_monitor_work);
-
-	disable_irq_wake(chip->primary->irq);
-	device_init_wakeup(chip->dev, false);
-	if (chip->primary->irq)
-		free_irq(chip->primary->irq, chip);
-	power_supply_unregister(chip->psy);
+	if (chip->monitor_log) {
+		logbuffer_unregister(chip->monitor_log);
+		chip->monitor_log = NULL;
+	}
 
 	if (chip->secondary)
 		i2c_unregister_device(chip->secondary);
@@ -6839,6 +6886,18 @@ static int max1720x_pm_suspend(struct device *dev)
 	dev_dbg(dev, "%s\n", __func__);
 
 	chip->resume_complete = false;
+
+	/* 1. Mask non-shared IRQ (non-blocking) to prevent IRQ storm during suspend */
+	if (!chip->irq_shared && chip->primary->irq > 0)
+		disable_irq_nosync(chip->primary->irq);
+
+	/*
+	 * 2. Wake up the threaded IRQ handler if it is currently sleeping
+	 * in wait_event_timeout to avoid synchronize_irq() deadlock
+	 * during suspend_device_irqs().
+	 */
+	chip->shutting_down = true;
+	wake_up(&chip->irq_wait);
 	pm_runtime_put_sync(chip->dev);
 
 	return 0;
@@ -6852,14 +6911,21 @@ static int max1720x_pm_resume(struct device *dev)
 	pm_runtime_get_sync(chip->dev);
 	dev_dbg(dev, "%s\n", __func__);
 
+	/* 1. Restore shutting_down flag so that IRQ rate-limiting works on resume */
+	chip->shutting_down = false;
 	chip->resume_complete = true;
+
+	/* 2. Unmask IRQ after I2C and driver are ready */
+	if (!chip->irq_shared && chip->primary->irq > 0)
+		enable_irq(chip->primary->irq);
+
 	pm_runtime_put_sync(chip->dev);
 	return 0;
 }
 #endif
 
 static const struct dev_pm_ops max1720x_pm_ops = {
-	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(max1720x_pm_suspend, max1720x_pm_resume)
+	SET_LATE_SYSTEM_SLEEP_PM_OPS(max1720x_pm_suspend, max1720x_pm_resume)
 };
 
 static struct i2c_driver max1720x_i2c_driver = {
@@ -6872,6 +6938,7 @@ static struct i2c_driver max1720x_i2c_driver = {
 	.id_table = max1720x_id,
 	.probe = max1720x_probe,
 	.remove = max1720x_remove,
+	.shutdown = max1720x_shutdown,
 };
 
 module_i2c_driver(max1720x_i2c_driver);

@@ -1,7 +1,7 @@
 /*
  * Neighbor Awareness Networking
  *
- * Copyright (C) 2025, Broadcom.
+ * Copyright (C) 2026, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -368,6 +368,9 @@ enum nan_dp_states {
 	NAN_DP_STATE_DISABLED = 0,
 	NAN_DP_STATE_ENABLED = 1
 };
+
+/* attr_hdr(3) */
+#define SDEA_INFO_LEN_FIELD_SIZE	3u
 
 enum {
 	SRF_TYPE_BLOOM_FILTER = 0,

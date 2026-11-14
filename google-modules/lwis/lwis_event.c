@@ -716,16 +716,19 @@ int lwis_client_event_states_clear(struct lwis_client *lwis_client)
 	return 0;
 }
 
-int lwis_device_event_states_clear_locked(struct lwis_device *lwis_dev)
+int lwis_device_event_states_clear(struct lwis_device *lwis_dev)
 {
 	struct lwis_device_event_state *state;
 	struct hlist_node *n;
 	int i;
+	unsigned long flags;
 
+	spin_lock_irqsave(&lwis_dev->lock, flags);
 	hash_for_each_safe(lwis_dev->event_states, i, n, state, node) {
 		hash_del(&state->node);
 		kfree(state);
 	}
+	spin_unlock_irqrestore(&lwis_dev->lock, flags);
 
 	return 0;
 }

@@ -582,15 +582,25 @@ int mfc_core_set_dynamic_dpb(struct mfc_core *core, struct mfc_ctx *ctx,
 void mfc_core_get_img_size(struct mfc_core *core, struct mfc_ctx *ctx,
 		enum mfc_get_img_size img_size)
 {
+	struct mfc_core_ctx *core_ctx = core->core_ctx[ctx->num];
 	struct mfc_dec *dec = ctx->dec_priv;
 	unsigned int w, h;
+	unsigned int new_w, new_h;
 	int i;
 
 	w = ctx->img_width;
 	h = ctx->img_height;
 
-	ctx->img_width = mfc_core_get_img_width();
-	ctx->img_height = mfc_core_get_img_height();
+	new_w = mfc_core_get_img_width();
+	new_h = mfc_core_get_img_height();
+	if (mfc_check_dec_resolution(ctx, new_w, new_h)) {
+		mfc_ctx_err("[DRC] unsupported resolution from F/W, %dx%d\n", new_w, new_h);
+		mfc_change_state(core_ctx, MFCINST_ERROR);
+		return;
+	}
+
+	ctx->img_width = new_w;
+	ctx->img_height = new_h;
 	ctx->crop_width = ctx->img_width;
 	ctx->crop_height = ctx->img_height;
 
@@ -605,10 +615,10 @@ void mfc_core_get_img_size(struct mfc_core *core, struct mfc_ctx *ctx,
 	if (img_size == MFC_GET_RESOL_SIZE) {
 		dec->disp_drc.width[dec->disp_drc.push_idx] = ctx->img_width;
 		dec->disp_drc.height[dec->disp_drc.push_idx] = ctx->img_height;
-		dec->disp_drc.disp_res_change = (dec->disp_drc.disp_res_change + 1) % MFC_MAX_DRC_FRAME;
+		dec->disp_drc.disp_res_change = ++dec->disp_drc.disp_res_change % MFC_MAX_DRC_FRAME;
 		mfc_debug(3, "[DRC] disp_res_change[%d] count %d\n",
 				dec->disp_drc.push_idx, dec->disp_drc.disp_res_change);
-		dec->disp_drc.push_idx = (dec->disp_drc.push_idx + 1) % MFC_MAX_DRC_FRAME;
+		dec->disp_drc.push_idx = ++dec->disp_drc.push_idx % MFC_MAX_DRC_FRAME;
 	} else if (img_size == MFC_GET_RESOL_DPB_SIZE) {
 		ctx->scratch_buf_size = mfc_core_get_scratch_size();
 		for (i = 0; i < ctx->dst_fmt->num_planes; i++) {

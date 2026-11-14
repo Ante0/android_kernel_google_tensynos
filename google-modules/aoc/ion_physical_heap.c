@@ -3,6 +3,7 @@
  * Copyright (c) 2011,2020 Google LLC
  */
 #include <linux/spinlock.h>
+#include <linux/atomic.h>
 #include <linux/dma-map-ops.h>
 #include <linux/err.h>
 #include <linux/genalloc.h>
@@ -17,6 +18,8 @@
 #include "ion_physical_heap.h"
 
 #define ION_PHYSICAL_ALLOCATE_FAIL -1
+
+static atomic64_t heap_allocate_counter = ATOMIC64_INIT(0);
 
 static int _clear_pages(struct page **pages, int num, pgprot_t pgprot)
 {
@@ -86,7 +89,7 @@ static int ion_physical_heap_do_allocate(struct dma_heap *heap,
 	}
 
 	sg_set_page(buffer->sg_table.sgl, pfn_to_page(PFN_DOWN(paddr)), size, 0);
-	buffer->priv = (void *)(uintptr_t)hash_long(paddr, 32);
+	buffer->priv = (void *)(uintptr_t)atomic64_inc_return(&heap_allocate_counter);
 
 	if (physical_heap->allocate_cb)
 		physical_heap->allocate_cb(buffer, physical_heap->allocate_ctx);
