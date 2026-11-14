@@ -33,6 +33,38 @@ int mfc_check_vb_with_fmt(struct mfc_fmt *fmt, struct vb2_buffer *vb)
 	return 0;
 }
 
+/*
+ * Rejects width/height too large to compute stride * height without
+ * overflowing 32-bit int in mfc_dec_calc_dpb_size() and friends.
+ */
+int mfc_check_dec_resolution(struct mfc_ctx *ctx, int width, int height)
+{
+	int max_width = 65536, max_height = 8192;
+	int min_width = 32, min_height = 32;
+
+	if (width > height) {
+		if (width > max_width || height > max_height) {
+			mfc_ctx_err("Resolution is too big(%dx%d > %dx%d)\n",
+				width, height, max_width, max_height);
+			return -EINVAL;
+		}
+	} else {
+		if (width > max_height || height > max_width) {
+			mfc_ctx_err("Resolution is too big(%dx%d > %dx%d)\n",
+				width, height, max_width, max_height);
+			return -EINVAL;
+		}
+	}
+
+	if (width < min_width || height < min_height) {
+		mfc_ctx_err("Resolution is too small(%dx%d < %dx%d)\n",
+				width, height, min_width, min_height);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 unsigned int mfc_get_uncomp_format(struct mfc_ctx *ctx, u32 org_fmt)
 {
 	u32 uncomp_pixfmt = 0;

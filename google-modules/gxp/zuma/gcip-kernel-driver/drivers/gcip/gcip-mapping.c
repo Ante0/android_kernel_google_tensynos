@@ -14,6 +14,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/dma-resv.h>
 #include <linux/err.h>
+#include <linux/fs.h>
 #include <linux/gfp_types.h>
 #include <linux/math.h>
 #include <linux/mm.h>
@@ -704,6 +705,12 @@ static struct sg_table *gcip_mapping_dmabuf_sgt_create(struct device *dev, struc
 	struct dma_buf_attachment *attachment;
 	struct sg_table *sgt_default;
 	int ret;
+
+	if (!(dmabuf->file->f_mode & FMODE_WRITE) && dir != DMA_TO_DEVICE) {
+		gcip_map_flags &= ~GCIP_MAP_MASK_DMA_DIRECTION;
+		gcip_map_flags |= ((u64)(DMA_TO_DEVICE) << GCIP_MAP_FLAGS_DMA_DIRECTION_OFFSET);
+		dir = DMA_TO_DEVICE;
+	}
 
 	attachment = dma_buf_attach(dmabuf, dev);
 	if (IS_ERR(attachment)) {

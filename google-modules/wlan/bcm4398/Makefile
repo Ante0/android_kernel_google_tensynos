@@ -23,9 +23,15 @@
 # Path to the module source
 M ?= $(shell pwd)
 
-KBUILD_OPTIONS += BCMDHD_ROOT=$(srctree)/$(src)
--include $(ROOT_DIR)/private/google-modules/soc/gs/Makefile.include
-EXTRA_CFLAGS+="-Wno-missing-prototypes"
+ifneq ($(KERNEL_SRC),)
+  KBUILD_OPTIONS += BCMDHD_ROOT=$(shell cd $(KERNEL_SRC); readlink -e $(M))
+
+  CONFIG_SOC_GOOGLE := $(shell grep -w CONFIG_SOC_GOOGLE $(O)/.config | cut -d'=' -f2)
+  ifneq ($(CONFIG_SOC_GOOGLE),)
+    -include $(ROOT_DIR)/private/google-modules/soc/gs/Makefile.include
+  endif
+  EXTRA_CFLAGS+="-Wno-missing-prototypes"
+endif
 
 all:
 	$(MAKE) -C $(KERNEL_SRC) M=$(M) \

@@ -11,7 +11,6 @@
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/mutex.h>
-#include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/workqueue.h>
 
@@ -102,76 +101,11 @@ static void telemetry_unset_event(struct edgetpu_dev *etdev,
 	return;
 }
 
-/* Copy data out of the log buffer with wrapping */
-static void copy_with_wrap(struct edgetpu_telemetry_header *header, void *dest,
-			   u32 length, u32 size, void *start)
-{
-	const u32 wrap_bit = size + sizeof(*header);
-	u32 remaining = 0;
-	u32 head = header->head & (wrap_bit - 1);
-
-	if (head + length < size) {
-		memcpy(dest, start + head, length);
-		header->head += length;
-	} else {
-		remaining = size - head;
-		memcpy(dest, start + head, remaining);
-		memcpy(dest + remaining, start, length - remaining);
-		header->head = (header->head & wrap_bit) ^ wrap_bit;
-		header->head |= length - remaining;
-	}
-}
-
-/* Log messages from TPU CPU to dmesg */
 static void edgetpu_fw_log(struct edgetpu_telemetry *log)
 {
-	struct edgetpu_dev *etdev = log->etdev;
 	struct edgetpu_telemetry_header *header = log->header;
-	struct edgetpu_log_entry_header entry;
-	u8 *start;
-	const size_t queue_size = log->coherent_mem.size - sizeof(*header);
-	const size_t max_length = queue_size - sizeof(entry);
-	char *buffer = kmalloc(max_length + 1, GFP_ATOMIC);
 
-	if (!buffer) {
-		header->head = header->tail;
-		etdev_err_ratelimited(etdev, "failed to allocate log buffer");
-		return;
-	}
-	start = (u8 *)header + sizeof(*header);
-
-	while (header->head != header->tail) {
-		copy_with_wrap(header, &entry, sizeof(entry), queue_size,
-			       start);
-		if (entry.length == 0 || entry.length > max_length) {
-			header->head = header->tail;
-			etdev_err_ratelimited(etdev, "log queue is corrupted");
-			break;
-		}
-		copy_with_wrap(header, buffer, entry.length, queue_size, start);
-		buffer[entry.length] = 0;
-
-		if (entry.code > EDGETPU_FW_DMESG_LOG_LEVEL)
-			continue;
-
-		switch (entry.code) {
-		case EDGETPU_FW_LOG_LEVEL_VERBOSE:
-		case EDGETPU_FW_LOG_LEVEL_DEBUG:
-			etdev_dbg_ratelimited(etdev, "%s", buffer);
-			break;
-		case EDGETPU_FW_LOG_LEVEL_WARN:
-			etdev_warn_ratelimited(etdev, "%s", buffer);
-			break;
-		case EDGETPU_FW_LOG_LEVEL_ERROR:
-			etdev_err_ratelimited(etdev, "%s", buffer);
-			break;
-		case EDGETPU_FW_LOG_LEVEL_INFO:
-		default:
-			etdev_info_ratelimited(etdev, "%s", buffer);
-			break;
-		}
-	}
-	kfree(buffer);
+	header->head = header->tail;
 }
 
 /* Consumes the queue buffer. */

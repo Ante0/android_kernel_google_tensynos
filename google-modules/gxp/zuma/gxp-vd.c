@@ -892,7 +892,6 @@ void gxp_vd_release(struct gxp_virtual_device *vd)
 	}
 	up_write(&vd->mappings_semaphore);
 
-	kfree(vd->mailbox_resp_queues);
 	if (vd->slice_index >= 0)
 		ida_free(&vd->gxp->shared_slice_idp, vd->slice_index);
 #ifndef GXP_USE_DEFAULT_DOMAIN
@@ -1608,8 +1607,10 @@ void gxp_vd_put(struct gxp_virtual_device *vd)
 {
 	if (!vd)
 		return;
-	if (refcount_dec_and_test(&vd->refcount))
+	if (refcount_dec_and_test(&vd->refcount)) {
+		kfree(vd->mailbox_resp_queues);
 		kfree(vd);
+	}
 }
 
 static void gxp_vd_invalidate_locked(struct gxp_dev *gxp, struct gxp_virtual_device *vd, u32 reason)
@@ -1693,7 +1694,8 @@ void gxp_vd_generate_debug_dump(struct gxp_dev *gxp, struct gxp_virtual_device *
 #if GXP_HAS_MCU
 int gxp_vd_start_debug_dump_with_client_id(struct gxp_dev *gxp, int client_id, uint *core_list)
 {
-	struct gxp_client *client = NULL, *c;
+	struct gxp_client *c;
+	struct gxp_virtual_device *vd = NULL;
 	int ret;
 
 	/*
@@ -1708,29 +1710,28 @@ int gxp_vd_start_debug_dump_with_client_id(struct gxp_dev *gxp, int client_id, u
 	list_for_each_entry(c, &gxp->client_list, list_entry) {
 		down_write(&c->semaphore);
 		if (c->vd && c->vd->client_id == client_id) {
-			client = c;
 			/* Increase the refcount for the found vd as client can release it
 			 * asynchronously.
 			 */
-			c->vd = gxp_vd_get(c->vd);
+			vd = gxp_vd_get(c->vd);
+			up_write(&c->semaphore);
 			break;
 		}
 		up_write(&c->semaphore);
 	}
 
-	if (!client) {
+	if (!vd) {
 		dev_err(gxp->dev, "Failed to find a VD, client_id=%d", client_id);
 		mutex_unlock(&gxp->client_list_lock);
 		return -EINVAL;
 	}
 
-	up_write(&client->semaphore);
 	mutex_unlock(&gxp->client_list_lock);
 
-	mutex_lock(&client->vd->debug_dump_lock);
-	ret = gxp_vd_start_debug_dump(gxp, client->vd, core_list);
-	mutex_unlock(&client->vd->debug_dump_lock);
-	gxp_vd_put(client->vd);
+	mutex_lock(&vd->debug_dump_lock);
+	ret = gxp_vd_start_debug_dump(gxp, vd, core_list);
+	mutex_unlock(&vd->debug_dump_lock);
+	gxp_vd_put(vd);
 	return ret;
 }
 

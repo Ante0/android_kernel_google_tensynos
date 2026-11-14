@@ -167,6 +167,8 @@ static void bts_calc_bw(void)
 	ssize_t ret = 0;
 #endif
 
+	mutex_lock(&btsdev->mutex_lock);
+
 	btsdev->peak_bw = 0;
 	btsdev->total_bw = 0;
 
@@ -268,6 +270,7 @@ static void bts_calc_bw(void)
 	pm_qos_update_request(&exynos_mif_qos, mif_freq);
 	pm_qos_update_request(&exynos_int_qos, int_freq);
 #endif
+	mutex_unlock(&btsdev->mutex_lock);
 }
 
 static void bts_update_stats(unsigned int index)
@@ -550,12 +553,13 @@ int bts_update_bw(unsigned int index, struct bts_bw bw)
 		goto err;
 	}
 
-	rt_mutex_lock(&btsdev->mutex_lock);
+	spin_lock(&btsdev->lock);
 	bts_bw[index].peak = bw.peak;
 	bts_bw[index].read = bw.read;
 	bts_bw[index].write = bw.write;
 	if (bts_bw[index].is_rt)
 		bts_bw[index].rt = bw.rt;
+	spin_unlock(&btsdev->lock);
 
 	if(trace_clock_set_rate_enabled()) {
 		scnprintf(trace_name, sizeof(trace_name), "BTS_%s_rd_bw", bts_bw[index].name);
@@ -574,7 +578,6 @@ int bts_update_bw(unsigned int index, struct bts_bw bw)
 
 	bts_calc_bw();
 	bts_update_stats(index);
-	rt_mutex_unlock(&btsdev->mutex_lock);
 
 	return 0;
 
@@ -729,7 +732,7 @@ static int exynos_bts_bw_open_show(struct seq_file *buf, void *d)
 {
 	int i;
 
-	rt_mutex_lock(&btsdev->mutex_lock);
+	mutex_lock(&btsdev->mutex_lock);
 	for (i = 0; (btsdev->bts_bw[i].name != NULL) &&
 		(i < btsdev->num_bts); i++) {
 		seq_printf(
@@ -739,7 +742,7 @@ static int exynos_bts_bw_open_show(struct seq_file *buf, void *d)
 			btsdev->bts_bw[i].write, btsdev->bts_bw[i].peak,
 			btsdev->bts_bw[i].rt);
 	}
-	rt_mutex_unlock(&btsdev->mutex_lock);
+	mutex_unlock(&btsdev->mutex_lock);
 	return 0;
 }
 
@@ -753,7 +756,7 @@ static int exynos_bts_bw_hist_open_show(struct seq_file *buf, void *d)
 {
 	int i, j;
 
-	rt_mutex_lock(&btsdev->mutex_lock);
+	mutex_lock(&btsdev->mutex_lock);
 	seq_printf(buf, "Total BW, Count:\nkB/s:\t");
 	for (i = 0; i < BTS_HIST_BIN - 1; i++) {
 		seq_printf(
@@ -846,7 +849,7 @@ static int exynos_bts_bw_hist_open_show(struct seq_file *buf, void *d)
 		}
 		seq_printf(buf, "\n");
 	}
-	rt_mutex_unlock(&btsdev->mutex_lock);
+	mutex_unlock(&btsdev->mutex_lock);
 	return 0;
 }
 
@@ -861,7 +864,7 @@ static ssize_t bts_stats_show(struct device *dev, struct device_attribute *attr,
 	int i, j;
 	ssize_t ret = 0;
 
-	rt_mutex_lock(&btsdev->mutex_lock);
+	mutex_lock(&btsdev->mutex_lock);
 	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
 			"Total BW, Time in ms:\nkB/s:\t");
 	for (i = 0; i < BTS_HIST_BIN - 1; i++) {
@@ -918,7 +921,7 @@ static ssize_t bts_stats_show(struct device *dev, struct device_attribute *attr,
 		}
 		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	}
-	rt_mutex_unlock(&btsdev->mutex_lock);
+	mutex_unlock(&btsdev->mutex_lock);
 	return ret;
 }
 
@@ -2084,7 +2087,7 @@ static int bts_probe(struct platform_device *pdev)
 		return ret;
 	}
 	spin_lock_init(&btsdev->lock);
-	rt_mutex_init(&btsdev->mutex_lock);
+	mutex_init(&btsdev->mutex_lock);
 	INIT_LIST_HEAD(&btsdev->scen_node);
 
 	ret = bts_initialize(btsdev);
@@ -2104,7 +2107,8 @@ static int bts_probe(struct platform_device *pdev)
 	pm_qos_add_request(&exynos_mif_qos, PM_QOS_BUS_THROUGHPUT, 0);
 	pm_qos_add_request(&exynos_int_qos, PM_QOS_DEVICE_THROUGHPUT, 0);
 #endif
-	if (exynos_bts_debugfs_init())
+	ret = exynos_bts_debugfs_init();
+	if (ret)
 		dev_err(btsdev->dev, "exynos_bts_debugfs_init failed\n");
 
 	register_syscore_ops(&exynos_bts_syscore_ops);

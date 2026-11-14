@@ -477,7 +477,7 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg, u64 
 			(reg->flags | KBASE_REG_GPU_RD) & ~KBASE_REG_GPU_WR, KBASE_MEM_GROUP_SINK,
 			mmu_sync_info);
 		if (err)
-			goto bad_insert;
+			goto bad_padding;
 	}
 
 	return err;
@@ -495,6 +495,11 @@ bad_aliased_insert:
 					 phys_alloc, alloc->imported.alias.aliased[i].length,
 					 alloc->imported.alias.aliased[i].length, kctx->as_nr);
 	}
+bad_padding:
+	if (reg->gpu_alloc->type == KBASE_MEM_TYPE_IMPORTED_UMM)
+		kbase_mmu_teardown_imported_pages(kctx->kbdev, &kctx->mmu, reg->start_pfn,
+						  alloc->pages, alloc->nents, alloc->nents,
+						  kctx->as_nr);
 bad_insert:
 	kbase_remove_va_region(kctx->kbdev, reg);
 
@@ -889,6 +894,9 @@ static int kbase_do_syncset(struct kbase_context *kctx, struct basep_syncset *ss
 	}
 
 	if (!(reg->flags & KBASE_REG_CPU_CACHED))
+		goto out_unlock;
+
+	if (reg->flags & KBASE_REG_DONT_NEED)
 		goto out_unlock;
 
 	start = (uintptr_t)sset->user_addr;
@@ -2805,6 +2813,12 @@ static int kbase_jit_grow(struct kbase_context *kctx, const struct base_jit_allo
 	if (!kbase_mem_evictable_unmake(reg->gpu_alloc))
 		goto update_failed;
 
+	/* The DONT_NEED flag is cleared once the region leaves the eviction
+	 * list. Mark it active before any path below can drop the region lock,
+	 * so external users continue to see the reused JIT as shrinkable.
+	 */
+	reg->flags |= KBASE_REG_ACTIVE_JIT_ALLOC;
+
 	if (reg->gpu_alloc->nents >= info->commit_pages)
 		goto done;
 
@@ -2885,12 +2899,15 @@ static int kbase_jit_grow(struct kbase_context *kctx, const struct base_jit_allo
 	spin_unlock(&kctx->mem_partials_lock);
 
 	ret = kbase_mem_grow_gpu_mapping(kctx, reg, info->commit_pages, old_size, mmu_sync_info);
-	/*
-	 * The grow failed so put the allocation back in the
-	 * pool and return failure.
+	/* Roll back the pages added above so the backed size still matches the
+	 * GPU mapping. The caller restores the region to the JIT pool.
 	 */
-	if (ret)
+	if (ret) {
+		if (reg->cpu_alloc != reg->gpu_alloc)
+			kbase_free_phy_pages_helper(reg->cpu_alloc, delta);
+		kbase_free_phy_pages_helper(reg->gpu_alloc, delta);
 		goto update_failed;
+	}
 
 done:
 	ret = 0;
@@ -3179,9 +3196,9 @@ struct kbase_va_region *kbase_jit_allocate(struct kbase_context *kctx,
 			kbase_jit_done_phys_increase(kctx, needed_pages);
 #endif /* MALI_JIT_PRESSURE_LIMIT_BASE */
 
-		kbase_gpu_vm_unlock_with_pmode_sync(kctx);
-
 		if (ret) {
+			bool vm_locked = true;
+
 			/*
 			 * An update to an allocation from the pool failed,
 			 * chances are slim a new allocation would fare any
@@ -3200,12 +3217,31 @@ struct kbase_va_region *kbase_jit_allocate(struct kbase_context *kctx,
 								 KBASE_JIT_REPORT_ON_ALLOC_OR_FREE);
 			}
 #endif /* MALI_JIT_PRESSURE_LIMIT_BASE */
-			mutex_lock(&kctx->jit_evict_lock);
+			/* Restore the pool state changed by kbase_jit_grow(). */
+			kbase_mem_evictable_mark_reclaim(reg->gpu_alloc);
+			reg->flags |= KBASE_REG_DONT_NEED;
+			reg->flags &= ~KBASE_REG_ACTIVE_JIT_ALLOC;
+			kbase_mem_shrink_cpu_mapping(kctx, reg, 0, reg->gpu_alloc->nents);
+			if (kbase_is_page_migration_enabled())
+				kbase_set_phy_alloc_page_status(kctx, reg->gpu_alloc, NOT_MOVABLE);
+
+			if (!mutex_trylock(&kctx->jit_evict_lock)) {
+				kbase_gpu_vm_unlock_with_pmode_sync(kctx);
+				vm_locked = false;
+				mutex_lock(&kctx->jit_evict_lock);
+			}
+			WARN_ON(!list_empty(&reg->gpu_alloc->evict_node));
+			list_add(&reg->gpu_alloc->evict_node, &kctx->evict_list);
+			atomic_add(reg->gpu_alloc->nents, &kctx->evict_nents);
 			list_move(&reg->jit_node, &kctx->jit_pool_head);
 			mutex_unlock(&kctx->jit_evict_lock);
+			if (vm_locked)
+				kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 			reg = NULL;
 			goto end;
 		} else {
+			kbase_gpu_vm_unlock_with_pmode_sync(kctx);
+
 			/* A suitable JIT allocation existed on the evict list, so we need
 			 * to make sure that the NOT_MOVABLE property is cleared.
 			 */
@@ -3301,8 +3337,8 @@ struct kbase_va_region *kbase_jit_allocate(struct kbase_context *kctx,
 
 	reg->jit_usage_id = info->usage_id;
 	reg->jit_bin_id = info->bin_id;
-	/* Reinstate the active flag, covering cases where the region is from the eviction list */
-	reg->flags |= BASEP_MEM_ACTIVE_JIT_ALLOC;
+	/* Ensure recycled and newly allocated JIT regions are marked active. */
+	reg->flags |= KBASE_REG_ACTIVE_JIT_ALLOC;
 #if MALI_JIT_PRESSURE_LIMIT_BASE
 	if (info->flags & BASE_JIT_ALLOC_HEAP_INFO_IS_SIZE)
 		reg->flags = reg->flags | KBASE_REG_HEAP_INFO_IS_SIZE;

@@ -2116,7 +2116,6 @@ static void syna_dev_reflash_startup_work(struct work_struct *work)
 exit:
 	syna_set_bus_ref(tcm, SYNA_BUS_REF_FW_UPDATE, false);
 	pm_relax(&tcm->pdev->dev);
-	release_firmware(fw_entry);
 }
 #endif
 #if defined(POWER_ALIVE_AT_SUSPEND) && !defined(RESET_ON_RESUME)
@@ -3119,8 +3118,6 @@ static int syna_dev_probe(struct platform_device *pdev)
 	init_completion(&tcm->bus_resumed);
 	complete_all(&tcm->bus_resumed);
 
-	tcm->pm_qos_req.type = PM_QOS_REQ_AFFINE_IRQ;
-	tcm->pm_qos_req.irq = gpio_to_irq(hw_if->bdata_attn.irq_gpio);
 	cpu_latency_qos_add_request(&tcm->pm_qos_req, PM_QOS_DEFAULT_VALUE);
 
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_TBN)

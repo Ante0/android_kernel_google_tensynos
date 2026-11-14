@@ -306,6 +306,8 @@ static void edgetpu_ikv_response_release(struct gcip_mailbox_awaiter *gcip_await
 	edgetpu_ikv_additional_info_free(ikv_resp->etikv->etdev, &ikv_resp->additional_info);
 	if (ikv_resp->release_callback)
 		ikv_resp->release_callback(ikv_resp->release_data);
+
+	edgetpu_device_group_put(ikv_resp->group_to_notify);
 	kfree(ikv_resp->resp);
 	kfree(ikv_resp);
 }
@@ -686,7 +688,7 @@ int edgetpu_ikv_send_cmd(struct edgetpu_ikv *etikv, void *cmd, struct list_head 
 	ikv_resp->queue_lock = queue_lock;
 	ikv_resp->processed = false;
 	ikv_resp->client_seq = edgetpu_vii_command_get_seq_number(cmd);
-	ikv_resp->group_to_notify = group_to_notify;
+	ikv_resp->group_to_notify = edgetpu_device_group_get(group_to_notify);
 	ikv_resp->in_fence_array = gcip_fence_array_get(in_fence_array);
 	ikv_resp->out_fence_array = gcip_fence_array_get(out_fence_array);
 	ikv_resp->iif_dma_fence = iif_dma_fence;
