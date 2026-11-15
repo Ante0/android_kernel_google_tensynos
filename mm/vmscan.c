@@ -719,7 +719,7 @@ void register_shrinker_prepared(struct shrinker *shrinker)
 	list_add_tail(&shrinker->list, &shrinker_list);
 	shrinker->flags |= SHRINKER_REGISTERED;
 	shrinker_debugfs_add(shrinker);
-	spin_unlock(&shrinker_lock);
+	up_write(&shrinker_rwsem);
 }
 
 static int __register_shrinker(struct shrinker *shrinker)
