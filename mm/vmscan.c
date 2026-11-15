@@ -1021,7 +1021,7 @@ unsigned long shrink_slab(gfp_t gfp_mask, int nid,
 	 * shrink, but skip global shrink.  This may result in premature
 	 * oom.
 	 */
-	if (!mem_cgroup_disabled() && !mem_cgroup_is_root(memcg))
+	if (!mem_cgroup_disabled() && memcg && !mem_cgroup_is_root(memcg))
 		return shrink_slab_memcg(gfp_mask, nid, memcg, priority);
 
 	if (!down_read_trylock(&shrinker_rwsem))
