@@ -814,6 +814,17 @@ static unsigned long do_shrink_slab(struct shrink_control *shrinkctl,
 					  : SHRINK_BATCH;
 	long scanned = 0, next_deferred;
 
+	if (unlikely(!shrinker->nr_deferred &&
+    		(!(shrinker->flags & SHRINKER_MEMCG_AWARE) ||
+     		!shrinkctl->memcg))) {
+    		pr_err("do_shrink_slab: invalid NULL nr_deferred, "
+           		"shrinker=%p flags=%x memcg=%p nid=%d\n",
+           		shrinker, shrinker->flags,
+           		shrinkctl->memcg, shrinkctl->nid);
+    		dump_stack();
+    		return 0;
+	}
+
 	freeable = shrinker->count_objects(shrinker, shrinkctl);
 	trace_android_vh_do_shrink_slab(shrinker, &freeable);
 	trace_android_vh_do_shrink_slab_ex(shrinkctl, shrinker, &freeable, priority);
@@ -1034,8 +1045,14 @@ unsigned long shrink_slab(gfp_t gfp_mask, int nid,
 			.memcg = memcg,
 		};
 
-        	if (shrinker->flags & SHRINKER_MEMCG_AWARE)
-                	continue;
+	if (unlikely(!shrinker->nr_deferred &&
+    		(!(shrinker->flags & SHRINKER_MEMCG_AWARE) || !sc.memcg))) {
+    		pr_err("kshrinkd: invalid NULL nr_deferred "
+           		"shrinker=%p flags=%x memcg=%p nid=%d\n",
+           		shrinker, shrinker->flags, sc.memcg, sc.nid);
+    		dump_stack();
+    		continue;
+	}
 
 		ret = do_shrink_slab(&sc, shrinker, priority);
 		if (ret == SHRINK_EMPTY)
@@ -7981,8 +7998,9 @@ static int kshrinkd(void *pgdat)
 
 		/* Shrink slabs on both kswapd and direct reclaimers' behalf */
 		while (1) {
-			struct mem_cgroup *memcg = NULL;
+			struct mem_cgroup *memcg;
 
+			memcg = mem_cgroup_iter(NULL, NULL, NULL);
 			do {
 				shrink_slab(GFP_KERNEL, p->node_id, memcg, pri);
 			} while ((memcg = mem_cgroup_iter(NULL, memcg, NULL)));
