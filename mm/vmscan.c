@@ -1034,6 +1034,9 @@ unsigned long shrink_slab(gfp_t gfp_mask, int nid,
 			.memcg = memcg,
 		};
 
+        	if (shrinker->flags & SHRINKER_MEMCG_AWARE)
+                	continue;
+
 		ret = do_shrink_slab(&sc, shrinker, priority);
 		if (ret == SHRINK_EMPTY)
 			ret = 0;
