@@ -416,6 +416,11 @@ DECLARE_RESTRICTED_HOOK(android_rvh_post_init_entity_util_avg,
 	TP_PROTO(struct sched_entity *se),
 	TP_ARGS(se), 1);
 
+DECLARE_RESTRICTED_HOOK(android_rvh_effective_cpu_util,
+	TP_PROTO(int cpu, unsigned long util_cfs, unsigned long max, int type,
+		 struct task_struct *p, unsigned long *new_util),
+	TP_ARGS(cpu, util_cfs, max, type, p, new_util), 1);
+
 DECLARE_HOOK(android_vh_mmput,
 	TP_PROTO(struct mm_struct *mm),
 	TP_ARGS(mm));
@@ -439,6 +444,11 @@ DECLARE_RESTRICTED_HOOK(android_rvh_detach_entity_load_avg,
 DECLARE_RESTRICTED_HOOK(android_rvh_update_load_avg,
 	TP_PROTO(u64 now, struct cfs_rq *cfs_rq, struct sched_entity *se),
 	TP_ARGS(now, cfs_rq, se), 1);
+
+
+DECLARE_RESTRICTED_HOOK(android_rvh_update_load_sum,
+	TP_PROTO(struct sched_avg *sa, u64 *delta, unsigned int *sched_pelt_lshift),
+	TP_ARGS(sa, delta, sched_pelt_lshift), 1);
 
 DECLARE_RESTRICTED_HOOK(android_rvh_remove_entity_load_avg,
 	TP_PROTO(struct cfs_rq *cfs_rq, struct sched_entity *se),
@@ -490,6 +500,15 @@ DECLARE_HOOK(android_vh_cpu_cgroup_css_alloc_early,
 DECLARE_HOOK(android_vh_cpu_cgroup_css_free,
 	TP_PROTO(struct cgroup_subsys_state *css),
 	TP_ARGS(css));
+
+DECLARE_HOOK(android_vh_io_schedule_profile,
+	TP_PROTO(unsigned long ret_ip, u64 duration_ns),
+	TP_ARGS(ret_ip, duration_ns));
+
+DECLARE_HOOK(android_vh_folio_wait_bit_profile,
+	TP_PROTO(unsigned long ret_ip, u64 duration_ns, int bit_nr,
+		 unsigned int caller_flags),
+	TP_ARGS(ret_ip, duration_ns, bit_nr, caller_flags));
 
 #endif /* _TRACE_HOOK_SCHED_H */
 /* This part must be outside protection */

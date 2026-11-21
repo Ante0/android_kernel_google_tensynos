@@ -812,3 +812,10 @@ Description:	It can be used to tune priority of f2fs critical task, e.g. f2fs_ck
 		threads, limitation as below:
 		- it requires user has CAP_SYS_NICE capability.
 		- the range is [100, 139], by default the value is 100.
+
+What:		/sys/fs/f2fs/<disk>/pinned_area_max_secno
+Date:		August 2026
+Contact:	"Daeho Jeong" <daehojeong@google.com>
+Description:	This is a read-only entry to show the upper bound section number
+		for pinned files. Pinned files will only be allocated within
+		sections 0 to pinned_area_max_secno - 1.

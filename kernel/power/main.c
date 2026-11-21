@@ -913,9 +913,6 @@ static ssize_t pm_freeze_timeout_store(struct kobject *kobj,
 {
 	unsigned long val;
 
-	/* Don't let anything in Android change the freeze timeout */
-	return n;
-
 	if (kstrtoul(buf, 10, &val))
 		return -EINVAL;
 
@@ -977,7 +974,7 @@ EXPORT_SYMBOL_GPL(pm_wq);
 
 static int __init pm_start_workqueues(void)
 {
-	pm_wq = alloc_workqueue("pm", WQ_FREEZABLE, 0);
+	pm_wq = alloc_workqueue("pm", WQ_UNBOUND, 0);
 	if (!pm_wq)
 		return -ENOMEM;
 

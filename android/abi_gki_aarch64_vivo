@@ -390,6 +390,7 @@
   __traceiter_android_vh_binder_wait_for_work
   __traceiter_android_vh_binder_wakeup_ilocked
   __traceiter_android_vh_build_sched_domains
+  __traceiter_android_vh_check_swap_range_free
   __traceiter_android_vh_check_uninterrupt_tasks
   __traceiter_android_vh_check_uninterrupt_tasks_done
   __traceiter_android_vh_clear_rwsem_reader_owned
@@ -408,6 +409,8 @@
   __traceiter_android_vh_do_wp_page
   __traceiter_android_vh_dump_throttled_rt_tasks
   __traceiter_android_vh_fas_gpu_qos_update_tracer
+  __traceiter_android_vh_folio_alloc_swap_bypass
+  __traceiter_android_vh_free_swap_slot_bypass
   __traceiter_android_vh_free_task
   __traceiter_android_vh_ftrace_dump_buffer
   __traceiter_android_vh_ftrace_format_check
@@ -429,6 +432,7 @@
   __traceiter_android_vh_oom_swapmem_gather_init
   __traceiter_android_vh_percpu_rwsem_down_read
   __traceiter_android_vh_percpu_rwsem_up_write
+  __traceiter_android_vh_pick_swap_device_bypass
   __traceiter_android_vh_printk_hotplug
   __traceiter_android_vh_queue_request_and_unlock
   __traceiter_android_vh_record_rwsem_reader_owned
@@ -447,6 +451,8 @@
   __traceiter_android_vh_shmem_swapin_folio
   __traceiter_android_vh_show_resume_epoch_val
   __traceiter_android_vh_show_suspend_epoch_val
+  __traceiter_android_vh_swap_device_swapoff
+  __traceiter_android_vh_swap_device_swapon
   __traceiter_android_vh_swapmem_gather_add_bypass
   __traceiter_android_vh_swapmem_gather_finish
   __traceiter_android_vh_swapmem_gather_init
@@ -608,6 +614,7 @@
   __tracepoint_android_vh_binder_wait_for_work
   __tracepoint_android_vh_binder_wakeup_ilocked
   __tracepoint_android_vh_build_sched_domains
+  __tracepoint_android_vh_check_swap_range_free
   __tracepoint_android_vh_check_uninterrupt_tasks
   __tracepoint_android_vh_check_uninterrupt_tasks_done
   __tracepoint_android_vh_clear_rwsem_reader_owned
@@ -626,6 +633,8 @@
   __tracepoint_android_vh_do_wp_page
   __tracepoint_android_vh_dump_throttled_rt_tasks
   __tracepoint_android_vh_fas_gpu_qos_update_tracer
+  __tracepoint_android_vh_folio_alloc_swap_bypass
+  __tracepoint_android_vh_free_swap_slot_bypass
   __tracepoint_android_vh_free_task
   __tracepoint_android_vh_ftrace_dump_buffer
   __tracepoint_android_vh_ftrace_format_check
@@ -645,6 +654,7 @@
   __tracepoint_android_vh_mutex_wait_start
   __tracepoint_android_vh_percpu_rwsem_down_read
   __tracepoint_android_vh_percpu_rwsem_up_write
+  __tracepoint_android_vh_pick_swap_device_bypass
   __tracepoint_android_vh_printk_hotplug
   __tracepoint_android_vh_queue_request_and_unlock
   __tracepoint_android_vh_record_rwsem_reader_owned
@@ -663,6 +673,8 @@
   __tracepoint_android_vh_shmem_swapin_folio
   __tracepoint_android_vh_show_resume_epoch_val
   __tracepoint_android_vh_show_suspend_epoch_val
+  __tracepoint_android_vh_swap_device_swapoff
+  __tracepoint_android_vh_swap_device_swapon
   __tracepoint_android_vh_sysrq_crash
   __tracepoint_android_vh_throttle_direct_reclaim_bypass
   __tracepoint_android_vh_timer_calc_index

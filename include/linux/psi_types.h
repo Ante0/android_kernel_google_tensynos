@@ -150,6 +150,14 @@ struct psi_trigger {
 	bool pending_event;
 };
 
+struct psi_trigger_ext {
+	struct psi_trigger trigger;
+
+	/* Kernfs file for cgroup triggers */
+	struct kernfs_open_file *of;
+
+};
+
 struct psi_group {
 	struct psi_group *parent;
 	bool enabled;

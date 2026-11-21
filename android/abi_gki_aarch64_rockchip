@@ -1768,6 +1768,7 @@
 # required by dw-hdmi.ko
   drm_connector_attach_hdr_output_metadata_property
   drm_connector_attach_max_bpc_property
+  drm_connector_attach_vrr_capable_property
   drm_default_rgb_quant_range
 
 # required by dw-mipi-dsi.ko
@@ -2091,6 +2092,7 @@
 # required by panel-simple.ko
   drm_bus_flags_from_videomode
   drm_connector_set_panel_orientation
+  drm_connector_set_vrr_capable_property
   drm_panel_of_backlight
   drm_panel_remove
   mipi_dsi_compression_mode

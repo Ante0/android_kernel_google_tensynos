@@ -178,6 +178,7 @@ enum {
 	Opt_memory_mode,
 	Opt_age_extent_cache,
 	Opt_lookup_mode,
+	Opt_resizable_tail_secno,
 	Opt_err,
 };
 
@@ -259,6 +260,7 @@ static match_table_t f2fs_tokens = {
 	{Opt_memory_mode, "memory=%s"},
 	{Opt_age_extent_cache, "age_extent_cache"},
 	{Opt_lookup_mode, "lookup_mode=%s"},
+	{Opt_resizable_tail_secno, "resizable_tail_secno=%u"},
 	{Opt_err, NULL},
 };
 
@@ -404,6 +406,17 @@ static inline void adjust_unusable_cap_perc(struct f2fs_sb_info *sbi)
 	f2fs_info(sbi, "Adjust unusable cap for checkpoint=disable = %u / %u%%",
 			F2FS_OPTION(sbi).unusable_cap,
 			F2FS_OPTION(sbi).unusable_cap_perc);
+}
+
+static inline void adjust_pinned_area_boundary(struct f2fs_sb_info *sbi)
+{
+	sbi->pinned_area_max_secno = MAIN_SECS(sbi);
+	if (f2fs_sb_has_blkzoned(sbi) && sbi->first_seq_zone_segno != NULL_SEGNO)
+		sbi->pinned_area_max_secno = min(sbi->pinned_area_max_secno,
+				GET_SEC_FROM_SEG(sbi, sbi->first_seq_zone_segno));
+	if (F2FS_OPTION(sbi).resizable_tail_secno)
+		sbi->pinned_area_max_secno = min(sbi->pinned_area_max_secno,
+				MAIN_SECS(sbi) - F2FS_OPTION(sbi).resizable_tail_secno);
 }
 
 static void init_once(void *foo)
@@ -1067,7 +1080,21 @@ static int parse_options(struct super_block *sb, char *options, bool is_remount)
 			kfree(name);
 			break;
 		case Opt_fsync:
-			f2fs_info(sbi, "changing fsync mode not supported");
+			name = match_strdup(&args[0]);
+			if (!name)
+				return -ENOMEM;
+			if (!strcmp(name, "posix")) {
+				F2FS_OPTION(sbi).fsync_mode = FSYNC_MODE_POSIX;
+			} else if (!strcmp(name, "strict")) {
+				F2FS_OPTION(sbi).fsync_mode = FSYNC_MODE_STRICT;
+			} else if (!strcmp(name, "nobarrier")) {
+				F2FS_OPTION(sbi).fsync_mode =
+							FSYNC_MODE_NOBARRIER;
+			} else {
+				kfree(name);
+				return -EINVAL;
+			}
+			kfree(name);
 			break;
 		case Opt_test_dummy_encryption:
 			ret = f2fs_set_test_dummy_encryption(sb, p, &args[0],
@@ -1342,6 +1369,13 @@ static int parse_options(struct super_block *sb, char *options, bool is_remount)
 			}
 			kfree(name);
 			break;
+		case Opt_resizable_tail_secno:
+			if (args->from && match_int(args, &arg))
+				return -EINVAL;
+			if (arg < 0)
+				return -EINVAL;
+			F2FS_OPTION(sbi).resizable_tail_secno = arg;
+			break;
 		default:
 			f2fs_err(sbi, "Unrecognized mount option \"%s\" or missing value",
 				 p);
@@ -1369,6 +1403,13 @@ default_check:
 		return -EINVAL;
 	}
 #endif
+	if (F2FS_OPTION(sbi).resizable_tail_secno >=
+			le32_to_cpu(sbi->raw_super->section_count)) {
+		f2fs_err(sbi, "Option resizable_tail_secno is larger than or equal to total sections (%u >= %u)",
+				F2FS_OPTION(sbi).resizable_tail_secno,
+				le32_to_cpu(sbi->raw_super->section_count));
+		return -EINVAL;
+	}
 	/*
 	 * The BLKZONED feature indicates that the drive was formatted with
 	 * zone alignment optimization. This is optional for host-aware
@@ -2143,6 +2184,10 @@ static int f2fs_show_options(struct seq_file *seq, struct dentry *root)
 	else if (f2fs_get_lookup_mode(sbi) == LOOKUP_AUTO)
 		seq_show_option(seq, "lookup_mode", "auto");
 
+	if (F2FS_OPTION(sbi).resizable_tail_secno)
+		seq_printf(seq, ",resizable_tail_secno=%u",
+				F2FS_OPTION(sbi).resizable_tail_secno);
+
 	return 0;
 }
 
@@ -2160,7 +2205,7 @@ static void default_options(struct f2fs_sb_info *sbi)
 		f2fs_set_alloc_mode(sbi, ALLOC_MODE_REUSE);
 	else
 		f2fs_set_alloc_mode(sbi, ALLOC_MODE_DEFAULT);
-	F2FS_OPTION(sbi).fsync_mode = FSYNC_MODE_STRICT;
+	F2FS_OPTION(sbi).fsync_mode = FSYNC_MODE_POSIX;
 	F2FS_OPTION(sbi).s_resuid = make_kuid(&init_user_ns, F2FS_DEF_RESUID);
 	F2FS_OPTION(sbi).s_resgid = make_kgid(&init_user_ns, F2FS_DEF_RESGID);
 	if (f2fs_sb_has_compression(sbi)) {
@@ -2171,6 +2216,7 @@ static void default_options(struct f2fs_sb_info *sbi)
 	}
 	F2FS_OPTION(sbi).bggc_mode = BGGC_MODE_ON;
 	F2FS_OPTION(sbi).memory_mode = MEMORY_MODE_NORMAL;
+	F2FS_OPTION(sbi).resizable_tail_secno = 0;
 
 	set_opt(sbi, INLINE_XATTR);
 	set_opt(sbi, INLINE_DATA);
@@ -2599,6 +2645,7 @@ skip:
 	sb->s_flags = (sb->s_flags & ~SB_POSIXACL) |
 		(test_opt(sbi, POSIX_ACL) ? SB_POSIXACL : 0);
 
+	adjust_pinned_area_boundary(sbi);
 	limit_reserve_root(sbi);
 	adjust_unusable_cap_perc(sbi);
 	*flags = (*flags & ~SB_LAZYTIME) | (sb->s_flags & SB_LAZYTIME);
@@ -4169,6 +4216,37 @@ out_unlock:
 	f2fs_up_write(&sbi->sb_lock);
 }
 
+static inline unsigned int get_first_seq_zone_segno(struct f2fs_sb_info *sbi)
+{
+#ifdef CONFIG_BLK_DEV_ZONED
+	unsigned int zoneno, total_zones;
+	int devi;
+
+	if (!f2fs_sb_has_blkzoned(sbi))
+		return NULL_SEGNO;
+
+	for (devi = 0; devi < sbi->s_ndevs; devi++) {
+		if (!bdev_is_zoned(FDEV(devi).bdev))
+			continue;
+
+		total_zones = GET_ZONE_FROM_SEG(sbi, FDEV(devi).total_segments);
+
+		for (zoneno = 0; zoneno < total_zones; zoneno++) {
+			unsigned int segs, blks;
+
+			if (!f2fs_zone_is_seq(sbi, devi, zoneno))
+				continue;
+
+			segs = GET_SEG_FROM_SEC(sbi,
+					zoneno * sbi->secs_per_zone);
+			blks = segs << sbi->log_blocks_per_seg;
+			return GET_SEGNO(sbi, FDEV(devi).start_blk + blks);
+		}
+	}
+#endif
+	return NULL_SEGNO;
+}
+
 static int f2fs_scan_devices(struct f2fs_sb_info *sbi)
 {
 	struct f2fs_super_block *raw_super = F2FS_RAW_SUPER(sbi);
@@ -4203,6 +4281,12 @@ static int f2fs_scan_devices(struct f2fs_sb_info *sbi)
 			break;
 
 		if (max_devices == 1) {
+			FDEV(i).total_segments =
+				le32_to_cpu(raw_super->segment_count_main);
+			FDEV(i).start_blk = 0;
+			FDEV(i).end_blk = FDEV(i).total_segments *
+						sbi->blocks_per_seg;
+
 			/* Single zoned block device mount */
 			FDEV(0).bdev =
 				blkdev_get_by_dev(sbi->sb->s_bdev->bd_dev,
@@ -4578,6 +4662,11 @@ try_onemore:
 	/* For write statistics */
 	sbi->sectors_written_start = f2fs_get_sectors_written(sbi);
 
+	/* get segno of first zoned block device */
+	sbi->first_seq_zone_segno = get_first_seq_zone_segno(sbi);
+
+	adjust_pinned_area_boundary(sbi);
+
 	/* Read accumulated write IO statistics if exists */
 	seg_i = CURSEG_I(sbi, CURSEG_HOT_NODE);
 	if (__exist_node_summaries(sbi))
@@ -4711,7 +4800,9 @@ try_onemore:
 	}
 
 reset_checkpoint:
-	f2fs_init_inmem_curseg(sbi);
+	err = f2fs_init_inmem_curseg(sbi);
+	if (err)
+		goto sync_free_meta;
 
 	/* f2fs_recover_fsync_data() cleared this already */
 	clear_sbi_flag(sbi, SBI_POR_DOING);

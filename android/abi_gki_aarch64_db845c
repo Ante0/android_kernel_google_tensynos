@@ -1933,6 +1933,7 @@
   driver_set_override
   platform_device_add
   platform_device_alloc
+  platform_device_del
   platform_device_put
 
 # required by slimbus.ko

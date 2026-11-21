@@ -54,10 +54,15 @@ DEFINE_PER_CPU(unsigned long, kvm_arm_hyp_stack_base);
 DECLARE_KVM_NVHE_PER_CPU(struct kvm_nvhe_init_params, kvm_init_params);
 DECLARE_KVM_NVHE_PER_CPU(int, hyp_cpu_number);
 
-static bool vgic_present;
+static bool vgic_present, kvm_arm_initialised;
 
 static DEFINE_PER_CPU(unsigned char, kvm_arm_hardware_enabled);
 DEFINE_STATIC_KEY_FALSE(userspace_irqchip_in_use);
+
+bool is_kvm_arm_initialised(void)
+{
+	return kvm_arm_initialised;
+}
 
 int kvm_arch_vcpu_should_kick(struct kvm_vcpu *vcpu)
 {
@@ -2501,6 +2506,8 @@ int kvm_arch_init(void *opaque)
 	 */
 	if (!in_hyp_mode)
 		finalize_init_hyp_mode();
+
+	kvm_arm_initialised = true;
 
 	return 0;
 

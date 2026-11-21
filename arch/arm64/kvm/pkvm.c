@@ -29,7 +29,7 @@
 
 #include "hyp_constants.h"
 
-__visible DEFINE_STATIC_KEY_FALSE(kvm_protected_mode_initialized);
+DEFINE_STATIC_KEY_FALSE(kvm_protected_mode_initialized);
 
 static struct reserved_mem *pkvm_firmware_mem;
 static phys_addr_t *pvmfw_base = &kvm_nvhe_sym(pvmfw_base);
@@ -524,7 +524,7 @@ static int __init finalize_pkvm(void)
 {
 	int ret;
 
-	if (!is_protected_kvm_enabled()) {
+	if (!is_protected_kvm_enabled() || !is_kvm_arm_initialised()) {
 		pkvm_firmware_rmem_clear();
 		return 0;
 	}
@@ -616,7 +616,7 @@ int pkvm_vm_ioctl_enable_cap(struct kvm *kvm, struct kvm_enable_cap *cap)
 	return 0;
 }
 
-#if defined(CONFIG_MODULES) || defined(CONFIG_INTEGRATE_MODULES)
+#ifdef CONFIG_MODULES
 static char early_pkvm_modules[COMMAND_LINE_SIZE] __initdata;
 
 static int __init early_pkvm_modules_cfg(char *arg)
@@ -720,7 +720,6 @@ static int __init pkvm_request_early_module(char *module_name, char *module_path
 
 	return __pkvm_request_early_module(module_name, "");
 }
-#endif
 
 int __init pkvm_load_early_modules(void)
 {
@@ -750,7 +749,6 @@ int __init pkvm_load_early_modules(void)
 	return 0;
 }
 
-#ifdef CONFIG_MODULES
 struct pkvm_mod_sec_mapping {
 	struct pkvm_module_section *sec;
 	enum kvm_pgtable_prot prot;

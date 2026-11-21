@@ -142,6 +142,7 @@ IF_HAVE_PG_OEM_RESERVED(oem_reserved_1)					\
 IF_HAVE_PG_OEM_RESERVED(oem_reserved_2)					\
 IF_HAVE_PG_OEM_RESERVED(oem_reserved_3)					\
 IF_HAVE_PG_OEM_RESERVED(oem_reserved_4)					\
+IF_HAVE_PG_OEM_RESERVED(oem_reserved_5)					\
 IF_HAVE_PG_SKIP_KASAN_POISON(PG_skip_kasan_poison, "skip_kasan_poison")
 
 #define show_page_flags(flags)						\

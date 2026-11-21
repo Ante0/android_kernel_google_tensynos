@@ -1,6 +1,7 @@
 [abi_symbol_list]
   access_process_vm
   activate_task
+  add_memory_driver_managed
   addrconf_add_linklocal
   addrconf_prefix_rcv_add_addr
   add_timer
@@ -951,6 +952,7 @@
   dst_cache_set_ip6
   dst_release
   dummy_irq_chip
+  dump_page
   dump_stack
   efi
   em_cpu_get
@@ -1086,6 +1088,7 @@
   generic_handle_domain_irq
   generic_handle_irq
   generic_handle_irq_safe
+  generic_online_page
   generic_parse_monolithic
   genlmsg_multicast_allns
   genlmsg_put
@@ -1625,6 +1628,8 @@
   memdup_user
   memdup_user_nul
   memmove
+  memory_group_register_dynamic
+  memory_group_unregister
   memory_read_from_buffer
   memparse
   mempool_kfree
@@ -1637,6 +1642,7 @@
   __memset_io
   memstart_addr
   memunmap
+  mhp_get_pluggable_range
   migrate_swap
   __migrate_task
   mipi_dsi_attach
@@ -1919,6 +1925,8 @@
   overflowuid
   page_endio
   page_frag_free
+  page_offline_begin
+  page_offline_end
   page_pinner_inited
   __page_pinner_put_page
   page_pool_alloc_pages
@@ -2021,6 +2029,7 @@
   perf_trace_buf_alloc
   perf_trace_run_bpf_submit
   pfn_is_map_memory
+  pfn_to_online_page
   phy_attached_info
   phy_configure
   phy_connect
@@ -2376,6 +2385,7 @@
   release_firmware
   release_pages
   __release_region
+  release_resource
   release_sock
   remap_pfn_range
   remap_vmalloc_range
@@ -3638,6 +3648,7 @@
   wakeup_sources_walk_start
   wakeup_source_unregister
   __wake_up_sync_key
+  walk_iomem_res_desc
   __warn_printk
   watchdog_init_timeout
   watchdog_set_restart_priority

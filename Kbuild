@@ -97,5 +97,3 @@ obj-$(CONFIG_SAMPLES)	+= samples/
 obj-$(CONFIG_NET)	+= net/
 obj-y			+= virt/
 obj-y			+= $(ARCH_DRIVERS)
-obj-y			+= google-devices/
-obj-y			+= google-modules/

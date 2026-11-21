@@ -83,37 +83,6 @@ static int bprm_creds_from_file(struct linux_binprm *bprm);
 
 int suid_dumpable = 0;
 
-#define LIBPERFMGR_BIN "/vendor/bin/hw/android.hardware.power-service.pixel-libperfmgr"
-#define SERVICEMANAGER_BIN "/system/bin/servicemanager"
-
-static struct task_struct *servicemanager_tsk;
-bool task_is_servicemanager(struct task_struct *p)
-{
-	return p == READ_ONCE(servicemanager_tsk);
-}
-
-static struct task_struct *libperfmgr_tsk;
-bool task_is_libperfmgr(struct task_struct *p)
-{
-	struct task_struct *tsk;
-	bool ret;
-
-	rcu_read_lock();
-	tsk = READ_ONCE(libperfmgr_tsk);
-	ret = tsk && same_thread_group(p, tsk);
-	rcu_read_unlock();
-
-	return ret;
-}
-
-void dead_special_task(void)
-{
-	if (unlikely(current == servicemanager_tsk))
-		WRITE_ONCE(servicemanager_tsk, NULL);
-	else if (unlikely(current == libperfmgr_tsk))
-		WRITE_ONCE(libperfmgr_tsk, NULL);
-}
-
 static LIST_HEAD(formats);
 static DEFINE_RWLOCK(binfmt_lock);
 
@@ -1307,6 +1276,21 @@ int begin_new_exec(struct linux_binprm * bprm)
 		goto out;
 
 	/*
+	 * This must be done here to ensure that POSIX CPU timers which were
+	 * armed on the current task are dequeued from me::posix_cputimers.
+	 * Otherwise in case of a TID switch the deletion of the related POSIX
+	 * timer would not remove an enqueued timer because the TID lookup
+	 * of the old TID fails.
+	 */
+#ifdef CONFIG_POSIX_TIMERS
+	spin_lock_irq(&me->sighand->siglock);
+	posix_cpu_timers_exit(me);
+	spin_unlock_irq(&me->sighand->siglock);
+	exit_itimers(me);
+	flush_itimer_signals();
+#endif
+
+	/*
 	 * Cancel any io_uring activity across execve
 	 */
 	io_uring_task_cancel();
@@ -1359,14 +1343,6 @@ int begin_new_exec(struct linux_binprm * bprm)
 			get_dmabuf_info(current->dmabuf_info);
 		me->mm->abi_extend->dmabuf_info = current->dmabuf_info;
 	}
-
-#ifdef CONFIG_POSIX_TIMERS
-	spin_lock_irq(&me->sighand->siglock);
-	posix_cpu_timers_exit(me);
-	spin_unlock_irq(&me->sighand->siglock);
-	exit_itimers(me);
-	flush_itimer_signals();
-#endif
 
 	/*
 	 * Make the signal table private.
@@ -1909,14 +1885,6 @@ static int bprm_execve(struct linux_binprm *bprm,
 	retval = exec_binprm(bprm);
 	if (retval < 0)
 		goto out;
-
-	if (is_global_init(current->parent)) {
-		if (unlikely(!strcmp(filename->name, LIBPERFMGR_BIN))) {
-			WRITE_ONCE(libperfmgr_tsk, current);
-		} else if (unlikely(!strcmp(filename->name, SERVICEMANAGER_BIN))) {
-			WRITE_ONCE(servicemanager_tsk, current);
-		}
-	}
 
 	/* execve succeeded */
 	current->fs->in_exec = 0;

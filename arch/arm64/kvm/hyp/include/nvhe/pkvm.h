@@ -75,6 +75,12 @@ struct pkvm_hyp_vm {
 	struct pkvm_hyp_vcpu *primary_vcpu;
 
 	/*
+	 * Set once the guest relinquishes a page in the pvmfw range: pvmfw
+	 * is never copied into that range again.
+	 */
+	bool pvmfw_relinquished;
+
+	/*
 	 * The number of vcpus initialized and ready to run.
 	 * Modifying this is protected by 'vm_table_lock'.
 	 */
@@ -152,7 +158,7 @@ static inline bool pkvm_ipa_range_has_pvmfw(struct pkvm_hyp_vm *vm,
 	struct kvm_protected_vm *pkvm = &vm->kvm.arch.pkvm;
 	u64 pvmfw_load_end = pkvm->pvmfw_load_addr + pvmfw_size;
 
-	if (!pkvm_hyp_vm_has_pvmfw(vm))
+	if (!pkvm_hyp_vm_has_pvmfw(vm) || vm->pvmfw_relinquished)
 		return false;
 
 	return ipa_end > pkvm->pvmfw_load_addr && ipa_start < pvmfw_load_end;

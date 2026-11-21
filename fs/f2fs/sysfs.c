@@ -1099,6 +1099,7 @@ F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, max_lock_elapsed_time, max_lock_elapsed_tim
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, lock_duration_priority, lock_duration_priority);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, adjust_lock_priority, adjust_lock_priority);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, critical_task_priority, critical_task_priority);
+F2FS_RO_ATTR(F2FS_SBI, f2fs_sb_info, pinned_area_max_secno, pinned_area_max_secno);
 
 #define ATTR_LIST(name) (&f2fs_attr_##name.attr)
 static struct attribute *f2fs_attrs[] = {
@@ -1207,6 +1208,7 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(lock_duration_priority),
 	ATTR_LIST(adjust_lock_priority),
 	ATTR_LIST(critical_task_priority),
+	ATTR_LIST(pinned_area_max_secno),
 	NULL,
 };
 ATTRIBUTE_GROUPS(f2fs);

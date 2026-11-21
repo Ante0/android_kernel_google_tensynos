@@ -297,14 +297,14 @@ static void do_idle(void)
 	tick_nohz_idle_enter();
 
 	while (!need_resched()) {
+		rmb();
+
 		local_irq_disable();
 
 		if (cpu_is_offline(cpu)) {
 			tick_nohz_idle_stop_tick();
 			cpuhp_report_idle_dead();
 			arch_cpu_idle_dead();
-		} else {
-			cpuidle_set_idle_cpu(cpu);
 		}
 
 		arch_cpu_idle_enter();
@@ -322,7 +322,7 @@ static void do_idle(void)
 		} else {
 			cpuidle_idle_call(got_tick);
 		}
-		cpuidle_clear_idle_cpu(cpu);
+		got_tick = tick_nohz_idle_got_tick();
 		arch_cpu_idle_exit();
 	}
 

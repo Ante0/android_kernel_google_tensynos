@@ -22,7 +22,6 @@
 #include <asm/scs.h>
 #include <asm/sections.h>
 
-#if defined(CONFIG_MODULES) || defined(CONFIG_BPF_JIT)
 void *module_alloc(unsigned long size)
 {
 	u64 module_alloc_end = module_alloc_base + MODULES_VSIZE;
@@ -70,13 +69,6 @@ void *module_alloc(unsigned long size)
 	return kasan_reset_tag(p);
 }
 
-void module_memfree(void *module_region)
-{
-       vfree(module_region);
-}
-#endif /* CONFIG_MODULES || CONFIG_BPF_JIT */
-
-#ifdef CONFIG_MODULES
 enum aarch64_reloc_op {
 	RELOC_OP_NONE,
 	RELOC_OP_ABS,
@@ -591,4 +583,3 @@ int module_finalize(const Elf_Ehdr *hdr,
 
 	return module_init_hyp(hdr, sechdrs, me);
 }
-#endif /* CONFIG_MODULES */

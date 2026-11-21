@@ -728,6 +728,8 @@ void blk_mq_free_tag_set(struct blk_mq_tag_set *set);
 void blk_mq_free_request(struct request *rq);
 
 bool blk_mq_queue_inflight(struct request_queue *q);
+void blk_mq_in_flight_rw(struct request_queue *q, struct block_device *part,
+		unsigned int inflight[2]);
 
 enum {
 	/* return when out of requests */

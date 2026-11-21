@@ -23,13 +23,13 @@
 
 unsigned long hyp_nr_cpus;
 
-__visible phys_addr_t pvmfw_base;
-__visible phys_addr_t pvmfw_size;
+phys_addr_t pvmfw_base;
+phys_addr_t pvmfw_size;
 
 #define hyp_percpu_size ((unsigned long)__per_cpu_end - \
 			 (unsigned long)__per_cpu_start)
 
-__visible u64 hyp_lm_size_mb;
+u64 hyp_lm_size_mb;
 
 static void *vmemmap_base;
 static void *vm_table_base;
@@ -327,6 +327,16 @@ static int fix_host_ownership(void)
 		u64 start = (u64)hyp_phys_to_virt(reg->base);
 
 		ret = kvm_pgtable_walk(&pkvm_pgtable, start, reg->size, &walker);
+		if (ret)
+			return ret;
+	}
+
+	/* The stacks sit in the private VA range, not the linear map. */
+	for (i = 0; i < hyp_nr_cpus; i++) {
+		struct kvm_nvhe_init_params *params = per_cpu_ptr(&kvm_init_params, i);
+		u64 start = params->stack_hyp_va - NVHE_STACK_SIZE;
+
+		ret = kvm_pgtable_walk(&pkvm_pgtable, start, NVHE_STACK_SIZE, &walker);
 		if (ret)
 			return ret;
 	}

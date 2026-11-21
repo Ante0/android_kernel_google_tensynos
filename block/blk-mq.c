@@ -167,6 +167,7 @@ void blk_mq_in_flight_rw(struct request_queue *q, struct block_device *part,
 	inflight[0] = mi.inflight[0];
 	inflight[1] = mi.inflight[1];
 }
+EXPORT_SYMBOL_GPL(blk_mq_in_flight_rw);
 
 void blk_freeze_queue_start(struct request_queue *q)
 {

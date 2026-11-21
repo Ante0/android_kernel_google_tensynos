@@ -19,13 +19,13 @@
 #include <nvhe/pkvm.h>
 #include <nvhe/trap_handler.h>
 
-/* Used by icache_is_vpipt(). */
-__visible unsigned long __icache_flags;
+/* Used by icache_is_aliasing(). */
+unsigned long __icache_flags;
 
 /* Used by kvm_get_vttbr(). */
-__visible unsigned int kvm_arm_vmid_bits;
+unsigned int kvm_arm_vmid_bits;
 
-__visible unsigned int kvm_host_sve_max_vl;
+unsigned int kvm_host_sve_max_vl;
 
 /*
  * The currently loaded hyp vCPU for each physical CPU. Used only when
@@ -41,7 +41,7 @@ static DEFINE_PER_CPU(struct pkvm_hyp_vcpu *, loaded_hyp_vcpu);
  *
  * Only valid when (fp_state == FP_STATE_GUEST_OWNED) in the hyp vCPU structure.
  */
-__visible unsigned long __ro_after_init kvm_arm_hyp_host_fp_state[NR_CPUS];
+unsigned long __ro_after_init kvm_arm_hyp_host_fp_state[NR_CPUS];
 
 static void *__get_host_fpsimd_bytes(void)
 {
@@ -746,8 +746,10 @@ int __pkvm_init_vm(struct kvm *host_kvm, unsigned long vm_hva,
 	vm_size = pkvm_get_hyp_vm_size(nr_vcpus);
 	last_ran_size = pkvm_get_last_ran_size();
 	pgd_size = kvm_pgtable_stage2_pgd_size(host_mmu.arch.vtcr);
-	if (!IS_ALIGNED(pgd_hva, pgd_size))
+	if (!IS_ALIGNED(pgd_hva, pgd_size)) {
+		ret = -EINVAL;
 		goto err_unpin_kvm;
+	}
 
 	ret = -ENOMEM;
 
@@ -1479,7 +1481,7 @@ static bool pkvm_install_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_
 	return true;
 }
 
-__visible bool smccc_trng_available;
+bool smccc_trng_available;
 
 static bool pkvm_forward_trng(struct kvm_vcpu *vcpu)
 {

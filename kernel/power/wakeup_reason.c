@@ -269,6 +269,7 @@ void clear_wakeup_reasons(void)
 
 	spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 }
+EXPORT_SYMBOL_GPL(clear_wakeup_reasons);
 
 static void print_wakeup_sources(void)
 {

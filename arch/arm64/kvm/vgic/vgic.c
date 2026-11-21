@@ -17,7 +17,7 @@
 #define CREATE_TRACE_POINTS
 #include "trace.h"
 
-__visible struct vgic_global kvm_vgic_global_state __ro_after_init = {
+struct vgic_global kvm_vgic_global_state __ro_after_init = {
 	.gicv3_cpuif = STATIC_KEY_FALSE_INIT,
 };
 

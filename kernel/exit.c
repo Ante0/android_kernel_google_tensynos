@@ -205,7 +205,13 @@ static void __exit_signal(struct task_struct *tsk)
 	 * doing sigqueue_free() if we have SIGQUEUE_PREALLOC signals.
 	 */
 	flush_sigqueue(&tsk->pending);
-	tsk->sighand = NULL;
+
+	/*
+	 * Ensure that all preceeding state is visible. Pairs with
+	 * the smp_acquire__after_ctrl_dep() in the sighand == NULL
+	 * path of lock_task_sighand().
+	 */
+	smp_store_release(&tsk->sighand, NULL);
 	spin_unlock(&sighand->siglock);
 
 	__cleanup_sighand(sighand);
@@ -792,32 +798,6 @@ static void check_stack_usage(void)
 static inline void check_stack_usage(void) {}
 #endif
 
-#ifndef CONFIG_PROFILING
-static BLOCKING_NOTIFIER_HEAD(task_exit_notifier);
-
-int profile_event_register(enum profile_type t, struct notifier_block *n)
-{
-	if (t == PROFILE_TASK_EXIT)
-		return blocking_notifier_chain_register(&task_exit_notifier, n);
-
-	return -ENOSYS;
-}
-
-int profile_event_unregister(enum profile_type t, struct notifier_block *n)
-{
-	if (t == PROFILE_TASK_EXIT)
-		return blocking_notifier_chain_unregister(&task_exit_notifier,
-							  n);
-
-	return -ENOSYS;
-}
-
-void profile_task_exit(struct task_struct *tsk)
-{
-	blocking_notifier_call_chain(&task_exit_notifier, 0, tsk);
-}
-#endif
-
 static void synchronize_group_exit(struct task_struct *tsk, long code)
 {
 	struct sighand_struct *sighand = tsk->sighand;
@@ -834,17 +814,10 @@ static void synchronize_group_exit(struct task_struct *tsk, long code)
 	spin_unlock_irq(&sighand->siglock);
 }
 
-void dead_special_task(void);
 void __noreturn do_exit(long code)
 {
 	struct task_struct *tsk = current;
 	int group_dead;
-
-	/* Trigger probing of device drivers when, e.g., modprobe exits */
-	if (IS_ENABLED(CONFIG_INTEGRATE_MODULES))
-		integrated_module_load_end();
-
-	dead_special_task();
 
 	WARN_ON(irqs_disabled());
 
@@ -865,6 +838,8 @@ void __noreturn do_exit(long code)
 	exit_signals(tsk);  /* sets PF_EXITING */
 
 	trace_android_vh_exit_check(current);
+
+	trace_android_rvh_exit_read_taskinfo(current);
 
 	/* sync mm's RSS info before statistics gathering */
 	if (tsk->mm)

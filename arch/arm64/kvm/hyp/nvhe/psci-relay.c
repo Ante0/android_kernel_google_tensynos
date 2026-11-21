@@ -23,7 +23,7 @@ void kvm_hyp_cpu_resume(unsigned long r0);
 void __noreturn __host_enter(struct kvm_cpu_context *host_ctxt);
 
 /* Config options set by the host. */
-__visible struct kvm_host_psci_config __ro_after_init kvm_host_psci_config;
+struct kvm_host_psci_config __ro_after_init kvm_host_psci_config;
 
 static void (*pkvm_psci_notifier)(enum pkvm_psci_notification, struct kvm_cpu_context *);
 static void pkvm_psci_notify(enum pkvm_psci_notification notif, struct kvm_cpu_context *host_ctxt)
@@ -352,9 +352,8 @@ static unsigned long psci_1_0_handler(u64 func_id, struct kvm_cpu_context *host_
 	}
 }
 
-bool kvm_host_psci_handler(struct kvm_cpu_context *host_ctxt)
+bool kvm_host_psci_handler(struct kvm_cpu_context *host_ctxt, u32 func_id)
 {
-	DECLARE_REG(u64, func_id, host_ctxt, 0);
 	unsigned long ret;
 
 	switch (kvm_host_psci_config.version) {

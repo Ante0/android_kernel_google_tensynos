@@ -127,6 +127,8 @@
   __tracepoint_android_rvh_check_preempt_tick
   __tracepoint_android_rvh_dequeue_entity
   __tracepoint_android_rvh_enqueue_entity
+  __traceiter_android_vh_adjust_nr_reclaimed
+  __tracepoint_android_vh_adjust_nr_reclaimed
   __traceiter_android_vh_alloc_flags_cma_adjust
   __traceiter_android_vh_rmqueue_cma_fallback
   __tracepoint_android_vh_alloc_flags_cma_adjust
@@ -743,3 +745,26 @@ __tracepoint_android_vh_migrate_batch_nr_pages
 
 # required by micar power
 emergency_sync
+pm_system_cancel_wakeup
+clear_wakeup_reasons
+
+#required by wakeup tracer
+__traceiter_alarmtimer_start
+__tracepoint_alarmtimer_start
+__traceiter_alarmtimer_cancel
+__tracepoint_alarmtimer_cancel
+__traceiter_alarmtimer_fired
+__tracepoint_alarmtimer_fired
+udp4_lib_lookup
+udp6_lib_lookup
+
+#required by mi_io_stat.ko
+__traceiter_android_rvh_exit_read_taskinfo
+__tracepoint_android_rvh_exit_read_taskinfo
+
+#required by mi_io_monitor.ko
+blk_mq_in_flight_rw
+__traceiter_android_vh_io_schedule_profile
+__tracepoint_android_vh_io_schedule_profile
+__traceiter_android_vh_folio_wait_bit_profile
+__tracepoint_android_vh_folio_wait_bit_profile

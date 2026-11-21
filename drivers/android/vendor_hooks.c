@@ -9,9 +9,7 @@
 #include <linux/iova.h>
 #include <linux/dma-buf.h>
 #include <linux/futex.h>
-#include <linux/net.h>
 #include <linux/pm_qos.h>
-#include <linux/shrinker.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/hooks/vendor_hooks.h>
@@ -395,6 +393,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_tune_scan_type);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_tune_swappiness);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_exit_signal_whether_wake);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_exit_check);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_exit_read_taskinfo);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_freeze_whether_wake);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_use_amu_fie);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_scan_abort_check_wmarks);
@@ -529,6 +528,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_filemap_read);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_filemap_map_pages);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_page_cache_ra_order_bypass);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_remove_mapping);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_adjust_nr_reclaimed);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_remove_mapping_failed);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mmc_blk_reset);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mmc_attach_sd);
@@ -567,6 +567,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_cma_alloc_lat_start);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_cma_alloc_lat_end);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_dma_heap_buffer_alloc_lat_start);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_dma_heap_buffer_alloc_lat_end);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_dma_buf_release);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_read_swap_cache_async_timeout);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_folio_add_lru_folio_activate);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_folio_end_writeback);
@@ -587,3 +588,9 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_lock_task_fork);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_lock_task_exit);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mutex_wakeup_patch);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_rwsem_wakeup_patch);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_folio_alloc_swap_bypass);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_pick_swap_device_bypass);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_check_swap_range_free);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_free_swap_slot_bypass);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_swap_device_swapon);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_swap_device_swapoff);

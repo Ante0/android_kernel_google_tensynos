@@ -1,12 +1,15 @@
 # SPDX-License-Identifier: GPL-2.0
 # Copyright (C) 2021 The Android Open Source Project
 
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
 load("//build/kernel/kleaf:common_kernels.bzl", "define_common_kernels")
 load("//build/kernel/kleaf:constants.bzl", "X86_64_OUTS")
+load("//build/kernel/kleaf:hermetic_tools.bzl", "hermetic_genrule")
 load(
     "//build/kernel/kleaf:kernel.bzl",
+    "android_filegroup",
     "checkpatch",
     "ddk_headers",
     "kernel_abi",
@@ -16,6 +19,7 @@ load(
     "kernel_modules_install",
     "merged_kernel_uapi_headers",
 )
+load(":abi.bzl", "cc_binary_with_abi")
 load(":modules.bzl", "get_gki_modules_list")
 
 package(
@@ -1015,4 +1019,143 @@ ddk_headers(
     # Unsafe include directories are appended to ccflags-y.
     includes = [],
     visibility = ["//visibility:private"],
+)
+
+# Kselftests
+#
+# tests.zip has the same layout as on android15-6.6 and later, so the same
+# TradeFed module (selftests) can run it:
+#   testcases/selftests/selftests.config
+#   testcases/selftests/<arch>/<test binaries>
+#
+# Build it with e.g.:
+#   tools/bazel run //common:tests_zip_arm64_dist
+
+_KSELFTEST_DIR = "testcases/selftests"
+
+_KSELFTEST_COPTS = [
+    "-O3",
+    "-pthread",
+    "-std=gnu99",
+]
+
+config_setting(
+    name = "android_arm64",
+    constraint_values = [
+        "@platforms//os:android",
+        "@platforms//cpu:arm64",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+config_setting(
+    name = "android_x86_64",
+    constraint_values = [
+        "@platforms//os:android",
+        "@platforms//cpu:x86_64",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+cc_library(
+    name = "kselftest_headers_lib",
+    hdrs = glob(["tools/testing/selftests/*.h"]),
+    copts = _KSELFTEST_COPTS,
+    defines = [
+        "_GNU_SOURCE=",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_wrapfd_test",
+    srcs = [
+        "include/uapi/linux/wrapfd.h",
+        "tools/include/linux/align.h",
+        "tools/include/uapi/linux/const.h",
+        "tools/testing/selftests/drivers/wrapfd/wrapfd.c",
+    ],
+    copts = _KSELFTEST_COPTS,
+    includes = [
+        "include/uapi",
+        "tools/include",
+        "tools/testing/selftests",
+    ],
+    linkopts = ["-static"],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+copy_file(
+    name = "kselftest_gen_config",
+    src = select({
+        ":android_arm64": "tools/testing/selftests/android/config_arm64.xml",
+        ":android_x86_64": "tools/testing/selftests/android/config_x86_64.xml",
+    }),
+    out = _KSELFTEST_DIR + "/selftests.config",
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+)
+
+android_filegroup(
+    name = "kselftest_tests_arm64",
+    srcs = [
+        ":kselftest_gen_config",
+        ":kselftest_wrapfd_test_arm64",
+    ],
+    cpu = "arm64",
+    visibility = ["//visibility:private"],
+)
+
+android_filegroup(
+    name = "kselftest_tests_x86_64",
+    srcs = [
+        ":kselftest_gen_config",
+        ":kselftest_wrapfd_test_x86_64",
+    ],
+    cpu = "x86_64",
+    visibility = ["//visibility:private"],
+)
+
+# rules_pkg is not available, so call soong_zip directly. Each file is added
+# relative to the directory containing testcases/, which gives the same paths
+# as pkg_files(strip_prefix = strip_prefix.from_pkg()) on android15-6.6.
+_TESTS_ZIP_CMD = """
+    args=""
+    for f in $(SRCS); do
+        args="$$args -C $${f%/testcases/*} -f $$f"
+    done
+    soong_zip -d -symlinks=false -o $@ $$args
+"""
+
+hermetic_genrule(
+    name = "tests_zip_arm64",
+    srcs = [":kselftest_tests_arm64"],
+    outs = ["arm64/tests.zip"],
+    cmd = _TESTS_ZIP_CMD,
+    visibility = ["//visibility:public"],
+)
+
+hermetic_genrule(
+    name = "tests_zip_x86_64",
+    srcs = [":kselftest_tests_x86_64"],
+    outs = ["x86_64/tests.zip"],
+    cmd = _TESTS_ZIP_CMD,
+    visibility = ["//visibility:public"],
+)
+
+copy_to_dist_dir(
+    name = "tests_zip_arm64_dist",
+    data = [":tests_zip_arm64"],
+    dist_dir = "out/tests_arm64/dist",
+    flat = True,
+)
+
+copy_to_dist_dir(
+    name = "tests_zip_x86_64_dist",
+    data = [":tests_zip_x86_64"],
+    dist_dir = "out/tests_x86_64/dist",
+    flat = True,
 )

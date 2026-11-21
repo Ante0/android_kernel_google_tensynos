@@ -133,6 +133,10 @@ DECLARE_HOOK(android_vh_exit_check,
 	TP_PROTO(struct task_struct *p),
 	TP_ARGS(p));
 
+DECLARE_RESTRICTED_HOOK(android_rvh_exit_read_taskinfo,
+	TP_PROTO(struct task_struct *p),
+	TP_ARGS(p), 1);
+
 DECLARE_HOOK(android_vh_freeze_whether_wake,
 	TP_PROTO(struct task_struct *t, bool *wake),
 	TP_ARGS(t, wake));

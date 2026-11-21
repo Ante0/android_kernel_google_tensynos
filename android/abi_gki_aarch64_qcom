@@ -619,6 +619,7 @@
   devm_gh_rm_register_platform_ops
   devm_gpiochip_add_data_with_key
   devm_gpiod_get
+  devm_gpiod_get_from_of_node
   devm_gpiod_get_optional
   devm_gpiod_put
   devm_gpio_request_one
@@ -2929,6 +2930,7 @@
   rproc_report_crash
   rproc_set_firmware
   rproc_shutdown
+  rtc_add_group
   rtc_time64_to_tm
   rtc_tm_to_time64
   rtc_update_irq

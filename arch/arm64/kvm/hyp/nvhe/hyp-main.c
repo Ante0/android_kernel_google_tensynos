@@ -31,7 +31,7 @@
 
 #include "../../sys_regs.h"
 
-__visible DEFINE_PER_CPU(struct kvm_nvhe_init_params, kvm_init_params);
+DEFINE_PER_CPU(struct kvm_nvhe_init_params, kvm_init_params);
 
 void __kvm_hyp_host_forward_smc(struct kvm_cpu_context *host_ctxt);
 
@@ -1364,6 +1364,7 @@ static void handle_host_hcall(struct kvm_cpu_context *host_ctxt)
 	if (static_branch_unlikely(&kvm_protected_mode_initialized))
 		hcall_min = __KVM_HOST_SMCCC_FUNC___pkvm_prot_finalize;
 
+	id &= ~ARM_SMCCC_CALL_HINTS;
 	id -= KVM_HOST_SMCCC_ID(0);
 
 	if (unlikely(id < hcall_min || id >= ARRAY_SIZE(host_hcall)))
@@ -1389,9 +1390,11 @@ static void handle_host_smc(struct kvm_cpu_context *host_ctxt)
 	DECLARE_REG(u64, func_id, host_ctxt, 0);
 	bool handled;
 
-	handled = kvm_host_psci_handler(host_ctxt);
+	func_id &= ~ARM_SMCCC_CALL_HINTS;
+
+	handled = kvm_host_psci_handler(host_ctxt, func_id);
 	if (!handled)
-		handled = kvm_host_ffa_handler(host_ctxt);
+		handled = kvm_host_ffa_handler(host_ctxt, func_id);
 	if (!handled && smp_load_acquire(&default_host_smc_handler))
 		handled = default_host_smc_handler(host_ctxt);
 

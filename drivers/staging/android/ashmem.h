@@ -22,4 +22,6 @@
 #define COMPAT_ASHMEM_GET_FILE_ID	_IOR(__ASHMEMIOC, 11, compat_uptr_t)
 #endif
 
+int is_ashmem_file(struct file *file);
+
 #endif	/* _LINUX_ASHMEM_H */

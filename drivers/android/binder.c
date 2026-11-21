@@ -137,7 +137,6 @@ static int binder_set_stop_on_user_error(const char *val,
 module_param_call(stop_on_user_error, binder_set_stop_on_user_error,
 	param_get_int, &binder_stop_on_user_error, 0644);
 
-#ifdef DEBUG
 static __printf(2, 3) void binder_debug(int mask, const char *format, ...)
 {
 	struct va_format vaf;
@@ -151,16 +150,10 @@ static __printf(2, 3) void binder_debug(int mask, const char *format, ...)
 		va_end(args);
 	}
 }
-#else
-static inline void binder_debug(uint32_t mask, const char *fmt, ...)
-{
-}
-#endif
 
 #define binder_txn_error(x...) \
 	binder_debug(BINDER_DEBUG_FAILED_TRANSACTION, x)
 
-#ifdef DEBUG
 static __printf(1, 2) void binder_user_error(const char *format, ...)
 {
 	struct va_format vaf;
@@ -177,13 +170,6 @@ static __printf(1, 2) void binder_user_error(const char *format, ...)
 	if (binder_stop_on_user_error)
 		binder_stop_on_user_error = 2;
 }
-#else
-static inline void binder_user_error(const char *fmt, ...)
-{
-	if (binder_stop_on_user_error)
-		binder_stop_on_user_error = 2;
-}
-#endif
 
 #define binder_set_extended_error(ee, _id, _command, _param) \
 	do { \
@@ -6669,7 +6655,7 @@ static void print_binder_transaction_ilocked(struct seq_file *m,
 		seq_printf(m, " node %d", buffer->target_node->debug_id);
 	seq_printf(m, " size %zd:%zd offset %tx\n",
 		   buffer->data_size, buffer->offsets_size,
-		   proc->alloc.buffer - buffer->user_data);
+		   buffer->user_data - proc->alloc.buffer);
 }
 
 static void print_binder_work_ilocked(struct seq_file *m,

@@ -50,6 +50,10 @@ static inline struct task_struct *rt_mutex_get_top_task(struct task_struct *task
 extern void normalize_rt_tasks(void);
 
 
+#ifdef CONFIG_RT_SOFTIRQ_AWARE_SCHED
+extern bool local_rt_runnable(void);
+#endif
+
 /*
  * default timeslice is 100 msecs (used only for SCHED_RR tasks).
  * Timeslices get refilled after they expire.

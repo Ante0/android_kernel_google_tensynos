@@ -372,6 +372,13 @@ lookup_mode=%s		 Control the directory lookup behavior for casefolded
 					    on-disk `SB_ENC_NO_COMPAT_FALLBACK_FL`
 					    flag.
 			 ================== ========================================
+resizable_tail_secno=%u  Control the number of sections at the tail of the
+			 filesystem reserved for online resizing. Pinned files
+			 will only be allocated within sections 0 to
+			 (MAIN_SECS - resizable_tail_secno) - 1. If set to 0
+			 (default), there is no tail restriction unless running
+			 on a zoned block device where conventional zones are
+			 used.
 ======================== ============================================================
 
 Debugfs Entries
