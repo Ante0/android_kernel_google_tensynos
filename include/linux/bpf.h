@@ -328,7 +328,10 @@ static inline void __copy_map_value(struct bpf_map *map, void *dst, void *src, b
 		memcpy(dst + curr_off, src + curr_off, next_off - curr_off);
 		curr_off = next_off + map->off_arr->field_sz[i];
 	}
-	memcpy(dst + curr_off, src + curr_off, map->value_size - curr_off);
+	if (long_memcpy)
+		memcpy(dst + curr_off, src + curr_off, round_up(map->value_size, 8) - curr_off);
+	else
+		memcpy(dst + curr_off, src + curr_off, map->value_size - curr_off);
 }
 
 static inline void copy_map_value(struct bpf_map *map, void *dst, void *src)
@@ -995,6 +998,8 @@ struct bpf_trampoline *bpf_trampoline_get(u64 key,
 void bpf_trampoline_put(struct bpf_trampoline *tr);
 int arch_prepare_bpf_dispatcher(void *image, void *buf, s64 *funcs, int num_funcs);
 
+void bpf_trampoline_set_flags(struct bpf_trampoline *tr, u32 flags);
+
 /*
  * When the architecture supports STATIC_CALL replace the bpf_dispatcher_fn
  * indirection with a direct call to the bpf program. If the architecture does
@@ -1100,6 +1105,7 @@ static inline bool bpf_prog_has_trampoline(const struct bpf_prog *prog)
 {
 	return false;
 }
+static inline void bpf_trampoline_set_flags(struct bpf_trampoline *tr, u32 flags) {}
 #endif
 
 struct bpf_func_info_aux {
@@ -1691,6 +1697,9 @@ out:
 	return ret;
 }
 
+#define bpf_rcu_lock_held() \
+	(rcu_read_lock_held() || rcu_read_lock_trace_held() || rcu_read_lock_bh_held())
+
 #ifdef CONFIG_BPF_SYSCALL
 DECLARE_PER_CPU(int, bpf_prog_active);
 extern struct mutex bpf_stats_enabled_mutex;
@@ -1755,6 +1764,7 @@ struct bpf_map *bpf_map_get_with_uref(u32 ufd);
 struct bpf_map *__bpf_map_get(struct fd f);
 void bpf_map_inc(struct bpf_map *map);
 void bpf_map_inc_with_uref(struct bpf_map *map);
+struct bpf_map *__bpf_map_inc_not_zero(struct bpf_map *map, bool uref);
 struct bpf_map * __must_check bpf_map_inc_not_zero(struct bpf_map *map);
 void bpf_map_put_with_uref(struct bpf_map *map);
 void bpf_map_put(struct bpf_map *map);

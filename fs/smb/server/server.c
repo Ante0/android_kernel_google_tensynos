@@ -195,6 +195,12 @@ static void __handle_ksmbd_work(struct ksmbd_work *work,
 				else
 					conn->ops->set_rsp_status(work,
 						STATUS_USER_SESSION_DELETED);
+				if (conn->ops->is_sign_req(work, conn->ops->get_cmd_val(work))) {
+					struct smb2_hdr *rsp_hdr;
+
+					rsp_hdr = ksmbd_resp_buf_curr(work);
+					rsp_hdr->Flags |= SMB2_FLAGS_SIGNED;
+				}
 				goto send;
 			} else if (rc > 0) {
 				rc = conn->ops->get_ksmbd_tcon(work);
@@ -238,6 +244,20 @@ static void __handle_ksmbd_work(struct ksmbd_work *work,
 	} while (is_chained == true);
 
 send:
+	/*
+	 * Release any credit charge still outstanding for this request.  On
+	 * the normal path smb2_set_rsp_credits() already returned it, but the
+	 * abort, error and send-no-response paths skip that call, so the
+	 * charge would otherwise leak and eventually exhaust the connection's
+	 * outstanding credit window.
+	 */
+	if (work->credit_charge) {
+		spin_lock(&conn->credits_lock);
+		conn->outstanding_credits -= work->credit_charge;
+		work->credit_charge = 0;
+		spin_unlock(&conn->credits_lock);
+	}
+
 	if (work->tcon)
 		ksmbd_tree_connect_put(work->tcon);
 	smb3_preauth_hash_rsp(work);
@@ -270,13 +290,8 @@ static void handle_ksmbd_work(struct work_struct *wk)
 
 	ksmbd_conn_try_dequeue_request(work);
 	ksmbd_free_work_struct(work);
-	/*
-	 * Checking waitqueue to dropping pending requests on
-	 * disconnection. waitqueue_active is safe because it
-	 * uses atomic operation for condition.
-	 */
-	if (!atomic_dec_return(&conn->r_count) && waitqueue_active(&conn->r_count_q))
-		wake_up(&conn->r_count_q);
+	atomic_dec(&conn->mux_smb_requests);
+	ksmbd_conn_r_count_dec(conn);
 }
 
 /**
@@ -291,6 +306,15 @@ static int queue_ksmbd_work(struct ksmbd_conn *conn)
 	struct ksmbd_work *work;
 	int err;
 
+	err = ksmbd_init_smb_server(conn);
+	if (err)
+		return 0;
+
+	if (atomic_inc_return(&conn->mux_smb_requests) >= conn->vals->max_credits) {
+		atomic_dec_return(&conn->mux_smb_requests);
+		return -ENOSPC;
+	}
+
 	work = ksmbd_alloc_work_struct();
 	if (!work) {
 		pr_err("allocation for work failed\n");
@@ -301,14 +325,8 @@ static int queue_ksmbd_work(struct ksmbd_conn *conn)
 	work->request_buf = conn->request_buf;
 	conn->request_buf = NULL;
 
-	err = ksmbd_init_smb_server(work);
-	if (err) {
-		ksmbd_free_work_struct(work);
-		return 0;
-	}
-
 	ksmbd_conn_enqueue_request(work);
-	atomic_inc(&conn->r_count);
+	ksmbd_conn_r_count_inc(conn);
 	/* update activity on connection */
 	conn->last_active = jiffies;
 	INIT_WORK(&work->work, handle_ksmbd_work);

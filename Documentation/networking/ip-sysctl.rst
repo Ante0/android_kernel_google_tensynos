@@ -717,6 +717,8 @@ tcp_rmem - vector of 3 INTEGERs: min, default, max
 	case this value is ignored.
 	Default: between 131072 and 6MB, depending on RAM size.
 
+	Each of the three values cannot be set below 4096.
+
 tcp_sack - BOOLEAN
 	Enable select acknowledgments (SACKS).
 
@@ -1983,6 +1985,12 @@ nexthop_compat_mode - BOOLEAN
 	understands the new API, this sysctl can be disabled to achieve full
 	performance benefits of the new API by disabling the nexthop expansion
 	and extraneous notifications.
+
+	Note that as a backward-compatible mode, dumping of modern features
+	might be incomplete or wrong. For example, resilient groups will not be
+	shown as such, but rather as just a list of next hops. Also weights that
+	do not fit into 8 bits will show incorrectly.
+
 	Default: true (backward compat mode)
 
 fib_notify_on_flag_change - INTEGER

@@ -345,7 +345,7 @@ static int add_direct_chain(struct mlx5_vdpa_dev *mvdev, u64 start, u64 size, u8
 	return 0;
 
 err_alloc:
-	list_for_each_entry_safe(dmr, n, &mr->head, list) {
+	list_for_each_entry_safe(dmr, n, &tmp, list) {
 		list_del_init(&dmr->list);
 		unmap_direct_mr(mvdev, dmr);
 		kfree(dmr);
@@ -561,6 +561,9 @@ static int _mlx5_vdpa_create_dvq_mr(struct mlx5_vdpa_dev *mvdev,
 
 	if (mr->initialized)
 		return 0;
+
+	if (mlx5_vdpa_max_iotlb_entries < 2)
+		return -EINVAL;
 
 	if (iotlb)
 		err = create_user_mr(mvdev, iotlb);

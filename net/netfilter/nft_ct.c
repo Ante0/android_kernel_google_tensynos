@@ -88,7 +88,7 @@ static void nft_ct_get_eval(const struct nft_expr *expr,
 		break;
 	}
 
-	if (ct == NULL)
+	if (!ct || nf_ct_is_template(ct))
 		goto err;
 
 	switch (priv->key) {
@@ -190,12 +190,10 @@ static void nft_ct_get_eval(const struct nft_expr *expr,
 	tuple = &ct->tuplehash[priv->dir].tuple;
 	switch (priv->key) {
 	case NFT_CT_SRC:
-		memcpy(dest, tuple->src.u3.all,
-		       nf_ct_l3num(ct) == NFPROTO_IPV4 ? 4 : 16);
+		memcpy(dest, tuple->src.u3.all, priv->len);
 		return;
 	case NFT_CT_DST:
-		memcpy(dest, tuple->dst.u3.all,
-		       nf_ct_l3num(ct) == NFPROTO_IPV4 ? 4 : 16);
+		memcpy(dest, tuple->dst.u3.all, priv->len);
 		return;
 	case NFT_CT_PROTO_SRC:
 		nft_reg_store16(dest, (__force u16)tuple->src.u.all);
@@ -621,7 +619,7 @@ static int nft_ct_set_init(const struct nft_ctx *ctx,
 	}
 
 	priv->len = len;
-	err = nft_parse_register_load(tb[NFTA_CT_SREG], &priv->sreg, len);
+	err = nft_parse_register_load(ctx, tb[NFTA_CT_SREG], &priv->sreg, len);
 	if (err < 0)
 		goto err1;
 
@@ -651,7 +649,8 @@ static void nft_ct_set_destroy(const struct nft_ctx *ctx,
 	nf_ct_netns_put(ctx->net, ctx->family);
 }
 
-static int nft_ct_get_dump(struct sk_buff *skb, const struct nft_expr *expr)
+static int nft_ct_get_dump(struct sk_buff *skb,
+			   const struct nft_expr *expr, bool reset)
 {
 	const struct nft_ct *priv = nft_expr_priv(expr);
 
@@ -713,7 +712,8 @@ static bool nft_ct_get_reduce(struct nft_regs_track *track,
 	return nft_expr_reduce_bitwise(track, expr);
 }
 
-static int nft_ct_set_dump(struct sk_buff *skb, const struct nft_expr *expr)
+static int nft_ct_set_dump(struct sk_buff *skb,
+			   const struct nft_expr *expr, bool reset)
 {
 	const struct nft_ct *priv = nft_expr_priv(expr);
 
@@ -910,8 +910,6 @@ static void nft_ct_timeout_obj_eval(struct nft_object *obj,
 		}
 	}
 
-	rcu_assign_pointer(timeout->timeout, priv->timeout);
-
 	/* adjust the timeout as per 'new' state. ct is unconfirmed,
 	 * so the current timestamp must not be added.
 	 */
@@ -962,6 +960,7 @@ static int nft_ct_timeout_obj_init(const struct nft_ctx *ctx,
 
 	timeout->l3num = l3num;
 	timeout->l4proto = l4proto;
+	refcount_set(&timeout->refcnt, 1);
 
 	ret = nf_ct_netns_get(ctx->net, ctx->family);
 	if (ret < 0)
@@ -982,10 +981,10 @@ static void nft_ct_timeout_obj_destroy(const struct nft_ctx *ctx,
 	struct nft_ct_timeout_obj *priv = nft_obj_data(obj);
 	struct nf_ct_timeout *timeout = priv->timeout;
 
-	nf_queue_nf_hook_drop(ctx->net);
 	nf_ct_untimeout(ctx->net, timeout);
 	nf_ct_netns_put(ctx->net, ctx->family);
-	kfree_rcu(priv->timeout, rcu);
+	if (refcount_dec_and_test(&timeout->refcnt))
+		kfree_rcu(priv->timeout, rcu);
 }
 
 static int nft_ct_timeout_obj_dump(struct sk_buff *skb,

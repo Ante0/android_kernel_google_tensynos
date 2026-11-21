@@ -106,26 +106,20 @@ static void inet6_sk_rx_dst_set(struct sock *sk, const struct sk_buff *skb)
 	struct dst_entry *dst = skb_dst(skb);
 
 	if (dst && dst_hold_safe(dst)) {
-		const struct rt6_info *rt = (const struct rt6_info *)dst;
-
 		rcu_assign_pointer(sk->sk_rx_dst, dst);
 		sk->sk_rx_dst_ifindex = skb->skb_iif;
-		sk->sk_rx_dst_cookie = rt6_get_cookie(rt);
+		sk->sk_rx_dst_cookie = rt6_get_cookie(dst_rt6_info(dst));
 	}
 }
 
-static u32 tcp_v6_init_seq(const struct sk_buff *skb)
+static union tcp_seq_and_ts_off
+tcp_v6_init_seq_and_ts_off(const struct net *net, const struct sk_buff *skb)
 {
-	return secure_tcpv6_seq(ipv6_hdr(skb)->daddr.s6_addr32,
-				ipv6_hdr(skb)->saddr.s6_addr32,
-				tcp_hdr(skb)->dest,
-				tcp_hdr(skb)->source);
-}
-
-static u32 tcp_v6_init_ts_off(const struct net *net, const struct sk_buff *skb)
-{
-	return secure_tcpv6_ts_off(net, ipv6_hdr(skb)->daddr.s6_addr32,
-				   ipv6_hdr(skb)->saddr.s6_addr32);
+	return secure_tcpv6_seq_and_ts_off(net,
+					   ipv6_hdr(skb)->daddr.s6_addr32,
+					   ipv6_hdr(skb)->saddr.s6_addr32,
+					   tcp_hdr(skb)->dest,
+					   tcp_hdr(skb)->source);
 }
 
 static int tcp_v6_pre_connect(struct sock *sk, struct sockaddr *uaddr,
@@ -325,14 +319,16 @@ static int tcp_v6_connect(struct sock *sk, struct sockaddr *uaddr,
 	sk_set_txhash(sk);
 
 	if (likely(!tp->repair)) {
+		union tcp_seq_and_ts_off st;
+
+		st = secure_tcpv6_seq_and_ts_off(net,
+						 np->saddr.s6_addr32,
+						 sk->sk_v6_daddr.s6_addr32,
+						 inet->inet_sport,
+						 inet->inet_dport);
 		if (!tp->write_seq)
-			WRITE_ONCE(tp->write_seq,
-				   secure_tcpv6_seq(np->saddr.s6_addr32,
-						    sk->sk_v6_daddr.s6_addr32,
-						    inet->inet_sport,
-						    inet->inet_dport));
-		tp->tsoffset = secure_tcpv6_ts_off(net, np->saddr.s6_addr32,
-						   sk->sk_v6_daddr.s6_addr32);
+			WRITE_ONCE(tp->write_seq, st.seq);
+		tp->tsoffset = st.ts_off;
 	}
 
 	if (tcp_fastopen_defer_connect(sk, &err))
@@ -839,8 +835,7 @@ const struct tcp_request_sock_ops tcp_request_sock_ipv6_ops = {
 	.cookie_init_seq =	cookie_v6_init_sequence,
 #endif
 	.route_req	=	tcp_v6_route_req,
-	.init_seq	=	tcp_v6_init_seq,
-	.init_ts_off	=	tcp_v6_init_ts_off,
+	.init_seq_and_ts_off	= tcp_v6_init_seq_and_ts_off,
 	.send_synack	=	tcp_v6_send_synack,
 };
 
@@ -1353,7 +1348,7 @@ static struct sock *tcp_v6_syn_recv_sock(const struct sock *sk, struct sk_buff *
 	tcp_ca_openreq_child(newsk, dst);
 
 	tcp_sync_mss(newsk, dst_mtu(dst));
-	newtp->advmss = tcp_mss_clamp(tcp_sk(sk), dst_metric_advmss(dst));
+	newtp->advmss = tcp_mss_clamp(tcp_sk(sk), tcp_dst_advmss(dst));
 
 	tcp_initialize_rcv_mss(newsk);
 
@@ -1464,7 +1459,8 @@ int tcp_v6_do_rcv(struct sock *sk, struct sk_buff *skb)
 	   by tcp. Feel free to propose better solution.
 					       --ANK (980728)
 	 */
-	if (np->rxopt.all && sk->sk_state != TCP_LISTEN)
+	if (np->rxopt.all &&
+	    !((1 << sk->sk_state) & (TCPF_LISTEN | TCPF_CLOSE)))
 		opt_skb = skb_clone_and_charge_r(skb, sk);
 
 	reason = SKB_DROP_REASON_NOT_SPECIFIED;

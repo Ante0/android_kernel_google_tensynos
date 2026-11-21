@@ -675,6 +675,9 @@ ip6ip6_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
 		if (!skb2)
 			return 0;
 
+		/* Remove debris left by outer IPv6 stack. */
+		memset(IP6CB(skb2), 0, sizeof(*IP6CB(skb2)));
+
 		skb_dst_drop(skb2);
 		skb_pull(skb2, offset);
 		skb_reset_network_header(skb2);
@@ -808,8 +811,8 @@ static int __ip6_tnl_rcv(struct ip6_tnl *tunnel, struct sk_buff *skb,
 	     (tunnel->parms.i_flags & TUNNEL_CSUM)) ||
 	    ((tpi->flags & TUNNEL_CSUM) &&
 	     !(tunnel->parms.i_flags & TUNNEL_CSUM))) {
-		tunnel->dev->stats.rx_crc_errors++;
-		tunnel->dev->stats.rx_errors++;
+		DEV_STATS_INC(tunnel->dev, rx_crc_errors);
+		DEV_STATS_INC(tunnel->dev, rx_errors);
 		goto drop;
 	}
 
@@ -817,8 +820,8 @@ static int __ip6_tnl_rcv(struct ip6_tnl *tunnel, struct sk_buff *skb,
 		if (!(tpi->flags & TUNNEL_SEQ) ||
 		    (tunnel->i_seqno &&
 		     (s32)(ntohl(tpi->seq) - tunnel->i_seqno) < 0)) {
-			tunnel->dev->stats.rx_fifo_errors++;
-			tunnel->dev->stats.rx_errors++;
+			DEV_STATS_INC(tunnel->dev, rx_fifo_errors);
+			DEV_STATS_INC(tunnel->dev, rx_errors);
 			goto drop;
 		}
 		tunnel->i_seqno = ntohl(tpi->seq) + 1;
@@ -829,8 +832,8 @@ static int __ip6_tnl_rcv(struct ip6_tnl *tunnel, struct sk_buff *skb,
 	/* Warning: All skb pointers will be invalidated! */
 	if (tunnel->dev->type == ARPHRD_ETHER) {
 		if (!pskb_may_pull(skb, ETH_HLEN)) {
-			tunnel->dev->stats.rx_length_errors++;
-			tunnel->dev->stats.rx_errors++;
+			DEV_STATS_INC(tunnel->dev, rx_length_errors);
+			DEV_STATS_INC(tunnel->dev, rx_errors);
 			goto drop;
 		}
 
@@ -869,8 +872,8 @@ static int __ip6_tnl_rcv(struct ip6_tnl *tunnel, struct sk_buff *skb,
 					     &ipv6h->saddr,
 					     ipv6_get_dsfield(ipv6h));
 		if (err > 1) {
-			++tunnel->dev->stats.rx_frame_errors;
-			++tunnel->dev->stats.rx_errors;
+			DEV_STATS_INC(tunnel->dev, rx_frame_errors);
+			DEV_STATS_INC(tunnel->dev, rx_errors);
 			goto drop;
 		}
 	}
@@ -1091,7 +1094,6 @@ int ip6_tnl_xmit(struct sk_buff *skb, struct net_device *dev, __u8 dsfield,
 {
 	struct ip6_tnl *t = netdev_priv(dev);
 	struct net *net = t->net;
-	struct net_device_stats *stats = &t->dev->stats;
 	struct ipv6hdr *ipv6h;
 	struct ipv6_tel_txoption opt;
 	struct dst_entry *dst = NULL, *ndst = NULL;
@@ -1186,7 +1188,7 @@ route_lookup:
 	tdev = dst->dev;
 
 	if (tdev == dev) {
-		stats->collisions++;
+		DEV_STATS_INC(dev, collisions);
 		net_warn_ratelimited("%s: Local routing loop detected!\n",
 				     t->parms.name);
 		goto tx_err_dst_release;
@@ -1224,19 +1226,8 @@ route_lookup:
 	 */
 	max_headroom += LL_RESERVED_SPACE(tdev);
 
-	if (skb_headroom(skb) < max_headroom || skb_shared(skb) ||
-	    (skb_cloned(skb) && !skb_clone_writable(skb, 0))) {
-		struct sk_buff *new_skb;
-
-		new_skb = skb_realloc_headroom(skb, max_headroom);
-		if (!new_skb)
-			goto tx_err_dst_release;
-
-		if (skb->sk)
-			skb_set_owner_w(new_skb, skb->sk);
-		consume_skb(skb);
-		skb = new_skb;
-	}
+	if (skb_cow_head(skb, max_headroom))
+		goto tx_err_dst_release;
 
 	if (t->parms.collect_md) {
 		if (t->encap.type != TUNNEL_ENCAP_NONE)
@@ -1284,7 +1275,7 @@ route_lookup:
 	ip6tunnel_xmit(NULL, skb, dev);
 	return 0;
 tx_err_link_failure:
-	stats->tx_carrier_errors++;
+	DEV_STATS_INC(dev, tx_carrier_errors);
 	dst_link_failure(skb);
 tx_err_dst_release:
 	dst_release(dst);
@@ -1427,7 +1418,6 @@ static netdev_tx_t
 ip6_tnl_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct ip6_tnl *t = netdev_priv(dev);
-	struct net_device_stats *stats = &t->dev->stats;
 	u8 ipproto;
 	int ret;
 
@@ -1457,8 +1447,8 @@ ip6_tnl_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	return NETDEV_TX_OK;
 
 tx_err:
-	stats->tx_errors++;
-	stats->tx_dropped++;
+	DEV_STATS_INC(dev, tx_errors);
+	DEV_STATS_INC(dev, tx_dropped);
 	kfree_skb(skb);
 	return NETDEV_TX_OK;
 }
@@ -1514,8 +1504,11 @@ static void ip6_tnl_link_config(struct ip6_tnl *t)
 			tdev = __dev_get_by_index(t->net, p->link);
 
 		if (tdev) {
-			dev->needed_headroom = tdev->hard_header_len +
-				tdev->needed_headroom + t_hlen;
+			unsigned int headroom;
+
+			headroom = tdev->hard_header_len + tdev->needed_headroom;
+			headroom += t_hlen;
+			dev->needed_headroom = ip_tunnel_limit_headroom(headroom);
 			mtu = min_t(unsigned int, tdev->mtu, IP6_MAX_MTU);
 
 			mtu = mtu - t_hlen;
@@ -2056,6 +2049,9 @@ static int ip6_tnl_changelink(struct net_device *dev, struct nlattr *tb[],
 	struct net *net = t->net;
 	struct ip6_tnl_net *ip6n = net_generic(net, ip6_tnl_net_id);
 	struct ip_tunnel_encap ipencap;
+
+	if (!rtnl_dev_link_net_capable(dev, net))
+		return -EPERM;
 
 	if (dev == ip6n->fb_tnl_dev)
 		return -EINVAL;

@@ -163,9 +163,9 @@ int cifs_try_adding_channels(struct cifs_sb_info *cifs_sb, struct cifs_ses *ses)
 	int old_chan_count, new_chan_count;
 	int left;
 	int rc = 0;
-	int tries = 0;
+	int tries = 0, attempts;
 	size_t iface_weight = 0, iface_min_speed = 0;
-	struct cifs_server_iface *iface = NULL, *niface = NULL;
+	struct cifs_server_iface *iface = NULL, *candidate = NULL;
 	struct cifs_server_iface *last_iface = NULL;
 
 	spin_lock(&ses->chan_lock);
@@ -211,70 +211,150 @@ int cifs_try_adding_channels(struct cifs_sb_info *cifs_sb, struct cifs_ses *ses)
 			break;
 		}
 
-		if (!iface)
-			iface = list_first_entry(&ses->iface_list, struct cifs_server_iface,
-						 iface_head);
 		last_iface = list_last_entry(&ses->iface_list, struct cifs_server_iface,
 					     iface_head);
 		iface_min_speed = last_iface->speed;
+		spin_unlock(&ses->iface_lock);
 
-		list_for_each_entry_safe_from(iface, niface, &ses->iface_list,
-				    iface_head) {
-			/* do not mix rdma and non-rdma interfaces */
-			if (iface->rdma_capable != ses->server->rdma)
-				continue;
+		attempts = 0;
+		while (left > 0) {
+			spin_lock(&ses->iface_lock);
 
-			/* skip ifaces that are unusable */
-			if (!iface->is_active ||
-			    (is_ses_using_iface(ses, iface) &&
-			     !iface->rss_capable))
-				continue;
+			/*
+			 * iface_lock must be dropped while opening a channel,
+			 * and a concurrent interface refresh may remove and
+			 * free entries during that window, so no list entry
+			 * may be kept across it without a reference.  Scan
+			 * the list from the beginning each time and only pass
+			 * a referenced candidate to cifs_ses_add_channel();
+			 * weight_fulfilled tracks the progress so that no
+			 * iface is selected beyond its weight.
+			 */
+			candidate = NULL;
+			list_for_each_entry(iface, &ses->iface_list, iface_head) {
+				/* do not mix rdma and non-rdma interfaces */
+				if (iface->rdma_capable != ses->server->rdma)
+					continue;
 
-			/* check if we already allocated enough channels */
-			iface_weight = iface->speed / iface_min_speed;
+				/* skip ifaces that are unusable */
+				if (!iface->is_active ||
+				    (is_ses_using_iface(ses, iface) &&
+				     !iface->rss_capable))
+					continue;
 
-			if (iface->weight_fulfilled >= iface_weight)
-				continue;
+				/* check if we already allocated enough channels */
+				iface_weight = iface->speed / iface_min_speed;
 
-			/* take ref before unlock */
-			kref_get(&iface->refcount);
+				if (iface->weight_fulfilled >= iface_weight)
+					continue;
+
+				/* take ref before unlock */
+				kref_get(&iface->refcount);
+				candidate = iface;
+				break;
+			}
+
+			if (!candidate) {
+				/* no usable iface. reset weight_fulfilled and start over */
+				list_for_each_entry(iface, &ses->iface_list, iface_head)
+					iface->weight_fulfilled = 0;
+				spin_unlock(&ses->iface_lock);
+				break;
+			}
+
+			attempts++;
+			if (attempts > 3 * ses->chan_max) {
+				kref_put(&candidate->refcount, release_iface);
+				spin_unlock(&ses->iface_lock);
+				break;
+			}
 
 			spin_unlock(&ses->iface_lock);
-			rc = cifs_ses_add_channel(cifs_sb, ses, iface);
+			rc = cifs_ses_add_channel(cifs_sb, ses, candidate);
 			spin_lock(&ses->iface_lock);
 
 			if (rc) {
 				cifs_dbg(VFS, "failed to open extra channel on iface:%pIS rc=%d\n",
-					 &iface->sockaddr,
+					 &candidate->sockaddr,
 					 rc);
-				kref_put(&iface->refcount, release_iface);
 				/* failure to add chan should increase weight */
-				iface->weight_fulfilled++;
+				candidate->weight_fulfilled++;
+				kref_put(&candidate->refcount, release_iface);
+				spin_unlock(&ses->iface_lock);
 				continue;
 			}
 
-			iface->num_channels++;
-			iface->weight_fulfilled++;
+			candidate->num_channels++;
+			candidate->weight_fulfilled++;
 			cifs_dbg(VFS, "successfully opened new channel on iface:%pIS\n",
-				 &iface->sockaddr);
+				 &candidate->sockaddr);
+			spin_unlock(&ses->iface_lock);
+
+			left--;
+			new_chan_count++;
 			break;
 		}
-
-		/* reached end of list. reset weight_fulfilled and start over */
-		if (list_entry_is_head(iface, &ses->iface_list, iface_head)) {
-			list_for_each_entry(iface, &ses->iface_list, iface_head)
-				iface->weight_fulfilled = 0;
-			spin_unlock(&ses->iface_lock);
-			iface = NULL;
-			continue;
-		}
-		spin_unlock(&ses->iface_lock);
-
-		left--;
-		new_chan_count++;
 	}
 
 	return new_chan_count - old_chan_count;
+}
+
+/*
+ * called when multichannel is disabled by the server.
+ * this always gets called from smb2_reconnect
+ * and cannot get called in parallel threads.
+ */
+void
+cifs_disable_secondary_channels(struct cifs_ses *ses)
+{
+	int i, chan_count;
+	struct TCP_Server_Info *server;
+	struct cifs_server_iface *iface;
+
+	spin_lock(&ses->chan_lock);
+	chan_count = ses->chan_count;
+	if (chan_count == 1)
+		goto done;
+
+	ses->chan_count = 1;
+
+	/* for all secondary channels reset the need reconnect bit */
+	ses->chans_need_reconnect &= 1;
+
+	for (i = 1; i < chan_count; i++) {
+		iface = ses->chans[i].iface;
+		server = ses->chans[i].server;
+
+		/*
+		 * remove these references first, since we need to unlock
+		 * the chan_lock here, since iface_lock is a higher lock
+		 */
+		ses->chans[i].iface = NULL;
+		ses->chans[i].server = NULL;
+		spin_unlock(&ses->chan_lock);
+
+		if (iface) {
+			spin_lock(&ses->iface_lock);
+			kref_put(&iface->refcount, release_iface);
+			iface->num_channels--;
+			if (iface->weight_fulfilled)
+				iface->weight_fulfilled--;
+			spin_unlock(&ses->iface_lock);
+		}
+
+		if (server) {
+			if (!server->terminate) {
+				server->terminate = true;
+				cifs_signal_cifsd_for_reconnect(server, false);
+			}
+			cifs_put_tcp_session(server, false);
+		}
+
+		spin_lock(&ses->chan_lock);
+	}
+
+done:
+	spin_unlock(&ses->chan_lock);
 }
 
 /*
@@ -570,15 +650,10 @@ cifs_ses_add_channel(struct cifs_sb_info *cifs_sb, struct cifs_ses *ses,
 
 out:
 	if (rc && chan->server) {
-		/*
-		 * we should avoid race with these delayed works before we
-		 * remove this channel
-		 */
-		cancel_delayed_work_sync(&chan->server->echo);
-		cancel_delayed_work_sync(&chan->server->resolve);
-		cancel_delayed_work_sync(&chan->server->reconnect);
+		cifs_put_tcp_session(chan->server, 0);
 
 		spin_lock(&ses->chan_lock);
+
 		/* we rely on all bits beyond chan_count to be clear */
 		cifs_chan_clear_need_reconnect(ses, chan->server);
 		ses->chan_count--;
@@ -588,8 +663,6 @@ out:
 		 */
 		WARN_ON(ses->chan_count < 1);
 		spin_unlock(&ses->chan_lock);
-
-		cifs_put_tcp_session(chan->server, 0);
 	}
 
 	free_xid(xid);

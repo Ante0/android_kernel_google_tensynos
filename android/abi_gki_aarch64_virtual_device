@@ -584,6 +584,7 @@
   wake_up_bit
 
 # required by btusb.ko
+  baswap
   btbcm_set_bdaddr
   btbcm_setup_apple
   btbcm_setup_patchram
@@ -619,6 +620,7 @@
 
 # required by cfg80211.ko
   bpf_trace_run10
+  bpf_trace_run11
   bpf_trace_run7
   bpf_trace_run8
   __class_register

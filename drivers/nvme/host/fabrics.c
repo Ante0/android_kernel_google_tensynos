@@ -153,14 +153,14 @@ int nvmf_reg_read32(struct nvme_ctrl *ctrl, u32 off, u32 *val)
 	cmd.prop_get.offset = cpu_to_le32(off);
 
 	ret = __nvme_submit_sync_cmd(ctrl->fabrics_q, &cmd, &res, NULL, 0,
-			NVME_QID_ANY, 0, 0);
+			NVME_QID_ANY, 0, BLK_MQ_REQ_RESERVED);
 
 	if (ret >= 0)
 		*val = le64_to_cpu(res.u64);
 	if (unlikely(ret != 0))
 		dev_err(ctrl->device,
 			"Property Get error: %d, offset %#x\n",
-			ret > 0 ? ret & ~NVME_SC_DNR : ret, off);
+			ret > 0 ? ret & ~NVME_STATUS_DNR : ret, off);
 
 	return ret;
 }
@@ -199,14 +199,14 @@ int nvmf_reg_read64(struct nvme_ctrl *ctrl, u32 off, u64 *val)
 	cmd.prop_get.offset = cpu_to_le32(off);
 
 	ret = __nvme_submit_sync_cmd(ctrl->fabrics_q, &cmd, &res, NULL, 0,
-			NVME_QID_ANY, 0, 0);
+			NVME_QID_ANY, 0, BLK_MQ_REQ_RESERVED);
 
 	if (ret >= 0)
 		*val = le64_to_cpu(res.u64);
 	if (unlikely(ret != 0))
 		dev_err(ctrl->device,
 			"Property Get error: %d, offset %#x\n",
-			ret > 0 ? ret & ~NVME_SC_DNR : ret, off);
+			ret > 0 ? ret & ~NVME_STATUS_DNR : ret, off);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(nvmf_reg_read64);
@@ -244,11 +244,11 @@ int nvmf_reg_write32(struct nvme_ctrl *ctrl, u32 off, u32 val)
 	cmd.prop_set.value = cpu_to_le64(val);
 
 	ret = __nvme_submit_sync_cmd(ctrl->fabrics_q, &cmd, NULL, NULL, 0,
-			NVME_QID_ANY, 0, 0);
+			NVME_QID_ANY, 0, BLK_MQ_REQ_RESERVED);
 	if (unlikely(ret))
 		dev_err(ctrl->device,
 			"Property Set error: %d, offset %#x\n",
-			ret > 0 ? ret & ~NVME_SC_DNR : ret, off);
+			ret > 0 ? ret & ~NVME_STATUS_DNR : ret, off);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(nvmf_reg_write32);
@@ -283,7 +283,7 @@ static void nvmf_log_connect_error(struct nvme_ctrl *ctrl,
 		int errval, int offset, struct nvme_command *cmd,
 		struct nvmf_connect_data *data)
 {
-	int err_sctype = errval & ~NVME_SC_DNR;
+	int err_sctype = errval & ~NVME_STATUS_DNR;
 
 	if (errval < 0) {
 		dev_err(ctrl->device,
@@ -898,6 +898,7 @@ static int nvmf_parse_options(struct nvmf_ctrl_options *opts,
 			}
 			if (strlen(p) < 11 || strncmp(p, "DHHC-1:", 7)) {
 				pr_err("Invalid DH-CHAP secret %s\n", p);
+				kfree_sensitive(p);
 				ret = -EINVAL;
 				goto out;
 			}
@@ -912,6 +913,7 @@ static int nvmf_parse_options(struct nvmf_ctrl_options *opts,
 			}
 			if (strlen(p) < 11 || strncmp(p, "DHHC-1:", 7)) {
 				pr_err("Invalid DH-CHAP secret %s\n", p);
+				kfree_sensitive(p);
 				ret = -EINVAL;
 				goto out;
 			}

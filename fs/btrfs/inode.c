@@ -63,9 +63,11 @@ struct btrfs_iget_args {
 
 struct btrfs_dio_data {
 	ssize_t submitted;
+	loff_t old_isize;
 	struct extent_changeset *data_reserved;
 	bool data_space_reserved;
 	bool nocow_done;
+	bool updated_isize;
 };
 
 struct btrfs_dio_private {
@@ -1264,6 +1266,17 @@ static noinline int cow_file_range(struct btrfs_inode *inode,
 	alloc_hint = get_extent_allocation_hint(inode, start, num_bytes);
 
 	/*
+	 * We're not doing compressed IO, don't unlock the first page (which
+	 * the caller expects to stay locked), don't clear any dirty bits and
+	 * don't set any writeback bits.
+	 *
+	 * Do set the Ordered (Private2) bit so we know this page was properly
+	 * setup for writepage.
+	 */
+	page_ops = unlock ? PAGE_UNLOCK : 0;
+	page_ops |= PAGE_SET_ORDERED;
+
+	/*
 	 * Relocation relies on the relocated extents to have exactly the same
 	 * size as the original extents. Normally writeback for relocation data
 	 * extents follows a NOCOW path because relocation preallocates the
@@ -1333,21 +1346,6 @@ static noinline int cow_file_range(struct btrfs_inode *inode,
 
 		btrfs_dec_block_group_reservations(fs_info, ins.objectid);
 
-		/*
-		 * We're not doing compressed IO, don't unlock the first page
-		 * (which the caller expects to stay locked), don't clear any
-		 * dirty bits and don't set any writeback bits
-		 *
-		 * Do set the Ordered (Private2) bit so we know this page was
-		 * properly setup for writepage.
-		 */
-		page_ops = unlock ? PAGE_UNLOCK : 0;
-		page_ops |= PAGE_SET_ORDERED;
-
-		extent_clear_unlock_delalloc(inode, start, start + ram_size - 1,
-					     locked_page,
-					     EXTENT_LOCKED | EXTENT_DELALLOC,
-					     page_ops);
 		if (num_bytes < cur_alloc_size)
 			num_bytes = 0;
 		else
@@ -1364,6 +1362,8 @@ static noinline int cow_file_range(struct btrfs_inode *inode,
 		if (ret)
 			goto out_unlock;
 	}
+	extent_clear_unlock_delalloc(inode, orig_start, end, locked_page,
+				     EXTENT_LOCKED | EXTENT_DELALLOC, page_ops);
 out:
 	return ret;
 
@@ -1378,10 +1378,15 @@ out_unlock:
 	 * caller to write out the successfully allocated region and retry.
 	 */
 	if (done_offset && ret == -EAGAIN) {
-		if (orig_start < start)
+		if (orig_start < start) {
+			extent_clear_unlock_delalloc(inode, orig_start, start - 1,
+						     locked_page,
+						     EXTENT_LOCKED | EXTENT_DELALLOC,
+						     page_ops);
 			*done_offset = start - 1;
-		else
+		} else {
 			*done_offset = start;
+		}
 		return ret;
 	} else if (ret == -EAGAIN) {
 		/* Convert to -ENOSPC since the caller cannot retry. */
@@ -1397,28 +1402,30 @@ out_unlock:
 	 * We process each region below.
 	 */
 
-	clear_bits = EXTENT_LOCKED | EXTENT_DELALLOC | EXTENT_DELALLOC_NEW |
-		EXTENT_DEFRAG | EXTENT_CLEAR_META_RESV;
-	page_ops = PAGE_UNLOCK | PAGE_START_WRITEBACK | PAGE_END_WRITEBACK;
-
 	/*
 	 * For the range (1). We have already instantiated the ordered extents
 	 * for this region. They are cleaned up by
 	 * btrfs_cleanup_ordered_extents() in e.g,
-	 * btrfs_run_delalloc_range(). EXTENT_LOCKED | EXTENT_DELALLOC are
-	 * already cleared in the above loop. And, EXTENT_DELALLOC_NEW |
-	 * EXTENT_DEFRAG | EXTENT_CLEAR_META_RESV are handled by the cleanup
-	 * function.
+	 * btrfs_run_delalloc_range().
+	 * EXTENT_DELALLOC_NEW | EXTENT_DEFRAG | EXTENT_CLEAR_META_RESV
+	 * are also handled by the cleanup function.
 	 *
-	 * However, in case of unlock == 0, we still need to unlock the pages
-	 * (except @locked_page) to ensure all the pages are unlocked.
+	 * So here we only clear EXTENT_LOCKED and EXTENT_DELALLOC flag, and
+	 * finish the writeback of the involved folios, which will be never submitted.
 	 */
-	if (!unlock && orig_start < start) {
+	if (orig_start < start) {
+		clear_bits = EXTENT_LOCKED | EXTENT_DELALLOC;
+		page_ops = PAGE_UNLOCK | PAGE_START_WRITEBACK | PAGE_END_WRITEBACK;
+
 		if (!locked_page)
 			mapping_set_error(inode->vfs_inode.i_mapping, ret);
 		extent_clear_unlock_delalloc(inode, orig_start, start - 1,
-					     locked_page, 0, page_ops);
+					     locked_page, clear_bits, page_ops);
 	}
+
+	clear_bits = EXTENT_LOCKED | EXTENT_DELALLOC | EXTENT_DELALLOC_NEW |
+		     EXTENT_DEFRAG | EXTENT_CLEAR_META_RESV;
+	page_ops = PAGE_UNLOCK | PAGE_START_WRITEBACK | PAGE_END_WRITEBACK;
 
 	/*
 	 * For the range (2). If we reserved an extent for our delalloc range
@@ -2845,7 +2852,11 @@ int btrfs_set_extent_delalloc(struct btrfs_inode *inode, u64 start, u64 end,
 			      unsigned int extra_bits,
 			      struct extent_state **cached_state)
 {
-	WARN_ON(PAGE_ALIGNED(end));
+	const u32 blocksize = inode->root->fs_info->sectorsize;
+
+	/* Basic alignment check. */
+	ASSERT(IS_ALIGNED(start, blocksize));
+	ASSERT(IS_ALIGNED(end + 1, blocksize));
 
 	if (start >= i_size_read(&inode->vfs_inode) &&
 	    !(inode->flags & BTRFS_INODE_PREALLOC)) {
@@ -3053,6 +3064,51 @@ int btrfs_writepage_cow_fixup(struct page *page)
 	btrfs_queue_work(fs_info->fixup_workers, &fixup->work);
 
 	return -EAGAIN;
+}
+
+/*
+ * Clear the old accounting flags and set EXTENT_DELALLOC for the range.
+ *
+ * Return <0 for error, in that case no range has EXTENT_DELALLOC bit cleared or set.
+ */
+int btrfs_reset_extent_delalloc(struct btrfs_inode *inode, u64 start, u64 end,
+				unsigned int extra_bits, struct extent_state **cached_state)
+{
+	const u32 blocksize = inode->root->fs_info->sectorsize;
+
+	/* The @extra_bits can only be EXTENT_NORESERVE for now. */
+	ASSERT(!(extra_bits & ~EXTENT_NORESERVE));
+
+	/* Basic alignment check. */
+	ASSERT(IS_ALIGNED(start, blocksize));
+	ASSERT(IS_ALIGNED(end + 1, blocksize));
+
+	/*
+	 * Check and set DELALLOC_NEW flag, this needs to search tree thus can
+	 * fail early.  Thus we want to do this before clearing EXTENT_DELALLOC.
+	 */
+	if (start >= i_size_read(&inode->vfs_inode) &&
+	    !(inode->flags & BTRFS_INODE_PREALLOC)) {
+		/*
+		 * There can't be any extents following EOF in this case so just
+		 * set the delalloc new bit for the range directly.
+		 */
+		extra_bits |= EXTENT_DELALLOC_NEW;
+	} else {
+		int ret;
+
+		ret = btrfs_find_new_delalloc_bytes(inode, start, end + 1 - start,
+						    NULL);
+		if (unlikely(ret))
+			return ret;
+	}
+	/* Clear the old accounting as the range may already be dirty. */
+	clear_extent_bit(&inode->io_tree, start, end,
+			 EXTENT_DELALLOC | EXTENT_DO_ACCOUNTING |
+			 EXTENT_DEFRAG, cached_state);
+	return set_extent_bit(&inode->io_tree, start, end,
+			      EXTENT_DELALLOC | extra_bits, cached_state,
+			      GFP_NOFS);
 }
 
 static int insert_reserved_file_extent(struct btrfs_trans_handle *trans,
@@ -5037,12 +5093,7 @@ again:
 		goto again;
 	}
 
-	clear_extent_bit(&inode->io_tree, block_start, block_end,
-			 EXTENT_DELALLOC | EXTENT_DO_ACCOUNTING | EXTENT_DEFRAG,
-			 &cached_state);
-
-	ret = btrfs_set_extent_delalloc(inode, block_start, block_end, 0,
-					&cached_state);
+	ret = btrfs_reset_extent_delalloc(inode, block_start, block_end, 0, &cached_state);
 	if (ret) {
 		unlock_extent(io_tree, block_start, block_end, &cached_state);
 		goto out_unlock;
@@ -7591,6 +7642,7 @@ static int btrfs_get_blocks_direct_write(struct extent_map **map,
 	bool space_reserved = false;
 	u64 len = *lenp;
 	u64 prev_len;
+	loff_t old_isize;
 	int ret = 0;
 
 	/*
@@ -7643,15 +7695,22 @@ static int btrfs_get_blocks_direct_write(struct extent_map **map,
 					      len, orig_block_len,
 					      ram_bytes, type);
 		btrfs_dec_nocow_writers(bg);
-		if (type == BTRFS_ORDERED_PREALLOC) {
+		if (IS_ERR(em2)) {
+			ret = PTR_ERR(em2);
+			free_extent_map(em);
+			*map = NULL;
+			goto out;
+		}
+
+		/*
+		 * True NOCOW writes don't need to create a new extent map,
+		 * while PREALLOC writes must replace the existing one.
+		 */
+		if (em2) {
+			ASSERT(type == BTRFS_ORDERED_PREALLOC);
 			free_extent_map(em);
 			*map = em2;
 			em = em2;
-		}
-
-		if (IS_ERR(em2)) {
-			ret = PTR_ERR(em2);
-			goto out;
 		}
 
 		dio_data->nocow_done = true;
@@ -7706,8 +7765,14 @@ static int btrfs_get_blocks_direct_write(struct extent_map **map,
 	 * Need to update the i_size under the extent lock so buffered
 	 * readers will get the updated i_size when we unlock.
 	 */
-	if (start + len > i_size_read(inode))
+	old_isize = i_size_read(inode);
+	if (start + len > old_isize) {
+		if (!dio_data->updated_isize) {
+			dio_data->old_isize = old_isize;
+			dio_data->updated_isize = true;
+		}
 		i_size_write(inode, start + len);
+	}
 out:
 	if (ret && space_reserved) {
 		btrfs_delalloc_release_extents(BTRFS_I(inode), len);
@@ -7987,12 +8052,65 @@ static int btrfs_dio_iomap_end(struct inode *inode, loff_t pos, loff_t length,
 	if (submitted < length) {
 		pos += submitted;
 		length -= submitted;
-		if (write)
+		if (write) {
+			struct btrfs_ordered_extent *ordered;
+
+			/*
+			 * Got a short write and have updated the isize, need to
+			 * revert the isize change.
+			 *
+			 * Normally we need to update isize with extent lock hold,
+			 * but we're safe due to the following factors:
+			 *
+			 * - Only a single writer can be enlarging isize
+			 *   Enlarging isize will take the exclusive inode lock.
+			 *
+			 * - Buffered readers need to wait for the OE we're holding
+			 *   Buffered readers will lock extent and wait for OE
+			 *   of the folio range, and since page cache is invalidated
+			 *   the OE wait can not be skipped.
+			 *
+			 * So here we are safe to revert the isize before
+			 * finishing the OE, and no reader of the remaining range
+			 * can see the enlarged size.
+			 *
+			 * TODO: Extend the DIO_LOCKED lifespan for direct writes,
+			 * and only enlarge isize after a successful write.
+			 */
+			if (dio_data->updated_isize) {
+				u64 new_isize;
+
+				if (submitted == 0)
+					new_isize = dio_data->old_isize;
+				else
+					new_isize = max(dio_data->old_isize, pos);
+				i_size_write(inode, new_isize);
+				dio_data->updated_isize = false;
+			}
+			/*
+			 * We have a short write, and the ordered extent is
+			 * not split at submission time on this tree, so it
+			 * may cover both the submitted range and the range
+			 * that was never submitted.
+			 *
+			 * Truncate the ordered extent to the part that was
+			 * submitted properly, so the never submitted range
+			 * is reclaimed without inserting a file extent item
+			 * for it and without marking it as an IO error.
+			 */
+			ordered = btrfs_lookup_ordered_extent(BTRFS_I(inode),
+							      pos);
+			if (ordered) {
+				btrfs_mark_ordered_extent_truncated(ordered,
+						pos - ordered->file_offset);
+				btrfs_put_ordered_extent(ordered);
+			}
 			btrfs_mark_ordered_io_finished(BTRFS_I(inode), NULL,
-						       pos, length, false);
-		else
+						       pos, length, true);
+		} else {
 			unlock_extent(&BTRFS_I(inode)->io_tree, pos,
 				      pos + length - 1, NULL);
+		}
 		ret = -ENOTBLK;
 	}
 
@@ -8516,11 +8634,7 @@ static void btrfs_invalidate_folio(struct folio *folio, size_t offset,
 					 EXTENT_LOCKED | EXTENT_DO_ACCOUNTING |
 					 EXTENT_DEFRAG, &cached_state);
 
-		spin_lock_irq(&inode->ordered_tree.lock);
-		set_bit(BTRFS_ORDERED_TRUNCATED, &ordered->flags);
-		ordered->truncated_len = min(ordered->truncated_len,
-					     cur - ordered->file_offset);
-		spin_unlock_irq(&inode->ordered_tree.lock);
+		btrfs_mark_ordered_extent_truncated(ordered, cur - ordered->file_offset);
 
 		/*
 		 * If the ordered extent has finished, we're safe to delete all
@@ -8685,19 +8799,8 @@ again:
 		}
 	}
 
-	/*
-	 * page_mkwrite gets called when the page is firstly dirtied after it's
-	 * faulted in, but write(2) could also dirty a page and set delalloc
-	 * bits, thus in this case for space account reason, we still need to
-	 * clear any delalloc bits within this page range since we have to
-	 * reserve data&meta space before lock_page() (see above comments).
-	 */
-	clear_extent_bit(&BTRFS_I(inode)->io_tree, page_start, end,
-			  EXTENT_DELALLOC | EXTENT_DO_ACCOUNTING |
-			  EXTENT_DEFRAG, &cached_state);
-
-	ret2 = btrfs_set_extent_delalloc(BTRFS_I(inode), page_start, end, 0,
-					&cached_state);
+	ret2 = btrfs_reset_extent_delalloc(BTRFS_I(inode), page_start, end, 0,
+					   &cached_state);
 	if (ret2) {
 		unlock_extent(io_tree, page_start, page_end, &cached_state);
 		ret = VM_FAULT_SIGBUS;
@@ -9184,7 +9287,8 @@ static int btrfs_getattr(struct user_namespace *mnt_userns,
 	stat->dev = BTRFS_I(inode)->root->anon_dev;
 
 	spin_lock(&BTRFS_I(inode)->lock);
-	delalloc_bytes = BTRFS_I(inode)->new_delalloc_bytes;
+	delalloc_bytes = S_ISREG(inode->i_mode) ?
+			 BTRFS_I(inode)->new_delalloc_bytes : 0;
 	inode_bytes = inode_get_bytes(inode);
 	spin_unlock(&BTRFS_I(inode)->lock);
 	stat->blocks = (ALIGN(inode_bytes, blocksize) +
@@ -11090,6 +11194,7 @@ out_pages:
 	}
 	kvfree(pages);
 out:
+	extent_changeset_free(data_reserved);
 	if (ret >= 0)
 		iocb->ki_pos += encoded->len;
 	return ret;

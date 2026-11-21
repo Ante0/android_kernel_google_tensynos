@@ -104,6 +104,7 @@ enum {
 enum dev_status {
 	HISI_SAS_DEV_INIT,
 	HISI_SAS_DEV_NORMAL,
+	HISI_SAS_DEV_NCQ_ERR,
 };
 
 enum {
@@ -341,7 +342,7 @@ struct hisi_sas_hw {
 				u8 reg_index, u8 reg_count, u8 *write_data);
 	void (*wait_cmds_complete_timeout)(struct hisi_hba *hisi_hba,
 					   int delay_ms, int timeout_ms);
-	void (*debugfs_snapshot_regs)(struct hisi_hba *hisi_hba);
+	int (*debugfs_snapshot_regs)(struct hisi_hba *hisi_hba);
 	int complete_hdr_size;
 	struct scsi_host_template *sht;
 };
@@ -449,7 +450,6 @@ struct hisi_hba {
 	const struct hisi_sas_hw *hw;	/* Low level hw interface */
 	unsigned long sata_dev_bitmap[BITS_TO_LONGS(HISI_SAS_MAX_DEVICES)];
 	struct work_struct rst_work;
-	struct work_struct debugfs_work;
 	u32 phy_state;
 	u32 intr_coal_ticks;	/* Time of interrupt coalesce in us */
 	u32 intr_coal_count;	/* Interrupt count to coalesce */
@@ -652,7 +652,8 @@ extern void hisi_sas_phy_down(struct hisi_hba *hisi_hba, int phy_no, int rdy,
 extern void hisi_sas_phy_bcast(struct hisi_sas_phy *phy);
 extern void hisi_sas_slot_task_free(struct hisi_hba *hisi_hba,
 				    struct sas_task *task,
-				    struct hisi_sas_slot *slot);
+				    struct hisi_sas_slot *slot,
+				    bool need_lock);
 extern void hisi_sas_init_mem(struct hisi_hba *hisi_hba);
 extern void hisi_sas_rst_work_handler(struct work_struct *work);
 extern void hisi_sas_sync_rst_work_handler(struct work_struct *work);

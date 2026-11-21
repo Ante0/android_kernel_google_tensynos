@@ -20,16 +20,12 @@ static bool mt7915_dev_running(struct mt7915_dev *dev)
 	return phy && test_bit(MT76_STATE_RUNNING, &phy->mt76->state);
 }
 
-static int mt7915_start(struct ieee80211_hw *hw)
+int mt7915_run(struct ieee80211_hw *hw)
 {
 	struct mt7915_dev *dev = mt7915_hw_dev(hw);
 	struct mt7915_phy *phy = mt7915_hw_phy(hw);
 	bool running;
 	int ret;
-
-	flush_work(&dev->init_work);
-
-	mutex_lock(&dev->mt76.mutex);
 
 	running = mt7915_dev_running(dev);
 
@@ -86,6 +82,18 @@ static int mt7915_start(struct ieee80211_hw *hw)
 		mt7915_mac_reset_counters(phy);
 
 out:
+	return ret;
+}
+
+static int mt7915_start(struct ieee80211_hw *hw)
+{
+	struct mt7915_dev *dev = mt7915_hw_dev(hw);
+	int ret;
+
+	flush_work(&dev->init_work);
+
+	mutex_lock(&dev->mt76.mutex);
+	ret = mt7915_run(hw);
 	mutex_unlock(&dev->mt76.mutex);
 
 	return ret;
@@ -228,7 +236,11 @@ static int mt7915_add_interface(struct ieee80211_hw *hw,
 	dev->mt76.vif_mask |= BIT_ULL(mvif->mt76.idx);
 	phy->omac_mask |= BIT_ULL(mvif->mt76.omac_idx);
 
-	idx = MT7915_WTBL_RESERVED - mvif->mt76.idx;
+	idx = mt76_wcid_alloc(dev->mt76.wcid_mask, mt7915_wtbl_size(dev));
+	if (idx < 0) {
+		ret = -ENOSPC;
+		goto err;
+	}
 
 	INIT_LIST_HEAD(&mvif->sta.rc_list);
 	INIT_LIST_HEAD(&mvif->sta.poll_list);
@@ -258,7 +270,17 @@ static int mt7915_add_interface(struct ieee80211_hw *hw,
 	mt7915_mcu_add_sta(dev, vif, NULL, true);
 	rcu_assign_pointer(dev->mt76.wcid[idx], &mvif->sta.wcid);
 
+	mutex_unlock(&dev->mt76.mutex);
+
+	return 0;
+
+err:
+	dev->mt76.vif_mask &= ~BIT_ULL(mvif->mt76.idx);
+	phy->omac_mask &= ~BIT_ULL(mvif->mt76.omac_idx);
+	mt7915_mcu_add_dev_info(phy, vif, false);
 out:
+	if (phy->monitor_vif == vif)
+		phy->monitor_vif = NULL;
 	mutex_unlock(&dev->mt76.mutex);
 
 	return ret;
@@ -275,6 +297,7 @@ static void mt7915_remove_interface(struct ieee80211_hw *hw,
 
 	mt7915_mcu_add_bss_info(phy, vif, false);
 	mt7915_mcu_add_sta(dev, vif, NULL, false);
+	mt76_wcid_mask_clear(dev->mt76.wcid_mask, mvif->sta.wcid.idx);
 
 	mutex_lock(&dev->mt76.mutex);
 	mt76_testmode_reset(phy->mt76, true);
@@ -1436,8 +1459,8 @@ mt7915_net_fill_forward_path(struct ieee80211_hw *hw,
 	path->dev = ctx->dev;
 	path->mtk_wdma.wdma_idx = wed->wdma_idx;
 	path->mtk_wdma.bss = mvif->mt76.idx;
-	path->mtk_wdma.wcid = msta->wcid.idx;
-	path->mtk_wdma.queue = phy != &dev->phy;
+	path->mtk_wdma.wcid = is_mt7915(&dev->mt76) ? msta->wcid.idx : 0x3ff;
+	path->mtk_wdma.queue = phy->mt76->band_idx;
 
 	ctx->dev = NULL;
 

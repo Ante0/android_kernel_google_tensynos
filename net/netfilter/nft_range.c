@@ -83,7 +83,7 @@ static int nft_range_init(const struct nft_ctx *ctx, const struct nft_expr *expr
 		goto err2;
 	}
 
-	err = nft_parse_register_load(tb[NFTA_RANGE_SREG], &priv->sreg,
+	err = nft_parse_register_load(ctx, tb[NFTA_RANGE_SREG], &priv->sreg,
 				      desc_from.len);
 	if (err < 0)
 		goto err2;
@@ -111,7 +111,8 @@ err1:
 	return err;
 }
 
-static int nft_range_dump(struct sk_buff *skb, const struct nft_expr *expr)
+static int nft_range_dump(struct sk_buff *skb,
+			  const struct nft_expr *expr, bool reset)
 {
 	const struct nft_range_expr *priv = nft_expr_priv(expr);
 

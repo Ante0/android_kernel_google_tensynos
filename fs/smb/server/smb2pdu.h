@@ -146,14 +146,6 @@ struct create_mxac_rsp {
 	__le32 MaximalAccess;
 } __packed;
 
-struct create_disk_id_rsp {
-	struct create_context ccontext;
-	__u8   Name[8];
-	__le64 DiskFileId;
-	__le64 VolumeId;
-	__u8  Reserved[16];
-} __packed;
-
 /* equivalent of the contents of SMB3.1.1 POSIX open context response */
 struct create_posix_rsp {
 	struct create_context ccontext;
@@ -524,14 +516,5 @@ int smb2_lock(struct ksmbd_work *work);
 int smb2_ioctl(struct ksmbd_work *work);
 int smb2_oplock_break(struct ksmbd_work *work);
 int smb2_notify(struct ksmbd_work *ksmbd_work);
-
-/*
- * Get the body of the smb2 message excluding the 4 byte rfc1002 headers
- * from request/response buffer.
- */
-static inline void *smb2_get_msg(void *buf)
-{
-	return buf + 4;
-}
 
 #endif	/* _SMB2PDU_H */

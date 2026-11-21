@@ -80,13 +80,15 @@ void dm_io_client_destroy(struct dm_io_client *client)
 }
 EXPORT_SYMBOL(dm_io_client_destroy);
 
-/*-----------------------------------------------------------------
+/*
+ *-------------------------------------------------------------------
  * We need to keep track of which region a bio is doing io for.
  * To avoid a memory allocation to store just 5 or 6 bits, we
  * ensure the 'struct io' pointer is aligned so enough low bits are
  * always zero and then combine it with the region number directly in
  * bi_private.
- *---------------------------------------------------------------*/
+ *-------------------------------------------------------------------
+ */
 static void store_io_and_region_in_bio(struct bio *bio, struct io *io,
 				       unsigned int region)
 {
@@ -107,10 +109,12 @@ static void retrieve_io_and_region_from_bio(struct bio *bio, struct io **io,
 	*region = val & (DM_IO_MAX_REGIONS - 1);
 }
 
-/*-----------------------------------------------------------------
+/*
+ *--------------------------------------------------------------
  * We need an io object to keep track of the number of bios that
  * have been dispatched for a particular io.
- *---------------------------------------------------------------*/
+ *--------------------------------------------------------------
+ */
 static void complete_io(struct io *io)
 {
 	unsigned long error_bits = io->error_bits;
@@ -154,10 +158,12 @@ static void endio(struct bio *bio)
 	dec_count(io, region, error);
 }
 
-/*-----------------------------------------------------------------
+/*
+ *--------------------------------------------------------------
  * These little objects provide an abstraction for getting a new
  * destination page for io.
- *---------------------------------------------------------------*/
+ *--------------------------------------------------------------
+ */
 struct dpages {
 	void (*get_page)(struct dpages *dp,
 			 struct page **p, unsigned long *len, unsigned int *offset);
@@ -190,6 +196,7 @@ static void list_get_page(struct dpages *dp,
 static void list_next_page(struct dpages *dp)
 {
 	struct page_list *pl = (struct page_list *) dp->context_ptr;
+
 	dp->context_ptr = pl->next;
 	dp->context_u = 0;
 }
@@ -290,9 +297,11 @@ static void km_dp_init(struct dpages *dp, void *data)
 	dp->context_ptr = data;
 }
 
-/*-----------------------------------------------------------------
+/*
+ *---------------------------------------------------------------
  * IO routines that accept a list of pages.
- *---------------------------------------------------------------*/
+ *---------------------------------------------------------------
+ */
 static void do_region(const blk_opf_t opf, unsigned int region,
 		      struct dm_io_region *where, struct dpages *dp,
 		      struct io *io, unsigned short ioprio)
@@ -351,18 +360,20 @@ static void do_region(const blk_opf_t opf, unsigned int region,
 			num_sectors = min_t(sector_t, special_cmd_max_sectors, remaining);
 			bio->bi_iter.bi_size = num_sectors << SECTOR_SHIFT;
 			remaining -= num_sectors;
-		} else while (remaining) {
-			/*
-			 * Try and add as many pages as possible.
-			 */
-			dp->get_page(dp, &page, &len, &offset);
-			len = min(len, to_bytes(remaining));
-			if (!bio_add_page(bio, page, len, offset))
-				break;
+		} else {
+			while (remaining) {
+				/*
+				 * Try and add as many pages as possible.
+				 */
+				dp->get_page(dp, &page, &len, &offset);
+				len = min(len, to_bytes(remaining));
+				if (!bio_add_page(bio, page, len, offset))
+					break;
 
-			offset = 0;
-			remaining -= to_sector(len);
-			dp->next_page(dp);
+				offset = 0;
+				remaining -= to_sector(len);
+				dp->next_page(dp);
+			}
 		}
 
 		atomic_inc(&io->count);

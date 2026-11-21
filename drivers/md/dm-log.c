@@ -182,10 +182,12 @@ void dm_dirty_log_destroy(struct dm_dirty_log *log)
 }
 EXPORT_SYMBOL(dm_dirty_log_destroy);
 
-/*-----------------------------------------------------------------
+/*
+ *---------------------------------------------------------------
  * Persistent and core logs share a lot of their implementation.
  * FIXME: need a reload method to be called from a resume
- *---------------------------------------------------------------*/
+ *---------------------------------------------------------------
+ */
 /*
  * Magic for persistent mirrors: "MiRr"
  */
@@ -274,9 +276,11 @@ static inline void log_clear_bit(struct log_c *l,
 	l->touched_dirtied = 1;
 }
 
-/*----------------------------------------------------------------
+/*
+ *---------------------------------------------------------------
  * Header IO
- *--------------------------------------------------------------*/
+ *--------------------------------------------------------------
+ */
 static void header_to_disk(struct log_header_core *core, struct log_header_disk *disk)
 {
 	disk->magic = cpu_to_le32(core->magic);
@@ -352,11 +356,13 @@ static int _check_region_size(struct dm_target *ti, uint32_t region_size)
 	return 1;
 }
 
-/*----------------------------------------------------------------
+/*
+ *--------------------------------------------------------------
  * core log constructor/destructor
  *
  * argv contains region_size followed optionally by [no]sync
- *--------------------------------------------------------------*/
+ *--------------------------------------------------------------
+ */
 #define BYTE_SHIFT 3
 static int create_log_context(struct dm_dirty_log *log, struct dm_target *ti,
 			      unsigned int argc, char **argv,
@@ -418,6 +424,9 @@ static int create_log_context(struct dm_dirty_log *log, struct dm_target *ti,
 	 */
 	bitset_size = dm_round_up(region_count, BITS_PER_LONG);
 	bitset_size >>= BYTE_SHIFT;
+	/* Handle dm_round_up rollover on 32-bit systems */
+	if (!bitset_size)
+		bitset_size = 1UL << (BITS_PER_LONG - BYTE_SHIFT);
 
 	lc->bitset_uint32_count = bitset_size / sizeof(*lc->clean_bits);
 
@@ -534,11 +543,13 @@ static void core_dtr(struct dm_dirty_log *log)
 	destroy_log_context(lc);
 }
 
-/*----------------------------------------------------------------
+/*
+ *---------------------------------------------------------------------
  * disk log constructor/destructor
  *
  * argv contains log_device region_size followed optionally by [no]sync
- *--------------------------------------------------------------*/
+ *---------------------------------------------------------------------
+ */
 static int disk_ctr(struct dm_dirty_log *log, struct dm_target *ti,
 		    unsigned int argc, char **argv)
 {
@@ -649,12 +660,14 @@ static int disk_resume(struct dm_dirty_log *log)
 static uint32_t core_get_region_size(struct dm_dirty_log *log)
 {
 	struct log_c *lc = (struct log_c *) log->context;
+
 	return lc->region_size;
 }
 
 static int core_resume(struct dm_dirty_log *log)
 {
 	struct log_c *lc = (struct log_c *) log->context;
+
 	lc->sync_search = 0;
 	return 0;
 }
@@ -662,12 +675,14 @@ static int core_resume(struct dm_dirty_log *log)
 static int core_is_clean(struct dm_dirty_log *log, region_t region)
 {
 	struct log_c *lc = (struct log_c *) log->context;
+
 	return log_test_bit(lc->clean_bits, region);
 }
 
 static int core_in_sync(struct dm_dirty_log *log, region_t region, int block)
 {
 	struct log_c *lc = (struct log_c *) log->context;
+
 	return log_test_bit(lc->sync_bits, region);
 }
 
@@ -720,12 +735,14 @@ static int disk_flush(struct dm_dirty_log *log)
 static void core_mark_region(struct dm_dirty_log *log, region_t region)
 {
 	struct log_c *lc = (struct log_c *) log->context;
+
 	log_clear_bit(lc, lc->clean_bits, region);
 }
 
 static void core_clear_region(struct dm_dirty_log *log, region_t region)
 {
 	struct log_c *lc = (struct log_c *) log->context;
+
 	if (likely(!lc->flush_failed))
 		log_set_bit(lc, lc->clean_bits, region);
 }

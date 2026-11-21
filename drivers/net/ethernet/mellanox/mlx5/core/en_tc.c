@@ -2005,7 +2005,8 @@ static void mlx5e_tc_del_flow(struct mlx5e_priv *priv,
 			      struct mlx5e_tc_flow *flow)
 {
 	if (mlx5e_is_eswitch_flow(flow)) {
-		mlx5e_tc_del_fdb_peer_flow(flow);
+		if (!flow_flag_test(flow, PEER))
+			mlx5e_tc_del_fdb_peer_flow(flow);
 		mlx5e_tc_del_fdb_flow(priv, flow);
 	} else {
 		mlx5e_tc_del_nic_flow(priv, flow);
@@ -3692,6 +3693,7 @@ free_flow_post_acts(struct mlx5e_tc_flow *flow)
 {
 	struct mlx5_core_dev *counter_dev = get_flow_counter_dev(flow);
 	struct mlx5e_post_act *post_act = get_post_action(flow->priv);
+	struct mlx5_esw_flow_attr *esw_attr;
 	struct mlx5_flow_attr *attr, *tmp;
 	bool vf_tun;
 
@@ -3711,6 +3713,16 @@ free_flow_post_acts(struct mlx5e_tc_flow *flow)
 			mlx5e_mod_hdr_dealloc(&attr->parse_attr->mod_hdr_acts);
 			if (attr->modify_hdr)
 				mlx5_modify_header_dealloc(flow->priv->mdev, attr->modify_hdr);
+		}
+
+		if (mlx5e_is_eswitch_flow(flow)) {
+			esw_attr = attr->esw_attr;
+			if (esw_attr->int_port)
+				mlx5e_tc_int_port_put(mlx5e_get_int_port_priv(flow->priv),
+						      esw_attr->int_port);
+			if (esw_attr->dest_int_port)
+				mlx5e_tc_int_port_put(mlx5e_get_int_port_priv(flow->priv),
+						      esw_attr->dest_int_port);
 		}
 
 		list_del(&attr->list);
@@ -4378,6 +4390,7 @@ static int mlx5e_tc_add_fdb_peer_flow(struct flow_cls_offload *f,
 	else
 		in_mdev = priv->mdev;
 
+	flow_flags |= BIT(MLX5E_TC_FLOW_FLAG_PEER);
 	parse_attr = flow->attr->parse_attr;
 	peer_flow = __mlx5e_add_fdb_flow(peer_priv, f, flow_flags,
 					 parse_attr->filter_dev,

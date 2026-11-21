@@ -148,7 +148,13 @@ void btrfs_put_transaction(struct btrfs_transaction *transaction)
 			cache = list_first_entry(&transaction->deleted_bgs,
 						 struct btrfs_block_group,
 						 bg_list);
+			/*
+			 * Not strictly necessary to lock, as no other task will be using a
+			 * block_group on the deleted_bgs list during a transaction abort.
+			 */
+			spin_lock(&transaction->fs_info->unused_bgs_lock);
 			list_del_init(&cache->bg_list);
+			spin_unlock(&transaction->fs_info->unused_bgs_lock);
 			btrfs_unfreeze_block_group(cache);
 			btrfs_put_block_group(cache);
 		}
@@ -439,8 +445,19 @@ static int record_root_in_trans(struct btrfs_trans_handle *trans,
 		 * through btrfs_record_root_in_trans without having to take the
 		 * lock.  smp_wmb() makes sure that all the writes above are
 		 * done before we pop in the zero below
+		 *
+		 * If @force is true, it means the call is from
+		 * qgroup_account_snapshot(), which only requires radix tree
+		 * tracking.
+		 * We should not force reloc root creation here, as the root
+		 * may have already been modified, and in that case
+		 * root->commit_root has already been dropped.
+		 *
+		 * Using that commit root will cause the reloc root to refer
+		 * to a deleted extent, causing extent tree corruption.
 		 */
-		ret = btrfs_init_reloc_root(trans, root);
+		if (!force)
+			ret = btrfs_init_reloc_root(trans, root);
 		smp_mb__before_atomic();
 		clear_bit(BTRFS_ROOT_IN_TRANS_SETUP, &root->state);
 	}
@@ -1214,14 +1231,13 @@ static int btrfs_write_and_wait_transaction(struct btrfs_trans_handle *trans)
 	blk_finish_plug(&plug);
 	ret2 = btrfs_wait_extents(fs_info, dirty_pages);
 
-	extent_io_tree_release(&trans->transaction->dirty_pages);
-
 	if (ret)
 		return ret;
-	else if (ret2)
+	if (ret2)
 		return ret2;
-	else
-		return 0;
+
+	extent_io_tree_release(&trans->transaction->dirty_pages);
+	return 0;
 }
 
 /*
@@ -2093,7 +2109,13 @@ static void btrfs_cleanup_pending_block_groups(struct btrfs_trans_handle *trans)
 
        list_for_each_entry_safe(block_group, tmp, &trans->new_bgs, bg_list) {
                btrfs_delayed_refs_rsv_release(fs_info, 1);
+		/*
+		* Not strictly necessary to lock, as no other task will be using a
+		* block_group on the new_bgs list during a transaction abort.
+		*/
+	       spin_lock(&fs_info->unused_bgs_lock);
                list_del_init(&block_group->bg_list);
+	       spin_unlock(&fs_info->unused_bgs_lock);
        }
 }
 

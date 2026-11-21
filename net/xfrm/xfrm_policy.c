@@ -223,6 +223,9 @@ __xfrm6_selector_match(const struct xfrm_selector *sel, const struct flowi *fl)
 bool xfrm_selector_match(const struct xfrm_selector *sel, const struct flowi *fl,
 			 unsigned short family)
 {
+	if (family != sel->family && sel->family != AF_UNSPEC)
+		return false;
+
 	switch (family) {
 	case AF_INET:
 		return __xfrm4_selector_match(sel, fl);
@@ -1292,8 +1295,8 @@ static void xfrm_hash_rebuild(struct work_struct *work)
 			}
 		}
 
-		if (policy->selector.prefixlen_d < dbits ||
-		    policy->selector.prefixlen_s < sbits)
+		if (policy->selector.prefixlen_d >= dbits &&
+		    policy->selector.prefixlen_s >= sbits)
 			continue;
 
 		bin = xfrm_policy_inexact_alloc_bin(policy, dir);
@@ -2525,8 +2528,7 @@ static void xfrm_init_path(struct xfrm_dst *path, struct dst_entry *dst,
 			   int nfheader_len)
 {
 	if (dst->ops->family == AF_INET6) {
-		struct rt6_info *rt = (struct rt6_info *)dst;
-		path->path_cookie = rt6_get_cookie(rt);
+		path->path_cookie = rt6_get_cookie(dst_rt6_info(dst));
 		path->u.rt6.rt6i_nfheader_len = nfheader_len;
 	}
 }
@@ -4121,6 +4123,8 @@ static void xfrm_policy_fini(struct net *net)
 	xfrm_policy_flush(net, XFRM_POLICY_TYPE_SUB, false);
 #endif
 	xfrm_policy_flush(net, XFRM_POLICY_TYPE_MAIN, false);
+
+	synchronize_rcu();
 
 	WARN_ON(!list_empty(&net->xfrm.policy_all));
 

@@ -72,13 +72,12 @@ void ksmbd_copy_gss_neg_header(void *buf)
 
 /**
  * ksmbd_gen_sess_key() - function to generate session key
- * @sess:	session of connection
+ * @sess_key:	output buffer for the session key
  * @hash:	source hash value to be used for find session key
  * @hmac:	source hmac value to be used for finding session key
  *
  */
-static int ksmbd_gen_sess_key(struct ksmbd_session *sess, char *hash,
-			      char *hmac)
+static int ksmbd_gen_sess_key(char *sess_key, char *hash, char *hmac)
 {
 	struct ksmbd_crypto_ctx *ctx;
 	int rc;
@@ -111,7 +110,7 @@ static int ksmbd_gen_sess_key(struct ksmbd_session *sess, char *hash,
 		goto out;
 	}
 
-	rc = crypto_shash_final(CRYPTO_HMACMD5(ctx), sess->sess_key);
+	rc = crypto_shash_final(CRYPTO_HMACMD5(ctx), sess_key);
 	if (rc) {
 		ksmbd_debug(AUTH, "Could not generate hmacmd5 hash error %d\n", rc);
 		goto out;
@@ -222,6 +221,7 @@ int ksmbd_auth_ntlmv2(struct ksmbd_conn *conn, struct ksmbd_session *sess,
 {
 	char ntlmv2_hash[CIFS_ENCPWD_SIZE];
 	char ntlmv2_rsp[CIFS_HMAC_MD5_HASH_SIZE];
+	char sess_key[SMB2_NTLMV2_SESSKEY_SIZE];
 	struct ksmbd_crypto_ctx *ctx = NULL;
 	char *construct = NULL;
 	int rc, len;
@@ -276,19 +276,27 @@ int ksmbd_auth_ntlmv2(struct ksmbd_conn *conn, struct ksmbd_session *sess,
 	ksmbd_release_crypto_ctx(ctx);
 	ctx = NULL;
 
-	rc = ksmbd_gen_sess_key(sess, ntlmv2_hash, ntlmv2_rsp);
+	rc = ksmbd_gen_sess_key(sess_key, ntlmv2_hash, ntlmv2_rsp);
 	if (rc) {
 		ksmbd_debug(AUTH, "Could not generate sess key\n");
 		goto out;
 	}
 
 	if (crypto_memneq(ntlmv2->ntlmv2_hash, ntlmv2_rsp,
-			  CIFS_HMAC_MD5_HASH_SIZE))
+			  CIFS_HMAC_MD5_HASH_SIZE)) {
 		rc = -EINVAL;
+		goto out;
+	}
+
+	memcpy(sess->sess_key, sess_key, sizeof(sess_key));
+	rc = 0;
 out:
 	if (ctx)
 		ksmbd_release_crypto_ctx(ctx);
 	kfree(construct);
+	memzero_explicit(ntlmv2_hash, sizeof(ntlmv2_hash));
+	memzero_explicit(ntlmv2_rsp, sizeof(ntlmv2_rsp));
+	memzero_explicit(sess_key, sizeof(sess_key));
 	return rc;
 }
 
@@ -345,6 +353,8 @@ int ksmbd_decode_ntlmssp_auth_blob(struct authenticate_message *authblob,
 				nt_len - CIFS_ENCPWD_SIZE,
 				domain_name, conn->ntlmssp.cryptkey);
 	kfree(domain_name);
+	if (ret)
+		return ret;
 
 	/* The recovered secondary session key */
 	if (conn->ntlmssp.client_flags & NTLMSSP_NEGOTIATE_KEY_XCH) {
@@ -914,7 +924,7 @@ int ksmbd_gen_preauth_integrity_hash(struct ksmbd_conn *conn, char *buf,
 				     __u8 *pi_hash)
 {
 	int rc;
-	struct smb2_hdr *rcv_hdr = smb2_get_msg(buf);
+	struct smb2_hdr *rcv_hdr = smb_get_msg(buf);
 	char *all_bytes_msg = (char *)&rcv_hdr->ProtocolId;
 	int msg_size = get_rfc1002_len(buf);
 	struct ksmbd_crypto_ctx *ctx = NULL;
@@ -1101,7 +1111,7 @@ int ksmbd_crypt_message(struct ksmbd_work *work, struct kvec *iov,
 			unsigned int nvec, int enc)
 {
 	struct ksmbd_conn *conn = work->conn;
-	struct smb2_transform_hdr *tr_hdr = smb2_get_msg(iov[0].iov_base);
+	struct smb2_transform_hdr *tr_hdr = smb_get_msg(iov[0].iov_base);
 	unsigned int assoc_data_len = sizeof(struct smb2_transform_hdr) - 20;
 	int rc;
 	DECLARE_CRYPTO_WAIT(wait);

@@ -38,6 +38,7 @@
 #include <linux/sched/sysctl.h>
 #include <linux/memory-tiers.h>
 #include <linux/compat.h>
+#include <linux/cleanup.h>
 
 #include <asm/tlb.h>
 #include <asm/pgalloc.h>
@@ -69,6 +70,7 @@ unsigned long transparent_hugepage_flags __read_mostly =
 static struct shrinker deferred_split_shrinker;
 
 static atomic_t huge_zero_refcount;
+static DEFINE_SPINLOCK(huge_zero_lock);
 struct page *huge_zero_page __read_mostly;
 unsigned long huge_zero_pfn __read_mostly = ~0UL;
 
@@ -154,7 +156,8 @@ bool hugepage_vma_check(struct vm_area_struct *vma, unsigned long vm_flags,
 static bool get_huge_zero_page(void)
 {
 	struct page *zero_page;
-retry:
+
+	/* Paired with atomic_set_release(). */
 	if (likely(atomic_inc_not_zero(&huge_zero_refcount)))
 		return true;
 
@@ -164,17 +167,22 @@ retry:
 		count_vm_event(THP_ZERO_PAGE_ALLOC_FAILED);
 		return false;
 	}
-	preempt_disable();
-	if (cmpxchg(&huge_zero_page, NULL, zero_page)) {
-		preempt_enable();
-		__free_pages(zero_page, compound_order(zero_page));
-		goto retry;
-	}
-	WRITE_ONCE(huge_zero_pfn, page_to_pfn(zero_page));
 
-	/* We take additional reference here. It will be put back by shrinker */
-	atomic_set(&huge_zero_refcount, 2);
-	preempt_enable();
+	/* Paired with critical section in shrink_huge_zero_page_scan(). */
+	spin_lock(&huge_zero_lock);
+	if (huge_zero_page) {
+		/* Somebody else already installed it. */
+		atomic_inc(&huge_zero_refcount);
+		spin_unlock(&huge_zero_lock);
+		__free_pages(zero_page, compound_order(zero_page));
+		return true;
+	}
+	WRITE_ONCE(huge_zero_page, zero_page);
+	WRITE_ONCE(huge_zero_pfn, page_to_pfn(zero_page));
+	/* Paired with atomic_inc_not_zero(). +1 for shrinker pin. */
+	atomic_set_release(&huge_zero_refcount, 2);
+	spin_unlock(&huge_zero_lock);
+
 	count_vm_event(THP_ZERO_PAGE_ALLOC);
 	return true;
 }
@@ -218,15 +226,22 @@ static unsigned long shrink_huge_zero_page_count(struct shrinker *shrink,
 static unsigned long shrink_huge_zero_page_scan(struct shrinker *shrink,
 				       struct shrink_control *sc)
 {
-	if (atomic_cmpxchg(&huge_zero_refcount, 1, 0) == 1) {
-		struct page *zero_page = xchg(&huge_zero_page, NULL);
-		BUG_ON(zero_page == NULL);
+	struct page *zero_page;
+
+	/* Paired with critical section in get_huge_zero_page(). */
+	scoped_guard(spinlock, &huge_zero_lock) {
+		/* Paired with atomic_inc_not_zero() in get_huge_zero_page(). */
+		if (atomic_cmpxchg(&huge_zero_refcount, 1, 0) != 1)
+			return 0;
+
+		zero_page = huge_zero_page;
+		VM_WARN_ON_ONCE(!zero_page);
+		WRITE_ONCE(huge_zero_page, NULL);
 		WRITE_ONCE(huge_zero_pfn, ~0UL);
-		__free_pages(zero_page, compound_order(zero_page));
-		return HPAGE_PMD_NR;
 	}
 
-	return 0;
+	__free_pages(zero_page, compound_order(zero_page));
+	return HPAGE_PMD_NR;
 }
 
 static struct shrinker huge_zero_page_shrinker = {
@@ -1687,6 +1702,9 @@ int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
 			if (arch_needs_pgtable_deposit())
 				zap_deposited_table(tlb->mm, pmd);
 			add_mm_counter(tlb->mm, mm_counter_file(page), -HPAGE_PMD_NR);
+
+			if (pmd_present(orig_pmd) && pmd_dirty(orig_pmd))
+				folio_mark_dirty(page_folio(page));
 		}
 
 		spin_unlock(ptl);
@@ -1719,6 +1737,16 @@ static pmd_t move_soft_dirty_pmd(pmd_t pmd)
 	else if (pmd_present(pmd))
 		pmd = pmd_mksoft_dirty(pmd);
 #endif
+	return pmd;
+}
+
+static pmd_t clear_uffd_wp_pmd(pmd_t pmd)
+{
+	if (pmd_present(pmd))
+		pmd = pmd_clear_uffd_wp(pmd);
+	else if (is_swap_pmd(pmd))
+		pmd = pmd_swp_clear_uffd_wp(pmd);
+
 	return pmd;
 }
 
@@ -1759,6 +1787,8 @@ bool move_huge_pmd(struct vm_area_struct *vma, unsigned long old_addr,
 			pgtable_trans_huge_deposit(mm, new_pmd, pgtable);
 		}
 		pmd = move_soft_dirty_pmd(pmd);
+		if (vma_has_uffd_without_event_remap(vma))
+			pmd = clear_uffd_wp_pmd(pmd);
 		set_pmd_at(mm, new_addr, new_pmd, pmd);
 		if (force_flush)
 			flush_pmd_tlb_range(vma, old_addr, old_addr + PMD_SIZE);
@@ -2638,7 +2668,7 @@ static void __split_huge_page_tail(struct page *head, int tail,
 }
 
 static void __split_huge_page(struct page *page, struct list_head *list,
-		pgoff_t end)
+		pgoff_t end, struct address_space *mapping)
 {
 	struct folio *folio = page_folio(page);
 	struct page *head = &folio->page;
@@ -2716,6 +2746,16 @@ static void __split_huge_page(struct page *page, struct list_head *list,
 		split_swap_cluster(entry);
 	}
 
+	/*
+	 * Drop the mapping while the head page is still locked and thus pins
+	 * the inode. The loop below may free the after-split subpages --
+	 * including the head, when @page is a tail beyond EOF that the split
+	 * dropped from the page cache -- which could otherwise let the inode,
+	 * and @mapping, be freed before this unlock.
+	 */
+	if (mapping)
+		i_mmap_unlock_read(mapping);
+
 	for (i = 0; i < nr; i++) {
 		struct page *subpage = head + i;
 		if (subpage == page)
@@ -2773,6 +2813,7 @@ int split_huge_page_to_list(struct page *page, struct list_head *list)
 	struct folio *folio = page_folio(page);
 	struct deferred_split *ds_queue = get_deferred_split_queue(&folio->page);
 	XA_STATE(xas, &folio->mapping->i_pages, folio->index);
+	struct mem_cgroup *memcg, *old_memcg;
 	struct anon_vma *anon_vma = NULL;
 	struct address_space *mapping = NULL;
 	int extra_pins, ret;
@@ -2790,6 +2831,13 @@ int split_huge_page_to_list(struct page *page, struct list_head *list)
 
 	if (folio_test_writeback(folio))
 		return -EBUSY;
+
+	/*
+	 * switch to folio's memcg as xarray node allocation can happen and
+	 * needs to charge to it.
+	 */
+    memcg = folio_memcg(folio);
+    old_memcg = set_active_memcg(memcg);
 
 	if (folio_test_anon(folio)) {
 		/*
@@ -2826,6 +2874,8 @@ int split_huge_page_to_list(struct page *page, struct list_head *list)
 			ret = -EBUSY;
 			goto out;
 		}
+
+		mapping_set_update(&xas, mapping);
 
 		xas_split_alloc(&xas, folio, folio_order(folio), gfp);
 		if (xas_error(&xas)) {
@@ -2896,7 +2946,9 @@ int split_huge_page_to_list(struct page *page, struct list_head *list)
 			}
 		}
 
-		__split_huge_page(page, list, end);
+		__split_huge_page(page, list, end, mapping);
+		/* __split_huge_page() dropped the i_mmap lock */
+		mapping = NULL;
 		ret = 0;
 	} else {
 		spin_unlock(&ds_queue->split_queue_lock);
@@ -2916,6 +2968,8 @@ out_unlock:
 	if (mapping)
 		i_mmap_unlock_read(mapping);
 out:
+	/* restore to caller's old_memcg */
+	set_active_memcg(old_memcg);
 	xas_destroy(&xas);
 	count_vm_event(!ret ? THP_SPLIT_PAGE : THP_SPLIT_PAGE_FAILED);
 	return ret;

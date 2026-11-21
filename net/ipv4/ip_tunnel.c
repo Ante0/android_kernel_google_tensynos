@@ -316,7 +316,7 @@ static int ip_tunnel_bind_dev(struct net_device *dev)
 		mtu = min(tdev->mtu, IP_MAX_MTU);
 	}
 
-	dev->needed_headroom = t_hlen + hlen;
+	dev->needed_headroom = ip_tunnel_limit_headroom(t_hlen + hlen);
 	mtu -= t_hlen + (dev->type == ARPHRD_ETHER ? dev->hard_header_len : 0);
 
 	if (mtu < IPV4_MIN_MTU)
@@ -530,7 +530,7 @@ static int tnl_update_pmtu(struct net_device *dev, struct sk_buff *skb,
 		struct rt6_info *rt6;
 		__be32 daddr;
 
-		rt6 = skb_valid_dst(skb) ? (struct rt6_info *)skb_dst(skb) :
+		rt6 = skb_valid_dst(skb) ? dst_rt6_info(skb_dst(skb)) :
 					   NULL;
 		daddr = md ? dst : tunnel->parms.iph.daddr;
 

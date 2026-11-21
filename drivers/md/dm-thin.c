@@ -1036,6 +1036,7 @@ out:
 static void free_discard_mapping(struct dm_thin_new_mapping *m)
 {
 	struct thin_c *tc = m->tc;
+
 	if (m->cell)
 		cell_defer_no_holder(tc, m->cell);
 	mempool_free(m, &tc->pool->mapping_pool);
@@ -2411,6 +2412,7 @@ static void do_worker(struct work_struct *ws)
 static void do_waker(struct work_struct *ws)
 {
 	struct pool *pool = container_of(to_delayed_work(ws), struct pool, waker);
+
 	wake_worker(pool);
 	queue_delayed_work(pool->wq, &pool->waker, COMMIT_PERIOD);
 }
@@ -2474,6 +2476,7 @@ static struct noflush_work *to_noflush(struct work_struct *ws)
 static void do_noflush_start(struct work_struct *ws)
 {
 	struct noflush_work *w = to_noflush(ws);
+
 	w->tc->requeue_mode = true;
 	requeue_io(w->tc);
 	pool_work_complete(&w->pw);
@@ -2482,6 +2485,7 @@ static void do_noflush_start(struct work_struct *ws)
 static void do_noflush_stop(struct work_struct *ws)
 {
 	struct noflush_work *w = to_noflush(ws);
+
 	w->tc->requeue_mode = false;
 	pool_work_complete(&w->pw);
 }
@@ -2800,9 +2804,11 @@ static void requeue_bios(struct pool *pool)
 	rcu_read_unlock();
 }
 
-/*----------------------------------------------------------------
+/*
+ *--------------------------------------------------------------
  * Binding of control targets to a pool object
- *--------------------------------------------------------------*/
+ *--------------------------------------------------------------
+ */
 static bool is_factor(sector_t block_size, uint32_t n)
 {
 	return !sector_div(block_size, n);
@@ -2866,9 +2872,11 @@ static void unbind_control_target(struct pool *pool, struct dm_target *ti)
 		pool->ti = NULL;
 }
 
-/*----------------------------------------------------------------
+/*
+ *--------------------------------------------------------------
  * Pool creation
- *--------------------------------------------------------------*/
+ *--------------------------------------------------------------
+ */
 /* Initialize pool features. */
 static void pool_features_init(struct pool_features *pf)
 {
@@ -3092,9 +3100,11 @@ static struct pool *__pool_find(struct mapped_device *pool_md,
 	return pool;
 }
 
-/*----------------------------------------------------------------
+/*
+ *--------------------------------------------------------------
  * Pool target methods
- *--------------------------------------------------------------*/
+ *--------------------------------------------------------------
+ */
 static void pool_dtr(struct dm_target *ti)
 {
 	struct pool_c *pt = ti->private;
@@ -3235,6 +3245,7 @@ static dm_block_t calc_metadata_threshold(struct pool_c *pt)
 	 * delete after you've grown the device).
 	 */
 	dm_block_t quarter = get_metadata_dev_size_in_blocks(pt->metadata_dev->bdev) / 4;
+
 	return min((dm_block_t)1024ULL /* 4M */, quarter);
 }
 
@@ -4097,9 +4108,11 @@ static struct target_type pool_target = {
 	.io_hints = pool_io_hints,
 };
 
-/*----------------------------------------------------------------
+/*
+ *--------------------------------------------------------------
  * Thin target methods
- *--------------------------------------------------------------*/
+ *--------------------------------------------------------------
+ */
 static void thin_get(struct thin_c *tc)
 {
 	refcount_inc(&tc->refcount);

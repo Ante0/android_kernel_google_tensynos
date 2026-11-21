@@ -6,6 +6,7 @@
 #include <linux/slab.h>
 #include <linux/gfp.h>
 #include <linux/sched.h>
+#include <linux/sched/mm.h>
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/ratelimit.h>
@@ -429,9 +430,33 @@ bad:
 
 #define DELEGATED_INO_AVAILABLE		xa_mk_value(1)
 
+static int ceph_insert_deleg_ino(struct ceph_mds_session *s, u64 ino)
+{
+	int err;
+
+	/*
+	 * Cap how many delegated inodes a single session may hold. This is
+	 * the only place that grows the count, so atomic_add_unless() bounds
+	 * it at exactly CEPH_MAX_DELEG_INOS; s_num_deleg_inos can never exceed
+	 * that.
+	 */
+	if (!atomic_add_unless(&s->s_num_deleg_inos, 1, CEPH_MAX_DELEG_INOS)) {
+		pr_warn_ratelimited("ceph: MDS session already holds %d delegated inodes\n",
+				    CEPH_MAX_DELEG_INOS);
+		return -EOVERFLOW;
+	}
+
+	err = xa_insert(&s->s_delegated_inos, ino, DELEGATED_INO_AVAILABLE,
+			GFP_KERNEL);
+	if (err)
+		atomic_dec(&s->s_num_deleg_inos);
+	return err;
+}
+
 static int ceph_parse_deleg_inos(void **p, void *end,
 				 struct ceph_mds_session *s)
 {
+	u64 msg_deleg_inos = 0;
 	u32 sets;
 
 	ceph_decode_32_safe(p, end, sets, bad);
@@ -448,16 +473,33 @@ static int ceph_parse_deleg_inos(void **p, void *end,
 					start, len);
 			continue;
 		}
+
+		/*
+		 * Bound the number of inodes one reply may delegate.
+		 * ceph_insert_deleg_ino() separately caps the per-session
+		 * population, so this only has to stop one reply from spinning
+		 * the insert loop under an attacker-controlled len.
+		 */
+		if (len > (u64)CEPH_MAX_DELEG_INOS ||
+		    msg_deleg_inos > (u64)CEPH_MAX_DELEG_INOS - len) {
+			pr_warn_ratelimited("ceph: MDS reply delegates too many inodes (have %llu, +%llu, max %d)\n",
+					    msg_deleg_inos, len, CEPH_MAX_DELEG_INOS);
+			return -EIO;
+		}
+		msg_deleg_inos += len;
+
 		while (len--) {
-			int err = xa_insert(&s->s_delegated_inos, start++,
-					    DELEGATED_INO_AVAILABLE,
-					    GFP_KERNEL);
+			int err = ceph_insert_deleg_ino(s, start++);
+
 			if (!err) {
 				dout("added delegated inode 0x%llx\n",
 				     start - 1);
 			} else if (err == -EBUSY) {
 				pr_warn("MDS delegated inode 0x%llx more than once.\n",
 					start - 1);
+			} else if (err == -EOVERFLOW) {
+				/* ceph_insert_deleg_ino() already warned. */
+				return -EIO;
 			} else {
 				return err;
 			}
@@ -475,16 +517,17 @@ u64 ceph_get_deleg_ino(struct ceph_mds_session *s)
 
 	xa_for_each(&s->s_delegated_inos, ino, val) {
 		val = xa_erase(&s->s_delegated_inos, ino);
-		if (val == DELEGATED_INO_AVAILABLE)
+		if (val == DELEGATED_INO_AVAILABLE) {
+			atomic_dec(&s->s_num_deleg_inos);
 			return ino;
+		}
 	}
 	return 0;
 }
 
 int ceph_restore_deleg_ino(struct ceph_mds_session *s, u64 ino)
 {
-	return xa_insert(&s->s_delegated_inos, ino, DELEGATED_INO_AVAILABLE,
-			 GFP_KERNEL);
+	return ceph_insert_deleg_ino(s, ino);
 }
 #else /* BITS_PER_LONG == 64 */
 /*
@@ -678,7 +721,7 @@ static void destroy_reply_info(struct ceph_mds_reply_info_parsed *info)
  */
 int ceph_wait_on_conflict_unlink(struct dentry *dentry)
 {
-	struct ceph_fs_client *fsc = ceph_sb_to_client(dentry->d_sb);
+	struct ceph_fs_client *fsc = ceph_sb_to_fs_client(dentry->d_sb);
 	struct dentry *pdentry = dentry->d_parent;
 	struct dentry *udentry, *found = NULL;
 	struct ceph_dentry_info *di;
@@ -851,6 +894,7 @@ static struct ceph_mds_session *register_session(struct ceph_mds_client *mdsc,
 	INIT_LIST_HEAD(&s->s_waiting);
 	INIT_LIST_HEAD(&s->s_unsafe);
 	xa_init(&s->s_delegated_inos);
+	atomic_set(&s->s_num_deleg_inos, 0);
 	INIT_LIST_HEAD(&s->s_cap_releases);
 	INIT_WORK(&s->s_cap_release_work, ceph_cap_release_work);
 
@@ -1971,6 +2015,7 @@ out:
  */
 static int trim_caps_cb(struct inode *inode, int mds, void *arg)
 {
+	struct ceph_mds_client *mdsc = ceph_sb_to_mdsc(inode->i_sb);
 	int *remaining = arg;
 	struct ceph_inode_info *ci = ceph_inode(inode);
 	int used, wanted, oissued, mine;
@@ -2018,7 +2063,7 @@ static int trim_caps_cb(struct inode *inode, int mds, void *arg)
 
 	if (oissued) {
 		/* we aren't the only cap.. just remove us */
-		ceph_remove_cap(cap, true);
+		ceph_remove_cap(mdsc, cap, true);
 		(*remaining)--;
 	} else {
 		struct dentry *dentry;
@@ -2383,8 +2428,8 @@ static inline  u64 __get_oldest_tid(struct ceph_mds_client *mdsc)
  * Encode hidden .snap dirs as a double /, i.e.
  *   foo/.snap/bar -> foo//bar
  */
-char *ceph_mdsc_build_path(struct dentry *dentry, int *plen, u64 *pbase,
-			   int stop_on_nosnap)
+char *ceph_mdsc_build_path(struct ceph_mds_client *mdsc, struct dentry *dentry,
+			   int *plen, u64 *pbase, int stop_on_nosnap)
 {
 	struct dentry *temp;
 	char *path;
@@ -2451,6 +2496,7 @@ retry:
 		 * cannot ever succeed.  Creating paths that long is
 		 * possible with Ceph, but Linux cannot use them.
 		 */
+		__putname(path);
 		return ERR_PTR(-ENAMETOOLONG);
 	}
 
@@ -2461,9 +2507,9 @@ retry:
 	return path + pos;
 }
 
-static int build_dentry_path(struct dentry *dentry, struct inode *dir,
-			     const char **ppath, int *ppathlen, u64 *pino,
-			     bool *pfreepath, bool parent_locked)
+static int build_dentry_path(struct ceph_mds_client *mdsc, struct dentry *dentry,
+			     struct inode *dir, const char **ppath, int *ppathlen,
+			     u64 *pino, bool *pfreepath, bool parent_locked)
 {
 	char *path;
 
@@ -2478,7 +2524,7 @@ static int build_dentry_path(struct dentry *dentry, struct inode *dir,
 		return 0;
 	}
 	rcu_read_unlock();
-	path = ceph_mdsc_build_path(dentry, ppathlen, pino, 1);
+	path = ceph_mdsc_build_path(mdsc, dentry, ppathlen, pino, 1);
 	if (IS_ERR(path))
 		return PTR_ERR(path);
 	*ppath = path;
@@ -2490,6 +2536,7 @@ static int build_inode_path(struct inode *inode,
 			    const char **ppath, int *ppathlen, u64 *pino,
 			    bool *pfreepath)
 {
+	struct ceph_mds_client *mdsc = ceph_sb_to_mdsc(inode->i_sb);
 	struct dentry *dentry;
 	char *path;
 
@@ -2499,7 +2546,7 @@ static int build_inode_path(struct inode *inode,
 		return 0;
 	}
 	dentry = d_find_alias(inode);
-	path = ceph_mdsc_build_path(dentry, ppathlen, pino, 1);
+	path = ceph_mdsc_build_path(mdsc, dentry, ppathlen, pino, 1);
 	dput(dentry);
 	if (IS_ERR(path))
 		return PTR_ERR(path);
@@ -2512,10 +2559,11 @@ static int build_inode_path(struct inode *inode,
  * request arguments may be specified via an inode *, a dentry *, or
  * an explicit ino+path.
  */
-static int set_request_path_attr(struct inode *rinode, struct dentry *rdentry,
-				  struct inode *rdiri, const char *rpath,
-				  u64 rino, const char **ppath, int *pathlen,
-				  u64 *ino, bool *freepath, bool parent_locked)
+static int set_request_path_attr(struct ceph_mds_client *mdsc, struct inode *rinode,
+				 struct dentry *rdentry, struct inode *rdiri,
+				 const char *rpath, u64 rino, const char **ppath,
+				 int *pathlen, u64 *ino, bool *freepath,
+				 bool parent_locked)
 {
 	int r = 0;
 
@@ -2524,7 +2572,7 @@ static int set_request_path_attr(struct inode *rinode, struct dentry *rdentry,
 		dout(" inode %p %llx.%llx\n", rinode, ceph_ino(rinode),
 		     ceph_snap(rinode));
 	} else if (rdentry) {
-		r = build_dentry_path(rdentry, rdiri, ppath, pathlen, ino,
+		r = build_dentry_path(mdsc, rdentry, rdiri, ppath, pathlen, ino,
 					freepath, parent_locked);
 		dout(" dentry %p %llx/%.*s\n", rdentry, *ino, *pathlen,
 		     *ppath);
@@ -2576,7 +2624,7 @@ static struct ceph_msg *create_request_message(struct ceph_mds_session *session,
 	int ret;
 	bool legacy = !(session->s_con.peer_features & CEPH_FEATURE_FS_BTIME);
 
-	ret = set_request_path_attr(req->r_inode, req->r_dentry,
+	ret = set_request_path_attr(mdsc, req->r_inode, req->r_dentry,
 			      req->r_parent, req->r_path1, req->r_ino1.ino,
 			      &path1, &pathlen1, &ino1, &freepath1,
 			      test_bit(CEPH_MDS_R_PARENT_LOCKED,
@@ -2587,7 +2635,7 @@ static struct ceph_msg *create_request_message(struct ceph_mds_session *session,
 	}
 
 	/* If r_old_dentry is set, then assume that its parent is locked */
-	ret = set_request_path_attr(NULL, req->r_old_dentry,
+	ret = set_request_path_attr(mdsc, NULL, req->r_old_dentry,
 			      req->r_old_dentry_dir,
 			      req->r_path2, req->r_ino2.ino,
 			      &path2, &pathlen2, &ino2, &freepath2, true);
@@ -3268,6 +3316,7 @@ static void handle_reply(struct ceph_mds_session *session, struct ceph_msg *msg)
 	struct ceph_mds_reply_head *head = msg->front.iov_base;
 	struct ceph_mds_reply_info_parsed *rinfo;  /* parsed reply info */
 	struct ceph_snap_realm *realm;
+	unsigned int nofs_flags;
 	u64 tid;
 	int err, result;
 	int mds = session->s_mds;
@@ -3396,6 +3445,14 @@ static void handle_reply(struct ceph_mds_session *session, struct ceph_msg *msg)
 
 	/* insert trace into our cache */
 	mutex_lock(&req->r_fill_mutex);
+
+	/* disable fs reclaim while we are using current->journal_info
+	 * for our own purposes, or else shrinkers of other
+	 * filesystems might dereference this pointer as a different
+	 * type
+	 */
+	nofs_flags = memalloc_nofs_save();
+
 	current->journal_info = req;
 	err = ceph_fill_trace(mdsc->fsc->sb, req);
 	if (err == 0) {
@@ -3404,6 +3461,7 @@ static void handle_reply(struct ceph_mds_session *session, struct ceph_msg *msg)
 			ceph_readdir_prepopulate(req, req->r_session);
 	}
 	current->journal_info = NULL;
+	memalloc_nofs_restore(nofs_flags);
 	mutex_unlock(&req->r_fill_mutex);
 
 	up_read(&mdsc->snap_rwsem);
@@ -3929,6 +3987,7 @@ out_unlock:
  */
 static int reconnect_caps_cb(struct inode *inode, int mds, void *arg)
 {
+	struct ceph_mds_client *mdsc = ceph_sb_to_mdsc(inode->i_sb);
 	union {
 		struct ceph_mds_cap_reconnect v2;
 		struct ceph_mds_cap_reconnect_v1 v1;
@@ -3946,7 +4005,7 @@ static int reconnect_caps_cb(struct inode *inode, int mds, void *arg)
 	dentry = d_find_primary(inode);
 	if (dentry) {
 		/* set pathbase to parent dir when msg_version >= 2 */
-		path = ceph_mdsc_build_path(dentry, &pathlen, &pathbase,
+		path = ceph_mdsc_build_path(mdsc, dentry, &pathlen, &pathbase,
 					    recon_state->msg_version >= 2);
 		dput(dentry);
 		if (IS_ERR(path)) {
@@ -4204,6 +4263,7 @@ static void send_mds_reconnect(struct ceph_mds_client *mdsc,
 		goto fail_nomsg;
 
 	xa_destroy(&session->s_delegated_inos);
+	atomic_set(&session->s_num_deleg_inos, 0);
 
 	mutex_lock(&session->s_mutex);
 	session->s_state = CEPH_MDS_SESSION_RECONNECTING;
@@ -4411,9 +4471,11 @@ static void check_new_map(struct ceph_mds_client *mdsc,
 			   ceph_mdsmap_get_addr(newmap, i),
 			   sizeof(struct ceph_entity_addr))) {
 			/* just close it */
+			ceph_get_mds_session(s);
 			mutex_unlock(&mdsc->mutex);
 			mutex_lock(&s->s_mutex);
 			mutex_lock(&mdsc->mutex);
+			ceph_put_mds_session(s);
 			ceph_con_close(&s->s_con);
 			mutex_unlock(&s->s_mutex);
 			s->s_state = CEPH_MDS_SESSION_RESTARTING;
@@ -4426,10 +4488,12 @@ static void check_new_map(struct ceph_mds_client *mdsc,
 		 */
 		if (s->s_state == CEPH_MDS_SESSION_RESTARTING &&
 		    newstate >= CEPH_MDS_STATE_RECONNECT) {
+			ceph_get_mds_session(s);
 			mutex_unlock(&mdsc->mutex);
 			clear_bit(i, targets);
 			send_mds_reconnect(mdsc, s);
 			mutex_lock(&mdsc->mutex);
+			ceph_put_mds_session(s);
 		}
 
 		/*
@@ -4441,9 +4505,11 @@ static void check_new_map(struct ceph_mds_client *mdsc,
 			    oldstate != CEPH_MDS_STATE_STARTING)
 				pr_info("mds%d recovery completed\n", s->s_mds);
 			kick_requests(mdsc, i);
+			ceph_get_mds_session(s);
 			mutex_unlock(&mdsc->mutex);
 			mutex_lock(&s->s_mutex);
 			mutex_lock(&mdsc->mutex);
+			ceph_put_mds_session(s);
 			ceph_kick_flushing_caps(mdsc, s);
 			mutex_unlock(&s->s_mutex);
 			wake_up_session_caps(s, RECONNECT);
@@ -5301,7 +5367,7 @@ void ceph_mdsc_handle_mdsmap(struct ceph_mds_client *mdsc, struct ceph_msg *msg)
 		return;
 	}
 
-	newmap = ceph_mdsmap_decode(&p, end, ceph_msgr2(mdsc->fsc->client));
+	newmap = ceph_mdsmap_decode(mdsc, &p, end, ceph_msgr2(mdsc->fsc->client));
 	if (IS_ERR(newmap)) {
 		err = PTR_ERR(newmap);
 		goto bad_unlock;

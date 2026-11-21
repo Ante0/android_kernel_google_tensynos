@@ -122,11 +122,11 @@ struct dm_snapshot {
 	 * The merge operation failed if this flag is set.
 	 * Failure modes are handled as follows:
 	 * - I/O error reading the header
-	 *   	=> don't load the target; abort.
+	 *	=> don't load the target; abort.
 	 * - Header does not have "valid" flag set
-	 *   	=> use the origin; forget about the snapshot.
+	 *	=> use the origin; forget about the snapshot.
 	 * - I/O error when reading exceptions
-	 *   	=> don't load the target; abort.
+	 *	=> don't load the target; abort.
 	 *         (We can't use the intermediate origin state.)
 	 * - I/O error while merging
 	 *	=> stop merging; set merge_failed; process I/O normally.
@@ -244,12 +244,14 @@ struct dm_snap_tracked_chunk {
 static void init_tracked_chunk(struct bio *bio)
 {
 	struct dm_snap_tracked_chunk *c = dm_per_bio_data(bio, sizeof(struct dm_snap_tracked_chunk));
+
 	INIT_HLIST_NODE(&c->node);
 }
 
 static bool is_bio_tracked(struct bio *bio)
 {
 	struct dm_snap_tracked_chunk *c = dm_per_bio_data(bio, sizeof(struct dm_snap_tracked_chunk));
+
 	return !hlist_unhashed(&c->node);
 }
 
@@ -398,6 +400,7 @@ static struct origin *__lookup_origin(struct block_device *origin)
 static void __insert_origin(struct origin *o)
 {
 	struct list_head *sl = &_origins[origin_hash(o->bdev)];
+
 	list_add_tail(&o->hash_list, sl);
 }
 
@@ -417,6 +420,7 @@ static struct dm_origin *__lookup_dm_origin(struct block_device *origin)
 static void __insert_dm_origin(struct dm_origin *o)
 {
 	struct list_head *sl = &_dm_origins[origin_hash(o->dev->bdev)];
+
 	list_add_tail(&o->hash_list, sl);
 }
 
@@ -867,6 +871,7 @@ static int calc_max_buckets(void)
 {
 	/* use a fixed size of 2MB */
 	unsigned long mem = 2 * 1024 * 1024;
+
 	mem /= sizeof(struct hlist_bl_head);
 
 	return mem;
@@ -1301,6 +1306,20 @@ static int snapshot_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		goto bad_store;
 	}
 
+	/*
+	 * snapshot-merge requires the optional prepare_merge/commit_merge
+	 * callbacks; the transient exception store does not implement them.
+	 * The handover path checks this in __validate_exception_handover(),
+	 * but a directly constructed snapshot-merge never goes through it.
+	 */
+	if (dm_target_is_snapshot_merge(ti) &&
+	    (!s->store->type->prepare_merge ||
+	     !s->store->type->commit_merge)) {
+		ti->error = "Snapshot exception store does not support snapshot-merge.";
+		r = -EINVAL;
+		goto bad_hash_tables;
+	}
+
 	argv += args_used;
 	argc -= args_used;
 
@@ -1548,6 +1567,7 @@ static bool wait_for_in_progress(struct dm_snapshot *s, bool unlock_origins)
 			 * throttling is unlikely to negatively impact performance.
 			 */
 			DECLARE_WAITQUEUE(wait, current);
+
 			__add_wait_queue(&s->in_progress_wait, &wait);
 			__set_current_state(TASK_UNINTERRUPTIBLE);
 			spin_unlock(&s->in_progress_wait.lock);
@@ -2339,8 +2359,7 @@ static void snapshot_status(struct dm_target *ti, status_type_t type,
 				       (unsigned long long)sectors_allocated,
 				       (unsigned long long)total_sectors,
 				       (unsigned long long)metadata_sectors);
-			}
-			else
+			} else
 				DMEMIT("Unknown");
 		}
 
@@ -2414,10 +2433,11 @@ static void snapshot_io_hints(struct dm_target *ti, struct queue_limits *limits)
 	}
 }
 
-/*-----------------------------------------------------------------
+/*
+ *---------------------------------------------------------------
  * Origin methods
- *---------------------------------------------------------------*/
-
+ *---------------------------------------------------------------
+ */
 /*
  * If no exceptions need creating, DM_MAPIO_REMAPPED is returned and any
  * supplied bio was ignored.  The caller may submit it immediately.
@@ -2561,6 +2581,7 @@ again:
 	if (o) {
 		if (limit) {
 			struct dm_snapshot *s;
+
 			list_for_each_entry(s, &o->snapshots, list)
 				if (unlikely(!wait_for_in_progress(s, true)))
 					goto again;

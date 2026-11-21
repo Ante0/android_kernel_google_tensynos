@@ -622,8 +622,8 @@ static netdev_tx_t reg_vif_xmit(struct sk_buff *skb,
 	if (ip6mr_fib_lookup(net, &fl6, &mrt) < 0)
 		goto tx_err;
 
-	dev->stats.tx_bytes += skb->len;
-	dev->stats.tx_packets++;
+	DEV_STATS_ADD(dev, tx_bytes, skb->len);
+	DEV_STATS_INC(dev, tx_packets);
 	rcu_read_lock();
 	ip6mr_cache_report(mrt, skb, READ_ONCE(mrt->mroute_reg_vif_num),
 			   MRT6MSG_WHOLEPKT);
@@ -632,7 +632,7 @@ static netdev_tx_t reg_vif_xmit(struct sk_buff *skb,
 	return NETDEV_TX_OK;
 
 tx_err:
-	dev->stats.tx_errors++;
+	DEV_STATS_INC(dev, tx_errors);
 	kfree_skb(skb);
 	return NETDEV_TX_OK;
 }
@@ -1128,7 +1128,6 @@ static int ip6mr_cache_report(const struct mr_table *mrt, struct sk_buff *pkt,
 	msg->im6_src = ipv6_hdr(pkt)->saddr;
 	msg->im6_dst = ipv6_hdr(pkt)->daddr;
 
-	skb_dst_set(skb, dst_clone(skb_dst(pkt)));
 	skb->ip_summed = CHECKSUM_UNNECESSARY;
 	}
 
@@ -1138,6 +1137,7 @@ static int ip6mr_cache_report(const struct mr_table *mrt, struct sk_buff *pkt,
 		return -EINVAL;
 	}
 
+	skb_dst_drop(skb);
 	mrt6msg_netlink_event(mrt, skb);
 
 	/* Deliver to user space multicast routing algorithms */
@@ -1217,6 +1217,7 @@ static int ip6mr_cache_unresolved(struct mr_table *mrt, mifi_t mifi,
 			skb->dev = dev;
 			skb->skb_iif = dev->ifindex;
 		}
+		skb_dst_drop(skb);
 		skb_queue_tail(&c->_c.mfc_un.unres.unresolved, skb);
 		err = 0;
 	}
@@ -1389,7 +1390,7 @@ int __init ip6_mr_init(void)
 
 	mrt_cachep = kmem_cache_create("ip6_mrt_cache",
 				       sizeof(struct mfc6_cache),
-				       0, SLAB_HWCACHE_ALIGN,
+				       0, SLAB_HWCACHE_ALIGN | SLAB_ACCOUNT,
 				       NULL);
 	if (!mrt_cachep)
 		return -ENOMEM;
@@ -2059,8 +2060,8 @@ static int ip6mr_forward2(struct net *net, struct mr_table *mrt,
 	if (vif->flags & MIFF_REGISTER) {
 		WRITE_ONCE(vif->pkt_out, vif->pkt_out + 1);
 		WRITE_ONCE(vif->bytes_out, vif->bytes_out + skb->len);
-		vif_dev->stats.tx_bytes += skb->len;
-		vif_dev->stats.tx_packets++;
+		DEV_STATS_ADD(vif_dev, tx_bytes, skb->len);
+		DEV_STATS_INC(vif_dev, tx_packets);
 		ip6mr_cache_report(mrt, skb, vifi, MRT6MSG_WHOLEPKT);
 		goto out_free;
 	}
@@ -2301,7 +2302,7 @@ int ip6mr_get_route(struct net *net, struct sk_buff *skb, struct rtmsg *rtm,
 	int err;
 	struct mr_table *mrt;
 	struct mfc6_cache *cache;
-	struct rt6_info *rt = (struct rt6_info *)skb_dst(skb);
+	struct rt6_info *rt = dst_rt6_info(skb_dst(skb));
 
 	rcu_read_lock();
 	mrt = __ip6mr_get_table(net, RT6_TABLE_DFLT);

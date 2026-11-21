@@ -11,6 +11,7 @@
 #include "server.h"
 #include "smb_common.h"
 #include "mgmt/ksmbd_ida.h"
+#include "mgmt/user_session.h"
 #include "connection.h"
 #include "transport_tcp.h"
 #include "transport_rdma.h"
@@ -21,6 +22,43 @@ static struct ksmbd_conn_ops default_conn_ops;
 
 LIST_HEAD(conn_list);
 DECLARE_RWSEM(conn_list_lock);
+
+/**
+ * ksmbd_conn_get() - take a reference on @conn and return it.
+ *
+ * Returns @conn unchanged so callers can write
+ * "fp->conn = ksmbd_conn_get(work->conn);" in one expression.  Returns NULL
+ * if @conn is NULL.
+ */
+struct ksmbd_conn *ksmbd_conn_get(struct ksmbd_conn *conn)
+{
+	if (!conn)
+		return NULL;
+
+	atomic_inc(&conn->refcnt);
+	return conn;
+}
+
+/**
+ * ksmbd_conn_put() - drop a reference and, if it was the last, perform the
+ * final, once-per-struct release of a ksmbd_conn.
+ *
+ * The transport is not released here: free_transport() releases it after
+ * calling ksmbd_conn_free().  The final release therefore only pairs
+ * ida_destroy() with kfree(), reaches no sleeping teardown and is safe
+ * from any context, including the RCU callback that frees an opinfo
+ * holding a connection reference.
+ */
+void ksmbd_conn_put(struct ksmbd_conn *conn)
+{
+	if (!conn)
+		return;
+
+	if (atomic_dec_and_test(&conn->refcnt)) {
+		ida_destroy(&conn->async_ida);
+		kfree(conn);
+	}
+}
 
 /**
  * ksmbd_conn_free() - free resources of the connection instance
@@ -36,10 +74,20 @@ void ksmbd_conn_free(struct ksmbd_conn *conn)
 	list_del(&conn->conns_list);
 	up_write(&conn_list_lock);
 
+	/*
+	 * request_buf / preauth_info / mechToken are only ever accessed by the
+	 * connection handler thread that owns @conn.  ksmbd_conn_free() is
+	 * called from the transport free_transport() path when that thread is
+	 * exiting, so it is safe to release them unconditionally even when
+	 * ksmbd_conn_put() below is not the final putter (oplock / ksmbd_file
+	 * holders only retain the conn pointer, not these per-thread buffers).
+	 */
 	xa_destroy(&conn->sessions);
 	kvfree(conn->request_buf);
 	kfree(conn->preauth_info);
-	kfree(conn);
+	kfree(conn->mechToken);
+	ksmbd_preauth_session_destroy(conn);
+	ksmbd_conn_put(conn);
 }
 
 /**
@@ -68,6 +116,8 @@ struct ksmbd_conn *ksmbd_conn_alloc(void)
 		conn->um = NULL;
 	atomic_set(&conn->req_running, 0);
 	atomic_set(&conn->r_count, 0);
+	atomic_set(&conn->refcnt, 1);
+	atomic_set(&conn->mux_smb_requests, 0);
 	conn->total_credits = 1;
 	conn->outstanding_credits = 0;
 
@@ -76,6 +126,7 @@ struct ksmbd_conn *ksmbd_conn_alloc(void)
 	INIT_LIST_HEAD(&conn->conns_list);
 	INIT_LIST_HEAD(&conn->requests);
 	INIT_LIST_HEAD(&conn->async_requests);
+	INIT_LIST_HEAD(&conn->preauth_sess_table);
 	spin_lock_init(&conn->request_lock);
 	spin_lock_init(&conn->credits_lock);
 	ida_init(&conn->async_ida);
@@ -258,8 +309,11 @@ bool ksmbd_conn_alive(struct ksmbd_conn *conn)
 	return true;
 }
 
-#define SMB1_MIN_SUPPORTED_HEADER_SIZE (sizeof(struct smb_hdr))
-#define SMB2_MIN_SUPPORTED_HEADER_SIZE (sizeof(struct smb2_hdr) + 4)
+/* "+2" for BCC field (ByteCount, 2 bytes) */
+#define SMB1_MIN_SUPPORTED_PDU_SIZE (sizeof(struct smb_hdr) + 2)
+#define SMB2_MIN_SUPPORTED_PDU_SIZE (sizeof(struct smb2_pdu))
+#define SMB2_TRANSFORM_MIN_SUPPORTED_PDU_SIZE	\
+	(sizeof(struct smb2_transform_hdr) + sizeof(struct smb2_hdr))
 
 /**
  * ksmbd_conn_handler_loop() - session thread to listen on new smb requests
@@ -274,6 +328,7 @@ int ksmbd_conn_handler_loop(void *p)
 	struct ksmbd_conn *conn = (struct ksmbd_conn *)p;
 	struct ksmbd_transport *t = conn->transport;
 	unsigned int pdu_size, max_allowed_pdu_size;
+	__le32 proto;
 	char hdr_buf[4] = {0,};
 	int size;
 
@@ -318,7 +373,7 @@ int ksmbd_conn_handler_loop(void *p)
 		if (pdu_size > MAX_STREAM_PROT_LEN)
 			break;
 
-		if (pdu_size < SMB1_MIN_SUPPORTED_HEADER_SIZE)
+		if (pdu_size < SMB1_MIN_SUPPORTED_PDU_SIZE)
 			break;
 
 		/* 4 for rfc1002 length field */
@@ -349,11 +404,14 @@ int ksmbd_conn_handler_loop(void *p)
 		if (!ksmbd_smb_request(conn))
 			break;
 
-		if (((struct smb2_hdr *)smb2_get_msg(conn->request_buf))->ProtocolId ==
-		    SMB2_PROTO_NUMBER) {
-			if (pdu_size < SMB2_MIN_SUPPORTED_HEADER_SIZE)
-				break;
-		}
+		proto = *(__le32 *)smb_get_msg(conn->request_buf);
+		if (proto == SMB2_PROTO_NUMBER &&
+		    pdu_size < SMB2_MIN_SUPPORTED_PDU_SIZE)
+			break;
+
+		if (proto == SMB2_TRANSFORM_PROTO_NUM &&
+		    pdu_size < SMB2_TRANSFORM_MIN_SUPPORTED_PDU_SIZE)
+			break;
 
 		if (!default_conn_ops.process_fn) {
 			pr_err("No connection request callback\n");
@@ -385,6 +443,25 @@ void ksmbd_conn_init_server_callbacks(struct ksmbd_conn_ops *ops)
 {
 	default_conn_ops.process_fn = ops->process_fn;
 	default_conn_ops.terminate_fn = ops->terminate_fn;
+}
+
+void ksmbd_conn_r_count_inc(struct ksmbd_conn *conn)
+{
+	atomic_inc(&conn->r_count);
+}
+
+void ksmbd_conn_r_count_dec(struct ksmbd_conn *conn)
+{
+	/*
+	 * Checking waitqueue to dropping pending requests on
+	 * disconnection. waitqueue_active is safe because it
+	 * uses atomic operation for condition.
+	 */
+	atomic_inc(&conn->refcnt);
+	if (!atomic_dec_return(&conn->r_count) && waitqueue_active(&conn->r_count_q))
+		wake_up(&conn->r_count_q);
+
+	ksmbd_conn_put(conn);
 }
 
 int ksmbd_conn_transport_init(void)

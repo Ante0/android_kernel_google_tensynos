@@ -3079,7 +3079,7 @@ extern int insert_vm_struct(struct mm_struct *, struct vm_area_struct *);
 extern void unlink_file_vma(struct vm_area_struct *);
 extern struct vm_area_struct *copy_vma(struct vm_area_struct **,
 	unsigned long addr, unsigned long len, pgoff_t pgoff,
-	bool *need_rmap_locks);
+	bool *need_rmap_locks, bool keep_source);
 extern void exit_mmap(struct mm_struct *);
 
 void vma_mas_store(struct vm_area_struct *vma, struct ma_state *mas);
@@ -3663,6 +3663,18 @@ void vmemmap_populate_print_last(void);
 void vmemmap_free(unsigned long start, unsigned long end,
 		struct vmem_altmap *altmap);
 #endif
+
+#define VMEMMAP_RESERVE_NR	2
+#ifdef CONFIG_ARCH_WANT_HUGETLB_PAGE_OPTIMIZE_VMEMMAP
+#define vmemmap_can_optimize(altmap, pgmap)				\
+	(is_power_of_2(sizeof(struct page)) && (pgmap) && !(altmap) &&	\
+	 (((pgmap_vmemmap_nr(pgmap) * sizeof(struct page)) >> PAGE_SHIFT) > \
+	  VMEMMAP_RESERVE_NR))
+#else
+#define vmemmap_can_optimize(altmap, pgmap)	\
+	((void)(altmap), (void)(pgmap), false)
+#endif
+
 void register_page_bootmem_memmap(unsigned long section_nr, struct page *map,
 				  unsigned long nr_pages);
 

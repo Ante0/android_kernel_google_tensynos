@@ -53,6 +53,8 @@ struct io_worker {
 
 	struct io_wq_work *cur_work;
 	struct io_wq_work *next_work;
+	/* rest of the hashed chain ->next_work or ->cur_work came with */
+	struct io_wq_work *chain_work;
 	raw_spinlock_t lock;
 
 	struct completion ref_done;
@@ -201,9 +203,12 @@ static void io_worker_cancel_cb(struct io_worker *worker)
 	struct io_wq *wq = wqe->wq;
 
 	atomic_dec(&acct->nr_running);
-	raw_spin_lock(&worker->wqe->lock);
-	acct->nr_workers--;
-	raw_spin_unlock(&worker->wqe->lock);
+	/* create_worker_cb() has not reserved a worker slot yet. */
+	if (worker->create_work.func != create_worker_cb) {
+		raw_spin_lock(&worker->wqe->lock);
+		acct->nr_workers--;
+		raw_spin_unlock(&worker->wqe->lock);
+	}
 	io_worker_ref_put(wq);
 	clear_bit_unlock(0, &worker->create_state);
 	io_worker_release(worker);
@@ -544,6 +549,9 @@ static void io_assign_current_work(struct io_worker *worker,
 	raw_spin_lock(&worker->lock);
 	worker->cur_work = work;
 	worker->next_work = NULL;
+	/* stays valid while in between two items of a chain */
+	if (work)
+		worker->chain_work = wq_next_work(work);
 	raw_spin_unlock(&worker->lock);
 }
 
@@ -580,6 +588,7 @@ static void io_worker_handle_work(struct io_worker *worker)
 			 */
 			raw_spin_lock(&worker->lock);
 			worker->next_work = work;
+			worker->chain_work = wq_next_work(work);
 			raw_spin_unlock(&worker->lock);
 		} else {
 			break;
@@ -595,8 +604,15 @@ static void io_worker_handle_work(struct io_worker *worker)
 
 			next_hashed = wq_next_work(work);
 
+			/*
+			 * io_wq_exit_workers() signals us once, so that we
+			 * don't sleep for ever. If that was before this work
+			 * became the current one, the signal is gone.
+			 */
 			if (unlikely(do_kill) && (work->flags & IO_WQ_WORK_UNBOUND))
 				work->flags |= IO_WQ_WORK_CANCEL;
+			else if (unlikely(do_kill))
+				set_notify_signal(current);
 			wq->do_work(work);
 			io_assign_current_work(worker, NULL);
 
@@ -621,6 +637,36 @@ static void io_worker_handle_work(struct io_worker *worker)
 			}
 		} while (work);
 	} while (1);
+}
+
+/*
+ * The worker has decided to exit, and has given up its ->nr_workers slot and
+ * its place on the free list. io_wqe_enqueue() may have picked it from that
+ * list, or seen it running, after it last looked at the work list. Leave
+ * ->nr_running as well and check again. Returns false if the worker has to
+ * stay.
+ */
+static bool io_worker_retire(struct io_wqe *wqe, struct io_worker *worker)
+{
+	struct io_wqe_acct *acct = io_wqe_get_acct(worker);
+
+	/* turns io_wqe_dec_running() and the scheduler hooks into no-ops */
+	worker->flags &= ~IO_WORKER_F_UP;
+	atomic_dec(&acct->nr_running);
+	if (!io_acct_run_queue(acct))
+		return true;
+
+	raw_spin_lock(&wqe->lock);
+	if (acct->nr_workers >= acct->max_workers) {
+		/* a worker was created in our place, the work is its business */
+		raw_spin_unlock(&wqe->lock);
+		return true;
+	}
+	acct->nr_workers++;
+	raw_spin_unlock(&wqe->lock);
+	atomic_inc(&acct->nr_running);
+	worker->flags |= IO_WORKER_F_UP;
+	return false;
 }
 
 static int io_wqe_worker(void *data)
@@ -648,12 +694,23 @@ static int io_wqe_worker(void *data)
 		/*
 		 * Last sleep timed out. Exit if we're not the last worker,
 		 * or if someone modified our affinity.
+		 * Not as long as a request of ours for another worker is
+		 * pending, though. It is accounted as a running worker, which
+		 * others rely on, and io_worker_exit() would cancel it.
 		 */
-		if (last_timeout && (exit_mask || acct->nr_workers > 1)) {
+		if (last_timeout && (exit_mask || acct->nr_workers > 1) &&
+		    !test_bit(0, &worker->create_state)) {
 			acct->nr_workers--;
+			if (worker->flags & IO_WORKER_F_FREE) {
+				worker->flags &= ~IO_WORKER_F_FREE;
+				hlist_nulls_del_init_rcu(&worker->nulls_node);
+			}
 			raw_spin_unlock(&wqe->lock);
 			__set_current_state(TASK_RUNNING);
-			break;
+			if (io_worker_retire(wqe, worker))
+				break;
+			last_timeout = false;
+			continue;
 		}
 		last_timeout = false;
 		__io_worker_idle(wqe, worker);
@@ -1009,6 +1066,7 @@ static bool __io_wq_worker_cancel(struct io_worker *worker,
 static bool io_wq_worker_cancel(struct io_worker *worker, void *data)
 {
 	struct io_cb_cancel_data *match = data;
+	struct io_wq_work *work;
 
 	/*
 	 * Hold the lock to avoid ->cur_work going out of scope, caller
@@ -1018,6 +1076,19 @@ static bool io_wq_worker_cancel(struct io_worker *worker, void *data)
 	if (__io_wq_worker_cancel(worker, match, worker->cur_work) ||
 	    __io_wq_worker_cancel(worker, match, worker->next_work))
 		match->nr_running++;
+	/*
+	 * Hashed work is taken off the work list a chain at a time, what the
+	 * worker hasn't started yet can only be found here. It doesn't move on
+	 * without the lock. Just mark the work, it fails once it is its turn.
+	 */
+	for (work = worker->chain_work; work; work = wq_next_work(work)) {
+		if (match->nr_running && !match->cancel_all)
+			break;
+		if (match->fn(work, match->data)) {
+			work->flags |= IO_WQ_WORK_CANCEL;
+			match->nr_running++;
+		}
+	}
 	raw_spin_unlock(&worker->lock);
 
 	return match->nr_running && !match->cancel_all;
@@ -1218,6 +1289,7 @@ struct io_wq *io_wq_create(unsigned bounded, struct io_wq_data *data)
 	wq->task = get_task_struct(data->task);
 	atomic_set(&wq->worker_refs, 1);
 	init_completion(&wq->worker_done);
+	free_cpumask_var(allowed_mask);
 	return wq;
 err:
 	io_wq_put_hash(data->hash);
@@ -1247,6 +1319,8 @@ static bool io_task_work_match(struct callback_head *cb, void *data)
 void io_wq_exit_start(struct io_wq *wq)
 {
 	set_bit(IO_WQ_BIT_EXIT, &wq->state);
+	/* Pairs with task_work_add() in io_queue_worker_create(). */
+	smp_mb__after_atomic();
 }
 
 static void io_wq_cancel_tw_create(struct io_wq *wq)

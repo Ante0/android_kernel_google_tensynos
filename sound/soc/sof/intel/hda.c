@@ -128,6 +128,11 @@ static int sdw_params_stream(struct device *dev,
 	struct snd_soc_dapm_widget *w;
 
 	w = snd_soc_dai_get_widget(d, params_data->stream);
+	if (!w) {
+		dev_err(dev, "%s widget not found, check amp link num in the topology\n",
+			d->name);
+		return -EINVAL;
+	}
 	data.dai_index = (params_data->link_id << 8) | d->id;
 	data.dai_data = params_data->alh_stream_id;
 
@@ -1224,7 +1229,7 @@ int hda_dsp_remove(struct snd_sof_dev *sdev)
 
 	hda_dsp_stream_free(sdev);
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
-	snd_hdac_link_free_all(bus);
+	snd_hdac_ext_link_free_all(bus);
 #endif
 
 	iounmap(sdev->bar[HDA_DSP_BAR]);

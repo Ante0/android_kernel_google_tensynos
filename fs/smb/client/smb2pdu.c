@@ -160,6 +160,8 @@ smb2_reconnect(__le16 smb2_command, struct cifs_tcon *tcon,
 	int rc = 0;
 	struct nls_table *nls_codepage = NULL;
 	struct cifs_ses *ses;
+	struct TCP_Server_Info *pserver;
+	unsigned int chan_index;
 
 	/*
 	 * SMB2s NegProt, SessSetup, Logoff do not have tcon yet so
@@ -220,6 +222,12 @@ smb2_reconnect(__le16 smb2_command, struct cifs_tcon *tcon,
 			return -EAGAIN;
 		}
 	}
+
+	/* if server is marked for termination, cifsd will cleanup */
+	if (server->terminate) {
+		spin_unlock(&server->srv_lock);
+		return -EHOSTDOWN;
+	}
 	spin_unlock(&server->srv_lock);
 
 again:
@@ -239,11 +247,23 @@ again:
 
 	mutex_lock(&ses->session_mutex);
 	/*
+	 * if this is called by delayed work, and the channel has been disabled
+	 * in parallel, the delayed work can continue to execute in parallel
+	 * there's a chance that this channel may not exist anymore
+	 */
+	spin_lock(&server->srv_lock);
+	if (server->tcpStatus == CifsExiting) {
+		spin_unlock(&server->srv_lock);
+		mutex_unlock(&ses->session_mutex);
+		rc = -EHOSTDOWN;
+		goto out;
+	}
+
+	/*
 	 * Recheck after acquire mutex. If another thread is negotiating
 	 * and the server never sends an answer the socket will be closed
 	 * and tcpStatus set to reconnect.
 	 */
-	spin_lock(&server->srv_lock);
 	if (server->tcpStatus == CifsNeedReconnect) {
 		spin_unlock(&server->srv_lock);
 		mutex_unlock(&ses->session_mutex);
@@ -280,6 +300,53 @@ again:
 
 	rc = cifs_negotiate_protocol(0, ses, server);
 	if (!rc) {
+		/*
+		 * if server stopped supporting multichannel
+		 * and the first channel reconnected, disable all the others.
+		 */
+		if (ses->chan_count > 1 &&
+		    !(server->capabilities & SMB2_GLOBAL_CAP_MULTI_CHANNEL)) {
+			if (CIFS_SERVER_IS_CHAN(server)) {
+				cifs_dbg(VFS, "server %s does not support " \
+					 "multichannel anymore. skipping secondary channel\n",
+					 ses->server->hostname);
+
+				spin_lock(&ses->chan_lock);
+				chan_index = cifs_ses_get_chan_index(ses, server);
+				if (!chan_index) {
+					spin_unlock(&ses->chan_lock);
+					goto skip_terminate;
+				}
+
+				ses->chans[chan_index].server = NULL;
+				spin_unlock(&ses->chan_lock);
+
+				/*
+				 * the above reference of server by channel
+				 * needs to be dropped without holding chan_lock
+				 * as cifs_put_tcp_session takes a higher lock
+				 * i.e. cifs_tcp_ses_lock
+				 */
+				cifs_put_tcp_session(server, 1);
+
+				server->terminate = true;
+				cifs_signal_cifsd_for_reconnect(server, false);
+
+				/* mark primary server as needing reconnect */
+				pserver = server->primary_server;
+				cifs_signal_cifsd_for_reconnect(pserver, false);
+
+skip_terminate:
+				mutex_unlock(&ses->session_mutex);
+				rc = -EHOSTDOWN;
+				goto out;
+			} else {
+				cifs_server_dbg(VFS, "does not support " \
+					 "multichannel anymore. disabling all other channels\n");
+				cifs_disable_secondary_channels(ses);
+			}
+		}
+
 		rc = cifs_setup_session(0, ses, server, nls_codepage);
 		if ((rc == -EACCES) && !tcon->retry) {
 			mutex_unlock(&ses->session_mutex);
@@ -2112,23 +2179,32 @@ create_reconnect_durable_buf(struct cifs_fid *fid)
 static void
 parse_query_id_ctxt(struct create_context *cc, struct smb2_file_all_info *buf)
 {
-	struct create_on_disk_id *pdisk_id = (struct create_on_disk_id *)cc;
+	u16 doff = le16_to_cpu(cc->DataOffset);
+	u32 dlen = le32_to_cpu(cc->DataLength);
+	u8 *beg;
 
-	cifs_dbg(FYI, "parse query id context 0x%llx 0x%llx\n",
-		pdisk_id->DiskFileId, pdisk_id->VolumeId);
-	buf->IndexNumber = pdisk_id->DiskFileId;
+	if (dlen < sizeof(__le64))
+		return;
+
+	beg = (u8 *)cc + doff;
+	memcpy(&buf->IndexNumber, beg, sizeof(__le64));
+	cifs_dbg(FYI, "parse query id context 0x%llx\n",
+		 le64_to_cpu(buf->IndexNumber));
 }
 
 static void
 parse_posix_ctxt(struct create_context *cc, struct smb2_file_all_info *info,
 		 struct create_posix_rsp *posix)
 {
-	int sid_len;
 	u8 *beg = (u8 *)cc + le16_to_cpu(cc->DataOffset);
-	u8 *end = beg + le32_to_cpu(cc->DataLength);
+	u32 dlen = le32_to_cpu(cc->DataLength);
+	u8 *end = beg + dlen;
+	int sid_len;
 	u8 *sid;
 
 	memset(posix, 0, sizeof(*posix));
+	if (dlen < 3 * sizeof(__le32))
+		return;
 
 	posix->nlink = get_unaligned_le32(beg);
 	posix->reparse_tag = get_unaligned_le32(beg + 4);
@@ -2164,6 +2240,7 @@ int smb2_parse_contexts(struct TCP_Server_Info *server,
 	struct smb2_create_rsp *rsp = rsp_iov->iov_base;
 	struct create_context *cc;
 	size_t rem, off, len;
+	size_t cc_len;
 	size_t doff, dlen;
 	size_t noff, nlen;
 	char *name;
@@ -2186,29 +2263,41 @@ int smb2_parse_contexts(struct TCP_Server_Info *server,
 		buf->IndexNumber = 0;
 
 	while (rem >= sizeof(*cc)) {
+		off = le32_to_cpu(cc->Next);
+		if (off) {
+			if ((off & 0x7) || off >= rem || off < sizeof(*cc))
+				return -EINVAL;
+			cc_len = off;
+		} else {
+			cc_len = rem;
+		}
+
 		doff = le16_to_cpu(cc->DataOffset);
 		dlen = le32_to_cpu(cc->DataLength);
-		if (check_add_overflow(doff, dlen, &len) || len > rem)
+		if (doff < sizeof(*cc) ||
+		    check_add_overflow(doff, dlen, &len) || len > cc_len)
 			return -EINVAL;
 
 		noff = le16_to_cpu(cc->NameOffset);
 		nlen = le16_to_cpu(cc->NameLength);
-		if (noff + nlen > doff)
+		if (noff < sizeof(*cc) ||
+		    check_add_overflow(noff, nlen, &len) || len > cc_len ||
+		    (dlen && len > doff))
 			return -EINVAL;
 
 		name = (char *)cc + noff;
 		switch (nlen) {
 		case 4:
-			if (!strncmp(name, SMB2_CREATE_REQUEST_LEASE, 4)) {
+			if (dlen && !strncmp(name, SMB2_CREATE_REQUEST_LEASE, 4)) {
 				*oplock = server->ops->parse_lease_buf(cc, epoch,
 								       lease_key);
-			} else if (buf &&
+			} else if (dlen && buf &&
 				   !strncmp(name, SMB2_CREATE_QUERY_ON_DISK_ID, 4)) {
 				parse_query_id_ctxt(cc, buf);
 			}
 			break;
 		case 16:
-			if (posix && !memcmp(name, smb3_create_tag_posix, 16))
+			if (dlen && posix && !memcmp(name, smb3_create_tag_posix, 16))
 				parse_posix_ctxt(cc, buf, posix);
 			break;
 		default:
@@ -2220,12 +2309,17 @@ int smb2_parse_contexts(struct TCP_Server_Info *server,
 		}
 
 		off = le32_to_cpu(cc->Next);
-		if (!off)
+		if (!off) {
+			rem = 0;
 			break;
+		}
 		if (check_sub_overflow(rem, off, &rem))
 			return -EINVAL;
 		cc = (struct create_context *)((u8 *)cc + off);
 	}
+
+	if (rem)
+		return -EINVAL;
 
 	if (rsp->OplockLevel != SMB2_OPLOCK_LEVEL_LEASE)
 		*oplock = rsp->OplockLevel;
@@ -3027,7 +3121,7 @@ SMB2_open_free(struct smb_rqst *rqst)
 
 int
 SMB2_open(const unsigned int xid, struct cifs_open_parms *oparms, __le16 *path,
-	  __u8 *oplock, struct smb2_file_all_info *buf,
+	  __u8 *oplock, struct cifs_open_info_data *buf,
 	  struct create_posix_rsp *posix,
 	  struct kvec *err_iov, int *buftype)
 {
@@ -3041,6 +3135,7 @@ SMB2_open(const unsigned int xid, struct cifs_open_parms *oparms, __le16 *path,
 	int resp_buftype = CIFS_NO_BUFFER;
 	int rc = 0;
 	int flags = 0;
+	struct smb2_file_all_info *file_info = buf ? &buf->fi : NULL;
 
 	cifs_dbg(FYI, "create/open\n");
 	if (!ses || !server)
@@ -3085,9 +3180,6 @@ SMB2_open(const unsigned int xid, struct cifs_open_parms *oparms, __le16 *path,
 		goto creat_exit;
 	} else if (rsp == NULL) /* unlikely to happen, but safer to check */
 		goto creat_exit;
-	else
-		trace_smb3_open_done(xid, rsp->PersistentFileId, tcon->tid, ses->Suid,
-				     oparms->create_options, oparms->desired_access);
 
 	atomic_inc(&tcon->num_remote_opens);
 	oparms->fid->persistent_fid = rsp->PersistentFileId;
@@ -3097,21 +3189,27 @@ SMB2_open(const unsigned int xid, struct cifs_open_parms *oparms, __le16 *path,
 	oparms->fid->mid = le64_to_cpu(rsp->hdr.MessageId);
 #endif /* CIFS_DEBUG2 */
 
-	if (buf) {
-		buf->CreationTime = rsp->CreationTime;
-		buf->LastAccessTime = rsp->LastAccessTime;
-		buf->LastWriteTime = rsp->LastWriteTime;
-		buf->ChangeTime = rsp->ChangeTime;
-		buf->AllocationSize = rsp->AllocationSize;
-		buf->EndOfFile = rsp->EndofFile;
-		buf->Attributes = rsp->FileAttributes;
-		buf->NumberOfLinks = cpu_to_le32(1);
-		buf->DeletePending = 0;
+	if (file_info) {
+		file_info->CreationTime = rsp->CreationTime;
+		file_info->LastAccessTime = rsp->LastAccessTime;
+		file_info->LastWriteTime = rsp->LastWriteTime;
+		file_info->ChangeTime = rsp->ChangeTime;
+		file_info->AllocationSize = rsp->AllocationSize;
+		file_info->EndOfFile = rsp->EndofFile;
+		file_info->Attributes = rsp->FileAttributes;
+		file_info->NumberOfLinks = cpu_to_le32(1);
+		file_info->DeletePending = 0;
 	}
 
 
 	rc = smb2_parse_contexts(server, &rsp_iov, &oparms->fid->epoch,
-				 oparms->fid->lease_key, oplock, buf, posix);
+				 oparms->fid->lease_key, oplock, file_info, posix);
+	if (rc)
+		SMB2_close(xid, tcon, oparms->fid->persistent_fid,
+			   oparms->fid->volatile_fid);
+
+	trace_smb3_open_done(xid, rsp->PersistentFileId, tcon->tid, ses->Suid,
+			     oparms->create_options, oparms->desired_access);
 creat_exit:
 	SMB2_open_free(&rqst);
 	free_rsp_buf(resp_buftype, rsp);
@@ -3903,6 +4001,13 @@ void smb2_reconnect_server(struct work_struct *work)
 	/* Prevent simultaneous reconnects that can corrupt tcon->rlist list */
 	mutex_lock(&pserver->reconnect_mutex);
 
+	/* if the server is marked for termination, drop the ref count here */
+	if (server->terminate) {
+		cifs_put_tcp_session(server, true);
+		mutex_unlock(&pserver->reconnect_mutex);
+		return;
+	}
+
 	INIT_LIST_HEAD(&tmp_list);
 	INIT_LIST_HEAD(&tmp_ses_list);
 	cifs_dbg(FYI, "Reconnecting tcons and channels\n");
@@ -3920,7 +4025,11 @@ void smb2_reconnect_server(struct work_struct *work)
 
 		list_for_each_entry(tcon, &ses->tcon_list, tcon_list) {
 			if (tcon->need_reconnect || tcon->need_reopen_files) {
+				spin_lock(&tcon->tc_lock);
 				tcon->tc_count++;
+				spin_unlock(&tcon->tc_lock);
+				trace_smb3_tcon_ref(tcon->debug_id, tcon->tc_count,
+						    netfs_trace_tcon_ref_get_reconnect_server);
 				list_add_tail(&tcon->rlist, &tmp_list);
 				tcon_selected = tcon_exist = true;
 			}
@@ -3966,14 +4075,14 @@ void smb2_reconnect_server(struct work_struct *work)
 		if (tcon->ipc)
 			cifs_put_smb_ses(tcon->ses);
 		else
-			cifs_put_tcon(tcon);
+			cifs_put_tcon(tcon, netfs_trace_tcon_ref_put_reconnect_server);
 	}
 
 	if (!ses_exist)
 		goto done;
 
 	/* allocate a dummy tcon struct used for reconnect */
-	tcon = tconInfoAlloc();
+	tcon = tconInfoAlloc(netfs_trace_tcon_ref_new_reconnect_server);
 	if (!tcon) {
 		resched = true;
 		list_for_each_entry_safe(ses, ses2, &tmp_ses_list, rlist) {
@@ -3996,7 +4105,7 @@ void smb2_reconnect_server(struct work_struct *work)
 		list_del_init(&ses->rlist);
 		cifs_put_smb_ses(ses);
 	}
-	tconInfoFree(tcon);
+	tconInfoFree(tcon, netfs_trace_tcon_ref_free_reconnect_server);
 
 done:
 	cifs_dbg(FYI, "Reconnecting tcons and channels finished\n");
@@ -4178,8 +4287,10 @@ smb2_new_read_req(void **buf, unsigned int *total_len,
 	if (rc)
 		return rc;
 
-	if (server == NULL)
-		return -ECONNABORTED;
+	if (!server) {
+		rc = -ECONNABORTED;
+		goto free_req;
+	}
 
 	shdr = &req->hdr;
 	shdr->Id.SyncId.ProcessId = cpu_to_le32(io_parms->pid);
@@ -4210,8 +4321,10 @@ smb2_new_read_req(void **buf, unsigned int *total_len,
 				server->smbd_conn, rdata->pages,
 				rdata->nr_pages, rdata->page_offset,
 				rdata->tailsz, true, need_invalidate);
-		if (!rdata->mr)
-			return -EAGAIN;
+		if (!rdata->mr) {
+			rc = -EAGAIN;
+			goto free_req;
+		}
 
 		req->Channel = SMB2_CHANNEL_RDMA_V1_INVALIDATE;
 		if (need_invalidate)
@@ -4253,6 +4366,10 @@ smb2_new_read_req(void **buf, unsigned int *total_len,
 		req->RemainingBytes = 0;
 
 	*buf = req;
+	return rc;
+
+free_req:
+	cifs_small_buf_release(req);
 	return rc;
 }
 

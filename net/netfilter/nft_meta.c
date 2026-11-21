@@ -581,8 +581,7 @@ static int nft_meta_get_validate_xfrm(const struct nft_ctx *ctx)
 }
 
 static int nft_meta_get_validate(const struct nft_ctx *ctx,
-				 const struct nft_expr *expr,
-				 const struct nft_data **data)
+				 const struct nft_expr *expr)
 {
 	const struct nft_meta *priv = nft_expr_priv(expr);
 
@@ -600,8 +599,7 @@ static int nft_meta_get_validate(const struct nft_ctx *ctx,
 }
 
 int nft_meta_set_validate(const struct nft_ctx *ctx,
-			  const struct nft_expr *expr,
-			  const struct nft_data **data)
+			  const struct nft_expr *expr)
 {
 	struct nft_meta *priv = nft_expr_priv(expr);
 	unsigned int hooks;
@@ -657,7 +655,7 @@ int nft_meta_set_init(const struct nft_ctx *ctx,
 	}
 
 	priv->len = len;
-	err = nft_parse_register_load(tb[NFTA_META_SREG], &priv->sreg, len);
+	err = nft_parse_register_load(ctx, tb[NFTA_META_SREG], &priv->sreg, len);
 	if (err < 0)
 		return err;
 
@@ -669,7 +667,7 @@ int nft_meta_set_init(const struct nft_ctx *ctx,
 EXPORT_SYMBOL_GPL(nft_meta_set_init);
 
 int nft_meta_get_dump(struct sk_buff *skb,
-		      const struct nft_expr *expr)
+		      const struct nft_expr *expr, bool reset)
 {
 	const struct nft_meta *priv = nft_expr_priv(expr);
 
@@ -684,7 +682,8 @@ nla_put_failure:
 }
 EXPORT_SYMBOL_GPL(nft_meta_get_dump);
 
-int nft_meta_set_dump(struct sk_buff *skb, const struct nft_expr *expr)
+int nft_meta_set_dump(struct sk_buff *skb,
+		      const struct nft_expr *expr, bool reset)
 {
 	const struct nft_meta *priv = nft_expr_priv(expr);
 

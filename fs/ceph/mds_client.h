@@ -65,6 +65,8 @@ enum ceph_feature_type {
 struct ceph_fs_client;
 struct ceph_cap;
 
+#define CEPH_GET_CAPS_WAIT_TIMEOUT (5 * HZ)
+
 /*
  * parsed info about a single inode.  pointers are into the encoded
  * on-wire structures within the mds reply message payload.
@@ -217,6 +219,7 @@ struct ceph_mds_session {
 	struct list_head  s_waiting;  /* waiting requests */
 	struct list_head  s_unsafe;   /* unsafe requests */
 	struct xarray	  s_delegated_inos;
+	atomic_t	  s_num_deleg_inos;
 };
 
 /*
@@ -561,7 +564,8 @@ static inline void ceph_mdsc_free_path(char *path, int len)
 		__putname(path - (PATH_MAX - 1 - len));
 }
 
-extern char *ceph_mdsc_build_path(struct dentry *dentry, int *plen, u64 *base,
+extern char *ceph_mdsc_build_path(struct ceph_mds_client *mdsc,
+				  struct dentry *dentry, int *plen, u64 *base,
 				  int stop_on_nosnap);
 
 extern void __ceph_mdsc_drop_dentry_lease(struct dentry *dentry);

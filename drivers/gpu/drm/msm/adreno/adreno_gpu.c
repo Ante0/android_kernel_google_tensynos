@@ -1052,6 +1052,8 @@ int adreno_gpu_init(struct drm_device *drm, struct platform_device *pdev,
 	adreno_gpu->revn = adreno_gpu->info->revn;
 	adreno_gpu->rev = *rev;
 
+	gpu->pdev = pdev;
+
 	if (adreno_read_speedbin(dev, &speedbin) || !speedbin)
 		speedbin = 0xffff;
 	adreno_gpu->speedbin = (uint16_t) (0xffff & speedbin);
@@ -1087,6 +1089,8 @@ void adreno_gpu_cleanup(struct adreno_gpu *adreno_gpu)
 
 	for (i = 0; i < ARRAY_SIZE(adreno_gpu->info->fw); i++)
 		release_firmware(adreno_gpu->fw[i]);
+
+	pm_runtime_dont_use_autosuspend(&gpu->pdev->dev);
 
 	if (priv && pm_runtime_enabled(&priv->gpu_pdev->dev))
 		pm_runtime_disable(&priv->gpu_pdev->dev);

@@ -97,7 +97,8 @@ static int nft_osf_init(const struct nft_ctx *ctx,
 	return 0;
 }
 
-static int nft_osf_dump(struct sk_buff *skb, const struct nft_expr *expr)
+static int nft_osf_dump(struct sk_buff *skb,
+			const struct nft_expr *expr, bool reset)
 {
 	const struct nft_osf *priv = nft_expr_priv(expr);
 
@@ -117,8 +118,7 @@ nla_put_failure:
 }
 
 static int nft_osf_validate(const struct nft_ctx *ctx,
-			    const struct nft_expr *expr,
-			    const struct nft_data **data)
+			    const struct nft_expr *expr)
 {
 	unsigned int hooks;
 

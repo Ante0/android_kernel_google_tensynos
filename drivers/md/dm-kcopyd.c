@@ -50,10 +50,12 @@ static unsigned int dm_get_kcopyd_subjob_size(void)
 	return sub_job_size_kb << 1;
 }
 
-/*-----------------------------------------------------------------
+/*
+ *----------------------------------------------------------------
  * Each kcopyd client has its own little pool of preallocated
  * pages for kcopyd io.
- *---------------------------------------------------------------*/
+ *---------------------------------------------------------------
+ */
 struct dm_kcopyd_client {
 	struct page_list *pages;
 	unsigned int nr_reserved_pages;
@@ -148,6 +150,7 @@ try_again:
 
 	if (unlikely(t->total_period >= (1 << ACCOUNT_INTERVAL_SHIFT))) {
 		int shift = fls(t->total_period >> ACCOUNT_INTERVAL_SHIFT);
+
 		t->total_period >>= shift;
 		t->io_period >>= shift;
 	}
@@ -333,11 +336,13 @@ static void client_free_pages(struct dm_kcopyd_client *kc)
 	kc->nr_free_pages = kc->nr_reserved_pages = 0;
 }
 
-/*-----------------------------------------------------------------
+/*
+ *---------------------------------------------------------------
  * kcopyd_jobs need to be allocated by the *clients* of kcopyd,
  * for this reason we use a mempool to prevent the client from
  * ever having to do io (which could cause a deadlock).
- *---------------------------------------------------------------*/
+ *---------------------------------------------------------------
+ */
 struct kcopyd_job {
 	struct dm_kcopyd_client *kc;
 	struct list_head list;
@@ -603,7 +608,7 @@ static int run_pages_job(struct kcopyd_job *job)
  * of successful jobs.
  */
 static int process_jobs(struct list_head *jobs, struct dm_kcopyd_client *kc,
-			int (*fn) (struct kcopyd_job *))
+			int (*fn)(struct kcopyd_job *))
 {
 	struct kcopyd_job *job;
 	int r, count = 0;
@@ -673,6 +678,7 @@ static void do_work(struct work_struct *work)
 static void dispatch_job(struct kcopyd_job *job)
 {
 	struct dm_kcopyd_client *kc = job->kc;
+
 	atomic_inc(&kc->nr_jobs);
 	if (unlikely(!job->source.count))
 		push(&kc->callback_jobs, job);
@@ -900,9 +906,11 @@ int kcopyd_cancel(struct kcopyd_job *job, int block)
 }
 #endif  /*  0  */
 
-/*-----------------------------------------------------------------
+/*
+ *---------------------------------------------------------------
  * Client setup
- *---------------------------------------------------------------*/
+ *---------------------------------------------------------------
+ */
 struct dm_kcopyd_client *dm_kcopyd_client_create(struct dm_kcopyd_throttle *throttle)
 {
 	int r;

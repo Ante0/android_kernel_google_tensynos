@@ -368,9 +368,10 @@ static int crypt_iv_benbi_ctr(struct crypt_config *cc, struct dm_target *ti,
 		bs = crypto_skcipher_blocksize(any_tfm(cc));
 	log = ilog2(bs);
 
-	/* we need to calculate how far we must shift the sector count
-	 * to get the cipher block count, we use this shift in _gen */
-
+	/*
+	 * We need to calculate how far we must shift the sector count
+	 * to get the cipher block count, we use this shift in _gen.
+	 */
 	if (1 << log != bs) {
 		ti->error = "cypher blocksize is not a power of 2";
 		return -EINVAL;
@@ -990,20 +991,20 @@ static int crypt_iv_elephant(struct crypt_config *cc, struct dm_crypt_request *d
 	}
 
 	if (bio_data_dir(dmreq->ctx->bio_in) != WRITE) {
-		diffuser_disk_to_cpu((u32*)data_offset, cc->sector_size / sizeof(u32));
-		diffuser_b_decrypt((u32*)data_offset, cc->sector_size / sizeof(u32));
-		diffuser_a_decrypt((u32*)data_offset, cc->sector_size / sizeof(u32));
-		diffuser_cpu_to_disk((__le32*)data_offset, cc->sector_size / sizeof(u32));
+		diffuser_disk_to_cpu((u32 *)data_offset, cc->sector_size / sizeof(u32));
+		diffuser_b_decrypt((u32 *)data_offset, cc->sector_size / sizeof(u32));
+		diffuser_a_decrypt((u32 *)data_offset, cc->sector_size / sizeof(u32));
+		diffuser_cpu_to_disk((__le32 *)data_offset, cc->sector_size / sizeof(u32));
 	}
 
 	for (i = 0; i < (cc->sector_size / 32); i++)
 		crypto_xor(data_offset + i * 32, ks, 32);
 
 	if (bio_data_dir(dmreq->ctx->bio_in) == WRITE) {
-		diffuser_disk_to_cpu((u32*)data_offset, cc->sector_size / sizeof(u32));
-		diffuser_a_encrypt((u32*)data_offset, cc->sector_size / sizeof(u32));
-		diffuser_b_encrypt((u32*)data_offset, cc->sector_size / sizeof(u32));
-		diffuser_cpu_to_disk((__le32*)data_offset, cc->sector_size / sizeof(u32));
+		diffuser_disk_to_cpu((u32 *)data_offset, cc->sector_size / sizeof(u32));
+		diffuser_a_encrypt((u32 *)data_offset, cc->sector_size / sizeof(u32));
+		diffuser_b_encrypt((u32 *)data_offset, cc->sector_size / sizeof(u32));
+		diffuser_cpu_to_disk((__le32 *)data_offset, cc->sector_size / sizeof(u32));
 	}
 
 	kunmap_atomic(data);
@@ -1260,6 +1261,7 @@ static __le64 *org_sector_of_dmreq(struct crypt_config *cc,
 		       struct dm_crypt_request *dmreq)
 {
 	u8 *ptr = iv_of_dmreq(cc, dmreq) + cc->iv_size + cc->iv_size;
+
 	return (__le64 *) ptr;
 }
 
@@ -1268,7 +1270,8 @@ static unsigned int *org_tag_of_dmreq(struct crypt_config *cc,
 {
 	u8 *ptr = iv_of_dmreq(cc, dmreq) + cc->iv_size +
 		  cc->iv_size + sizeof(uint64_t);
-	return (unsigned int*)ptr;
+
+	return (unsigned int *)ptr;
 }
 
 static void *tag_from_dmreq(struct crypt_config *cc,
@@ -1755,7 +1758,6 @@ static void crypt_dec_pending(struct dm_crypt_io *io)
 {
 	struct crypt_config *cc = io->cc;
 	struct bio *base_bio = io->base_bio;
-	blk_status_t error = io->error;
 
 	if (!atomic_dec_and_test(&io->io_pending))
 		return;
@@ -1777,7 +1779,7 @@ static void crypt_dec_pending(struct dm_crypt_io *io)
 	else
 		kfree(io->integrity_metadata);
 
-	base_bio->bi_status = error;
+	base_bio->bi_status = io->error;
 
 	bio_endio(base_bio);
 }
@@ -2912,8 +2914,13 @@ static int crypt_ctr_cipher_new(struct dm_target *ti, char *cipher_in, char *key
 		}
 	}
 
-	if (*ivmode && !strcmp(*ivmode, "lmk"))
+	if (*ivmode && !strcmp(*ivmode, "lmk")) {
+		if (crypt_integrity_aead(cc)) {
+			ti->error = "AEAD transforms not supported for LMK";
+			return -EINVAL;
+		}
 		cc->tfms_count = 64;
+	}
 
 	if (*ivmode && !strcmp(*ivmode, "essiv")) {
 		if (!*ivopts) {

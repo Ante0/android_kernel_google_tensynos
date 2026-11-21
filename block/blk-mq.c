@@ -2979,16 +2979,7 @@ static bool blk_mq_can_use_cached_rq(struct request *rq, struct blk_plug *plug,
 	if (op_is_flush(rq->cmd_flags) != op_is_flush(bio->bi_opf))
 		return false;
 
-	/*
-	 * If any qos ->throttle() end up blocking, we will have flushed the
-	 * plug and hence killed the cached_rq list as well. Pop this entry
-	 * before we throttle.
-	 */
 	plug->cached_rq = rq_list_next(rq);
-	rq_qos_throttle(rq->q, bio);
-
-	rq->cmd_flags = bio->bi_opf;
-	INIT_LIST_HEAD(&rq->queuelist);
 	return true;
 }
 
@@ -3020,22 +3011,25 @@ void blk_mq_submit_bio(struct bio *bio)
 		rq = rq_list_peek(&plug->cached_rq);
 		if (rq && rq->q != q)
 			rq = NULL;
+		if (rq && !blk_mq_can_use_cached_rq(rq, plug, bio))
+			rq = NULL;
 	}
 	if (rq) {
 		if (unlikely(bio_may_exceed_limits(bio, &q->limits))) {
 			bio = __bio_split_to_limits(bio, &q->limits, &nr_segs);
 			if (!bio)
-				return;
+				goto free_rq;
 		} else if (bio->bi_vcnt == 1) {
 			nr_segs = blk_segments(&q->limits, bio->bi_io_vec[0].bv_len);
 		}
 		if (!bio_integrity_prep(bio))
-			return;
+			goto free_rq;
 		if (blk_mq_attempt_bio_merge(q, bio, nr_segs))
-			return;
-		if (blk_mq_can_use_cached_rq(rq, plug, bio))
-			goto done;
-		percpu_ref_get(&q->q_usage_counter);
+			goto free_rq;
+		rq_qos_throttle(q, bio);
+		rq->cmd_flags = bio->bi_opf;
+		INIT_LIST_HEAD(&rq->queuelist);
+		goto done;
 	} else {
 		if (unlikely(bio_queue_enter(bio)))
 			return;
@@ -3086,6 +3080,10 @@ done:
 	else
 		blk_mq_run_dispatch_ops(rq->q,
 				blk_mq_try_issue_directly(rq->mq_hctx, rq));
+	return;
+
+free_rq:
+	blk_mq_free_request(rq);
 }
 
 #ifdef CONFIG_BLK_MQ_STACKING
@@ -4830,7 +4828,8 @@ static void __blk_mq_update_nr_hw_queues(struct blk_mq_tag_set *set,
 {
 	struct request_queue *q;
 	LIST_HEAD(head);
-	int prev_nr_hw_queues;
+	int prev_nr_hw_queues = set->nr_hw_queues;
+	int i;
 
 	lockdep_assert_held(&set->tag_list_lock);
 
@@ -4857,7 +4856,6 @@ static void __blk_mq_update_nr_hw_queues(struct blk_mq_tag_set *set,
 		blk_mq_sysfs_unregister_hctxs(q);
 	}
 
-	prev_nr_hw_queues = set->nr_hw_queues;
 	if (blk_mq_realloc_tag_set_tags(set, set->nr_hw_queues, nr_hw_queues) <
 	    0)
 		goto reregister;
@@ -4895,6 +4893,10 @@ switch_back:
 
 	list_for_each_entry(q, &set->tag_list, tag_set_list)
 		blk_mq_unfreeze_queue(q);
+
+	/* Free the excess tags when nr_hw_queues shrink. */
+	for (i = set->nr_hw_queues; i < prev_nr_hw_queues; i++)
+		__blk_mq_free_map_and_rqs(set, i);
 }
 
 void blk_mq_update_nr_hw_queues(struct blk_mq_tag_set *set, int nr_hw_queues)

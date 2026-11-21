@@ -136,6 +136,7 @@ struct mlx4_ib_mr {
 	dma_addr_t		page_map;
 	u32			npages;
 	u32			max_pages;
+	int			access_flags;
 	struct mlx4_mr		mmr;
 	struct ib_umem	       *umem;
 	size_t			page_map_size;
@@ -939,5 +940,8 @@ int mlx4_ib_umem_calc_optimal_mtt_size(struct ib_umem *umem, u64 start_va,
 
 int mlx4_ib_cm_init(void);
 void mlx4_ib_cm_destroy(void);
+
+int mlx4_ib_qp_event_init(void);
+void mlx4_ib_qp_event_cleanup(void);
 
 #endif /* MLX4_IB_H */

@@ -502,10 +502,16 @@ int btrfs_force_cow_block(struct btrfs_trans_handle *trans,
 		atomic_inc(&cow->refs);
 		rcu_assign_pointer(root->node, cow);
 
-		btrfs_free_tree_block(trans, btrfs_root_id(root), buf,
-				      parent_start, last_ref);
+		ret = btrfs_free_tree_block(trans, btrfs_root_id(root), buf,
+					    parent_start, last_ref);
 		free_extent_buffer(buf);
 		add_root_to_dirty_list(root);
+		if (ret < 0) {
+			btrfs_tree_unlock(cow);
+			free_extent_buffer(cow);
+			btrfs_abort_transaction(trans, ret);
+			return ret;
+		}
 	} else {
 		WARN_ON(trans->transid != btrfs_header_generation(parent));
 		btrfs_tree_mod_log_insert_key(parent, parent_slot,
@@ -524,8 +530,14 @@ int btrfs_force_cow_block(struct btrfs_trans_handle *trans,
 				return ret;
 			}
 		}
-		btrfs_free_tree_block(trans, btrfs_root_id(root), buf,
-				      parent_start, last_ref);
+		ret = btrfs_free_tree_block(trans, btrfs_root_id(root), buf,
+					    parent_start, last_ref);
+		if (ret < 0) {
+			btrfs_tree_unlock(cow);
+			free_extent_buffer(cow);
+			btrfs_abort_transaction(trans, ret);
+			return ret;
+		}
 	}
 
 	trace_btrfs_cow_block(root, buf, cow);
@@ -999,9 +1011,13 @@ static noinline int balance_level(struct btrfs_trans_handle *trans,
 		free_extent_buffer(mid);
 
 		root_sub_used(root, mid->len);
-		btrfs_free_tree_block(trans, btrfs_root_id(root), mid, 0, 1);
+		ret = btrfs_free_tree_block(trans, btrfs_root_id(root), mid, 0, 1);
 		/* once for the root ptr */
 		free_extent_buffer_stale(mid);
+		if (ret < 0) {
+			btrfs_abort_transaction(trans, ret);
+			goto enospc;
+		}
 		return 0;
 	}
 	if (btrfs_header_nritems(mid) >
@@ -1058,10 +1074,14 @@ static noinline int balance_level(struct btrfs_trans_handle *trans,
 			btrfs_tree_unlock(right);
 			del_ptr(root, path, level + 1, pslot + 1);
 			root_sub_used(root, right->len);
-			btrfs_free_tree_block(trans, btrfs_root_id(root), right,
-					      0, 1);
+			ret = btrfs_free_tree_block(trans, btrfs_root_id(root),
+						    right, 0, 1);
 			free_extent_buffer_stale(right);
 			right = NULL;
+			if (ret < 0) {
+				btrfs_abort_transaction(trans, ret);
+				goto enospc;
+			}
 		} else {
 			struct btrfs_disk_key right_key;
 			btrfs_node_key(right, &right_key, 0);
@@ -1107,9 +1127,15 @@ static noinline int balance_level(struct btrfs_trans_handle *trans,
 		btrfs_tree_unlock(mid);
 		del_ptr(root, path, level + 1, pslot);
 		root_sub_used(root, mid->len);
-		btrfs_free_tree_block(trans, btrfs_root_id(root), mid, 0, 1);
+		ret = btrfs_free_tree_block(trans, btrfs_root_id(root), mid, 0, 1);
 		free_extent_buffer_stale(mid);
 		mid = NULL;
+		if (ret < 0) {
+			path->locks[level] = 0;
+			path->nodes[level] = NULL;
+			btrfs_abort_transaction(trans, ret);
+			goto enospc;
+		}
 	} else {
 		/* update the parent key to reflect our changes */
 		struct btrfs_disk_key mid_key;
@@ -2653,8 +2679,8 @@ static int push_node_left(struct btrfs_trans_handle *trans,
 
 	if (push_items < src_nritems) {
 		/*
-		 * Don't call btrfs_tree_mod_log_insert_move() here, key removal
-		 * was already fully logged by btrfs_tree_mod_log_eb_copy() above.
+		 * btrfs_tree_mod_log_eb_copy handles logging the move, so we
+		 * don't need to do an explicit tree mod log operation for it.
 		 */
 		memmove_extent_buffer(src, btrfs_node_key_ptr_offset(0),
 				      btrfs_node_key_ptr_offset(push_items),
@@ -2715,8 +2741,10 @@ static int balance_node_right(struct btrfs_trans_handle *trans,
 		btrfs_abort_transaction(trans, ret);
 		return ret;
 	}
-	ret = btrfs_tree_mod_log_insert_move(dst, push_items, 0, dst_nritems);
-	BUG_ON(ret < 0);
+	/*
+	 * btrfs_tree_mod_log_eb_copy handles logging the move, so we don't
+	 * need to do an explicit tree mod log operation for it.
+	 */
 	memmove_extent_buffer(dst, btrfs_node_key_ptr_offset(push_items),
 				      btrfs_node_key_ptr_offset(0),
 				      (dst_nritems) *
@@ -4312,11 +4340,13 @@ static void del_ptr(struct btrfs_root *root, struct btrfs_path *path,
  * The path must have already been setup for deleting the leaf, including
  * all the proper balancing.  path->nodes[1] must be locked.
  */
-static noinline void btrfs_del_leaf(struct btrfs_trans_handle *trans,
-				    struct btrfs_root *root,
-				    struct btrfs_path *path,
-				    struct extent_buffer *leaf)
+static noinline int btrfs_del_leaf(struct btrfs_trans_handle *trans,
+				   struct btrfs_root *root,
+				   struct btrfs_path *path,
+				   struct extent_buffer *leaf)
 {
+	int ret;
+
 	WARN_ON(btrfs_header_generation(leaf) != trans->transid);
 	del_ptr(root, path, 1, path->slots[1]);
 
@@ -4329,8 +4359,12 @@ static noinline void btrfs_del_leaf(struct btrfs_trans_handle *trans,
 	root_sub_used(root, leaf->len);
 
 	atomic_inc(&leaf->refs);
-	btrfs_free_tree_block(trans, btrfs_root_id(root), leaf, 0, 1);
+	ret = btrfs_free_tree_block(trans, btrfs_root_id(root), leaf, 0, 1);
 	free_extent_buffer_stale(leaf);
+	if (ret < 0)
+		btrfs_abort_transaction(trans, ret);
+
+	return ret;
 }
 /*
  * delete the item at the leaf level in path.  If that empties
@@ -4385,7 +4419,9 @@ int btrfs_del_items(struct btrfs_trans_handle *trans, struct btrfs_root *root,
 			btrfs_set_header_level(leaf, 0);
 		} else {
 			btrfs_clean_tree_block(leaf);
-			btrfs_del_leaf(trans, root, path, leaf);
+			ret = btrfs_del_leaf(trans, root, path, leaf);
+			if (ret < 0)
+				return ret;
 		}
 	} else {
 		int used = leaf_space_used(leaf, 0, nritems);
@@ -4446,9 +4482,8 @@ int btrfs_del_items(struct btrfs_trans_handle *trans, struct btrfs_root *root,
 
 			if (btrfs_header_nritems(leaf) == 0) {
 				path->slots[1] = slot;
-				btrfs_del_leaf(trans, root, path, leaf);
+				ret = btrfs_del_leaf(trans, root, path, leaf);
 				free_extent_buffer(leaf);
-				ret = 0;
 			} else {
 				/* if we're still in the path, make sure
 				 * we're dirty.  Otherwise, one of the

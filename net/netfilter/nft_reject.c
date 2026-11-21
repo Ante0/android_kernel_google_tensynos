@@ -24,8 +24,7 @@ const struct nla_policy nft_reject_policy[NFTA_REJECT_MAX + 1] = {
 EXPORT_SYMBOL_GPL(nft_reject_policy);
 
 int nft_reject_validate(const struct nft_ctx *ctx,
-			const struct nft_expr *expr,
-			const struct nft_data **data)
+			const struct nft_expr *expr)
 {
 	return nft_chain_validate_hooks(ctx->chain,
 					(1 << NF_INET_LOCAL_IN) |
@@ -69,7 +68,8 @@ int nft_reject_init(const struct nft_ctx *ctx,
 }
 EXPORT_SYMBOL_GPL(nft_reject_init);
 
-int nft_reject_dump(struct sk_buff *skb, const struct nft_expr *expr)
+int nft_reject_dump(struct sk_buff *skb,
+		    const struct nft_expr *expr, bool reset)
 {
 	const struct nft_reject *priv = nft_expr_priv(expr);
 

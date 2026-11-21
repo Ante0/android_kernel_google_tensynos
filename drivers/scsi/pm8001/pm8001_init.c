@@ -653,7 +653,7 @@ static void  pm8001_post_sas_ha_init(struct Scsi_Host *shost,
 	sha->lldd_module = THIS_MODULE;
 	sha->sas_addr = &pm8001_ha->sas_addr[0];
 	sha->num_phys = chip_info->n_phy;
-	sha->core.shost = shost;
+	sha->shost = shost;
 }
 
 /**
@@ -1004,8 +1004,8 @@ static u32 pm8001_request_msix(struct pm8001_hba_info *pm8001_ha)
 			&(pm8001_ha->irq_vector[i]));
 		if (rc) {
 			for (j = 0; j < i; j++) {
-				free_irq(pci_irq_vector(pm8001_ha->pdev, i),
-					&(pm8001_ha->irq_vector[i]));
+				free_irq(pci_irq_vector(pm8001_ha->pdev, j),
+					 &pm8001_ha->irq_vector[j]);
 			}
 			pci_free_irq_vectors(pm8001_ha->pdev);
 			break;

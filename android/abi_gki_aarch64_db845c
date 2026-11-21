@@ -941,6 +941,7 @@
 
 # required by cfg80211.ko
   bpf_trace_run10
+  bpf_trace_run11
   bpf_trace_run7
   debugfs_rename
   __dev_change_net_namespace

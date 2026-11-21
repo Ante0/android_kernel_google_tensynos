@@ -1177,6 +1177,7 @@ struct rq {
 	unsigned int		core_forceidle_seq;
 	unsigned int		core_forceidle_occupation;
 	u64			core_forceidle_start;
+	unsigned int		core_pick_in_flight;
 #endif
 
 	ANDROID_VENDOR_DATA_ARRAY(1, 1);

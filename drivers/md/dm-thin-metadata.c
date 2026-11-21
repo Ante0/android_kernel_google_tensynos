@@ -14,7 +14,8 @@
 #include <linux/device-mapper.h>
 #include <linux/workqueue.h>
 
-/*--------------------------------------------------------------------------
+/*
+ *--------------------------------------------------------------------------
  * As far as the metadata goes, there is:
  *
  * - A superblock in block zero, taking up fewer than 512 bytes for
@@ -70,7 +71,8 @@
  *
  * All metadata io is in THIN_METADATA_BLOCK_SIZE sized/aligned chunks
  * from the block manager.
- *--------------------------------------------------------------------------*/
+ *--------------------------------------------------------------------------
+ */
 
 #define DM_MSG_PREFIX   "thin metadata"
 
@@ -183,6 +185,7 @@ struct dm_pool_metadata {
 	uint32_t time;
 	dm_block_t root;
 	dm_block_t details_root;
+	dm_block_t held_root;
 	struct list_head thin_devices;
 	uint64_t trans_id;
 	unsigned long flags;
@@ -239,10 +242,11 @@ struct dm_thin_device {
 	uint32_t snapshotted_time;
 };
 
-/*----------------------------------------------------------------
+/*
+ *--------------------------------------------------------------
  * superblock validator
- *--------------------------------------------------------------*/
-
+ *--------------------------------------------------------------
+ */
 #define SUPERBLOCK_CSUM_XOR 160774
 
 static void sb_prepare_for_write(struct dm_block_validator *v,
@@ -296,10 +300,11 @@ static struct dm_block_validator sb_validator = {
 	.check = sb_check
 };
 
-/*----------------------------------------------------------------
+/*
+ *--------------------------------------------------------------
  * Methods for the btree value types
- *--------------------------------------------------------------*/
-
+ *--------------------------------------------------------------
+ */
 static uint64_t pack_block_time(dm_block_t b, uint32_t t)
 {
 	return (b << 24) | t;
@@ -398,6 +403,7 @@ static void subtree_dec(void *context, const void *value, unsigned int count)
 static int subtree_equal(void *context, const void *value1_le, const void *value2_le)
 {
 	__le64 v1_le, v2_le;
+
 	memcpy(&v1_le, value1_le, sizeof(v1_le));
 	memcpy(&v2_le, value2_le, sizeof(v2_le));
 
@@ -742,6 +748,7 @@ static int __open_metadata(struct dm_pool_metadata *pmd)
 	 */
 	pmd->root = le64_to_cpu(disk_super->data_mapping_root);
 	pmd->details_root = le64_to_cpu(disk_super->device_details_root);
+	pmd->held_root = le64_to_cpu(disk_super->held_root);
 
 	__setup_btree_details(pmd);
 	dm_bm_unlock(sblock);
@@ -832,6 +839,7 @@ static int __begin_transaction(struct dm_pool_metadata *pmd)
 	pmd->time = le32_to_cpu(disk_super->time);
 	pmd->root = le64_to_cpu(disk_super->data_mapping_root);
 	pmd->details_root = le64_to_cpu(disk_super->device_details_root);
+	pmd->held_root = le64_to_cpu(disk_super->held_root);
 	pmd->trans_id = le64_to_cpu(disk_super->trans_id);
 	pmd->flags = le32_to_cpu(disk_super->flags);
 	pmd->data_block_size = le32_to_cpu(disk_super->data_block_size);
@@ -922,6 +930,7 @@ static int __commit_transaction(struct dm_pool_metadata *pmd)
 	disk_super->time = cpu_to_le32(pmd->time);
 	disk_super->data_mapping_root = cpu_to_le64(pmd->root);
 	disk_super->device_details_root = cpu_to_le64(pmd->details_root);
+	disk_super->held_root = cpu_to_le64(pmd->held_root);
 	disk_super->trans_id = cpu_to_le64(pmd->trans_id);
 	disk_super->flags = cpu_to_le32(pmd->flags);
 
@@ -1327,8 +1336,13 @@ static int __reserve_metadata_snap(struct dm_pool_metadata *pmd)
 {
 	int r, inc;
 	struct thin_disk_superblock *disk_super;
-	struct dm_block *copy, *sblock;
+	struct dm_block *copy;
 	dm_block_t held_root;
+
+	if (pmd->held_root) {
+		DMWARN("Pool metadata snapshot already exists: release this before taking another.");
+		return -EBUSY;
+	}
 
 	/*
 	 * We commit to ensure the btree roots which we increment in a
@@ -1347,21 +1361,15 @@ static int __reserve_metadata_snap(struct dm_pool_metadata *pmd)
 	dm_sm_inc_block(pmd->metadata_sm, THIN_SUPERBLOCK_LOCATION);
 	r = dm_tm_shadow_block(pmd->tm, THIN_SUPERBLOCK_LOCATION,
 			       &sb_validator, &copy, &inc);
-	if (r)
+	if (r) {
+		dm_sm_dec_block(pmd->metadata_sm, THIN_SUPERBLOCK_LOCATION);
 		return r;
+	}
 
 	BUG_ON(!inc);
 
 	held_root = dm_block_location(copy);
 	disk_super = dm_block_data(copy);
-
-	if (le64_to_cpu(disk_super->held_root)) {
-		DMWARN("Pool metadata snapshot already exists: release this before taking another.");
-
-		dm_tm_dec(pmd->tm, held_root);
-		dm_tm_unlock(pmd->tm, copy);
-		return -EBUSY;
-	}
 
 	/*
 	 * Wipe the spacemap since we're not publishing this.
@@ -1378,18 +1386,8 @@ static int __reserve_metadata_snap(struct dm_pool_metadata *pmd)
 	dm_tm_inc(pmd->tm, le64_to_cpu(disk_super->device_details_root));
 	dm_tm_unlock(pmd->tm, copy);
 
-	/*
-	 * Write the held root into the superblock.
-	 */
-	r = superblock_lock(pmd, &sblock);
-	if (r) {
-		dm_tm_dec(pmd->tm, held_root);
-		return r;
-	}
+	pmd->held_root = held_root;
 
-	disk_super = dm_block_data(sblock);
-	disk_super->held_root = cpu_to_le64(held_root);
-	dm_bm_unlock(sblock);
 	return 0;
 }
 
@@ -1409,18 +1407,10 @@ static int __release_metadata_snap(struct dm_pool_metadata *pmd)
 {
 	int r;
 	struct thin_disk_superblock *disk_super;
-	struct dm_block *sblock, *copy;
+	struct dm_block *copy;
 	dm_block_t held_root;
 
-	r = superblock_lock(pmd, &sblock);
-	if (r)
-		return r;
-
-	disk_super = dm_block_data(sblock);
-	held_root = le64_to_cpu(disk_super->held_root);
-	disk_super->held_root = cpu_to_le64(0);
-
-	dm_bm_unlock(sblock);
+	held_root = pmd->held_root;
 
 	if (!held_root) {
 		DMWARN("No pool metadata snapshot found: nothing to release.");
@@ -1431,12 +1421,14 @@ static int __release_metadata_snap(struct dm_pool_metadata *pmd)
 	if (r)
 		return r;
 
+	pmd->held_root = 0;
+
 	disk_super = dm_block_data(copy);
 	dm_btree_del(&pmd->info, le64_to_cpu(disk_super->data_mapping_root));
 	dm_btree_del(&pmd->details_info, le64_to_cpu(disk_super->device_details_root));
-	dm_sm_dec_block(pmd->metadata_sm, held_root);
-
 	dm_tm_unlock(pmd->tm, copy);
+
+	dm_sm_dec_block(pmd->metadata_sm, held_root);
 
 	return 0;
 }
@@ -1456,19 +1448,7 @@ int dm_pool_release_metadata_snap(struct dm_pool_metadata *pmd)
 static int __get_metadata_snap(struct dm_pool_metadata *pmd,
 			       dm_block_t *result)
 {
-	int r;
-	struct thin_disk_superblock *disk_super;
-	struct dm_block *sblock;
-
-	r = dm_bm_read_lock(pmd->bm, THIN_SUPERBLOCK_LOCATION,
-			    &sb_validator, &sblock);
-	if (r)
-		return r;
-
-	disk_super = dm_block_data(sblock);
-	*result = le64_to_cpu(disk_super->held_root);
-
-	dm_bm_unlock(sblock);
+	*result = pmd->held_root;
 
 	return 0;
 }
@@ -1546,9 +1526,9 @@ static int __find_block(struct dm_thin_device *td, dm_block_t block,
 	dm_block_t keys[2] = { td->id, block };
 	struct dm_btree_info *info;
 
-	if (can_issue_io) {
+	if (can_issue_io)
 		info = &pmd->info;
-	} else
+	else
 		info = &pmd->nb_info;
 
 	r = dm_btree_lookup(info, pmd->root, keys, &value);

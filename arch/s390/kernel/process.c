@@ -30,8 +30,8 @@
 #include <linux/export.h>
 #include <linux/init_task.h>
 #include <linux/entry-common.h>
+#include <linux/io.h>
 #include <asm/cpu_mf.h>
-#include <asm/io.h>
 #include <asm/processor.h>
 #include <asm/vtimer.h>
 #include <asm/exec.h>
@@ -48,7 +48,7 @@ void ret_from_fork(void) asm("ret_from_fork");
 
 void __ret_from_fork(struct task_struct *prev, struct pt_regs *regs)
 {
-	void (*func)(void *arg);
+	int (*func)(void *arg);
 
 	schedule_tail(prev);
 

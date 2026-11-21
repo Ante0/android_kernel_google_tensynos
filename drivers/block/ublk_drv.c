@@ -1697,6 +1697,10 @@ static int ublk_ctrl_add_dev(struct io_uring_cmd *cmd)
 	if (copy_from_user(&info, argp, sizeof(info)))
 		return -EFAULT;
 	ublk_dump_dev_info(&info);
+
+	if (info.queue_depth > UBLK_MAX_QUEUE_DEPTH)
+		return -EINVAL;
+
 	if (header->dev_id != info.dev_id) {
 		pr_warn("%s: dev id not match %u %u\n",
 			__func__, header->dev_id, info.dev_id);
@@ -1725,6 +1729,15 @@ static int ublk_ctrl_add_dev(struct io_uring_cmd *cmd)
 
 	/* update device id */
 	ub->dev_info.dev_id = ub->ub_number;
+
+	/*
+	 * ->state and ->ublksrv_pid are owned by the driver and only read back
+	 * by userspace, but they come from the copied-in dev_info, so reset
+	 * them. Otherwise a device added with ->state != DEAD looks live while
+	 * ->ub_disk is still NULL.
+	 */
+	ub->dev_info.state = UBLK_S_DEV_DEAD;
+	ub->dev_info.ublksrv_pid = -1;
 
 	/*
 	 * 64bit flags will be copied back to userspace as feature
