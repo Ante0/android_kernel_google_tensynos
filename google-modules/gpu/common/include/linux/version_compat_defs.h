@@ -600,7 +600,7 @@ static inline void kbase_lockdep_assert_not_held(struct rt_mutex *lock)
 #endif
 }
 
-#if KERNEL_VERSION(6, 3, 0) > LINUX_VERSION_CODE
+#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
 static inline size_t list_count_nodes(struct list_head *head)
 {
 	struct list_head *pos;
