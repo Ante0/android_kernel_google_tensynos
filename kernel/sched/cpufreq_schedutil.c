@@ -56,11 +56,25 @@ static DEFINE_PER_CPU(struct sugov_cpu, sugov_cpu);
 
 /************************ Governor internals ***********************/
 
-static bool sugov_should_rate_limit(struct sugov_policy *sg_policy, u64 time)
+static void sugov_update_rate_limit_us_sync(struct sugov_policy *sg_policy)
 {
-	s64 delta_ns = time - sg_policy->last_freq_update_time;
+ /*
+ * Serialize with rate_limit_us_store() to prevent this path from
+ * overwriting the new delay with one based on an old tunable value.
+ */
+ guard(mutex)(&sg_policy->tunables->attr_set.update_lock);
+ sugov_update_rate_limit_us(sg_policy);
+}
 
-	return delta_ns < sg_policy->freq_update_delay_ns;
+static void sugov_update_rate_limit_us(struct sugov_policy *sg_policy)
+{
+	/*
+	 * Cast rate_limit_us before multiplication to force 64-bit arithmetic.
+	 * Otherwise, on 32-bit platforms, both operands are converted to
+	 * 32-bit unsigned long and the multiplication may overflow.
+	 */
+	sg_policy->freq_update_delay_ns =
+		(s64)sg_policy->tunables->rate_limit_us * NSEC_PER_USEC;
 }
 
 static bool sugov_should_update_freq(struct sugov_policy *sg_policy, u64 time)
@@ -815,7 +829,7 @@ static int sugov_start(struct cpufreq_policy *policy)
 	void (*uu)(struct update_util_data *data, u64 time, unsigned int flags);
 	unsigned int cpu;
 
-	sugov_update_rate_limit_us(sg_policy);
+	sugov_update_rate_limit_us_sync(sg_policy);
 	sg_policy->last_freq_update_time	= 0;
 	sg_policy->next_freq			= 0;
 	sg_policy->work_in_progress		= false;
