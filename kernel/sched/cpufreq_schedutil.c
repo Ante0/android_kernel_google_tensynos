@@ -56,6 +56,17 @@ static DEFINE_PER_CPU(struct sugov_cpu, sugov_cpu);
 
 /************************ Governor internals ***********************/
 
+static void sugov_update_rate_limit_us(struct sugov_policy *sg_policy)
+{
+        /*
+         * Cast rate_limit_us before multiplication to force 64-bit arithmetic.
+         * Otherwise, on 32-bit platforms, both operands are converted to
+         * 32-bit unsigned long and the multiplication may overflow.
+         */
+        sg_policy->freq_update_delay_ns =
+                (s64)sg_policy->tunables->rate_limit_us * NSEC_PER_USEC;
+}
+
 static void sugov_update_rate_limit_us_sync(struct sugov_policy *sg_policy)
 {
  /*
@@ -64,17 +75,6 @@ static void sugov_update_rate_limit_us_sync(struct sugov_policy *sg_policy)
  */
  guard(mutex)(&sg_policy->tunables->attr_set.update_lock);
  sugov_update_rate_limit_us(sg_policy);
-}
-
-static void sugov_update_rate_limit_us(struct sugov_policy *sg_policy)
-{
-	/*
-	 * Cast rate_limit_us before multiplication to force 64-bit arithmetic.
-	 * Otherwise, on 32-bit platforms, both operands are converted to
-	 * 32-bit unsigned long and the multiplication may overflow.
-	 */
-	sg_policy->freq_update_delay_ns =
-		(s64)sg_policy->tunables->rate_limit_us * NSEC_PER_USEC;
 }
 
 static bool sugov_should_update_freq(struct sugov_policy *sg_policy, u64 time)
@@ -114,21 +114,11 @@ static bool sugov_should_update_freq(struct sugov_policy *sg_policy, u64 time)
 		return true;
 	}
 
-	/*
-	 * When frequency-invariant utilization tracking is present, there's no
-	 * rate limit when increasing frequency. Therefore, the next frequency
-	 * must be determined before a decision can be made to rate limit the
-	 * frequency change, hence the rate limit check is bypassed here.
-	 */
-	if (arch_scale_freq_invariant())
-		return true;
-
-	/* If the last frequency wasn't set yet then we can still amend it */
-	if (sg_policy->work_in_progress)
-		return true;
-
-	return !sugov_should_rate_limit(sg_policy, time);
+	delta_ns = time - sg_policy->last_freq_update_time;
+	return delta_ns >= sg_policy->freq_update_delay_ns;
 }
+
+
 
 static bool sugov_update_next_freq(struct sugov_policy *sg_policy, u64 time,
 				   unsigned int next_freq)
